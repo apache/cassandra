@@ -34,7 +34,6 @@ import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.LongTokenRange;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.NodeToolResult.ProgressEventType;
-import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParallelism;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
@@ -83,14 +82,6 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
             {
                 assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
             }
-
-            //TODO this is only for debuging while writing... remove
-            StringBuilder sb = new StringBuilder();
-            log(sb, CLUSTER.get(2), "SELECT * FROM system_views.repairs");
-            log(sb, CLUSTER.get(2), "SELECT * FROM system_views.repair_sessions");
-            log(sb, CLUSTER.get(2), "SELECT * FROM system_views.repair_jobs");
-            CLUSTER.forEach(i -> log(sb, i, "SELECT * FROM system_views.repair_validations"));
-            System.err.println(sb);
 
             Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
         });
