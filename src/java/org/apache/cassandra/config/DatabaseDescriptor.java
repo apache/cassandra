@@ -4110,4 +4110,18 @@ public class DatabaseDescriptor
             conf.repair_state_expires = duration;
         }
     }
+
+    public static int getRepairStateSize()
+    {
+        return conf.repair_state_size;
+    }
+
+    public static void setRepairStateSize(int size)
+    {
+        if (conf.repair_state_size != size)
+        {
+            logger.info("Setting repair_state_size to {}", size);
+            conf.repair_state_size = size;
+        }
+    }
 }

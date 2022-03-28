@@ -53,6 +53,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.schema.Schema;
@@ -232,12 +233,15 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              .build();
 
         DurationSpec duration = getRepairStateExpires();
-        logger.info("Storing repair state for {}", duration);
+        int numElements = getRepairStateSize();
+        logger.info("Storing repair state for {} or for {} elements", duration, numElements);
         repairs = CacheBuilder.newBuilder()
                               .expireAfterWrite(duration.quantity(), duration.unit())
+                              .maximumSize(numElements)
                               .build();
         participates = CacheBuilder.newBuilder()
                                    .expireAfterWrite(duration.quantity(), duration.unit())
+                                   .maximumSize(numElements)
                                    .build();
 
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
