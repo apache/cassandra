@@ -18,15 +18,21 @@
 
 package org.apache.cassandra.tools.nodetool.stats;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import javax.management.InstanceNotFoundException;
 
 import com.google.common.collect.ArrayListMultimap;
 
-import javax.management.InstanceNotFoundException;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.metrics.*;
-import org.apache.cassandra.tools.*;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.tools.NodeProbe;
 
 public class TableStatsHolder implements StatsHolder
 {
@@ -445,7 +451,7 @@ public class TableStatsHolder implements StatsHolder
             return filter.get(keyspace) != null || ignoreMode;
         }
 
-        public void verifyKeyspaces(List<String> keyspaces)
+        public void verifyKeyspaces(Collection<String> keyspaces)
         {
             for (String ks : verifier.keySet())
                 if (!keyspaces.contains(ks))

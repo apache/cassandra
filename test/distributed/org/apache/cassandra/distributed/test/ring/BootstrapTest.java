@@ -18,13 +18,17 @@
 
 package org.apache.cassandra.distributed.test.ring;
 
+import java.lang.management.ManagementFactory;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -44,6 +48,27 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class BootstrapTest extends TestBaseImpl
 {
+    private long savedMigrationDelay;
+
+    @Before
+    public void beforeTest()
+    {
+        // MigrationCoordinator schedules schema pull requests immediatelly when the node is just starting up, otherwise
+        // the first pull request is sent in 60 seconds. Whether we are starting up or not is detected by examining
+        // the node up-time and if it is lower than MIGRATION_DELAY, we consider the server is starting up.
+        // When we are running multiple test cases in the class, where each starts a node but in the same JVM, the
+        // up-time will be more or less relevant only for the first test. In order to enforce the startup-like behaviour
+        // for each test case, the MIGRATION_DELAY time is adjusted accordingly
+        savedMigrationDelay = CassandraRelevantProperties.MIGRATION_DELAY.getLong();
+        CassandraRelevantProperties.MIGRATION_DELAY.setLong(ManagementFactory.getRuntimeMXBean().getUptime() + savedMigrationDelay);
+    }
+
+    @After
+    public void afterTest()
+    {
+        CassandraRelevantProperties.MIGRATION_DELAY.setLong(savedMigrationDelay);
+    }
+
     @Test
     public void bootstrapTest() throws Throwable
     {

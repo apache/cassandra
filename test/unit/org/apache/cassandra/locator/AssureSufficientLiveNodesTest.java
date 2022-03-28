@@ -45,7 +45,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.NeverSpeculativeRetryPolicy;
@@ -253,9 +253,9 @@ public class AssureSufficientLiveNodesTest
                                                       Consumer<Keyspace> test) throws Throwable
     {
         String keyspaceName = keyspaceNameGen.get();
-        KeyspaceMetadata initKsMeta = KeyspaceMetadata.create(keyspaceName, init, Tables.of(SchemaLoader.standardCFMD("Foo", "Bar").build()));
+        KeyspaceMetadata initKsMeta = KeyspaceMetadata.create(keyspaceName, init, Tables.of(SchemaLoader.standardCFMD(keyspaceName, "Bar").build()));
         KeyspaceMetadata alterToKsMeta = initKsMeta.withSwapped(alterTo);
-        MigrationManager.announceNewKeyspace(initKsMeta, true);
+        SchemaTestUtil.announceNewKeyspace(initKsMeta);
         Keyspace racedKs = Keyspace.open(keyspaceName);
         ExecutorService es = Executors.newFixedThreadPool(2);
         try (AutoCloseable ignore = () -> {

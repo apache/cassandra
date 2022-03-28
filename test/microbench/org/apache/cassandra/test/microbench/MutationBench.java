@@ -22,13 +22,11 @@ package org.apache.cassandra.test.microbench;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -37,7 +35,20 @@ import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.openjdk.jmh.annotations.*;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.TableMetadata;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.profile.StackProfiler;
 import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.results.RunResult;
@@ -87,7 +98,7 @@ public class MutationBench
     @Setup
     public void setup() throws IOException
     {
-        Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)), false);
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
         TableMetadata metadata =
             CreateTableStatement.parse("CREATE TABLE userpics " +
@@ -97,7 +108,7 @@ public class MutationBench
                                        "PRIMARY KEY(userid, picid))", keyspace)
                                 .build();
 
-        Schema.instance.load(ksm.withSwapped(ksm.tables.with(metadata)));
+        SchemaTestUtil.addOrUpdateKeyspace(ksm.withSwapped(ksm.tables.with(metadata)), false);
 
         mutation = (Mutation)UpdateBuilder.create(metadata, 1L).newRow(1L).add("commentid", 32L).makeMutation();
         buffer = ByteBuffer.allocate(mutation.serializedSize(MessagingService.current_version));

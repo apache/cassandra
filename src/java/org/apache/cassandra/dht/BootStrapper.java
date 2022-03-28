@@ -17,16 +17,18 @@
  */
 package org.apache.cassandra.dht;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.ListenableFuture;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.tokenallocator.TokenAllocation;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -34,8 +36,13 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.streaming.StreamEvent;
+import org.apache.cassandra.streaming.StreamEventHandler;
+import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifierSupport;
@@ -74,7 +81,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    stateStore,
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost());
-        final List<String> nonLocalStrategyKeyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        final Collection<String> nonLocalStrategyKeyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
         if (nonLocalStrategyKeyspaces.isEmpty())
             logger.debug("Schema does not contain any non-local keyspaces to stream on bootstrap");
         for (String keyspaceName : nonLocalStrategyKeyspaces)
@@ -154,7 +161,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
      * otherwise, if allocationKeyspace is specified use the token allocation algorithm to generate suitable tokens
      * else choose num_tokens tokens at random
      */
-    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddressAndPort address, long schemaWaitDelay) throws ConfigurationException
+    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddressAndPort address, long schemaTimeoutMillis, long ringTimeoutMillis) throws ConfigurationException
     {
         String allocationKeyspace = DatabaseDescriptor.getAllocateTokensForKeyspace();
         Integer allocationLocalRf = DatabaseDescriptor.getAllocateTokensForLocalRf();
@@ -175,10 +182,10 @@ public class BootStrapper extends ProgressEventNotifierSupport
             throw new ConfigurationException("num_tokens must be >= 1");
 
         if (allocationKeyspace != null)
-            return allocateTokens(metadata, address, allocationKeyspace, numTokens, schemaWaitDelay);
+            return allocateTokens(metadata, address, allocationKeyspace, numTokens, schemaTimeoutMillis, ringTimeoutMillis);
 
         if (allocationLocalRf != null)
-            return allocateTokens(metadata, address, allocationLocalRf, numTokens, schemaWaitDelay);
+            return allocateTokens(metadata, address, allocationLocalRf, numTokens, schemaTimeoutMillis, ringTimeoutMillis);
 
         if (numTokens == 1)
             logger.warn("Picking random token for a single vnode.  You should probably add more vnodes and/or use the automatic token allocation mechanism.");
@@ -207,9 +214,10 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                             InetAddressAndPort address,
                                             String allocationKeyspace,
                                             int numTokens,
-                                            long schemaWaitDelay)
+                                            long schemaTimeoutMillis,
+                                            long ringTimeoutMillis)
     {
-        StorageService.instance.waitForSchema(schemaWaitDelay);
+        StorageService.instance.waitForSchema(schemaTimeoutMillis, ringTimeoutMillis);
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();
 
@@ -228,9 +236,10 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                             InetAddressAndPort address,
                                             int rf,
                                             int numTokens,
-                                            long schemaWaitDelay)
+                                            long schemaTimeoutMillis,
+                                            long ringTimeoutMillis)
     {
-        StorageService.instance.waitForSchema(schemaWaitDelay);
+        StorageService.instance.waitForSchema(schemaTimeoutMillis, ringTimeoutMillis);
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();
 

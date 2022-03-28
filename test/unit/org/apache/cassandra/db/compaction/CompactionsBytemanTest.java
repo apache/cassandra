@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.concurrent.TimeUnit;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
@@ -216,7 +217,7 @@ public class CompactionsBytemanTest extends CQLTester
         }
         catch (RuntimeException t)
         {
-            if (!(t.getCause().getCause() instanceof CompactionInterruptedException))
+            if (!Throwables.isCausedBy(t, CompactionInterruptedException.class::isInstance))
                 throw t;
             //expected
         }

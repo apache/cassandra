@@ -36,7 +36,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.management.ListenerNotFoundException;
@@ -134,8 +133,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.memory.BufferPools;
+import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -557,7 +556,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     // Even though we don't use MessagingService, access the static SocketFactory
                     // instance here so that we start the static event loop state
-//                    -- not sure what that means?  SocketFactory.instance.getClass();
+                    //  -- not sure what that means?  SocketFactory.instance.getClass();
                     registerMockMessaging(cluster);
                 }
                 registerInboundFilter(cluster);
@@ -574,13 +573,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
                 if (config.has(GOSSIP))
                 {
-                    MigrationCoordinator.setUptimeFn(() -> TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt.get()));
                     StorageService.instance.initServer();
                     StorageService.instance.removeShutdownHook();
                     Gossiper.waitToSettle();
                 }
                 else
                 {
+                    Schema.instance.startSync();
                     cluster.stream().forEach(peer -> {
                         if (cluster instanceof Cluster)
                             GossipHelper.statusToNormal((IInvokableInstance) peer).accept(this);
@@ -595,8 +594,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // Populate tokenMetadata for the second time,
                 // see org.apache.cassandra.service.CassandraDaemon.setup
                 StorageService.instance.populateTokenMetadata();
-
-                SystemKeyspace.finishStartup();
 
                 StorageService.instance.doAuthSetup(false);
                 CassandraDaemon.getInstanceForTesting().completeSetup();

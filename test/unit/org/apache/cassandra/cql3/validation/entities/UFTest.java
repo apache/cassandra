@@ -26,7 +26,8 @@ import com.google.common.reflect.TypeToken;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.*;
+import com.datastax.driver.core.TypeTokens;
+import com.datastax.driver.core.UDTValue;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -38,6 +39,7 @@ import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -860,7 +862,7 @@ public class UFTest extends CQLTester
                                                             "java",
                                                             f.body(),
                                                             new InvalidRequestException("foo bar is broken"));
-        Schema.instance.load(ksm.withSwapped(ksm.functions.without(f.name(), f.argTypes()).with(broken)));
+        SchemaTestUtil.addOrUpdateKeyspace(ksm.withSwapped(ksm.functions.without(f.name(), f.argTypes()).with(broken)), false);
 
         assertInvalidThrowMessage("foo bar is broken", InvalidRequestException.class,
                                   "SELECT key, " + fName + "(dval) FROM %s");

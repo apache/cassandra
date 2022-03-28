@@ -18,16 +18,21 @@
  */
 package org.apache.cassandra.tools;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.utils.OutputHandler;
-import org.apache.commons.cli.*;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.function.BiPredicate;
+
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.GnuParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.ParseException;
+
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.OutputHandler;
 
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
@@ -48,7 +53,7 @@ public class StandaloneSSTableUtil
         {
             // load keyspace descriptions.
             Util.initDatabaseDescriptor();
-            Schema.instance.loadFromDisk(false);
+            Schema.instance.loadFromDisk();
 
             TableMetadata metadata = Schema.instance.getTableMetadata(options.keyspaceName, options.cfName);
             if (metadata == null)

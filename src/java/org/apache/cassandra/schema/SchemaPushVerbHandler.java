@@ -18,11 +18,13 @@
 package org.apache.cassandra.schema;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -39,11 +41,22 @@ public final class SchemaPushVerbHandler implements IVerbHandler<Collection<Muta
 
     private static final Logger logger = LoggerFactory.getLogger(SchemaPushVerbHandler.class);
 
+    private final List<Consumer<Message<Collection<Mutation>>>> handlers = new CopyOnWriteArrayList<>();
+
+    public void register(Consumer<Message<Collection<Mutation>>> handler)
+    {
+        handlers.add(handler);
+    }
+
     public void doVerb(final Message<Collection<Mutation>> message)
     {
         logger.trace("Received schema push request from {}", message.from());
-
         SchemaAnnouncementDiagnostics.schemataMutationsReceived(message.from());
-        Stage.MIGRATION.submit(() -> Schema.instance.mergeAndAnnounceVersion(message.payload));
+
+        List<Consumer<Message<Collection<Mutation>>>> handlers = this.handlers;
+        if (handlers.isEmpty())
+            throw new UnsupportedOperationException("There is no handler registered for schema push verb");
+
+        handlers.forEach(h -> h.accept(message));
     }
 }

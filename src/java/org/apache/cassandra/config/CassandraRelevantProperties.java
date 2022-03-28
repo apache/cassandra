@@ -138,6 +138,8 @@ public enum CassandraRelevantProperties
     /** mx4jport */
     MX4JPORT ("mx4jport"),
 
+    RING_DELAY("cassandra.ring_delay_ms", "30000"),
+
     /**
      * When bootstraping we wait for all schema versions found in gossip to be seen, and if not seen in time we fail
      * the bootstrap; this property will avoid failing and allow bootstrap to continue if set to true.
@@ -325,6 +327,39 @@ public enum CassandraRelevantProperties
         System.setProperty(key, Integer.toString(value));
     }
 
+    /**
+     * Gets the value of a system property as a long.
+     * @return system property long value if it exists, defaultValue otherwise.
+     */
+    public long getLong()
+    {
+        String value = System.getProperty(key);
+
+        return LONG_CONVERTER.convert(value == null ? defaultVal : value);
+    }
+
+    /**
+     * Gets the value of a system property as a long.
+     * @return system property long value if it exists, overrideDefaultValue otherwise.
+     */
+    public long getLong(int overrideDefaultValue)
+    {
+        String value = System.getProperty(key);
+        if (value == null)
+            return overrideDefaultValue;
+
+        return LONG_CONVERTER.convert(value);
+    }
+
+    /**
+     * Sets the value into system properties.
+     * @param value to set
+     */
+    public void setLong(long value)
+    {
+        System.setProperty(key, Long.toString(value));
+    }
+
     private interface PropertyConverter<T>
     {
         T convert(String value);
@@ -339,6 +374,19 @@ public enum CassandraRelevantProperties
         try
         {
             return Integer.decode(value);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for system property: " +
+                                                           "expected integer value but got '%s'", value));
+        }
+    };
+
+    private static final PropertyConverter<Long> LONG_CONVERTER = value ->
+    {
+        try
+        {
+            return Long.decode(value);
         }
         catch (NumberFormatException e)
         {
