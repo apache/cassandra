@@ -18,47 +18,73 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.antlr.runtime.*;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.cql3.statements.QualifiedStatement;
+import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterators;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.exceptions.CassandraException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.IsBootstrappingException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.statements.*;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionIterators;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.metrics.CQLMetrics;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MD5Digest;
+import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ENABLE_NODELOCAL_QUERIES;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -817,7 +843,7 @@ public class QueryProcessor implements QueryHandler
         preparedStatements.asMap().clear();
     }
 
-    private static class StatementInvalidatingListener extends SchemaChangeListener
+    private static class StatementInvalidatingListener implements SchemaChangeListener
     {
         private static void removeInvalidPreparedStatements(String ksName, String cfName)
         {
@@ -903,14 +929,16 @@ public class QueryProcessor implements QueryHandler
             return ksName.equals(statementKsName) && (cfName == null || cfName.equals(statementCfName));
         }
 
-        public void onCreateFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        @Override
+        public void onCreateFunction(UDFunction function)
         {
-            onCreateFunctionInternal(ksName, functionName, argTypes);
+            onCreateFunctionInternal(function.name().keyspace, function.name().name, function.argTypes());
         }
 
-        public void onCreateAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
+        @Override
+        public void onCreateAggregate(UDAggregate aggregate)
         {
-            onCreateFunctionInternal(ksName, aggregateName, argTypes);
+            onCreateFunctionInternal(aggregate.name().keyspace, aggregate.name().name, aggregate.argTypes());
         }
 
         private static void onCreateFunctionInternal(String ksName, String functionName, List<AbstractType<?>> argTypes)
@@ -921,51 +949,58 @@ public class QueryProcessor implements QueryHandler
                 removeInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 
-        public void onAlterTable(String ksName, String cfName, boolean affectsStatements)
+        @Override
+        public void onAlterTable(TableMetadata before, TableMetadata after, boolean affectsStatements)
         {
-            logger.trace("Column definitions for {}.{} changed, invalidating related prepared statements", ksName, cfName);
+            logger.trace("Column definitions for {}.{} changed, invalidating related prepared statements", before.keyspace, before.name);
             if (affectsStatements)
-                removeInvalidPreparedStatements(ksName, cfName);
+                removeInvalidPreparedStatements(before.keyspace, before.name);
         }
 
-        public void onAlterFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        @Override
+        public void onAlterFunction(UDFunction before, UDFunction after)
         {
             // Updating a function may imply we've changed the body of the function, so we need to invalid statements so that
             // the new definition is picked (the function is resolved at preparation time).
             // TODO: if the function has multiple overload, we could invalidate only the statement refering to the overload
             // that was updated. This requires a few changes however and probably doesn't matter much in practice.
-            removeInvalidPreparedStatementsForFunction(ksName, functionName);
+            removeInvalidPreparedStatementsForFunction(before.name().keyspace, before.name().name);
         }
 
-        public void onAlterAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
+        @Override
+        public void onAlterAggregate(UDAggregate before, UDAggregate after)
         {
             // Updating a function may imply we've changed the body of the function, so we need to invalid statements so that
             // the new definition is picked (the function is resolved at preparation time).
             // TODO: if the function has multiple overload, we could invalidate only the statement refering to the overload
             // that was updated. This requires a few changes however and probably doesn't matter much in practice.
-            removeInvalidPreparedStatementsForFunction(ksName, aggregateName);
+            removeInvalidPreparedStatementsForFunction(before.name().keyspace, before.name().name);
         }
 
-        public void onDropKeyspace(String ksName)
+        @Override
+        public void onDropKeyspace(KeyspaceMetadata keyspace)
         {
-            logger.trace("Keyspace {} was dropped, invalidating related prepared statements", ksName);
-            removeInvalidPreparedStatements(ksName, null);
+            logger.trace("Keyspace {} was dropped, invalidating related prepared statements", keyspace.name);
+            removeInvalidPreparedStatements(keyspace.name, null);
         }
 
-        public void onDropTable(String ksName, String cfName)
+        @Override
+        public void onDropTable(TableMetadata table)
         {
-            logger.trace("Table {}.{} was dropped, invalidating related prepared statements", ksName, cfName);
-            removeInvalidPreparedStatements(ksName, cfName);
+            logger.trace("Table {}.{} was dropped, invalidating related prepared statements", table.keyspace, table.name);
+            removeInvalidPreparedStatements(table.keyspace, table.name);
         }
 
-        public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        @Override
+        public void onDropFunction(UDFunction function)
         {
-            removeInvalidPreparedStatementsForFunction(ksName, functionName);
+            removeInvalidPreparedStatementsForFunction(function.name().keyspace, function.name().name);
         }
 
-        public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
+        @Override
+        public void onDropAggregate(UDAggregate aggregate)
         {
-            removeInvalidPreparedStatementsForFunction(ksName, aggregateName);
+            removeInvalidPreparedStatementsForFunction(aggregate.name().keyspace, aggregate.name().name);
         }
     }
 }

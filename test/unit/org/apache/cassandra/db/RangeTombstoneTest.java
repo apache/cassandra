@@ -19,7 +19,10 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -31,22 +34,29 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -320,7 +330,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
 
         String key = "7810";
 
@@ -343,7 +353,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
 
         String key = "7808_1";
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
@@ -363,7 +373,7 @@ public class RangeTombstoneTest
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
-        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(2).build());
 
         String key = "7808_2";
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(0);
@@ -489,7 +499,7 @@ public class RangeTombstoneTest
                 current.unbuild()
                        .indexes(current.indexes.with(indexDef))
                        .build();
-            MigrationManager.announceTableUpdate(updated, true);
+            SchemaTestUtil.announceTableUpdate(updated);
         }
 
         Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);
@@ -595,7 +605,7 @@ public class RangeTombstoneTest
                 current.unbuild()
                        .indexes(current.indexes.with(indexDef))
                        .build();
-            MigrationManager.announceTableUpdate(updated, true);
+            SchemaTestUtil.announceTableUpdate(updated);
         }
 
         Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);

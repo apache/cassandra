@@ -34,15 +34,15 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.Schema;
 
 /**
  * Create a decent leveling for the given keyspace/column family
@@ -91,7 +91,7 @@ public class SSTableOfflineRelevel
         boolean dryRun = args[0].equals("--dry-run");
         String keyspace = args[args.length - 2];
         String columnfamily = args[args.length - 1];
-        Schema.instance.loadFromDisk(false);
+        Schema.instance.loadFromDisk();
 
         if (Schema.instance.getTableMetadataRef(keyspace, columnfamily) == null)
             throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",

@@ -61,4 +61,15 @@ public class Diff<T extends Iterable, S>
             return String.format("%s -> %s (%s)", before, after, kind);
         }
     }
+
+    @Override
+    public String toString()
+    {
+        return "Diff{" +
+               "created=" + created +
+               ", dropped=" + dropped +
+               ", altered=" + altered +
+               '}';
+    }
+
 }

@@ -19,27 +19,38 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.*;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
@@ -189,7 +200,7 @@ public abstract class AbstractCommitLogSegmentManager
                 if (flushingSize + unused >= 0)
                     break;
             }
-            flushDataFrom(segmentsToRecycle, false);
+            flushDataFrom(segmentsToRecycle, Collections.emptyList(), false);
         }
     }
 
@@ -281,7 +292,7 @@ public abstract class AbstractCommitLogSegmentManager
      * This is necessary to avoid resurrecting data during replay if a user creates a new table with
      * the same name and ID. See CASSANDRA-16986 for more details.
      */
-    void forceRecycleAll(Iterable<TableId> droppedTables)
+    void forceRecycleAll(Collection<TableId> droppedTables)
     {
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
         CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
@@ -295,7 +306,7 @@ public abstract class AbstractCommitLogSegmentManager
         Keyspace.writeOrder.awaitNewBarrier();
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
-        Future<?> future = flushDataFrom(segmentsToRecycle, true);
+        Future<?> future = flushDataFrom(segmentsToRecycle, droppedTables, true);
         try
         {
             future.get();
@@ -381,7 +392,7 @@ public abstract class AbstractCommitLogSegmentManager
      *
      * @return a Future that will finish when all the flushes are complete.
      */
-    private Future<?> flushDataFrom(List<CommitLogSegment> segments, boolean force)
+    private Future<?> flushDataFrom(List<CommitLogSegment> segments, Collection<TableId> droppedTables, boolean force)
     {
         if (segments.isEmpty())
             return Futures.immediateFuture(null);
@@ -394,7 +405,9 @@ public abstract class AbstractCommitLogSegmentManager
         {
             for (TableId dirtyTableId : segment.getDirtyTableIds())
             {
-                TableMetadata metadata = Schema.instance.getTableMetadata(dirtyTableId);
+                TableMetadata metadata = droppedTables.contains(dirtyTableId)
+                                         ? null
+                                         : Schema.instance.getTableMetadata(dirtyTableId);
                 if (metadata == null)
                 {
                     // even though we remove the schema entry before a final flush when dropping a CF,

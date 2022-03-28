@@ -29,29 +29,28 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.datastax.driver.core.exceptions.OperationTimedOutException;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SchemaCQLHelper;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 import static org.junit.Assert.assertTrue;
 
@@ -933,9 +932,9 @@ public class ViewSchemaTest extends CQLTester
         String view = "mv";
         createView(view, createView);
 
-        ColumnFamilyStore mv = Keyspace.open(keyspace()).getColumnFamilyStore(view);
-        
-        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(mv.metadata(), true, true, true)
+        Keyspace keyspace = Keyspace.open(keyspace());
+        ColumnFamilyStore mv = keyspace.getColumnFamilyStore(view);
+        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(mv.metadata(), true, true, true, keyspace.getMetadata())
                                   .startsWith(String.format(viewSnapshotSchema,
                                                             keyspace(),
                                                             view,

@@ -18,21 +18,22 @@
 
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.utils.ExecutorUtils;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.List;
-import java.util.concurrent.*;
+import java.util.Collection;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.utils.ExecutorUtils;
 
 public class PendingRangeCalculatorService
 {
@@ -72,7 +73,7 @@ public class PendingRangeCalculatorService
             {
                 PendingRangeCalculatorServiceDiagnostics.taskStarted(instance, updateJobs);
                 long start = System.currentTimeMillis();
-                List<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+                Collection<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
                 for (String keyspaceName : keyspaces)
                     calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
                 if (logger.isTraceEnabled())

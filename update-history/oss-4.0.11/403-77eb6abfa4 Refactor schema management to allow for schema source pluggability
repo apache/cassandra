@@ -1,0 +1,209 @@
+--- a/src/java/org/apache/cassandra/db/SystemKeyspace.java
++++ b/src/java/org/apache/cassandra/db/SystemKeyspace.java
+@@ -87,10 +87,7 @@
+ import org.apache.cassandra.schema.Functions;
+ import org.apache.cassandra.schema.KeyspaceMetadata;
+ import org.apache.cassandra.schema.KeyspaceParams;
+-<<<<<<<
+-=======
+ import org.apache.cassandra.schema.Schema;
+->>>>>>>
+ import org.apache.cassandra.schema.SchemaConstants;
+ import org.apache.cassandra.schema.TableId;
+ import org.apache.cassandra.schema.TableMetadata;
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+@@ -28,10 +28,7 @@
+ import java.util.Iterator;
+ import java.util.List;
+ import java.util.Map;
+-<<<<<<<
+-=======
+ import java.util.Optional;
+->>>>>>>
+ import java.util.TreeMap;
+ import java.util.UUID;
+ import java.util.function.Function;
+@@ -45,10 +42,7 @@
+ import org.apache.cassandra.config.DatabaseDescriptor;
+ import org.apache.cassandra.config.ParameterizedClass;
+ import org.apache.cassandra.db.Mutation;
+-<<<<<<<
+-=======
+ import org.apache.cassandra.db.SystemKeyspace;
+->>>>>>>
+ import org.apache.cassandra.exceptions.CDCWriteException;
+ import org.apache.cassandra.io.FSWriteError;
+ import org.apache.cassandra.io.compress.ICompressor;
+--- a/src/java/org/apache/cassandra/gms/Gossiper.java
++++ b/src/java/org/apache/cassandra/gms/Gossiper.java
+@@ -50,11 +50,10 @@
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+ import com.google.common.collect.ImmutableSet;
++import com.google.common.collect.Iterables;
+ import com.google.common.collect.Sets;
+ import com.google.common.util.concurrent.ListenableFutureTask;
+ import com.google.common.util.concurrent.Uninterruptibles;
+-<<<<<<<
+-=======
+ 
+ import org.apache.cassandra.concurrent.JMXEnabledSingleThreadExecutor;
+ import org.apache.cassandra.config.CassandraRelevantProperties;
+@@ -68,7 +67,6 @@
+ import org.apache.cassandra.utils.MBeanWrapper;
+ import org.apache.cassandra.utils.NoSpamLogger;
+ import org.apache.cassandra.utils.Pair;
+->>>>>>>
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -86,12 +84,9 @@
+ import org.apache.cassandra.net.RequestCallback;
+ import org.apache.cassandra.net.Verb;
+ import org.apache.cassandra.service.StorageService;
+-<<<<<<<
+-=======
+ import org.apache.cassandra.utils.CassandraVersion;
+ import org.apache.cassandra.utils.ExecutorUtils;
+ import org.apache.cassandra.utils.ExpiringMemoizingSupplier;
+->>>>>>>
+ import org.apache.cassandra.utils.FBUtilities;
+ import org.apache.cassandra.utils.JVMStabilityInspector;
+ import org.apache.cassandra.utils.RecomputingSupplier;
+@@ -2422,7 +2417,7 @@
+         CassandraVersion minVersion = null;
+ 
+         for (InetAddressAndPort addr : Iterables.concat(Gossiper.instance.getLiveMembers(),
+-                                                 Gossiper.instance.getUnreachableMembers()))
++                                                        Gossiper.instance.getUnreachableMembers()))
+         {
+             String versionString = getReleaseVersionString(addr);
+             // Raced with changes to gossip state, wait until next iteration
+--- a/src/java/org/apache/cassandra/service/StorageService.java
++++ b/src/java/org/apache/cassandra/service/StorageService.java
+@@ -26,11 +26,8 @@
+ import java.net.UnknownHostException;
+ import java.nio.ByteBuffer;
+ import java.nio.file.Paths;
+-<<<<<<<
+-=======
+ import java.time.Duration;
+ import java.time.Instant;
+->>>>>>>
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Collection;
+@@ -53,10 +50,7 @@
+ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.CopyOnWriteArrayList;
+ import java.util.concurrent.ExecutionException;
+-<<<<<<<
+-=======
+ import java.util.concurrent.ExecutorService;
+->>>>>>>
+ import java.util.concurrent.Future;
+ import java.util.concurrent.FutureTask;
+ import java.util.concurrent.ThreadLocalRandom;
+@@ -116,10 +110,7 @@
+ import org.apache.cassandra.db.DecoratedKey;
+ import org.apache.cassandra.db.Directories;
+ import org.apache.cassandra.db.Keyspace;
+-<<<<<<<
+-=======
+ import org.apache.cassandra.db.Mutation;
+->>>>>>>
+ import org.apache.cassandra.db.SizeEstimatesRecorder;
+ import org.apache.cassandra.db.SnapshotDetailsTabularData;
+ import org.apache.cassandra.db.SystemKeyspace;
+--- a/test/unit/org/apache/cassandra/cql3/CQLTester.java
++++ b/test/unit/org/apache/cassandra/cql3/CQLTester.java
+@@ -73,17 +73,15 @@
+ import com.datastax.driver.core.Cluster;
+ import com.datastax.driver.core.ColumnDefinitions;
+ import com.datastax.driver.core.DataType;
++import com.datastax.driver.core.NettyOptions;
+ import com.datastax.driver.core.ResultSet;
+-<<<<<<<
+ 
+ import com.datastax.shaded.netty.channel.EventLoopGroup;
+-=======
+ import com.datastax.driver.core.Row;
+ import com.datastax.driver.core.Session;
+ import com.datastax.driver.core.SimpleStatement;
+ import com.datastax.driver.core.SocketOptions;
+ import com.datastax.driver.core.Statement;
+->>>>>>>
+ import org.apache.cassandra.SchemaLoader;
+ import org.apache.cassandra.ServerTestUtils;
+ import org.apache.cassandra.concurrent.ScheduledExecutors;
+diff --git a/src/java/org/apache/cassandra/gms/Gossiper.java b/src/java/org/apache/cassandra/gms/Gossiper.java
+index af1c935e0d..7855bfb0f6 100644
+--- a/src/java/org/apache/cassandra/gms/Gossiper.java
++++ b/src/java/org/apache/cassandra/gms/Gossiper.java
+@@ -50,6 +50,7 @@ import com.google.common.base.Throwables;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+ import com.google.common.collect.ImmutableSet;
++import com.google.common.collect.Iterables;
+ import com.google.common.collect.Sets;
+ import com.google.common.util.concurrent.ListenableFutureTask;
+ import com.google.common.util.concurrent.Uninterruptibles;
+@@ -2416,7 +2417,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
+         CassandraVersion minVersion = null;
+ 
+         for (InetAddressAndPort addr : Iterables.concat(Gossiper.instance.getLiveMembers(),
+-                                                 Gossiper.instance.getUnreachableMembers()))
++                                                        Gossiper.instance.getUnreachableMembers()))
+         {
+             String versionString = getReleaseVersionString(addr);
+             // Raced with changes to gossip state, wait until next iteration
+diff --git a/src/java/org/apache/cassandra/schema/SchemaKeyspace.java b/src/java/org/apache/cassandra/schema/SchemaKeyspace.java
+index c514b726e1..188fe3940a 100644
+--- a/src/java/org/apache/cassandra/schema/SchemaKeyspace.java
++++ b/src/java/org/apache/cassandra/schema/SchemaKeyspace.java
+@@ -41,6 +41,7 @@ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+ import org.antlr.runtime.RecognitionException;
++import org.apache.cassandra.config.CassandraRelevantProperties;
+ import org.apache.cassandra.config.DatabaseDescriptor;
+ import org.apache.cassandra.cql3.CQL3Type;
+ import org.apache.cassandra.cql3.ColumnIdentifier;
+diff --git a/test/distributed/org/apache/cassandra/distributed/impl/Instance.java b/test/distributed/org/apache/cassandra/distributed/impl/Instance.java
+index 8eace9836a..eec278f1fb 100644
+--- a/test/distributed/org/apache/cassandra/distributed/impl/Instance.java
++++ b/test/distributed/org/apache/cassandra/distributed/impl/Instance.java
+@@ -36,6 +36,7 @@ import java.util.concurrent.CompletableFuture;
+ import java.util.concurrent.CopyOnWriteArrayList;
+ import java.util.concurrent.ExecutorService;
+ import java.util.concurrent.Future;
++import java.util.concurrent.TimeUnit;
+ import java.util.concurrent.TimeoutException;
+ import java.util.concurrent.atomic.AtomicLong;
+ import javax.management.ListenerNotFoundException;
+diff --git a/test/unit/org/apache/cassandra/cql3/CQLTester.java b/test/unit/org/apache/cassandra/cql3/CQLTester.java
+index b0077dd59c..68f99f8016 100644
+--- a/test/unit/org/apache/cassandra/cql3/CQLTester.java
++++ b/test/unit/org/apache/cassandra/cql3/CQLTester.java
+@@ -73,6 +73,7 @@ import com.datastax.driver.core.CloseFuture;
+ import com.datastax.driver.core.Cluster;
+ import com.datastax.driver.core.ColumnDefinitions;
+ import com.datastax.driver.core.DataType;
++import com.datastax.driver.core.NettyOptions;
+ import com.datastax.driver.core.ResultSet;
+ 
+ import com.datastax.shaded.netty.channel.EventLoopGroup;
+diff --git a/test/unit/org/apache/cassandra/db/compaction/PartialCompactionsTest.java b/test/unit/org/apache/cassandra/db/compaction/PartialCompactionsTest.java
+index 9cb3872f80..10e01d81c0 100644
+--- a/test/unit/org/apache/cassandra/db/compaction/PartialCompactionsTest.java
++++ b/test/unit/org/apache/cassandra/db/compaction/PartialCompactionsTest.java
+@@ -188,7 +188,7 @@ public class PartialCompactionsTest extends SchemaLoader
+             Keyspace keyspace = Keyspace.open(ks);
+             ColumnFamilyStore store = keyspace.getColumnFamilyStore(cf);
+             TableMetadataRef metadata = store.metadata;
+-            keyspace.dropCf(metadata.id);
++            keyspace.dropCf(metadata.id, true);
+             ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(keyspace, cf, metadata, wrapDirectoriesOf(store), false, false, true);
+             keyspace.initCfCustom(cfs);
+         }

@@ -112,14 +112,30 @@ public class Keyspace
 
     private static volatile boolean initialized = false;
 
+    public static boolean isInitialized()
+    {
+        return initialized;
+    }
+
     public static void setInitialized()
     {
         initialized = true;
     }
 
+    /**
+     * Never use it in production code.
+     *
+     * Useful when creating a fake Schema so that it does not manage Keyspace instances (and CFS)
+     */
+    @VisibleForTesting
+    public static void unsetInitialized()
+    {
+        initialized = false;
+    }
+
     public static Keyspace open(String keyspaceName)
     {
-        assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName);
+        assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName) : "Initialized: " + initialized;
         return open(keyspaceName, Schema.instance, true);
     }
 
@@ -129,8 +145,7 @@ public class Keyspace
         return open(keyspaceName, Schema.instance, false);
     }
 
-    @VisibleForTesting
-    static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
+    public static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
     {
         return schema.maybeAddKeyspaceInstance(keyspaceName, () -> new Keyspace(keyspaceName, schema, loadSSTables));
     }
@@ -355,33 +370,32 @@ public class Keyspace
         replicationParams = ksm.params.replication;
     }
 
-    // best invoked on the compaction mananger.
-    public void dropCf(TableId tableId)
+    // best invoked on the compaction manager.
+    public void dropCf(TableId tableId, boolean dropData)
     {
-        assert columnFamilyStores.containsKey(tableId);
         ColumnFamilyStore cfs = columnFamilyStores.remove(tableId);
         if (cfs == null)
             return;
 
         cfs.onTableDropped();
-        unloadCf(cfs);
+        unloadCf(cfs, dropData);
     }
 
     /**
      * Unloads all column family stores and releases metrics.
      */
-    public void unload()
+    public void unload(boolean dropData)
     {
         for (ColumnFamilyStore cfs : getColumnFamilyStores())
-            unloadCf(cfs);
+            unloadCf(cfs, dropData);
         metric.release();
     }
 
     // disassociate a cfs from this keyspace instance.
-    private void unloadCf(ColumnFamilyStore cfs)
+    private void unloadCf(ColumnFamilyStore cfs, boolean dropData)
     {
         cfs.forceBlockingFlush();
-        cfs.invalidate();
+        cfs.invalidate(true, dropData);
     }
 
     /**
@@ -739,12 +753,12 @@ public class Keyspace
 
     public static Iterable<Keyspace> nonSystem()
     {
-        return Iterables.transform(Schema.instance.getNonSystemKeyspaces(), Keyspace::open);
+        return Iterables.transform(Schema.instance.getNonSystemKeyspaces().names(), Keyspace::open);
     }
 
     public static Iterable<Keyspace> nonLocalStrategy()
     {
-        return Iterables.transform(Schema.instance.getNonLocalStrategyKeyspaces(), Keyspace::open);
+        return Iterables.transform(Schema.instance.getNonLocalStrategyKeyspaces().names(), Keyspace::open);
     }
 
     public static Iterable<Keyspace> system()

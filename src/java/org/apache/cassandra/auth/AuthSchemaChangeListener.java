@@ -17,37 +17,42 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.List;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaChangeListener;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * SchemaChangeListener implementation that cleans up permissions on dropped resources.
  */
-public class AuthSchemaChangeListener extends SchemaChangeListener
+public class AuthSchemaChangeListener implements SchemaChangeListener
 {
-    public void onDropKeyspace(String ksName)
+    @Override
+    public void onDropKeyspace(KeyspaceMetadata keyspace)
     {
-        DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.keyspace(ksName));
-        DatabaseDescriptor.getAuthorizer().revokeAllOn(FunctionResource.keyspace(ksName));
+        DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.keyspace(keyspace.name));
+        DatabaseDescriptor.getAuthorizer().revokeAllOn(FunctionResource.keyspace(keyspace.name));
     }
 
-    public void onDropTable(String ksName, String cfName)
+    @Override
+    public void onDropTable(TableMetadata table)
     {
-        DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.table(ksName, cfName));
+        DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.table(table.keyspace, table.name));
     }
 
-    public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
+    @Override
+    public void onDropFunction(UDFunction function)
     {
         DatabaseDescriptor.getAuthorizer()
-                          .revokeAllOn(FunctionResource.function(ksName, functionName, argTypes));
+                          .revokeAllOn(FunctionResource.function(function.name().keyspace, function.name().name, function.argTypes()));
     }
 
-    public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
+    @Override
+    public void onDropAggregate(UDAggregate aggregate)
     {
         DatabaseDescriptor.getAuthorizer()
-                          .revokeAllOn(FunctionResource.function(ksName, aggregateName, argTypes));
+                          .revokeAllOn(FunctionResource.function(aggregate.name().keyspace, aggregate.name().name, aggregate.argTypes()));
     }
 }
