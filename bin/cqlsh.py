@@ -18,6 +18,7 @@
 
 import cmd
 import codecs
+import configparser
 import csv
 import errno
 import getpass
@@ -33,10 +34,8 @@ import warnings
 import webbrowser
 from contextlib import contextmanager
 from glob import glob
-from uuid import UUID
-
-import configparser
 from io import StringIO
+from uuid import UUID
 
 if sys.version_info < (3, 6):
     sys.exit("\ncqlsh requires Python 3.6+\n")
