@@ -120,6 +120,17 @@ public interface GuardrailsMBean
     void setSecondaryIndexesPerTableThreshold(int warn, int fail);
 
     /**
+     * @return Whether secondary index creation is active or not on the node
+     */
+    boolean getSecondaryIndexesEnabled();
+
+    /**
+     * Enables or disables the ability to create secondary indexes
+     * @param enabled
+     */
+    void setSecondaryIndexesEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when creating more materialized views per table than threshold.
      * -1 means disabled.
      */

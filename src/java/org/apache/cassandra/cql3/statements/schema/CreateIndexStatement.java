@@ -84,6 +84,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     {
         attrs.validate();
 
+        Guardrails.createSecondaryIndexesEnabled.ensureEnabled("Creating secondary indexes", state);
+
         if (attrs.isCustom && attrs.customClass.equals(SASIIndex.class.getName()) && !DatabaseDescriptor.getSASIIndexesEnabled())
             throw new InvalidRequestException("SASI indexes are disabled. Enable in cassandra.yaml to use.");
 
