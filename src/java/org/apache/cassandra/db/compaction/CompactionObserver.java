@@ -40,6 +40,7 @@ public interface CompactionObserver
      * Indicates that a compaction with the given id has completed.
      * <p/>
      * @param id  the id of the compaction
+     * @param isSuccess true if compaction finished without any exceptions
      */
-    void onCompleted(UUID id);
+    void onCompleted(UUID id, boolean isSuccess);
 }
