@@ -271,8 +271,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
         notifyStarting();
         NeighborsAndRanges neighborsAndRanges = getNeighborsAndRanges();
         // We test to validate the start JMX notification is seen before we compute neighbors and ranges
-        // but in state watching, we rely on getNeighborsAndRanges to know where we are running repair...
-        // TODO fix this mismatch (fix test?)
+        // but in state (vtable) tracking, we rely on getNeighborsAndRanges to know where we are running repair...
+        // JMX start != state start, its possible we fail in getNeighborsAndRanges and state start is never reached
         state.phase.start(columnFamilies, neighborsAndRanges);
 
         maybeStoreParentRepairStart(cfnames);
