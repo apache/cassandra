@@ -308,8 +308,8 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
 
         // query should no longer fail
         enable(false);
-        SimpleQueryResult result = node.executeWithResult(cql, ConsistencyLevel.ALL);
         checkpointHistogram();
+        SimpleQueryResult result = node.executeWithResult(cql, ConsistencyLevel.ALL);
         assertThat(result.warnings()).isEmpty();
         assertHistogramNotUpdated();
         assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();

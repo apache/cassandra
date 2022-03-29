@@ -1,5 +1,3 @@
-Add proper hitogram checkup to fix flaky failThresholdSinglePartition test
-
 4.1
  * Support DELETE in CQLSSTableWriter (CASSANDRA-14797)
  * Failed inbound internode authentication failures generate ugly warning with stack trace (CASSANDRA-17068)
