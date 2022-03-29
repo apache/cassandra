@@ -55,6 +55,7 @@
         <packageUrl regex="true">^pkg:maven/com\.datastax\.cassandra/cassandra\-driver\-core@.*$</packageUrl>
         <cve>CVE-2020-13946</cve>
         <cve>CVE-2020-17516</cve>
+        <cve>CVE-2021-44521</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-14760 -->

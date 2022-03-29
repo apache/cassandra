@@ -4,6 +4,7 @@
  * Validate existence of DCs when repairing (CASSANDRA-17407)
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
 Merged from 3.0:
+ * Suppress CVE-2021-44521 (CASSANDRA-17492)
  * ConnectionLimitHandler may leaks connection count if remote connection drops (CASSANDRA-17252)
  * Require ant >= 1.10 (CASSANDRA-17428)
  * Disallow CONTAINS for UPDATE and DELETE (CASSANDRA-15266)
