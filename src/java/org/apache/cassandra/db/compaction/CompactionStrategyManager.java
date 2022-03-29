@@ -1138,7 +1138,7 @@ public class CompactionStrategyManager implements CompactionStrategyContainer
     }
 
     @Override
-    public void onCompleted(UUID id)
+    public void onCompleted(UUID id, boolean isSuccess)
     {
 
     }

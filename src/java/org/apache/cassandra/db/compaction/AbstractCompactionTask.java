@@ -120,6 +120,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     /** Executes the task */
     public int execute()
     {
+        Throwable t = null;
         try
         {
             return executeInternal();
@@ -128,18 +129,25 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         {
             RuntimeException cause = new RuntimeException("Converted from FSDiskFullWriteError: " + e.getMessage());
             cause.setStackTrace(e.getStackTrace());
+            t = cause;
             throw new RuntimeException("Throwing new Runtime to bypass exception handler when disk is full", cause);
+        }
+        catch (Throwable t1)
+        {
+            t = t1;
+            throw t1;
         }
         finally
         {
-            Throwables.maybeFail(cleanup(null));
+            Throwables.maybeFail(cleanup(t));
         }
     }
 
     private Throwable cleanup(Throwable err)
     {
+        final boolean isSuccess = err == null;
         for (CompactionObserver compObserver : compObservers)
-            err = Throwables.perform(err, () -> compObserver.onCompleted(transaction.opId()));
+            err = Throwables.perform(err, () -> compObserver.onCompleted(transaction.opId(), isSuccess));
 
         return Throwables.perform(err, () -> transaction.close());
     }

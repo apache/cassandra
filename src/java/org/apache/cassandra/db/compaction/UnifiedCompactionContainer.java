@@ -351,9 +351,9 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
     }
 
     @Override
-    public void onCompleted(UUID id)
+    public void onCompleted(UUID id, boolean isSuccess)
     {
-        strategy.onCompleted(id);
+        strategy.onCompleted(id, isSuccess);
     }
 
     @Override
