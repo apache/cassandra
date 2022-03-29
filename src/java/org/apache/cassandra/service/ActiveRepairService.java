@@ -629,11 +629,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         for (ColumnFamilyStore cfs : columnFamilyStores)
             tableIds.add(cfs.metadata.id);
 
+        PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
+        register(new ParticipateState(message));
         for (InetAddressAndPort neighbour : endpoints)
         {
             if (FailureDetector.instance.isAlive(neighbour))
             {
-                PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
                 Message<RepairMessage> msg = out(PREPARE_MSG, message);
                 MessagingService.instance().sendWithCallback(msg, neighbour, callback);
             }
@@ -711,10 +712,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 logger.warn("Failed to send a clean up message to {}", endpoint, exc);
             }
         }
+        ParticipateState state = participate(parentRepairSession);
+        if (state != null)
+            state.phase.success("Cleanup message recieved");
     }
 
     private void failRepair(TimeUUID parentRepairSession, String errorMsg)
     {
+        ParticipateState state = participate(parentRepairSession);
+        if (state != null)
+            state.phase.fail(errorMsg);
         removeParentRepairSession(parentRepairSession);
         throw new RuntimeException(errorMsg);
     }
