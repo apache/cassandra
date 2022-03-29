@@ -333,6 +333,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getSecondaryIndexesEnabled()
+    {
+        return config.secondary_indexes_enabled;
+    }
+
+    public void setSecondaryIndexesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("secondary_indexes_enabled",
+                                  enabled,
+                                  () -> config.secondary_indexes_enabled,
+                                  x -> config.secondary_indexes_enabled = x);
+    }
+
+    @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
         return config.read_before_write_list_operations_enabled;

@@ -99,6 +99,14 @@ public final class Guardrails implements GuardrailsMBean
                                      threshold, what));
 
     /**
+     * Guardrail disabling user's ability to create secondary indexes
+     */
+    public static final DisableFlag createSecondaryIndexesEnabled =
+    new DisableFlag("secondary_indexes",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesEnabled(),
+                    "User creation of secondary indexes");
+
+    /**
      * Guardrail on the number of materialized views per table.
      */
     public static final Threshold materializedViewsPerTable =
@@ -337,6 +345,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setSecondaryIndexesPerTableThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setSecondaryIndexesPerTableThreshold(warn, fail);
+    }
+
+    @Override
+    public boolean getSecondaryIndexesEnabled()
+    {
+        return DEFAULT_CONFIG.getSecondaryIndexesEnabled();
+    }
+
+    @Override
+    public void setSecondaryIndexesEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setSecondaryIndexesEnabled(enabled);
     }
 
     @Override
