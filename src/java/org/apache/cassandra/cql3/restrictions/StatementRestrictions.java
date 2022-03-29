@@ -175,12 +175,12 @@ public class StatementRestrictions
      * @param restrictions the restrictions to add to the index restrictions
      * @return a new {@code StatementRestrictions} with the new index restrictions
      */
-    public StatementRestrictions addExternalRestrictions(Iterable<CustomIndexExpression> restrictions)
+    public StatementRestrictions addExternalRestrictions(Iterable<ExternalRestriction> restrictions)
     {
         IndexRestrictions.Builder newIndexRestrictions = IndexRestrictions.builder()
                                                                           .add(filterRestrictions);
 
-        for (CustomIndexExpression restriction : restrictions)
+        for (ExternalRestriction restriction : restrictions)
             newIndexRestrictions.add(restriction);
 
         return new StatementRestrictions(table,

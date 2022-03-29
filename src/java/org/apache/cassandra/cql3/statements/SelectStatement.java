@@ -31,6 +31,8 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.restrictions.ExternalRestriction;
+import org.apache.cassandra.cql3.restrictions.Restrictions;
 import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -241,6 +243,48 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     public void validate(QueryState state) throws InvalidRequestException
     {
         // Nothing to do, all validation has been done by RawStatement.prepare()
+    }
+
+    /**
+     * Adds the specified restrictions to the index restrictions.
+     *
+     * @param indexRestrictions the index restrictions to add
+     * @return a new {@code SelectStatement} instance with the added index restrictions
+     */
+    public SelectStatement addIndexRestrictions(Restrictions indexRestrictions)
+    {
+        return new SelectStatement(rawCQLStatement,
+                                   table,
+                                   bindVariables,
+                                   parameters,
+                                   selection,
+                                   restrictions.addIndexRestrictions(indexRestrictions),
+                                   isReversed,
+                                   aggregationSpec,
+                                   orderingComparator,
+                                   limit,
+                                   perPartitionLimit);
+    }
+
+    /**
+     * Adds the specified external restrictions to the index restrictions.
+     *
+     * @param indexRestrictions the index restrictions to add
+     * @return a new {@code SelectStatement} instance with the added index restrictions
+     */
+    public SelectStatement addIndexRestrictions(Iterable<ExternalRestriction> indexRestrictions)
+    {
+        return new SelectStatement(rawCQLStatement,
+                                   table,
+                                   bindVariables,
+                                   parameters,
+                                   selection,
+                                   restrictions.addExternalRestrictions(indexRestrictions),
+                                   isReversed,
+                                   aggregationSpec,
+                                   orderingComparator,
+                                   limit,
+                                   perPartitionLimit);
     }
 
     private void validateQueryOptions(QueryState queryState, QueryOptions options)
