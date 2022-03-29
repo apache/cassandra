@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service;
 
+import java.util.regex.Pattern;
+
 public interface MonitoringServiceMBean
 {
     public boolean isBadQueryTracingEnabled();
@@ -59,7 +61,7 @@ public interface MonitoringServiceMBean
 
     public void setBadQueryTombstoneLimit(int badQueryTombstoneLimit);
 
-    public String getBadQueryIgnoreKeyspaces();
+    public Pattern getBadQueryIgnoreKeyspaces();
 
-    public void setBadQueryIgnoreKeyspaces(String badQueryIgnoreKeyspaces);
+    public void setBadQueryIgnoreKeyspaces(Pattern badQueryIgnoreKeyspaces);
 }

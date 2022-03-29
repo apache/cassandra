@@ -2265,12 +2265,12 @@ public class NodeProbe implements AutoCloseable
         monitoringProxy.setBadQueryTombstoneLimit(badQueryTombstoneLimit);
     }
 
-    public String getBadQueryIgnoreKeyspaces()
+    public Pattern getBadQueryIgnoreKeyspaces()
     {
         return monitoringProxy.getBadQueryIgnoreKeyspaces();
     }
 
-    public void setBadQueryIgnoreKeyspaces(String badQueryIgnoreKeyspaces)
+    public void setBadQueryIgnoreKeyspaces(Pattern badQueryIgnoreKeyspaces)
     {
         monitoringProxy.setBadQueryIgnoreKeyspaces(badQueryIgnoreKeyspaces);
     }

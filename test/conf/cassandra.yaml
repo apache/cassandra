@@ -105,3 +105,4 @@ memtable:
             class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryMethod
         test_invalid_factory_field:
             class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField
+bad_query_ignore_keyspaces: ""

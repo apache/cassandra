@@ -26,6 +26,7 @@ import org.apache.cassandra.service.MonitoringService;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -79,7 +80,11 @@ public class BadQuery
         MonitoringService.instance.setBadQueryReadSlowCoordLatencyInms(DatabaseDescriptor.getBadQueryReadSlowCoordLatenchInMs());
         MonitoringService.instance.setBadQueryWriteSlowCoordLatencyInms(DatabaseDescriptor.getBadQueryWriteSlowCoordLatencyInMs());
         MonitoringService.instance.setBadQueryTombstoneLimit(DatabaseDescriptor.getBadQueryTombstoneLimit());
-        MonitoringService.instance.setBadQueryIgnoreKeyspaces(DatabaseDescriptor.getBadQueryIgnoreKeyspaces());
+        if (!DatabaseDescriptor.getBadQueryIgnoreKeyspaces().isEmpty()) {
+            MonitoringService.instance.setBadQueryIgnoreKeyspaces(Pattern.compile(DatabaseDescriptor
+                                                                                  .getBadQueryIgnoreKeyspaces()));
+        }
+
     }
 
     /**
@@ -108,7 +113,7 @@ public class BadQuery
         if (!DatabaseDescriptor.isBadQueryTracingEnabled() ||
                 (Double.compare(MonitoringService.instance.getBadQueryTracingFraction(), 0.0d) == 0) ||
                 (MonitoringService.instance.getBadQueryIgnoreKeyspaces() != null &&
-                        MonitoringService.instance.getBadQueryIgnoreKeyspaces().contains(ksName)))
+                        MonitoringService.instance.getBadQueryIgnoreKeyspaces().matcher(ksName).matches()))
         {
             return false;
         }

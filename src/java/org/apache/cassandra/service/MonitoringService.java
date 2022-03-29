@@ -22,6 +22,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
+import java.util.regex.Pattern;
 
 public class MonitoringService implements MonitoringServiceMBean
 {
@@ -37,7 +38,7 @@ public class MonitoringService implements MonitoringServiceMBean
     private int badQueryReadSlowCoordLatencyInms;
     private int badQueryWriteSlowCoordLatencyInms;
     private int badQueryTombstoneLimit;
-    private String badQueryIgnoreKeyspaces;
+    private Pattern badQueryIgnoreKeyspaces;
 
     public static final MonitoringService instance = new MonitoringService();
 
@@ -155,12 +156,12 @@ public class MonitoringService implements MonitoringServiceMBean
         this.badQueryTombstoneLimit = badQueryTombstoneLimit;
     }
 
-    public String getBadQueryIgnoreKeyspaces()
+    public Pattern getBadQueryIgnoreKeyspaces()
     {
         return badQueryIgnoreKeyspaces;
     }
 
-    public void setBadQueryIgnoreKeyspaces(String badQueryIgnoreKeyspaces)
+    public void setBadQueryIgnoreKeyspaces(Pattern badQueryIgnoreKeyspaces)
     {
         this.badQueryIgnoreKeyspaces = badQueryIgnoreKeyspaces;
     }

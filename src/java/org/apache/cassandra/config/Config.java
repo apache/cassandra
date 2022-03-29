@@ -662,7 +662,7 @@ public class Config
 
     public Integer bad_query_tombstone_limit = 1000;
 
-    public String bad_query_ignore_keyspaces = "";
+    public String bad_query_ignore_keyspaces = "system.*|.*staging.*|.*test.*|health|pingless";
 
     public Boolean auto_repair_enabled = true;
 
