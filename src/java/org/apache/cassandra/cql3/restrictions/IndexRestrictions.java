@@ -44,9 +44,9 @@ public final class IndexRestrictions
     public static final String MULTIPLE_EXPRESSIONS = "Multiple custom index expressions in a single query are not supported";
 
     private final List<Restrictions> regularRestrictions;
-    private final List<CustomIndexExpression> externalRestrictions;
+    private final List<ExternalRestriction> externalRestrictions;
 
-    private IndexRestrictions(List<Restrictions> regularRestrictions, List<CustomIndexExpression> externalExpressions)
+    private IndexRestrictions(List<Restrictions> regularRestrictions, List<ExternalRestriction> externalExpressions)
     {
         this.regularRestrictions = regularRestrictions;
         this.externalRestrictions = externalExpressions;
@@ -88,7 +88,7 @@ public final class IndexRestrictions
      * Returns the external restrictions.
      * @return the external restrictions
      */
-    public List<CustomIndexExpression> getExternalExpressions()
+    public List<ExternalRestriction> getExternalExpressions()
     {
         return externalRestrictions;
     }
@@ -144,7 +144,7 @@ public final class IndexRestrictions
             if (restrictions.needsFiltering(indexGroup))
                 return true;
 
-        for (CustomIndexExpression restriction : externalRestrictions)
+        for (ExternalRestriction restriction : externalRestrictions)
             if (restriction.needsFiltering(indexGroup))
                 return true;
 
@@ -157,7 +157,7 @@ public final class IndexRestrictions
             if (!restrictions.needsFiltering(indexGroup))
                 return true;
 
-        for (CustomIndexExpression restriction : externalRestrictions)
+        for (ExternalRestriction restriction : externalRestrictions)
             if (!restriction.needsFiltering(indexGroup))
                 return true;
 
@@ -197,7 +197,7 @@ public final class IndexRestrictions
         /**
          * Builder for the custom expressions.
          */
-        private List<CustomIndexExpression> externalRestrictions = new ArrayList<>();
+        private List<ExternalRestriction> externalRestrictions = new ArrayList<>();
 
         private Builder() {}
 
@@ -227,12 +227,12 @@ public final class IndexRestrictions
         }
 
         /**
-         * Adds the specified index expression.
+         * Adds the specified external expression.
          *
-         * @param restriction the index expression to add
+         * @param restriction the external expression to add
          * @return this {@code Builder}
          */
-        public Builder add(CustomIndexExpression restriction)
+        public Builder add(ExternalRestriction restriction)
         {
             externalRestrictions.add(restriction);
             return this;
