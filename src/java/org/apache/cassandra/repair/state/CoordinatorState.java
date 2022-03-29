@@ -45,7 +45,7 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
     public final int cmd;
     public final String keyspace;
     public final RepairOption options;
-    private final ConcurrentMap<TimeUUID, SessionState> sessions = new ConcurrentHashMap<>(); //TODO
+    private final ConcurrentMap<TimeUUID, SessionState> sessions = new ConcurrentHashMap<>();
 
     private List<ColumnFamilyStore> columnFamilies = null;
     private RepairRunnable.NeighborsAndRanges neighborsAndRanges = null;
