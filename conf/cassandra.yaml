@@ -1599,8 +1599,6 @@ drop_compact_storage_enabled: false
 #         warn_threshold_kb: 0
 #         abort_threshold_kb: 0
 
-# Whether guardrails are enabled or not. Guardrails are disabled by default.
-# guardrails_enabled: false
 # Guardrail to warn or fail when creating more user keyspaces than threshold.
 # The two thresholds default to -1 to disable.
 # keyspaces_warn_threshold: -1

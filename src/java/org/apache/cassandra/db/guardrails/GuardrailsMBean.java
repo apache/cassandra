@@ -35,20 +35,6 @@ import java.util.Set;
 public interface GuardrailsMBean
 {
     /**
-     * Whether guardrails are enabled or not.
-     *
-     * @return {@code true} if guardrails are enabled, {@code false} otherwise
-     */
-    boolean getEnabled();
-
-    /**
-     * Enable/disable guardrails.
-     *
-     * @param enabled {@code true} for enabling guardrails, {@code false} for disabling them.
-     */
-    void setEnabled(boolean enabled);
-
-    /**
      * @return The threshold to warn when creating more user keyspaces than threshold.
      * -1 means disabled.
      */

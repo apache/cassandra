@@ -31,7 +31,6 @@ import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static java.lang.String.format;
@@ -266,29 +265,6 @@ public final class Guardrails implements GuardrailsMBean
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
-    }
-
-    /**
-     * Whether guardrails are enabled.
-     *
-     * @return {@code true} if guardrails are enabled and daemon is initialized,
-     * {@code false} otherwise (in which case no guardrail will trigger).
-     */
-    public static boolean enabled(ClientState state)
-    {
-        return DatabaseDescriptor.isDaemonInitialized() && CONFIG_PROVIDER.getOrCreate(state).getEnabled();
-    }
-
-    @Override
-    public boolean getEnabled()
-    {
-        return DEFAULT_CONFIG.getEnabled();
-    }
-
-    @Override
-    public void setEnabled(boolean enabled)
-    {
-        DEFAULT_CONFIG.setEnabled(enabled);
     }
 
     @Override
