@@ -123,6 +123,10 @@ public abstract class AbstractTableOperation implements TableOperation
          */
         private final Unit unit;
         /**
+         * The total bytes that have been scanned. For single file operation, it's the same as "completed"
+         */
+        private final long totalBytesScanned;
+        /**
          * A unique ID for this operation
          */
         private final UUID operationId;
@@ -131,18 +135,67 @@ public abstract class AbstractTableOperation implements TableOperation
          */
         private final ImmutableSet<SSTableReader> sstables;
 
-        public OperationProgress(TableMetadata metadata, OperationType operationType, long bytesComplete, long totalBytes, UUID operationId, Collection<SSTableReader> sstables)
+        public OperationProgress(TableMetadata metadata,
+                                 OperationType operationType,
+                                 long bytesComplete,
+                                 long totalBytes,
+                                 UUID operationId,
+                                 Collection<SSTableReader> sstables)
         {
-            this(metadata, operationType, bytesComplete, totalBytes, Unit.BYTES, operationId, sstables);
+            this(metadata,
+                 operationType,
+                 bytesComplete,
+                 totalBytes,
+                 Unit.BYTES,
+                 bytesComplete,
+                 operationId,
+                 sstables);
         }
 
-        public OperationProgress(TableMetadata metadata, OperationType operationType, long completed, long total, Unit unit, UUID operationId, Collection<? extends SSTableReader> sstables)
+        public OperationProgress(TableMetadata metadata,
+                                 OperationType operationType,
+                                 long bytesComplete,
+                                 long totalBytes,
+                                 long totalBytesScanned,
+                                 UUID operationId,
+                                 Collection<SSTableReader> sstables)
+        {
+            this(metadata,
+                 operationType,
+                 bytesComplete,
+                 totalBytes,
+                 Unit.BYTES,
+                 totalBytesScanned,
+                 operationId,
+                 sstables);
+        }
+
+        public OperationProgress(TableMetadata metadata,
+                                 OperationType operationType,
+                                 long completed,
+                                 long total,
+                                 Unit unit,
+                                 UUID operationId,
+                                 Collection<? extends SSTableReader> sstables)
+        {
+            this(metadata, operationType, completed, total, unit, completed, operationId, sstables);
+        }
+
+        public OperationProgress(TableMetadata metadata,
+                                 OperationType operationType,
+                                 long completed,
+                                 long total,
+                                 Unit unit,
+                                 long totalBytesScanned,
+                                 UUID operationId,
+                                 Collection<? extends SSTableReader> sstables)
         {
             this.operationType = operationType;
             this.completed = completed;
             this.total = total;
             this.metadata = metadata;
             this.unit = unit;
+            this.totalBytesScanned = totalBytesScanned;
             this.operationId = operationId;
             this.sstables = ImmutableSet.copyOf(sstables);
         }
@@ -152,7 +205,7 @@ public abstract class AbstractTableOperation implements TableOperation
          */
         public OperationProgress forProgress(long complete, long total)
         {
-            return new OperationProgress(metadata, operationType, complete, total, unit, operationId, sstables);
+            return new OperationProgress(metadata, operationType, complete, total, unit, complete, operationId, sstables);
         }
 
         public static OperationProgress withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, AbstractTableOperation.Unit unit, UUID compactionId)
@@ -212,6 +265,14 @@ public abstract class AbstractTableOperation implements TableOperation
         public Set<SSTableReader> sstables()
         {
             return sstables;
+        }
+
+        /**
+         * @return the total number of units that has been scanned by the operation
+         */
+        public long totalByteScanned()
+        {
+            return totalBytesScanned;
         }
 
         public String toString()
