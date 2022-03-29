@@ -101,11 +101,36 @@ public class DataStorageSpecTest
     public void testEquals()
     {
         assertEquals(new DataStorageSpec("10B"), new DataStorageSpec("10B"));
+
         assertEquals(new DataStorageSpec("10KiB"), new DataStorageSpec("10240B"));
         assertEquals(new DataStorageSpec("10240B"), new DataStorageSpec("10KiB"));
+
+        assertEquals(new DataStorageSpec("10MiB"), new DataStorageSpec("10240KiB"));
+        assertEquals(new DataStorageSpec("10240KiB"), new DataStorageSpec("10MiB"));
+
+        assertEquals(new DataStorageSpec("10GiB"), new DataStorageSpec("10240MiB"));
+        assertEquals(new DataStorageSpec("10240MiB"), new DataStorageSpec("10GiB"));
+
+        assertNotEquals(DataStorageSpec.inBytes(Long.MAX_VALUE), DataStorageSpec.inGibibytes(Long.MAX_VALUE));
+        assertNotEquals(DataStorageSpec.inBytes(Long.MAX_VALUE), DataStorageSpec.inMebibytes(Long.MAX_VALUE));
+        assertNotEquals(DataStorageSpec.inBytes(Long.MAX_VALUE), DataStorageSpec.inKibibytes(Long.MAX_VALUE));
+        assertEquals(DataStorageSpec.inBytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
+
+        assertNotEquals(DataStorageSpec.inKibibytes(Long.MAX_VALUE), DataStorageSpec.inGibibytes(Long.MAX_VALUE));
+        assertNotEquals(DataStorageSpec.inKibibytes(Long.MAX_VALUE), DataStorageSpec.inMebibytes(Long.MAX_VALUE));
+        assertEquals(DataStorageSpec.inKibibytes(Long.MAX_VALUE), DataStorageSpec.inKibibytes(Long.MAX_VALUE));
+        assertNotEquals(DataStorageSpec.inKibibytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
+
+        assertNotEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inGibibytes(Long.MAX_VALUE));
         assertEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inMebibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inKibibytes(Long.MAX_VALUE));
         assertNotEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
+        assertNotEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
+
+        assertEquals(DataStorageSpec.inGibibytes(Long.MAX_VALUE), DataStorageSpec.inGibibytes(Long.MAX_VALUE));
+        assertNotEquals(DataStorageSpec.inGibibytes(Long.MAX_VALUE), DataStorageSpec.inMebibytes(Long.MAX_VALUE));
+        assertNotEquals(DataStorageSpec.inGibibytes(Long.MAX_VALUE), DataStorageSpec.inKibibytes(Long.MAX_VALUE));
+        assertNotEquals(DataStorageSpec.inGibibytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
+
         assertNotEquals(new DataStorageSpec("0MiB"), new DataStorageSpec("10KiB"));
     }
 

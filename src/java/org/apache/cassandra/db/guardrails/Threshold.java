@@ -35,7 +35,7 @@ public class Threshold extends Guardrail
 {
     private final ToLongFunction<ClientState> warnThreshold;
     private final ToLongFunction<ClientState> failThreshold;
-    private final ErrorMessageProvider messageProvider;
+    protected final ErrorMessageProvider messageProvider;
 
     /**
      * Creates a new threshold guardrail.
@@ -56,12 +56,12 @@ public class Threshold extends Guardrail
         this.messageProvider = messageProvider;
     }
 
-    private String errMsg(boolean isWarning, String what, long value, long thresholdValue)
+    protected String errMsg(boolean isWarning, String what, long value, long thresholdValue)
     {
         return messageProvider.createMessage(isWarning,
                                              what,
-                                             value,
-                                             thresholdValue);
+                                             Long.toString(value),
+                                             Long.toString(thresholdValue));
     }
 
     private String redactedErrMsg(boolean isWarning, long value, long thresholdValue)
@@ -106,6 +106,16 @@ public class Threshold extends Guardrail
     public boolean triggersOn(long value, @Nullable ClientState state)
     {
         return enabled(state) && (value > Math.min(failValue(state), warnValue(state)));
+    }
+
+    public boolean warnsOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && (value > warnValue(state) && value <= failValue(state));
+    }
+
+    public boolean failsOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && (value > failValue(state));
     }
 
     /**
@@ -163,6 +173,6 @@ public class Threshold extends Guardrail
          * @param value     The value that triggered the guardrail (as a string).
          * @param threshold The threshold that was passed to trigger the guardrail (as a string).
          */
-        String createMessage(boolean isWarning, String what, long value, long threshold);
+        String createMessage(boolean isWarning, String what, String value, String threshold);
     }
 }

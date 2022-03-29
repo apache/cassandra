@@ -293,6 +293,52 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> disallowed.guard(set(4), action, superClientState));
     }
 
+    @Test
+    public void testPredicates() throws Throwable
+    {
+        Predicates<Integer> guard = new Predicates<>("x",
+                                                     state -> x -> x > 10,
+                                                     state -> x -> x > 100,
+                                                     (isWarn, value) -> format("%s: %s", isWarn ? "Warning" : "Aborting", value));
+
+        assertValid(() -> guard.guard(5, userClientState));
+        assertWarns(() -> guard.guard(25, userClientState), "Warning: 25");
+        assertWarns(() -> guard.guard(100,  userClientState), "Warning: 100");
+        assertFails(() -> guard.guard(101,  userClientState), "Aborting: 101");
+        assertFails(() -> guard.guard(200,  userClientState), "Aborting: 200");
+        assertValid(() -> guard.guard(5,  userClientState));
+    }
+
+    @Test
+    public void testPredicatesUsers() throws Throwable
+    {
+        Predicates<Integer> guard = new Predicates<>("x",
+                                                     state -> x -> x > 10,
+                                                     state -> x -> x > 100,
+                                                     (isWarn, value) -> format("%s: %s", isWarn ? "Warning" : "Aborting", value));
+
+        assertTrue(guard.enabled());
+        assertTrue(guard.enabled(null));
+        assertTrue(guard.enabled(userClientState));
+        assertFalse(guard.enabled(systemClientState));
+        assertFalse(guard.enabled(superClientState));
+
+        assertValid(() -> guard.guard(5, null));
+        assertValid(() -> guard.guard(5, userClientState));
+        assertValid(() -> guard.guard(5, systemClientState));
+        assertValid(() -> guard.guard(5, superClientState));
+
+        assertWarns(() -> guard.guard(25, null), "Warning: 25");
+        assertWarns(() -> guard.guard(25, userClientState), "Warning: 25");
+        assertValid(() -> guard.guard(25, systemClientState));
+        assertValid(() -> guard.guard(25, superClientState));
+
+        assertFails(() -> guard.guard(101,  null), false, "Aborting: 101");
+        assertFails(() -> guard.guard(101,  userClientState), "Aborting: 101");
+        assertValid(() -> guard.guard(101, systemClientState));
+        assertValid(() -> guard.guard(101, superClientState));
+    }
+
     private static Set<Integer> set(Integer value)
     {
         return Collections.singleton(value);

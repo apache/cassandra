@@ -48,12 +48,12 @@ public class GuardrailCollectionSizeTest extends ThresholdTester
 
     public GuardrailCollectionSizeTest()
     {
-        super(WARN_THRESHOLD / 1024, // to KiB
-              FAIL_THRESHOLD / 1024, // to KiB
+        super(WARN_THRESHOLD + "B",
+              FAIL_THRESHOLD + "B",
               Guardrails.collectionSize,
-              Guardrails::setCollectionSizeThresholdInKiB,
-              Guardrails::getCollectionSizeWarnThresholdInKiB,
-              Guardrails::getCollectionSizeFailThresholdInKiB);
+              Guardrails::setCollectionSizeThreshold,
+              Guardrails::getCollectionSizeWarnThreshold,
+              Guardrails::getCollectionSizeFailThreshold);
     }
 
     @After

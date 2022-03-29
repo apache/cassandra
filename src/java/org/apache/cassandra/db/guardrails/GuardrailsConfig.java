@@ -20,6 +20,8 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
 
@@ -200,14 +202,16 @@ public interface GuardrailsConfig
      */
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
 
-    /*
+    /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */
+    @Nullable
     DataStorageSpec getCollectionSizeWarnThreshold();
 
     /**
      * @return The threshold to prevent collections with larger data size than threshold.
      */
+    @Nullable
     DataStorageSpec getCollectionSizeFailThreshold();
 
     /**
@@ -229,4 +233,23 @@ public interface GuardrailsConfig
      * @return The threshold to fail when creating a UDT with more fields than threshold.
      */
     int getFieldsPerUDTFailThreshold();
+
+    /**
+     * @return The threshold to warn when local disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageWarnThreshold();
+
+    /**
+     * @return The threshold to fail when local disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageFailThreshold();
+
+    /**
+     * @return The max disk size of the data directories when calculating disk usage thresholds, {@code null} means
+     * disabled.
+     */
+    @Nullable
+    DataStorageSpec getDataDiskUsageMaxDiskSize();
 }

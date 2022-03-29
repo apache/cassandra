@@ -427,6 +427,11 @@ public abstract class GuardrailTester extends CQLTester
                          .collect(Collectors.toList());
     }
 
+    protected void assertConfigValid(Consumer<Guardrails> consumer)
+    {
+        consumer.accept(guardrails());
+    }
+
     protected void assertConfigFails(Consumer<Guardrails> consumer, String message)
     {
         try
@@ -531,6 +536,11 @@ public abstract class GuardrailTester extends CQLTester
         public void assertNotWarned()
         {
             assertTrue(format("Expect no warning diagnostic events but got %s", warnings), warnings.isEmpty());
+        }
+
+        public void assertWarned(String message)
+        {
+            assertWarned(Collections.singletonList(message));
         }
 
         public void assertWarned(List<String> messages)

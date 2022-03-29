@@ -640,6 +640,11 @@ public class Directories
             return availableSpace > 0 ? availableSpace : 0;
         }
 
+        public long getRawSize()
+        {
+            return FileUtils.folderSize(location);
+        }
+
         @Override
         public boolean equals(Object o)
         {
