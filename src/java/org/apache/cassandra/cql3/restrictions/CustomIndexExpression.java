@@ -25,7 +25,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.TableMetadata;
 
-public class CustomIndexExpression
+public class CustomIndexExpression implements ExternalRestriction
 {
     private final ColumnIdentifier valueColId = new ColumnIdentifier("custom index expression", false);
 
