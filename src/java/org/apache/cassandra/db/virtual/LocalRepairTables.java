@@ -314,7 +314,8 @@ public class LocalRepairTables
             result.column("incremental", state.incremental);
             result.column("global", state.global);
             result.column("preview_kind", state.previewKind.name());
-            result.column("repaired_at", new Date(state.repairedAt));
+            if (state.repairedAt != 0)
+                result.column("repaired_at", new Date(state.repairedAt));
             result.column("validations", state.validationIds());
             result.column("ranges", toStringList(state.ranges));
         }
