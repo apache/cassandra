@@ -148,7 +148,7 @@ public class CompactionStrategyFactory
         return compactionLogger;
     }
 
-    CompactionRealm getRealm()
+    public CompactionRealm getRealm()
     {
         return realm;
     }

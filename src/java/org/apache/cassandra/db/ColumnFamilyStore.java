@@ -2548,9 +2548,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 ActiveRepairService.instance.abort((prs) -> prs.getTableIds().contains(metadata.id),
                                                    "Stopping parent sessions {} due to truncation of tableId="+metadata.id);
                 data.notifyTruncated(replayAfter, truncatedAt);
-
-            if (!noSnapshot && DatabaseDescriptor.isAutoSnapshot())
-                snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX));
+                
+                if (!noSnapshot && DatabaseDescriptor.isAutoSnapshot()) 
+                    snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX));
 
                 discardSSTables(truncatedAt);
 
@@ -2626,14 +2626,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         synchronized (this)
         {
             logger.trace("Cancelling in-progress compactions for {}", metadata.name);
-            Iterable<ColumnFamilyStore> toInterruptFor = interruptIndexes
-                                                         ? concatWithIndexes()
-                                                         : Collections.singleton(this);
-
-            toInterruptFor = interruptViews
-                             ? Iterables.concat(toInterruptFor, viewManager.allViewsCfs())
-                             : toInterruptFor;
-
+            Iterable<ColumnFamilyStore> toInterruptFor = concatWith(interruptIndexes, interruptViews);
             try (CompactionManager.CompactionPauser pause = CompactionManager.instance.pauseGlobalCompaction();
                  CompactionManager.CompactionPauser pausedStrategies = pauseCompactionStrategies(toInterruptFor))
             {
@@ -3028,9 +3021,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public Iterable<ColumnFamilyStore> concatWithIndexes()
     {
+        return concatWith(true, false);
+    }
+
+    public Iterable<ColumnFamilyStore> concatWith(boolean includeIndexes, boolean includeViews)
+    {
         // we return the main CFS first, which we rely on for simplicity in switchMemtable(), for getting the
         // latest commit log segment position
-        return Iterables.concat(Collections.singleton(this), indexManager.getAllIndexColumnFamilyStores());
+        Set<ColumnFamilyStore> mainCFS = Collections.singleton(this);
+        if (includeIndexes && includeViews)
+            return Iterables.concat(mainCFS,
+                                    indexManager.getAllIndexColumnFamilyStores(),
+                                    viewManager.allViewsCfs());
+        if (includeIndexes)
+            return Iterables.concat(mainCFS, indexManager.getAllIndexColumnFamilyStores());
+        if (includeViews)
+            return Iterables.concat(mainCFS, viewManager.allViewsCfs());
+        return mainCFS;
     }
 
     public List<String> getBuiltIndexes()
