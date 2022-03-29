@@ -762,7 +762,7 @@ jobs:
       - run_parallel_junit_tests:
           classlistprefix: distributed
           target: "testclasslist"
-          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=4'"
+          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
 
   j11_jvm_dtests:
     <<: *j11_small_par_executor
@@ -789,7 +789,7 @@ jobs:
       - run_parallel_junit_tests:
           classlistprefix: distributed
           target: "testclasslist"
-          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=4'"
+          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
 
   j8_jvm_upgrade_dtests:
     <<: *j8_medium_par_executor
