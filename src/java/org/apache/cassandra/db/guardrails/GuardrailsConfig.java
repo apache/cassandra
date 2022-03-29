@@ -94,6 +94,11 @@ public interface GuardrailsConfig
     int getSecondaryIndexesPerTableFailThreshold();
 
     /**
+     * @return Whether creation of secondary indexes is allowed.
+     */
+    boolean getSecondaryIndexesEnabled();
+
+    /**
      * @return The threshold to warn when creating more materialized views per table than threshold.
      */
     int getMaterializedViewsPerTableWarnThreshold();
