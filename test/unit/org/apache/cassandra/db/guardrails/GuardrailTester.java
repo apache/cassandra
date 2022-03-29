@@ -103,7 +103,6 @@ public abstract class GuardrailTester extends CQLTester
         CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
-        guardrails().setEnabled(true);
         DatabaseDescriptor.setDiagnosticEventsEnabled(true);
 
         systemClientState = ClientState.forInternalCalls();

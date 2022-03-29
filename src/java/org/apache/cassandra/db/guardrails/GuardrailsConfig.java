@@ -30,9 +30,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
  * checking each guarded constraint (which, again, should use the higher level abstractions defined in
  * {@link Guardrails}).
  *
- * <p>This contains a main setting, {@code enabled}, controlling if guardrails are globally active or not, and
- * individual settings to control each guardrail.
- *
  * <p>We have 2 variants of guardrails, soft (warn) and hard (fail) limits, each guardrail having either one of the
  * variants or both. Note in particular that hard limits only make sense for guardrails triggering during query
  * execution. For other guardrails, say one triggering during compaction, aborting that compaction does not make sense.
@@ -46,13 +43,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
  */
 public interface GuardrailsConfig
 {
-    /**
-     * Whether guardrails are enabled or not.
-     *
-     * @return {@code true} if guardrails are enabled, {@code false} otherwise
-     */
-    boolean getEnabled();
-
     /**
      * @return The threshold to warn when creating more user keyspaces than threshold.
      */

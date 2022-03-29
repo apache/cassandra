@@ -49,8 +49,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     public static void setupCluster() throws IOException
     {
         cluster = init(Cluster.build(NUM_NODES)
-                              .withConfig(c -> c.set("guardrails_enabled", true)
-                                                .set("items_per_collection_warn_threshold", WARN_THRESHOLD)
+                              .withConfig(c -> c.set("items_per_collection_warn_threshold", WARN_THRESHOLD)
                                                 .set("items_per_collection_fail_threshold", FAIL_THRESHOLD))
                               .start());
         cluster.disableAutoCompaction(KEYSPACE);

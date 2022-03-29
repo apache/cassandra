@@ -775,7 +775,6 @@ public class Config
 
     public static final int DISABLED_GUARDRAIL = -1;
     public static final DataStorageSpec DISABLED_SIZE_GUARDRAIL = DataStorageSpec.inBytes(0);
-    public volatile boolean guardrails_enabled = false;
     public volatile int keyspaces_warn_threshold = DISABLED_GUARDRAIL;
     public volatile int keyspaces_fail_threshold = DISABLED_GUARDRAIL;
     public volatile int tables_warn_threshold = DISABLED_GUARDRAIL;

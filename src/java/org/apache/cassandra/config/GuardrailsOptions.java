@@ -42,9 +42,6 @@ import static java.util.stream.Collectors.toSet;
  * code checking each guarded constraint. That code should use the higher level abstractions defined in
  * {@link Guardrails}).
  *
- * <p>This contains a main setting, {@code enabled}, controlling if guardrails are globally active or not, and
- * individual settings to control each guardrail.
- *
  * <p>We have 2 variants of guardrails, soft (warn) and hard (fail) limits, each guardrail having either one of the
  * variants or both. Note in particular that hard limits only make sense for guardrails triggering during query
  * execution. For other guardrails, say one triggering during compaction, aborting that compaction does not make sense.
@@ -80,25 +77,6 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, "collection_size");
         validateIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
         validateIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
-    }
-
-    @Override
-    public boolean getEnabled()
-    {
-        return config.guardrails_enabled;
-    }
-
-    /**
-     * Enable/disable guardrails.
-     *
-     * @param enabled {@code true} for enabling guardrails, {@code false} for disabling them.
-     */
-    public void setEnabled(boolean enabled)
-    {
-        updatePropertyWithLogging("guardrails_enabled",
-                                  enabled,
-                                  () -> config.guardrails_enabled,
-                                  x -> config.guardrails_enabled = x);
     }
 
     @Override

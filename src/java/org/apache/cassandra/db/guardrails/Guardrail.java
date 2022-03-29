@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
@@ -55,9 +56,8 @@ public abstract class Guardrail
     }
 
     /**
-     * Checks whether this guardrail is enabled or not. This will be enabled if guardrails are enabled
-     * ({@link Guardrails#enabled(ClientState)}) and if the authenticated user (if specified) is not system nor
-     * superuser.
+     * Checks whether this guardrail is enabled or not. This will be enabled if the database is initialized and the
+     * authenticated user (if specified) is not system nor superuser.
      *
      * @param state the client state, used to skip the check if the query is internal or is done by a superuser.
      *              A {@code null} value means that the check should be done regardless of the query.
@@ -65,7 +65,7 @@ public abstract class Guardrail
      */
     public boolean enabled(@Nullable ClientState state)
     {
-        return Guardrails.enabled(state) && (state == null || state.isOrdinaryUser());
+        return DatabaseDescriptor.isDaemonInitialized() && (state == null || state.isOrdinaryUser());
     }
 
     protected void warn(String message)
