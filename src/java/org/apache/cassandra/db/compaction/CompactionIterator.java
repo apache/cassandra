@@ -120,7 +120,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
             @Override
             public OperationProgress getProgress()
             {
-                return new AbstractTableOperation.OperationProgress(controller.realm.metadata(), type, bytesRead(), totalBytes, compactionId, sstables);
+                return new AbstractTableOperation.OperationProgress(controller.realm.metadata(), type, bytesRead(), totalBytes, getTotalBytesScanned(), compactionId, sstables);
             }
 
             @Override
