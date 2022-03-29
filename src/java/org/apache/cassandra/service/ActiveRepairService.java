@@ -177,7 +177,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     private final ConcurrentMap<TimeUUID, RepairSession> sessions = new ConcurrentHashMap<>();
 
     private final ConcurrentMap<TimeUUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
+    // map of top level repair id (parent repair id) -> state
     private final Cache<TimeUUID, CoordinatorState> repairs;
+    // map of top level repair id (parent repair id) -> participate state
     private final Cache<TimeUUID, ParticipateState> participates;
 
     private volatile ScheduledFuture<?> irCleanup;
@@ -1068,7 +1070,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return repairs.asMap().values();
     }
 
-    public CoordinatorState coordinator(UUID id)
+    public CoordinatorState coordinator(TimeUUID id)
     {
         return repairs.getIfPresent(id);
     }
@@ -1088,6 +1090,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             participates.put(state.id, state);
         }
         return true;
+    }
+
+    public Collection<ParticipateState> participates()
+    {
+        return participates.asMap().values();
     }
 
     public ParticipateState participate(TimeUUID id)

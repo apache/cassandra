@@ -21,7 +21,6 @@ import java.util.UUID;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
-import org.apache.cassandra.utils.Clock;
 
 public class ValidationState extends AbstractState<ValidationState.State, UUID>
 {
@@ -52,11 +51,6 @@ public class ValidationState extends AbstractState<ValidationState.State, UUID>
         if (estimatedPartitions == 0) // mostly to avoid / 0
             return 0.0f;
         return Math.min(0.99F, partitionsProcessed / (float) estimatedPartitions);
-    }
-
-    public void updated()
-    {
-        lastUpdatedAtNs = Clock.Global.nanoTime();
     }
 
     public final class Phase extends BaseSkipPhase

@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -41,6 +42,7 @@ import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.state.Completable;
 import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.JobState;
 import org.apache.cassandra.repair.state.ParticipateState;
@@ -154,6 +156,24 @@ public class LocalRepairTablesTest extends CQLTester
     }
 
     @Test
+    public void participates() throws Throwable
+    {
+        assertEmpty("repair_participates");
+        ParticipateState state = participate();
+
+        assertInit("repair_participates", state);
+        state.phase.success("testing");
+        assertRowsIgnoringOrder(execute(t("SELECT id, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
+                                row(state.getId(), Arrays.asList("(0,42]"), null, "testing", new Date(state.getInitializedAtMillis()), new Date(state.getLastUpdatedAtMillis()), null));
+
+        state = participate();
+        assertInit("repair_participates", state);
+        state.phase.fail("testing");
+        assertRowsIgnoringOrder(execute(t("SELECT id, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
+                                row(state.getId(), Arrays.asList("(0,42]"), "testing", null, new Date(state.getInitializedAtMillis()), null, new Date(state.getLastUpdatedAtMillis())));
+    }
+
+    @Test
     public void validations() throws Throwable
     {
         assertEmpty("repair_validations");
@@ -163,7 +183,7 @@ public class LocalRepairTablesTest extends CQLTester
 
         // progress is defined by estimated partitions and how many partitions have been processed; disable checking in shared functions
         state.phase.start(100, 100);
-        assertState("repair_validations", state, ValidationState.State.START, false);
+        assertState("repair_validations", state, ValidationState.State.START);
 
         for (int i = 0; i < 10; i++)
         {
@@ -176,7 +196,7 @@ public class LocalRepairTablesTest extends CQLTester
         }
 
         state.phase.sendingTrees();
-        assertState("repair_validations", state, ValidationState.State.SENDING_TREES, false);
+        assertState("repair_validations", state, ValidationState.State.SENDING_TREES);
 
         state.phase.success("testing");
         assertSuccess("repair_validations", state);
@@ -187,36 +207,27 @@ public class LocalRepairTablesTest extends CQLTester
         assertRowCount(execute(t("SELECT * FROM %s." + table)), 0);
     }
 
+    private void assertInit(String table, Completable<?> state) throws Throwable
+    {
+        assertRowsIgnoringOrder(execute(t("SELECT id, state_init_timestamp, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
+                                row(state.getId(), new Date(state.getInitializedAtMillis()), null, null));
+    }
+
     private void assertInit(String table, State<?, ?> state) throws Throwable
     {
-        assertRowsIgnoringOrder(execute(t("SELECT id, status, state_init_timestamp, failure_cause, success_message FROM %s." + table)),
+        assertRowsIgnoringOrder(execute(t("SELECT id, status, state_init_timestamp, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
                                 row(state.getId(), "init", new Date(state.getInitializedAtMillis()), null, null));
     }
 
     private <T extends Enum<T>> void assertState(String table, State<?, ?> state, T expectedState) throws Throwable
     {
-        assertState(table, state, expectedState, true);
-    }
-
-    private <T extends Enum<T>> void assertState(String table, State<?, ?> state, T expectedState, boolean includeProgress) throws Throwable
-    {
-        if (includeProgress)
-        {
-            float totalStates = expectedState.getClass().getEnumConstants().length + 1;
-            int currentState = expectedState.ordinal() + 1;
-            assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table)),
-                                    row(state.getId(), expectedState.name().toLowerCase(), null, null));
-        }
-        else
-        {
-            assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table)),
-                                    row(state.getId(), expectedState.name().toLowerCase(), null, null));
-        }
+        assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
+                                row(state.getId(), expectedState.name().toLowerCase(), null, null));
     }
 
     private void assertSuccess(String table, State<?, ?> state) throws Throwable
     {
-        assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table)),
+        assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
                                 row(state.getId(), "success", null, "testing"));
     }
 
@@ -287,7 +298,8 @@ public class LocalRepairTablesTest extends CQLTester
 
     private ParticipateState participate()
     {
-        ParticipateState state = new ParticipateState(new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), Collections.emptyList(), true, 42, true, PreviewKind.ALL));
+        List<Range<Token>> ranges = Arrays.asList(new Range<>(new Murmur3Partitioner.LongToken(0), new Murmur3Partitioner.LongToken(42)));
+        ParticipateState state = new ParticipateState(new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), ranges, true, 42, true, PreviewKind.ALL));
         ActiveRepairService.instance.register(state);
         return state;
     }

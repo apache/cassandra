@@ -29,7 +29,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.repair.state.ParticipateState;
-import org.apache.cassandra.repair.state.State;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -105,7 +104,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                              columnFamilyStores,
                                                                              prepareMessage.ranges,
                                                                              prepareMessage.isIncremental,
-                                                                             prepareMessage.timestamp,
+                                                                             prepareMessage.repairedAt,
                                                                              prepareMessage.isGlobal,
                                                                              prepareMessage.previewKind);
                     MessagingService.instance().send(message.emptyResponse(), message.from());
@@ -225,6 +224,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 {
                     logger.debug("cleaning up repair");
                     CleanupMessage cleanup = (CleanupMessage) message.payload;
+                    ParticipateState state = ActiveRepairService.instance.participate(cleanup.parentRepairSession);
+                    if (state != null)
+                        state.phase.success("Cleanup message recieved");
                     ActiveRepairService.instance.removeParentRepairSession(cleanup.parentRepairSession);
                     MessagingService.instance().send(message.emptyResponse(), message.from());
                 }

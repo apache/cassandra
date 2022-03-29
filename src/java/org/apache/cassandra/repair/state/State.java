@@ -18,88 +18,10 @@
 package org.apache.cassandra.repair.state;
 
 import java.util.EnumMap;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.utils.Clock;
-
-public interface State<T extends Enum<T>, I>
+public interface State<T extends Enum<T>, I> extends Completable<I>
 {
-    I getId();
-
-    default boolean isComplete()
-    {
-        return getResult() != null;
-    }
-
     T getStatus();
 
-    long getInitializedAtMillis();
-
-    long getInitializedAtNanos();
-
-    long getLastUpdatedAtMillis();
-
-    long getLastUpdatedAtNanos();
-
-    default long getDurationMillis()
-    {
-        long endNanos = getLastUpdatedAtNanos();
-        if (!isComplete())
-            endNanos = Clock.Global.nanoTime();
-        return TimeUnit.NANOSECONDS.toMillis(endNanos - getInitializedAtNanos());
-    }
-
     EnumMap<T, Long> getStateTimesMillis();
-
-    Result getResult();
-
-    default String getFailureCause()
-    {
-        Result r = getResult();
-        if (r == null || r.kind == Result.Kind.SUCCESS)
-            return null;
-        return r.message;
-    }
-
-    default String getSuccessMessage()
-    {
-        Result r = getResult();
-        if (r == null || r.kind != Result.Kind.SUCCESS)
-            return null;
-        return r.message;
-    }
-
-    class Result
-    {
-        public enum Kind { SUCCESS, SKIPPED, FAILURE }
-        public final Kind kind;
-        public final String message;
-
-        private Result(Kind kind, String message)
-        {
-            this.kind = kind;
-            this.message = message;
-        }
-
-        protected static Result success()
-        {
-            return new Result(Kind.SUCCESS, null);
-        }
-
-        protected static Result success(String msg)
-        {
-            return new Result(Kind.SUCCESS, msg);
-        }
-
-        protected static Result skip(String msg)
-        {
-            return new Result(Kind.SKIPPED, msg);
-        }
-
-        protected static Result fail(String msg)
-        {
-            return new Result(Kind.FAILURE, msg);
-        }
-    }
 }

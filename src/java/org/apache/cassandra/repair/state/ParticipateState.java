@@ -23,8 +23,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import com.google.common.base.Throwables;
-
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.messages.PrepareMessage;
@@ -32,27 +30,26 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.TimeUUID;
 
-public class ParticipateState
+public class ParticipateState extends AbstractCompletable<TimeUUID>
 {
-    public final Phase phase = new Phase();
+    public final List<TableId> tableIds;
+    public final Collection<Range<Token>> ranges;
+    public final boolean incremental;
+    public final long repairedAt;
+    public final boolean global;
+    public final PreviewKind previewKind;
 
     private final ConcurrentMap<UUID, ValidationState> validations = new ConcurrentHashMap<>();
 
-    public final TimeUUID id;
-    private final List<TableId> tableIds;
-    private final Collection<Range<Token>> ranges;
-    private final boolean incremental;
-    private final long timestamp;
-    private final boolean global;
-    private final PreviewKind previewKind;
+    public final Phase phase = new Phase();
 
     public ParticipateState(PrepareMessage msg)
     {
-        this.id = msg.parentRepairSession;
+        super(msg.parentRepairSession);
         this.tableIds = msg.tableIds;
         this.ranges = msg.ranges;
         this.incremental = msg.isIncremental;
-        this.timestamp = msg.timestamp;
+        this.repairedAt = msg.repairedAt;
         this.global = msg.isGlobal;
         this.previewKind = msg.previewKind;
     }
@@ -68,16 +65,13 @@ public class ParticipateState
         return validations.values();
     }
 
-    public class Phase
+    public Collection<UUID> validationIds()
     {
-        public void fail(Throwable e)
-        {
-            fail(e == null ? null : Throwables.getStackTraceAsString(e));
-        }
+        return validations.keySet();
+    }
 
-        public void fail(String failureCause)
-        {
-            // TODO
-        }
+    public class Phase extends BasePhase
+    {
+
     }
 }

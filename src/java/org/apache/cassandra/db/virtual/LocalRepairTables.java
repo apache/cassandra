@@ -30,18 +30,23 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.state.Completable;
 import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.JobState;
+import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.repair.state.State;
 import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class LocalRepairTables
 {
@@ -55,6 +60,7 @@ public class LocalRepairTables
         new RepairTable(keyspace),
         new SessionTable(keyspace),
         new JobTable(keyspace),
+        new ParticipateTable(keyspace),
         new ValidationTable(keyspace)
         );
     }
@@ -71,13 +77,13 @@ public class LocalRepairTables
         {
             super(parse(keyspace, "Repair summary",
                         "CREATE TABLE repairs (\n" +
-                        stdColumns(true) +
+                        stdColumnsWithStatus(true) +
                         "  command_id int,\n" +
                         "  keyspace_name text,\n" +
                         // human readable definition of what the repair is doing
                         "  type text,\n" +
                         // list of all sessions; this is lazy so only once the session is created will it be present, so this dynamically changes within the life of a repair
-                        "  sessions frozen<set<uuid>>,\n" +
+                        "  sessions frozen<set<timeuuid>>,\n" +
 
                         // options_ maps to RepairOption
                         "  options_parallelism text,\n" +
@@ -115,7 +121,7 @@ public class LocalRepairTables
 
         public DataSet data(DecoratedKey partitionKey)
         {
-            UUID id = UUIDType.instance.compose(partitionKey.getKey());
+            TimeUUID id = TimeUUIDType.instance.compose(partitionKey.getKey());
             SimpleDataSet result = new SimpleDataSet(metadata());
             CoordinatorState state = ActiveRepairService.instance.coordinator(id);
             if (state != null)
@@ -188,7 +194,7 @@ public class LocalRepairTables
         {
             super(parse(keyspace, "Repair session",
                         "CREATE TABLE repair_sessions (\n" +
-                        stdColumns(true) +
+                        stdColumnsWithStatus(true) +
                         "  repair_id uuid,\n" +
                         "  keyspace_name text,\n" +
                         "  table_names frozen<list<text>>,\n" +
@@ -229,7 +235,7 @@ public class LocalRepairTables
         {
             super(parse(keyspace, "Repair job",
                         "CREATE TABLE repair_jobs (\n" +
-                        stdColumns(false) +
+                        stdColumnsWithStatus(false) +
                         JOB_DESC_COLUMNS +
                         "\n" +
                         stateColumns(JobState.State.class) +
@@ -257,13 +263,70 @@ public class LocalRepairTables
         }
     }
 
+    static final class ParticipateTable extends AbstractVirtualTable
+    {
+        protected ParticipateTable(String keyspace)
+        {
+            super(parse(keyspace, "Repair participate summary",
+                        "CREATE TABLE repair_participates (" +
+                        stdColumns(true) +
+                        "  tables frozen<set<text>>, \n" +
+                        "  ranges frozen<list<text>>,\n" +
+                        "  incremental boolean,\n" +
+                        "  global boolean,\n" +
+                        "  preview_kind text,\n" +
+                        "  repaired_at timestamp,\n" +
+                        "  validations frozen<set<uuid>>,\n" +
+                        "\n" +
+                        "  PRIMARY KEY ( (id) )\n" +
+                        ")"));
+        }
+
+        @Override
+        public DataSet data()
+        {
+            SimpleDataSet result = new SimpleDataSet(metadata());
+            ActiveRepairService.instance.participates().stream()
+                                        .forEach(s -> updateDataset(result, s));
+            return result;
+        }
+
+        @Override
+        public DataSet data(DecoratedKey partitionKey)
+        {
+            TimeUUID id = TimeUUIDType.instance.compose(partitionKey.getKey());
+            SimpleDataSet result = new SimpleDataSet(metadata());
+            ParticipateState state = ActiveRepairService.instance.participate(id);
+            if (state != null)
+                updateDataset(result, state);
+            return result;
+        }
+
+        private void updateDataset(SimpleDataSet result, ParticipateState state)
+        {
+            result.row(state.id);
+            addCompletableState(result, state);
+            result.column("tables", state.tableIds.stream()
+                                                  .map(Schema.instance::getTableMetadata)
+                                                  .filter(a -> a != null) // getTableMetadata returns null if id isn't know, most likely dropped
+                                                  .map(Object::toString)
+                                                  .collect(Collectors.joining(",")));
+            result.column("incremental", state.incremental);
+            result.column("global", state.global);
+            result.column("preview_kind", state.previewKind.name());
+            result.column("repaired_at", new Date(state.repairedAt));
+            result.column("validations", state.validationIds());
+            result.column("ranges", toStringList(state.ranges));
+        }
+    }
+
     private static final class ValidationTable extends AbstractVirtualTable
     {
         ValidationTable(String keyspace)
         {
             super(parse(keyspace, "Repair validation",
                         "CREATE TABLE repair_validations (\n" +
-                        stdColumns(false) +
+                        stdColumnsWithStatus(false) +
                         JOB_DESC_COLUMNS +
                         "  initiator  text,\n" +
                         "  estimated_partitions  bigint,\n" +
@@ -323,32 +386,46 @@ public class LocalRepairTables
     private static String stateColumns(Class<? extends Enum<?>> klass)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("  ").append(timestampColumnName("init")).append(" timestamp, \n");
         for (Enum<?> e : klass.getEnumConstants())
             sb.append("  ").append(timestampColumnName(e)).append(" timestamp, \n");
+        return sb.toString();
+    }
+
+    private static String stdStateColumns()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("  ").append(timestampColumnName("init")).append(" timestamp, \n");
         for (State.Result.Kind kind : State.Result.Kind.values())
             sb.append("  ").append(timestampColumnName(kind)).append(" timestamp, \n");
         return sb.toString();
     }
 
-    private static <T extends Enum<T>> void addState(SimpleDataSet ds, State<T, ?> state)
+    private static void addCompletableState(SimpleDataSet ds, Completable<?> state)
     {
         // read timestamp early to see latest data
         ds.column("last_updated_at", new Date(state.getLastUpdatedAtMillis()));
         ds.column("duration_millis", state.getDurationMillis());
-        T currentState = state.getStatus();
         State.Result result = state.getResult();
-        ds.column("status", result != null ? result.kind.name().toLowerCase() : currentState == null ? "init" : currentState.name().toLowerCase());
         ds.column("failure_cause", state.getFailureCause());
         ds.column("success_message", state.getSuccessMessage());
         ds.column(timestampColumnName("init"), new Date(state.getInitializedAtMillis()));
+
+        if (result != null)
+            ds.column(timestampColumnName(result.kind), new Date(state.getLastUpdatedAtMillis()));
+    }
+
+    private static <T extends Enum<T>> void addState(SimpleDataSet ds, State<T, ?> state)
+    {
+        addCompletableState(ds, state);
+
+        T currentState = state.getStatus();
+        State.Result result = state.getResult();
+        ds.column("status", result != null ? result.kind.name().toLowerCase() : currentState == null ? "init" : currentState.name().toLowerCase());
         for (Map.Entry<T, Long> e : state.getStateTimesMillis().entrySet())
         {
             if (e.getValue().longValue() != 0)
                 ds.column(timestampColumnName(e.getKey()), new Date(e.getValue()));
         }
-        if (result != null)
-            ds.column(timestampColumnName(result.kind), new Date(state.getLastUpdatedAtMillis()));
     }
 
     @VisibleForTesting
@@ -392,13 +469,17 @@ public class LocalRepairTables
     private static String stdColumns(boolean time)
     {
         String str = "  id timeuuid,\n" +
-                     "  status text,\n" +
                      "  last_updated_at timestamp,\n" +
                      "  duration_millis bigint,\n" +
                      "  failure_cause text,\n" +
                      "  success_message text,\n";
         if (!time)
             str = str.replace("id timeuuid", "id uuid");
-        return str;
+        return str + stdStateColumns();
+    }
+
+    private static String stdColumnsWithStatus(boolean time)
+    {
+        return stdColumns(time) + "  status text,\n";
     }
 }

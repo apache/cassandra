@@ -18,39 +18,23 @@
 package org.apache.cassandra.repair.state;
 
 import java.util.EnumMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-
-import com.google.common.base.Throwables;
 
 import org.apache.cassandra.utils.Clock;
 
-public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
+public abstract class AbstractState<T extends Enum<T>, I> extends AbstractCompletable<I> implements State<T, I>
 {
     public static final int INIT = -1;
     public static final int COMPLETE = -2;
 
-    private final long creationTimeMillis = Clock.Global.currentTimeMillis(); // used to convert from nanos to millis
-    private final long creationTimeNanos = Clock.Global.nanoTime();
-
-    public final I id;
     private final Class<T> klass;
     protected final long[] stateTimesNanos;
     protected int currentState = INIT;
-    protected volatile long lastUpdatedAtNs;
-    private final AtomicReference<Result> result = new AtomicReference<>(null);
 
     public AbstractState(I id, Class<T> klass)
     {
-        this.id = id;
+        super(id);
         this.klass = klass;
         this.stateTimesNanos = new long[klass.getEnumConstants().length];
-    }
-
-    @Override
-    public I getId()
-    {
-        return id;
     }
 
     @Override
@@ -68,30 +52,6 @@ public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
     }
 
     @Override
-    public long getInitializedAtMillis()
-    {
-        return nanosToMillis(creationTimeNanos);
-    }
-
-    @Override
-    public long getInitializedAtNanos()
-    {
-        return creationTimeNanos;
-    }
-
-    @Override
-    public long getLastUpdatedAtMillis()
-    {
-        return nanosToMillis(lastUpdatedAtNs);
-    }
-
-    @Override
-    public long getLastUpdatedAtNanos()
-    {
-        return lastUpdatedAtNs;
-    }
-
-    @Override
     public EnumMap<T, Long> getStateTimesMillis()
     {
         long[] millis = getStateTimesMillisArray();
@@ -103,6 +63,12 @@ public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
                 map.put(klass.getEnumConstants()[i], ms);
         }
         return map;
+    }
+
+    @Override
+    protected void onComplete()
+    {
+        currentState = COMPLETE;
     }
 
     private long[] getStateTimesMillisArray()
@@ -117,12 +83,6 @@ public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
         return millis;
     }
 
-    @Override
-    public Result getResult()
-    {
-        return result.get();
-    }
-
     protected void updateState(T state)
     {
         int currentState = this.currentState;
@@ -131,51 +91,5 @@ public abstract class AbstractState<T extends Enum<T>, I> implements State<T, I>
         long now = Clock.Global.nanoTime();
         stateTimesNanos[this.currentState = state.ordinal()] = now;
         lastUpdatedAtNs = now;
-    }
-
-    protected boolean tryResult(Result result)
-    {
-        if (!this.result.compareAndSet(null, result))
-            return false;
-        currentState = COMPLETE;
-        lastUpdatedAtNs = Clock.Global.nanoTime();
-        return true;
-    }
-
-    protected long nanosToMillis(long nanos)
-    {
-        // nanos - creationTimeNanos = delta since init
-        return creationTimeMillis + TimeUnit.NANOSECONDS.toMillis(nanos - creationTimeNanos);
-    }
-
-    protected class BaseSkipPhase extends BasePhase
-    {
-        public void skip(String msg)
-        {
-            tryResult(Result.skip(msg));
-        }
-    }
-
-    protected class BasePhase
-    {
-        public void success()
-        {
-            tryResult(Result.success());
-        }
-
-        public void success(String msg)
-        {
-            tryResult(Result.success(msg));
-        }
-
-        public void fail(Throwable e)
-        {
-            fail(e == null ? null : Throwables.getStackTraceAsString(e));
-        }
-
-        public void fail(String failureCause)
-        {
-            tryResult(Result.fail(failureCause));
-        }
     }
 }
