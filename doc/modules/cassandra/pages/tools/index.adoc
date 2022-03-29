@@ -7,3 +7,4 @@ Cassandra.
 * xref:tools/nodetool/nodetool.adoc[nodetool]
 * xref:tools/sstable/index.adoc[SSTable tools] 
 * xref:tools/cassandra_stress.adoc[cassandra-stress tool]
+* xref:tools/hash_password.adoc[hash password tool]
