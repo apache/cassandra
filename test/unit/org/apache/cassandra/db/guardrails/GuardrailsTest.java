@@ -35,6 +35,7 @@ import static org.junit.Assert.assertTrue;
 
 public class GuardrailsTest extends GuardrailTester
 {
+    
     public static final int DISABLED = -1;
 
     @Test
