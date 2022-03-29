@@ -65,8 +65,8 @@ public class LocalRepairTables
         );
     }
 
-    private static final String JOB_DESC_COLUMNS = "  repair_id uuid,\n" +
-                                                   "  session_id uuid,\n" +
+    private static final String JOB_DESC_COLUMNS = "  repair_id timeuuid,\n" +
+                                                   "  session_id timeuuid,\n" +
                                                    "  keyspace_name text,\n" +
                                                    "  table_name text,\n" +
                                                    "  ranges frozen<list<text>>,\n";
@@ -195,7 +195,7 @@ public class LocalRepairTables
             super(parse(keyspace, "Repair session",
                         "CREATE TABLE repair_sessions (\n" +
                         stdColumnsWithStatus(true) +
-                        "  repair_id uuid,\n" +
+                        "  repair_id timeuuid,\n" +
                         "  keyspace_name text,\n" +
                         "  table_names frozen<list<text>>,\n" +
                         "  ranges frozen<list<text>>,\n" +
@@ -310,7 +310,7 @@ public class LocalRepairTables
                                                   .map(Schema.instance::getTableMetadata)
                                                   .filter(a -> a != null) // getTableMetadata returns null if id isn't know, most likely dropped
                                                   .map(Object::toString)
-                                                  .collect(Collectors.joining(",")));
+                                                  .collect(Collectors.toSet()));
             result.column("incremental", state.incremental);
             result.column("global", state.global);
             result.column("preview_kind", state.previewKind.name());

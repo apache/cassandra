@@ -109,6 +109,9 @@ public class LocalRepairTablesTest extends CQLTester
 
         state.phase.success("testing");
         assertSuccess("repairs", state);
+
+        // make sure serialization works
+        execute(t("SELECT * FROM %s.repairs"));
     }
 
     @Test
@@ -127,6 +130,9 @@ public class LocalRepairTablesTest extends CQLTester
 
         state.phase.success("testing");
         assertSuccess("repair_sessions", state);
+
+        // make sure serialization works
+        execute(t("SELECT * FROM %s.repair_sessions"));
     }
 
     @Test
@@ -153,6 +159,9 @@ public class LocalRepairTablesTest extends CQLTester
 
         state.phase.success("testing");
         assertSuccess("repair_jobs", state);
+
+        // make sure serialization works
+        execute(t("SELECT * FROM %s.repair_jobs"));
     }
 
     @Test
@@ -171,6 +180,9 @@ public class LocalRepairTablesTest extends CQLTester
         state.phase.fail("testing");
         assertRowsIgnoringOrder(execute(t("SELECT id, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
                                 row(state.getId(), Arrays.asList("(0,42]"), "testing", null, new Date(state.getInitializedAtMillis()), null, new Date(state.getLastUpdatedAtMillis())));
+
+        // make sure serialization works
+        execute(t("SELECT * FROM %s.repair_participates"));
     }
 
     @Test
@@ -200,6 +212,9 @@ public class LocalRepairTablesTest extends CQLTester
 
         state.phase.success("testing");
         assertSuccess("repair_validations", state);
+
+        // make sure serialization works
+        execute(t("SELECT * FROM %s.repair_validations"));
     }
 
     private void assertEmpty(String table) throws Throwable
