@@ -125,27 +125,22 @@ public final class CreateTableStatement extends AlterSchemaStatement
     {
         super.validate(state);
 
-        // since there are multiple guardrails guarding this, we first check that guardrails are globally enabled as an
-        // optimization for the case where they are disabled, so we don't have to do the same check on every guardrail
-        if (Guardrails.enabled(state))
+        // Guardrail on table properties
+        Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
+
+        // Guardrail on columns per table
+        Guardrails.columnsPerTable.guard(rawColumns.size(), tableName, false, state);
+
+        // Guardrail on number of tables
+        if (Guardrails.tables.enabled(state))
         {
-            // Guardrail on table properties
-            Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
-
-            // Guardrail on columns per table
-            Guardrails.columnsPerTable.guard(rawColumns.size(), tableName, false, state);
-
-            // Guardrail on number of tables
-            if (Guardrails.tables.enabled(state))
-            {
-                int totalUserTables = Schema.instance.getUserKeyspaces()
-                                                     .stream()
-                                                     .map(ksm -> ksm.name)
-                                                     .map(Keyspace::open)
-                                                     .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
-                                                     .sum();
-                Guardrails.tables.guard(totalUserTables + 1, tableName, false, state);
-            }
+            int totalUserTables = Schema.instance.getUserKeyspaces()
+                                                 .stream()
+                                                 .map(ksm -> ksm.name)
+                                                 .map(Keyspace::open)
+                                                 .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
+                                                 .sum();
+            Guardrails.tables.guard(totalUserTables + 1, tableName, false, state);
         }
     }
 

@@ -55,8 +55,7 @@ public abstract class Guardrail
     }
 
     /**
-     * Checks whether this guardrail is enabled or not. This will be enabled if guardrails are enabled
-     * ({@link Guardrails#enabled(ClientState)}) and if the authenticated user (if specified) is not system nor
+     * Checks whether this guardrail is enabled or not. This will be enabled if the authenticated user (if specified) is not system nor
      * superuser.
      *
      * @param state the client state, used to skip the check if the query is internal or is done by a superuser.
@@ -65,7 +64,7 @@ public abstract class Guardrail
      */
     public boolean enabled(@Nullable ClientState state)
     {
-        return Guardrails.enabled(state) && (state == null || state.isOrdinaryUser());
+        return state == null || state.isOrdinaryUser();
     }
 
     protected void warn(String message)

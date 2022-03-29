@@ -47,13 +47,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 public interface GuardrailsConfig
 {
     /**
-     * Whether guardrails are enabled or not.
-     *
-     * @return {@code true} if guardrails are enabled, {@code false} otherwise
-     */
-    boolean getEnabled();
-
-    /**
      * @return The threshold to warn when creating more user keyspaces than threshold.
      */
     int getKeyspacesWarnThreshold();

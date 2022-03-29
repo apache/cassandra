@@ -83,25 +83,6 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public boolean getEnabled()
-    {
-        return config.guardrails_enabled;
-    }
-
-    /**
-     * Enable/disable guardrails.
-     *
-     * @param enabled {@code true} for enabling guardrails, {@code false} for disabling them.
-     */
-    public void setEnabled(boolean enabled)
-    {
-        updatePropertyWithLogging("guardrails_enabled",
-                                  enabled,
-                                  () -> config.guardrails_enabled,
-                                  x -> config.guardrails_enabled = x);
-    }
-
-    @Override
     public int getKeyspacesWarnThreshold()
     {
         return config.keyspaces_warn_threshold;
