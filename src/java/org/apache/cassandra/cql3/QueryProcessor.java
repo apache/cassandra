@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -114,6 +115,8 @@ public class QueryProcessor implements QueryHandler
     public static final CQLMetrics metrics = new CQLMetrics();
 
     private static final AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
+
+    private final List<QueryInterceptor> interceptors = new ArrayList<>();
 
     static
     {
@@ -266,11 +269,34 @@ public class QueryProcessor implements QueryHandler
         statement.authorize(clientState);
         statement.validate(queryState);
 
+        for (QueryInterceptor interceptor: interceptors)
+        {
+            ResultMessage result = interceptor.interceptStatement(statement, queryState, options, queryStartNanoTime);
+
+            if (result != null)
+                return result;
+        }
+
         ResultMessage result = options.getConsistency() == ConsistencyLevel.NODE_LOCAL
                              ? processNodeLocalStatement(statement, queryState, options)
                              : statement.execute(queryState, options, queryStartNanoTime);
 
         return result == null ? new ResultMessage.Void() : result;
+    }
+
+    /**
+     * Register a new {@link QueryInterceptor}
+     * @param interceptor the {@link QueryInterceptor} to register
+     */
+    public void registerInterceptor(QueryInterceptor interceptor)
+    {
+        interceptors.add(Objects.requireNonNull(interceptor));
+    }
+
+    @VisibleForTesting
+    public void clearInterceptors()
+    {
+        interceptors.clear();
     }
 
     private ResultMessage processNodeLocalStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
