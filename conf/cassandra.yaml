@@ -1609,6 +1609,8 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # tables_warn_threshold: -1
 # tables_fail_threshold: -1
+# Guardrail to enable or disable the ability to create uncompressed tables
+# uncompressed_tables_enabled: true
 # Guardrail to warn or fail when creating/altering a table with more columns per table than threshold.
 # The two thresholds default to -1 to disable.
 # columns_per_table_warn_threshold: -1
