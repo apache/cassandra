@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.schema;
 
-
 import java.util.Optional;
 
 import org.apache.cassandra.db.marshal.UserType;
@@ -114,7 +113,7 @@ public class SchemaTransformations
 
                 types = types.with(type);
             }
-            return schema.withAddedOrReplaced(keyspace.withSwapped(types));
+            return schema.withAddedOrUpdated(keyspace.withSwapped(types));
         };
     }
 
@@ -229,7 +228,7 @@ public class SchemaTransformations
                         }
                     }
                 }
-                return schema.withAddedOrReplaced(updatedKeyspace);
+                return schema.withAddedOrUpdated(updatedKeyspace);
             }
         };
     }
