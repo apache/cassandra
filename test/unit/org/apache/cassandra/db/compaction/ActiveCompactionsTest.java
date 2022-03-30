@@ -218,6 +218,8 @@ public class ActiveCompactionsTest extends CQLTester
         assertEquals(mockActiveCompactions.holder.getCompactionInfo().getSSTables(), Sets.newHashSet(sstable));
         assertFalse(mockActiveCompactions.holder.getCompactionInfo().shouldStop((s) -> false));
         assertTrue(mockActiveCompactions.holder.getCompactionInfo().shouldStop((s) -> true));
+
+        assertEquals(mockActiveCompactions.holder.getCompactionInfo().getTotal(), mockActiveCompactions.totalBytesRead);
     }
 
     @Test
