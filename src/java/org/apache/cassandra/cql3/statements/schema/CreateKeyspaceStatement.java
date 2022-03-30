@@ -50,7 +50,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
     private final KeyspaceAttributes attrs;
     private final boolean ifNotExists;
-    private final HashSet<String> clientWarnings = new HashSet<>();
 
     public CreateKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifNotExists)
     {
@@ -113,6 +112,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        HashSet<String> clientWarnings = new HashSet<>();
         int keyspaceCount = Schema.instance.getKeyspaces().size();
         if (keyspaceCount > DatabaseDescriptor.keyspaceCountWarnThreshold())
         {

@@ -101,6 +101,7 @@ import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -135,7 +136,6 @@ import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
@@ -206,7 +206,6 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
-import static com.google.common.collect.Iterables.all;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
@@ -246,16 +245,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static int getRingDelay()
     {
-        String newdelay = System.getProperty("cassandra.ring_delay_ms");
-        if (newdelay != null)
-        {
-            logger.info("Overriding RING_DELAY to {}ms", newdelay);
-            return Integer.parseInt(newdelay);
-        }
-        else
-        {
-            return 30 * 1000;
-        }
+        int defaultDelay = 30 * 1000;
+        int newDelay = CassandraRelevantProperties.RING_DELAY.getInt(defaultDelay);
+        Preconditions.checkArgument(newDelay >= 0, "%s must be >= 0", CassandraRelevantProperties.RING_DELAY.getKey());
+        if (newDelay != defaultDelay)
+            logger.info("Overriding {} to {}ms", CassandraRelevantProperties.RING_DELAY.getKey(), newDelay);
+        return newDelay;
     }
 
     private static int getSchemaDelay()

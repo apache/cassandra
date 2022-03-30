@@ -62,6 +62,12 @@ public class JMXEnabledSingleThreadExecutor extends JMXEnabledThreadPoolExecutor
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public boolean canRunImmediately()
+    {
+        return isExecutedBy(Thread.currentThread());
+    }
+
     private static class SingleThreadFactory extends NamedThreadFactory
     {
         private volatile Thread thread;
