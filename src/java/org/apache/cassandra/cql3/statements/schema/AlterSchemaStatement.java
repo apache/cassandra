@@ -38,6 +38,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspaceCqlStatement, SchemaTransformation
 {
     protected final String keyspaceName; // name of the keyspace affected by the statement
+    protected ClientState state;
 
     protected AlterSchemaStatement(String keyspaceName)
     {
@@ -46,7 +47,10 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
 
     public void validate(ClientState state)
     {
-        // no-op; validation is performed while executing the statement, in apply()
+        // validation is performed while executing the statement, in apply()
+
+        // Cache our ClientState for use by guardrails
+        this.state = state;
     }
 
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)

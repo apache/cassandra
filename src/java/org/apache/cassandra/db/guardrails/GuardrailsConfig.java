@@ -98,7 +98,6 @@ public interface GuardrailsConfig
      */
     int getMaterializedViewsPerTableWarnThreshold();
 
-
     /**
      * @return The threshold to warn when partition keys in select more than threshold.
      */
@@ -135,6 +134,13 @@ public interface GuardrailsConfig
      * @return {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
      */
     boolean getUserTimestampsEnabled();
+
+    /**
+     * Returns whether tables can be uncompressed
+     *
+     * @return {@code true} if user's can disable compression, {@code false} otherwise.
+     */
+    boolean getUncompressedTablesEnabled();
 
     /**
      * Returns whether users can create new COMPACT STORAGE tables

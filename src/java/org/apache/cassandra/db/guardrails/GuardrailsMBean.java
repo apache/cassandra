@@ -212,6 +212,20 @@ public interface GuardrailsMBean
     void setUserTimestampsEnabled(boolean enabled);
 
     /**
+     * Returns whether users can disable compression on tables
+     *
+     * @return {@code true} if users can disable compression on a table, {@code false} otherwise.
+     */
+    boolean getUncompressedTablesEnabled();
+
+    /**
+     * Sets whether users can disable compression on tables
+     *
+     * @param enabled {@code true} if users can disable compression on a table, {@code false} otherwise.
+     */
+    void setUncompressedTablesEnabled(boolean enabled);
+
+    /**
      * Returns whether users can create new COMPACT STORAGE tables
      *
      * @return {@code true} if allowed, {@code false} otherwise.

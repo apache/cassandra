@@ -130,6 +130,14 @@ public final class Guardrails implements GuardrailsMBean
                     "User provided timestamps (USING TIMESTAMP)");
 
     /**
+     * Guardrail disabling user's ability to turn off compression
+     */
+    public static final DisableFlag uncompressedTablesEnabled =
+    new DisableFlag("uncompressed_tables_enabled",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getUncompressedTablesEnabled(),
+                    "Uncompressed table");
+
+    /**
      * Guardrail disabling the creation of new COMPACT STORAGE tables
      */
     public static final DisableFlag compactTablesEnabled =
@@ -462,6 +470,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setUserTimestampsEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setUserTimestampsEnabled(enabled);
+    }
+
+    @Override
+    public boolean getUncompressedTablesEnabled()
+    {
+        return DEFAULT_CONFIG.getUncompressedTablesEnabled();
+    }
+
+    @Override
+    public void setUncompressedTablesEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setUncompressedTablesEnabled(enabled);
     }
 
     @Override

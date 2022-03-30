@@ -171,7 +171,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         private final Collection<Column> newColumns;
         private final boolean ifColumnNotExists;
-        private ClientState state;
 
         private AddColumns(String keyspaceName, String tableName, Collection<Column> newColumns, boolean ifTableExists, boolean ifColumnNotExists)
         {
@@ -184,9 +183,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         public void validate(ClientState state)
         {
             super.validate(state);
-
-            // save the query state to use it for guardrails validation in #apply
-            this.state = state;
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
@@ -460,6 +456,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             {
                 throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
             }
+
+            if (!params.compression.isEnabled())
+                Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
         }
