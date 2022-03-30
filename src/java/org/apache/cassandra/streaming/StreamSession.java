@@ -165,6 +165,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     // data receivers, filled after receiving prepare message
     private final Map<TableId, StreamReceiveTask> receivers = new ConcurrentHashMap<>();
     private final StreamingMetrics metrics;
+    private HashMap<String, Long> fileProgress;
 
     final Map<String, Set<Range<Token>>> transferredRangesPerKeyspace = new HashMap<>();
 
@@ -182,8 +183,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
-
-    private HashMap<String, Long> fileProgress;
 
     /**
      * State Transition:
@@ -245,10 +244,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         this.channel = new StreamingMultiplexedChannel(this, factory, peer, controlChannel, messagingVersion);
         this.metrics = StreamingMetrics.get(peer);
+        this.fileProgress = new HashMap<String, Long>();
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
-
-        this.fileProgress = new HashMap<String, Long>();
     }
 
     public boolean isFollower()
@@ -807,7 +805,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
 
         long headerSize = message.stream.getSize();
-
         // send back file received message
         channel.sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber)).syncUninterruptibly();
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
