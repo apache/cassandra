@@ -630,7 +630,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             tableIds.add(cfs.metadata.id);
 
         PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
-        register(new ParticipateState(message));
+        register(new ParticipateState(FBUtilities.getBroadcastAddressAndPort(), message));
         for (InetAddressAndPort neighbour : endpoints)
         {
             if (FailureDetector.instance.isAlive(neighbour))

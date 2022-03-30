@@ -33,6 +33,7 @@ import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.Verb.VALIDATION_RSP;
@@ -71,7 +72,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 {
                     PrepareMessage prepareMessage = (PrepareMessage) message.payload;
                     logger.debug("Preparing, {}", prepareMessage);
-                    ParticipateState state = new ParticipateState(prepareMessage);
+                    ParticipateState state = new ParticipateState(message.from(), prepareMessage);
                     if (!ActiveRepairService.instance.register(state))
                     {
                         logger.debug("Duplicate prepare message found for {}", state.id);

@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -32,6 +33,7 @@ import org.apache.cassandra.utils.TimeUUID;
 
 public class ParticipateState extends AbstractCompletable<TimeUUID>
 {
+    public final InetAddressAndPort initiator;
     public final List<TableId> tableIds;
     public final Collection<Range<Token>> ranges;
     public final boolean incremental;
@@ -43,9 +45,10 @@ public class ParticipateState extends AbstractCompletable<TimeUUID>
 
     public final Phase phase = new Phase();
 
-    public ParticipateState(PrepareMessage msg)
+    public ParticipateState(InetAddressAndPort initiator, PrepareMessage msg)
     {
         super(msg.parentRepairSession);
+        this.initiator = initiator;
         this.tableIds = msg.tableIds;
         this.ranges = msg.ranges;
         this.incremental = msg.isIncremental;

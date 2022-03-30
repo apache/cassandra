@@ -270,6 +270,7 @@ public class LocalRepairTables
             super(parse(keyspace, "Repair participate summary",
                         "CREATE TABLE repair_participates (" +
                         stdColumns(true) +
+                        "  initiator  text,\n" +
                         "  tables frozen<set<text>>, \n" +
                         "  ranges frozen<list<text>>,\n" +
                         "  incremental boolean,\n" +
@@ -306,6 +307,7 @@ public class LocalRepairTables
         {
             result.row(state.id);
             addCompletableState(result, state);
+            result.column("initiator", state.initiator.toString());
             result.column("tables", state.tableIds.stream()
                                                   .map(Schema.instance::getTableMetadata)
                                                   .filter(a -> a != null) // getTableMetadata returns null if id isn't know, most likely dropped

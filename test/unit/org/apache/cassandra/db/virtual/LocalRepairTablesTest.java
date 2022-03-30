@@ -52,6 +52,7 @@ import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
 public class LocalRepairTablesTest extends CQLTester
@@ -172,14 +173,14 @@ public class LocalRepairTablesTest extends CQLTester
 
         assertInit("repair_participates", state);
         state.phase.success("testing");
-        assertRowsIgnoringOrder(execute(t("SELECT id, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
-                                row(state.getId(), Arrays.asList("(0,42]"), null, "testing", new Date(state.getInitializedAtMillis()), new Date(state.getLastUpdatedAtMillis()), null));
+        assertRowsIgnoringOrder(execute(t("SELECT id, initiator, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
+                                row(state.getId(), FBUtilities.getBroadcastAddressAndPort().toString(), Arrays.asList("(0,42]"), null, "testing", new Date(state.getInitializedAtMillis()), new Date(state.getLastUpdatedAtMillis()), null));
 
         state = participate();
         assertInit("repair_participates", state);
         state.phase.fail("testing");
-        assertRowsIgnoringOrder(execute(t("SELECT id, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
-                                row(state.getId(), Arrays.asList("(0,42]"), "testing", null, new Date(state.getInitializedAtMillis()), null, new Date(state.getLastUpdatedAtMillis())));
+        assertRowsIgnoringOrder(execute(t("SELECT id, initiator, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
+                                row(state.getId(), FBUtilities.getBroadcastAddressAndPort().toString(), Arrays.asList("(0,42]"), "testing", null, new Date(state.getInitializedAtMillis()), null, new Date(state.getLastUpdatedAtMillis())));
 
         // make sure serialization works
         execute(t("SELECT * FROM %s.repair_participates"));
@@ -203,8 +204,8 @@ public class LocalRepairTablesTest extends CQLTester
             state.updated();
 
             // min 99% is because >= 100 gets lowered to 99% and the last 1% is when validation is actualy complete
-            assertRowsIgnoringOrder(execute(t("SELECT id, status, progress_percentage, estimated_partitions, estimated_total_bytes, partitions_processed, failure_cause, success_message FROM %s.repair_validations")),
-                                    row(state.getId(), "start", Math.min(99.0F, (float) state.partitionsProcessed), 100L, 100L, state.partitionsProcessed, null, null));
+            assertRowsIgnoringOrder(execute(t("SELECT id, initiator, status, progress_percentage, estimated_partitions, estimated_total_bytes, partitions_processed, failure_cause, success_message FROM %s.repair_validations")),
+                                    row(state.getId(), FBUtilities.getBroadcastAddressAndPort().toString(), "start", Math.min(99.0F, (float) state.partitionsProcessed), 100L, 100L, state.partitionsProcessed, null, null));
         }
 
         state.phase.sendingTrees();
@@ -314,7 +315,7 @@ public class LocalRepairTablesTest extends CQLTester
     private ParticipateState participate()
     {
         List<Range<Token>> ranges = Arrays.asList(new Range<>(new Murmur3Partitioner.LongToken(0), new Murmur3Partitioner.LongToken(42)));
-        ParticipateState state = new ParticipateState(new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), ranges, true, 42, true, PreviewKind.ALL));
+        ParticipateState state = new ParticipateState(FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), ranges, true, 42, true, PreviewKind.ALL));
         ActiveRepairService.instance.register(state);
         return state;
     }
