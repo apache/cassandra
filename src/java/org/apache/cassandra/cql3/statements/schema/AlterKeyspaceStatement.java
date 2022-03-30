@@ -50,7 +50,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 {
     private static final boolean allow_alter_rf_during_range_movement = Boolean.getBoolean(Config.PROPERTY_PREFIX + "allow_alter_rf_during_range_movement");
     private static final boolean allow_unsafe_transient_changes = Boolean.getBoolean(Config.PROPERTY_PREFIX + "allow_unsafe_transient_changes");
-    private final HashSet<String> clientWarnings = new HashSet<>();
 
     private final KeyspaceAttributes attrs;
 
@@ -96,6 +95,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        HashSet<String> clientWarnings = new HashSet<>();
         if (diff.isEmpty())
             return clientWarnings;
 

@@ -36,6 +36,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.exceptions.UnknownKeyspaceException;
 import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
@@ -503,12 +504,22 @@ public class KeyspaceTest extends CQLTester
     }
 
     @Test
+    public void testSetUnsetInitialized()
+    {
+        // dumb test to make sonar happy
+        Keyspace.unsetInitialized();
+        Assertions.assertThat(Keyspace.isInitialized()).isFalse();
+        Keyspace.setInitialized();
+        Assertions.assertThat(Keyspace.isInitialized()).isTrue();
+    }
+
+    @Test
     public void shouldThrowOnMissingKeyspace()
     {
         String ksName = "MissingKeyspace";
 
         Assertions.assertThatThrownBy(() -> Keyspace.open(ksName, Schema.instance, false))
-                  .isInstanceOf(AssertionError.class)
-                  .hasMessage("Unknown keyspace " + ksName);
+                  .isInstanceOf(UnknownKeyspaceException.class)
+                  .hasMessage("Could not find a keyspace " + ksName);
     }
 }

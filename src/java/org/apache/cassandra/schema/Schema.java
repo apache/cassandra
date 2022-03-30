@@ -51,6 +51,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.UnknownKeyspaceException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -93,7 +94,7 @@ public class Schema implements SchemaProvider
 
     private final Keyspaces localKeyspaces;
 
-    private volatile TableMetadataRefCache tableMetadataRefCache = TableMetadataRefCache.EMPTY;
+    private TableMetadataRefCache tableMetadataRefCache = TableMetadataRefCache.EMPTY;
 
     // Keyspace objects, one per keyspace. Only one instance should ever exist for any given keyspace.
     // We operate on loading map because we need to achieve atomic initialization with at-most-once semantics for
@@ -212,8 +213,7 @@ public class Schema implements SchemaProvider
      * Get keyspace instance by name
      *
      * @param keyspaceName The name of the keyspace
-     *
-     * @return Keyspace object or null if keyspace was not found
+     * @return Keyspace object or null if keyspace was not found, or if the keyspace has not completed construction yet
      */
     @Override
     public Keyspace getKeyspaceInstance(String keyspaceName)
@@ -237,7 +237,7 @@ public class Schema implements SchemaProvider
     }
 
     @Override
-    public Keyspace maybeAddKeyspaceInstance(String keyspaceName, Supplier<Keyspace> loadFunction)
+    public Keyspace maybeAddKeyspaceInstance(String keyspaceName, Supplier<Keyspace> loadFunction) throws UnknownKeyspaceException
     {
         return keyspaceInstances.blockingLoadIfAbsent(keyspaceName, loadFunction);
     }
@@ -347,11 +347,11 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * @return a collection of keyspaces that partition data across the ring
+     * Returns keyspaces that partition data across the ring.
      */
     public Keyspaces getPartitionedKeyspaces()
     {
-        return distributedKeyspaces.filter(keyspace -> Keyspace.open(keyspace.name).getReplicationStrategy().isPartitioned());
+        return distributedKeyspaces.filter(keyspace -> Keyspace.open(keyspace.name, this, true).getReplicationStrategy().isPartitioned());
     }
 
     /**
@@ -713,9 +713,10 @@ public class Schema implements SchemaProvider
     {
         SchemaDiagnostics.keyspaceCreating(this, keyspace);
         load(keyspace);
+        Keyspace instance = null;
         if (Keyspace.isInitialized())
         {
-            Keyspace.open(keyspace.name, this, true);
+            instance = Keyspace.open(keyspace.name, this, true);
         }
 
         schemaChangeNotifier.notifyKeyspaceCreated(keyspace);
@@ -723,9 +724,9 @@ public class Schema implements SchemaProvider
 
         // If keyspace has been added, we need to recalculate pending ranges to make sure
         // we send mutations to the correct set of bootstrapping nodes. Refer CASSANDRA-15433.
-        if (keyspace.params.replication.klass != LocalStrategy.class && Keyspace.isInitialized())
+        if (keyspace.params.replication.klass != LocalStrategy.class && instance != null)
         {
-            PendingRangeCalculatorService.calculatePendingRanges(Keyspace.open(keyspace.name, this, false).getReplicationStrategy(), keyspace.name);
+            PendingRangeCalculatorService.calculatePendingRanges(instance.getReplicationStrategy(), keyspace.name);
         }
     }
 

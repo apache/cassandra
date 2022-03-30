@@ -209,7 +209,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         // apply the schema mutations and fetch the new versions of the altered keyspaces
         Keyspaces updatedKeyspaces = SchemaKeyspace.fetchKeyspaces(affectedKeyspaces);
         Set<String> removedKeyspaces = affectedKeyspaces.stream().filter(ks -> !updatedKeyspaces.containsKeyspace(ks)).collect(Collectors.toSet());
-        Keyspaces afterKeyspaces = before.getKeyspaces().withAddedOrReplaced(updatedKeyspaces).without(removedKeyspaces);
+        Keyspaces afterKeyspaces = before.getKeyspaces().withAddedOrUpdated(updatedKeyspaces).without(removedKeyspaces);
 
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before.getKeyspaces(), afterKeyspaces);
         UUID version = SchemaKeyspace.calculateSchemaDigest();

@@ -62,6 +62,7 @@ import static org.junit.Assert.assertTrue;
 public class MigrationManagerTest
 {
     private static final String KEYSPACE1 = "keyspace1";
+    private static final String KEYSPACE2 = "keyspace2";
     private static final String KEYSPACE3 = "keyspace3";
     private static final String KEYSPACE6 = "keyspace6";
     private static final String EMPTY_KEYSPACE = "test_empty_keyspace";
@@ -81,6 +82,10 @@ public class MigrationManagerTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, TABLE1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, TABLE2));
+        SchemaLoader.createKeyspace(KEYSPACE2,
+                KeyspaceParams.simple(1),
+                SchemaLoader.standardCFMD(KEYSPACE2, TABLE1),
+                SchemaLoader.standardCFMD(KEYSPACE2, TABLE2));
         SchemaLoader.createKeyspace(KEYSPACE3,
                                     KeyspaceParams.simple(5),
                                     SchemaLoader.standardCFMD(KEYSPACE3, TABLE1),
@@ -259,7 +264,7 @@ public class MigrationManagerTest
     public void dropKS() throws ConfigurationException
     {
         // sanity
-        final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
+        final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE2);
         assertNotNull(ks);
         final TableMetadata cfm = ks.tables.getNullable(TABLE2);
         assertNotNull(cfm);
@@ -267,7 +272,7 @@ public class MigrationManagerTest
         // write some data, force a flush, then verify that files exist on disk.
         for (int i = 0; i < 100; i++)
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)",
-                                                         KEYSPACE1, TABLE2),
+                                                         KEYSPACE2, TABLE2),
                                            "dropKs", "col" + i, "anyvalue");
         ColumnFamilyStore cfs = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(cfs);
@@ -283,7 +288,7 @@ public class MigrationManagerTest
         try
         {
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)",
-                                                         KEYSPACE1, TABLE2),
+                                                         KEYSPACE2, TABLE2),
                                            "dropKs", "col0", "anyvalue");
         }
         catch (Throwable th)
