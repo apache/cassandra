@@ -32,6 +32,7 @@ import sys
 import traceback
 import warnings
 import webbrowser
+from importlib import import_module
 from contextlib import contextmanager
 from glob import glob
 from io import StringIO
@@ -98,6 +99,33 @@ if platform.system() == 'Linux':
 
 if os.environ.get('CQLSH_NO_BUNDLED', ''):
     ZIPLIB_DIRS = ()
+
+
+def parse_auth_provider_extended(option, opt_str, value, passed_parser):
+    splits = opt_str.split('.')
+    if len(splits) > 2:
+        raise optparse.OptionValueError("Invalid --AuthProviderExtended argument only single period should be found: %s" % opt_str)
+    if len(splits) < 2:
+        raise optparse.OptionValueError("Invalid --AuthProviderExtended must provide a param using period: %s" % opt_str)
+    key = splits[1]
+
+    if not hasattr(passed_parser.values, 'auth_provider_extended') or parser.values.auth_provider_extended is None:
+        passed_parser.values.auth_provider_extended = {}
+
+    passed_parser.values.auth_provider_extended[key] = value
+
+
+def add_auth_provider_extended_options(passed_parser, argv):
+    for arg in argv:
+        if arg.startswith('--AuthProviderExtended'):
+            passed_parser.add_option(arg,action="callback", callback=parse_auth_provider_extended,
+                  type="str", nargs=1)
+
+
+def parse_auth_provider_class_module(option, opt_str, value, passed_parser):
+    splits = value.rsplit('.', 1)
+    setattr(passed_parser.values, 'auth_provider_classname', splits[1])
+    setattr(passed_parser.values, 'auth_provider_module', splits[0])
 
 
 def find_zip(libprefix):
@@ -223,6 +251,11 @@ parser.add_option('-v', action="version", help='Print the current version of cql
 # The Cassandra distributed tests (dtests) also use this option in some tests when a well-known password is supplied via the command line.
 parser.add_option("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
                   help=optparse.SUPPRESS_HELP)
+add_auth_provider_extended_options(parser, sys.argv[1:])
+
+parser.add_option("--AuthProvider",
+                  help='specify the auth provider class (ex: cassandra.auth.PlainTextAuthProvider), use --AuthProviderExtended.<name> for properties at construction (ex: --AuthProviderExtended.username)',
+                  action="callback", callback=parse_auth_provider_class_module,type="str", nargs=1)
 
 opt_values = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
@@ -405,7 +438,6 @@ def insert_driver_hooks():
     # Return cassandra.cqltypes.EMPTY instead of None for empty values
     cassandra.cqltypes.CassandraType.support_empty_values = True
 
-
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
     if custom_prompt != '':
@@ -442,11 +474,13 @@ class Shell(cmd.Cmd):
                  request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  protocol_version=None,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS,
-                 is_subshell=False):
+                 is_subshell=False,
+                 auth_provider=None):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
-        self.auth_provider = None
+        self.auth_provider = auth_provider
+
         if username:
             if not password:
                 password = getpass.getpass()
@@ -2091,6 +2125,19 @@ def is_file_secure(filename):
     # This is to allow "sudo cqlsh" to work with user owned credentials file.
     return (uid == 0 or st.st_uid == uid) and stat.S_IMODE(st.st_mode) & (stat.S_IRGRP | stat.S_IROTH) == 0
 
+# Load the auth provider class and module from optvalues.
+# Returns None if auth provider is not specified.
+def load_auth_provider(optvalues):
+    if (optvalues.auth_provider_module is None):
+        return None
+
+    module = import_module(optvalues.auth_provider_module)
+    auth_provider_klass = getattr(module, optvalues.auth_provider_classname)
+
+    if hasattr(optvalues, 'auth_provider_extended') and optvalues.auth_provider_extended is not None:
+        return auth_provider_klass(**optvalues.auth_provider_extended)
+    else:
+        return auth_provider_klass()
 
 def read_options(cmdlineargs, environment):
     configs = configparser.ConfigParser()
@@ -2109,6 +2156,7 @@ def read_options(cmdlineargs, environment):
               "\nPlease use a credentials file to specify the username and password.\n", file=sys.stderr)
 
     optvalues = optparse.Values()
+
     optvalues.username = None
     optvalues.password = None
     optvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
@@ -2150,6 +2198,14 @@ def read_options(cmdlineargs, environment):
     optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     optvalues.execute = None
     optvalues.insecure_password_without_warning = False
+
+    optvalues.auth_provider_module = option_with_default(configs.get, 'AuthProvider', 'module')
+    optvalues.auth_provider_classname = option_with_default(configs.get, 'AuthProvider', 'classname')
+
+    if ('AuthProviderExtendedProperties' in configs.sections()) :
+        optvalues.auth_provider_extended = dict(configs.items("AuthProviderExtendedProperties"))
+    else:
+        optvalues.auth_provider_extended = None
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
 
@@ -2349,7 +2405,8 @@ def main(options, hostname, port):
                       single_statement=options.execute,
                       request_timeout=options.request_timeout,
                       connect_timeout=options.connect_timeout,
-                      encoding=options.encoding)
+                      encoding=options.encoding,
+                      auth_provider=load_auth_provider(options))
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS as e:
