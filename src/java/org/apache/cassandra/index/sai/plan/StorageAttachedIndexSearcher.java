@@ -510,7 +510,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
                 return new RowIterator()
                 {
-                    boolean hasNext;
                     Row next;
 
                     @Override
@@ -549,25 +548,40 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                         delegate.close();
                     }
 
+                    private Row computeNext()
+                    {
+                        while (delegate.hasNext())
+                        {
+                            Row row = delegate.next();
+                            queryContext.rowsFiltered++;
+                            if (tree.isSatisfiedBy(delegate.partitionKey(), row, staticRow))
+                                return row;
+                        }
+                        return null;
+                    }
+
+                    private Row loadNext()
+                    {
+                        if (next == null)
+                            next = computeNext();
+                        return next;
+                    }
+
                     @Override
                     public boolean hasNext()
                     {
-                        while (hasNext = delegate.hasNext())
-                        {
-                            next = delegate.next();
-                            queryContext.rowsFiltered++;
-                            if (tree.isSatisfiedBy(delegate.partitionKey(), next, staticRow))
-                                return true;
-                        }
-                        return false;
+                        return loadNext() != null;
                     }
 
                     @Override
                     public Row next()
                     {
-                        if (!hasNext)
+                        Row result = loadNext();
+                        next = null;
+
+                        if (result == null)
                             throw new NoSuchElementException();
-                        return next;
+                        return result;
                     }
                 };
             }
