@@ -406,7 +406,7 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public void setMaxDCReplicationFactor(int warn, int fail)
+    public void setMaxDCReplicationFactorThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setMaxDCReplicationFactor(warn, fail);
     }

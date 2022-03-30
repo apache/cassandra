@@ -258,5 +258,5 @@ public interface GuardrailsMBean
      * @param fail the threshold to fail when the maximum replication factor for a data center is greater than
      *             threshold -1 means disabled.
      */
-    void setMaxDCReplicationFactor(int warn, int fail);
+    void setMaxDCReplicationFactorThreshold(int warn, int fail);
 }
