@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
@@ -31,6 +30,7 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 {
@@ -110,7 +110,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
     public static SSTableMultiWriter create(Descriptor descriptor,
                                             long keyCount,
                                             long repairedAt,
-                                            UUID pendingRepair,
+                                            TimeUUID pendingRepair,
                                             boolean isTransient,
                                             TableMetadataRef metadata,
                                             MetadataCollector metadataCollector,

@@ -20,7 +20,6 @@ package org.apache.cassandra.db.repair;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -46,6 +45,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 
 @Ignore
 public abstract class AbstractPendingAntiCompactionTest
@@ -114,9 +114,9 @@ public abstract class AbstractPendingAntiCompactionTest
         Assert.assertEquals(num, cfs.getLiveSSTables().size());
     }
 
-    UUID prepareSession()
+    TimeUUID prepareSession()
     {
-        UUID sessionID = AbstractRepairTest.registerSession(cfs, true, true);
+        TimeUUID sessionID = AbstractRepairTest.registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(sessionID, AbstractRepairTest.COORDINATOR, Sets.newHashSet(AbstractRepairTest.COORDINATOR));
         return sessionID;
     }

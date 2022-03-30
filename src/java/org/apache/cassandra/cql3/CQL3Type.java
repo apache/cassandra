@@ -54,6 +54,7 @@ public interface CQL3Type
     }
 
     public AbstractType<?> getType();
+    default public AbstractType<?> getUDFType() { return getType(); }
 
     /**
      * Generates CQL literal from a binary value of this type.
@@ -98,6 +99,11 @@ public interface CQL3Type
         public AbstractType<?> getType()
         {
             return type;
+        }
+
+        public AbstractType<?> getUDFType()
+        {
+            return this == TIMEUUID ? UUID.type : type;
         }
 
         /**

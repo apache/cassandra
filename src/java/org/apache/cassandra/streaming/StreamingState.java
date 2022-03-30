@@ -26,7 +26,6 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -39,13 +38,16 @@ import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.TimeUUID;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingState implements StreamEventHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingState.class);
 
-    public static final long ELEMENT_SIZE = ObjectSizes.measureDeep(new StreamingState(UUID.randomUUID(), StreamOperation.OTHER, false));
+    public static final long ELEMENT_SIZE = ObjectSizes.measureDeep(new StreamingState(nextTimeUUID(), StreamOperation.OTHER, false));
 
     public enum Status
     {INIT, START, SUCCESS, FAILURE}
@@ -59,7 +61,7 @@ public class StreamingState implements StreamEventHandler
     // To lower memory costs, clear this after the stream completes
     private ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = new ConcurrentHashMap<>();
 
-    private final UUID id;
+    private final TimeUUID id;
     private final boolean follower;
     private final StreamOperation operation;
     private Set<InetSocketAddress> peers = null;
@@ -79,7 +81,7 @@ public class StreamingState implements StreamEventHandler
         this(result.planId, result.streamOperation, result.getCoordinator().isFollower());
     }
 
-    private StreamingState(UUID planId, StreamOperation streamOperation, boolean follower)
+    private StreamingState(TimeUUID planId, StreamOperation streamOperation, boolean follower)
     {
         this.id = planId;
         this.operation = streamOperation;
@@ -88,7 +90,7 @@ public class StreamingState implements StreamEventHandler
         updateState(Status.INIT);
     }
 
-    public UUID id()
+    public TimeUUID id()
     {
         return id;
     }

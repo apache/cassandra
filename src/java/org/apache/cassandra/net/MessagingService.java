@@ -40,6 +40,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -198,7 +199,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  * implemented in {@link org.apache.cassandra.db.virtual.InternodeInboundTable} and
  * {@link org.apache.cassandra.db.virtual.InternodeOutboundTable} respectively.
  */
-public final class MessagingService extends MessagingServiceMBeanImpl
+public class MessagingService extends MessagingServiceMBeanImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
 
@@ -206,6 +207,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
+    public static final int VERSION_41 = 13;
     public static final int minimum_version = VERSION_30;
     public static final int current_version = VERSION_40;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
@@ -262,7 +264,13 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     @VisibleForTesting
     MessagingService(boolean testOnly)
     {
-        super(testOnly);
+        this(testOnly, new EndpointMessagingVersions(), new MessagingMetrics());
+    }
+
+    @VisibleForTesting
+    MessagingService(boolean testOnly, EndpointMessagingVersions versions, MessagingMetrics metrics)
+    {
+        super(testOnly, versions, metrics);
         OutboundConnections.scheduleUnusedConnectionMonitoring(this, ScheduledExecutors.scheduledTasks, 1L, TimeUnit.HOURS);
     }
 
@@ -365,6 +373,23 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public void send(Message message, InetAddressAndPort to)
     {
         send(message, to, null);
+    }
+
+    /**
+     * Send a message to a given endpoint. This method adheres to the fire and forget
+     * style messaging.
+     *
+     * @param message messages to be sent.
+     * @param response
+     */
+    public <V> void respond(V response, Message<?> message)
+    {
+        send(message.responseWith(response), message.respondTo());
+    }
+
+    public <V> void respondWithFailure(RequestFailureReason reason, Message<?> message)
+    {
+        send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
     }
 
     public void send(Message message, InetAddressAndPort to, ConnectionType specifyConnection)

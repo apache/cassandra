@@ -49,12 +49,11 @@ import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K, V>
 {
@@ -314,7 +313,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                                   0,
                                                   keysEstimate,
                                                   Unit.KEYS,
-                                                  UUIDGen.getTimeUUID());
+                                                  nextTimeUUID());
         }
 
         public CacheService.CacheType cacheType()
@@ -348,11 +347,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
                 //Need to be able to check schema version because CF names are ambiguous
                 UUID schemaVersion = Schema.instance.getVersion();
-                if (schemaVersion == null)
-                {
-                    Schema.instance.updateVersion();
-                    schemaVersion = Schema.instance.getVersion();
-                }
                 writer.writeLong(schemaVersion.getMostSignificantBits());
                 writer.writeLong(schemaVersion.getLeastSignificantBits());
 

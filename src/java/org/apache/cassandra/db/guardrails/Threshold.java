@@ -40,14 +40,17 @@ public class Threshold extends Guardrail
     /**
      * Creates a new threshold guardrail.
      *
+     * @param name            the identifying name of the guardrail
      * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
      * @param failThreshold   a {@link ClientState}-based provider of the value above which the operation should be aborted.
      * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
      */
-    public Threshold(ToLongFunction<ClientState> warnThreshold,
+    public Threshold(String name,
+                     ToLongFunction<ClientState> warnThreshold,
                      ToLongFunction<ClientState> failThreshold,
                      ErrorMessageProvider messageProvider)
     {
+        super(name);
         this.warnThreshold = warnThreshold;
         this.failThreshold = failThreshold;
         this.messageProvider = messageProvider;
@@ -64,13 +67,13 @@ public class Threshold extends Guardrail
     private long failValue(ClientState state)
     {
         long failValue = failThreshold.applyAsLong(state);
-        return failValue < 0 ? Long.MAX_VALUE : failValue;
+        return failValue <= 0 ? Long.MAX_VALUE : failValue;
     }
 
     private long warnValue(ClientState state)
     {
         long warnValue = warnThreshold.applyAsLong(state);
-        return warnValue < 0 ? Long.MAX_VALUE : warnValue;
+        return warnValue <= 0 ? Long.MAX_VALUE : warnValue;
     }
 
     @Override
@@ -79,7 +82,25 @@ public class Threshold extends Guardrail
         if (!super.enabled(state))
             return false;
 
-        return failThreshold.applyAsLong(state) >= 0 || warnThreshold.applyAsLong(state) >= 0;
+        return failThreshold.applyAsLong(state) > 0 || warnThreshold.applyAsLong(state) > 0;
+    }
+
+    /**
+     * Checks whether the provided value would trigger a warning or failure if passed to {@link #guard}.
+     *
+     * <p>This method is optional (does not have to be called) but can be used in the case where the "what"
+     * argument to {@link #guard} is expensive to build to save doing so in the common case (of the guardrail
+     * not being triggered).
+     *
+     * @param value the value to test.
+     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
+     *              A {@code null} value means that the check should be done regardless of the query.
+     * @return {@code true} if {@code value} is above the warning or failure thresholds of this guardrail,
+     * {@code false otherwise}.
+     */
+    public boolean triggersOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && (value > Math.min(failValue(state), warnValue(state)));
     }
 
     /**
@@ -90,7 +111,10 @@ public class Threshold extends Guardrail
      *              guardrail is triggered. For instance, say the guardrail guards the size of column values, then this
      *              argument must describe which column of which row is triggering the guardrail for convenience.
      * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
-     *              A {@code null} value means that the check should be done regardless of the query.
+     *              A {@code null} value means that the check should be done regardless of the query, although it won't
+     *              throw any exception if the failure threshold is exceeded. This is so because checks without an
+     *              associated client come from asynchronous processes such as compaction, and we don't want to
+     *              interrupt such processes.
      */
     public void guard(long value, String what, @Nullable ClientState state)
     {
@@ -100,7 +124,7 @@ public class Threshold extends Guardrail
         long failValue = failValue(state);
         if (value > failValue)
         {
-            triggerFail(value, failValue, what);
+            triggerFail(value, failValue, what, state);
             return;
         }
 
@@ -109,9 +133,9 @@ public class Threshold extends Guardrail
             triggerWarn(value, warnValue, what);
     }
 
-    private void triggerFail(long value, long failValue, String what)
+    private void triggerFail(long value, long failValue, String what, ClientState state)
     {
-        fail(errMsg(false, what, value, failValue));
+        fail(errMsg(false, what, value, failValue), state);
     }
 
     private void triggerWarn(long value, long warnValue, String what)

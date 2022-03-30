@@ -39,7 +39,7 @@ import org.apache.cassandra.db.rows.NativeCell;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.NativeAllocator;
@@ -47,6 +47,7 @@ import org.apache.cassandra.utils.memory.NativePool;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 @RunWith(Parameterized.class)
 public class CellSpecTest
@@ -149,7 +150,7 @@ public class CellSpecTest
 
         // complex
         // seems NativeCell does not allow CellPath.TOP, or CellPath.BOTTOM
-        fn.accept(ColumnMetadata.regularColumn(table, bytes("complex"), ListType.getInstance(BytesType.instance, true)), CellPath.create(bytes(UUIDGen.getTimeUUID())));
+        fn.accept(ColumnMetadata.regularColumn(table, bytes("complex"), ListType.getInstance(BytesType.instance, true)), CellPath.create(TimeUUID.Serializer.instance.serialize(nextTimeUUID())));
 
         return tests.stream().map(a -> new Object[] {a.getClass().getSimpleName() + ":" + (a.path() == null ? "simple" : "complex"), a}).collect(Collectors.toList());
     }

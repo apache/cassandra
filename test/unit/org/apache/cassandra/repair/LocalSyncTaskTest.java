@@ -21,7 +21,6 @@ package org.apache.cassandra.repair;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
@@ -47,10 +46,11 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -84,7 +84,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         final InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
 
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
-        RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
+        RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
 
         MerkleTrees tree1 = createInitialTree(desc);
 
@@ -105,7 +105,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     public void testDifference() throws Throwable
     {
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
-        UUID parentRepairSession = UUID.randomUUID();
+        TimeUUID parentRepairSession = nextTimeUUID();
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
 
@@ -114,7 +114,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE, false,
                                                                  PreviewKind.NONE);
 
-        RepairJobDesc desc = new RepairJobDesc(parentRepairSession, UUID.randomUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
+        RepairJobDesc desc = new RepairJobDesc(parentRepairSession, nextTimeUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
 
         MerkleTrees tree1 = createInitialTree(desc);
         MerkleTrees tree2 = createInitialTree(desc);
@@ -151,9 +151,9 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     @Test
     public void fullRepairStreamPlan() throws Exception
     {
-        UUID sessionID = registerSession(cfs, true, true);
+        TimeUUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
-        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
+        RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
@@ -177,9 +177,9 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     @Test
     public void incrementalRepairStreamPlan() throws Exception
     {
-        UUID sessionID = registerSession(cfs, true, true);
+        TimeUUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
-        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
+        RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
@@ -199,9 +199,9 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     @Test
     public void transientRemoteStreamPlan() throws NoSuchRepairSessionException
     {
-        UUID sessionID = registerSession(cfs, true, true);
+        TimeUUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
-        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
+        RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
@@ -218,9 +218,9 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     @Test
     public void transientLocalStreamPlan() throws NoSuchRepairSessionException
     {
-        UUID sessionID = registerSession(cfs, true, true);
+        TimeUUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
-        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
+        RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));

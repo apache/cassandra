@@ -32,6 +32,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.Tables;
 
 import static org.apache.cassandra.cql3.QueryProcessor.process;
@@ -69,7 +70,7 @@ public class PartitionDenylistTest
                                        + "value text, "
                                        + "PRIMARY KEY((keyone, keytwo), keythree) ) ", ks_cql).build()
         ));
-        Schema.instance.load(schema);
+        SchemaTestUtil.addOrUpdateKeyspace(schema, false);
         DatabaseDescriptor.setPartitionDenylistEnabled(true);
         DatabaseDescriptor.setDenylistRangeReadsEnabled(true);
         DatabaseDescriptor.setDenylistConsistencyLevel(ConsistencyLevel.ONE);

@@ -29,9 +29,10 @@ import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import com.codahale.metrics.Clock;
 import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.MonotonicClockTranslation;
 import org.apache.cassandra.utils.Pair;
 import org.quicktheories.core.Gen;
 
@@ -514,11 +515,11 @@ public class DecayingEstimatedHistogramReservoirTest
 
             DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(clock);
 
-            clock.addMillis(DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_MS - 1_000L);
+            clock.addNanos(DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_NS - TimeUnit.SECONDS.toNanos(1L));
 
-            while (clock.getTime() < DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_MS + 1_000L)
+            while (clock.now() < DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_NS + TimeUnit.SECONDS.toNanos(1L))
             {
-                clock.addMillis(900);
+                clock.addNanos(TimeUnit.MILLISECONDS.toNanos(900));
                 for (int i = 0; i < 1_000_000; i++)
                 {
                     histogram.update(1000);
@@ -540,7 +541,7 @@ public class DecayingEstimatedHistogramReservoirTest
         DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(clock);
         DecayingEstimatedHistogramReservoir another = new DecayingEstimatedHistogramReservoir(clock);
 
-        clock.addMillis(DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_MS - 1_000L);
+        clock.addNanos(DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_NS - TimeUnit.SECONDS.toNanos(1L));
 
         histogram.update(1000);
         clock.addMillis(100);
@@ -584,27 +585,52 @@ public class DecayingEstimatedHistogramReservoirTest
         assertTrue("Expected less than [" + Math.round(expectedValue * 1.2) + "] but actual is [" + actualValue + "]", actualValue < Math.round(expectedValue * 1.2));
     }
 
-    public class TestClock extends Clock {
+    public class TestClock implements MonotonicClock
+    {
         private long tick = 0;
+
+        public void addNanos(long nanos)
+        {
+            tick += nanos;
+        }
 
         public void addMillis(long millis)
         {
-            tick += millis * 1_000_000L;
+            tick += TimeUnit.MILLISECONDS.toNanos(millis);
         }
 
         public void addSeconds(long seconds)
         {
-            tick += seconds * 1_000_000_000L;
+            tick += TimeUnit.SECONDS.toNanos(seconds);
         }
 
-        public long getTick()
+        public long now()
         {
             return tick;
         }
 
-        public long getTime()
+        @Override
+        public long error()
         {
-            return tick / 1_000_000L;
-        };
+            return 0;
+        }
+
+        @Override
+        public MonotonicClockTranslation translate()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isAfter(long instant)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isAfter(long now, long instant)
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 }

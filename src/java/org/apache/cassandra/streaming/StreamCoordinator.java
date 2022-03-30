@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 
@@ -48,11 +49,11 @@ public class StreamCoordinator
     private final boolean follower;
     private StreamingChannel.Factory factory;
     private Iterator<StreamSession> sessionsToConnect = null;
-    private final UUID pendingRepair;
+    private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
 
     public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamingChannel.Factory factory,
-                             boolean follower, boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
+                             boolean follower, boolean connectSequentially, TimeUUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
         this.connectionsPerHost = connectionsPerHost;
@@ -255,7 +256,7 @@ public class StreamCoordinator
         return data;
     }
 
-    public UUID getPendingRepair()
+    public TimeUUID getPendingRepair()
     {
         return pendingRepair;
     }

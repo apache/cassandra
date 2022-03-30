@@ -132,7 +132,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     @Override
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
-        Keyspaces keyspaces = Schema.instance.snapshot();
+        Keyspaces keyspaces = Schema.instance.distributedAndLocalKeyspaces();
         UUID schemaVersion = Schema.instance.getVersion();
 
         keyspaces = Keyspaces.builder()

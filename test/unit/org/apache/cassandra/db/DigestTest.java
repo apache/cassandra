@@ -29,8 +29,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Hex;
-import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
@@ -93,7 +93,7 @@ public class DigestTest
                            new Digest(Hashing.murmur3_128(1000).newHasher()),
                            new Digest(Hashing.murmur3_128(2000).newHasher())
                            };
-        byte [] random = UUIDGen.getTimeUUIDBytes();
+        byte [] random = nextTimeUUIDAsBytes();
 
         for (Digest digest : digests)
         {

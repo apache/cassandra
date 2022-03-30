@@ -45,7 +45,7 @@ public class GuardrailPageSizeTest extends ThresholdTester
     {
         super(PAGE_SIZE_WARN_THRESHOLD,
               PAGE_SIZE_FAIL_THRESHOLD,
-              "page_size",
+              Guardrails.pageSize,
               Guardrails::setPageSizeThreshold,
               Guardrails::getPageSizeWarnThreshold,
               Guardrails::getPageSizeFailThreshold);
@@ -143,11 +143,5 @@ public class GuardrailPageSizeTest extends ThresholdTester
                                                    KEYSPACE);
 
         statement.executeLocally(queryState, options);
-    }
-
-    //not used by page-size guardrail tests.
-    protected long currentValue()
-    {
-        throw new UnsupportedOperationException();
     }
 }

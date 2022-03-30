@@ -43,12 +43,12 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -244,7 +244,7 @@ public class HintsReaderTest
         try
         {
             generateHints(3, ks);
-            MigrationManager.announceTableDrop(ks, CF_STANDARD1, true);
+            SchemaTestUtil.announceTableDrop(ks, CF_STANDARD1);
             readHints(3, 1);
         }
         finally

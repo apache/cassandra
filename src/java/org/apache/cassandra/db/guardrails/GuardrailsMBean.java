@@ -20,6 +20,8 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
 
+import org.apache.cassandra.db.ConsistencyLevel;
+
 /**
  * JMX entrypoint for updating the default guardrails configuration parsed from {@code cassandra.yaml}.
  * <p>
@@ -136,6 +138,26 @@ public interface GuardrailsMBean
     void setMaterializedViewsPerTableThreshold(int warn, int fail);
 
     /**
+     * @return properties that are warned about when creating or altering a table.
+     */
+    Set<String> getTablePropertiesWarned();
+
+    /**
+     * @return Comma-separated list of properties that are warned about when creating or altering a table.
+     */
+    String getTablePropertiesWarnedCSV();
+
+    /**
+     * @param properties properties that are warned about when creating or altering a table.
+     */
+    void setTablePropertiesWarned(Set<String> properties);
+
+    /**
+     * @param properties Comma-separated list of properties that are warned about when creating or altering a table.
+     */
+    void setTablePropertiesWarnedCSV(String properties);
+
+    /**
      * @return properties that are not allowed when creating or altering a table.
      */
     Set<String> getTablePropertiesDisallowed();
@@ -237,7 +259,7 @@ public interface GuardrailsMBean
      * @param warn The threshold to warn when the number of partition keys in a select statement is greater than
      *             threshold -1 means disabled.
      * @param fail The threshold to prevent when the number of partition keys in a select statement is more than
-     *              threshold -1 means disabled.
+     *             threshold -1 means disabled.
      */
     void setPartitionKeysInSelectThreshold(int warn, int fail);
 
@@ -260,4 +282,116 @@ public interface GuardrailsMBean
      *             -1 means disabled.
      */
     public void setInSelectCartesianProductThreshold(int warn, int fail);
+
+    /**
+     * @return consistency levels that are warned about when reading.
+     */
+    Set<ConsistencyLevel> getReadConsistencyLevelsWarned();
+
+    /**
+     * @return Comma-separated list of consistency levels that are warned about when reading.
+     */
+    String getReadConsistencyLevelsWarnedCSV();
+
+    /**
+     * @param consistencyLevels consistency levels that are warned about when reading.
+     */
+    void setReadConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels that are warned about when reading.
+     */
+    void setReadConsistencyLevelsWarnedCSV(String consistencyLevels);
+
+    /**
+     * @return consistency levels that are not allowed when reading.
+     */
+    Set<ConsistencyLevel> getReadConsistencyLevelsDisallowed();
+
+    /**
+     * @return Comma-separated list of consistency levels that are not allowed when reading.
+     */
+    String getReadConsistencyLevelsDisallowedCSV();
+
+    /**
+     * @param consistencyLevels consistency levels that are not allowed when reading.
+     */
+    void setReadConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels that are not allowed when reading.
+     */
+    void setReadConsistencyLevelsDisallowedCSV(String consistencyLevels);
+
+    /**
+     * @return consistency levels that are warned about when writing.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyLevelsWarned();
+
+    /**
+     * @return Comma-separated list of consistency levels that are warned about when writing.
+     */
+    String getWriteConsistencyLevelsWarnedCSV();
+
+    /**
+     * @param consistencyLevels consistency levels that are warned about when writing.
+     */
+    void setWriteConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels that are warned about when writing.
+     */
+    void setWriteConsistencyLevelsWarnedCSV(String consistencyLevels);
+
+    /**
+     * @return consistency levels that are not allowed when writing.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
+
+    /**
+     * @return Comma-separated list of consistency levels that are not allowed when writing.
+     */
+    String getWriteConsistencyLevelsDisallowedCSV();
+
+    /**
+     * @param consistencyLevels consistency levels that are not allowed when writing.
+     */
+    void setWriteConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels that are not allowed when writing.
+     */
+    void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
+
+    /**
+     * @return The threshold to warn when encountering larger size of collection data than threshold, in KiB.
+     */
+    long getCollectionSizeWarnThresholdInKiB();
+
+    /**
+     * @return The threshold to prevent collections with larger data size than threshold, in KiB.
+     */
+    long getCollectionSizeFailThresholdInKiB();
+
+    /**
+     * @param warnInKiB The threshold to warn when encountering larger size of collection data than threshold, in KiB.
+     * @param failInKiB The threshold to prevent collections with larger data size than threshold, in KiB.
+     */
+    void setCollectionSizeThresholdInKiB(long warnInKiB, long failInKiB);
+
+    /**
+     * @return The threshold to warn when encountering more elements in a collection than threshold.
+     */
+    int getItemsPerCollectionWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with more elements than threshold.
+     */
+    int getItemsPerCollectionFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when encountering more elements in a collection than threshold.
+     * @param fail The threshold to prevent collectiosn with more elements than threshold.
+     */
+    void setItemsPerCollectionThreshold(int warn, int fail);
 }

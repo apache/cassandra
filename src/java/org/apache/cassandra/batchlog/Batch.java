@@ -29,7 +29,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDSerializer;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
@@ -38,14 +38,14 @@ public final class Batch
 {
     public static final Serializer serializer = new Serializer();
 
-    public final UUID id;
+    public final TimeUUID id;
     public final long creationTime; // time of batch creation (in microseconds)
 
     // one of these will always be empty
     final Collection<Mutation> decodedMutations;
     final Collection<ByteBuffer> encodedMutations;
 
-    private Batch(UUID id, long creationTime, Collection<Mutation> decodedMutations, Collection<ByteBuffer> encodedMutations)
+    private Batch(TimeUUID id, long creationTime, Collection<Mutation> decodedMutations, Collection<ByteBuffer> encodedMutations)
     {
         this.id = id;
         this.creationTime = creationTime;
@@ -57,7 +57,7 @@ public final class Batch
     /**
      * Creates a 'local' batch - with all enclosed mutations in decoded form (as Mutation instances)
      */
-    public static Batch createLocal(UUID id, long creationTime, Collection<Mutation> mutations)
+    public static Batch createLocal(TimeUUID id, long creationTime, Collection<Mutation> mutations)
     {
         return new Batch(id, creationTime, mutations, Collections.emptyList());
     }
@@ -68,7 +68,7 @@ public final class Batch
      * The mutations will always be encoded using the current messaging version.
      */
     @SuppressWarnings("RedundantTypeArguments")
-    public static Batch createRemote(UUID id, long creationTime, Collection<ByteBuffer> mutations)
+    public static Batch createRemote(TimeUUID id, long creationTime, Collection<ByteBuffer> mutations)
     {
         return new Batch(id, creationTime, Collections.<Mutation>emptyList(), mutations);
     }
@@ -105,7 +105,7 @@ public final class Batch
         {
             assert batch.isLocal() : "attempted to serialize a 'remote' batch";
 
-            long size = UUIDSerializer.serializer.serializedSize(batch.id, version);
+            long size = TimeUUID.sizeInBytes();
             size += sizeof(batch.creationTime);
 
             size += sizeofUnsignedVInt(batch.decodedMutations.size());
@@ -123,7 +123,7 @@ public final class Batch
         {
             assert batch.isLocal() : "attempted to serialize a 'remote' batch";
 
-            UUIDSerializer.serializer.serialize(batch.id, out, version);
+            batch.id.serialize(out);
             out.writeLong(batch.creationTime);
 
             out.writeUnsignedVInt(batch.decodedMutations.size());
@@ -136,7 +136,7 @@ public final class Batch
 
         public Batch deserialize(DataInputPlus in, int version) throws IOException
         {
-            UUID id = UUIDSerializer.serializer.deserialize(in, version);
+            TimeUUID id = TimeUUID.deserialize(in);
             long creationTime = in.readLong();
 
             /*

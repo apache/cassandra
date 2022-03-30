@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
@@ -34,6 +33,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
@@ -52,7 +52,7 @@ public abstract class AbstractRepairTask implements RepairTask
         this.notifier = Objects.requireNonNull(notifier);
     }
 
-    private List<RepairSession> submitRepairSessions(UUID parentSession,
+    private List<RepairSession> submitRepairSessions(TimeUUID parentSession,
                                                      boolean isIncremental,
                                                      ExecutorPlus executor,
                                                      List<CommonRange> commonRanges,
@@ -71,6 +71,8 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                      options.isPullRepair(),
                                                                                      options.getPreviewKind(),
                                                                                      options.optimiseStreams(),
+                                                                                     options.repairPaxos(),
+                                                                                     options.paxosOnly(),
                                                                                      executor,
                                                                                      cfnames);
             if (session == null)
@@ -81,7 +83,7 @@ public abstract class AbstractRepairTask implements RepairTask
         return futures;
     }
 
-    protected Future<CoordinatedRepairResult> runRepair(UUID parentSession,
+    protected Future<CoordinatedRepairResult> runRepair(TimeUUID parentSession,
                                                         boolean isIncremental,
                                                         ExecutorPlus executor,
                                                         List<CommonRange> commonRanges,

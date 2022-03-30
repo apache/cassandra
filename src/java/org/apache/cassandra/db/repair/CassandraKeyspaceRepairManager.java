@@ -28,6 +28,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class CassandraKeyspaceRepairManager implements KeyspaceRepairManager
@@ -40,7 +41,7 @@ public class CassandraKeyspaceRepairManager implements KeyspaceRepairManager
     }
 
     @Override
-    public Future<List<Void>> prepareIncrementalRepair(UUID sessionID,
+    public Future<List<Void>> prepareIncrementalRepair(TimeUUID sessionID,
                                                        Collection<ColumnFamilyStore> tables,
                                                        RangesAtEndpoint tokenRanges,
                                                        ExecutorService executor,

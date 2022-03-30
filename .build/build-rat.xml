@@ -74,6 +74,7 @@
                  <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
                  <!-- Documentation files -->
                  <exclude NAME="**/doc/modules/**/*"/>
+                 <exclude NAME="**/src/java/**/Paxos.md"/>
                  <!-- NOTICE files -->
                  <exclude NAME="**/NOTICE.md"/>
                  <!-- LICENSE files -->

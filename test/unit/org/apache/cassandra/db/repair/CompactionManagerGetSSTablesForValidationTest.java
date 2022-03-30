@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.db.repair;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -47,9 +45,11 @@ import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.Collections.singleton;
 import static org.apache.cassandra.db.repair.CassandraValidationIterator.getSSTablesToValidate;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * Tests correct sstables are returned from CompactionManager.getSSTablesForValidation
@@ -68,7 +68,7 @@ public class CompactionManagerGetSSTablesForValidationTest
     private SSTableReader unrepaired;
     private SSTableReader pendingRepair;
 
-    private UUID sessionID;
+    private TimeUUID sessionID;
     private RepairJobDesc desc;
 
     @BeforeClass
@@ -101,7 +101,7 @@ public class CompactionManagerGetSSTablesForValidationTest
 
     private void registerRepair(boolean incremental) throws Exception
     {
-        sessionID = UUIDGen.getTimeUUID();
+        sessionID = nextTimeUUID();
         Range<Token> range = new Range<>(MT, MT);
         ActiveRepairService.instance.registerParentRepairSession(sessionID,
                                                                  coordinator,
@@ -111,7 +111,7 @@ public class CompactionManagerGetSSTablesForValidationTest
                                                                  incremental ? System.currentTimeMillis() : ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  true,
                                                                  PreviewKind.NONE);
-        desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), ks, tbl, Collections.singleton(range));
+        desc = new RepairJobDesc(sessionID, nextTimeUUID(), ks, tbl, singleton(range));
     }
 
     private void modifySSTables() throws Exception

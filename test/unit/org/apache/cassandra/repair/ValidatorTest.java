@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -55,8 +54,10 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.Collections.singletonList;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -100,7 +101,7 @@ public class ValidatorTest
     public void testValidatorComplete() throws Throwable
     {
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
-        final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
+        final RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), keyspace, columnFamily, Arrays.asList(range));
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
@@ -138,7 +139,7 @@ public class ValidatorTest
     public void testValidatorFailed() throws Throwable
     {
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
-        final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
+        final RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), keyspace, columnFamily, Arrays.asList(range));
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
@@ -191,9 +192,9 @@ public class ValidatorTest
         TimeUnit.SECONDS.sleep(5);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        UUID repairSessionId = UUIDGen.getTimeUUID();
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
-                                                     cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+        TimeUUID repairSessionId = nextTimeUUID();
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
+                                                     cfs.getTableName(), singletonList(new Range<>(sstable.first.getToken(),
                                                                                                                sstable.last.getToken())));
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
@@ -248,9 +249,9 @@ public class ValidatorTest
         TimeUnit.SECONDS.sleep(5);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        UUID repairSessionId = UUIDGen.getTimeUUID();
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
-                                                     cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+        TimeUUID repairSessionId = nextTimeUUID();
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
+                                                     cfs.getTableName(), singletonList(new Range<>(sstable.first.getToken(),
                                                                                                                sstable.last.getToken())));
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
@@ -307,12 +308,12 @@ public class ValidatorTest
         TimeUnit.SECONDS.sleep(5);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        UUID repairSessionId = UUIDGen.getTimeUUID();
+        TimeUUID repairSessionId = nextTimeUUID();
 
         List<Range<Token>> ranges = splitHelper(new Range<>(sstable.first.getToken(), sstable.last.getToken()), 2);
 
 
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
                                                      cfs.getTableName(), ranges);
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");

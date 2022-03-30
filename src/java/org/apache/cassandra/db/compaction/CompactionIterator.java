@@ -19,11 +19,17 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 import java.util.function.LongPredicate;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 
 import org.apache.cassandra.db.transform.DuplicateRowChecker;
@@ -37,6 +43,13 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
+import org.apache.cassandra.service.paxos.PaxosRepairHistory;
+import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
+import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -63,7 +76,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final List<ISSTableScanner> scanners;
     private final ImmutableSet<SSTableReader> sstables;
     private final int nowInSec;
-    private final UUID compactionId;
+    private final TimeUUID compactionId;
 
     private final long totalBytes;
     private long bytesRead;
@@ -79,13 +92,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final UnfilteredPartitionIterator compacted;
     private final ActiveCompactionsTracker activeCompactions;
 
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, TimeUUID compactionId)
     {
         this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP);
     }
 
     @SuppressWarnings("resource") // We make sure to close mergedIterator in close() and CompactionIterator is itself an AutoCloseable
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId, ActiveCompactionsTracker activeCompactions)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, TimeUUID compactionId, ActiveCompactionsTracker activeCompactions)
     {
         this.controller = controller;
         this.type = type;
@@ -109,7 +122,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                            ? EmptyIterators.unfilteredPartition(controller.cfs.metadata())
                                            : UnfilteredPartitionIterators.merge(scanners, listener());
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
-        merged = Transformation.apply(merged, new Purger(controller, nowInSec));
+        Transformation<UnfilteredRowIterator> purger = isPaxos(controller.cfs) && paxosStatePurging() != legacy
+                                                       ? new PaxosPurger(nowInSec)
+                                                       : new Purger(controller, nowInSec);
+        merged = Transformation.apply(merged, purger);
         merged = DuplicateRowChecker.duringCompaction(merged, type);
         compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
     }
@@ -555,6 +571,78 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
+    private class PaxosPurger extends Transformation<UnfilteredRowIterator>
+    {
+        private final long nowInSec;
+        private final long paxosPurgeGraceMicros = DatabaseDescriptor.getPaxosPurgeGrace(MICROSECONDS);
+        private final Map<TableId, PaxosRepairHistory.Searcher> tableIdToHistory = new HashMap<>();
+        private Token currentToken;
+        private int compactedUnfiltered;
+
+        private PaxosPurger(long nowInSec)
+        {
+            this.nowInSec = nowInSec;
+        }
+
+        protected void onEmptyPartitionPostPurge(DecoratedKey key)
+        {
+            if (type == OperationType.COMPACTION)
+                controller.cfs.invalidateCachedPartition(key);
+        }
+
+        protected void updateProgress()
+        {
+            if ((++compactedUnfiltered) % UNFILTERED_TO_UPDATE_PROGRESS == 0)
+                updateBytesRead();
+        }
+
+        @Override
+        @SuppressWarnings("resource")
+        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+        {
+            currentToken = partition.partitionKey().getToken();
+            UnfilteredRowIterator purged = Transformation.apply(partition, this);
+            if (purged.isEmpty())
+            {
+                onEmptyPartitionPostPurge(purged.partitionKey());
+                purged.close();
+                return null;
+            }
+
+            return purged;
+        }
+
+        @Override
+        protected Row applyToRow(Row row)
+        {
+            updateProgress();
+            TableId tableId = PaxosRows.getTableId(row);
+
+            switch (paxosStatePurging())
+            {
+                default: throw new AssertionError();
+                case legacy:
+                case gc_grace:
+                {
+                    TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+                    return row.purgeDataOlderThan(TimeUnit.SECONDS.toMicros(nowInSec - (metadata == null ? (3 * 3600) : metadata.params.gcGraceSeconds)), false);
+                }
+                case repaired:
+                {
+                    PaxosRepairHistory.Searcher history = tableIdToHistory.computeIfAbsent(tableId, find -> {
+                        TableMetadata metadata = Schema.instance.getTableMetadata(find);
+                        if (metadata == null)
+                            return null;
+                        return Keyspace.openAndGetStore(metadata).getPaxosRepairHistory().searcher();
+                    });
+
+                    return history == null ? row :
+                           row.purgeDataOlderThan(history.ballotForToken(currentToken).unixMicros() - paxosPurgeGraceMicros, false);
+                }
+            }
+        }
+    }
+
     private static class AbortableUnfilteredPartitionTransformation extends Transformation<UnfilteredRowIterator>
     {
         private final AbortableUnfilteredRowTransformation abortableIter;
@@ -573,7 +661,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    private static class AbortableUnfilteredRowTransformation extends Transformation
+    private static class AbortableUnfilteredRowTransformation extends Transformation<UnfilteredRowIterator>
     {
         private final CompactionIterator iter;
 
@@ -588,5 +676,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 throw new CompactionInterruptedException(iter.getCompactionInfo());
             return row;
         }
+    }
+
+    private static boolean isPaxos(ColumnFamilyStore cfs)
+    {
+        return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 }

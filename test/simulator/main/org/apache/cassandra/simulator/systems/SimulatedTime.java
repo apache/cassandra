@@ -18,6 +18,13 @@
 
 package org.apache.cassandra.simulator.systems;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.LongConsumer;
+import java.util.regex.Pattern;
+
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.simulator.RandomSource;
@@ -25,7 +32,10 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.KindOfSequence.Period;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.MonotonicClock.AbstractEpochSamplingClock.AlmostSameTime;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
 import org.apache.cassandra.utils.Shared;
 
@@ -39,24 +49,117 @@ import static org.apache.cassandra.simulator.RandomSource.Choices.uniform;
 // TODO (cleanup): when we encounter an exception and unwind the simulation, we should restore normal time to go with normal waits etc.
 public class SimulatedTime
 {
-    public static class Throwing implements Clock, MonotonicClock
+    private static final Pattern PERMITTED_TIME_THREADS = Pattern.compile("(logback|SimulationLiveness|Reconcile)[-:][0-9]+");
+
+    @Shared(scope = Shared.Scope.SIMULATION)
+    public interface Listener
     {
-        public long nanoTime() { throw new IllegalStateException("Using time is not allowed during simulation"); }
-        public long currentTimeMillis()  { throw new IllegalStateException("Using time is not allowed during simulation"); }
-        public long now()  { throw new IllegalStateException("Using time is not allowed during simulation"); }
-        public long error()  { throw new IllegalStateException("Using time is not allowed during simulation"); }
-        public MonotonicClockTranslation translate()  { throw new IllegalStateException("Using time is not allowed during simulation"); }
-        public boolean isAfter(long instant)  { throw new IllegalStateException("Using time is not allowed during simulation"); }
-        public boolean isAfter(long now, long instant)  { throw new IllegalStateException("Using time is not allowed during simulation"); }
+        void accept(String kind, long value);
     }
 
     @Shared(scope = Shared.Scope.SIMULATION)
-    public interface LocalTime extends Clock, MonotonicClock
+    public interface ClockAndMonotonicClock extends Clock, MonotonicClock
     {
-        long relativeNanosToAbsolute(long relativeNanos);
-        long absoluteToRelativeNanos(long absoluteNanos);
-        long localToGlobal(long absoluteNanos);
+    }
+
+    @Shared(scope = Shared.Scope.SIMULATION)
+    public interface LocalTime extends ClockAndMonotonicClock
+    {
+        long relativeToLocalNanos(long relativeNanos);
+        long relativeToGlobalNanos(long relativeNanos);
+        long localToRelativeNanos(long absoluteLocalNanos);
+        long localToGlobalNanos(long absoluteLocalNanos);
         long nextGlobalMonotonicMicros();
+    }
+
+    @PerClassLoader
+    private static class Disabled extends Clock.Default implements LocalTime
+    {
+        @Override
+        public long now()
+        {
+            return nanoTime();
+        }
+
+        @Override
+        public long error()
+        {
+            return 0;
+        }
+
+        @Override
+        public MonotonicClockTranslation translate()
+        {
+            return new AlmostSameTime(System.currentTimeMillis(), System.nanoTime(), 0L);
+        }
+
+        @Override
+        public boolean isAfter(long instant)
+        {
+            return isAfter(System.nanoTime(), instant);
+        }
+
+        @Override
+        public boolean isAfter(long now, long instant)
+        {
+            return now > instant;
+        }
+
+        @Override
+        public long relativeToLocalNanos(long relativeNanos)
+        {
+            return System.nanoTime() + relativeNanos;
+        }
+
+        @Override
+        public long relativeToGlobalNanos(long relativeNanos)
+        {
+            return System.nanoTime() + relativeNanos;
+        }
+
+        @Override
+        public long localToRelativeNanos(long absoluteLocalNanos)
+        {
+            return absoluteLocalNanos - System.nanoTime();
+        }
+
+        @Override
+        public long localToGlobalNanos(long absoluteLocalNanos)
+        {
+            return absoluteLocalNanos;
+        }
+
+        @Override
+        public long nextGlobalMonotonicMicros()
+        {
+            return FBUtilities.timestampMicros();
+        }
+    }
+
+    public static class Delegating implements ClockAndMonotonicClock
+    {
+        final Disabled disabled = new Disabled();
+        private ClockAndMonotonicClock check()
+        {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+            {
+                InterceptibleThread interceptibleThread = ((InterceptibleThread) thread);
+                if (interceptibleThread.isIntercepting())
+                    return interceptibleThread.time();
+            }
+            if (PERMITTED_TIME_THREADS.matcher(Thread.currentThread().getName()).matches())
+                return disabled;
+            throw new IllegalStateException("Using time is not allowed during simulation");
+        }
+
+        public long nanoTime() { return check().nanoTime(); }
+        public long currentTimeMillis()  { return check().currentTimeMillis(); }
+        public long now()  { return check().now(); }
+        public long error()  { return check().error(); }
+        public MonotonicClockTranslation translate()  { return check().translate(); }
+        public boolean isAfter(long instant)  { return check().isAfter(instant); }
+        public boolean isAfter(long now, long instant)  { return check().isAfter(now, instant); }
     }
 
     @PerClassLoader
@@ -104,24 +207,24 @@ public class SimulatedTime
             return current.isAfter(now, instant);
         }
 
-        public static long relativeToGlobalAbsoluteNanos(long relativeNanos)
+        public static long relativeToGlobalNanos(long relativeNanos)
         {
-            return current.localToGlobal(current.relativeNanosToAbsolute(relativeNanos));
+            return current.relativeToGlobalNanos(relativeNanos);
         }
 
-        public static long relativeToAbsoluteNanos(long relativeNanos)
+        public static long relativeToLocalNanos(long relativeNanos)
         {
-            return current.relativeNanosToAbsolute(relativeNanos);
+            return current.relativeToLocalNanos(relativeNanos);
         }
 
-        public static long absoluteToRelativeNanos(long absoluteNanos)
+        public static long localToRelativeNanos(long absoluteNanos)
         {
-            return current.absoluteToRelativeNanos(absoluteNanos);
+            return current.localToRelativeNanos(absoluteNanos);
         }
 
         public static long localToGlobalNanos(long absoluteNanos)
         {
-            return current.localToGlobal(absoluteNanos);
+            return current.localToGlobalNanos(absoluteNanos);
         }
 
         public static LocalTime current()
@@ -139,13 +242,19 @@ public class SimulatedTime
         {
             current = newLocalTime;
         }
+
+        public static void disable()
+        {
+            current = new Disabled();
+        }
     }
 
-    private class InstanceTime implements LocalTime
+    public class InstanceTime implements LocalTime
     {
         final Period nanosDriftSupplier;
-        long localNanoTime;
-        long nanosDrift;
+        long from, to;
+        long baseDrift, nextDrift, lastLocalNanoTime, lastDrift, lastGlobal;
+        double diffPerGlobal;
 
         private InstanceTime(Period nanosDriftSupplier)
         {
@@ -155,12 +264,27 @@ public class SimulatedTime
         @Override
         public long nanoTime()
         {
-            if (globalNanoTime + nanosDrift > localNanoTime)
+            long global = globalNanoTime;
+            if (lastGlobal == global)
+                return lastLocalNanoTime;
+
+            if (global >= to)
             {
-                localNanoTime = globalNanoTime + nanosDrift;
-                nanosDrift = nanosDriftSupplier.get(random);
+                baseDrift = nextDrift;
+                nextDrift = nanosDriftSupplier.get(random);
+                from = global;
+                to = global + Math.max(baseDrift, nextDrift);
+                diffPerGlobal = (nextDrift - baseDrift) / (double)(to - from);
+                listener.accept("SetNextDrift", nextDrift);
             }
-            return localNanoTime;
+
+            long drift = baseDrift + (long)(diffPerGlobal * (global - from));
+            long local = global + drift;
+            lastGlobal = global;
+            lastDrift = drift;
+            lastLocalNanoTime = local;
+            listener.accept("ReadLocal", local);
+            return local;
         }
 
         @Override
@@ -225,21 +349,27 @@ public class SimulatedTime
         }
 
         @Override
-        public long relativeNanosToAbsolute(long relativeNanos)
+        public long relativeToLocalNanos(long relativeNanos)
         {
-            return relativeNanos + localNanoTime;
+            return relativeNanos + lastLocalNanoTime;
         }
 
         @Override
-        public long absoluteToRelativeNanos(long absoluteNanos)
+        public long relativeToGlobalNanos(long relativeNanos)
         {
-            return absoluteNanos - localNanoTime;
+            return relativeNanos + globalNanoTime;
         }
 
         @Override
-        public long localToGlobal(long absoluteNanos)
+        public long localToRelativeNanos(long absoluteLocalNanos)
         {
-            return absoluteNanos + (globalNanoTime - localNanoTime);
+            return absoluteLocalNanos - lastLocalNanoTime;
+        }
+
+        @Override
+        public long localToGlobalNanos(long absoluteLocalNanos)
+        {
+            return absoluteLocalNanos - lastDrift;
         }
     }
 
@@ -248,12 +378,15 @@ public class SimulatedTime
     private final RandomSource random;
     private final Period discontinuityTimeSupplier;
     private final long millisEpoch;
-    private long globalNanoTime;
+    private volatile long globalNanoTime;
     private long futureTimestamp;
     private long discontinuityTime;
     private boolean permitDiscontinuities;
+    private final List<LongConsumer> onDiscontinuity = new ArrayList<>();
+    private final Listener listener;
+    private InstanceTime[] instanceTimes;
 
-    public SimulatedTime(RandomSource random, long millisEpoch, LongRange nanoDriftRange, KindOfSequence kindOfDrift, Period discontinuityTimeSupplier)
+    public SimulatedTime(int nodeCount, RandomSource random, long millisEpoch, LongRange nanoDriftRange, KindOfSequence kindOfDrift, Period discontinuityTimeSupplier, Listener listener)
     {
         this.random = random;
         this.millisEpoch = millisEpoch;
@@ -262,56 +395,96 @@ public class SimulatedTime
         this.kindOfDrift = kindOfDrift;
         this.discontinuityTime = MILLISECONDS.toNanos(random.uniform(500L, 30000L));
         this.discontinuityTimeSupplier = discontinuityTimeSupplier;
+        this.listener = listener;
+        this.instanceTimes = new InstanceTime[nodeCount];
     }
 
-    public void setup(ClassLoader classLoader)
+    public Closeable setup(int nodeNum, ClassLoader classLoader)
     {
+        Preconditions.checkState(instanceTimes[nodeNum - 1] == null);
         InstanceTime instanceTime = new InstanceTime(kindOfDrift.period(nanosDriftRange, random));
         IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<LocalTime>) Global::setup, classLoader)
                         .accept(instanceTime);
+        instanceTimes[nodeNum - 1] = instanceTime;
+        return IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableRunnable) Global::disable, classLoader)::run;
+    }
+
+    public InstanceTime get(int nodeNum)
+    {
+        return instanceTimes[nodeNum - 1];
     }
 
     public void permitDiscontinuities()
     {
+        listener.accept("PermitDiscontinuity", 1);
         permitDiscontinuities = true;
-        maybeApplyDiscontinuity();
-    }
-
-    private void maybeApplyDiscontinuity()
-    {
-        if (permitDiscontinuities && globalNanoTime >= discontinuityTime)
-        {
-            globalNanoTime += uniform(DAYS, HOURS, MINUTES).choose(random).toNanos(1L);
-            discontinuityTime = globalNanoTime + discontinuityTimeSupplier.get(random);
-        }
+        updateAndMaybeApplyDiscontinuity(globalNanoTime);
     }
 
     public void forbidDiscontinuities()
     {
+        listener.accept("PermitDiscontinuity", 0);
         permitDiscontinuities = false;
+    }
+
+    private void updateAndMaybeApplyDiscontinuity(long newGlobal)
+    {
+        if (permitDiscontinuities && newGlobal >= discontinuityTime)
+        {
+            updateAndApplyDiscontinuity(newGlobal);
+        }
+        else
+        {
+            globalNanoTime = newGlobal;
+            listener.accept("SetGlobal", newGlobal);
+        }
+    }
+
+    private void updateAndApplyDiscontinuity(long newGlobal)
+    {
+        long discontinuity = uniform(DAYS, HOURS, MINUTES).choose(random).toNanos(1L);
+        listener.accept("ApplyDiscontinuity", discontinuity);
+        discontinuityTime = newGlobal + discontinuity + discontinuityTimeSupplier.get(random);
+        globalNanoTime = newGlobal + discontinuity;
+        listener.accept("SetGlobal", newGlobal + discontinuity);
+        onDiscontinuity.forEach(l -> l.accept(discontinuity));
     }
 
     public void tick(long nanos)
     {
-        if (nanos > globalNanoTime)
+        listener.accept("Tick", nanos);
+        long global = globalNanoTime;
+        if (nanos > global)
         {
-            globalNanoTime = nanos;
-            maybeApplyDiscontinuity();
+            updateAndMaybeApplyDiscontinuity(nanos);
         }
         else
         {
-            ++globalNanoTime;
+            globalNanoTime = global + 1;
+            listener.accept("IncrGlobal", global + 1);
         }
     }
 
     public long nanoTime()
     {
-        return globalNanoTime;
+        long global = globalNanoTime;
+        listener.accept("ReadGlobal", global);
+        return global;
     }
 
     // make sure schema changes persist
     public synchronized long nextGlobalMonotonicMicros()
     {
         return ++futureTimestamp;
+    }
+
+    public void onDiscontinuity(LongConsumer onDiscontinuity)
+    {
+        this.onDiscontinuity.add(onDiscontinuity);
+    }
+
+    public void onTimeEvent(String kind, long value)
+    {
+        listener.accept(kind, value);
     }
 }

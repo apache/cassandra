@@ -59,7 +59,7 @@ import static org.apache.cassandra.utils.concurrent.Awaitable.SyncAwaitable.wait
  */
 public class SyncFuture<V> extends AbstractFuture<V>
 {
-    public SyncFuture()
+    protected SyncFuture()
     {
         super();
     }

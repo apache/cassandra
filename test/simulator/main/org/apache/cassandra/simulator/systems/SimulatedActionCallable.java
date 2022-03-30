@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.simulator.systems;
 
-import java.util.Collections;
 import java.util.function.BiConsumer;
 
 import org.apache.cassandra.distributed.api.IInvokableInstance;

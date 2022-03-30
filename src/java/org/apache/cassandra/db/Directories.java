@@ -1220,11 +1220,11 @@ public class Directories
 
     private class SSTableSizeSummer extends DirectorySizeCalculator
     {
-        private final HashSet<File> toSkip;
+        private final Set<String> toSkip;
         SSTableSizeSummer(File path, List<File> files)
         {
             super(path);
-            toSkip = new HashSet<>(files);
+            toSkip = files.stream().map(f -> f.name()).collect(Collectors.toSet());
         }
 
         @Override
@@ -1235,7 +1235,7 @@ public class Directories
             return desc != null
                 && desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
-                && !toSkip.contains(file);
+                && !toSkip.contains(file.name());
         }
     }
 

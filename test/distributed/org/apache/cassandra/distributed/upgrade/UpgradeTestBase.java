@@ -44,13 +44,10 @@ import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
-
-
 
 public class UpgradeTestBase extends DistributedTestBase
 {
@@ -85,18 +82,17 @@ public class UpgradeTestBase extends DistributedTestBase
         public void run(UpgradeableCluster cluster, int node) throws Throwable;
     }
 
-    public static final Semver v22 = new Semver("2.2.0-beta1", SemverType.LOOSE);
     public static final Semver v30 = new Semver("3.0.0-alpha1", SemverType.LOOSE);
     public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
     public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
 
     protected static final List<Pair<Semver,Semver>> SUPPORTED_UPGRADE_PATHS = ImmutableList.of(
-        Pair.create(v22, v30),
-        Pair.create(v22, v3X),
         Pair.create(v30, v3X),
         Pair.create(v30, v40),
+        Pair.create(v30, v41),
         Pair.create(v3X, v40),
+        Pair.create(v3X, v41),
         Pair.create(v40, v41));
 
     // the last is always the current
@@ -267,7 +263,7 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgradesFrom(v22)
+                             .upgradesFrom(v30)
                              .nodesToUpgrade(toUpgrade);
     }
 

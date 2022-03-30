@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,10 +62,12 @@ import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
+import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class CassandraStreamManagerTest
 {
@@ -93,7 +94,7 @@ public class CassandraStreamManagerTest
         cfs = Schema.instance.getColumnFamilyStoreInstance(tbm.id);
     }
 
-    private static StreamSession session(UUID pendingRepair)
+    private static StreamSession session(TimeUUID pendingRepair)
     {
         try
         {
@@ -124,7 +125,7 @@ public class CassandraStreamManagerTest
         return Iterables.getOnlyElement(diff);
     }
 
-    private static void mutateRepaired(SSTableReader sstable, long repairedAt, UUID pendingRepair, boolean isTransient) throws IOException
+    private static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
     {
         Descriptor descriptor = sstable.descriptor;
         descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, repairedAt, pendingRepair, isTransient);
@@ -153,7 +154,7 @@ public class CassandraStreamManagerTest
         return sstablesFromStreams(streams);
     }
 
-    private Set<SSTableReader> selectReaders(UUID pendingRepair)
+    private Set<SSTableReader> selectReaders(TimeUUID pendingRepair)
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Collection<Range<Token>> ranges = Lists.newArrayList(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
@@ -174,10 +175,10 @@ public class CassandraStreamManagerTest
         SSTableReader sstable4 = createSSTable(() -> QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (4, 4)", keyspace, table)));
 
 
-        UUID pendingRepair = UUIDGen.getTimeUUID();
+        TimeUUID pendingRepair = nextTimeUUID();
         long repairedAt = System.currentTimeMillis();
         mutateRepaired(sstable2, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, false);
-        mutateRepaired(sstable3, ActiveRepairService.UNREPAIRED_SSTABLE, UUIDGen.getTimeUUID(), false);
+        mutateRepaired(sstable3, UNREPAIRED_SSTABLE, nextTimeUUID(), false);
         mutateRepaired(sstable4, repairedAt, NO_PENDING_REPAIR, false);
 
 

@@ -35,10 +35,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
+import org.apache.cassandra.utils.ExecutorUtils;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
-import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 
 /**
  * StreamTransferTask sends streams for a given table
@@ -198,7 +197,6 @@ public class StreamTransferTask extends StreamTask
     @VisibleForTesting
     public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
     {
-        shutdown(timeoutExecutor);
-        awaitTermination(timeout, units, timeoutExecutor);
+        ExecutorUtils.shutdownAndWait(timeout, units, timeoutExecutor);
     }
 }

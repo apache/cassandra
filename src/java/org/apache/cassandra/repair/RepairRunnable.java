@@ -37,6 +37,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,12 +73,9 @@ import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -85,6 +85,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNotifier
 {
@@ -100,7 +101,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
     private final int totalProgress;
 
     private final long creationTimeMillis = currentTimeMillis();
-    private final UUID parentSession = UUIDGen.getTimeUUID();
+    private final TimeUUID parentSession = nextTimeUUID();
 
     private final List<ProgressListener> listeners = new ArrayList<>();
 
@@ -222,7 +223,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
         long durationMillis = currentTimeMillis() - creationTimeMillis;
         if (msg == null)
         {
-            String duration = DurationFormatUtils.formatDurationWords(durationMillis, true, true);
+            String duration = DurationFormatUtils.formatDurationWords(Math.max(0, durationMillis), true, true);
             msg = String.format("Repair command #%d finished in %s", cmd, duration);
         }
 
@@ -305,7 +306,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
         for (ColumnFamilyStore cfs : columnFamilyStores)
             cfsb.append(", ").append(cfs.keyspace.getName()).append(".").append(cfs.name);
 
-        UUID sessionId = Tracing.instance.newSession(Tracing.TraceType.REPAIR);
+        TimeUUID sessionId = Tracing.instance.newSession(Tracing.TraceType.REPAIR);
         TraceState traceState = Tracing.instance.begin("repair", ImmutableMap.of("keyspace", keyspace, "columnFamilies",
                                                                                  cfsb.substring(2)));
         traceState.enableActivityNotification(tag);
@@ -482,7 +483,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
         neighborRangeList.add(new CommonRange(endpoints, transEndpoints, ranges));
     }
 
-    private Thread createQueryThread(final UUID sessionId)
+    private Thread createQueryThread(final TimeUUID sessionId)
     {
         return executorFactory().startThread("Repair-Runnable-" + threadCounter.incrementAndGet(), new WrappedRunnable()
         {
@@ -498,7 +499,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
                 String query = String.format(format, SchemaConstants.TRACE_KEYSPACE_NAME, TraceKeyspace.EVENTS);
                 SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(query).prepare(ClientState.forInternalCalls());
 
-                ByteBuffer sessionIdBytes = ByteBufferUtil.bytes(sessionId);
+                ByteBuffer sessionIdBytes = sessionId.toBytes();
                 InetAddressAndPort source = FBUtilities.getBroadcastAddressAndPort();
 
                 HashSet<UUID>[] seen = new HashSet[]{ new HashSet<>(), new HashSet<>() };
@@ -525,8 +526,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
                         timeout = minWaitMillis;
                         shouldDouble = false;
                     }
-                    ByteBuffer tminBytes = ByteBufferUtil.bytes(UUIDGen.minTimeUUID(tlast - 1000));
-                    ByteBuffer tmaxBytes = ByteBufferUtil.bytes(UUIDGen.maxTimeUUID(tcur = currentTimeMillis()));
+                    ByteBuffer tminBytes = TimeUUID.minAtUnixMillis(tlast - 1000).toBytes();
+                    ByteBuffer tmaxBytes = TimeUUID.maxAtUnixMillis(tcur = currentTimeMillis()).toBytes();
                     QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes,
                                                                                                                   tminBytes,
                                                                                                                   tmaxBytes));

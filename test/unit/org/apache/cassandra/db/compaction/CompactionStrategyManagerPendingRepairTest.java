@@ -20,7 +20,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
@@ -35,6 +34,7 @@ import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Tests CompactionStrategyManager's handling of pending repair sstables
@@ -62,12 +62,12 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         return csm.getUnrepairedUnsafe().containsSSTable(sstable);
     }
 
-    private boolean hasPendingStrategiesFor(UUID sessionID)
+    private boolean hasPendingStrategiesFor(TimeUUID sessionID)
     {
         return !Iterables.isEmpty(csm.getPendingRepairsUnsafe().getStrategiesFor(sessionID));
     }
 
-    private boolean hasTransientStrategiesFor(UUID sessionID)
+    private boolean hasTransientStrategiesFor(TimeUUID sessionID)
     {
         return !Iterables.isEmpty(csm.getTransientRepairsUnsafe().getStrategiesFor(sessionID));
     }
@@ -78,7 +78,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void sstableAdded()
     {
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         Assert.assertTrue(Iterables.isEmpty(csm.getPendingRepairsUnsafe().allStrategies()));
 
@@ -104,7 +104,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void sstableListChangedAddAndRemove()
     {
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
         SSTableReader sstable1 = makeSSTable(true);
@@ -153,7 +153,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void sstableRepairStatusChanged()
     {
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
         // add as unrepaired
@@ -187,7 +187,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void sstableDeleted()
     {
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
         SSTableReader sstable = makeSSTable(true);
@@ -210,7 +210,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void getStrategies()
     {
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
 
         List<List<AbstractCompactionStrategy>> strategies;
@@ -235,7 +235,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void cleanupCompactionFinalized() throws NoSuchRepairSessionException
     {
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
         mutateRepaired(sstable, repairID, false);
@@ -275,7 +275,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     @Test
     public void cleanupCompactionFailed()
     {
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
         mutateRepaired(sstable, repairID, false);
@@ -311,7 +311,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     public void finalizedSessionTransientCleanup()
     {
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
         mutateRepaired(sstable, repairID, true);
@@ -342,7 +342,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     public void failedSessionTransientCleanup()
     {
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
-        UUID repairID = registerSession(cfs, true, true);
+        TimeUUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
         SSTableReader sstable = makeSSTable(true);
         mutateRepaired(sstable, repairID, true);

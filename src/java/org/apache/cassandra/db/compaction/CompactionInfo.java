@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Predicate;
 
 import com.google.common.base.Joiner;
@@ -30,6 +29,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.TimeUUID;
 
 public final class CompactionInfo
 {
@@ -48,15 +48,15 @@ public final class CompactionInfo
     private final long completed;
     private final long total;
     private final Unit unit;
-    private final UUID compactionId;
+    private final TimeUUID compactionId;
     private final ImmutableSet<SSTableReader> sstables;
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, UUID compactionId, Collection<SSTableReader> sstables)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, TimeUUID compactionId, Collection<SSTableReader> sstables)
     {
         this(metadata, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId, sstables);
     }
 
-    private CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId, Collection<SSTableReader> sstables)
+    private CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, Collection<SSTableReader> sstables)
     {
         this.tasktype = tasktype;
         this.completed = completed;
@@ -71,7 +71,7 @@ public final class CompactionInfo
      * Special compaction info where we always need to cancel the compaction - for example ViewBuilderTask and AutoSavingCache where we don't know
      * the sstables at construction
      */
-    public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId)
+    public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId)
     {
         return new CompactionInfo(metadata, tasktype, completed, total, unit, compactionId, ImmutableSet.of());
     }
@@ -112,7 +112,7 @@ public final class CompactionInfo
         return tasktype;
     }
 
-    public UUID getTaskId()
+    public TimeUUID getTaskId()
     {
         return compactionId;
     }

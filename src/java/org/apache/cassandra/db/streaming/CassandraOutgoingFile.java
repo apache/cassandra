@@ -21,7 +21,6 @@ package org.apache.cassandra.db.streaming;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -35,6 +34,7 @@ import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
@@ -141,7 +141,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @Override
-    public UUID getPendingRepair()
+    public TimeUUID getPendingRepair()
     {
         return ref.get().getPendingRepair();
     }

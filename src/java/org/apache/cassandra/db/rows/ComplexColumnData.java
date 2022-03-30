@@ -121,13 +121,10 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         return size;
     }
 
-    @Override
     public long unsharedHeapSize()
     {
-        long heapSize = EMPTY_SIZE + ObjectSizes.sizeOfArray(cells);
-        for (Cell<?> cell : this)
-            heapSize += cell.unsharedHeapSize();
-        return heapSize;
+        long heapSize = EMPTY_SIZE + ObjectSizes.sizeOfArray(cells) + complexDeletion.unsharedHeapSize();
+        return BTree.<Cell>accumulate(cells, (cell, value) -> value + cell.unsharedHeapSize(), heapSize);
     }
 
     @Override
@@ -203,6 +200,12 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     public ComplexColumnData withOnlyQueriedData(ColumnFilter filter)
     {
         return transformAndFilter(complexDeletion, (cell) -> filter.fetchedCellIsQueried(column, cell.path()) ? null : cell);
+    }
+
+    public ComplexColumnData purgeDataOlderThan(long timestamp)
+    {
+        DeletionTime newDeletion = complexDeletion.markedForDeleteAt() < timestamp ? DeletionTime.LIVE : complexDeletion;
+        return transformAndFilter(newDeletion, (cell) -> cell.purgeDataOlderThan(timestamp));
     }
 
     private ComplexColumnData transformAndFilter(DeletionTime newDeletion, Function<? super Cell<?>, ? extends Cell<?>> function)

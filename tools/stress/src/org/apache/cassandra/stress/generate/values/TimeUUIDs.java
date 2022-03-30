@@ -24,7 +24,7 @@ package org.apache.cassandra.stress.generate.values;
 import java.util.UUID;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class TimeUUIDs extends Generator<UUID>
 {
@@ -46,6 +46,6 @@ public class TimeUUIDs extends Generator<UUID>
     @Override
     public UUID generate()
     {
-        return UUIDGen.getTimeUUID(dateGen.generate().getTime(), 0L, clockSeqAndNode);
+        return TimeUUID.atUnixMicrosWithLsb(dateGen.generate().getTime() * 1000L, clockSeqAndNode).asUUID();
     }
 }

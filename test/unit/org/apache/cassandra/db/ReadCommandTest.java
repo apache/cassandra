@@ -72,6 +72,7 @@ import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -79,9 +80,10 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -901,10 +903,7 @@ public class ReadCommandTest
     {
         TableParams newParams = cfs.metadata().params.unbuild().gcGraceSeconds(gcGrace).build();
         KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(cfs.metadata().keyspace);
-        Schema.instance.load(
-        keyspaceMetadata.withSwapped(
-        keyspaceMetadata.tables.withSwapped(
-        cfs.metadata().withSwapped(newParams))));
+        SchemaTestUtil.addOrUpdateKeyspace(keyspaceMetadata.withSwapped(keyspaceMetadata.tables.withSwapped(cfs.metadata().withSwapped(newParams))), true);
     }
 
     private long getAndResetOverreadCount(ColumnFamilyStore cfs)
@@ -1242,13 +1241,13 @@ public class ReadCommandTest
         digests.add(digest);
 
         // add a pending repair session to table1, digest should remain the same but now we expect it to be marked inconclusive
-        UUID session1 = UUIDGen.getTimeUUID();
+        TimeUUID session1 = nextTimeUUID();
         mutateRepaired(cfs, sstable1, ActiveRepairService.UNREPAIRED_SSTABLE, session1);
         digests.add(performReadAndVerifyRepairedInfo(readCommand, numPartitions, rowsPerPartition, false));
         assertEquals(1, digests.size());
 
         // add a different pending session to table2, digest should remain the same and still consider it inconclusive
-        UUID session2 = UUIDGen.getTimeUUID();
+        TimeUUID session2 = nextTimeUUID();
         mutateRepaired(cfs, sstable2, ActiveRepairService.UNREPAIRED_SSTABLE, session2);
         digests.add(performReadAndVerifyRepairedInfo(readCommand, numPartitions, rowsPerPartition, false));
         assertEquals(1, digests.size());
@@ -1286,7 +1285,7 @@ public class ReadCommandTest
         }
     }
 
-    private void mutateRepaired(ColumnFamilyStore cfs, SSTableReader sstable, long repairedAt, UUID pendingSession)
+    private void mutateRepaired(ColumnFamilyStore cfs, SSTableReader sstable, long repairedAt, TimeUUID pendingSession)
     {
         try
         {

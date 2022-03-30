@@ -20,6 +20,9 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
 
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.db.ConsistencyLevel;
+
 /**
  * Configuration settings for guardrails.
  *
@@ -112,6 +115,11 @@ public interface GuardrailsConfig
     int getMaterializedViewsPerTableFailThreshold();
 
     /**
+     * @return The table properties that are warned about when creating or altering a table.
+     */
+    Set<String> getTablePropertiesWarned();
+
+    /**
      * @return The table properties that are ignored when creating or altering a table.
      */
     Set<String> getTablePropertiesIgnored();
@@ -156,4 +164,44 @@ public interface GuardrailsConfig
      * -1 means disabled.
      */
     public int getInSelectCartesianProductFailThreshold();
+
+    /**
+     * @return The consistency levels that are warned about when reading.
+     */
+    Set<ConsistencyLevel> getReadConsistencyLevelsWarned();
+
+    /**
+     * @return The consistency levels that are disallowed when reading.
+     */
+    Set<ConsistencyLevel> getReadConsistencyLevelsDisallowed();
+
+    /**
+     * @return The consistency levels that are warned about when writing.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyLevelsWarned();
+
+    /**
+     * @return The consistency levels that are disallowed when writing.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
+
+    /*
+     * @return The threshold to warn when encountering a collection with larger data size than threshold.
+     */
+    DataStorageSpec getCollectionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with larger data size than threshold.
+     */
+    DataStorageSpec getCollectionSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering more elements in a collection than threshold.
+     */
+    int getItemsPerCollectionWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with more elements than threshold.
+     */
+    int getItemsPerCollectionFailThreshold();
 }

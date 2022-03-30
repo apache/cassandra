@@ -39,9 +39,23 @@ public class FSReadError extends FSError
         this(cause, new File(path));
     }
 
-    @Override
-    public String toString()
+    public FSReadError(String message, Throwable cause, Path path)
     {
-        return "FSReadError in " + path;
+        super(message, cause, path);
+    }
+
+    public FSReadError(String message, Throwable cause, File path)
+    {
+        super(message, cause, path);
+    }
+
+    public FSReadError(String message, Throwable cause, String path)
+    {
+        this(message, cause, new File(path));
+    }
+
+    public FSReadError(String message, Throwable cause)
+    {
+        this(message, cause, new File(""));
     }
 }

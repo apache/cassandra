@@ -18,6 +18,15 @@
          xmlns:artifact="antlib:org.apache.maven.artifact.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
+
+    <fail message="You need to use Ant of version at least 1.10 to continue.">
+      <condition>
+        <not>
+          <antversion atleast="1.10"/>
+        </not>
+      </condition>
+    </fail>
+
     <property environment="env"/>
     <property file="build.properties" />
     <property file="build.properties.default" />
@@ -66,6 +75,7 @@
     <property name="test.simulator.src" value="${test.dir}/simulator/main"/>
     <property name="test.simulator-asm.src" value="${test.dir}/simulator/asm"/>
     <property name="test.simulator-bootstrap.src" value="${test.dir}/simulator/bootstrap"/>
+    <property name="test.simulator-test.src" value="${test.dir}/simulator/test"/>
     <property name="test.driver.connection_timeout_ms" value="5000"/>
     <property name="test.driver.read_timeout_ms" value="12000"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
@@ -1070,6 +1080,7 @@
                      <include name="**/asm-*${asm.version}.jar" />
                 </fileset>
             </classpath>
+            <compilerarg value="-XDignore.symbol.file"/>
         </javac>
     </target>
 
@@ -1154,10 +1165,10 @@
             <attribute name="Can-Retransform-Classes" value="true"/>
         </manifest>
         <mkdir dir="${simulator-asm.build.classes}/META-INF" />
-        <mkdir dir="${build.dir}/test/lib/" />
-        <jar destfile="${build.dir}/test/lib/simulator-asm.jar" manifest="${simulator-asm.manifest}">
+        <mkdir dir="${test.lib}/jars/" />
+        <jar destfile="${test.lib}/jars/simulator-asm.jar" manifest="${simulator-asm.manifest}">
             <fileset dir="${simulator-asm.build.classes}"/>
-            <fileset dir="${test.lib}">
+            <fileset dir="${test.lib}/jars">
                 <include name="**/asm-*${asm.version}.jar" />
             </fileset>
         </jar>
@@ -1167,10 +1178,10 @@
             <attribute name="Built-By" value="Benedict Elliott Smith"/>
         </manifest>
         <mkdir dir="${simulator-bootstrap.build.classes}/META-INF" />
-        <mkdir dir="${build.dir}/test/lib/" />
-        <jar destfile="${build.dir}/test/lib/simulator-bootstrap.jar" manifest="${simulator-bootstrap.manifest}">
+        <mkdir dir="${test.lib}/jars/" />
+        <jar destfile="${test.lib}/jars/simulator-bootstrap.jar" manifest="${simulator-bootstrap.manifest}">
             <fileset dir="${simulator-bootstrap.build.classes}"/>
-            <fileset dir="${test.lib}">
+            <fileset dir="${test.lib}/jars">
                 <include name="**/asm-*${asm.version}.jar" />
             </fileset>
         </jar>
@@ -1367,7 +1378,7 @@
       </jar>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib" unless="no-build-test"
+  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib,simulator-jars,checkstyle-test" unless="no-build-test"
           description="Compile test classes">
     <antcall target="_build-test"/>
   </target>
@@ -1397,6 +1408,7 @@
      <src path="${test.simulator.src}"/>
      <src path="${test.simulator-asm.src}"/>
      <src path="${test.simulator-bootstrap.src}"/>
+     <src path="${test.simulator-test.src}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
@@ -1499,11 +1511,13 @@
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
           <pathelement location="${fqltool.build.classes}"/>
-          <path refid="cassandra.classpath.test" />
           <pathelement location="${test.classes}"/>
+          <path refid="cassandra.classpath.test" />
           <pathelement location="${stress.test.classes}"/>
           <pathelement location="${fqltool.test.classes}"/>
           <pathelement location="${test.conf}"/>
+          <pathelement path="${java.class.path}"/>
+          <path refid="cassandra.classpath" />
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
               <exclude name="**/ant-*.jar"/>
@@ -1960,22 +1974,35 @@
   </target>
 
   <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
-      <jar jarfile="${build.dir}/dtest-${base.version}.jar">
-          <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
-          <zipgroupfileset dir="${build.dir.lib}/jars" includes="javassist-*.jar,reflections-*.jar" excludes="META-INF/*.SF"/>
-          <zipgroupfileset dir="${build.dir.lib}/jars" includes="jimfs-1.1.jar" excludes="META-INF/*.SF"/>
+      <jar jarfile="${build.dir}/dtest-${base.version}.jar" duplicate="preserve">
           <fileset dir="${build.classes.main}"/>
           <fileset dir="${test.classes}"/>
           <fileset dir="${test.conf}" />
+          <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
+          <zipgroupfileset dir="${test.lib}/jars" includes="jimfs-1.1.jar,dtest-api-*.jar,asm-*.jar,javassist-*.jar,reflections-*.jar,semver4j-*.jar" excludes="META-INF/*.SF"/>
+          <zipgroupfileset dir="${build.dir.lib}/jars" includes="asm-*.jar" excludes="META-INF/*.SF"/>
       </jar>
   </target>
 
   <target name="test-jvm-dtest" depends="build-test" description="Execute in-jvm dtests">
-    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/test/*Test.java">
+    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/test/${test.name}.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+    </testmacro>
+    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.distributed.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
+      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- Support Simulator Tests -->
+      <jvmarg line="-javaagent:${test.lib}/jars/simulator-asm.jar"/>
+      <jvmarg line="-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar"/>
+      <jvmarg line="-XX:ActiveProcessorCount=4"/>
+      <jvmarg line="-XX:-TieredCompilation"/>
+      <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
+      <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
     </testmacro>
   </target>
 
@@ -2235,6 +2262,21 @@
       </checkstyle>
   </target>
 
+  <target name="checkstyle-test" depends="init-checkstyle,maven-ant-tasks-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" if="java.version.8">
+      <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
+      <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
+      <mkdir  dir="${checkstyle.log.dir}" />
+
+      <property name="checkstyle_test.properties" value="${basedir}/checkstyle_test.xml" />
+      <property name="checkstyle.suppressions" value="${basedir}/checkstyle_suppressions.xml" />
+      <checkstyle config="${checkstyle_test.properties}"
+                  failureProperty="checkstyle.failure"
+                  failOnViolation="true">
+          <formatter type="plain"/>
+          <formatter type="xml" tofile="${checkstyle_test.report.file}"/>
+          <fileset dir="${test.dir}" includes="**/*.java"/>
+      </checkstyle>
+  </target>
 
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"

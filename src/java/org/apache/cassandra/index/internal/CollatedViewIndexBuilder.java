@@ -19,7 +19,6 @@ package org.apache.cassandra.index.internal;
 
 import java.util.Collection;
 import java.util.Set;
-import java.util.UUID;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -32,7 +31,9 @@ import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * Manages building an entire index from column family data. Runs on to compaction manager.
@@ -42,7 +43,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
     private final ColumnFamilyStore cfs;
     private final Set<Index> indexers;
     private final ReducingKeyIterator iter;
-    private final UUID compactionId;
+    private final TimeUUID compactionId;
     private final Collection<SSTableReader> sstables;
 
     public CollatedViewIndexBuilder(ColumnFamilyStore cfs, Set<Index> indexers, ReducingKeyIterator iter, Collection<SSTableReader> sstables)
@@ -50,7 +51,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
         this.cfs = cfs;
         this.indexers = indexers;
         this.iter = iter;
-        this.compactionId = UUIDGen.getTimeUUID();
+        this.compactionId = nextTimeUUID();
         this.sstables = sstables;
     }
 

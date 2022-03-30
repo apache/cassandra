@@ -244,7 +244,9 @@ public enum CassandraRelevantProperties
     TEST_SIMULATOR_PRINT_ASM("cassandra.test.simulator.print_asm", "none"),
     TEST_SIMULATOR_PRINT_ASM_TYPES("cassandra.test.simulator.print_asm_types", ""),
     TEST_SIMULATOR_LIVENESS_CHECK("cassandra.test.simulator.livenesscheck", "true"),
-    TEST_SIMULATOR_DEBUG("cassandra.test.simulator.debug", "true"),
+    TEST_SIMULATOR_DEBUG("cassandra.test.simulator.debug", "false"),
+    TEST_SIMULATOR_DETERMINISM_CHECK("cassandra.test.simulator.determinismcheck", "none"),
+    TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl", "false"),
 
     // determinism properties for testing
     DETERMINISM_SSTABLE_COMPRESSION_DEFAULT("cassandra.sstable_compression_default", "true"),
@@ -318,6 +320,15 @@ public enum CassandraRelevantProperties
             return overrideDefaultValue;
 
         return STRING_CONVERTER.convert(value);
+    }
+
+    public <T> T convert(PropertyConverter<T> converter)
+    {
+        String value = System.getProperty(key);
+        if (value == null)
+            value = defaultVal;
+
+        return converter.convert(value);
     }
 
     /**
@@ -415,7 +426,7 @@ public enum CassandraRelevantProperties
         System.setProperty(key, Long.toString(value));
     }
 
-    private interface PropertyConverter<T>
+    public interface PropertyConverter<T>
     {
         T convert(String value);
     }

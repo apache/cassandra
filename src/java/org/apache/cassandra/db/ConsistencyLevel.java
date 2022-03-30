@@ -18,8 +18,11 @@
 package org.apache.cassandra.db;
 
 
+import java.util.Locale;
+
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -28,7 +31,6 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.transport.ProtocolException;
 
 import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
-import static org.apache.cassandra.locator.Replicas.countInOurDc;
 
 public enum ConsistencyLevel
 {
@@ -41,7 +43,7 @@ public enum ConsistencyLevel
     LOCAL_QUORUM(6, true),
     EACH_QUORUM (7),
     SERIAL      (8),
-    LOCAL_SERIAL(9),
+    LOCAL_SERIAL(9, true),
     LOCAL_ONE   (10, true),
     NODE_LOCAL  (11, true);
 
@@ -79,6 +81,11 @@ public enum ConsistencyLevel
         if (code < 0 || code >= codeIdx.length)
             throw new ProtocolException(String.format("Unknown code %d for a consistency level", code));
         return codeIdx[code];
+    }
+
+    public static ConsistencyLevel fromString(String str)
+    {
+        return valueOf(str.toUpperCase(Locale.US));
     }
 
     public static int quorumFor(AbstractReplicationStrategy replicationStrategy)
@@ -173,7 +180,7 @@ public enum ConsistencyLevel
                 break;
             case LOCAL_ONE: case LOCAL_QUORUM: case LOCAL_SERIAL:
                 // we will only count local replicas towards our response count, as these queries only care about local guarantees
-                blockFor += countInOurDc(pending).allReplicas();
+                blockFor += pending.count(InOurDc.replicas());
                 break;
             case ONE: case TWO: case THREE:
             case QUORUM: case EACH_QUORUM:

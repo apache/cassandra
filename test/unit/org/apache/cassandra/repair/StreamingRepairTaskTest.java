@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.repair;
 
-import java.util.UUID;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -35,7 +33,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamPlan;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingRepairTaskTest extends AbstractRepairTest
 {
@@ -62,9 +62,9 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
     @Test
     public void incrementalStreamPlan() throws NoSuchRepairSessionException
     {
-        UUID sessionID = registerSession(cfs, true, true);
+        TimeUUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
-        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), ks, tbl, prs.getRanges());
+        RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), ks, tbl, prs.getRanges());
 
         SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false);
         StreamingRepairTask task = new StreamingRepairTask(desc, request.initiator, request.src, request.dst, request.ranges, desc.sessionId, PreviewKind.NONE, false);
@@ -76,9 +76,9 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
     @Test
     public void fullStreamPlan() throws Exception
     {
-        UUID sessionID = registerSession(cfs, false, true);
+        TimeUUID sessionID = registerSession(cfs, false, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
-        RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), ks, tbl, prs.getRanges());
+        RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), ks, tbl, prs.getRanges());
         SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false);
         StreamingRepairTask task = new StreamingRepairTask(desc, request.initiator, request.src, request.dst, request.ranges, null, PreviewKind.NONE, false);
 

@@ -28,6 +28,8 @@ import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.UUIDGen;
@@ -236,6 +238,18 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     public UUID toUUID(ByteBuffer value)
     {
         return UUIDGen.getUUID(value);
+    }
+
+    @Override
+    public TimeUUID toTimeUUID(ByteBuffer value)
+    {
+        return TimeUUID.fromBytes(value.getLong(value.position()), value.getLong(value.position() + 8));
+    }
+
+    @Override
+    public Ballot toBallot(ByteBuffer value)
+    {
+        return Ballot.deserialize(value);
     }
 
     @Override

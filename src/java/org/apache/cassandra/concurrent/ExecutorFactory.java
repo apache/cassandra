@@ -25,6 +25,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Shared;
 
 import static java.lang.Thread.*;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.createThread;
@@ -72,6 +73,11 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
         default LocalAwareSubFactoryWithJMX withJmxInternal() { return withJmx("internal"); }
     }
 
+    public enum SimulatorSemantics
+    {
+        NORMAL, DISCARD
+    }
+
     /**
      * @return a factory that configures executors that propagate {@link ExecutorLocals} to the executing thread
      */
@@ -82,6 +88,13 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @return a default-configured {@link ScheduledExecutorPlus}
      */
     default ScheduledExecutorPlus scheduled(String name) { return scheduled(true, name, NORM_PRIORITY); }
+
+    /**
+     * @param name the name of the executor, the executor's thread group, and of any worker threads
+     * @param simulatorSemantics indicate special semantics for the executor under simulation
+     * @return a default-configured {@link ScheduledExecutorPlus}
+     */
+    default ScheduledExecutorPlus scheduled(String name, SimulatorSemantics simulatorSemantics) { return scheduled(true, name, NORM_PRIORITY, simulatorSemantics); }
 
     /**
      * @param executeOnShutdown if false, waiting tasks will be cancelled on shutdown
@@ -96,7 +109,16 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param priority the thread priority of workers
      * @return a {@link ScheduledExecutorPlus}
      */
-    ScheduledExecutorPlus scheduled(boolean executeOnShutdown, String name, int priority);
+    default ScheduledExecutorPlus scheduled(boolean executeOnShutdown, String name, int priority) { return scheduled(executeOnShutdown, name, priority, NORMAL); }
+
+    /**
+     * @param executeOnShutdown if false, waiting tasks will be cancelled on shutdown
+     * @param name the name of the executor, the executor's thread group, and of any worker threads
+     * @param priority the thread priority of workers
+     * @param simulatorSemantics indicate special semantics for the executor under simulation
+     * @return a {@link ScheduledExecutorPlus}
+     */
+    ScheduledExecutorPlus scheduled(boolean executeOnShutdown, String name, int priority, SimulatorSemantics simulatorSemantics);
 
     /**
      * Create and start a new thread to execute {@code runnable}
@@ -249,7 +271,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
         }
 
         @Override
-        public ScheduledExecutorPlus scheduled(boolean executeOnShutdown, String name, int priority)
+        public ScheduledExecutorPlus scheduled(boolean executeOnShutdown, String name, int priority, SimulatorSemantics simulatorSemantics)
         {
             ScheduledThreadPoolExecutorPlus executor = new ScheduledThreadPoolExecutorPlus(newThreadFactory(name, priority));
             if (!executeOnShutdown)

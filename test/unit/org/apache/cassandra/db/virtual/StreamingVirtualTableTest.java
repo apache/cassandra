@@ -48,6 +48,8 @@ import org.apache.cassandra.streaming.StreamingState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.util.Throwables;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
 public class StreamingVirtualTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
@@ -189,7 +191,7 @@ public class StreamingVirtualTableTest extends CQLTester
 
     private static StreamingState stream(boolean follower)
     {
-        StreamResultFuture future = new StreamResultFuture(UUID.randomUUID(), StreamOperation.REPAIR, new StreamCoordinator(StreamOperation.REPAIR, 0, StreamingChannel.Factory.Global.streamingFactory(), follower, false, null, null) {
+        StreamResultFuture future = new StreamResultFuture(nextTimeUUID(), StreamOperation.REPAIR, new StreamCoordinator(StreamOperation.REPAIR, 0, StreamingChannel.Factory.Global.streamingFactory(), follower, false, null, null) {
             // initiator requires active sessions exist, else the future becomes success right away.
             @Override
             public synchronized boolean hasActiveSessions()

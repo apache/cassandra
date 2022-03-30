@@ -78,6 +78,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -347,6 +348,9 @@ public class CassandraDaemon
         }
 
         // Replay any CommitLogSegments found on disk
+        PaxosState.initializeTrackers();
+
+        // replay the log if necessary
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
@@ -359,7 +363,14 @@ public class CassandraDaemon
         // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
         StorageService.instance.populateTokenMetadata();
 
-        SystemKeyspace.finishStartup();
+        try
+        {
+            PaxosState.maybeRebuildUncommittedState();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
 
         // Clean up system.size_estimates entries left lying around from missed keyspace drops (CASSANDRA-14905)
         StorageService.instance.cleanupSizeEstimates();
@@ -428,7 +439,7 @@ public class CassandraDaemon
             logger.debug("Completed submission of build tasks for any materialized views defined at startup");
         };
 
-        ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
+        ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
 
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();

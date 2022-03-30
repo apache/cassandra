@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -44,8 +43,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.net.TestChannel;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
@@ -56,6 +53,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -93,8 +91,8 @@ public class StreamTransferTaskTest
     public void testScheduleTimeout() throws Exception
     {
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, FACTORY, null, current_version, false, 0, UUID.randomUUID(), PreviewKind.ALL);
-        session.init(new StreamResultFuture(UUID.randomUUID(), StreamOperation.OTHER, UUID.randomUUID(), PreviewKind.NONE));
+        StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, FACTORY, null, current_version, false, 0, nextTimeUUID(), PreviewKind.ALL);
+        session.init(new StreamResultFuture(nextTimeUUID(), StreamOperation.OTHER, nextTimeUUID(), PreviewKind.NONE));
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
 
         // create two sstables
@@ -143,7 +141,7 @@ public class StreamTransferTaskTest
     {
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new NettyStreamingConnectionFactory(), false, false, null, PreviewKind.NONE);
-        StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.OTHER, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
+        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.OTHER, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
         StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, FACTORY, null, current_version, false, 0, null, PreviewKind.NONE);
         session.init(future);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);

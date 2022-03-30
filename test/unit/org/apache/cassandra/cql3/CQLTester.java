@@ -100,6 +100,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
+import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
 import org.apache.cassandra.utils.Pair;
 import org.awaitility.Awaitility;
@@ -478,7 +479,7 @@ public abstract class CQLTester
         };
 
         DatabaseDescriptor.setRoleManager(roleManager);
-        MigrationManager.announceNewKeyspace(AuthKeyspace.metadata(), true);
+        SchemaTestUtil.addOrUpdateKeyspace(AuthKeyspace.metadata(), true);
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
@@ -513,7 +514,6 @@ public abstract class CQLTester
 
     private static void startServices()
     {
-        SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
@@ -2050,7 +2050,7 @@ public abstract class CQLTester
         if (value instanceof ByteBuffer)
             return (ByteBuffer)value;
 
-        return type.decompose(serializeTuples(value));
+        return type.decomposeUntyped(serializeTuples(value));
     }
 
     private static String formatValue(ByteBuffer bb, AbstractType<?> type)
@@ -2179,6 +2179,9 @@ public abstract class CQLTester
 
         if (value instanceof UUID)
             return UUIDType.instance;
+
+        if (value instanceof TimeUUID)
+            return TimeUUIDType.instance;
 
         if (value instanceof List)
         {

@@ -40,19 +40,11 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
     public void doVerb(Message<Mutation> message)
     {
         // Check if there were any forwarding headers in this message
-        InetAddressAndPort from = message.respondTo();
-        InetAddressAndPort respondToAddress;
-        if (from == null)
-        {
-            respondToAddress = message.from();
-            ForwardingInfo forwardTo = message.forwardTo();
-            if (forwardTo != null) forwardToLocalNodes(message, forwardTo);
-        }
-        else
-        {
-            respondToAddress = from;
-        }
+        ForwardingInfo forwardTo = message.forwardTo();
+        if (forwardTo != null)
+            forwardToLocalNodes(message, forwardTo);
 
+        InetAddressAndPort respondToAddress = message.respondTo();
         try
         {
             message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress), wto -> failed());

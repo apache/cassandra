@@ -45,10 +45,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static junit.framework.TestCase.assertTrue;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.reflections.util.Utils.isEmpty;
 
@@ -1182,7 +1182,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "DELETE FROM %s WHERE partitionKey > ? ", 0);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey CONTAINS ?", 0);
 
         // Non primary key in the where clause
@@ -1267,7 +1267,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "DELETE FROM %s WHERE partitionKey > ? AND clustering = ?", 0, 1);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering = ?", 0, 1);
 
         // Non primary key in the where clause
@@ -1366,7 +1366,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "DELETE FROM %s WHERE partitionKey > ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
         // Non primary key in the where clause
@@ -4423,7 +4423,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "UPDATE %s SET value = ? WHERE partitionKey > ? AND clustering_1 = ?", 7, 0, 1);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                              "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ?", 7, 0, 1);
 
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
@@ -4555,7 +4555,7 @@ public class CompactStorageTest extends CQLTester
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                              "UPDATE %s SET value = ? WHERE partitionKey > ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
-        assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                              "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
@@ -4638,7 +4638,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata());
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS cql_test_keyspace_compact.test_table_compact (\n" +
                           "    pk1 varint,\n" +
                           "    pk2 ascii,\n" +
@@ -4674,7 +4674,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata());
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS cql_test_keyspace_counter.test_table_counter (\n" +
                           "    pk1 varint,\n" +
                           "    pk2 ascii,\n" +
@@ -4699,7 +4699,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata());
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                         "    pk1 varint,\n" +
                         "    reg1 int,\n" +
@@ -4721,7 +4721,7 @@ public class CompactStorageTest extends CQLTester
                                        " WITH COMPACT STORAGE");
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
-        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata()).contains(
+        assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata()).contains(
         "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
         "    pk1 varint,\n" +
         "    reg1 int,\n" +
@@ -4743,7 +4743,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata());
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                           "    pk1 varint,\n" +
                           "    reg1 counter,\n" +
@@ -4766,7 +4766,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata());
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 int,\n" +
@@ -4789,7 +4789,7 @@ public class CompactStorageTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata());
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 int,\n" +

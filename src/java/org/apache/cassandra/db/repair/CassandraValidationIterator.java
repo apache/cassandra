@@ -25,7 +25,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.LongPredicate;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -57,8 +56,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class CassandraValidationIterator extends ValidationPartitionIterator
 {
@@ -106,12 +107,12 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     {
         public ValidationCompactionIterator(List<ISSTableScanner> scanners, ValidationCompactionController controller, int nowInSec, ActiveCompactionsTracker activeCompactions)
         {
-            super(OperationType.VALIDATION, scanners, controller, nowInSec, UUIDGen.getTimeUUID(), activeCompactions);
+            super(OperationType.VALIDATION, scanners, controller, nowInSec, nextTimeUUID(), activeCompactions);
         }
     }
 
     @VisibleForTesting
-    public static synchronized Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, UUID parentId, boolean isIncremental) throws NoSuchRepairSessionException
+    public static synchronized Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, TimeUUID parentId, boolean isIncremental) throws NoSuchRepairSessionException
     {
         Refs<SSTableReader> sstables;
 
@@ -171,7 +172,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     private final long estimatedPartitions;
     private final Map<Range<Token>, Long> rangePartitionCounts;
 
-    public CassandraValidationIterator(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, UUID parentId, UUID sessionID, boolean isIncremental, int nowInSec) throws IOException, NoSuchRepairSessionException
+    public CassandraValidationIterator(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, int nowInSec) throws IOException, NoSuchRepairSessionException
     {
         this.cfs = cfs;
 

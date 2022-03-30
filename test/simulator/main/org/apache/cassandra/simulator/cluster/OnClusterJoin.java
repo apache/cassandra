@@ -41,6 +41,7 @@ class OnClusterJoin extends OnClusterChangeTopology
             // setup the node's own gossip state for pending ownership, and return gossip actions to disseminate
             new OnClusterUpdateGossip(actions, joining, new OnInstanceSetBootstrapping(actions, joining)),
             new OnInstanceSyncSchemaForBootstrap(actions, joining),
+            new OnInstanceTopologyChangePaxosRepair(actions, joining, "Join"),
             // stream/repair from a peer
             new OnInstanceBootstrap(actions, joinInstance),
             // setup the node's own gossip state for natural ownership, and return gossip actions to disseminate

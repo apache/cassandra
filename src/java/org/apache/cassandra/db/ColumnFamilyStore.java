@@ -40,10 +40,12 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.*;
-import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.io.util.File;
@@ -97,7 +99,15 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.TableStreamManager;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.service.paxos.PaxosRepairHistory;
+import org.apache.cassandra.service.paxos.TablePaxosRepairHistory;
+import org.apache.cassandra.utils.DefaultValue;
+import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -225,6 +235,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     final DiskBoundaryManager diskBoundaryManager = new DiskBoundaryManager();
 
     private volatile boolean neverPurgeTombstones = false;
+
+    private class PaxosRepairHistoryLoader
+    {
+        private TablePaxosRepairHistory history;
+
+        TablePaxosRepairHistory get()
+        {
+            if (history != null)
+                return history;
+
+            synchronized (this)
+            {
+                if (history != null)
+                    return history;
+
+                history = TablePaxosRepairHistory.load(keyspace.getName(), name);
+                return history;
+            }
+        }
+
+    }
+
+    private final PaxosRepairHistoryLoader paxosRepairHistory = new PaxosRepairHistoryLoader();
 
     public static void shutdownPostFlushExecutor() throws InterruptedException
     {
@@ -523,13 +556,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return dataPaths;
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, int sstableLevel, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, int sstableLevel, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
         MetadataCollector collector = new MetadataCollector(metadata().comparator).sstableLevel(sstableLevel);
         return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, collector, header, lifecycleNewTracker);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, MetadataCollector metadataCollector, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, MetadataCollector metadataCollector, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
         return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadataCollector, header, indexManager.listIndexes(), lifecycleNewTracker);
     }
@@ -542,10 +575,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** call when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations */
     public void invalidate()
     {
-        invalidate(true);
+        invalidate(true, true);
     }
 
     public void invalidate(boolean expectMBean)
+    {
+        invalidate(expectMBean, true);
+    }
+
+    public void invalidate(boolean expectMBean, boolean dropData)
     {
         // disable and cancel in-progress compactions before invalidating
         valid = false;
@@ -567,9 +605,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         compactionStrategyManager.shutdown();
         SystemKeyspace.removeTruncationRecord(metadata.id);
 
-        data.dropSSTables();
-        LifecycleTransaction.waitForDeletions();
-        indexManager.dropAllIndexes();
+        if (dropData)
+        {
+            data.dropSSTables();
+            LifecycleTransaction.waitForDeletions();
+        }
+        indexManager.dropAllIndexes(dropData);
 
         invalidateCaches();
     }
@@ -602,7 +643,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return createColumnFamilyStore(keyspace, metadata.name, metadata, loadSSTables);
     }
 
-    public static synchronized ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace,
+    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace,
                                                                          String columnFamily,
                                                                          TableMetadataRef metadata,
                                                                          boolean loadSSTables)
@@ -1141,7 +1182,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                      * with CL as we do with memtables/CFS-backed SecondaryIndexes.
                      */
                     if (flushNonCf2i)
-                        indexManager.flushAllNonCFSBackedIndexesBlocking();
+                        indexManager.flushAllNonCFSBackedIndexesBlocking(memtable);
 
                     flushResults = Lists.newArrayList(FBUtilities.waitOnFutures(futures));
                 }
@@ -1654,12 +1695,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getUncompacting();
     }
 
-    public Map<UUID, PendingStat> getPendingRepairStats()
+    public Map<TimeUUID, PendingStat> getPendingRepairStats()
     {
-        Map<UUID, PendingStat.Builder> builders = new HashMap<>();
+        Map<TimeUUID, PendingStat.Builder> builders = new HashMap<>();
         for (SSTableReader sstable : getLiveSSTables())
         {
-            UUID session = sstable.getPendingRepair();
+            TimeUUID session = sstable.getPendingRepair();
             if (session == null)
                 continue;
 
@@ -1669,8 +1710,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             builders.get(session).addSSTable(sstable);
         }
 
-        Map<UUID, PendingStat> stats = new HashMap<>();
-        for (Map.Entry<UUID, PendingStat.Builder> entry : builders.entrySet())
+        Map<TimeUUID, PendingStat> stats = new HashMap<>();
+        for (Map.Entry<TimeUUID, PendingStat.Builder> entry : builders.entrySet())
         {
             stats.put(entry.getKey(), entry.getValue().build());
         }
@@ -1683,12 +1724,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *
      * @return session ids whose data could not be released
      */
-    public CleanupSummary releaseRepairData(Collection<UUID> sessions, boolean force)
+    public CleanupSummary releaseRepairData(Collection<TimeUUID> sessions, boolean force)
     {
         if (force)
         {
             Predicate<SSTableReader> predicate = sst -> {
-                UUID session = sst.getPendingRepair();
+                TimeUUID session = sst.getPendingRepair();
                 return session != null && sessions.contains(session);
             };
             return runWithCompactionsDisabled(() -> compactionStrategyManager.releaseRepairData(sessions),
@@ -1727,6 +1768,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                   filter.selectsAllPartition(),
                                                                   enforceStrictLiveness))
                || filter.isFullyCoveredBy(cached);
+    }
+
+    public PaxosRepairHistory getPaxosRepairHistory()
+    {
+        return paxosRepairHistory.get().getHistory();
+    }
+
+    public PaxosRepairHistory getPaxosRepairHistoryForRanges(Collection<Range<Token>> ranges)
+    {
+        return paxosRepairHistory.get().getHistoryForRanges(ranges);
+    }
+
+    public void syncPaxosRepairHistory(PaxosRepairHistory sync, boolean flush)
+    {
+        paxosRepairHistory.get().merge(sync, flush);
+    }
+
+    public void onPaxosRepairComplete(Collection<Range<Token>> ranges, Ballot highBallot)
+    {
+        paxosRepairHistory.get().add(ranges, highBallot, true);
+    }
+
+    public Ballot getPaxosRepairLowBound(DecoratedKey key)
+    {
+        return paxosRepairHistory.get().getBallotForToken(key.getToken());
     }
 
     public int gcBefore(int nowInSec)
@@ -1963,7 +2029,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try (PrintStream out = new PrintStream(new FileOutputStreamPlus(schemaFile)))
             {
                 SchemaCQLHelper.reCreateStatementsForSchemaCql(metadata(),
-                                                               keyspace.getMetadata().types)
+                                                               keyspace.getMetadata())
                                .forEach(out::println);
             }
         }

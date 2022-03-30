@@ -17,13 +17,16 @@
  */
 package org.apache.cassandra.db.partitions;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +41,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
+import org.apache.cassandra.utils.vint.VIntCoding;
+
+import static org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer.IS_EMPTY;
 
 /**
  * Stores updates made on a partition.
@@ -322,23 +328,19 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public int dataSize()
     {
-        int size = 0;
+        return Ints.saturatedCast(BTree.<Row>accumulate(holder.tree, (row, value) -> row.dataSize() + value, 0L)
+                + holder.staticRow.dataSize() + holder.deletionInfo.dataSize());
+    }
 
-        if (holder.staticRow != null)
-        {
-            for (ColumnData cd : holder.staticRow.columnData())
-            {
-                size += cd.dataSize();
-            }
-        }
-
-        for (Row row : this)
-        {
-            size += row.clustering().dataSize();
-            for (ColumnData cd : row)
-                size += cd.dataSize();
-        }
-        return size;
+    /**
+     * The size of the data contained in this update.
+     *
+     * @return the size of the data contained in this update.
+     */
+    public long unsharedHeapSize()
+    {
+        return BTree.<Row>accumulate(holder.tree, (row, value) -> row.unsharedHeapSize() + value, 0L)
+                + holder.staticRow.unsharedHeapSize() + holder.deletionInfo.unsharedHeapSize();
     }
 
     public TableMetadata metadata()
@@ -665,6 +667,21 @@ public class PartitionUpdate extends AbstractBTreePartition
                                        new Holder(header.sHeader.columns(), rows.build(), deletionInfo, header.staticRow, header.sHeader.stats()),
                                        deletionInfo,
                                        false);
+        }
+
+        public static boolean isEmpty(ByteBuffer in, DeserializationHelper.Flag flag, DecoratedKey key) throws IOException
+        {
+            int position = in.position();
+            position += 16; // CFMetaData.serializer.deserialize(in, version);
+            if (position >= in.limit())
+                throw new EOFException();
+            // DecoratedKey key = metadata.decorateKey(ByteBufferUtil.readWithVIntLength(in));
+            int keyLength = (int) VIntCoding.getUnsignedVInt(in, position);
+            position += keyLength + VIntCoding.computeUnsignedVIntSize(keyLength);
+            if (position >= in.limit())
+                throw new EOFException();
+            int flags = in.get(position) & 0xff;
+            return (flags & IS_EMPTY) != 0;
         }
 
         public long serializedSize(PartitionUpdate update, int version)

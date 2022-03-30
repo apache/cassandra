@@ -35,7 +35,7 @@ public class GuardrailSecondaryIndexesPerTable extends ThresholdTester
     {
         super(INDEXES_PER_TABLE_WARN_THRESHOLD,
               INDEXES_PER_TABLE_FAIL_THRESHOLD,
-              "secondary_indexes_per_table",
+              Guardrails.secondaryIndexesPerTable,
               Guardrails::setSecondaryIndexesPerTableThreshold,
               Guardrails::getSecondaryIndexesPerTableWarnThreshold,
               Guardrails::getSecondaryIndexesPerTableFailThreshold);

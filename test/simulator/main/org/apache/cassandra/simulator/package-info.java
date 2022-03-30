@@ -64,6 +64,7 @@
  * JVM parameters:
  *    -XX:ActiveProcessorCount=???
  *    -Xmx???
+ *    -XX:-BackgroundCompilation
  *
  * For performance reasons the following parameters are recommended:
  *    -XX:Tier4CompileThreshold=1000

@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -68,7 +67,7 @@ import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
@@ -88,6 +87,7 @@ import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(BMUnitRunner.class)
@@ -175,7 +175,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         testStreamWithConcurrentComponentMutation(() -> {
 
             Descriptor desc = sstable.descriptor;
-            desc.getMetadataSerializer().mutate(desc, "testing", stats -> stats.mutateRepairedMetadata(0, UUID.randomUUID(), false));
+            desc.getMetadataSerializer().mutate(desc, "testing", stats -> stats.mutateRepairedMetadata(0, nextTimeUUID(), false));
 
             return null;
         }, NO_OP);
@@ -247,7 +247,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
 
         // rewrite index summary file with new min/max index interval
         TableMetadata origin = store.metadata();
-        MigrationManager.announceTableUpdate(origin.unbuild().minIndexInterval(1).maxIndexInterval(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(origin.unbuild().minIndexInterval(1).maxIndexInterval(2).build());
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstable, OperationType.INDEX_SUMMARY))
         {
@@ -257,7 +257,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         }
 
         // reset min/max index interval
-        MigrationManager.announceTableUpdate(origin, true);
+        SchemaTestUtil.announceTableUpdate(origin);
         return true;
     }
 
@@ -320,7 +320,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
     private StreamSession setupStreamingSessionForTest()
     {
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new NettyStreamingConnectionFactory(), false, false, null, PreviewKind.NONE);
-        StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.emptyList(), streamCoordinator);
+        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.BOOTSTRAP, Collections.emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED));
