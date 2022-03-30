@@ -61,13 +61,12 @@ public class SSTableIndex
 
     public SSTableIndex(SSTableContext sstableContext, IndexContext indexContext)
     {
-        this.sstableContext = sstableContext.sharedCopy();
+        assert indexContext.getValidator() != null;
+        this.searchableIndex = sstableContext.indexDescriptor.newSearchableIndex(sstableContext, indexContext);
+
+        this.sstableContext = sstableContext.sharedCopy(); // this line must not be before any code that may throw
         this.indexContext = indexContext;
         this.sstable = sstableContext.sstable;
-
-        assert indexContext.getValidator() != null;
-
-        this.searchableIndex = sstableContext.indexDescriptor.newSearchableIndex(sstableContext, indexContext);
     }
 
     public IndexContext getIndexContext()
