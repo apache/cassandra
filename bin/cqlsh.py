@@ -113,7 +113,7 @@ if cql_zip:
     sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
 
 # the driver needs dependencies
-third_parties = ('six-')
+third_parties = ('six-', 'puresasl-')
 
 for lib in third_parties:
     lib_zip = find_zip(lib)
@@ -145,7 +145,7 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling
+from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling, authproviderhandling
 from cqlshlib.copyutil import ExportTask, ImportTask
 from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
                                  RED, WHITE, FormattedValue, colorme)
@@ -154,6 +154,8 @@ from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  format_by_type)
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize
+from cqlshlib.util import is_file_secure
+
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
@@ -426,7 +428,7 @@ class Shell(cmd.Cmd):
     default_page_size = 100
 
     def __init__(self, hostname, port, color=False,
-                 username=None, password=None, encoding=None, stdin=None, tty=True,
+                 username=None, encoding=None, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
@@ -442,16 +444,21 @@ class Shell(cmd.Cmd):
                  request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  protocol_version=None,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS,
-                 is_subshell=False):
+                 is_subshell=False,
+                 auth_provider=None):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
-        self.auth_provider = None
-        if username:
-            if not password:
-                password = getpass.getpass()
-            self.auth_provider = PlainTextAuthProvider(username=username, password=password)
+        self.auth_provider = auth_provider
         self.username = username
+
+        if isinstance(auth_provider, PlainTextAuthProvider):
+            self.username = auth_provider.username
+            if not auth_provider.password:
+                # if no password is provided, we need to query the user to get one.
+                password = getpass.getpass()
+                self.auth_provider = PlainTextAuthProvider(username=auth_provider.username, password=password)
+
         self.keyspace = keyspace
         self.ssl = ssl
         self.tracing_enabled = tracing_enabled
@@ -1613,10 +1620,8 @@ class Shell(cmd.Cmd):
         except IOError as e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
-        username = self.auth_provider.username if self.auth_provider else None
-        password = self.auth_provider.password if self.auth_provider else None
         subshell = Shell(self.hostname, self.port, color=self.color,
-                         username=username, password=password,
+                         username=self.username,
                          encoding=self.encoding, stdin=f, tty=False, use_conn=self.conn,
                          cqlver=self.cql_version, keyspace=self.current_keyspace,
                          tracing_enabled=self.tracing_enabled,
@@ -1629,7 +1634,8 @@ class Shell(cmd.Cmd):
                          max_trace_wait=self.max_trace_wait, ssl=self.ssl,
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
-                         is_subshell=True)
+                         is_subshell=True,
+                         auth_provider=self.auth_provider)
         # duplicate coverage related settings in subshell
         if self.coverage:
             subshell.coverage = True
@@ -2077,21 +2083,6 @@ def should_use_color():
     return True
 
 
-def is_file_secure(filename):
-    try:
-        st = os.stat(filename)
-    except OSError as e:
-        if e.errno != errno.ENOENT:
-            raise
-        return True  # the file doesn't exists, the security of it is irrelevant
-
-    uid = os.getuid()
-
-    # Skip enforcing the file owner and UID matching for the root user (uid == 0).
-    # This is to allow "sudo cqlsh" to work with user owned credentials file.
-    return (uid == 0 or st.st_uid == uid) and stat.S_IMODE(st.st_mode) & (stat.S_IRGRP | stat.S_IROTH) == 0
-
-
 def read_options(cmdlineargs, environment):
     configs = configparser.ConfigParser()
     configs.read(CONFIG_FILE)
@@ -2102,13 +2093,14 @@ def read_options(cmdlineargs, environment):
     username_from_cqlshrc = option_with_default(configs.get, 'authentication', 'username')
     password_from_cqlshrc = option_with_default(rawconfigs.get, 'authentication', 'password')
     if username_from_cqlshrc or password_from_cqlshrc:
-        if password_from_cqlshrc and not is_file_secure(CONFIG_FILE):
+        if password_from_cqlshrc and not is_file_secure(os.path.expanduser(CONFIG_FILE)):
             print("\nWarning: Password is found in an insecure cqlshrc file. The file is owned or readable by other users on the system.",
                   end='', file=sys.stderr)
         print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."
               "\nPlease use a credentials file to specify the username and password.\n", file=sys.stderr)
 
     optvalues = optparse.Values()
+
     optvalues.username = None
     optvalues.password = None
     optvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
@@ -2153,6 +2145,13 @@ def read_options(cmdlineargs, environment):
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
 
+    # Credentials from cqlshrc will be expanded,
+    # credentials from the command line are also expanded if there is a space...
+    # we need the following so that these two scenarios will work
+    #   cqlsh --credentials=~/.cassandra/creds
+    #   cqlsh --credentials ~/.cassandra/creds
+    options.credentials = os.path.expanduser(options.credentials)
+
     if not is_file_secure(options.credentials):
         print("\nWarning: Credentials file '{0}' exists but is not used, because:"
               "\n  a. the file owner is not the current user; or"
@@ -2169,7 +2168,7 @@ def read_options(cmdlineargs, environment):
         credentials.read(options.credentials)
 
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
-        options.username = option_with_default(credentials.get, 'plain_text_auth', 'username', username_from_cqlshrc)
+        options.username = username_from_cqlshrc
 
     if not options.password:
         rawcredentials = configparser.RawConfigParser()
@@ -2177,6 +2176,7 @@ def read_options(cmdlineargs, environment):
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
         options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
+        options.password = password_from_cqlshrc
     elif not options.insecure_password_without_warning:
         print("\nWarning: Using a password on the command line interface can be insecure."
               "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
@@ -2330,7 +2330,6 @@ def main(options, hostname, port):
                       port,
                       color=options.color,
                       username=options.username,
-                      password=options.password,
                       stdin=stdin,
                       tty=options.tty,
                       completekey=options.completekey,
@@ -2349,7 +2348,12 @@ def main(options, hostname, port):
                       single_statement=options.execute,
                       request_timeout=options.request_timeout,
                       connect_timeout=options.connect_timeout,
-                      encoding=options.encoding)
+                      encoding=options.encoding,
+                      auth_provider=authproviderhandling.load_auth_provider(
+                          config_file=CONFIG_FILE,
+                          cred_file=options.credentials,
+                          username=options.username,
+                          password=options.password))
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS as e:
