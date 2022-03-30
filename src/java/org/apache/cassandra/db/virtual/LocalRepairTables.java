@@ -199,6 +199,7 @@ public class LocalRepairTables
                         "  keyspace_name text,\n" +
                         "  table_names frozen<list<text>>,\n" +
                         "  ranges frozen<list<text>>,\n" +
+                        "  participants frozen<list<text>>,\n" +
                         "  jobs frozen<set<uuid>>,\n" +
                         "\n" +
                         stateColumns(SessionState.State.class) +
@@ -226,6 +227,7 @@ public class LocalRepairTables
             result.column("table_names", Arrays.asList(state.cfnames));
             result.column("ranges", toStringList(state.commonRange.ranges));
             result.column("jobs", state.getJobIds());
+            result.column("participants", toStringList(state.getParticipants()));
         }
     }
 
@@ -236,6 +238,7 @@ public class LocalRepairTables
             super(parse(keyspace, "Repair job",
                         "CREATE TABLE repair_jobs (\n" +
                         stdColumnsWithStatus(false) +
+                        "  participants frozen<list<text>>,\n" +
                         JOB_DESC_COLUMNS +
                         "\n" +
                         stateColumns(JobState.State.class) +
@@ -260,6 +263,7 @@ public class LocalRepairTables
             result.row(state.id);
             addState(result, state);
             addState(result, state.desc);
+            result.column("participants", toStringList(state.getParticipants()));
         }
     }
 

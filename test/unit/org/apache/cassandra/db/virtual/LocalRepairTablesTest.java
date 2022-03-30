@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -59,6 +60,7 @@ public class LocalRepairTablesTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
     private static final ImmutableSet<InetAddressAndPort> ADDRESSES = ImmutableSet.of(address(127, 0, 0, 1));
+    private static final List<String> ADDRESSES_STR = ADDRESSES.stream().map(Object::toString).collect(Collectors.toList());
     private static final CommonRange COMMON_RANGE = new CommonRange(ADDRESSES, Collections.emptySet(), Collections.singleton(range(0, 100)));
     private static final String REPAIR_KS = "system";
     private static final String REPAIR_TABLE = "peers";
@@ -93,8 +95,8 @@ public class LocalRepairTablesTest extends CQLTester
         state.phase.start(tables, neighbors);
         assertState("repairs", state, CoordinatorState.State.START);
         List<List<String>> expectedRanges = neighbors.commonRanges.stream().map(a -> a.ranges.stream().map(Object::toString).collect(Collectors.toList())).collect(Collectors.toList());
-        assertRowsIgnoringOrder(execute(t("SELECT id, table_names, ranges, unfiltered_ranges, participants FROM %s.repairs")),
-                                row(state.id, tables.stream().map(a -> a.name).collect(Collectors.toList()), expectedRanges, expectedRanges, neighbors.participants.stream().map(Object::toString).collect(Collectors.toList())));
+        assertRowsIgnoringOrder(execute(t("SELECT id, participants, table_names, ranges, unfiltered_ranges, participants FROM %s.repairs")),
+                                row(state.id, ADDRESSES_STR, tables.stream().map(a -> a.name).collect(Collectors.toList()), expectedRanges, expectedRanges, neighbors.participants.stream().map(Object::toString).collect(Collectors.toList())));
 
         state.phase.prepareStart();
         assertState("repairs", state, CoordinatorState.State.PREPARE_START);
@@ -132,6 +134,9 @@ public class LocalRepairTablesTest extends CQLTester
         state.phase.success("testing");
         assertSuccess("repair_sessions", state);
 
+        assertRowsIgnoringOrder(execute(t("SELECT participants FROM %s.repair_sessions WHERE id=?"), state.id),
+                                row(ADDRESSES_STR));
+
         // make sure serialization works
         execute(t("SELECT * FROM %s.repair_sessions"));
     }
@@ -160,6 +165,9 @@ public class LocalRepairTablesTest extends CQLTester
 
         state.phase.success("testing");
         assertSuccess("repair_jobs", state);
+
+        assertRowsIgnoringOrder(execute(t("SELECT participants FROM %s.repair_jobs WHERE id=?"), state.id),
+                                row(ADDRESSES_STR));
 
         // make sure serialization works
         execute(t("SELECT * FROM %s.repair_jobs"));
@@ -298,7 +306,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static JobState job()
     {
         SessionState session = session();
-        JobState state = new JobState(new RepairJobDesc(session.parentRepairSession, session.id, session.keyspace, session.cfnames[0], session.commonRange.ranges));
+        JobState state = new JobState(new RepairJobDesc(session.parentRepairSession, session.id, session.keyspace, session.cfnames[0], session.commonRange.ranges), session.commonRange.endpoints);
         session.register(state);
         return state;
     }

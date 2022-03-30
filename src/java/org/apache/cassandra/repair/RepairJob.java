@@ -92,7 +92,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         this.taskExecutor = session.taskExecutor;
         this.parallelismDegree = session.parallelismDegree;
         this.desc = new RepairJobDesc(session.state.parentRepairSession, session.getId(), session.state.keyspace, columnFamily, session.state.commonRange.ranges);
-        this.state = new JobState(desc);
+        this.state = new JobState(desc, session.state.commonRange.endpoints);
     }
 
     public int getNowInSeconds()

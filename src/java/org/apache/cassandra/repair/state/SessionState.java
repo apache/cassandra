@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
@@ -66,6 +67,11 @@ public class SessionState extends AbstractState<SessionState.State, TimeUUID>
     public Set<UUID> getJobIds()
     {
         return jobs.keySet();
+    }
+
+    public Set<InetAddressAndPort> getParticipants()
+    {
+        return commonRange.endpoints;
     }
 
     public void register(JobState state)

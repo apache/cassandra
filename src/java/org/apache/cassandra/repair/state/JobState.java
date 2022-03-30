@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.repair.state;
 
+import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
 
 public class JobState extends AbstractState<JobState.State, UUID>
@@ -32,13 +36,20 @@ public class JobState extends AbstractState<JobState.State, UUID>
     }
 
     public final RepairJobDesc desc;
+    private final ImmutableSet<InetAddressAndPort> endpoints;
 
     public final Phase phase = new Phase();
 
-    public JobState(RepairJobDesc desc)
+    public JobState(RepairJobDesc desc, ImmutableSet<InetAddressAndPort> endpoints)
     {
         super(desc.determanisticId(), State.class);
         this.desc = desc;
+        this.endpoints = endpoints;
+    }
+
+    public Set<InetAddressAndPort> getParticipants()
+    {
+        return endpoints;
     }
 
     public final class Phase extends BasePhase
