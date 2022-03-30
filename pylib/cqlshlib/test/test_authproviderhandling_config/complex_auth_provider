@@ -1,0 +1,10 @@
+; Config for a custom auth provider that uses the auth_provider field
+; ComplexTextAuthProvider is a PlainTextAuthProvider in the driver which 
+; takes an extra field (extra_flag).
+; used by unit testing
+
+[auth_provider]
+module = cqlshlib.test.test_authproviderhandling
+classname = ComplexTextAuthProvider
+username = user1
+extra_flag = flag1

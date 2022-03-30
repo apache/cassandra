@@ -24,6 +24,14 @@
 ; keyspace = ks1
 
 
+[auth_provider]
+;; you can specify any auth provider found in your python environment
+;; module and class will be used to dynamically load the class
+;; all other properties found here and in the credentials file under the class name
+;; will be passed to the constructor
+; module = cassandra.auth
+; classname = PlainTextAuthProvider
+; username = user1
 
 [ui]
 ;; Whether or not to display query results with colors

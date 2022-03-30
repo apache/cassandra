@@ -1,4 +1,5 @@
 4.1
+ * Add plugin support for CQLSH (CASSANDRA-16456)
  * Add guardrail to disallow querying with ALLOW FILTERING (CASSANDRA-17370)
  * Enhance SnakeYAML properties to be reusable outside of YAML parsing, support camel case conversion to snake case, and add support to ignore properties (CASSANDRA-17166)
  * nodetool compact should support using a key string to find the range to avoid operators having to manually do this (CASSANDRA-17537)

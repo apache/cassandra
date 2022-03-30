@@ -1,0 +1,8 @@
+; Config for a custom auth provider that uses some possible fields
+; validate that the partial breakdown works successfully
+; used by unit testing
+
+[auth_provider]
+module = cassandra.auth
+classname = PlainTextAuthProvider
+username = user1

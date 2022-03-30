@@ -1,0 +1,5 @@
+; Config for a custom auth provider that uses only the auth_provider field
+; this version doesn't have a classname, but has a module name.
+
+[auth_provider]
+module = cqlshlib.test
