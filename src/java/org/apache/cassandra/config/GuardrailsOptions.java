@@ -333,6 +333,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getUncompressedTablesEnabled()
+    {
+        return config.uncompressed_tables_enabled;
+    }
+
+    public void setUncompressedTablesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("uncompressed_tables_enabled",
+                                  enabled,
+                                  () -> config.uncompressed_tables_enabled,
+                                  x -> config.uncompressed_tables_enabled = x);
+    }
+
+    @Override
     public boolean getCompactTablesEnabled()
     {
         return config.compact_tables_enabled;

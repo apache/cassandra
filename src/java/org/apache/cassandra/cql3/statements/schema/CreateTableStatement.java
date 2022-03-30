@@ -117,6 +117,9 @@ public final class CreateTableStatement extends AlterSchemaStatement
             throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
         }
 
+        if (!table.params.compression.isEnabled())
+            Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
+
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.with(table)));
     }
 
