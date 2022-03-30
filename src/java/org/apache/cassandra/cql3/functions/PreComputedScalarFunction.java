@@ -34,7 +34,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
  * though as I don't think we actually depend on the protocol version for values anymore (it's remnant of previous
  * transitions). It's not a lot of code to be on safe side though until this is cleaned (assuming we do clean it).
  */
-class PreComputedFunction extends NativeScalarFunction implements PartialScalarFunction
+class PreComputedScalarFunction extends NativeScalarFunction implements PartialScalarFunction
 {
     private final ByteBuffer value;
     private final ProtocolVersion valueVersion;
@@ -42,11 +42,11 @@ class PreComputedFunction extends NativeScalarFunction implements PartialScalarF
     private final ScalarFunction function;
     private final List<ByteBuffer> parameters;
 
-    PreComputedFunction(AbstractType<?> returnType,
-                        ByteBuffer value,
-                        ProtocolVersion valueVersion,
-                        ScalarFunction function,
-                        List<ByteBuffer> parameters)
+    PreComputedScalarFunction(AbstractType<?> returnType,
+                              ByteBuffer value,
+                              ProtocolVersion valueVersion,
+                              ScalarFunction function,
+                              List<ByteBuffer> parameters)
     {
         // Note that we never register those function, there are just used internally, so the name doesn't matter much
         super("__constant__", returnType);

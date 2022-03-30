@@ -18,13 +18,11 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.text.ParsePosition;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.TimeZone;
-
-import org.apache.commons.lang3.time.DateUtils;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -110,69 +108,61 @@ public class DurationTest
     @Test
     public void testAddTo()
     {
-        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("0m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("10us").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T00:10:00"), Duration.from("10m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T01:30:00"), Duration.from("90m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T02:10:00"), Duration.from("2h10m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-23T00:10:00"), Duration.from("2d10m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-24T01:00:00"), Duration.from("2d25h").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-10-21T00:00:00"), Duration.from("1mo").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2017-11-21T00:00:00"), Duration.from("14mo").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2017-02-28T00:00:00"), Duration.from("12mo").addTo(toMillis("2016-02-29T00:00:00")));
+        assertTimeEquals("2016-09-21T00:00:00.000", Duration.from("0m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T00:00:00.000", Duration.from("10us").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T00:10:00.000", Duration.from("10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T01:30:00.000", Duration.from("90m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T02:10:00.000", Duration.from("2h10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-23T00:10:00.000", Duration.from("2d10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-24T01:00:00.000", Duration.from("2d25h").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-10-21T00:00:00.000", Duration.from("1mo").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2017-11-21T00:00:00.000", Duration.from("14mo").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2017-02-28T00:00:00.000", Duration.from("12mo").addTo(toMillis("2016-02-29T00:00:00")));
     }
 
     @Test
     public void testAddToWithNegativeDurations()
     {
-        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("-0m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("-10us").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-20T23:50:00"), Duration.from("-10m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-20T22:30:00"), Duration.from("-90m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-20T21:50:00"), Duration.from("-2h10m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-18T23:50:00"), Duration.from("-2d10m").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-17T23:00:00"), Duration.from("-2d25h").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-08-21T00:00:00"), Duration.from("-1mo").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2015-07-21T00:00:00"), Duration.from("-14mo").addTo(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2015-02-28T00:00:00"), Duration.from("-12mo").addTo(toMillis("2016-02-29T00:00:00")));
+        assertTimeEquals("2016-09-21T00:00:00.000", Duration.from("-0m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T00:00:00.000", Duration.from("-10us").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-20T23:50:00.000", Duration.from("-10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-20T22:30:00.000", Duration.from("-90m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-20T21:50:00.000", Duration.from("-2h10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-18T23:50:00.000", Duration.from("-2d10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-17T23:00:00.000", Duration.from("-2d25h").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-08-21T00:00:00.000", Duration.from("-1mo").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2015-07-21T00:00:00.000", Duration.from("-14mo").addTo(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2015-02-28T00:00:00.000", Duration.from("-12mo").addTo(toMillis("2016-02-29T00:00:00")));
     }
 
     @Test
     public void testSubstractFrom()
     {
-        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("0m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("10us").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-20T23:50:00"), Duration.from("10m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-20T22:30:00"), Duration.from("90m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-20T21:50:00"), Duration.from("2h10m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-18T23:50:00"), Duration.from("2d10m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-17T23:00:00"), Duration.from("2d25h").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-08-21T00:00:00"), Duration.from("1mo").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2015-07-21T00:00:00"), Duration.from("14mo").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2015-02-28T00:00:00"), Duration.from("12mo").substractFrom(toMillis("2016-02-29T00:00:00")));
+        assertTimeEquals("2016-09-21T00:00:00.000", Duration.from("0m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T00:00:00.000", Duration.from("10us").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-20T23:50:00.000", Duration.from("10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-20T22:30:00.000", Duration.from("90m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-20T21:50:00.000", Duration.from("2h10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-18T23:50:00.000", Duration.from("2d10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-17T23:00:00.000", Duration.from("2d25h").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-08-21T00:00:00.000", Duration.from("1mo").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2015-07-21T00:00:00.000", Duration.from("14mo").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2015-02-28T00:00:00.000", Duration.from("12mo").substractFrom(toMillis("2016-02-29T00:00:00")));
     }
 
     @Test
     public void testSubstractWithNegativeDurations()
     {
-        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("-0m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("-10us").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T00:10:00"), Duration.from("-10m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T01:30:00"), Duration.from("-90m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-21T02:10:00"), Duration.from("-2h10m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-23T00:10:00"), Duration.from("-2d10m").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-09-24T01:00:00"), Duration.from("-2d25h").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2016-10-21T00:00:00"), Duration.from("-1mo").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2017-11-21T00:00:00"), Duration.from("-14mo").substractFrom(toMillis("2016-09-21T00:00:00")));
-        assertEquals(toMillis("2017-02-28T00:00:00"), Duration.from("-12mo").substractFrom(toMillis("2016-02-29T00:00:00")));
-    }
-
-    private long toMillis(String timeAsString)
-    {
-        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-        parser.setTimeZone(TimeZone.getTimeZone("UTC"));
-        Date date = parser.parse(timeAsString, new ParsePosition(0));
-        return DateUtils.truncate(date, Calendar.SECOND).getTime();
+        assertTimeEquals("2016-09-21T00:00:00.000", Duration.from("-0m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T00:00:00.000", Duration.from("-10us").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T00:10:00.000", Duration.from("-10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T01:30:00.000", Duration.from("-90m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-21T02:10:00.000", Duration.from("-2h10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-23T00:10:00.000", Duration.from("-2d10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-09-24T01:00:00.000", Duration.from("-2d25h").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2016-10-21T00:00:00.000", Duration.from("-1mo").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2017-11-21T00:00:00.000", Duration.from("-14mo").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertTimeEquals("2017-02-28T00:00:00.000", Duration.from("-12mo").substractFrom(toMillis("2016-02-29T00:00:00")));
     }
 
     @Test
@@ -200,134 +190,124 @@ public class DurationTest
     }
 
     @Test
-    public void testFloorTimestamp()
+    public void testFloorTimestampWithDurationInHours()
     {
-        //~ Test with a duration in hours //////////////////////////////////////////////
-
         // Test floor with a timestamp equals to the start time
         long result = floorTimestamp("2016-09-27T16:12:00", "2h", "2016-09-27T16:12:00");
-        assertEquals(toMillis("2016-09-27T16:12:00"), result);
+        assertTimeEquals("2016-09-27T16:12:00.000", result);
 
         // Test floor with a duration equals to zero
         result = floorTimestamp("2016-09-27T18:12:00", "0h", "2016-09-27T16:12:00");
-        assertEquals(toMillis("2016-09-27T18:12:00"), result);
+        assertTimeEquals("2016-09-27T18:12:00.000", result);
 
         // Test floor with a timestamp exactly equals to the start time + (1 x duration)
         result = floorTimestamp("2016-09-27T18:12:00", "2h", "2016-09-27T16:12:00");
-        assertEquals(toMillis("2016-09-27T18:12:00"), result);
+        assertTimeEquals("2016-09-27T18:12:00.000", result);
 
         // Test floor with a timestamp in the first bucket
         result = floorTimestamp("2016-09-27T16:13:00", "2h", "2016-09-27T16:12:00");
-        assertEquals(toMillis("2016-09-27T16:12:00"), result);
+        assertTimeEquals("2016-09-27T16:12:00.000", result);
 
         // Test floor with a timestamp in another bucket
         result = floorTimestamp("2016-09-27T16:12:00", "2h", "2016-09-27T00:00:00");
-        assertEquals(toMillis("2016-09-27T16:00:00"), result);
-
-
-        //~ Test with a duration in days //////////////////////////////////////////////
-
-        // Test floor with a start time at the beginning of the month
-        result = floorTimestamp("2016-09-27T16:12:00", "2d", "2016-09-01T00:00:00");
-        assertEquals(toMillis("2016-09-27T00:00:00"), result);
-
-        // Test floor with a start time in the previous month
-        result = floorTimestamp("2016-09-27T16:12:00", "2d", "2016-08-01T00:00:00");
-        assertEquals(toMillis("2016-09-26T00:00:00"), result);
-
-
-        //~ Test with a duration in days and hours ////////////////////////////////////
-
-        result = floorTimestamp("2016-09-27T16:12:00", "2d12h", "2016-09-01T00:00:00");
-        assertEquals(toMillis("2016-09-26T00:00:00"), result);
-
-
-        //~ Test with a duration in months ////////////////////////////////////////////
-
-        // Test floor with a timestamp equals to the start time
-        result = floorTimestamp("2016-09-01T00:00:00", "2mo", "2016-09-01T00:00:00");
-        assertEquals(toMillis("2016-09-01T00:00:00"), result);
-
-        // Test floor with a timestamp in the first bucket
-        result = floorTimestamp("2016-09-27T16:12:00", "2mo", "2016-09-01T00:00:00");
-        assertEquals(toMillis("2016-09-01T00:00:00"), result);
-
-        // Test floor with a start time at the beginning of the year (LEAP YEAR)
-        result = floorTimestamp("2016-09-27T16:12:00", "1mo", "2016-01-01T00:00:00");
-        assertEquals(toMillis("2016-09-01T00:00:00"), result);
-
-        // Test floor with a start time at the beginning of the previous year
-        result = floorTimestamp("2016-09-27T16:12:00", "2mo", "2015-01-01T00:00:00");
-        assertEquals(toMillis("2016-09-01T00:00:00"), result);
-
-        // Test floor with a start time in the previous year
-        result = floorTimestamp("2016-09-27T16:12:00", "2mo", "2015-02-02T00:00:00");
-        assertEquals(toMillis("2016-08-02T00:00:00"), result);
-
-
-        //~ Test with a duration in months and days ////////////////////////////////////
-
-        // Test floor with a start time at the beginning of the year (LEAP YEAR)
-        result = floorTimestamp("2016-09-27T16:12:00", "2mo2d", "2016-01-01T00:00:00");
-        assertEquals(toMillis("2016-09-09T00:00:00"), result);
-
-        result = floorTimestamp("2016-09-27T16:12:00", "2mo5d", "2016-01-01T00:00:00");
-        assertEquals(toMillis("2016-09-21T00:00:00"), result);
-
-        // Test floor with a timestamp in the first bucket
-        result = floorTimestamp("2016-09-04T16:12:00", "2mo5d", "2016-07-01T00:00:00");
-        assertEquals(toMillis("2016-07-01T00:00:00"), result);
-
-        // Test floor with a timestamp in a bucket starting on the last day of the month
-        result = floorTimestamp("2016-09-27T16:12:00", "2mo10d", "2016-01-01T00:00:00");
-        assertEquals(toMillis("2016-07-31T00:00:00"), result);
-
-        // Test floor with a timestamp in a bucket starting on the first day of the month
-        result = floorTimestamp("2016-09-27T16:12:00", "2mo12d", "2016-01-01T00:00:00");
-        assertEquals(toMillis("2016-08-06T00:00:00"), result);
-
-        // Test leap years
-        result = floorTimestamp("2016-04-27T16:12:00", "1mo30d", "2016-01-01T00:00:00");
-        assertEquals(toMillis("2016-03-02T00:00:00"), result);
-
-        result = floorTimestamp("2015-04-27T16:12:00", "1mo30d", "2015-01-01T00:00:00");
-        assertEquals(toMillis("2015-03-03T00:00:00"), result);
-
-        //~ Test with a duration smaller than precision ////////////////////////////////////
-
-        result = floorTimestamp("2016-09-27T18:14:00", "5us", "2016-09-27T16:12:00");
-        assertEquals(toMillis("2016-09-27T18:14:00"), result);
-
-        result = floorTimestamp("2016-09-27T18:14:00", "1h5us", "2016-09-27T16:12:00");
-        assertEquals(toMillis("2016-09-27T18:12:00"), result);
-
-        //~ Test with leap seconds (Java ignore leap seconds) ////////////////////////////////
-        result = floorTimestamp("2016-07-02T00:00:00", "2m", "2016-06-30T23:58:00");
-        assertEquals(toMillis("2016-07-02T00:00:00"), result);
+        assertTimeEquals("2016-09-27T16:00:00.000", result);
     }
 
     @Test
-    public void testFloorTime()
+    public void testFloorTimestampWithDurationInDays()
     {
-        long result = floorTime("12:00:00", "2h");
-        assertEquals(timeInNanos("12:00:00"), result);
+        // Test floor with a start time at the beginning of the month
+        long result = floorTimestamp("2016-09-27T16:12:00", "2d", "2016-09-01T00:00:00");
+        assertTimeEquals("2016-09-27T00:00:00.000", result);
 
-        result = floorTime("16:13:00", "2h");
-        assertEquals(timeInNanos("16:00:00"), result);
+        // Test floor with a start time in the previous month
+        result = floorTimestamp("2016-09-27T16:12:00", "2d", "2016-08-01T00:00:00");
+        assertTimeEquals("2016-09-26T00:00:00.000", result);
+    }
 
-        result = floorTime("16:12:00", "10m");
-        assertEquals(timeInNanos("16:10:00"), result);
+    @Test
+    public void testFloorTimestampWithDurationInDaysAndHours()
+    {
+        long result = floorTimestamp("2016-09-27T16:12:00", "2d12h", "2016-09-01T00:00:00");
+        assertTimeEquals("2016-09-26T00:00:00.000", result);
+    }
 
-        result = floorTime("16:12:00.000123000", "10us");
-        assertEquals(timeInNanos("16:12:00.000120000"), result);
+    @Test
+    public void testFloorTimestampWithDurationInMonths()
+    {
+        // Test floor with a timestamp equals to the start time
+        long result = floorTimestamp("2016-09-01T00:00:00", "2mo", "2016-09-01T00:00:00");
+        assertTimeEquals("2016-09-01T00:00:00.000", result);
 
-        // Test with zero duration
-        result = floorTime("12:00:00", "0h");
-        assertEquals(timeInNanos("12:00:00"), result);
+        // Test floor with a timestamp in the first bucket
+        result = floorTimestamp("2016-09-27T16:12:00", "2mo", "2016-09-01T00:00:00");
+        assertTimeEquals("2016-09-01T00:00:00.000", result);
 
-        // Test with duration smaller than precision
-        result = floorTime("12:00:00", "10ms");
-        assertEquals(timeInNanos("12:00:00"), result);
+        // Test floor with a start time at the beginning of the year (LEAP YEAR)
+        result = floorTimestamp("2016-09-27T16:12:00", "1mo", "2016-01-01T00:00:00");
+        assertTimeEquals("2016-09-01T00:00:00.000", result);
+
+        // Test floor with a start time at the beginning of the previous year
+        result = floorTimestamp("2016-09-27T16:12:00", "2mo", "2015-01-01T00:00:00");
+        assertTimeEquals("2016-09-01T00:00:00.000", result);
+
+        // Test floor with a start time in the previous year
+        result = floorTimestamp("2016-09-27T16:12:00", "2mo", "2015-02-02T00:00:00");
+        assertTimeEquals("2016-08-02T00:00:00.000", result);
+
+    }
+
+    @Test
+    public void testFloorTimestampWithDurationInMonthsAndDays()
+    {
+        long result = floorTimestamp("2016-09-27T16:12:00", "2mo2d", "2016-01-01T00:00:00");
+        assertTimeEquals("2016-09-09T00:00:00.000", result);
+
+        result = floorTimestamp("2016-09-27T16:12:00", "2mo5d", "2016-01-01T00:00:00");
+        assertTimeEquals("2016-09-21T00:00:00.000", result);
+
+        // Test floor with a timestamp in the first bucket
+        result = floorTimestamp("2016-09-04T16:12:00", "2mo5d", "2016-07-01T00:00:00");
+        assertTimeEquals("2016-07-01T00:00:00.000", result);
+
+        // Test floor with a timestamp in a bucket starting on the last day of the month
+        result = floorTimestamp("2016-09-27T16:12:00", "2mo10d", "2016-01-01T00:00:00");
+        assertTimeEquals("2016-07-31T00:00:00.000", result);
+
+        // Test floor with a timestamp in a bucket starting on the first day of the month
+        result = floorTimestamp("2016-09-27T16:12:00", "2mo12d", "2016-01-01T00:00:00");
+        assertTimeEquals("2016-08-06T00:00:00.000", result);
+
+        // Test leap years
+        result = floorTimestamp("2016-04-27T16:12:00", "1mo30d", "2016-01-01T00:00:00");
+        assertTimeEquals("2016-03-02T00:00:00.000", result);
+
+        result = floorTimestamp("2015-04-27T16:12:00", "1mo30d", "2015-01-01T00:00:00");
+        assertTimeEquals("2015-03-03T00:00:00.000", result);
+    }
+
+    @Test
+    public void testFloorTimestampWithDurationSmallerThanPrecision()
+    {
+        long result = floorTimestamp("2016-09-27T18:14:00", "5us", "2016-09-27T16:12:00");
+        assertTimeEquals("2016-09-27T18:14:00.000", result);
+
+        result = floorTimestamp("2016-09-27T18:14:00", "1h5us", "2016-09-27T16:12:00");
+        assertTimeEquals("2016-09-27T18:12:00.000", result);
+    }
+
+    @Test
+    public void testFloorTimestampWithLeapSecond()
+    {
+        long result = floorTimestamp("2016-07-02T00:00:00", "2m", "2016-06-30T23:58:00");
+        assertTimeEquals("2016-07-02T00:00:00.000", result);
+    }
+
+    @Test
+    public void testFloorTimestampWithComplexDuration()
+    {
+        long result = floorTimestamp("2016-07-02T00:00:00", "2mo2d8h", "2016-01-01T00:00:00");
+        assertTimeEquals("2016-05-05T16:00:00.000", result);
     }
 
     @Test
@@ -364,22 +344,42 @@ public class DurationTest
         }
     }
 
-    private long floorTimestamp(String time, String duration, String startingTime)
+    private static long toMillis(String timeAsString)
+    {
+        OffsetDateTime dateTime = LocalDateTime.parse(timeAsString, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+                                               .atOffset(ZoneOffset.UTC);
+
+        return Instant.from(dateTime).toEpochMilli();
+    }
+
+    private static String fromMillis(long timeInMillis)
+    {
+        return Instant.ofEpochMilli(timeInMillis)
+                      .atOffset(ZoneOffset.UTC)
+                      .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"));
+    }
+
+    private static void assertTimeEquals(String expected, long actualTimeInMillis)
+    {
+        assertEquals(expected, fromMillis(actualTimeInMillis));
+    }
+
+    private static long floorTimestamp(String time, String duration, String startingTime)
     {
         return Duration.floorTimestamp(toMillis(time), Duration.from(duration), toMillis(startingTime));
     }
 
-    private long floorTime(String time, String duration)
+    private static long floorTime(String time, String duration)
     {
         return Duration.floorTime(timeInNanos(time), Duration.from(duration));
     }
 
-    private long timeInNanos(String timeAsString)
+    private static long timeInNanos(String timeAsString)
     {
         return TimeSerializer.timeStringToLong(timeAsString);
     }
 
-    private void assertInvalidDuration(String duration, String expectedErrorMessage)
+    private static void assertInvalidDuration(String duration, String expectedErrorMessage)
     {
         try
         {

@@ -80,7 +80,7 @@ public abstract class TimeFcts
             @Override
             public boolean isPure()
             {
-                return false;
+                return false; // as it returns non-identical results for identical arguments
             }
         };
     };
@@ -273,10 +273,12 @@ public abstract class TimeFcts
              Long time = toTimeInMillis(timeBuffer);
              Duration duration = DurationType.instance.compose(durationBuffer);
 
-             validateDuration(duration);
-
              if (time == null || duration == null)
                  return null;
+
+
+             validateDuration(duration);
+
 
              long floor = Duration.floorTimestamp(time, duration, startingTime);
 
@@ -310,10 +312,7 @@ public abstract class TimeFcts
           */
          protected void validateDuration(Duration duration)
          {
-             // Checks that the duration has no data bellow milliseconds. We can do that by checking that the last
-             // 6 bits of the number of nanoseconds are all zeros. The compiler will replace the call to
-             // numberOfTrailingZeros by a TZCNT instruction.
-             if (Long.numberOfTrailingZeros(duration.getNanoseconds()) < 6)
+             if (!duration.hasMillisecondPrecision())
                  throw invalidRequest("The floor cannot be computed for the %s duration as precision is below 1 millisecond", duration);
          }
 
@@ -340,7 +339,7 @@ public abstract class TimeFcts
           * @return the starting time in milliseconds
           */
          protected abstract Long toStartingTimeInMillis(ByteBuffer bytes);
-     };
+     }
 
     /**
      * Function that rounds a timestamp down to the closest multiple of a duration.
@@ -382,7 +381,7 @@ public abstract class TimeFcts
          {
              return TimestampType.instance.toTimeInMillis(bytes);
          }
-     };
+     }
 
      /**
       * Function that rounds a timeUUID down to the closest multiple of a duration.
@@ -424,7 +423,7 @@ public abstract class TimeFcts
          {
              return UUIDGen.getAdjustedTimestamp(UUIDGen.getUUID(bytes));
          }
-     };
+     }
 
      /**
       * Function that rounds a date down to the closest multiple of a duration.
@@ -475,7 +474,7 @@ public abstract class TimeFcts
                  throw invalidRequest("The floor on %s values cannot be computed for the %s duration as precision is below 1 day",
                                       SimpleDateType.instance.asCQL3Type(), duration);
          }
-     };
+     }
 
      /**
       * Function that rounds a time down to the closest multiple of a duration.
@@ -488,7 +487,7 @@ public abstract class TimeFcts
              return partialParameters.get(0) == UNRESOLVED && partialParameters.get(1) != UNRESOLVED;
          }
 
-         public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
          {
              ByteBuffer timeBuffer = parameters.get(0);
              ByteBuffer durationBuffer = parameters.get(1);

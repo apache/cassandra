@@ -37,18 +37,6 @@ public abstract class AggregationSpecification
     public static final Serializer serializer = new Serializer();
 
     /**
-     * Factory for <code>AggregationSpecification</code> that group all the row together.
-     */
-    public static final AggregationSpecification.Factory AGGREGATE_EVERYTHING_FACTORY = new AggregationSpecification.Factory()
-    {
-        @Override
-        public AggregationSpecification newInstance(QueryOptions options)
-        {
-            return AGGREGATE_EVERYTHING;
-        }
-    };
-
-    /**
      * <code>AggregationSpecification</code> that group all the row together.
      */
     public static final AggregationSpecification AGGREGATE_EVERYTHING = new AggregationSpecification(Kind.AGGREGATE_EVERYTHING)
@@ -59,6 +47,11 @@ public abstract class AggregationSpecification
             return GroupMaker.GROUP_EVERYTHING;
         }
     };
+
+    /**
+     * Factory for <code>AggregationSpecification</code> that group all the row together.
+     */
+    public static final AggregationSpecification.Factory AGGREGATE_EVERYTHING_FACTORY = options -> AGGREGATE_EVERYTHING;
 
     /**
      * The <code>AggregationSpecification</code> kind.
@@ -117,14 +110,7 @@ public abstract class AggregationSpecification
     public static AggregationSpecification.Factory aggregatePkPrefixFactory(ClusteringComparator comparator,
                                                                             int clusteringPrefixSize)
     {
-        return new Factory()
-        {
-            @Override
-            public AggregationSpecification newInstance(QueryOptions options)
-            {
-                return new  AggregateByPkPrefix(comparator, clusteringPrefixSize);
-            }
-        };
+        return options -> new  AggregateByPkPrefix(comparator, clusteringPrefixSize);
     }
 
     public static AggregationSpecification.Factory aggregatePkPrefixFactoryWithSelector(final ClusteringComparator comparator,

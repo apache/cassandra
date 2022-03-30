@@ -32,7 +32,6 @@ import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.serializers.TimestampSerializer;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDGen;
 
 public class SelectGroupByTest extends CQLTester
 {
@@ -2147,11 +2146,10 @@ public class SelectGroupByTest extends CQLTester
     }
 
     @Test
-    public void testGroupByTimeRangesWithoutPaging() throws Throwable
+    public void testGroupByTimeRangesWithTimestamTypeAndWithoutPaging() throws Throwable
     {
         for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
         {
-            // Test with timestamp type.
             createTable("CREATE TABLE %s (pk int, time timestamp, v int, primary key (pk, time))" + compactOption);
 
             assertInvalidMessage("Group by currently only support groups of columns following their declared order in the PRIMARY KEY",
@@ -2222,8 +2220,14 @@ public class SelectGroupByTest extends CQLTester
             // Checks with start time is greater than the timestamp
             assertInvalidMessage("The floor function starting time is greater than the provided time",
                                  "SELECT pk, floor(time, 5m, '2016-10-27'), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m, '2016-10-27')");
+        }
+    }
 
-            // Test with timeUUID type.
+    @Test
+    public void testGroupByTimeRangesWithTimeUUIDAndWithoutPaging() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
             createTable("CREATE TABLE %s (pk int, time timeuuid, v int, primary key (pk, time))" + compactOption);
 
             execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:10:00"), 1);
@@ -2285,8 +2289,14 @@ public class SelectGroupByTest extends CQLTester
             // Checks with start time is greater than the timestamp
             assertInvalidMessage("The floor function starting time is greater than the provided time",
                                  "SELECT pk, floor(time, 5m, '2016-10-27'), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 5m, '2016-10-27')");
+        }
+    }
 
-            // Test with date type.
+    @Test
+    public void testGroupByTimeRangesWithDateTypeAndWithoutPaging() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
             createTable("CREATE TABLE %s (pk int, time date, v int, primary key (pk, time))" + compactOption);
 
             execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27', 1)");
@@ -2337,8 +2347,14 @@ public class SelectGroupByTest extends CQLTester
             // Checks with start time is greater than the timestamp
             assertInvalidMessage("The floor function starting time is greater than the provided time",
                                  "SELECT pk, floor(time, 1mo, '2017-01-01'), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(time, 1mo, '2017-01-01')");
+        }
+    }
 
-            // Test with time type.
+    @Test
+    public void testGroupByTimeRangesWithTimeTypeAndWithoutPaging() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
             createTable("CREATE TABLE %s (pk int, date date, time time, v int, primary key (pk, date, time))" + compactOption);
 
             execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:10:00', 1)");
@@ -2388,11 +2404,10 @@ public class SelectGroupByTest extends CQLTester
     }
 
     @Test
-    public void testGroupByTimeRangesWithPaging() throws Throwable
+    public void testGroupByTimeRangesWithTimestampTypeAndPaging() throws Throwable
     {
         for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
         {
-            // Test with timestamp type.
             createTable("CREATE TABLE %s (pk int, time timestamp, v int, primary key (pk, time))"
                     + compactOption);
 
@@ -2438,8 +2453,14 @@ public class SelectGroupByTest extends CQLTester
                                   row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L));
                 }
             }
+        }
+    }
 
-            // Test with timeUUID type.
+    @Test
+    public void testGroupByTimeRangesWithTimeUUIDAndPaging() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
             createTable("CREATE TABLE %s (pk int, time timeuuid, v int, primary key (pk, time))" + compactOption);
 
             execute("INSERT INTO %s (pk, time, v) VALUES (?, ?, ?)", 1, toTimeUUID("2016-09-27 16:10:00"), 1);
@@ -2484,8 +2505,14 @@ public class SelectGroupByTest extends CQLTester
                                   row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L));
                 }
             }
+        }
+    }
 
-            // Test with date type.
+    @Test
+    public void testGroupByTimeRangesWithDateTypeAndPaging() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
             createTable("CREATE TABLE %s (pk int, time date, v int, primary key (pk, time))" + compactOption);
 
             execute("INSERT INTO %s (pk, time, v) VALUES (1, '2016-09-27', 1)");
@@ -2527,8 +2554,14 @@ public class SelectGroupByTest extends CQLTester
                                   row(1, toLocalDate("2016-10-01"), 5, 7, 3L));
                 }
             }
+        }
+    }
 
-            // Test with time type.
+    @Test
+    public void testGroupByTimeRangesWithTimeTypeAndPaging() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
             createTable("CREATE TABLE %s (pk int, date date, time time, v int, primary key (pk, date, time))" + compactOption);
 
             execute("INSERT INTO %s (pk, date, time, v) VALUES (1, '2016-09-27', '16:10:00', 1)");
@@ -2569,7 +2602,7 @@ public class SelectGroupByTest extends CQLTester
         }
     }
 
-    private UUID toTimeUUID(String string)
+    private static UUID toTimeUUID(String string)
     {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         LocalDateTime dateTime = LocalDateTime.parse(string, formatter);
@@ -2577,17 +2610,17 @@ public class SelectGroupByTest extends CQLTester
         return TimeUUID.Generator.atUnixMillis(timeInMillis).asUUID();
     }
 
-    private Date toTimestamp(String timestampAsString)
+    private static Date toTimestamp(String timestampAsString)
     {
         return new Date(TimestampSerializer.dateStringToTimestamp(timestampAsString));
     }
 
-    private int toDate(String dateAsString)
+    private static int toDate(String dateAsString)
     {
         return SimpleDateSerializer.dateStringToDays(dateAsString);
     }
 
-    private LocalDate toLocalDate(String dateAsString)
+    private static LocalDate toLocalDate(String dateAsString)
     {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         LocalDateTime dateTime = java.time.LocalDate.parse(dateAsString, formatter).atStartOfDay();
@@ -2596,7 +2629,7 @@ public class SelectGroupByTest extends CQLTester
         return LocalDate.fromMillisSinceEpoch(timeInMillis);
     }
 
-    private long toTime(String timeAsString)
+    private static long toTime(String timeAsString)
     {
         return TimeSerializer.timeStringToLong(timeAsString);
     }

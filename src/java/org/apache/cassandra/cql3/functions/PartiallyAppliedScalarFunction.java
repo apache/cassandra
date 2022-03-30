@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CqlBuilder;
-import org.apache.cassandra.cql3.CQL3Type.Tuple;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -97,8 +96,7 @@ final class PartiallyAppliedScalarFunction extends NativeScalarFunction implemen
     @Override
     public String toString()
     {
-        CqlBuilder b = new CqlBuilder().append(function.name())
-                                        .append(" : (");
+        CqlBuilder b = new CqlBuilder().append(function.name()).append(" : (");
 
         List<AbstractType<?>> types = function.argTypes();
         for (int i = 0, m = types.size(); i < m; i++)

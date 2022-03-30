@@ -484,7 +484,7 @@ public final class Duration
             floor = calendar.getTimeInMillis() + (multiplier * durationInMillis);
         }
 
-        return floor < startingTimeInMillis ? startingTimeInMillis : floor;
+        return Math.max(startingTimeInMillis, floor);
     }
 
     /**

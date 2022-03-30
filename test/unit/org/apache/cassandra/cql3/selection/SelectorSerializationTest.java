@@ -72,8 +72,8 @@ public class SelectorSerializationTest extends CQLTester
                                                          table.getColumn(new ColumnIdentifier("c1", false)))), table);
 
         // Test MapSelector serialization
-        Pair<Selectable.Raw, Selectable.Raw> pair = Pair.<Selectable.Raw, Selectable.Raw>create(RawIdentifier.forUnquoted("v"),
-                                                                                                RawIdentifier.forUnquoted("c1"));
+        Pair<Selectable.Raw, Selectable.Raw> pair = Pair.create(RawIdentifier.forUnquoted("v"),
+                                                                RawIdentifier.forUnquoted("c1"));
         checkSerialization(new Selectable.WithMapOrUdt(table, asList(pair)), table, MapType.getInstance(Int32Type.instance, Int32Type.instance, false));
 
         // Test TupleSelector serialization
@@ -92,10 +92,10 @@ public class SelectorSerializationTest extends CQLTester
                                             Int32Type.instance),
                                      false);
 
-        List<Pair<Selectable.Raw, Selectable.Raw>> list = asList(Pair.<Selectable.Raw, Selectable.Raw>create(RawIdentifier.forUnquoted("f1"),
-                                                                                                             RawIdentifier.forUnquoted("c1")),
-                                                                 Pair.<Selectable.Raw, Selectable.Raw>create(RawIdentifier.forUnquoted("f2"),
-                                                                                                             RawIdentifier.forUnquoted("pk")));
+        List<Pair<Selectable.Raw, Selectable.Raw>> list = asList(Pair.create(RawIdentifier.forUnquoted("f1"),
+                                                                             RawIdentifier.forUnquoted("c1")),
+                                                                 Pair.create(RawIdentifier.forUnquoted("f2"),
+                                                                             RawIdentifier.forUnquoted("pk")));
 
         checkSerialization(new Selectable.WithMapOrUdt(table, list), table, type);
 
@@ -116,13 +116,12 @@ public class SelectorSerializationTest extends CQLTester
                                                                      new Selectable.WithTerm(Literal.string("2016-09-27 16:00:00 UTC")))), table);
     }
 
-    private void checkSerialization(Selectable selectable, TableMetadata table) throws IOException
+    private static void checkSerialization(Selectable selectable, TableMetadata table) throws IOException
     {
         checkSerialization(selectable, table, null);
     }
 
-    @SuppressWarnings("resource")
-    private void checkSerialization(Selectable selectable, TableMetadata table, AbstractType<?> expectedType) throws IOException
+    private static void checkSerialization(Selectable selectable, TableMetadata table, AbstractType<?> expectedType) throws IOException
     {
         int version = MessagingService.current_version;
 

@@ -24,7 +24,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
- * Determines a single output value based on a single input value.
+ * Determines a single output value based on any number of input values.
  */
 public interface ScalarFunction extends Function
 {
@@ -33,7 +33,7 @@ public interface ScalarFunction extends Function
     /**
      * Checks if the function is monotonic.
      *
-     *<p>A function is monotonic if it is either entirely nonincreasing or nondecreasing.</p>
+     *<p>A function is monotonic if it is either entirely nonincreasing or nondecreasing given an ordered set of inputs.</p>
      *
      * @return {@code true} if the function is monotonic {@code false} otherwise.
      */
@@ -70,8 +70,8 @@ public interface ScalarFunction extends Function
      * @param partialParameters a list of input parameters for the function where some parameters can be {@link #UNRESOLVED}.
      *                          The input <b>must</b> be of size {@code this.argsType().size()}. For convenience, it is
      *                          allowed both to pass a list with all parameters being {@link #UNRESOLVED} (the function is
-     *                          then returned directy) and with none of them unresolved (in which case the function is computed
-     *                          and a dummy no-arg function returning the result is returned).
+     *                          then returned directly) and with none of them unresolved (in which case, if the function is pure,
+     *                          it is computed and a dummy no-arg function returning the result is returned).
      * @return a function corresponding to the partial application of this function to the parameters of
      * {@code partialParameters} that are not {@link #UNRESOLVED}.
      */
@@ -88,7 +88,7 @@ public interface ScalarFunction extends Function
             return this;
 
         if (isPure() && unresolvedCount == 0)
-            return new PreComputedFunction(returnType(),
+            return new PreComputedScalarFunction(returnType(),
                                            execute(protocolVersion, partialParameters),
                                            protocolVersion,
                                            this,

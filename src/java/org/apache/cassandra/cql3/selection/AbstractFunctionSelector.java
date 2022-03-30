@@ -379,6 +379,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
     private int computeBitSet(List<ByteBuffer> partialParameters)
     {
+        assert partialParameters.size() <= 32 : "cannot serialize partial function with more than 32 parameters";
         int bitset = 0;
         for (int i = 0, m = partialParameters.size(); i < m; i++)
         {
