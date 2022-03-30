@@ -100,6 +100,16 @@ public interface ISslContextFactory
     }
 
     /**
+     * Returns if this factory uses outbound keystore.
+     *
+     * @return {@code true} by default unless the implementation overrides this
+     */
+    default boolean hasOutboundKeystore()
+    {
+        return false;
+    }
+
+    /**
      * Returns the prepared list of accepted protocols.
      *
      * @return array of protocol names suitable for passing to Netty's SslContextBuilder.protocols, or null if the
