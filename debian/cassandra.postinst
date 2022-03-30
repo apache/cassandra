@@ -37,6 +37,8 @@ case "$1" in
         if [ -z "$2" ]; then
             chown -R cassandra: /var/lib/cassandra
             chown -R cassandra: /var/log/cassandra
+            chmod 750 /var/lib/cassandra/
+            chmod 750 /var/log/cassandra/
         fi
         if ! sysctl -p /etc/sysctl.d/cassandra.conf; then
             echo >&2
