@@ -268,7 +268,10 @@ public final class HintsService implements HintsServiceMBean
     public synchronized void shutdownBlocking() throws ExecutionException, InterruptedException
     {
         if (isShutDown)
-            throw new IllegalStateException("HintsService has already been shut down");
+        {
+            logger.warn("HintsService has already been shut down");
+            return;
+        }
         isShutDown = true;
 
         if (triggerDispatchFuture != null)
