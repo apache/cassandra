@@ -138,6 +138,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
     private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
+        private final PrimaryKey firstPrimaryKey;
         private final PrimaryKey lastPrimaryKey;
         private final Iterator<DataRange> keyRanges;
         private AbstractBounds<PartitionPosition> currentKeyRange;
@@ -168,10 +169,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             this.queryContext = queryContext;
             this.keyFactory = keyFactory;
 
+            this.firstPrimaryKey = keyFactory.createTokenOnly(controller.mergeRange().left.getToken());
             this.lastPrimaryKey = keyFactory.createTokenOnly(controller.mergeRange().right.getToken());
-
-            if (operation != null)
-                skipTo(controller.mergeRange().left.getToken());
         }
 
         @Override
@@ -184,6 +183,12 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
             if (operation == null)
                 return endOfData();
+
+            // If being called for the first time, skip to the beginning of the range.
+            // We can't put this code in the constructor because it may throw and the caller
+            // may not be prepared for that.
+            if (lastKey == null)
+                operation.skipTo(firstPrimaryKey);
 
             // Theoretically we wouldn't need this if the caller of computeNext always ran the
             // returned iterators to the completion. Unfortunately, we have no control over the caller behavior here.
