@@ -312,7 +312,7 @@ include::example$CQL/update_statement.cql[]
 
 The `UPDATE` statement writes one or more columns for a given row in a
 table. 
-The `WHERE`clause is used to select the row to update and must include all columns of the `PRIMARY KEY`. 
+The `WHERE` clause is used to select the row to update and must include all columns of the `PRIMARY KEY`. 
 Non-primary key columns are set using the `SET` keyword.
 In an `UPDATE` statement, all updates within the same partition key are applied atomically and in isolation.
 
