@@ -41,7 +41,7 @@ public class AbstractStoredField
         flag |= v;
     }
 
-    boolean isLoaded()
+    public boolean isLoaded()
     {
         return check(LOADED_FLAG);
     }

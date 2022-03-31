@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -98,6 +100,23 @@ public class AccordCommandStore extends CommandStore
         }
     }
 
+    private static long getThreadId(ExecutorService executor)
+    {
+        try
+        {
+            return executor.submit(() -> Thread.currentThread().getId()).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private final long threadId;
     private final ExecutorService executor;
     private final AccordStateCache stateCache;
     private final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
@@ -116,6 +135,7 @@ public class AccordCommandStore extends CommandStore
     {
         super(generation, index, numShards, nodeId, uniqueNow, agent, store, ranges, localTopologySupplier);
         this.executor = executor;
+        this.threadId = getThreadId(executor);
         this.stateCache = new AccordStateCache(maxCacheSize() / numShards);
         this.commandCache = stateCache.instance(TxnId.class,
                                                 AccordCommand.class,
@@ -123,6 +143,26 @@ public class AccordCommandStore extends CommandStore
         this.commandsForKeyCache = stateCache.instance(PartitionKey.class,
                                                        AccordCommandsForKey.class,
                                                        key -> AccordKeyspace.loadCommandsForKey(this, key));
+    }
+
+    public void checkThreadId()
+    {
+        Preconditions.checkState(Thread.currentThread().getId() == threadId);
+    }
+
+    public Executor executor()
+    {
+        return executor;
+    }
+
+    public AccordStateCache.Instance<TxnId, AccordCommand> commandCache()
+    {
+        return commandCache;
+    }
+
+    public AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> commandsForKeyCache()
+    {
+        return commandsForKeyCache;
     }
 
     @Override

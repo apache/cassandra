@@ -464,6 +464,17 @@ public class AccordKeyspace
 
     public static AccordCommand loadCommand(CommandStore commandStore, TxnId txnId)
     {
+        AccordCommand command = new AccordCommand(commandStore, txnId);
+        loadCommand(command);
+        return command;
+    }
+
+    // FIXME: indicate which fields need to be loaded
+    public static void loadCommand(AccordCommand command)
+    {
+        TxnId txnId = command.txnId();
+        CommandStore commandStore = command.commandStore();
+
         String cql = "SELECT * FROM %s.%s " +
                      "WHERE store_generation=? " +
                      "AND store_index=? " +
@@ -475,26 +486,27 @@ public class AccordKeyspace
                                                       txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
 
         if (result.isEmpty())
-            return null;
+        {
+            command.loadEmpty();
+            return;
+        }
 
         try
         {
             UntypedResultSet.Row row = result.one();
             Preconditions.checkState(deserializeTimestamp(row, "txn_id", TxnId::new).equals(txnId));
-            AccordCommand command = new AccordCommand(commandStore, txnId);
             int version = row.getInt("serializer_version");
-            command.status(Status.values()[row.getInt("status")]);
-            command.txn(deserializeOrNull(row.getBlob("txn"), CommandSerializers.txn, version));
-            command.executeAt(deserializeTimestamp(row, "execute_at", Timestamp::new));
-            command.promised(deserializeTimestamp(row, "promised_ballot", Ballot::new));
-            command.accepted(deserializeTimestamp(row, "accepted_ballot", Ballot::new));
-            command.savedDeps(deserialize(row.getBlob("dependencies"), CommandSerializers.deps, version));
-            command.writes(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, version));
-            command.result(deserializeOrNull(row.getBlob("result"), AccordData.serializer, version));
+            command.status.load(Status.values()[row.getInt("status")]);
+            command.txn.load(deserializeOrNull(row.getBlob("txn"), CommandSerializers.txn, version));
+            command.executeAt.load(deserializeTimestamp(row, "execute_at", Timestamp::new));
+            command.promised.load(deserializeTimestamp(row, "promised_ballot", Ballot::new));
+            command.accepted.load(deserializeTimestamp(row, "accepted_ballot", Ballot::new));
+            command.deps.load(deserialize(row.getBlob("dependencies"), CommandSerializers.deps, version));
+            command.writes.load(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, version));
+            command.result.load(deserializeOrNull(row.getBlob("result"), AccordData.serializer, version));
             command.waitingOnCommit.load(deserializeWaitingOn(row, "waiting_on_commit", TxnId::new));
             command.waitingOnApply.load(deserializeWaitingOn(row, "waiting_on_apply", Timestamp::new));
             command.storedListeners.load(deserializeListeners(commandStore, row, "listeners"));
-            return command;
         }
         catch (IOException e)
         {

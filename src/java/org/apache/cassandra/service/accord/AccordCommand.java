@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import accord.api.Result;
 import accord.local.Command;
@@ -69,20 +71,51 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         this.txnId = txnId;
     }
 
+    public void loadEmpty()
+    {
+        status.load(Status.NotWitnessed);
+        txn.load(null);
+        executeAt.load(null);
+        promised.load(Ballot.ZERO);
+        accepted.load(Ballot.ZERO);
+        deps.load(null);
+        writes.load(null);
+        result.load(null);
+        waitingOnCommit.load(new TreeMap<>());
+        waitingOnApply.load(new TreeMap<>());
+        storedListeners.load(new TreeSet<>());
+    }
+
     public boolean hasModifications()
     {
         // TODO: make this less verbose
         return txn.hasModifications()
-               | promised.hasModifications()
-               | accepted.hasModifications()
-               | executeAt.hasModifications()
-               | deps.hasModifications()
-               | writes.hasModifications()
-               | result.hasModifications()
-               | status.hasModifications()
-               | waitingOnCommit.hasModifications()
-               | waitingOnApply.hasModifications()
-               | storedListeners.hasModifications();
+               || promised.hasModifications()
+               || accepted.hasModifications()
+               || executeAt.hasModifications()
+               || deps.hasModifications()
+               || writes.hasModifications()
+               || result.hasModifications()
+               || status.hasModifications()
+               || waitingOnCommit.hasModifications()
+               || waitingOnApply.hasModifications()
+               || storedListeners.hasModifications();
+    }
+
+    public boolean isLoaded()
+    {
+        // TODO: make this less verbose
+        return txn.isLoaded()
+               && promised.isLoaded()
+               && accepted.isLoaded()
+               && executeAt.isLoaded()
+               && deps.isLoaded()
+               && writes.isLoaded()
+               && result.isLoaded()
+               && status.isLoaded()
+               && waitingOnCommit.isLoaded()
+               && waitingOnApply.isLoaded()
+               && storedListeners.isLoaded();
     }
 
     private void resetModificationFlag()
