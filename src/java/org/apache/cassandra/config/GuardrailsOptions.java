@@ -311,6 +311,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getGroupByEnabled()
+    {
+        return config.group_by_enabled;
+    }
+
+    public void setGroupByEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("group_by_enabled",
+                                  enabled,
+                                  () -> config.group_by_enabled,
+                                  x -> config.group_by_enabled = x);
+    }
+
+    @Override
     public boolean getSecondaryIndexesEnabled()
     {
         return config.secondary_indexes_enabled;

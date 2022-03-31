@@ -1629,6 +1629,8 @@ drop_compact_storage_enabled: false
 # table_properties_disallowed: []
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 # user_timestamps_enabled: true
+# Guardrail to allow/disallow GROUP BY functionality.
+# group_by_enabled: true
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1

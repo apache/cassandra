@@ -136,6 +136,11 @@ public final class Guardrails implements GuardrailsMBean
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
                     "User provided timestamps (USING TIMESTAMP)");
 
+    public static final DisableFlag groupByEnabled =
+    new DisableFlag("group_by",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
+                    "GROUP BY functionality");
+
     /**
      * Guardrail disabling user's ability to turn off compression
      */
@@ -490,6 +495,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setCompactTablesEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setCompactTablesEnabled(enabled);
+    }
+
+    @Override
+    public boolean getGroupByEnabled()
+    {
+        return DEFAULT_CONFIG.getGroupByEnabled();
+    }
+
+    @Override
+    public void setGroupByEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setGroupByEnabled(enabled);
     }
 
     @Override
