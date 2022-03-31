@@ -33,6 +33,7 @@ public class ValidationState extends AbstractState<ValidationState.State, UUID>
     public long estimatedPartitions;
     public long estimatedTotalBytes;
     public long partitionsProcessed;
+    public long bytesRead;
 
     public ValidationState(RepairJobDesc desc, InetAddressAndPort initiator)
     {

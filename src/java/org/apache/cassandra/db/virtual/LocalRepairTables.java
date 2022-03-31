@@ -339,6 +339,7 @@ public class LocalRepairTables
                         "  estimated_partitions  bigint,\n" +
                         "  estimated_total_bytes  bigint,\n" +
                         "  partitions_processed  bigint,\n" +
+                        "  bytes_read  bigint,\n" +
                         "  progress_percentage float,\n" +
                         "\n" +
                         stateColumns(ValidationState.State.class) +
@@ -377,6 +378,7 @@ public class LocalRepairTables
             result.column("estimated_total_bytes", state.estimatedTotalBytes == 0 ? null : state.estimatedTotalBytes);
             result.column("partitions_processed", state.partitionsProcessed == 0 ? null : state.partitionsProcessed);
             result.column("progress_percentage", round(state.getProgress() * 100));
+            result.column("bytes_read", state.bytesRead);
         }
     }
 

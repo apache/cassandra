@@ -127,6 +127,7 @@ public class ValidationManager
                 {
                     validator.add(partition);
                     state.partitionsProcessed++;
+                    state.bytesRead = vi.getBytesRead();
                     if (state.partitionsProcessed % 1024 == 0) // update every so often
                         state.updated();
                 }
