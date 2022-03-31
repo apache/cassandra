@@ -18,15 +18,24 @@
 
 package org.apache.cassandra.locator;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.apache.cassandra.locator.ReplicaUtils.*;
 
 public class ReplicaLayoutTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.setConfig(new Config());
+    }
+
     @Test
     public void testConflictResolution()
     {

@@ -164,15 +164,11 @@ public class FBUtilities
     {
         if (localInetAddressAndPort == null)
         {
-            if(DatabaseDescriptor.getRawConfig() == null)
-            {
-                localInetAddressAndPort = InetAddressAndPort.getByAddress(getJustLocalAddress());
-            }
+            if (DatabaseDescriptor.getRawConfig() == null)
+                throw new AssertionError("Local address and port should never be accessed before initializing DatabaseDescriptor");
             else
-            {
                 localInetAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(getJustLocalAddress(),
                                                                                           DatabaseDescriptor.getStoragePort());
-            }
         }
         return localInetAddressAndPort;
     }
@@ -199,15 +195,11 @@ public class FBUtilities
     {
         if (broadcastInetAddressAndPort == null)
         {
-            if(DatabaseDescriptor.getRawConfig() == null)
-            {
-                broadcastInetAddressAndPort = InetAddressAndPort.getByAddress(getJustBroadcastAddress());
-            }
+            if (DatabaseDescriptor.getRawConfig() == null)
+                throw new AssertionError("Broadcast address and port should never be accessed before initializing DatabaseDescriptor");
             else
-            {
                 broadcastInetAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(getJustBroadcastAddress(),
                                                                                               DatabaseDescriptor.getStoragePort());
-            }
         }
         return broadcastInetAddressAndPort;
     }
