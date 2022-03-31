@@ -27,9 +27,11 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import org.apache.mina.util.ConcurrentHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,6 +70,7 @@ import org.apache.cassandra.utils.Throwables;
 /**
  * Orchestrates building of storage-attached indices, and manages lifecycle of resources shared between them.
  */
+@ThreadSafe
 public class StorageAttachedIndexGroup implements Index.Group, INotificationConsumer
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
@@ -76,7 +79,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     private final TableStateMetrics stateMetrics;
     private final IndexGroupMetrics groupMetrics;
     
-    private final Set<StorageAttachedIndex> indices = new HashSet<>();
+    private final Set<StorageAttachedIndex> indices = new ConcurrentHashSet<>();
     private final ColumnFamilyStore baseCfs;
 
     private final SSTableContextManager contextManager;
