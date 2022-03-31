@@ -1,4 +1,5 @@
 4.1
+ * Add guardrail for GROUP BY queries (CASSANDRA-17509)
  * make pylib PEP and pylint compliant (CASSANDRA-17546)
  * Add support for vnodes in jvm-dtest (CASSANDRA-17332)
  * Remove guardrails global enable flag (CASSANDRA-17499)

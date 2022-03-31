@@ -1038,6 +1038,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         public final WhereClause whereClause;
         public final Term.Raw limit;
         public final Term.Raw perPartitionLimit;
+        private ClientState state;
 
         public RawStatement(QualifiedName cfName,
                             Parameters parameters,
@@ -1056,6 +1057,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         public SelectStatement prepare(ClientState state)
         {
+            // Cache locally for use by Guardrails
+            this.state = state;
             return prepare(false);
         }
 
@@ -1128,6 +1131,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                            StatementRestrictions restrictions)
         {
             boolean hasGroupBy = !parameters.groups.isEmpty();
+
+            if (hasGroupBy)
+                Guardrails.groupByEnabled.ensureEnabled(state);
 
             if (selectables.isEmpty()) // wildcard query
             {
