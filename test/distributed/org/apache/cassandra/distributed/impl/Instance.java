@@ -489,6 +489,19 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
                 CommitLog.instance.start();
 
+                // MessagingService setup needs to be configured before any interaction with Schema because Schema
+                // uses MessagingService under the hood (it does not need to listen yet, but we need to set filters
+                // and mocks
+                if (!config.has(NETWORK))
+                {
+                    // Even though we don't use MessagingService, access the static SocketFactory
+                    // instance here so that we start the static event loop state
+                    //  -- not sure what that means?  SocketFactory.instance.getClass();
+                    registerMockMessaging(cluster);
+                }
+                registerInboundFilter(cluster);
+                registerOutboundFilter(cluster);
+
                 CassandraDaemon.getInstanceForTesting().runStartupChecks();
 
                 // We need to persist this as soon as possible after startup checks.
@@ -533,18 +546,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 Verb.HINT_REQ.unsafeSetSerializer(DTestSerializer::new);
 
                 if (config.has(NETWORK))
-                {
                     MessagingService.instance().listen();
-                }
-                else
-                {
-                    // Even though we don't use MessagingService, access the static SocketFactory
-                    // instance here so that we start the static event loop state
-                    //  -- not sure what that means?  SocketFactory.instance.getClass();
-                    registerMockMessaging(cluster);
-                }
-                registerInboundFilter(cluster);
-                registerOutboundFilter(cluster);
 
                 JVMStabilityInspector.replaceKiller(new InstanceKiller());
 

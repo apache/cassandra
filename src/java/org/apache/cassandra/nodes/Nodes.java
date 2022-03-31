@@ -378,7 +378,7 @@ public class Nodes
     public class Local
     {
         private final LoadingMap<InetAddressAndPort, LocalInfo> internalMap = new LoadingMap<>(1);
-        private final InetAddressAndPort localInfoKey = FBUtilities.getBroadcastAddressAndPort();
+        private final InetAddressAndPort localInfoKey = InetAddressAndPort.getLoopbackAddress();
 
         /**
          * @see #update(UnaryOperator, boolean, boolean)
