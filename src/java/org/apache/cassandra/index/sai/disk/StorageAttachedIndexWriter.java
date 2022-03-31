@@ -28,6 +28,7 @@ import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -162,19 +163,24 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
     public void complete()
     {
         if (aborted) return;
-        
+
+        long start = stopwatch.elapsed(TimeUnit.MILLISECONDS);
+
         logger.debug(indexDescriptor.logMessage("Completed partition iteration for index flush for SSTable {}. Elapsed time: {} ms"),
                      indexDescriptor.descriptor,
-                     stopwatch.elapsed(TimeUnit.MILLISECONDS));
+                     start);
 
         try
         {
             perSSTableWriter.complete(stopwatch);
             tokenOffsetWriterCompleted = true;
-
-            logger.debug(indexDescriptor.logMessage("Flushed tokens and offsets for SSTable {}. Elapsed time: {} ms."),
+            long elapsed = stopwatch.elapsed(TimeUnit.MILLISECONDS);
+            logger.debug(indexDescriptor.logMessage("Completed per-SSTable write for SSTable {}. Duration: {} ms. Total elapsed time: {} ms."),
                          indexDescriptor.descriptor,
-                         stopwatch.elapsed(TimeUnit.MILLISECONDS));
+                         elapsed - start,
+                         elapsed);
+
+            start = elapsed;
 
             rowMapping.complete();
 
@@ -182,6 +188,11 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
             {
                 perIndexWriter.complete(stopwatch);
             }
+            elapsed = stopwatch.elapsed(TimeUnit.MILLISECONDS);
+            logger.debug(indexDescriptor.logMessage("Completed per-index writes for SSTable {}. Duration: {} ms. Total elapsed time: {} ms."),
+                         indexDescriptor.descriptor,
+                         elapsed - start,
+                         elapsed);
         }
         catch (Throwable t)
         {
