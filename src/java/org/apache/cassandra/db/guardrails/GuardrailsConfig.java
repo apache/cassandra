@@ -155,6 +155,13 @@ public interface GuardrailsConfig
     boolean getCompactTablesEnabled();
 
     /**
+     * Returns whether GROUP BY functionality is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getGroupByEnabled();
+
+    /**
      * @return The threshold to warn when page size exceeds given size.
      */
     int getPageSizeWarnThreshold();

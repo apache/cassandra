@@ -249,6 +249,20 @@ public interface GuardrailsMBean
     void setCompactTablesEnabled(boolean enabled);
 
     /**
+     * Returns whether GROUP BY queries are allowed.
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getGroupByEnabled();
+
+    /**
+     * Sets whether GROUP BY queries are allowed.
+     *
+     * @param enabled {@code true} if allowed, {@code false} otherwise.
+     */
+    void setGroupByEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when requested page size greater than threshold.
      * -1 means disabled.
      */
