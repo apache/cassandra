@@ -222,7 +222,7 @@ collections have the following noteworthy characteristics and
 limitations:
 
 * Individual collections are not indexed internally. Which means that
-even to access a single element of a collection, the while collection
+even to access a single element of a collection, the whole collection
 has to be read (and reading one is not paged internally).
 * While insertion operations on sets and maps never incur a
 read-before-write internally, some operations on lists do. Further, some
@@ -317,7 +317,7 @@ xref:cql/types.adoc#sets[set] instead of list, always prefer a set.
 ====
 
 A `list` is a (sorted) collection of non-unique values where
-elements are ordered by there position in the list. You can define and
+elements are ordered by their position in the list. You can define and
 insert a list with:
 
 [source,cql]
@@ -338,13 +338,13 @@ include::example$CQL/update_list.cql[]
 .Warning
 ====
 The append and prepend operations are not idempotent by nature. So in
-particular, if one of these operation timeout, then retrying the
+particular, if one of these operations timeout, then retrying the
 operation is not safe and it may (or may not) lead to
 appending/prepending the value twice.
 ====
 
 * Setting the value at a particular position in a list that has a pre-existing element for that position. An error
-will be thrown if the list does not have the position.:
+will be thrown if the list does not have the position:
 +
 [source,cql]
 ----
