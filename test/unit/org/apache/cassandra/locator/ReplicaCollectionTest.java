@@ -18,6 +18,14 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 import com.google.common.base.Predicates;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
@@ -25,31 +33,44 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
-import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.AbstractMap;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 
-import static com.google.common.collect.Iterables.*;
+import static com.google.common.collect.Iterables.elementsEqual;
 import static com.google.common.collect.Iterables.filter;
+import static com.google.common.collect.Iterables.limit;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
-import static org.apache.cassandra.locator.ReplicaUtils.*;
+import static org.apache.cassandra.locator.ReplicaUtils.ALL_EP;
+import static org.apache.cassandra.locator.ReplicaUtils.ALL_R;
+import static org.apache.cassandra.locator.ReplicaUtils.BROADCAST_EP;
+import static org.apache.cassandra.locator.ReplicaUtils.BROADCAST_RANGE;
+import static org.apache.cassandra.locator.ReplicaUtils.EP1;
+import static org.apache.cassandra.locator.ReplicaUtils.EP2;
+import static org.apache.cassandra.locator.ReplicaUtils.EP3;
+import static org.apache.cassandra.locator.ReplicaUtils.EP4;
+import static org.apache.cassandra.locator.ReplicaUtils.EP5;
+import static org.apache.cassandra.locator.ReplicaUtils.NULL_EP;
+import static org.apache.cassandra.locator.ReplicaUtils.NULL_RANGE;
+import static org.apache.cassandra.locator.ReplicaUtils.R1;
+import static org.apache.cassandra.locator.ReplicaUtils.R2;
+import static org.apache.cassandra.locator.ReplicaUtils.R3;
+import static org.apache.cassandra.locator.ReplicaUtils.R4;
+import static org.apache.cassandra.locator.ReplicaUtils.R5;
+import static org.apache.cassandra.locator.ReplicaUtils.tk;
 
 public class ReplicaCollectionTest
 {
+    static
+    {
+        DatabaseDescriptor.setConfig(new Config());
+    }
 
     static class TestCase<C extends AbstractReplicaCollection<C>>
     {
@@ -92,12 +113,18 @@ public class ReplicaCollectionTest
             {
                 test.endpoints().add(EP5);
                 Assert.fail();
-            } catch (UnsupportedOperationException e) {}
+            }
+            catch (UnsupportedOperationException e)
+            {
+            }
             try
             {
                 test.endpoints().remove(EP5);
                 Assert.fail();
-            } catch (UnsupportedOperationException e) {}
+            }
+            catch (UnsupportedOperationException e)
+            {
+            }
 
             Assert.assertTrue(test.endpoints().containsAll(canonicalByEndpoint.keySet()));
             for (InetAddressAndPort ep : canonicalByEndpoint.keySet())
@@ -206,7 +233,7 @@ public class ReplicaCollectionTest
                 return;
             }
 
-            for (int i = 0 ; i < canonicalList.size() ; ++i)
+            for (int i = 0; i < canonicalList.size(); ++i)
             {
                 Replica discount = canonicalList.get(i);
                 Assert.assertEquals(canonicalList.size() - 1, test.count(r -> !r.equals(discount)));
@@ -222,7 +249,7 @@ public class ReplicaCollectionTest
 
         void testGet()
         {
-            for (int i = 0 ; i < canonicalList.size() ; ++i)
+            for (int i = 0; i < canonicalList.size(); ++i)
                 Assert.assertEquals(canonicalList.get(i), test.get(i));
         }
 
@@ -275,12 +302,18 @@ public class ReplicaCollectionTest
             {
                 test.ranges().add(R5);
                 Assert.fail();
-            } catch (UnsupportedOperationException e) {}
+            }
+            catch (UnsupportedOperationException e)
+            {
+            }
             try
             {
                 test.ranges().remove(R5);
                 Assert.fail();
-            } catch (UnsupportedOperationException e) {}
+            }
+            catch (UnsupportedOperationException e)
+            {
+            }
 
             Assert.assertTrue(test.ranges().containsAll(canonicalByRange.keySet()));
             for (Range<Token> range : canonicalByRange.keySet())
@@ -299,12 +332,18 @@ public class ReplicaCollectionTest
             {
                 test.byRange().entrySet().contains(null);
                 Assert.fail();
-            } catch (NullPointerException | IllegalArgumentException e) {}
+            }
+            catch (NullPointerException | IllegalArgumentException e)
+            {
+            }
             try
             {
                 test.byRange().containsKey(null);
                 Assert.fail();
-            } catch (NullPointerException | IllegalArgumentException e) {}
+            }
+            catch (NullPointerException | IllegalArgumentException e)
+            {
+            }
 
             for (Range<Token> r : ALL_R)
             {
@@ -330,8 +369,8 @@ public class ReplicaCollectionTest
             Assert.assertTrue(Iterables.elementsEqual(Lists.transform(canonicalList, Replica::range), test.ranges()));
             Assert.assertTrue(Iterables.elementsEqual(canonicalList, test.byRange().values()));
             Assert.assertTrue(Iterables.elementsEqual(
-                    Lists.transform(canonicalList, r -> new AbstractMap.SimpleImmutableEntry<>(r.range(), r)),
-                    test.byRange().entrySet()));
+            Lists.transform(canonicalList, r -> new AbstractMap.SimpleImmutableEntry<>(r.range(), r)),
+            test.byRange().entrySet()));
         }
 
         public void testUnwrap(int subListDepth, int filterDepth, int sortDepth)
@@ -348,7 +387,7 @@ public class ReplicaCollectionTest
             else
             {
                 new RangesAtEndpointTestCase(false, testUnwrap, canonUnwrap)
-                        .testAllExceptUnwrap(subListDepth, filterDepth, sortDepth);
+                .testAllExceptUnwrap(subListDepth, filterDepth, sortDepth);
             }
         }
 
@@ -383,12 +422,18 @@ public class ReplicaCollectionTest
             {
                 test.byEndpoint().entrySet().contains(null);
                 Assert.fail();
-            } catch (NullPointerException | IllegalArgumentException e) {}
+            }
+            catch (NullPointerException | IllegalArgumentException e)
+            {
+            }
             try
             {
                 test.byEndpoint().containsKey(null);
                 Assert.fail();
-            } catch (NullPointerException | IllegalArgumentException e) {}
+            }
+            catch (NullPointerException | IllegalArgumentException e)
+            {
+            }
 
             for (InetAddressAndPort ep : ALL_EP)
             {
@@ -413,8 +458,8 @@ public class ReplicaCollectionTest
             super.testOrderOfIteration();
             Assert.assertTrue(Iterables.elementsEqual(canonicalList, test.byEndpoint().values()));
             Assert.assertTrue(Iterables.elementsEqual(
-                    Lists.transform(canonicalList, r -> new AbstractMap.SimpleImmutableEntry<>(r.endpoint(), r)),
-                    test.byEndpoint().entrySet()));
+            Lists.transform(canonicalList, r -> new AbstractMap.SimpleImmutableEntry<>(r.endpoint(), r)),
+            test.byEndpoint().entrySet()));
         }
 
         @Override
@@ -426,11 +471,11 @@ public class ReplicaCollectionTest
     }
 
     private static final ImmutableList<Replica> RANGES_AT_ENDPOINT = ImmutableList.of(
-            fullReplica(EP1, R1),
-            fullReplica(EP1, R2),
-            transientReplica(EP1, R3),
-            fullReplica(EP1, R4),
-            transientReplica(EP1, R5)
+    fullReplica(EP1, R1),
+    fullReplica(EP1, R2),
+    transientReplica(EP1, R3),
+    fullReplica(EP1, R4),
+    transientReplica(EP1, R5)
     );
 
     @Test
@@ -438,7 +483,7 @@ public class ReplicaCollectionTest
     {
         ImmutableList<Replica> canonical = RANGES_AT_ENDPOINT;
         new RangesAtEndpointTestCase(
-                false, RangesAtEndpoint.copyOf(canonical), canonical
+        false, RangesAtEndpoint.copyOf(canonical), canonical
         ).testAll();
     }
 
@@ -452,18 +497,27 @@ public class ReplicaCollectionTest
         {   // incorrect range
             test.addAll(canonical1, Conflict.NONE);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         test.addAll(canonical1, Conflict.DUPLICATE); // we ignore exact duplicates
         try
         {   // invalid endpoint; always error
             test.add(fullReplica(EP2, BROADCAST_RANGE), Conflict.ALL);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         try
         {   // conflict on isFull/isTransient
             test.add(fullReplica(EP1, R3), Conflict.DUPLICATE);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         test.add(fullReplica(EP1, R3), Conflict.ALL);
 
         new RangesAtEndpointTestCase(true, test, canonical1).testAll();
@@ -477,11 +531,11 @@ public class ReplicaCollectionTest
     }
 
     private static final ImmutableList<Replica> ENDPOINTS_FOR_X = ImmutableList.of(
-            fullReplica(EP1, R1),
-            fullReplica(EP2, R1),
-            transientReplica(EP3, R1),
-            fullReplica(EP4, R1),
-            transientReplica(EP5, R1)
+    fullReplica(EP1, R1),
+    fullReplica(EP2, R1),
+    transientReplica(EP3, R1),
+    fullReplica(EP4, R1),
+    transientReplica(EP5, R1)
     );
 
     @Test
@@ -489,7 +543,7 @@ public class ReplicaCollectionTest
     {
         ImmutableList<Replica> canonical = ENDPOINTS_FOR_X;
         new EndpointsTestCase<>(
-                false, EndpointsForRange.copyOf(canonical), canonical
+        false, EndpointsForRange.copyOf(canonical), canonical
         ).testAll();
     }
 
@@ -503,18 +557,27 @@ public class ReplicaCollectionTest
         {   // incorrect range
             test.addAll(canonical1, Conflict.NONE);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         test.addAll(canonical1, Conflict.DUPLICATE); // we ignore exact duplicates
         try
         {   // incorrect range
             test.add(fullReplica(BROADCAST_EP, R2), Conflict.ALL);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         try
         {   // conflict on isFull/isTransient
             test.add(transientReplica(EP1, R1), Conflict.DUPLICATE);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         test.add(transientReplica(EP1, R1), Conflict.ALL);
 
         new EndpointsTestCase<>(true, test, canonical1).testAll();
@@ -532,7 +595,7 @@ public class ReplicaCollectionTest
     {
         ImmutableList<Replica> canonical = ENDPOINTS_FOR_X;
         new EndpointsTestCase<>(
-                false, EndpointsForToken.copyOf(tk(1), canonical), canonical
+        false, EndpointsForToken.copyOf(tk(1), canonical), canonical
         ).testAll();
     }
 
@@ -546,18 +609,27 @@ public class ReplicaCollectionTest
         {   // incorrect range
             test.addAll(canonical1, Conflict.NONE);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         test.addAll(canonical1, Conflict.DUPLICATE); // we ignore exact duplicates
         try
         {   // incorrect range
             test.add(fullReplica(BROADCAST_EP, R2), Conflict.ALL);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         try
         {   // conflict on isFull/isTransient
             test.add(transientReplica(EP1, R1), Conflict.DUPLICATE);
             Assert.fail();
-        } catch (IllegalArgumentException e) { }
+        }
+        catch (IllegalArgumentException e)
+        {
+        }
         test.add(transientReplica(EP1, R1), Conflict.ALL);
 
         new EndpointsTestCase<>(true, test, canonical1).testAll();

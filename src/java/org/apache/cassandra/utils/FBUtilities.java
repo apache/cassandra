@@ -191,9 +191,9 @@ public class FBUtilities
     {
         if (localInetAddressAndPort == null)
         {
-            if(DatabaseDescriptor.getRawConfig() == null)
+            if (DatabaseDescriptor.getRawConfig() == null)
             {
-                localInetAddressAndPort = InetAddressAndPort.getByAddress(getJustLocalAddress());
+                throw new AssertionError("Local address and port should never be accessed before initializing DatabaseDescriptor");
             }
             else
             {
@@ -228,7 +228,7 @@ public class FBUtilities
         {
             if(DatabaseDescriptor.getRawConfig() == null)
             {
-                broadcastInetAddressAndPort = InetAddressAndPort.getByAddress(getJustBroadcastAddress());
+                throw new AssertionError("Broadcast address and port should never be accessed before initializing DatabaseDescriptor");
             }
             else
             {

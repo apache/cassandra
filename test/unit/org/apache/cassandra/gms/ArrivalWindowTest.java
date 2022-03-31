@@ -21,15 +21,24 @@ package org.apache.cassandra.gms;
  */
 
 
-import static org.junit.Assert.*;
-
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.junit.Assert.assertEquals;
+
 public class ArrivalWindowTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.setConfig(new Config());
+    }
+
     @Test
     public void testWithNanoTime()
     {

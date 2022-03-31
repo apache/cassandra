@@ -514,6 +514,19 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
                 CommitLog.instance.start();
 
+                // MessagingService setup needs to be configured before any interaction with Schema because Schema
+                // uses MessagingService under the hood (it does not need to listen yet, but we need to set filters
+                // and mocks
+                if (!config.has(NETWORK))
+                {
+                    // Even though we don't use MessagingService, access the static SocketFactory
+                    // instance here so that we start the static event loop state
+                    //  -- not sure what that means?  SocketFactory.instance.getClass();
+                    registerMockMessaging(cluster);
+                }
+                registerInboundFilter(cluster);
+                registerOutboundFilter(cluster);
+
                 CassandraDaemon.getInstanceForTesting().runStartupChecks();
 
                 // We need to persist this as soon as possible after startup checks.
@@ -558,22 +571,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 Verb.HINT_REQ.unsafeSetSerializer(DTestSerializer::new);
 
                 if (config.has(NETWORK))
-                {
                     MessagingService.instance().listen();
-                }
                 else
-                {
-                    // Even though we don't use MessagingService, access the static SocketFactory
-                    // instance here so that we start the static event loop state
-                    //  -- not sure what that means?  SocketFactory.instance.getClass();
-                    registerMockMessaging(cluster);
-                }
-                registerInboundFilter(cluster);
-                registerOutboundFilter(cluster);
-                if (!config.has(NETWORK))
-                {
                     propagateMessagingVersions(cluster); // fake messaging needs to know messaging version for filters
-                }
+
                 internodeMessagingStarted = true;
 
                 JVMStabilityInspector.replaceKiller(new InstanceKiller());
@@ -813,7 +814,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)
             error = parallelRun(error, executor, CommitLog.instance::shutdownBlocking);
             error = parallelRun(error, executor, () -> shutdownAndWait(Collections.singletonList(JMXBroadcastExecutor.executor)));
-            
+
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES));
 
