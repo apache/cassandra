@@ -68,7 +68,7 @@ public class NettyStreamingChannel extends ChannelInboundHandlerAdapter implemen
      * <p>
      * For thread safety, this structure's resources are released on the consuming thread
      * (via {@link AsyncStreamingInputPlus#close()},
-     * but the producing side calls {@link AsyncStreamingInputPlus#requestClosure()} to notify the input that is should close.
+     * but the producing side calls {@link AsyncStreamingInputPlus#requestClosure()} to notify the input that it should close.
      */
     @VisibleForTesting
     final AsyncStreamingInputPlus in;
