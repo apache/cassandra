@@ -51,7 +51,7 @@ appropriate number of replicates, to ensure even token allocation.
 Read ahead is an operating system feature that attempts to keep as much
 data as possible loaded in the page cache.
 Spinning disks can have long seek times causing high latency, so additional
-throughout on reads using page cache can improve performance.
+throughput on reads using page cache can improve performance.
 By leveraging read ahead, the OS can pull additional data into memory without
 the cost of additional seeks.
 This method works well when the available RAM is greater than the size of the
