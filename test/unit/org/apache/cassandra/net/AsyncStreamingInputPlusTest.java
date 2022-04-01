@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.net;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.WritableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
@@ -34,11 +34,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
-import org.apache.cassandra.net.AsyncStreamingInputPlus;
-import org.apache.cassandra.net.AsyncStreamingInputPlus.InputTimeoutException;
 
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 public class AsyncStreamingInputPlusTest
 {
@@ -60,14 +58,6 @@ public class AsyncStreamingInputPlusTest
         if (buf != null && buf.refCnt() > 0)
             buf.release(buf.refCnt());
     }
-
-//    @Test
-//    public void isOpen()
-//    {
-//        Assert.assertTrue(inputPlus.isOpen());
-//        inputPlus.requestClosure();
-//        Assert.assertFalse(inputPlus.isOpen());
-//    }
 
     @Test
     public void append_closed()
@@ -106,29 +96,7 @@ public class AsyncStreamingInputPlusTest
         buf.writerIndex(8);
         inputPlus.append(buf);
         Assert.assertEquals(16, inputPlus.unsafeAvailable());
-
-//        ByteBuffer out = ByteBuffer.allocate(4);
-//        int readCount = inputPlus.read(out);
-//        Assert.assertEquals(4, readCount);
-//        out.flip();
-//        Assert.assertEquals(42, out.getInt());
-//        Assert.assertEquals(12, inputPlus.unsafeAvailable());
-
-//        out = ByteBuffer.allocate(8);
-//        readCount = inputPlus.read(out);
-//        Assert.assertEquals(8, readCount);
-//        out.flip();
-//        Assert.assertEquals(42, out.getLong());
-//        Assert.assertEquals(4, inputPlus.unsafeAvailable());
     }
-
-//    @Test (expected = EOFException.class)
-//    public void read_closed() throws IOException
-//    {
-//        inputPlus.requestClosure();
-//        ByteBuffer buf = ByteBuffer.allocate(1);
-//        inputPlus.read(buf);
-//    }
 
     @Test
     public void available_closed()
@@ -159,6 +127,60 @@ public class AsyncStreamingInputPlusTest
         inputPlus.append(buf);
         inputPlus.requestClosure();
         Assert.assertEquals(size, inputPlus.unsafeAvailable());
+    }
+
+    @Test
+    public void rebufferAndCloseToleratesInterruption() throws InterruptedException
+    {
+        ByteBuf beforeInterrupt = channel.alloc().heapBuffer(1024);
+        beforeInterrupt.writeCharSequence("BEFORE", StandardCharsets.US_ASCII);
+        ByteBuf afterInterrupt = channel.alloc().heapBuffer(1024);
+        afterInterrupt.writeCharSequence("AFTER", StandardCharsets.US_ASCII);
+        final int totalBytes = beforeInterrupt.readableBytes() + afterInterrupt.readableBytes();
+
+        inputPlus = new AsyncStreamingInputPlus(channel);
+        Thread consumer = new Thread(() -> {
+            try
+            {
+                byte[] buffer = new byte[totalBytes];
+                Assert.assertEquals(totalBytes, inputPlus.read(buffer, 0, totalBytes));
+            }
+            catch (Throwable tr)
+            {
+                fail("Unexpected exception: " + tr);
+            }
+
+            try
+            {
+                inputPlus.readByte();
+                fail("Expected EOFException");
+            }
+            catch (ClosedChannelException ex)
+            {
+                // expected
+            }
+            catch (Throwable tr)
+            {
+                fail("Unexpected: " + tr);
+            }
+        });
+
+        try
+        {
+            consumer.start();
+            inputPlus.append(beforeInterrupt);
+            consumer.interrupt();
+            inputPlus.append(afterInterrupt);
+            inputPlus.requestClosure();
+            consumer.interrupt();
+        }
+        finally
+        {
+            consumer.join(TimeUnit.MINUTES.toMillis(1), 0);
+
+            // Check the input plus is closed by attempting to append to it
+            Assert.assertFalse(inputPlus.append(beforeInterrupt));
+        }
     }
 
     @Test
@@ -257,26 +279,5 @@ public class AsyncStreamingInputPlusTest
         {
             isOpen = false;
         }
-    }
-
-    @Test
-    public void rebufferTimeout() throws IOException
-    {
-        long timeoutMillis = 1000;
-        inputPlus = new AsyncStreamingInputPlus(channel, timeoutMillis, TimeUnit.MILLISECONDS);
-
-        long startNanos = nanoTime();
-        try
-        {
-            inputPlus.readInt();
-            Assert.fail("should not have been able to read from the queue");
-        }
-        catch (InputTimeoutException e)
-        {
-            // this is the success case, and is expected. any other exception is a failure.
-        }
-
-        long durationNanos = nanoTime() - startNanos;
-        Assert.assertTrue(TimeUnit.MILLISECONDS.toNanos(timeoutMillis) <= durationNanos);
     }
 }
