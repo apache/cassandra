@@ -130,6 +130,14 @@ public final class Guardrails implements GuardrailsMBean
                     "User provided timestamps (USING TIMESTAMP)");
 
     /**
+     * Guardrail disabling the creation of new COMPACT STORAGE tables
+     */
+    public static final DisableFlag compactTablesEnabled =
+    new DisableFlag("compact_tables",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getCompactTablesEnabled(),
+                    "Creation of new COMPACT STORAGE tables");
+
+    /**
      * Guardrail on the number of elements returned within page.
      */
     public static final Threshold pageSize =
@@ -454,6 +462,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setUserTimestampsEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setUserTimestampsEnabled(enabled);
+    }
+
+    @Override
+    public boolean getCompactTablesEnabled()
+    {
+        return DEFAULT_CONFIG.getCompactTablesEnabled();
+    }
+
+    @Override
+    public void setCompactTablesEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setCompactTablesEnabled(enabled);
     }
 
     @Override

@@ -146,6 +146,10 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                                      .sum();
                 Guardrails.tables.guard(totalUserTables + 1, tableName, false, state);
             }
+
+            // Guardrail to check whether creation of new COMPACT STORAGE tables is allowed
+            if (useCompactStorage)
+                Guardrails.compactTablesEnabled.ensureEnabled(state);
         }
     }
 

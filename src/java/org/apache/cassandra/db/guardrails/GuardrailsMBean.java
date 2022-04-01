@@ -212,6 +212,20 @@ public interface GuardrailsMBean
     void setUserTimestampsEnabled(boolean enabled);
 
     /**
+     * Returns whether users can create new COMPACT STORAGE tables
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getCompactTablesEnabled();
+
+    /**
+     * Sets whether users can create new COMPACT STORAGE tables
+     *
+     * @param enabled {@code true} if allowed, {@code false} otherwise.
+     */
+    void setCompactTablesEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when requested page size greater than threshold.
      * -1 means disabled.
      */
