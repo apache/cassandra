@@ -36,6 +36,7 @@ import com.google.common.util.concurrent.*;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,16 +107,11 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairSession.class);
 
-    public final TimeUUID parentRepairSession;
-    /** Repair session ID */
-    private final TimeUUID id;
-    public final String keyspace;
-    private final String[] cfnames;
+    public final SessionState state;
     public final RepairParallelism parallelismDegree;
     public final boolean pullRepair;
 
     /** Range to repair */
-    public final CommonRange commonRange;
     public final boolean isIncremental;
     public final PreviewKind previewKind;
     public final boolean repairPaxos;
@@ -137,7 +133,6 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     /**
      * Create new repair session.
      * @param parentRepairSession the parent sessions id
-     * @param id this sessions id
      * @param commonRange ranges to repair
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
@@ -147,7 +142,6 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * @param cfnames names of columnfamilies
      */
     public RepairSession(TimeUUID parentRepairSession,
-                         TimeUUID id,
                          CommonRange commonRange,
                          String keyspace,
                          RepairParallelism parallelismDegree,
@@ -162,13 +156,8 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
-
-        this.parentRepairSession = parentRepairSession;
-        this.id = id;
+        this.state = new SessionState(parentRepairSession, keyspace, cfnames, commonRange);
         this.parallelismDegree = parallelismDegree;
-        this.keyspace = keyspace;
-        this.cfnames = cfnames;
-        this.commonRange = commonRange;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
@@ -183,17 +172,17 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
     public TimeUUID getId()
     {
-        return id;
+        return state.id;
     }
 
     public Collection<Range<Token>> ranges()
     {
-        return commonRange.ranges;
+        return state.commonRange.ranges;
     }
 
     public Collection<InetAddressAndPort> endpoints()
     {
-        return commonRange.endpoints;
+        return state.commonRange.endpoints;
     }
 
     public void trackValidationCompletion(Pair<RepairJobDesc, InetAddressAndPort> key, ValidationTask task)
@@ -264,7 +253,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     {
         StringBuilder sb = new StringBuilder();
         sb.append(FBUtilities.getBroadcastAddressAndPort());
-        for (InetAddressAndPort ep : commonRange.endpoints)
+        for (InetAddressAndPort ep : state.commonRange.endpoints)
             sb.append(", ").append(ep);
         return sb.toString();
     }
@@ -279,52 +268,57 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      */
     public void start(ExecutorPlus executor)
     {
+        state.phase.start();
         String message;
         if (terminated)
             return;
 
         logger.info("{} parentSessionId = {}: new session: will sync {} on range {} for {}.{}",
-                    previewKind.logPrefix(getId()), parentRepairSession, repairedNodes(), commonRange, keyspace, Arrays.toString(cfnames));
-        Tracing.traceRepair("Syncing range {}", commonRange);
+                    previewKind.logPrefix(getId()), state.parentRepairSession, repairedNodes(), state.commonRange, state.keyspace, Arrays.toString(state.cfnames));
+        Tracing.traceRepair("Syncing range {}", state.commonRange);
         if (!previewKind.isPreview() && !paxosOnly)
         {
-            SystemDistributedKeyspace.startRepairs(getId(), parentRepairSession, keyspace, cfnames, commonRange);
+            SystemDistributedKeyspace.startRepairs(getId(), state.parentRepairSession, state.keyspace, state.cfnames, state.commonRange);
         }
 
-        if (commonRange.endpoints.isEmpty())
+        if (state.commonRange.endpoints.isEmpty())
         {
-            logger.info("{} {}", previewKind.logPrefix(getId()), message = String.format("No neighbors to repair with on range %s: session completed", commonRange));
+            logger.info("{} {}", previewKind.logPrefix(getId()), message = String.format("No neighbors to repair with on range %s: session completed", state.commonRange));
+            state.phase.skip(message);
             Tracing.traceRepair(message);
-            trySuccess(new RepairSessionResult(id, keyspace, commonRange.ranges, Lists.<RepairResult>newArrayList(), commonRange.hasSkippedReplicas));
+            trySuccess(new RepairSessionResult(state.id, state.keyspace, state.commonRange.ranges, Lists.<RepairResult>newArrayList(), state.commonRange.hasSkippedReplicas));
             if (!previewKind.isPreview())
             {
-                SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, new RuntimeException(message));
+                SystemDistributedKeyspace.failRepairs(getId(), state.keyspace, state.cfnames, new RuntimeException(message));
             }
             return;
         }
 
         // Checking all nodes are live
-        for (InetAddressAndPort endpoint : commonRange.endpoints)
+        for (InetAddressAndPort endpoint : state.commonRange.endpoints)
         {
-            if (!FailureDetector.instance.isAlive(endpoint) && !commonRange.hasSkippedReplicas)
+            if (!FailureDetector.instance.isAlive(endpoint) && !state.commonRange.hasSkippedReplicas)
             {
                 message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
+                state.phase.fail(message);
                 logger.error("{} {}", previewKind.logPrefix(getId()), message);
                 Exception e = new IOException(message);
                 tryFailure(e);
                 if (!previewKind.isPreview())
                 {
-                    SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, e);
+                    SystemDistributedKeyspace.failRepairs(getId(), state.keyspace, state.cfnames, e);
                 }
                 return;
             }
         }
 
         // Create and submit RepairJob for each ColumnFamily
-        List<Future<RepairResult>> jobs = new ArrayList<>(cfnames.length);
-        for (String cfname : cfnames)
+        state.phase.jobsSubmitted();
+        List<Future<RepairResult>> jobs = new ArrayList<>(state.cfnames.length);
+        for (String cfname : state.cfnames)
         {
             RepairJob job = new RepairJob(this, cfname);
+            state.register(job.state);
             executor.execute(job);
             jobs.add(job);
         }
@@ -334,10 +328,11 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         {
             public void onSuccess(List<RepairResult> results)
             {
+                state.phase.success();
                 // this repair session is completed
                 logger.info("{} {}", previewKind.logPrefix(getId()), "Session completed successfully");
-                Tracing.traceRepair("Completed sync of range {}", commonRange);
-                trySuccess(new RepairSessionResult(id, keyspace, commonRange.ranges, results, commonRange.hasSkippedReplicas));
+                Tracing.traceRepair("Completed sync of range {}", state.commonRange);
+                trySuccess(new RepairSessionResult(state.id, state.keyspace, state.commonRange.ranges, results, state.commonRange.hasSkippedReplicas));
 
                 taskExecutor.shutdown();
                 // mark this session as terminated
@@ -347,6 +342,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
             public void onFailure(Throwable t)
             {
+                state.phase.fail(t);
                 String msg = "{} Session completed with the following error";
                 if (Throwables.anyCauseMatches(t, RepairException::shouldWarn))
                     logger.warn(msg+ ": {}", previewKind.logPrefix(getId()), t.getMessage());
@@ -405,7 +401,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
     public void convict(InetAddressAndPort endpoint, double phi)
     {
-        if (!commonRange.endpoints.contains(endpoint))
+        if (!state.commonRange.endpoints.contains(endpoint))
             return;
 
         // We want a higher confidence in the failure detection than usual because failing a repair wrongly has a high cost.
@@ -444,10 +440,10 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
     private boolean includesTables(Set<TableId> tableIds)
     {
-        Keyspace ks = Keyspace.open(keyspace);
+        Keyspace ks = Keyspace.open(state.keyspace);
         if (ks != null)
         {
-            for (String table : cfnames)
+            for (String table : state.cfnames)
             {
                 ColumnFamilyStore cfs = ks.getColumnFamilyStore(table);
                 if (tableIds.contains(cfs.metadata.id))

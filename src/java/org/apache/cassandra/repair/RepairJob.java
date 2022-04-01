@@ -23,6 +23,7 @@ import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
@@ -30,6 +31,7 @@ import com.google.common.util.concurrent.*;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.repair.state.JobState;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,8 +69,9 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairJob.class);
 
-    private final RepairSession session;
+    public final JobState state;
     private final RepairJobDesc desc;
+    private final RepairSession session;
     private final RepairParallelism parallelismDegree;
     private final ExecutorPlus taskExecutor;
 
@@ -86,9 +89,10 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
     public RepairJob(RepairSession session, String columnFamily)
     {
         this.session = session;
-        this.desc = new RepairJobDesc(session.parentRepairSession, session.getId(), session.keyspace, columnFamily, session.commonRange.ranges);
         this.taskExecutor = session.taskExecutor;
         this.parallelismDegree = session.parallelismDegree;
+        this.desc = new RepairJobDesc(session.state.parentRepairSession, session.getId(), session.state.keyspace, columnFamily, session.state.commonRange.ranges);
+        this.state = new JobState(desc, session.state.commonRange.endpoints);
     }
 
     public int getNowInSeconds()
@@ -112,10 +116,11 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      */
     public void run()
     {
+        state.phase.start();
         Keyspace ks = Keyspace.open(desc.keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
         cfs.metric.repairsStarted.inc();
-        List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.commonRange.endpoints);
+        List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
         allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
 
         Future<List<TreeResponse>> treeResponses;
@@ -124,7 +129,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         {
             logger.info("{} {}.{} starting paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
             TableMetadata metadata = Schema.instance.getTableMetadata(desc.keyspace, desc.columnFamily);
-            paxosRepair = PaxosCleanup.cleanup(allEndpoints, metadata, desc.ranges, session.commonRange.hasSkippedReplicas, taskExecutor);
+            paxosRepair = PaxosCleanup.cleanup(allEndpoints, metadata, desc.ranges, session.state.commonRange.hasSkippedReplicas, taskExecutor);
         }
         else
         {
@@ -168,13 +173,17 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                 // Request snapshot to all replica
                 allSnapshotTasks = paxosRepair.flatMap(input -> {
                     List<Future<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
+                    state.phase.snapshotsSubmitted();
                     for (InetAddressAndPort endpoint : allEndpoints)
                     {
                         SnapshotTask snapshotTask = new SnapshotTask(desc, endpoint);
                         snapshotTasks.add(snapshotTask);
                         taskExecutor.execute(snapshotTask);
                     }
-                    return FutureCombiner.allOf(snapshotTasks);
+                    return FutureCombiner.allOf(snapshotTasks).map(a -> {
+                        state.phase.snapshotsCompleted();
+                        return a;
+                    });
                 });
             }
 
@@ -191,6 +200,10 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             // If not sequential, just send validation request to all replica
             treeResponses = paxosRepair.flatMap(input -> sendValidationRequest(allEndpoints));
         }
+        treeResponses = treeResponses.map(a -> {
+            state.phase.validationCompleted();
+            return a;
+        });
 
         // When all validations complete, submit sync tasks
         Future<List<SyncStat>> syncResults = treeResponses.flatMap(session.optimiseStreams && !session.pullRepair ? this::optimisedSyncing : this::standardSyncing, taskExecutor);
@@ -201,6 +214,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             @Override
             public void onSuccess(List<SyncStat> stats)
             {
+                state.phase.success();
                 if (!session.previewKind.isPreview())
                 {
                     logger.info("{} {}.{} is fully synced", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
@@ -216,6 +230,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             @Override
             public void onFailure(Throwable t)
             {
+                state.phase.fail(t);
                 // Make sure all validation tasks have cleaned up the off-heap Merkle trees they might contain.
                 validationTasks.forEach(ValidationTask::abort);
                 syncTasks.forEach(SyncTask::abort);
@@ -235,11 +250,12 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
     private boolean isTransient(InetAddressAndPort ep)
     {
-        return session.commonRange.transEndpoints.contains(ep);
+        return session.state.commonRange.transEndpoints.contains(ep);
     }
 
     private Future<List<SyncStat>> standardSyncing(List<TreeResponse> trees)
     {
+        state.phase.streamSubmitted();
         List<SyncTask> syncTasks = createStandardSyncTasks(desc,
                                                            trees,
                                                            FBUtilities.getLocalAddressAndPort(),
@@ -319,6 +335,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
     private Future<List<SyncStat>> optimisedSyncing(List<TreeResponse> trees)
     {
+        state.phase.streamSubmitted();
         List<SyncTask> syncTasks = createOptimisedSyncingSyncTasks(desc,
                                                                    trees,
                                                                    FBUtilities.getLocalAddressAndPort(),
@@ -445,6 +462,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      */
     private Future<List<TreeResponse>> sendValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
+        state.phase.validationSubmitted();
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
@@ -465,6 +483,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      */
     private Future<List<TreeResponse>> sendSequentialValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
+        state.phase.validationSubmitted();
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
@@ -507,6 +526,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      */
     private Future<List<TreeResponse>> sendDCAwareValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
+        state.phase.validationSubmitted();
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", session.previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);

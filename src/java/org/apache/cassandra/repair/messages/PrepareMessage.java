@@ -45,18 +45,18 @@ public class PrepareMessage extends RepairMessage
 
     public final TimeUUID parentRepairSession;
     public final boolean isIncremental;
-    public final long timestamp;
+    public final long repairedAt;
     public final boolean isGlobal;
     public final PreviewKind previewKind;
 
-    public PrepareMessage(TimeUUID parentRepairSession, List<TableId> tableIds, Collection<Range<Token>> ranges, boolean isIncremental, long timestamp, boolean isGlobal, PreviewKind previewKind)
+    public PrepareMessage(TimeUUID parentRepairSession, List<TableId> tableIds, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
     {
         super(null);
         this.parentRepairSession = parentRepairSession;
         this.tableIds = tableIds;
         this.ranges = ranges;
         this.isIncremental = isIncremental;
-        this.timestamp = timestamp;
+        this.repairedAt = repairedAt;
         this.isGlobal = isGlobal;
         this.previewKind = previewKind;
     }
@@ -71,7 +71,7 @@ public class PrepareMessage extends RepairMessage
                isIncremental == other.isIncremental &&
                isGlobal == other.isGlobal &&
                previewKind == other.previewKind &&
-               timestamp == other.timestamp &&
+               repairedAt == other.repairedAt &&
                tableIds.equals(other.tableIds) &&
                ranges.equals(other.ranges);
     }
@@ -79,7 +79,7 @@ public class PrepareMessage extends RepairMessage
     @Override
     public int hashCode()
     {
-        return Objects.hash(parentRepairSession, isGlobal, previewKind, isIncremental, timestamp, tableIds, ranges);
+        return Objects.hash(parentRepairSession, isGlobal, previewKind, isIncremental, repairedAt, tableIds, ranges);
     }
 
     private static final String MIXED_MODE_ERROR = "Some nodes involved in repair are on an incompatible major version. " +
@@ -102,7 +102,7 @@ public class PrepareMessage extends RepairMessage
                 Range.tokenSerializer.serialize(r, out, version);
             }
             out.writeBoolean(message.isIncremental);
-            out.writeLong(message.timestamp);
+            out.writeLong(message.repairedAt);
             out.writeBoolean(message.isGlobal);
             out.writeInt(message.previewKind.getSerializationVal());
         }
@@ -138,7 +138,7 @@ public class PrepareMessage extends RepairMessage
             for (Range<Token> r : message.ranges)
                 size += Range.tokenSerializer.serializedSize(r, version);
             size += TypeSizes.sizeof(message.isIncremental);
-            size += TypeSizes.sizeof(message.timestamp);
+            size += TypeSizes.sizeof(message.repairedAt);
             size += TypeSizes.sizeof(message.isGlobal);
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
             return size;
@@ -153,7 +153,7 @@ public class PrepareMessage extends RepairMessage
                ", ranges=" + ranges +
                ", parentRepairSession=" + parentRepairSession +
                ", isIncremental=" + isIncremental +
-               ", timestamp=" + timestamp +
+               ", timestamp=" + repairedAt +
                ", isGlobal=" + isGlobal +
                '}';
     }

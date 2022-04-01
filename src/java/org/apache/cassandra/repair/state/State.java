@@ -15,15 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.cassandra.repair.state;
 
-package org.apache.cassandra.repair;
+import java.util.EnumMap;
 
-import org.apache.cassandra.utils.TimeUUID;
-
-public class NoSuchRepairSessionException extends Exception
+public interface State<T extends Enum<T>, I> extends Completable<I>
 {
-    public NoSuchRepairSessionException(TimeUUID parentSessionId)
-    {
-        super(String.format("Parent repair session with id = %s does not exist.", parentSessionId));
-    }
+    T getStatus();
+
+    EnumMap<T, Long> getStateTimesMillis();
 }

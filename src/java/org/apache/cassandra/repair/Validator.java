@@ -37,6 +37,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationResponse;
+import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tracing.Tracing;
@@ -76,21 +77,23 @@ public class Validator implements Runnable
     private DecoratedKey lastKey;
 
     private final PreviewKind previewKind;
+    public final ValidationState state;
 
-    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, PreviewKind previewKind)
+    public Validator(ValidationState state, int nowInSec, PreviewKind previewKind)
     {
-        this(desc, initiator, nowInSec, false, false, previewKind);
+        this(state, nowInSec, false, false, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, boolean isIncremental, PreviewKind previewKind)
+    public Validator(ValidationState state, int nowInSec, boolean isIncremental, PreviewKind previewKind)
     {
-        this(desc, initiator, nowInSec, false, isIncremental, previewKind);
+        this(state, nowInSec, false, isIncremental, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
+    public Validator(ValidationState state, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
     {
-        this.desc = desc;
-        this.initiator = initiator;
+        this.state = state;
+        this.desc = state.desc;
+        this.initiator = state.initiator;
         this.nowInSec = nowInSec;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
@@ -216,6 +219,7 @@ public class Validator implements Runnable
             trees.logRowSizePerLeaf(logger);
         }
 
+        state.phase.sendingTrees();
         Stage.ANTI_ENTROPY.execute(this);
     }
 
@@ -224,8 +228,9 @@ public class Validator implements Runnable
      * This sends RepairStatus to inform the initiator that the validation has failed.
      * The actual reason for failure should be looked up in the log of the host calling this function.
      */
-    public void fail()
+    public void fail(Throwable e)
     {
+        state.phase.fail(e);
         respond(new ValidationResponse(desc));
     }
 
@@ -245,6 +250,7 @@ public class Validator implements Runnable
             Tracing.traceRepair("Local completed merkle tree for {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);
 
         }
+        state.phase.success();
         respond(new ValidationResponse(desc, trees));
     }
 

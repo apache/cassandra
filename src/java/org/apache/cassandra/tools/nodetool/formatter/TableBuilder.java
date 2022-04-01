@@ -76,6 +76,11 @@ public class TableBuilder
         this.rows.addAll(base.rows);
     }
 
+    public void add(@Nonnull List<String> row)
+    {
+        add(row.toArray(new String[0]));
+    }
+
     public void add(@Nonnull String... row)
     {
         Objects.requireNonNull(row);

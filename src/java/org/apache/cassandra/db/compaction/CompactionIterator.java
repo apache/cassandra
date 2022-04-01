@@ -256,6 +256,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         bytesRead = n;
     }
 
+    public long getBytesRead()
+    {
+        return bytesRead;
+    }
+
     public boolean hasNext()
     {
         return compacted.hasNext();

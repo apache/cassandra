@@ -235,6 +235,12 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     }
 
     @Override
+    public long getBytesRead()
+    {
+        return ci.getBytesRead();
+    }
+
+    @Override
     public void close()
     {
         // TODO: can any of this fail and leave stuff unreleased?

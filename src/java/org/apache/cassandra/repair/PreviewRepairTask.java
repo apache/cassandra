@@ -42,6 +42,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     private final TimeUUID parentSession;
     private final List<CommonRange> commonRanges;
     private final String[] cfnames;
+    private volatile String successMessage = name() + " completed successfully";
 
     protected PreviewRepairTask(RepairOption options, String keyspace, RepairNotifier notifier, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
     {
@@ -55,6 +56,12 @@ public class PreviewRepairTask extends AbstractRepairTask
     public String name()
     {
         return "Repair preview";
+    }
+
+    @Override
+    public String successMessage()
+    {
+        return successMessage;
     }
 
     @Override
@@ -82,6 +89,7 @@ public class PreviewRepairTask extends AbstractRepairTask
                 if (previewKind == PreviewKind.REPAIRED)
                     maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
             }
+            successMessage += "; " + message;
             notifier.notification(message);
 
             return result;

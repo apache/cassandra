@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -141,7 +143,7 @@ public class RepairTest extends TestBaseImpl
     void shutDownNodesAndForceRepair(ICluster<IInvokableInstance> cluster, String keyspace, int downNode) throws Exception
     {
         populate(cluster, keyspace, "{'enabled': false}");
-        cluster.get(downNode).shutdown().get(5, TimeUnit.SECONDS);
+        ClusterUtils.stopUnchecked(cluster.get(downNode));
         repair(cluster, keyspace, ImmutableMap.of("forceRepair", "true"));
     }
 

@@ -82,7 +82,7 @@ public class SnapshotTask extends AsyncFuture<InetAddressAndPort> implements Run
         @Override
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
-            task.tryFailure(new RuntimeException("Could not create snapshot at " + from));
+            task.tryFailure(new RuntimeException("Could not create snapshot at " + from + "; " + failureReason));
         }
     }
 }
