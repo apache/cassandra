@@ -86,7 +86,7 @@ public final class SchemaConstants
      */
     public static boolean isLocalSystemKeyspace(String keyspaceName)
     {
-        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
+        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase()) || isVirtualSystemKeyspace(keyspaceName);
     }
 
     /**
@@ -112,9 +112,8 @@ public final class SchemaConstants
      */
     public static boolean isSystemKeyspace(String keyspaceName)
     {
-        return isLocalSystemKeyspace(keyspaceName)
-                || isReplicatedSystemKeyspace(keyspaceName)
-                || isVirtualSystemKeyspace(keyspaceName);
+        return isLocalSystemKeyspace(keyspaceName) // this includes vtables
+                || isReplicatedSystemKeyspace(keyspaceName);
     }
 
     /**

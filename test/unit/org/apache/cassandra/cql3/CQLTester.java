@@ -1526,7 +1526,19 @@ public abstract class CQLTester
             Assert.assertEquals("Invalid number of (expected) values provided for row", expected.length, meta.size());
             List<ByteBuffer> expectedRow = new ArrayList<>(meta.size());
             for (int j = 0; j < meta.size(); j++)
-                expectedRow.add(makeByteBuffer(expected[j], meta.get(j).type));
+            {
+                try
+                {
+                    expectedRow.add(makeByteBuffer(expected[j], meta.get(j).type));
+                }
+                catch (Exception e)
+                {
+                    ColumnSpecification column = meta.get(j);
+                    AssertionError error = new AssertionError("Error with column '" + column.name + " " + column.type.asCQL3Type() + "'; " + e.getLocalizedMessage());
+                    error.addSuppressed(e);
+                    throw error;
+                }
+            }
             expectedRows.add(expectedRow);
         }
 
