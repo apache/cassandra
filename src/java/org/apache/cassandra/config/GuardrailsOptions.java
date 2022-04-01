@@ -333,6 +333,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getCompactTablesEnabled()
+    {
+        return config.compact_tables_enabled;
+    }
+
+    public void setCompactTablesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("compact_tables_enabled",
+                                  enabled,
+                                  () -> config.compact_tables_enabled,
+                                  x -> config.compact_tables_enabled = x);
+    }
+
+    @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
         return config.read_before_write_list_operations_enabled;

@@ -1,4 +1,5 @@
 4.1
+ * Add guardrail to disallow creation of new COMPACT STORAGE tables (CASSANDRA-17522)
  * repair vtables should expose a completed field due to lack of filtering options in CQL (CASSANDRA-17520)
  * remove outdated code from cqlsh (CASSANDRA-17490)
  * remove support for deprecated version specific TLS in Python 3.6 (CASSANDRA-17365)
