@@ -35,7 +35,9 @@ import org.apache.cassandra.streaming.StreamingDataInputPlus;
 
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
-// TODO: rewrite
+/*
+ * This class expects a single producer (Netty event loop) and single consumer thread (StreamingDeserializerTask).
+ */
 public class AsyncStreamingInputPlus extends RebufferingInputStream implements StreamingDataInputPlus
 {
     private final Channel channel;
@@ -47,7 +49,8 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
 
     private final BlockingQueue<ByteBuf> queue;
 
-    private volatile boolean isClosed;
+    private boolean isProducerClosed = false;
+    private boolean isConsumerClosed = false;
 
     public AsyncStreamingInputPlus(Channel channel)
     {
@@ -67,17 +70,10 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
      */
     public boolean append(ByteBuf buf) throws IllegalStateException
     {
-        if (isClosed) return false;
+        if (isProducerClosed)
+            return false; // buf should be released in NettyStreamingChannel.channelRead
 
         queue.add(buf);
-
-        /*
-         * it's possible for append() to race with close(), so we need to ensure
-         * that the bytebuf gets released in that scenario
-         */
-        if (isClosed)
-            while ((buf = queue.poll()) != null)
-                buf.release();
 
         return true;
     }
@@ -95,6 +91,9 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
     @Override
     protected void reBuffer() throws ClosedChannelException
     {
+        if (isConsumerClosed)
+            throw new ClosedChannelException();
+
         if (queue.isEmpty())
             channel.read();
 
@@ -111,14 +110,13 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
             }
             catch (InterruptedException ie)
             {
-                // ignore interruptions - rely on being shut down by requestClosure enqueing the close sentinel
+                // ignore interruptions, retry and rely on being shut down by requestClosure
             }
         } while (next == null);
 
-        if (next == Unpooled.EMPTY_BUFFER)
+        if (next == Unpooled.EMPTY_BUFFER) // the indicator that the input is closed
         {
-            // Unpooled.EMPTY_BUFFER is the indicator that the input is closed
-            isClosed = true;
+            isConsumerClosed = true;
             throw new ClosedChannelException();
         }
 
@@ -175,7 +173,7 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
 
     public boolean isEmpty()
     {
-        return queue.isEmpty() && (buffer == null || !buffer.hasRemaining());
+        return isConsumerClosed || (queue.isEmpty() && (buffer == null || !buffer.hasRemaining()));
     }
 
     /**
@@ -186,10 +184,10 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
     @Override
     public void close()
     {
-        if (isClosed)
+        if (isConsumerClosed)
             return;
 
-        isClosed = true;
+        isConsumerClosed = true;
 
         if (currentBuf != null)
         {
@@ -221,7 +219,11 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
      */
     public void requestClosure()
     {
-        queue.add(Unpooled.EMPTY_BUFFER);
+        if (!isProducerClosed)
+        {
+            queue.add(Unpooled.EMPTY_BUFFER);
+            isProducerClosed = true;
+        }
     }
 
     // TODO: let's remove this like we did for AsyncChannelOutputPlus
