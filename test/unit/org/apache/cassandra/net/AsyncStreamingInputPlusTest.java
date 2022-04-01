@@ -143,7 +143,8 @@ public class AsyncStreamingInputPlusTest
         Thread consumer = new Thread(() -> {
             try
             {
-                inputPlus.readNBytes(beforeInterruptBytes + afterInterruptBytes);
+                byte[] buffer = new byte[beforeInterruptBytes + afterInterruptBytes];
+                inputPlus.read(buffer, 0, beforeInterruptBytes + afterInterruptBytes);
             }
             catch (Throwable tr)
             {
