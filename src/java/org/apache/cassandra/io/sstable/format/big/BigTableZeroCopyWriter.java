@@ -218,8 +218,7 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
             in.consume(writer::writeDirectlyToChannel, size);
             writer.sync();
         }
-        // FIXME: handle ACIP exceptions properly
-        catch (EOFException | AsyncStreamingInputPlus.InputTimeoutException e)
+        catch (EOFException e)
         {
             in.close();
         }
