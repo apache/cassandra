@@ -49,9 +49,9 @@ The metric names are all appended with the specific `Keyspace` and
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.Table.<MetricName>.<Keyspace>.<Table>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Table keyspace=<Keyspace> scope=<Table> name=<MetricName>`
 
 [NOTE]
@@ -60,7 +60,9 @@ Reported name format:
 There is a special table called '`all`' without a keyspace. This
 represents the aggregation of metrics across *all* tables and keyspaces
 on the node.
-====[cols=",,",options="header",]
+====
+
+[cols=",,",options="header",]
 |===
 |Name |Type |Description
 |MemtableOnHeapSize |Gauge<Long> |Total amount of data stored in the
@@ -267,9 +269,9 @@ are specified in the table below.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.keyspace.<MetricName>.<Keyspace>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Keyspace scope=<Keyspace> name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -299,9 +301,9 @@ The thread pools are also categorized under a specific type.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.ThreadPools.<MetricName>.<Path>.<ThreadPoolName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=ThreadPools path=<Path> scope=<ThreadPoolName> name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -399,9 +401,9 @@ Different types of client requests are broken down by `RequestType`.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.ClientRequest.<MetricName>.<RequestType>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=ClientRequest scope=<RequestType> name=<MetricName>`
 
 RequestType::
@@ -409,122 +411,123 @@ RequestType::
 Description::
   Metrics related to transactional read requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
 
-  |Failures |Counter |Number of transaction failures encountered.
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
 
-  |  |Latency |Transaction read latency.
+|Failures |Counter |Number of transaction failures encountered.
 
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
+|Latency |Histogram |Transaction read latency.
 
-  |UnfinishedCommit |Counter |Number of transactions that were committed
+|Unavailables |Counter |Number of unavailable exceptions encountered.
+
+|UnfinishedCommit |Counter |Number of transactions that were committed
   on read.
 
-  |ConditionNotMet |Counter |Number of transaction preconditions did not
+|ConditionNotMet |Counter |Number of transaction preconditions did not
   match current values.
 
-  |ContentionHistogram |Histogram |How many contended reads were
+|ContentionHistogram |Histogram |How many contended reads were
   encountered
-  |===
+|===
+
 RequestType::
   CASWrite
 Description::
   Metrics related to transactional write requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
 
-  |Failures |Counter |Number of transaction failures encountered.
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
 
-  |  |Latency |Transaction write latency.
+|Failures |Counter |Number of transaction failures encountered.
 
-  |UnfinishedCommit |Counter |Number of transactions that were committed
-  on write.
+|Latency |Histogram |Transaction write latency.
 
-  |ConditionNotMet |Counter |Number of transaction preconditions did not
-  match current values.
+|UnfinishedCommit |Counter |Number of transactions that were committed
+on write.
 
-  |ContentionHistogram |Histogram |How many contended writes were
-  encountered
+|ConditionNotMet |Counter |Number of transaction preconditions did not
+match current values.
 
-  |MutationSizeHistogram |Histogram |Total size in bytes of the requests
-  mutations.
-  |===
+|ContentionHistogram |Histogram |How many contended writes were
+encountered
+
+|MutationSizeHistogram |Histogram |Total size in bytes of the requests
+mutations.
+|===
+
 RequestType::
   Read
 Description::
   Metrics related to standard read requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
-  |Failures |Counter |Number of read failures encountered.
-  |  |Latency |Read latency.
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
-  |===
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
+|Failures |Counter |Number of read failures encountered.
+|Latency |Histogram |Read latency.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
+|===
+
 RequestType::
   RangeSlice
 Description::
   Metrics related to token range read requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
-  |Failures |Counter |Number of range query failures encountered.
-  |  |Latency |Range query latency.
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
-  |===
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
+|Failures |Counter |Number of range query failures encountered.
+|Latency |Histogram |Range query latency.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
+|===
+
 RequestType::
   Write
 Description::
   Metrics related to regular write requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
 
-  |Failures |Counter |Number of write failures encountered.
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
+|Failures |Counter |Number of write failures encountered.
+|Latency |Histogram |Write latency.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
+|MutationSizeHistogram |Histogram |Total size in bytes of the requests
+mutations.
+|===
 
-  |  |Latency |Write latency.
-
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
-
-  |MutationSizeHistogram |Histogram |Total size in bytes of the requests
-  mutations.
-  |===
 RequestType::
   ViewWrite
 Description::
   Metrics related to materialized view write wrtes.
 Metrics::
-  [cols=",,",]
-  |===
-  |Timeouts |Counter |Number of timeouts encountered.
 
-  |Failures |Counter |Number of transaction failures encountered.
-
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
-
-  |ViewReplicasAttempted |Counter |Total number of attempted view
-  replica writes.
-
-  |ViewReplicasSuccess |Counter |Total number of succeded view replica
-  writes.
-
-  |ViewPendingMutations |Gauge<Long> |ViewReplicasAttempted -
-  ViewReplicasSuccess.
-
-  |ViewWriteLatency |Timer |Time between when mutation is applied to
-  base table and when CL.ONE is achieved on view.
-  |===
+[cols=",,",]
+|===
+|Timeouts |Counter |Number of timeouts encountered.
+|Failures |Counter |Number of transaction failures encountered.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
+|ViewReplicasAttempted |Counter |Total number of attempted view
+replica writes.
+|ViewReplicasSuccess |Counter |Total number of succeded view replica
+writes.
+|ViewPendingMutations |Gauge<Long> |ViewReplicasAttempted -
+ViewReplicasSuccess.
+|ViewWriteLatency |Timer |Time between when mutation is applied to
+base table and when CL.ONE is achieved on view.
+|===
 
 == Cache Metrics
 
@@ -533,9 +536,9 @@ Though the `Table Metrics` might be more useful.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.Cache.<MetricName>.<CacheName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Cache scope=<CacheName> name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -569,15 +572,17 @@ The following caches are covered:
 .Note
 ====
 Misses and MissLatency are only defined for the ChunkCache
-====== CQL Metrics
+====
+
+== CQL Metrics
 
 Metrics specific to CQL prepared statement caching.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.CQL.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=CQL name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -585,21 +590,16 @@ Reported name format:
 |Name |Type |Description
 |PreparedStatementsCount |Gauge<Integer> |Number of cached prepared
 statements.
-
 |PreparedStatementsEvicted |Counter |Number of prepared statements
 evicted from the prepared statement cache
-
 |PreparedStatementsExecuted |Counter |Number of prepared statements
 executed.
-
 |RegularStatementsExecuted |Counter |Number of *non* prepared statements
 executed.
-
 |PreparedStatementsRatio |Gauge<Double> |Percentage of statements that
 are prepared vs unprepared.
 |===
 
-[[dropped-metrics]]
 == DroppedMessage Metrics
 
 Metrics specific to tracking dropped messages for different types of
@@ -607,9 +607,9 @@ requests. Dropped writes are stored and retried by `Hinted Handoff`
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.DroppedMessage.<MetricName>.<Type>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=DroppedMessage scope=<Type> name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -648,9 +648,9 @@ being the node you are pulling the metrics from.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.Streaming.<MetricName>.<PeerIP>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Streaming scope=<PeerIP> name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -669,9 +669,9 @@ Metrics specific to `Compaction` work.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.Compaction.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Compaction name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -700,9 +700,9 @@ Metrics specific to the `CommitLog`
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.CommitLog.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=CommitLog name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -731,9 +731,9 @@ Metrics specific to the storage engine.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.Storage.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Storage name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -752,7 +752,6 @@ manages.
 currently.
 |===
 
-[[handoff-metrics]]
 == HintedHandoff Metrics
 
 Metrics specific to Hinted Handoff. There are also some metrics related
@@ -762,35 +761,17 @@ These metrics include the peer endpoint *in the metric name*
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.HintedHandOffManager.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=HintedHandOffManager name=<MetricName>`
 
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
-|Hints_created-<PeerIP> a|
-____
-Counter
-____
-
-a|
-____
-Number of hints on disk for this peer.
-____
-
-|Hints_not_stored-<PeerIP> a|
-____
-Counter
-____
-
-a|
-____
-Number of hints not stored for this peer, due to being down past the
+|Hints_created-<PeerIP> |Counter |Number of hints on disk for this peer.
+|Hints_not_stored-<PeerIP> | Counter | Number of hints not stored for this peer, due to being down past the
 configured hint window.
-____
-
 |===
 
 == HintsService Metrics
@@ -802,47 +783,19 @@ These metrics include the peer endpoint *in the metric name*
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.HintsService.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=HintsService name=<MetricName>`
 
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
-|HintsSucceeded a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints successfully delivered
-____
-
-|HintsFailed a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints that failed deliver
-____
-
-|HintsTimedOut a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints that timed out
-____
-
+|HintsSucceeded |Meter |A meter of the hints successfully delivered
+|HintsFailed |Meter |A meter of the hints that failed deliver
+|HintsTimedOut |Meter |A meter of the hints that timed out
 |Hint_delays |Histogram |Histogram of hint delivery delays (in
 milliseconds)
-
 |Hint_delays-<PeerIP> |Histogram |Histogram of hint delivery delays (in
 milliseconds) per peer
 |===
@@ -853,9 +806,9 @@ Metrics specific to the SSTable index metadata.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.Index.<MetricName>.RowIndexEntry`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Index scope=RowIndexEntry name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -879,9 +832,9 @@ off heap buffers.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.BufferPool.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=BufferPool name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -889,11 +842,8 @@ Reported name format:
 |Name |Type |Description
 |Size |Gauge<Long> |Size, in bytes, of the managed buffer pool
 
-|Misses |Meter a|
-____
-The rate of misses in the pool. The higher this is the more allocations
+|Misses |Meter |The rate of misses in the pool. The higher this is the more allocations
 incurred.
-____
 
 |===
 
@@ -903,9 +853,9 @@ Metrics specifc to client managment.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.Client.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Client name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -927,9 +877,9 @@ Metrics specifc to batch statements.
 
 Reported name format:
 
-*Metric Name*::
+Metric Name::
   `org.apache.cassandra.metrics.Batch.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `org.apache.cassandra.metrics:type=Batch name=<MetricName>`
 
 [cols=",,",options="header",]
@@ -953,9 +903,9 @@ link:#metric-reporters[Metric Reporters].
 
 === BufferPool
 
-*Metric Name*::
+Metric Name::
   `jvm.buffers.<direct|mapped>.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `java.nio:type=BufferPool name=<direct|mapped>`
 
 [cols=",,",options="header",]
@@ -972,9 +922,9 @@ using for this buffer pool
 
 === FileDescriptorRatio
 
-*Metric Name*::
+Metric Name::
   `jvm.fd.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `java.lang:type=OperatingSystem name=<OpenFileDescriptorCount|MaxFileDescriptorCount>`
 
 [cols=",,",options="header",]
@@ -985,9 +935,9 @@ using for this buffer pool
 
 === GarbageCollector
 
-*Metric Name*::
+Metric Name::
   `jvm.gc.<gc_type>.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `java.lang:type=GarbageCollector name=<gc_type>`
 
 [cols=",,",options="header",]
@@ -1001,9 +951,9 @@ milliseconds
 
 === Memory
 
-*Metric Name*::
+Metric Name::
   `jvm.memory.<heap/non-heap/total>.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `java.lang:type=Memory`
 
 [cols=",,",]
@@ -1024,9 +974,9 @@ for memory management
 
 === MemoryPool
 
-*Metric Name*::
+Metric Name::
   `jvm.memory.pools.<memory_pool>.<MetricName>`
-*JMX MBean*::
+JMX MBean::
   `java.lang:type=MemoryPool name=<memory_pool>`
 
 [cols=",,",]
