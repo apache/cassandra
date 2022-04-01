@@ -83,10 +83,10 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
      *
      * Release open buffers and poll the {@link #queue} for more data.
      * <p>
-     * This is best, and more or less expected, to be invoked on a consuming thread (not the event loop)
-     * becasue if we block on the queue we can't fill it on the event loop (as that's where the buffers are coming from).
+     * This is invoked on a consuming thread (not the event loop)
+     * because if we block on the queue we can't fill it on the event loop (as that's where the buffers are coming from).
      *
-     * @throws EOFException when no further reading from this instance should occur. Implies this instance is closed.
+     * @throws ClosedChannelException when no further reading from this instance should occur. Implies this instance is closed.
      */
     @Override
     protected void reBuffer() throws ClosedChannelException
