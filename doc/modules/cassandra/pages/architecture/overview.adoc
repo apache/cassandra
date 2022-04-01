@@ -10,7 +10,7 @@ https://www.cs.cornell.edu/projects/ladis2009/papers/lakshman-ladis2009.pdf[Face
 using a staged event-driven architecture
 (http://www.sosp.org/2001/papers/welsh.pdf[SEDA]) to implement a
 combination of Amazon’s
-http://courses.cse.tamu.edu/caverlee/csce438/readings/dynamo-paper.pdf[Dynamo]
+https://www.cs.cornell.edu/courses/cs5414/2017fa/papers/dynamo.pdf[Dynamo]
 distributed storage and replication techniques and Google's
 https://static.googleusercontent.com/media/research.google.com/en//archive/bigtable-osdi06.pdf[Bigtable]
 data and storage engine model. Dynamo and Bigtable were both developed

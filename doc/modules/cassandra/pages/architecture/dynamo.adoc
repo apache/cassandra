@@ -1,7 +1,7 @@
 = Dynamo
 
 Apache Cassandra relies on a number of techniques from Amazon's
-http://courses.cse.tamu.edu/caverlee/csce438/readings/dynamo-paper.pdf[Dynamo]
+https://www.cs.cornell.edu/courses/cs5414/2017fa/papers/dynamo.pdf[Dynamo]
 distributed storage key-value system. Each node in the Dynamo system has
 three main components:
 
