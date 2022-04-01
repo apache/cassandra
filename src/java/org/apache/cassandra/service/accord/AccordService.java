@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import accord.local.CommandStore;
+import accord.local.CommandStores;
 import accord.local.Node;
 import accord.messages.Reply;
 import accord.messages.Request;
@@ -54,7 +54,7 @@ public class AccordService
                              () -> null,
                              new AccordAgent(),
                              scheduler,
-                             CommandStore.Factory.SINGLE_THREAD);
+                             CommandStores.SingleThread::new);
         this.verbHandler = new AccordVerbHandler(this.node);
     }
 
