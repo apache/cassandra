@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.WritableByteChannel;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
@@ -133,18 +133,17 @@ public class AsyncStreamingInputPlusTest
     public void rebufferAndCloseToleratesInterruption() throws InterruptedException
     {
         ByteBuf beforeInterrupt = channel.alloc().heapBuffer(1024);
-        beforeInterrupt.writeCharSequence("BEFORE", Charset.forName("us-ascii"));
-        final int beforeInterruptBytes = beforeInterrupt.readableBytes();
+        beforeInterrupt.writeCharSequence("BEFORE", StandardCharsets.US_ASCII);
         ByteBuf afterInterrupt = channel.alloc().heapBuffer(1024);
-        afterInterrupt.writeCharSequence("AFTER", Charset.forName("us-ascii"));
-        final int afterInterruptBytes = afterInterrupt.readableBytes();
+        afterInterrupt.writeCharSequence("AFTER", StandardCharsets.US_ASCII);
+        final int totalBytes = beforeInterrupt.readableBytes() + afterInterrupt.readableBytes();
 
         inputPlus = new AsyncStreamingInputPlus(channel);
         Thread consumer = new Thread(() -> {
             try
             {
-                byte[] buffer = new byte[beforeInterruptBytes + afterInterruptBytes];
-                inputPlus.read(buffer, 0, beforeInterruptBytes + afterInterruptBytes);
+                byte[] buffer = new byte[totalBytes];
+                Assert.assertEquals(totalBytes, inputPlus.read(buffer, 0, totalBytes));
             }
             catch (Throwable tr)
             {
