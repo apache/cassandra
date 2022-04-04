@@ -139,7 +139,7 @@ public abstract class ThresholdTester extends GuardrailTester
 
         Assertions.assertThat(currentValue())
                   .isGreaterThanOrEqualTo(warnGetter.applyAsLong(guardrails()))
-                  .isEqualTo(failGetter.applyAsLong(guardrails()));
+                  .isGreaterThan(failGetter.applyAsLong(guardrails()));
     }
 
     private void assertInvalidPositiveProperty(BiConsumer<Guardrails, Long> setter,
