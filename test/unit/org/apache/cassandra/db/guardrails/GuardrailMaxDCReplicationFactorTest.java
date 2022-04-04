@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import org.junit.After;
 import org.junit.Test;
 
 public class GuardrailMaxDCReplicationFactorTest extends ThresholdTester
@@ -36,6 +37,12 @@ public class GuardrailMaxDCReplicationFactorTest extends ThresholdTester
               Guardrails::getMaxDCReplicationFactorFailThreshold);
     }
 
+    @After
+    public void cleanupTest() throws Throwable
+    {
+        execute("DROP KEYSPACE ks");
+    }
+
     @Override
     protected long currentValue(){return 0;}
 
@@ -43,48 +50,52 @@ public class GuardrailMaxDCReplicationFactorTest extends ThresholdTester
     public void testMaxDCRFDisabled() throws Throwable
     {
         guardrails().setMaxDCReplicationFactorThreshold(DISABLED_GUARDRAIL, DISABLED_GUARDRAIL);
-        assertThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 6");
+        assertThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 6}");
     }
 
     @Test
-    public void testMaxDCRFOnlyWarnBelow()
+    public void testMaxDCRFOnlyWarnBelow() throws Throwable
     {
-
+        guardrails().setMaxDCReplicationFactorThreshold(2, DISABLED_GUARDRAIL);
+        assertThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}");
     }
 
     @Test
-    public void testMaxDCRFOnlyWarnAbove()
+    public void testMaxDCRFOnlyWarnAbove() throws Throwable
     {
-
+        guardrails().setMaxDCReplicationFactorThreshold(2, DISABLED_GUARDRAIL);
+        assertThresholdWarns("Keyspaces with exceeds warn threshold of", "CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}");
     }
 
     @Test
-    public void testMaxDCRFOnlyFailBelow()
+    public void testMaxDCRFOnlyFailBelow() throws Throwable
     {
-
+        guardrails().setMaxDCReplicationFactorThreshold(DISABLED_GUARDRAIL, 3);
+        assertThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}");
     }
 
     @Test
-    public void testMaxDCRFOnlyFailAbove()
+    public void testMaxDCRFOnlyFailAbove() throws Throwable
     {
-
+        guardrails().setMaxDCReplicationFactorThreshold(DISABLED_GUARDRAIL, 3);
+        assertThresholdFails("Keyspaces with datacenter1 exceeds fail threshold of 4", "CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 4}");
     }
 
     @Test
-    public void testMaxDCRFBelowWarn() throws Throwable
+    public void testMaxDCRFWarnBelow() throws Throwable
     {
-        assertThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2");
+        assertThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}");
     }
 
     @Test
-    public void testMaxDCRFBetweenWarnFail() throws Throwable
+    public void testMaxDCRFWarnFailBetween() throws Throwable
     {
-        assertThresholdWarns("", "CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3");
+        assertThresholdWarns("Keyspaces with exceeds warn threshold of %s", "CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}");
     }
 
     @Test
-    public void testMaxDCRFAboveFail() throws Throwable
+    public void testMaxDCRFFailAbove() throws Throwable
     {
-        assertThresholdFails("", "CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 4");
+        assertThresholdFails("Keyspaces with datacenter1 exceeds fail threshold of 4", "CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 4}");
     }
 }

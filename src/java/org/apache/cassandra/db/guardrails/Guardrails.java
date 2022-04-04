@@ -155,8 +155,8 @@ public final class Guardrails implements GuardrailsMBean
     new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactorWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactorFailThreshold(),
                   (isWarning, what, value, threshold) ->
-                   isWarning ? format("", what, value, threshold)
-                  :format("", what, value, threshold));
+                  isWarning ? format("Keyspaces with %s" + "exceeds warn threshold of %s" , what, value, threshold)
+                             :format("Keyspaces with %s " + "exceeds fail threshold of %s", what, value, threshold));
 
     private Guardrails()
     {
