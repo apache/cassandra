@@ -73,7 +73,7 @@ public class PropertiesTest
         ps.get("cluster_name").set(config, "properties testing");
         assertThat(config.cluster_name).isEqualTo("properties testing");
 
-        ps.get("permissions_validity").set(config, SmallestDurationMilliseconds.inMilliseconds(42));
+        ps.get("permissions_validity").set(config, new DurationSpec.IntMillisecondsBound(42));
         assertThat(config.permissions_validity.toMilliseconds()).isEqualTo(42);
 
         ps.get("hinted_handoff_disabled_datacenters").set(config, Sets.newHashSet("a", "b", "c"));

@@ -70,7 +70,7 @@ public class Snapshot extends NodeToolCmd
             Map<String, String> options = new HashMap<String,String>();
             options.put("skipFlush", Boolean.toString(skipFlush));
             if (null != ttl) {
-                DurationSpec d = new DurationSpec(ttl);
+                DurationSpec.LongNanosecondsBound d = new DurationSpec.LongNanosecondsBound(ttl);
                 options.put("ttl", d.toString());
             }
 

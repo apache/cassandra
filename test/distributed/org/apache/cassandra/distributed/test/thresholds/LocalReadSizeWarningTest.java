@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
@@ -42,8 +43,8 @@ public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
             DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(null);
             DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(null);
 
-            DatabaseDescriptor.setLocalReadSizeWarnThreshold(DataStorageSpec.inKibibytes(1));
-            DatabaseDescriptor.setLocalReadSizeFailThreshold(DataStorageSpec.inKibibytes(2));
+            DatabaseDescriptor.setLocalReadSizeWarnThreshold(new DataStorageSpec.LongBytesBound(1, KIBIBYTES));
+            DatabaseDescriptor.setLocalReadSizeFailThreshold(new DataStorageSpec.LongBytesBound(2, KIBIBYTES));
         }));
     }
 

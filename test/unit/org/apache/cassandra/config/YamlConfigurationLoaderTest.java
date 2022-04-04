@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.config;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
@@ -32,6 +35,7 @@ import org.apache.cassandra.io.util.File;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,6 +45,20 @@ import static org.junit.Assert.assertTrue;
 
 public class YamlConfigurationLoaderTest
 {
+    @Test
+    public void validateTypes()
+    {
+        Predicate<Field> isDurationSpec = f -> f.getType().getTypeName().equals("org.apache.cassandra.config.DurationSpec");
+        Predicate<Field> isDataStorageSpec = f -> f.getType().getTypeName().equals("org.apache.cassandra.config.DataStorageSpec");
+        Predicate<Field> isDataRateSpec = f -> f.getType().getTypeName().equals("org.apache.cassandra.config.DataRateSpec");
+
+        assertEquals("You have wrongly defined a config parameter of abstract type DurationSpec, DataStorageSpec or DataRateSpec." +
+                     "Please check the config docs, otherwise Cassandra won't be able to start with this parameter being set in cassandra.yaml.",
+                     Arrays.stream(Config.class.getFields())
+                    .filter(f -> !Modifier.isStatic(f.getModifiers()))
+                    .filter(isDurationSpec.or(isDataRateSpec).or(isDataStorageSpec)).count(), 0);
+    }
+
     @Test
     public void updateInPlace()
     {
@@ -99,14 +117,14 @@ public class YamlConfigurationLoaderTest
 
         assertThat(c.read_thresholds_enabled).isTrue();
 
-        assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 10));
-        assertThat(c.coordinator_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
+        assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1 << 10, KIBIBYTES));
+        assertThat(c.coordinator_read_size_fail_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1 << 12, KIBIBYTES));
 
-        assertThat(c.local_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
-        assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 13));
+        assertThat(c.local_read_size_warn_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1 << 12, KIBIBYTES));
+        assertThat(c.local_read_size_fail_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1 << 13, KIBIBYTES));
 
-        assertThat(c.row_index_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
-        assertThat(c.row_index_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 13));
+        assertThat(c.row_index_read_size_warn_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1 << 12, KIBIBYTES));
+        assertThat(c.row_index_read_size_fail_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1 << 13, KIBIBYTES));
     }
 
     @Test
@@ -124,14 +142,14 @@ public class YamlConfigurationLoaderTest
         Config c = YamlConfigurationLoader.fromMap(map, Config.class);
         assertThat(c.read_thresholds_enabled).isTrue();
 
-        assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
+        assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1024, KIBIBYTES));
         assertThat(c.coordinator_read_size_fail_threshold).isNull();
 
         assertThat(c.local_read_size_warn_threshold).isNull();
-        assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
+        assertThat(c.local_read_size_fail_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1024, KIBIBYTES));
 
-        assertThat(c.row_index_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
-        assertThat(c.row_index_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
+        assertThat(c.row_index_read_size_warn_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1024, KIBIBYTES));
+        assertThat(c.row_index_read_size_fail_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1024, KIBIBYTES));
     }
 
     @Test
@@ -181,8 +199,8 @@ public class YamlConfigurationLoaderTest
         assertEquals(seedProvider, config.seed_provider); // Check a parameterized class
         assertEquals(false, config.client_encryption_options.optional); // Check a nested object
         assertEquals(true, config.client_encryption_options.enabled); // Check a nested object
-        assertEquals(new DataStorageSpec("5B"), config.internode_socket_send_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
-        assertEquals(new DataStorageSpec("5B"), config.internode_socket_receive_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
+        assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_send_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
+        assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_receive_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
     }
 
     @Test
@@ -194,9 +212,9 @@ public class YamlConfigurationLoaderTest
         Config latest = YamlConfigurationLoader.fromMap(ImmutableMap.of("key_cache_save_period", "42s",
                                                                         "row_cache_save_period", "42s",
                                                                         "counter_cache_save_period", "42s"), Config.class);
-        assertThat(old.key_cache_save_period).isEqualTo(latest.key_cache_save_period).isEqualTo(SmallestDurationSeconds.inSeconds(42));
-        assertThat(old.row_cache_save_period).isEqualTo(latest.row_cache_save_period).isEqualTo(SmallestDurationSeconds.inSeconds(42));
-        assertThat(old.counter_cache_save_period).isEqualTo(latest.counter_cache_save_period).isEqualTo(SmallestDurationSeconds.inSeconds(42));
+        assertThat(old.key_cache_save_period).isEqualTo(latest.key_cache_save_period).isEqualTo(new DurationSpec.IntSecondsBound(42));
+        assertThat(old.row_cache_save_period).isEqualTo(latest.row_cache_save_period).isEqualTo(new DurationSpec.IntSecondsBound(42));
+        assertThat(old.counter_cache_save_period).isEqualTo(latest.counter_cache_save_period).isEqualTo(new DurationSpec.IntSecondsBound(42));
     }
 
     @Test
@@ -224,20 +242,20 @@ public class YamlConfigurationLoaderTest
         assertThat(from("commitlog_sync_group_window_in_ms", "NaN").commitlog_sync_group_window.toMilliseconds()).isEqualTo(0);
         assertThatThrownBy(() -> from("commitlog_sync_group_window_in_ms", -2).commitlog_sync_group_window.toMilliseconds())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid duration -2: value must be positive");
+        .hasRootCauseMessage("Invalid duration: value must be non-negative");
 
         // MILLIS_CUSTOM_DURATION
-        assertThat(from("permissions_update_interval_in_ms", 42).permissions_update_interval).isEqualTo(SmallestDurationMilliseconds.inMilliseconds(42));
+        assertThat(from("permissions_update_interval_in_ms", 42).permissions_update_interval).isEqualTo(new DurationSpec.IntMillisecondsBound(42));
         assertThat(from("permissions_update_interval_in_ms", -1).permissions_update_interval).isNull();
         assertThatThrownBy(() -> from("permissions_update_interval_in_ms", -2))
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid duration -2: value must be positive");
+        .hasRootCauseMessage("Invalid duration: value must be non-negative");
 
         // SECONDS_DURATION
         assertThat(from("streaming_keep_alive_period_in_secs", "42").streaming_keep_alive_period.toSeconds()).isEqualTo(42);
         assertThatThrownBy(() -> from("streaming_keep_alive_period_in_secs", -2).streaming_keep_alive_period.toSeconds())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid duration -2: value must be positive");
+        .hasRootCauseMessage("Invalid duration: value must be non-negative");
 
         // NEGATIVE_SECONDS_DURATION
         assertThat(from("validation_preview_purge_head_start_in_sec", -1).validation_preview_purge_head_start.toSeconds()).isEqualTo(0);
@@ -250,7 +268,7 @@ public class YamlConfigurationLoaderTest
         assertThat(from("index_summary_resize_interval_in_minutes", "42").index_summary_resize_interval.toMinutes()).isEqualTo(42);
         assertThatThrownBy(() -> from("index_summary_resize_interval_in_minutes", -2).index_summary_resize_interval.toMinutes())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid duration -2: value must be positive");
+        .hasRootCauseMessage("Invalid duration: value must be non-negative");
 
         // BYTES_CUSTOM_DATASTORAGE
         assertThat(from("native_transport_max_concurrent_requests_in_bytes_per_ip", -1).native_transport_max_request_data_in_flight_per_ip).isEqualTo(null);
@@ -261,37 +279,37 @@ public class YamlConfigurationLoaderTest
         assertThat(from("memtable_heap_space_in_mb", "42").memtable_heap_space.toMebibytes()).isEqualTo(42);
         assertThatThrownBy(() -> from("memtable_heap_space_in_mb", -2).memtable_heap_space.toMebibytes())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid data storage: value must be positive, but was -2");
+        .hasRootCauseMessage("Invalid data storage: value must be non-negative");
 
         // KIBIBYTES_DATASTORAGE
         assertThat(from("column_index_size_in_kb", "42").column_index_size.toKibibytes()).isEqualTo(42);
-        assertThatThrownBy(() -> from("column_index_size_in_kb", -2).column_index_size.toMebibytes())
+        assertThatThrownBy(() -> from("column_index_size_in_kb", -2).column_index_size.toKibibytes())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid data storage: value must be positive, but was -2");
+        .hasRootCauseMessage("Invalid data storage: value must be non-negative");
 
         // BYTES_DATASTORAGE
         assertThat(from("internode_max_message_size_in_bytes", "42").internode_max_message_size.toBytes()).isEqualTo(42);
         assertThatThrownBy(() -> from("internode_max_message_size_in_bytes", -2).internode_max_message_size.toBytes())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid data storage: value must be positive, but was -2");
+        .hasRootCauseMessage("Invalid data storage: value must be non-negative");
 
         // BYTES_DATASTORAGE
         assertThat(from("internode_max_message_size_in_bytes", "42").internode_max_message_size.toBytes()).isEqualTo(42);
         assertThatThrownBy(() -> from("internode_max_message_size_in_bytes", -2).internode_max_message_size.toBytes())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid data storage: value must be positive, but was -2");
+        .hasRootCauseMessage("Invalid data storage: value must be non-negative");
 
         // MEBIBYTES_PER_SECOND_DATA_RATE
         assertThat(from("compaction_throughput_mb_per_sec", "42").compaction_throughput.toMebibytesPerSecondAsInt()).isEqualTo(42);
         assertThatThrownBy(() -> from("compaction_throughput_mb_per_sec", -2).compaction_throughput.toMebibytesPerSecondAsInt())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid bit rate: value must be non-negative");
+        .hasRootCauseMessage("Invalid data rate: value must be non-negative");
 
         // MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE
         assertThat(from("stream_throughput_outbound_megabits_per_sec", "42").stream_throughput_outbound.toMegabitsPerSecondAsInt()).isEqualTo(42);
         assertThatThrownBy(() -> from("stream_throughput_outbound_megabits_per_sec", -2).stream_throughput_outbound.toMegabitsPerSecondAsInt())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Invalid bit rate: value must be non-negative");
+        .hasRootCauseMessage("Invalid data rate: value must be non-negative");
     }
 
     private static Config from(Object... values)

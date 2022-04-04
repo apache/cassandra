@@ -57,7 +57,7 @@ public final class AuthConfig
         // is in use and non-default values are detected
         if (!(authenticator instanceof PasswordAuthenticator)
             && (conf.credentials_update_interval != null
-                || conf.credentials_validity.toMillisecondsAsInt() != 2000
+                || conf.credentials_validity.toMilliseconds() != 2000
                 || conf.credentials_cache_max_entries != 1000))
         {
             logger.info("Configuration options credentials_update_interval, credentials_validity and " +

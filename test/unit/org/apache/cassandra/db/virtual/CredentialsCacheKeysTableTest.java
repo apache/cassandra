@@ -74,7 +74,7 @@ public class CredentialsCacheKeysTableTest extends CQLTester
     @AfterClass
     public static void tearDownClass()
     {
-        DatabaseDescriptor.setCredentialsValidity(DatabaseDescriptor.getRawConfig().credentials_validity.toMillisecondsAsInt());
+        DatabaseDescriptor.setCredentialsValidity(DatabaseDescriptor.getRawConfig().credentials_validity.toMilliseconds());
     }
 
     @Test

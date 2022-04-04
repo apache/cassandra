@@ -60,6 +60,8 @@ public class RateLimitingTest extends CQLTester
     private static final int LARGE_PAYLOAD_THRESHOLD_BYTES = 1000;
     private static final int OVERLOAD_PERMITS_PER_SECOND = 1;
 
+    private static final long MAX_LONG_CONFIG_VALUE = Long.MAX_VALUE - 1;
+
     @Parameterized.Parameter
     public ProtocolVersion version;
 
@@ -99,7 +101,7 @@ public class RateLimitingTest extends CQLTester
             }
         };
 
-        ClientResourceLimits.setGlobalLimit(Long.MAX_VALUE);
+        ClientResourceLimits.setGlobalLimit(MAX_LONG_CONFIG_VALUE);
     }
 
     @Test
