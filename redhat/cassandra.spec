@@ -48,6 +48,7 @@ BuildRequires: ant-junit >= 1.9
 
 Requires:      jre >= 1.8.0
 Requires:      python(abi) >= 3.6
+Requires:      procps-ng >= 3.3
 Requires(pre): user(cassandra)
 Requires(pre): group(cassandra)
 Requires(pre): shadow-utils
