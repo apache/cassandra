@@ -104,9 +104,9 @@ if os.environ.get('CQLSH_NO_BUNDLED', ''):
 def parse_auth_provider_extended(option, opt_str, value, passed_parser):
     splits = opt_str.split('.')
     if len(splits) > 2:
-        raise optparse.OptionValueError("Invalid --AuthProviderExtended argument only single period should be found: %s" % opt_str)
+        raise optparse.OptionValueError("Invalid --auth_provider_extended argument only single period should be found: %s" % opt_str)
     if len(splits) < 2:
-        raise optparse.OptionValueError("Invalid --AuthProviderExtended must provide a param using period: %s" % opt_str)
+        raise optparse.OptionValueError("Invalid --auth_provider_extended must provide a param using period: %s" % opt_str)
     key = splits[1]
 
     if not hasattr(passed_parser.values, 'auth_provider_extended') or parser.values.auth_provider_extended is None:
@@ -117,7 +117,7 @@ def parse_auth_provider_extended(option, opt_str, value, passed_parser):
 
 def add_auth_provider_extended_options(passed_parser, argv):
     for arg in argv:
-        if arg.startswith('--AuthProviderExtended'):
+        if arg.startswith('--auth_provider_extended'):
             passed_parser.add_option(arg,action="callback", callback=parse_auth_provider_extended,
                   type="str", nargs=1)
 
@@ -253,8 +253,8 @@ parser.add_option("--insecure-password-without-warning", action='store_true', de
                   help=optparse.SUPPRESS_HELP)
 add_auth_provider_extended_options(parser, sys.argv[1:])
 
-parser.add_option("--AuthProvider",
-                  help='specify the auth provider class (ex: cassandra.auth.PlainTextAuthProvider), use --AuthProviderExtended.<name> for properties at construction (ex: --AuthProviderExtended.username)',
+parser.add_option("--auth_provider",
+                  help='specify the auth provider class (ex: cassandra.auth.PlainTextAuthProvider), use --auth_provider_extended.<name> for properties at construction (ex: --auth_provider_extended.username)',
                   action="callback", callback=parse_auth_provider_class_module,type="str", nargs=1)
 
 opt_values = optparse.Values()
@@ -2199,11 +2199,11 @@ def read_options(cmdlineargs, environment):
     optvalues.execute = None
     optvalues.insecure_password_without_warning = False
 
-    optvalues.auth_provider_module = option_with_default(configs.get, 'AuthProvider', 'module')
-    optvalues.auth_provider_classname = option_with_default(configs.get, 'AuthProvider', 'classname')
+    optvalues.auth_provider_module = option_with_default(configs.get, 'auth_provider', 'module')
+    optvalues.auth_provider_classname = option_with_default(configs.get, 'auth_provider', 'classname')
 
-    if ('AuthProviderExtendedProperties' in configs.sections()) :
-        optvalues.auth_provider_extended = dict(configs.items("AuthProviderExtendedProperties"))
+    if ('auth_provider_extended_properties' in configs.sections()) :
+        optvalues.auth_provider_extended = dict(configs.items("auth_provider_extended_properties"))
     else:
         optvalues.auth_provider_extended = None
 
