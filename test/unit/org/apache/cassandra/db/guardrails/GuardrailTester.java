@@ -243,7 +243,7 @@ public abstract class GuardrailTester extends CQLTester
         assertTrue(format("Expect no warning messages but got %s", warnings), warnings.isEmpty());
     }
 
-    private List<String> getWarnings()
+    protected List<String> getWarnings()
     {
         List<String> warnings = ClientWarn.instance.getWarnings();
 

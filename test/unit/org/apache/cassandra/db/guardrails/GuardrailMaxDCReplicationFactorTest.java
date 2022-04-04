@@ -18,8 +18,18 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.junit.After;
 import org.junit.Test;
+
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.view.View;
+import org.apache.cassandra.index.sasi.SASIIndex;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.service.ClientWarn;
 
 public class GuardrailMaxDCReplicationFactorTest extends ThresholdTester
 {
@@ -44,7 +54,22 @@ public class GuardrailMaxDCReplicationFactorTest extends ThresholdTester
     }
 
     @Override
-    protected long currentValue(){return 0;}
+    protected long currentValue()
+    {
+        return Long.parseLong(((NetworkTopologyStrategy) Keyspace.open("ks").getReplicationStrategy()).configOptions.get("datacenter1"));
+    }
+
+    @Override
+    protected List<String> getWarnings()
+    {
+        List<String> warnings = ClientWarn.instance.getWarnings();
+
+        return warnings == null
+               ? Collections.emptyList()
+               : warnings.stream()
+                         .filter(w -> !w.contains("keyspace ks is higher than the number of nodes 1 for datacenter"))
+                         .collect(Collectors.toList());
+    }
 
     @Test
     public void testMaxDCRFDisabled() throws Throwable

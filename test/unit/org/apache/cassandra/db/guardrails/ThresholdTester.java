@@ -111,9 +111,17 @@ public abstract class ThresholdTester extends GuardrailTester
     {
         assertValid(query);
 
-        Assertions.assertThat(currentValue())
-                  .isLessThanOrEqualTo(warnGetter.applyAsLong(guardrails()))
-                  .isLessThanOrEqualTo(failGetter.applyAsLong(guardrails()));
+        long warnValue = warnGetter.applyAsLong(guardrails());
+        long failValue = failGetter.applyAsLong(guardrails());
+        long current = currentValue();
+
+        if (warnValue != Config.DISABLED_GUARDRAIL)
+            Assertions.assertThat(current)
+                      .isLessThanOrEqualTo(warnValue);
+
+        if (failValue != Config.DISABLED_GUARDRAIL)
+            Assertions.assertThat(current)
+                      .isLessThanOrEqualTo(failValue);
     }
 
     protected void assertThresholdWarns(String message, String query) throws Throwable
