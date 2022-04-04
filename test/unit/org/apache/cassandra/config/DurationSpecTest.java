@@ -24,28 +24,31 @@ import org.junit.Test;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.*;
 import static org.quicktheories.QuickTheory.qt;
 
 public class DurationSpecTest
 {
+    private static final long MAX_INT_CONFIG_VALUE = Integer.MAX_VALUE - 1;
+
+    @SuppressWarnings("AssertBetweenInconvertibleTypes")
     @Test
     public void testConversions()
     {
-        assertEquals(10L, new DurationSpec("10s").toSeconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807s").toSecondsAsInt());
-        assertEquals(10000, new DurationSpec("10s").toMilliseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807s").toMillisecondsAsInt());
-        assertEquals(0, new DurationSpec("10s").toMinutes());
-        assertEquals(10, new DurationSpec("10m").toMinutes());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807s").toMinutesAsInt());
-        assertEquals(600000, new DurationSpec("10m").toMilliseconds());
-        assertEquals(600, new DurationSpec("10m").toSeconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807s").toSecondsAsInt());
-        assertEquals(DurationSpec.inDoubleMilliseconds(0.7), new DurationSpec("1ms"));
-        assertEquals(DurationSpec.inDoubleMilliseconds(0.33), new DurationSpec("0ms"));
-        assertEquals(DurationSpec.inDoubleMilliseconds(0.333), new DurationSpec("0ms"));
+        assertEquals(10000000000L, new DurationSpec.LongNanosecondsBound ("10s").toNanoseconds());
+        assertEquals(MAX_INT_CONFIG_VALUE, new DurationSpec.IntSecondsBound(MAX_INT_CONFIG_VALUE + "s").toSeconds());
+        assertEquals(MAX_INT_CONFIG_VALUE, new DurationSpec.LongMillisecondsBound(MAX_INT_CONFIG_VALUE + "ms").toMilliseconds());
+        assertEquals(600000000000L, new DurationSpec.LongNanosecondsBound ("10m").toNanoseconds());
+        assertEquals(MAX_INT_CONFIG_VALUE, new DurationSpec.IntMinutesBound(MAX_INT_CONFIG_VALUE + "m").toMinutes());
+        assertEquals(MAX_INT_CONFIG_VALUE, new DurationSpec.IntSecondsBound(MAX_INT_CONFIG_VALUE + "s").toSeconds());
+        assertEquals(new DurationSpec.IntMillisecondsBound(0.7, TimeUnit.MILLISECONDS), new DurationSpec.LongNanosecondsBound("1ms"));
+        assertEquals(new DurationSpec.IntMillisecondsBound(0.33, TimeUnit.MILLISECONDS), new DurationSpec.LongNanosecondsBound("0ms"));
+        assertEquals(new DurationSpec.IntMillisecondsBound(0.333, TimeUnit.MILLISECONDS), new DurationSpec.LongNanosecondsBound("0ms"));
     }
 
     @Test
@@ -58,102 +61,259 @@ public class DurationSpecTest
         assertEquals(DurationSpec.fromSymbol("s"), TimeUnit.SECONDS);
         assertEquals(DurationSpec.fromSymbol("us"), TimeUnit.MICROSECONDS);
         assertEquals(DurationSpec.fromSymbol("µs"), TimeUnit.MICROSECONDS);
-        assertEquals(DurationSpec.fromSymbol("ns"), TimeUnit.NANOSECONDS);
-        assertThatThrownBy(() -> DurationSpec.fromSymbol("n")).isInstanceOf(IllegalArgumentException.class)
-                                                              .hasMessageContaining("Unsupported time unit: n");
+        assertEquals(DurationSpec.fromSymbol("ns"), NANOSECONDS);
+        assertThatThrownBy(() -> DurationSpec.fromSymbol("n")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     public void testGetSymbol()
     {
-        assertEquals(DurationSpec.getSymbol(TimeUnit.MILLISECONDS), "ms");
-        assertEquals(DurationSpec.getSymbol(TimeUnit.DAYS), "d");
-        assertEquals(DurationSpec.getSymbol(TimeUnit.HOURS), "h");
-        assertEquals(DurationSpec.getSymbol(TimeUnit.MINUTES), "m");
-        assertEquals(DurationSpec.getSymbol(TimeUnit.SECONDS), "s");
-        assertEquals(DurationSpec.getSymbol(TimeUnit.MICROSECONDS), "us");
-        assertEquals(DurationSpec.getSymbol(TimeUnit.NANOSECONDS), "ns");
+        assertEquals(DurationSpec.symbol(TimeUnit.MILLISECONDS), "ms");
+        assertEquals(DurationSpec.symbol(TimeUnit.DAYS), "d");
+        assertEquals(DurationSpec.symbol(TimeUnit.HOURS), "h");
+        assertEquals(DurationSpec.symbol(TimeUnit.MINUTES), "m");
+        assertEquals(DurationSpec.symbol(TimeUnit.SECONDS), "s");
+        assertEquals(DurationSpec.symbol(TimeUnit.MICROSECONDS), "us");
+        assertEquals(DurationSpec.symbol(NANOSECONDS), "ns");
     }
 
     @Test
     public void testInvalidInputs()
     {
-        assertThatThrownBy(() -> new DurationSpec("10")).isInstanceOf(IllegalArgumentException.class)
-                                                        .hasMessageContaining("Invalid duration: 10");
-        assertThatThrownBy(() -> new DurationSpec("-10s")).isInstanceOf(IllegalArgumentException.class)
-                                                          .hasMessageContaining("Invalid duration: -10s");
-        assertThatThrownBy(() -> new DurationSpec("10xd")).isInstanceOf(IllegalArgumentException.class)
-                                                          .hasMessageContaining("Invalid duration: 10xd");
-        assertThatThrownBy(() -> new DurationSpec("0.333555555ms")).isInstanceOf(IllegalArgumentException.class)
-                                                                   .hasMessageContaining("Invalid duration: 0.333555555ms");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound("10")).isInstanceOf(IllegalArgumentException.class)
+                                                                             .hasMessageContaining("Invalid duration: 10");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound("-10s")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: -10s");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound(-10, SECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: value must be non-negativ");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound("10xd")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 10xd");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound("0.333555555ms")).isInstanceOf(IllegalArgumentException.class)
+                                                                                        .hasMessageContaining("Invalid duration: 0.333555555ms");
     }
 
     @Test
+    public void testInvalidForConversion()
+    {
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound(Long.MAX_VALUE + "ns")).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 9223372036854775807ns. " +
+                                                                                                 "It shouldn't be more than 9223372036854775806 in nanoseconds");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound(Long.MAX_VALUE + "ms")).isInstanceOf(IllegalArgumentException.class)
+                                                                             .hasMessageContaining("Invalid duration: 9223372036854775807ms. " +
+                                                                                                   "It shouldn't be more than 9223372036854775806 in nanoseconds");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound(Long.MAX_VALUE-5 + "µs")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 9223372036854775802µs. " +
+                                                                                                     "It shouldn't be more than 9223372036854775806 in nanoseconds");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound(Long.MAX_VALUE-5 + "us")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 9223372036854775802us. " +
+                                                                                                     "It shouldn't be more than 9223372036854775806 in nanoseconds");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound(Long.MAX_VALUE-5 + "s")).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 9223372036854775802s. " +
+                                                                                                 "It shouldn't be more than 9223372036854775806 in nanoseconds");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound(Long.MAX_VALUE-5 + "h")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 9223372036854775802h. " +
+                                                                                                "It shouldn't be more than 9223372036854775806 in nanoseconds");
+        assertThatThrownBy(() -> new DurationSpec.LongNanosecondsBound(Long.MAX_VALUE-5 + "d")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 9223372036854775802d. " +
+                                                                                                "It shouldn't be more than 9223372036854775806 in nanoseconds");
+    }
+
+    @Test
+    public void testOverflowingConversion()
+    {
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("2147483648ms")).isInstanceOf(IllegalArgumentException.class)
+                                                                                       .hasMessageContaining("Invalid duration: 2147483648ms." +
+                                                                                                             " It shouldn't be more than 2147483646 in milliseconds");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound(2147483648L)).isInstanceOf(IllegalArgumentException.class)
+                                                                                    .hasMessageContaining("Invalid duration: 2147483648 milliseconds. " +
+                                                                                                          "It shouldn't be more than 2147483646 in milliseconds");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("2147483648s")).isInstanceOf(IllegalArgumentException.class)
+                                                                                      .hasMessageContaining("Invalid duration: 2147483648s. " +
+                                                                                                            "It shouldn't be more than 2147483646 in milliseconds");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("35791395m")).isInstanceOf(IllegalArgumentException.class)
+                                                                                    .hasMessageContaining("Invalid duration: 35791395m. " +
+                                                                                                          "It shouldn't be more than 2147483646 in milliseconds");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("597h")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 597h. " +
+                                                                                                     "It shouldn't be more than 2147483646 in milliseconds");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("24856d")).isInstanceOf(IllegalArgumentException.class)
+                                                                                 .hasMessageContaining("Invalid duration: 24856d. " +
+                                                                                                       "It shouldn't be more than 2147483646 in milliseconds");
+
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("2147483648s")).isInstanceOf(IllegalArgumentException.class)
+                                                                                 .hasMessageContaining("Invalid duration: 2147483648s. " +
+                                                                                                       "It shouldn't be more than 2147483646 in seconds");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound(2147483648L)).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 2147483648 seconds. " +
+                                                                                                     "It shouldn't be more than 2147483646 in seconds");
+        assertThatThrownBy(() -> DurationSpec.IntSecondsBound.inSecondsString("2147483648")).isInstanceOf(NumberFormatException.class)
+                                                                                            .hasMessageContaining("For input string: \"2147483648\"");
+        assertThatThrownBy(() -> DurationSpec.IntSecondsBound.inSecondsString("2147483648s")).isInstanceOf(IllegalArgumentException.class)
+                                                                                             .hasMessageContaining("Invalid duration: 2147483648s. " +
+                                                                                                                   "It shouldn't be more than 2147483646 in seconds");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("35791395m")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 35791395m. " +
+                                                                                                     "It shouldn't be more than 2147483646 in seconds");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("596524h")).isInstanceOf(IllegalArgumentException.class)
+                                                                             .hasMessageContaining("Invalid duration: 596524h. " +
+                                                                                                   "It shouldn't be more than 2147483646 in seconds");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("24856d")).isInstanceOf(IllegalArgumentException.class)
+                                                                            .hasMessageContaining("Invalid duration: 24856d. " +
+                                                                                                  "It shouldn't be more than 2147483646 in seconds");
+
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("2147483648s")).isInstanceOf(IllegalArgumentException.class)
+                                                                                 .hasMessageContaining("Invalid duration: 2147483648s " +
+                                                                                                       "Accepted units:[MINUTES, HOURS, DAYS]");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("2147483648m")).isInstanceOf(IllegalArgumentException.class)
+                                                                                 .hasMessageContaining("Invalid duration: 2147483648m. " +
+                                                                                                       "It shouldn't be more than 2147483646 in minutes");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("35791395h")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 35791395h. " +
+                                                                                                     "It shouldn't be more than 2147483646 in minutes");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("1491309d")).isInstanceOf(IllegalArgumentException.class)
+                                                                              .hasMessageContaining("Invalid duration: 1491309d. " +
+                                                                                                    "It shouldn't be more than 2147483646 in minutes");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound(2147483648L)).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 2147483648 minutes. " +
+                                                                                                     "It shouldn't be more than 2147483646 in minutes");
+    }
+
+    @SuppressWarnings("AssertBetweenInconvertibleTypes")
+    @Test
     public void testEquals()
     {
-        assertEquals(new DurationSpec("10s"), new DurationSpec("10s"));
-        assertEquals(new DurationSpec("10s"), new DurationSpec("10000ms"));
-        assertEquals(new DurationSpec("10000ms"), new DurationSpec("10s"));
-        assertEquals(DurationSpec.inMinutes(Long.MAX_VALUE), DurationSpec.inMinutes(Long.MAX_VALUE));
-        assertEquals(new DurationSpec("4h"), new DurationSpec("14400s"));
-        assertEquals(DurationSpec.inSecondsString("14400"), new DurationSpec("14400s"));
-        assertEquals(DurationSpec.inSecondsString("4h"), new DurationSpec("14400s"));
-        assertEquals(DurationSpec.inSecondsString("14400s"), new DurationSpec("14400s"));
-        assertEquals(DurationSpec.inHours(Long.MAX_VALUE),DurationSpec.inHours(Long.MAX_VALUE));
-        assertNotEquals(DurationSpec.inMinutes(Long.MAX_VALUE), DurationSpec.inMilliseconds(Long.MAX_VALUE));
-        assertNotEquals(new DurationSpec("0m"), new DurationSpec("10ms"));
+        assertEquals(new DurationSpec.LongNanosecondsBound ("10s"), new DurationSpec.LongNanosecondsBound ("10s"));
+        assertEquals(new DurationSpec.LongNanosecondsBound ("10s"), new DurationSpec.LongNanosecondsBound ("10000ms"));
+        assertEquals(new DurationSpec.LongNanosecondsBound ("10000ms"), new DurationSpec.LongNanosecondsBound ("10s"));
+        assertEquals(new DurationSpec.LongNanosecondsBound ("4h"), new DurationSpec.LongNanosecondsBound ("14400s"));
+        assertEquals(DurationSpec.LongNanosecondsBound .IntSecondsBound.inSecondsString("14400"), new DurationSpec.LongNanosecondsBound ("14400s"));
+        assertEquals(DurationSpec.LongNanosecondsBound .IntSecondsBound.inSecondsString("4h"), new DurationSpec.LongNanosecondsBound ("14400s"));
+        assertEquals(DurationSpec.LongNanosecondsBound .IntSecondsBound.inSecondsString("14400s"), new DurationSpec.LongNanosecondsBound ("14400s"));
+        assertNotEquals(new DurationSpec.LongNanosecondsBound ("0m"), new DurationSpec.LongNanosecondsBound ("10ms"));
+        assertEquals(Long.MAX_VALUE-1, new DurationSpec.LongNanosecondsBound ("9223372036854775806ns").toNanoseconds());
     }
 
     @Test
     public void thereAndBack()
     {
         Gen<TimeUnit> unitGen = SourceDSL.arbitrary().enumValues(TimeUnit.class);
-        Gen<Long> valueGen = SourceDSL.longs().between(0, Long.MAX_VALUE);
+        Gen<Long> valueGen = SourceDSL.longs().between(0, Long.MAX_VALUE/24/60/60/1000L/1000L/1000L);
         qt().forAll(valueGen, unitGen).check((value, unit) -> {
-            DurationSpec there = new DurationSpec(value, unit);
-            DurationSpec back = new DurationSpec(there.toString());
+            DurationSpec.LongNanosecondsBound  there = new DurationSpec.LongNanosecondsBound (value, unit);
+            DurationSpec.LongNanosecondsBound  back = new DurationSpec.LongNanosecondsBound (there.toString());
             return there.equals(back);
         });
     }
 
     @Test
-    public void testOverflowingDuringConversion()
+    public void testValidUnits()
     {
-        // we are heavily dependent on the Java TimeUnit for our configuration of type duration. We want to be sure
-        // that any regression in handlining overflow will be caught quickly on our end
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807ns").toNanoseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807ns").toNanosecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807ms").toNanoseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807ms").toNanosecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807s").toNanoseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807s").toNanosecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807m").toNanoseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807m").toNanosecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807h").toNanoseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807h").toNanosecondsAsInt());
+        assertEquals(10L, new DurationSpec.IntMillisecondsBound("10ms").toMilliseconds());
+        assertEquals(10L, new DurationSpec.IntSecondsBound("10s").toSeconds());
+        assertEquals(new DurationSpec.IntSecondsBound("10s"), DurationSpec.IntSecondsBound.inSecondsString("10"));
+        assertEquals(new DurationSpec.IntSecondsBound("10s"), DurationSpec.IntSecondsBound.inSecondsString("10s"));
 
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807ms").toMilliseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807ms").toMillisecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807s").toMilliseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807s").toMillisecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807m").toMilliseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807m").toMillisecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807h").toMilliseconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807h").toMillisecondsAsInt());
+        assertEquals(10L, new DurationSpec.LongMillisecondsBound("10ms").toMilliseconds());
+        assertEquals(10L, new DurationSpec.LongSecondsBound("10s").toSeconds());
+    }
 
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807s").toSeconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807s").toSecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807m").toSeconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807m").toSecondsAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807h").toSeconds());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807h").toSecondsAsInt());
+    @Test
+    public void testInvalidUnits()
+    {
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("10ns")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 10ns " +
+                                                                                                     "Accepted units:[MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS]");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound(10, NANOSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 10 NANOSECONDS " +
+                                                                                                     "Accepted units:[MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS]");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("10us")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 10us " +
+                                                                                                     "Accepted units:[MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS]");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 10 MICROSECONDS " +
+                                                                                                     "Accepted units:[MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS]");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("10µs")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 10µs " +
+                                                                                                     "Accepted units:[MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS]");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: 10 MICROSECONDS " +
+                                                                                                     "Accepted units:[MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS]");
+        assertThatThrownBy(() -> new DurationSpec.IntMillisecondsBound("-10s")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid duration: -10s " +
+                                                                                                     "Accepted units:[MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS]");
 
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807m").toMinutes());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807m").toMinutesAsInt());
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807h").toMinutes());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807h").toMinutesAsInt());
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("10ms")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10ms Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound(10, MILLISECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10 MILLISECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("10ns")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10ns Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound(10, NANOSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10 NANOSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("10us")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10us Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10 MICROSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("10µs")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10µs Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10 MICROSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntSecondsBound("-10s")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: -10s");
 
-        assertEquals(Long.MAX_VALUE, new DurationSpec("9223372036854775807h").toHours());
-        assertEquals(Integer.MAX_VALUE, new DurationSpec("9223372036854775807h").toHoursAsInt());
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("10s")).isInstanceOf(IllegalArgumentException.class)
+                                                                         .hasMessageContaining("Invalid duration: 10s Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound(10, SECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                         .hasMessageContaining("Invalid duration: 10 SECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("10ms")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10ms Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound(10, MILLISECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10 MILLISECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("10ns")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10ns Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound(10, NANOSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10 NANOSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("10us")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10us Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10 MICROSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("10µs")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10µs Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: 10 MICROSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.IntMinutesBound("-10s")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid duration: -10s");
+
+        assertThatThrownBy(() -> new DurationSpec.LongMillisecondsBound("10ns")).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid duration: 10ns Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongMillisecondsBound(10, NANOSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid duration: 10 NANOSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongMillisecondsBound("10us")).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid duration: 10us Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongMillisecondsBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid duration: 10 MICROSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongMillisecondsBound("10µs")).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid duration: 10µs Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongMillisecondsBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid duration: 10 MICROSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongMillisecondsBound("-10s")).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid duration: -10s");
+
+        assertThatThrownBy(() -> new DurationSpec.LongSecondsBound("10ms")).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 10ms Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongSecondsBound(10, MILLISECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 10 MILLISECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongSecondsBound("10ns")).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 10ns Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongSecondsBound(10, NANOSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 10 NANOSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongSecondsBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 10 MICROSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongSecondsBound("10µs")).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 10µs Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongSecondsBound(10, MICROSECONDS)).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: 10 MICROSECONDS Accepted units");
+        assertThatThrownBy(() -> new DurationSpec.LongSecondsBound("-10s")).isInstanceOf(IllegalArgumentException.class)
+                                                                           .hasMessageContaining("Invalid duration: -10s");
     }
 }

@@ -38,6 +38,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.assertj.core.api.Condition;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.db.ColumnFamilyStore.SNAPSHOT_DROP_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,7 +48,7 @@ public class AutoSnapshotTest extends CQLTester
     static int TTL_SECS = 1;
 
     public static Boolean enabledBefore;
-    public static DurationSpec ttlBefore;
+    public static DurationSpec.IntSecondsBound ttlBefore;
 
     @BeforeClass
     public static void beforeClass()
@@ -68,7 +69,7 @@ public class AutoSnapshotTest extends CQLTester
     public Boolean autoSnapshotEnabled;
 
     @Parameterized.Parameter(1)
-    public DurationSpec autoSnapshotTTl;
+    public DurationSpec.IntSecondsBound autoSnapshotTTl;
 
     @Before
     public void beforeTest() throws Throwable
@@ -83,8 +84,8 @@ public class AutoSnapshotTest extends CQLTester
     @Parameterized.Parameters( name = "enabled={0},ttl={1}" )
     public static Collection options() {
         return Arrays.asList(new Object[][] {
-        { true, DurationSpec.inSeconds(TTL_SECS) },
-        { false, DurationSpec.inSeconds(TTL_SECS) },
+        { true, new DurationSpec.IntSecondsBound(TTL_SECS, SECONDS) },
+        { false, new DurationSpec.IntSecondsBound(TTL_SECS, SECONDS) },
         { true, null },
         { false, null },
         });
@@ -149,7 +150,7 @@ public class AutoSnapshotTest extends CQLTester
             {
                 // check that snapshot has TTL and is expired after 1 second
                 assertThat(snapshot.isExpiring()).isTrue();
-                Uninterruptibles.sleepUninterruptibly(TTL_SECS, TimeUnit.SECONDS);
+                Uninterruptibles.sleepUninterruptibly(TTL_SECS, SECONDS);
                 assertThat(snapshot.isExpired(Instant.now())).isTrue();
             }
         }

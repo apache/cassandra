@@ -253,7 +253,7 @@ public class StreamManager implements StreamManagerMBean
 
     public StreamManager()
     {
-        DurationSpec duration = DatabaseDescriptor.getStreamingStateExpires();
+        DurationSpec.LongNanosecondsBound duration = DatabaseDescriptor.getStreamingStateExpires();
         long sizeBytes = DatabaseDescriptor.getStreamingStateSize().toBytes();
         long numElements = sizeBytes / StreamingState.ELEMENT_SIZE;
         logger.info("Storing streaming state for {} or for {} elements", duration, numElements);

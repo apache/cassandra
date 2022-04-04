@@ -234,7 +234,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              .maximumSize(Long.getLong("cassandra.parent_repair_status_cache_size", 100_000))
                                              .build();
 
-        DurationSpec duration = getRepairStateExpires();
+        DurationSpec.LongNanosecondsBound duration = getRepairStateExpires();
         int numElements = getRepairStateSize();
         logger.info("Storing repair state for {} or for {} elements", duration, numElements);
         repairs = CacheBuilder.newBuilder()

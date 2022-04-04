@@ -152,14 +152,22 @@ If the parameter is of type duration, data rate or data storage, its value shoul
 
 - Please follow the new format `noun_verb` when adding new configuration parameters.
 
-- Please consider adding any new parameters with the lowest supported by Cassandra unit.
+- Please consider adding any new parameters with the lowest supported by Cassandra unit when possible. Our new types also
+support long and integer upper bound, depending on your needs. All options for configuration parameters' types are nested
+classes in our three main abstract classes - `DurationSpec`, `DataStorageSpec`, `DataRateSpec`.
 
-- If for some reason you consider the smallest unit shouldn’t be the one that is supported as such in Cassandra, please,
-use the extended classes `SmallestDuration*`, `SmallestDataStorage*`.
+- If for some reason you consider the smallest unit for a new parameter shouldn’t be the one that is supported as such in
+Cassandra, you can use the rest of the nested classes in `DurationSpec`, `DataStorageSpec`. The smallest allowed unit is
+the one we use internally for the property, so we don't have to do conversions to bigger units which will lead to precision
+problems. This is a problem only with `DurationSpec` and `DataStorageSpec`. `DataRateSpec` is handled internally in double.
 
 - New parameters should be added as non-negative numbers. For parameters where you would have set -1 to disable in the past, you might
 want to consider a separate flag parameter or null value. In case you use the null value, please, ensure that any default value
-introduced in the DatabaDescriptor to handle it is also duplicated in any related setters.
+introduced in the DatabaseDescriptor to handle it is also duplicated in any related setters.
+
+- Parameters of type data storage, duration and data rate cannot be set to Long.MAX_VALUE (former parameters of long type)
+and Integer.MAX_VALUE (former parameters of int type). That numbers are used during conversion between units to prevent
+an overflow from happening.
 
 - Any time you add @Replaces with a name change, we need to add an entry in this https://github.com/riptano/ccm/blob/808b6ca13526785b0fddfe1ead2383c060c4b8b6/ccmlib/common.py#L62[Python dictionary in CCM] to support the same backward compatibility as SnakeYAML.
 
@@ -194,3 +202,6 @@ hinted_handoff_enabled: false
 ....
 
 https://issues.apache.org/jira/browse/CASSANDRA-17379[CASSANDRA-17379] was opened to improve the user experience and deprecate the overloading.
+By default, we refuse starting Cassandra with a config containing both old and new config keys for the same parameter. Start
+Cassandra with `-Dcassandra.allow_new_old_config_keys=true` to override. For historical reasons duplicate config keys
+in `cassandra.yaml` are allowed by default, start Cassandra with `-Dcassandra.allow_duplicate_config_keys=false` to disallow this.

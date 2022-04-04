@@ -397,15 +397,26 @@ public class LoaderOptions
                         errorMsg("Config file not found", options);
                     }
                     config = new YamlConfigurationLoader().loadConfig(configFile.toPath().toUri().toURL());
+
+                    // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
+                    if (config.stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
+                    {
+                        throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + config.stream_throughput_outbound.toString(), false);
+                    }
+
+                    if (config.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
+                    {
+                        throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + config.inter_dc_stream_throughput_outbound.toString(), false);
+                    }
                 }
                 else
                 {
                     config = new Config();
                     // unthrottle stream by default
-                    config.stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
-                    config.inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
-                    config.entire_sstable_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
-                    config.entire_sstable_inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
+                    config.stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
+                    config.inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
+                    config.entire_sstable_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
+                    config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
                 }
 
                 if (cmd.hasOption(STORAGE_PORT_OPTION))
