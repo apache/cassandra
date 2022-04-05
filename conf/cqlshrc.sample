@@ -112,7 +112,9 @@ port = 9042
 ;; To be provided when require_client_auth=true
 ;usercert = ~/cert.pem
 
-
+; this is effectively ignored from 4.1 included as TLS protocol is auto-negotiated and will
+; be removed in the next major version of Cassandra, possible values were TLSv1, TLSv1_1 or TLSv1_2
+;version =
 
 ;; Optional section, overrides default certfile in [ssl] section, if present
 ; [certfiles]
