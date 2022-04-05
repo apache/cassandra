@@ -290,16 +290,16 @@ public abstract class CommitLogStressTest
         // Complete anything that's still left to write.
         commitLog.executor.syncBlocking();
         // Wait for any concurrent segment allocations to complete.
-        commitLog.segmentManager.awaitManagementTasksCompletion();
+        commitLog.getSegmentManager().awaitManagementTasksCompletion();
 
         long combinedSize = 0;
-        for (File f : commitLog.segmentManager.storageDirectory.tryList())
+        for (File f : commitLog.getSegmentManager().storageDirectory.tryList())
             combinedSize += f.length();
         Assert.assertEquals(combinedSize, commitLog.getActiveOnDiskSize());
 
         List<String> logFileNames = commitLog.getActiveSegmentNames();
         Map<String, Double> ratios = commitLog.getActiveSegmentCompressionRatios();
-        Collection<CommitLogSegment> segments = commitLog.segmentManager.getActiveSegments();
+        Collection<CommitLogSegment> segments = commitLog.getSegmentManager().getActiveSegments();
 
         for (CommitLogSegment segment : segments)
         {

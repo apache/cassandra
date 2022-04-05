@@ -200,7 +200,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     private void handleCDCReplayCompletion(File f) throws IOException
     {
         // Can only reach this point if CDC is enabled, thus we have a CDCSegmentManager
-        ((CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager).addCDCSize(f.length());
+        ((CommitLogSegmentManagerCDC)CommitLog.instance.getSegmentManager()).addCDCSize(f.length());
 
         File dest = new File(DatabaseDescriptor.getCDCLogLocation(), f.name());
 

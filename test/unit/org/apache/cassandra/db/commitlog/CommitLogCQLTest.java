@@ -60,11 +60,11 @@ public class CommitLogCQLTest extends CQLTester
 
         execute("INSERT INTO %s (idx, data) VALUES (?, ?)", 15, Integer.toString(17));
 
-        Collection<CommitLogSegment> active = new ArrayList<>(CommitLog.instance.segmentManager.getActiveSegments());
+        Collection<CommitLogSegment> active = new ArrayList<>(CommitLog.instance.getSegmentManager().getActiveSegments());
         CommitLog.instance.forceRecycleAllSegments();
 
         // If one of the previous segments remains, it wasn't clean.
-        active.retainAll(CommitLog.instance.segmentManager.getActiveSegments());
+        active.retainAll(CommitLog.instance.getSegmentManager().getActiveSegments());
         assert active.isEmpty();
     }
     
