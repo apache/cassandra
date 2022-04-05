@@ -402,7 +402,7 @@ public class DateTieredCompactionStrategy extends LegacyAbstractCompactionStrate
                                                                                                                               maxThreshold);
 
         sizeTieredBuckets.aggregate();
-        List<CompactionSSTable> s = new ArrayList<>(CompactionAggregate.getSelected(sizeTieredBuckets.getAggregates()).sstables);
+        List<CompactionSSTable> s = new ArrayList<>(CompactionAggregate.getSelected(sizeTieredBuckets.getAggregates()).ssstables());
         logger.debug("Got sstables {} for STCS from {}", s, sstables);
         return s;
     }
