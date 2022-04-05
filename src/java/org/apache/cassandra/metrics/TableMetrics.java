@@ -206,9 +206,9 @@ public class TableMetrics
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
-    public final Timer coordinatorReadLatency;
+    public final SnapshottingTimer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
-    public final Timer coordinatorWriteLatency;
+    public final SnapshottingTimer coordinatorWriteLatency;
 
     /** Time spent waiting for free memtable space, either on- or off-heap */
     public final Histogram waitingOnFreeMemtableSpace;
@@ -1137,9 +1137,9 @@ public class TableMetrics
         return new TableTimer(cfTimer, keyspaceTimer, global);
     }
 
-    protected Timer createTableTimer(String name)
+    protected SnapshottingTimer createTableTimer(String name)
     {
-        Timer tableTimer = Metrics.timer(factory.createMetricName(name), aliasFactory.createMetricName(name));
+        SnapshottingTimer tableTimer = Metrics.timer(factory.createMetricName(name), aliasFactory.createMetricName(name));
         register(name, name, tableTimer);
         return tableTimer;
     }

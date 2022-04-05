@@ -101,32 +101,31 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return timer(name, TimeUnit.MICROSECONDS);
     }
 
-    public Timer timer(MetricName name, MetricName alias)
+    public SnapshottingTimer timer(MetricName name, MetricName alias)
     {
         return timer(name, alias, TimeUnit.MICROSECONDS);
     }
 
-    public Timer timer(MetricName name, TimeUnit durationUnit)
+    public SnapshottingTimer timer(MetricName name, TimeUnit durationUnit)
     {
-        Timer timer = register(name, new Timer(CassandraMetricsRegistry.createReservoir(durationUnit)));
+        SnapshottingTimer timer = register(name, new SnapshottingTimer(CassandraMetricsRegistry.createReservoir(durationUnit)));
         registerMBean(timer, name.getMBeanName());
-
         return timer;
     }
 
-    public Timer timer(MetricName name, MetricName alias, TimeUnit durationUnit)
+    public SnapshottingTimer timer(MetricName name, MetricName alias, TimeUnit durationUnit)
     {
-        Timer timer = timer(name, durationUnit);
+        SnapshottingTimer timer = timer(name, durationUnit);
         registerAlias(name, alias);
         return timer;
     }
 
-    public static Reservoir createReservoir(TimeUnit durationUnit)
+    public static SnapshottingReservoir createReservoir(TimeUnit durationUnit)
     {
-        Reservoir reservoir;
+        SnapshottingReservoir reservoir;
         if (durationUnit != TimeUnit.NANOSECONDS)
         {
-            Reservoir underlying = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION,
+            SnapshottingReservoir underlying = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION,
                                                                            DecayingEstimatedHistogramReservoir.LOW_BUCKET_COUNT,
                                                                            DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT);
             // fewer buckets should suffice if timer is not based on nanos

@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.service.reads;
 
-import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.SnapshottingTimer;
 import org.apache.cassandra.schema.TableParams;
 
 public interface SpeculativeRetryPolicy
@@ -28,7 +28,7 @@ public interface SpeculativeRetryPolicy
         NEVER, FIXED, PERCENTILE, HYBRID, ALWAYS
     }
 
-    long calculateThreshold(Snapshot latency, long existingValue);
+    long calculateThreshold(SnapshottingTimer latency, long existingValue);
 
     Kind kind();
 
