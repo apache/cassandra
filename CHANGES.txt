@@ -1,4 +1,5 @@
 4.1
+ * remove outdated code from cqlsh (CASSANDRA-17490)
  * remove support for deprecated version specific TLS in Python 3.6 (CASSANDRA-17365)
  * Add support for IF EXISTS and IF NOT EXISTS in ALTER statements (CASSANDRA-16916)
  * resolve several pylint issues in cqlsh.py and pylib (CASSANDRA-17480)
