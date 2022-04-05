@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -48,11 +49,12 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.*;
-import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.EQUAL;
 import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.NOT_EXISTS;
 
 public class AccordCommandStoreTest
@@ -67,39 +69,46 @@ public class AccordCommandStoreTest
         StorageService.instance.initServer();
     }
 
-    @Test
-    public void commandLoadSave() throws Throwable
+    private static Txn createTxn(int key)
     {
-        AtomicLong clock = new AtomicLong(0);
+        return txnBuilder().withRead(format("SELECT * FROM ks.tbl WHERE k=%s AND c=0", key))
+                           .withWrite(format("INSERT INTO ks.tbl (k, c, v) VALUES (%s, 0, 1)", key))
+                           .withCondition("ks", "tbl", key, 0, NOT_EXISTS).build();
+    }
+
+    private static InMemoryCommandStore.Synchronized createCommandStore(long now)
+    {
         TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
         TokenRange range = TokenRange.fullRange(metadata.id);
         Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
         InMemoryCommandStore.Synchronized commandStore = new InMemoryCommandStore.Synchronized(0, 1, 8,
                                                                                                node,
-                                                                                               ts -> new Timestamp(1, clock.incrementAndGet(), 0, node),
+                                                                                               ts -> new Timestamp(1, now, 0, node),
                                                                                                new AccordAgent(),
                                                                                                null,
                                                                                                KeyRanges.of(range),
                                                                                                () -> topology);
-        Txn depTxn = txnBuilder().withRead("SELECT * FROM ks.tbl WHERE k=0 AND c=0")
-                                 .withWrite("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)")
-                                 .withCondition("ks", "tbl", 0, 0, NOT_EXISTS).build();
+        return commandStore;
+    }
+
+    @Test
+    public void commandLoadSave() throws Throwable
+    {
+        AtomicLong clock = new AtomicLong(0);
+        Txn depTxn = createTxn(0);
+        InMemoryCommandStore.Synchronized commandStore = createCommandStore(clock.incrementAndGet());
 
         Dependencies dependencies = new Dependencies();
         dependencies.add(txnId(1, clock.incrementAndGet(), 0, 1), depTxn);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
-
-        Txn txn = txnBuilder().withRead("SELECT * FROM ks.tbl WHERE k=0 AND c=0")
-                              .withWrite("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 2)")
-                              .withCondition("ks", "tbl", 0, 0, "v", EQUAL, 1).build();
 
         TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         AccordCommand command = new AccordCommand(commandStore, txnId);
-        command.txn(txn);
+        command.txn(createTxn(0));
         command.promised(ballot(1, clock.incrementAndGet(), 0, 1));
         command.accepted(ballot(1, clock.incrementAndGet(), 0, 1));
         command.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
@@ -119,6 +128,38 @@ public class AccordCommandStoreTest
         logger.info("A: {}", actual);
 
         Assert.assertEquals(command, actual);
+    }
+
+    @Test
+    public void commandsForKeyLoadSave()
+    {
+        AtomicLong clock = new AtomicLong(0);
+        InMemoryCommandStore.Synchronized commandStore = createCommandStore(clock.incrementAndGet());
+        Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 0, 1);
+
+        Txn txn = createTxn(1);
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
+        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
+        AccordCommand command1 = new AccordCommand(commandStore, txnId1);
+        AccordCommand command2 = new AccordCommand(commandStore, txnId2);
+        command1.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
+        command2.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
+
+        AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key);
+        cfk.loadEmpty();
+        cfk.updateMax(maxTimestamp);
+
+        cfk.register(command1);
+        cfk.register(command2);
+
+        AccordKeyspace.getCommandsForKeyMutation(cfk).apply();
+        logger.info("E: {}", cfk);
+        AccordCommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore, key);
+        logger.info("A: {}", actual);
+
+        Assert.assertEquals(cfk, actual);
+
     }
 
     @Test

@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -209,8 +210,40 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
     @Override
     public void updateMax(Timestamp timestamp)
     {
-        if (maxTimestamp.get().compareTo(timestamp) <= 0)
+        if (maxTimestamp.get().compareTo(timestamp) >= 0)
             return;
         maxTimestamp.set(timestamp);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AccordCommandsForKey that = (AccordCommandsForKey) o;
+        return commandStore == that.commandStore
+               && key.equals(that.key)
+               && maxTimestamp.equals(that.maxTimestamp)
+               && uncommitted.map.equals(that.uncommitted.map)
+               && committedById.map.equals(that.committedById.map)
+               && committedByExecuteAt.map.equals(that.committedByExecuteAt.map);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(commandStore, key, maxTimestamp, uncommitted, committedById, committedByExecuteAt);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "AccordCommandsForKey{" +
+               "key=" + key +
+               ", maxTs=" + max() +
+               ", uncommitted=" + uncommitted.map +
+               ", committedById=" + committedById.map +
+               ", committedByExecuteAt=" + committedByExecuteAt.map +
+               '}';
     }
 }

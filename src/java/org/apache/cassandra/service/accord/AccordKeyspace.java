@@ -192,6 +192,7 @@ public class AccordKeyspace
     private static class CommandsForKeyColumns
     {
         static final ClusteringComparator keyComparator = CommandsForKey.partitionKeyAsClusteringComparator();
+        static final ColumnFilter allColumns = ColumnFilter.all(CommandsForKey);
         static final ColumnMetadata store_generation = getColumn(CommandsForKey, "store_generation");
         static final ColumnMetadata store_index = getColumn(CommandsForKey, "store_index");
         static final ColumnMetadata key = getColumn(CommandsForKey, "key");
@@ -674,7 +675,7 @@ public class AccordKeyspace
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
         SinglePartitionReadCommand command = SinglePartitionReadCommand.create(CommandsForKey, nowInSeconds,
-                                                                               ColumnFilter.NONE,
+                                                                               CommandsForKeyColumns.allColumns,
                                                                                RowFilter.NONE,
                                                                                DataLimits.NONE,
                                                                                makeKey(cfk),

@@ -23,6 +23,7 @@ import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredField
 {
@@ -46,6 +47,15 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
     {
         preGet();
         return Objects.hash(set);
+    }
+
+    @Override
+    public String toString()
+    {
+        preGet();
+        return view.stream()
+                   .map(Object::toString)
+                   .collect(Collectors.joining(", ", "{", "}"));
     }
 
     public void unload()

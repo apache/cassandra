@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.store;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
@@ -26,6 +27,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Navigable Map, capable of blind add/remove
@@ -52,6 +54,15 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
     {
         preGet();
         return Objects.hash(map);
+    }
+
+    @Override
+    public String toString()
+    {
+        preGet();
+        return view.entrySet().stream()
+                   .map(e -> e.getKey() + "=" + e.getValue())
+                   .collect(Collectors.joining(", ", "{", "}"));
     }
 
     public void unload()
