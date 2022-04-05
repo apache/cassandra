@@ -54,6 +54,7 @@ public class GuardrailMaxDCReplicationFactorTest extends ThresholdTester
     @Override
     protected long currentValue()
     {
+        //Keyspace.open("ks").getMetadata();
         return Long.parseLong((Keyspace.open("ks").getReplicationStrategy()).configOptions.get("datacenter1"));
     }
 
