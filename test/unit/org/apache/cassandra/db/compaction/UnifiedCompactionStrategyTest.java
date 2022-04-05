@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -564,7 +565,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         assertEquals(0, strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
 
         for (CompactionPick pick : strategy.backgroundCompactions.getCompactionsInProgress())
-            strategy.backgroundCompactions.onInProgress(mockProgress(strategy, pick.id));
+            strategy.backgroundCompactions.onInProgress(mockProgress(strategy, pick.id()));
 
         // now that we have a rate, make sure we produce tasks to fill up the limit
         assertEquals(Math.min(maxThroughput, maxCount) - 1, strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
@@ -573,8 +574,8 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         assertEquals(0, strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
 
         for (CompactionPick pick : strategy.backgroundCompactions.getCompactionsInProgress())
-            if (pick.progress == null)
-                strategy.backgroundCompactions.onInProgress(mockProgress(strategy, pick.id));
+            if (pick.progress() == null)
+                strategy.backgroundCompactions.onInProgress(mockProgress(strategy, pick.id()));
 
         // and also when they do
         assertEquals(0, strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
@@ -584,7 +585,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
              --remaining)
         {
             // mark a task as completed
-            strategy.backgroundCompactions.onCompleted(strategy, Iterables.get(strategy.backgroundCompactions.getCompactionsInProgress(), 0).id);
+            strategy.backgroundCompactions.onCompleted(strategy, Iterables.get(strategy.backgroundCompactions.getCompactionsInProgress(), 0).id());
 
             // and check that we get a new one
             assertEquals(1, strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
@@ -1161,6 +1162,44 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         }
     }
 
+    @Test
+    public void testGetNextCompactionAggregates()
+    {
+        Controller controller = Mockito.mock(Controller.class);
+        long minimalSizeBytes = 2 << 20;
+        when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
+        when(controller.getScalingParameter(anyInt())).thenReturn(0);
+        when(controller.getFanout(anyInt())).thenCallRealMethod();
+        when(controller.getThreshold(anyInt())).thenCallRealMethod();
+        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
+        when(controller.getNumShards()).thenReturn(1);
+        when(controller.areL0ShardsEnabled()).thenReturn(true);
+        when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
+        when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
+        when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
+        when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
+        when(controller.maxSSTablesToCompact()).thenReturn(1000);
+        when(controller.maybeSort(anyList())).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.maybeRandomize(any(IntArrayList.class))).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.random()).thenCallRealMethod();
+
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
+
+        CompactionPick compaction = Mockito.mock(CompactionPick.class);
+        when(compaction.isEmpty()).thenReturn(false);
+        when(compaction.hasExpiredOnly()).thenReturn(false);
+        List<SSTableReader> nonExpiredSSTables = createSStables(realm.getPartitioner());
+        when(compaction.ssstables()).thenReturn(ImmutableSet.copyOf(nonExpiredSSTables));
+
+        CompactionAggregate.UnifiedAggregate aggregate = Mockito.mock(CompactionAggregate.UnifiedAggregate.class);
+        when(aggregate.getSelected()).thenReturn(compaction);
+
+        Collection<CompactionAggregate> compactionAggregates = strategy.getNextCompactionAggregates(ImmutableList.of(aggregate), 1000);
+        assertNotNull(compactionAggregates);
+        assertEquals(1, compactionAggregates.size());
+    }
+
     private List<SSTableReader> createSStables(IPartitioner partitioner)
     {
         return createSStables(partitioner, mapFromPair(Pair.create(4 * ONE_MB, 4)), 10000, UUID.randomUUID());
@@ -1294,10 +1333,10 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
             {
                 // expired SSTables don't contribute to total size
                 assertTrue(pick.hasExpiredOnly());
-                assertEquals(sstables.size() / 3, pick.expired.size());
-                assertEquals(0L, pick.totSizeInBytes);
-                assertEquals(0L, pick.avgSizeInBytes);
-                assertEquals(0, pick.parent);
+                assertEquals(sstables.size() / 3, pick.expired().size());
+                assertEquals(0L, pick.totSizeInBytes());
+                assertEquals(0L, pick.avgSizeInBytes());
+                assertEquals(0, pick.parent());
             }
         }
         finally
@@ -1350,17 +1389,17 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
             for (CompactionPick pick : picks)
             {
                 assertFalse(pick.hasExpiredOnly());
-                assertEquals(pick.sstables.size() / 2, pick.expired.size());
-                Set<CompactionSSTable> nonExpired = pick.sstables.stream()
-                                                                 .filter(sstable -> !pick.expired.contains(sstable))
+                assertEquals(pick.ssstables().size() / 2, pick.expired().size());
+                Set<CompactionSSTable> nonExpired = pick.ssstables().stream()
+                                                                 .filter(sstable -> !pick.expired().contains(sstable))
                                                                  .collect(Collectors.toSet());
-                assertEquals(pick.sstables.size() / 2, nonExpired.size());
+                assertEquals(pick.ssstables().size() / 2, nonExpired.size());
                 long expectedTotSize = nonExpired.stream()
                                                  .mapToLong(CompactionSSTable::onDiskLength)
                                                  .sum();
-                assertEquals(expectedTotSize, pick.totSizeInBytes);
-                assertEquals(expectedTotSize / nonExpired.size(), pick.avgSizeInBytes);
-                assertEquals(0, pick.parent);
+                assertEquals(expectedTotSize, pick.totSizeInBytes());
+                assertEquals(expectedTotSize / nonExpired.size(), pick.avgSizeInBytes());
+                assertEquals(0, pick.parent());
             }
         }
         finally

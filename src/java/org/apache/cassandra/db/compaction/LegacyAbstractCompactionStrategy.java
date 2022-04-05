@@ -85,7 +85,7 @@ abstract class LegacyAbstractCompactionStrategy extends AbstractCompactionStrate
                     return ImmutableList.of();
                 }
 
-                LifecycleTransaction transaction = realm.tryModify(compaction.getSelected().sstables, OperationType.COMPACTION);
+                LifecycleTransaction transaction = realm.tryModify(compaction.getSelected().ssstables(), OperationType.COMPACTION);
                 if (transaction != null)
                 {
                     backgroundCompactions.setSubmitted(this, transaction.opId(), compaction);

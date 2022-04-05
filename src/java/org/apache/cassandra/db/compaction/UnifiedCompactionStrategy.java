@@ -17,6 +17,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,7 +40,6 @@ import org.slf4j.LoggerFactory;
 
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
@@ -149,14 +149,28 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public synchronized Collection<AbstractCompactionTask> getNextBackgroundTasks(int gcBefore)
     {
+        // TODO - we should perhaps consider executing this code less frequently than legacy strategies
+        // since it's more expensive, and we should therefore prevent a second concurrent thread from executing at all
+
+        return getNextBackgroundTasks(getNextCompactionAggregates(gcBefore), gcBefore);
+    }
+
+    /**
+     * Used by CNDB where compaction aggregates come from etcd rather than the strategy
+     * @return collection of AbstractCompactionTask, which could be either a CompactionTask or an UnifiedCompactionTask
+     */
+    public synchronized Collection<AbstractCompactionTask> getNextBackgroundTasks(Collection<CompactionAggregate> aggregates, int gcBefore)
+    {
         controller.onStrategyBackgroundTaskRequest();
+        return createCompactionTasks(aggregates, gcBefore);
+    }
 
-        Collection<CompactionAggregate> compactionAggregates = getNextCompactionAggregates(gcBefore, controller.maxConcurrentCompactions());
-
-        Collection<AbstractCompactionTask> tasks = new ArrayList<>(compactionAggregates.size());
-        for (CompactionAggregate aggregate : compactionAggregates)
+    private synchronized Collection<AbstractCompactionTask> createCompactionTasks(Collection<CompactionAggregate> aggregates, int gcBefore)
+    {
+        Collection<AbstractCompactionTask> tasks = new ArrayList<>(aggregates.size());
+        for (CompactionAggregate aggregate : aggregates)
         {
-            LifecycleTransaction transaction = realm.tryModify(aggregate.getSelected().sstables, OperationType.COMPACTION);
+            LifecycleTransaction transaction = realm.tryModify(aggregate.getSelected().ssstables(), OperationType.COMPACTION);
             if (transaction != null)
             {
                 backgroundCompactions.setSubmitted(this, transaction.opId(), aggregate);
@@ -361,7 +375,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         return arenaSelector.shardBoundaries;
     }
 
-    private Collection<CompactionAggregate> getNextCompactionAggregates(int gcBefore, int maxConcurrentCompactions)
+    private CompactionLimits getCurrentLimits(int maxConcurrentCompactions)
     {
         // Calculate the running compaction limits, i.e. the overall number of compactions permitted, which is either
         // the compaction thread count, or the compaction throughput divided by the compaction rate (to prevent slowing
@@ -425,14 +439,110 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             ++perLevel[level];
             ++runningCompactions;
             levelCount = Math.max(levelCount, level + 1);
-            spaceAvailable -= compaction.totSizeInBytes;
+            spaceAvailable -= compaction.totSizeInBytes();
         }
 
+        CompactionLimits limits = new CompactionLimits(runningCompactions, 
+                                                       maxCompactions,
+                                                       maxConcurrentCompactions,
+                                                       perLevel,
+                                                       levelCount,
+                                                       spaceAvailable,
+                                                       rateLimitLog);
         logger.debug("Selecting up to {} new compactions of up to {}, concurrency limit {}{}",
-                     maxCompactions - runningCompactions,
-                     FBUtilities.prettyPrintMemory(spaceAvailable),
-                     maxConcurrentCompactions,
-                     rateLimitLog);
+                     Math.max(0, limits.maxCompactions - limits.runningCompactions),
+                     FBUtilities.prettyPrintMemory(limits.spaceAvailable),
+                     limits.maxConcurrentCompactions,
+                     limits.rateLimitLog);
+        return limits;
+    }
+
+    private Collection<CompactionAggregate> updateLevelCountWithParentAndGetSelection(final CompactionLimits limits,
+                                                                                      List<CompactionAggregate.UnifiedAggregate> pending)
+    {
+        for (CompactionAggregate.UnifiedAggregate aggregate : pending)
+        {
+            CompactionPick selected = aggregate.getSelected();
+            if (selected != null)
+                limits.levelCount = Math.max(limits.levelCount, (int) selected.parent());
+        }
+
+        final List<CompactionAggregate> selection = getSelection(pending,
+                                                                 limits.maxCompactions,
+                                                                 limits.levelCount,
+                                                                 limits.perLevel,
+                                                                 limits.spaceAvailable);
+        logger.debug("Starting {} compactions (out of {})", selection.size(), pending.stream().filter(agg -> !agg.getSelected().isEmpty()).count());
+        return selection;
+    }
+
+    /**
+     * Selects compactions to run next.
+     * 
+     * @param gcBefore
+     * @return a subset of compaction aggregates to run next
+     */
+    private Collection<CompactionAggregate> getNextCompactionAggregates(int gcBefore)
+    {
+        final CompactionLimits limits = getCurrentLimits(controller.maxConcurrentCompactions());
+
+        List<CompactionAggregate.UnifiedAggregate> pending = getPendingCompactionAggregates(limits.spaceAvailable, gcBefore);
+        for (CompactionAggregate.UnifiedAggregate aggregate : pending)
+        {
+            // The space overhead limit also applies when a single compaction is above that limit. This should
+            // prevent running out of space at the expense of several highest-level tables extra, i.e. slightly
+            // higher read amplification, which I think is a sensible tradeoff; however, operators must be warned
+            // if this happens.
+            warnIfSizeAbove(aggregate, limits.spaceAvailable);
+
+            // Make sure the level count includes all levels for which we have sstables (to be ready to compact
+            // as soon as the threshold is crossed)...
+            limits.levelCount = Math.max(limits.levelCount, aggregate.bucketIndex() + 1);
+            CompactionPick selected = aggregate.getSelected();
+            if (selected != null)
+            {
+                // ... and also the levels that a layout-preserving selection would create.
+                limits.levelCount = Math.max(limits.levelCount, levelOf(selected) + 1);
+            }
+        }
+
+        return updateLevelCountWithParentAndGetSelection(limits, pending);
+    }
+    
+    /**
+     * Selects compactions to run next from the passed aggregates.
+     *
+     * The intention here is to use this method directly from outside processes, to run compactions from a set
+     * of pre-existing aggregates, that have been generated out of process.
+     *
+     * @param aggregates a collection of aggregates from which to select the next compactions
+     * @param maxConcurrentCompactions the maximum number of concurrent compactions
+     * @return a subset of compaction aggregates to run next
+     */
+    public Collection<CompactionAggregate> getNextCompactionAggregates(Collection<CompactionAggregate.UnifiedAggregate> aggregates, 
+                                                                       int maxConcurrentCompactions)
+    {
+        final CompactionLimits limits = getCurrentLimits(maxConcurrentCompactions);
+        maybeUpdateSelector();
+        return updateLevelCountWithParentAndGetSelection(limits, new ArrayList<>(aggregates));
+    }
+
+    /**
+     * Returns all pending compaction aggregates.
+     *
+     * This method is used by CNDB to find all pending compactions and put them to etcd.
+     *
+     * @param gcBefore
+     * @return all pending compaction aggregates
+     **/
+    public Collection<CompactionAggregate.UnifiedAggregate> getPendingCompactionAggregates(int gcBefore)
+    {
+        return getPendingCompactionAggregates(controller.maxCompactionSpaceBytes(), gcBefore);
+    }
+
+    private List<CompactionAggregate.UnifiedAggregate> getPendingCompactionAggregates(long spaceAvailable, int gcBefore)
+    {
+        maybeUpdateSelector();
 
         List<CompactionAggregate.UnifiedAggregate> pending = new ArrayList<>();
         long ts = System.currentTimeMillis();
@@ -459,41 +569,23 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 // Note: We allow empty aggregates into the list of pending compactions. The pending compactions list
                 // is for progress tracking only, and it is helpful to see empty levels there.
                 pending.add(aggregate);
-
-                // Make sure the level count includes all levels for which we have sstables (to be ready to compact
-                // as soon as the threshold is crossed)...
-                levelCount = Math.max(levelCount, aggregate.bucketIndex() + 1);
-                if (aggregate.selected != null)
-                {
-                    // ... and also the levels that a layout-preserving selection would create.
-                    levelCount = Math.max(levelCount, levelOf(aggregate.selected) + 1);
-                }
-
-                // The space overhead limit also applies when a single compaction is above that limit. This should
-                // prevent running out of space at the expense of several highest-level tables extra, i.e. slightly
-                // higher read amplification, which I think is a sensible tradeoff; however, operators must be warned
-                // if this happens.
-                warnIfSizeAbove(aggregate, spaceOverheadLimit);
             }
         }
 
         // Update the tracked background tasks.
         backgroundCompactions.setPending(this, pending);
-
-        final List<CompactionAggregate> selection = getSelection(pending, maxCompactions, levelCount, perLevel, spaceAvailable);
-        logger.debug("Starting {} compactions.", selection.size());
-        return selection;
+        return pending;
     }
 
     private void warnIfSizeAbove(CompactionAggregate.UnifiedAggregate aggregate, long spaceOverheadLimit)
     {
-        if (aggregate.selected.totSizeInBytes > spaceOverheadLimit)
+        if (aggregate.selected.totSizeInBytes() > spaceOverheadLimit)
             logger.warn("Compaction needs to perform an operation that is bigger than the current space overhead " +
                         "limit - size {} (compacting {} sstables in shard {}/bucket {}); limit {} = {}% of dataset size {}. " +
                         "To honor the limit, this operation will not be performed, which may result in degraded performance.\n" +
                         "Please verify the compaction parameters, specifically {} and {}.",
-                        FBUtilities.prettyPrintMemory(aggregate.selected.totSizeInBytes),
-                        aggregate.selected.sstables.size(),
+                        FBUtilities.prettyPrintMemory(aggregate.selected.totSizeInBytes()),
+                        aggregate.selected.ssstables().size(),
                         aggregate.getShard().name(),
                         aggregate.bucketIndex(),
                         FBUtilities.prettyPrintMemory(spaceOverheadLimit),
@@ -536,7 +628,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         for (int aggregateIndex = 0; aggregateIndex < pending.size(); ++aggregateIndex)
         {
             CompactionAggregate.UnifiedAggregate aggregate = pending.get(aggregateIndex);
-            final CompactionPick pick = aggregate.selected;
+            final CompactionPick pick = aggregate.getSelected();
             if (pick.isEmpty())
                 continue;
             if (pick.hasExpiredOnly())
@@ -544,7 +636,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 expired.add(aggregateIndex);
                 continue;
             }
-            if (pick.totSizeInBytes > spaceAvailable)
+            if (pick.totSizeInBytes() > spaceAvailable)
                 continue;
             if (perLevel[levelOf(pick)] > perLevelCount)
                 continue;  // this level is already using up all its share + one, we can ignore candidate altogether
@@ -587,9 +679,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 if (selection.get(aggregateIndex))
                     continue; // this is a repeat
                 CompactionAggregate.UnifiedAggregate aggregate = pending.get(aggregateIndex);
-                if (aggregate.selected.totSizeInBytes > spaceAvailable)
+                if (aggregate.getSelected().totSizeInBytes() > spaceAvailable)
                     continue; // compaction is too large for current cycle
-                int level = levelOf(aggregate.selected);
+                int level = levelOf(aggregate.getSelected());
 
                 if (perLevel[level] > perLevelCount)
                     continue;   // share + one already used
@@ -602,7 +694,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
                 --remaining;
                 ++perLevel[level];
-                spaceAvailable -= aggregate.selected.totSizeInBytes;
+                spaceAvailable -= aggregate.getSelected().totSizeInBytes();
                 selection.set(aggregateIndex);
             }
 
@@ -619,8 +711,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private int shardsSpanned(CompactionPick pick)
     {
-        PartitionPosition min = pick.sstables.stream().map(CompactionSSTable::getFirst).min(Ordering.natural()).get();
-        PartitionPosition max = pick.sstables.stream().map(CompactionSSTable::getLast).max(Ordering.natural()).get();
+        PartitionPosition min = pick.ssstables().stream().map(CompactionSSTable::getFirst).min(Ordering.natural()).get();
+        PartitionPosition max = pick.ssstables().stream().map(CompactionSSTable::getLast).max(Ordering.natural()).get();
         return arenaSelector.shardFor(max) - arenaSelector.shardFor(min) + 1;
     }
 
@@ -678,6 +770,22 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                       .add(table);
 
         return tables.values();
+    }
+
+    // used by CNDB to deserialize aggregates
+    public Shard getCompactionShard(Collection<? extends CompactionSSTable> sstables)
+    {
+        maybeUpdateSelector();
+        Shard shard = new Shard(arenaSelector, realm);
+        for (CompactionSSTable table : sstables)
+            shard.add(table);
+        return shard;
+    }
+
+    // used by CNDB to deserialize aggregates
+    public Bucket getBucket(int index, long min)
+    {
+        return new Bucket(controller, index, min);
     }
 
     /**
@@ -743,7 +851,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private static int levelOf(CompactionPick pick)
     {
-        return (int) pick.parent;
+        return (int) pick.parent();
     }
 
     public TableMetadata getMetadata()
@@ -1060,6 +1168,42 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         {
             return String.format("W: %d, T: %d, F: %d, index: %d, min: %s, max %s, %d sstables",
                                  scalingParameter, threshold, fanout, index, FBUtilities.prettyPrintMemory(min), FBUtilities.prettyPrintMemory(max), sstables.size());
+        }
+    }
+
+    static class CompactionLimits
+    {
+        final int runningCompactions;
+        final int maxConcurrentCompactions;
+        final int maxCompactions;
+        final int[] perLevel;
+        int levelCount;
+        final long spaceAvailable;
+        final String rateLimitLog;
+
+        public CompactionLimits(int runningCompactions,
+                                int maxCompactions,
+                                int maxConcurrentCompactions,
+                                int[] perLevel,
+                                int levelCount,
+                                long spaceAvailable,
+                                String rateLimitLog)
+        {
+            this.runningCompactions = runningCompactions;
+            this.maxCompactions = maxCompactions;
+            this.maxConcurrentCompactions = maxConcurrentCompactions;
+            this.perLevel = perLevel;
+            this.levelCount = levelCount;
+            this.spaceAvailable = spaceAvailable;
+            this.rateLimitLog = rateLimitLog;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("Current limits: running=%d, max=%d, maxConcurrent=%d, perLevel=%s, levelCount=%d, spaceAvailable=%s, rateLimitLog=%s",
+                                 runningCompactions, maxCompactions, maxConcurrentCompactions, Arrays.toString(perLevel), levelCount,
+                                 FBUtilities.prettyPrintMemory(spaceAvailable), rateLimitLog);
         }
     }
 }
