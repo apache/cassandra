@@ -550,7 +550,7 @@
           </dependency>
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.12" scope="test"/>
           <dependency groupId="org.apache.cassandra" artifactId="harry-core" version="0.0.1" scope="test"/>
-          <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
+          <dependency groupId="org.reflections" artifactId="reflections" version="0.10.2" scope="test"/>
           <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="8.40" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
             <exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
