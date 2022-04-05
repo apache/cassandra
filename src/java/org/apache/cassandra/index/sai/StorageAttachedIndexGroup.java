@@ -31,7 +31,8 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
-import org.apache.mina.util.ConcurrentHashSet;
+import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +80,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     private final TableStateMetrics stateMetrics;
     private final IndexGroupMetrics groupMetrics;
     
-    private final Set<StorageAttachedIndex> indices = new ConcurrentHashSet<>();
+    private final Set<StorageAttachedIndex> indices = Sets.newConcurrentHashSet();
     private final ColumnFamilyStore baseCfs;
 
     private final SSTableContextManager contextManager;
