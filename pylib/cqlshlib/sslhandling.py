@@ -50,7 +50,8 @@ def ssl_settings(host, config_file, env=os.environ):
             return None
 
     def get_best_tls_protocol(ssl_ver_str):
-        warnings.warn("Explict SSL and TLS versions in the cqlshrc file are ignored as the protocol is auto-negotiated.")
+        if ssl_ver_str:
+            warnings.warn("Explict SSL and TLS versions in the cqlshrc file are ignored as the protocol is auto-negotiated.")
         return ssl.PROTOCOL_TLS
 
     ssl_validate = env.get('SSL_VALIDATE')
@@ -63,9 +64,6 @@ def ssl_settings(host, config_file, env=os.environ):
         ssl_version_str = get_option('ssl', 'version')
 
     ssl_version = get_best_tls_protocol(ssl_version_str)
-    if ssl_version is None:
-        sys.exit("%s is not a valid SSL protocol, please use one of "
-                 "TLS, TLSv1_2, TLSv1_1, or TLSv1" % (ssl_version_str,))
 
     ssl_certfile = env.get('SSL_CERTFILE')
     if ssl_certfile is None:
