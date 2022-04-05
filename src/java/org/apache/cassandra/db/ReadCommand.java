@@ -979,15 +979,18 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (hasIndex)
             {
                 IndexMetadata index = deserializeIndexMetadata(in, version, metadata);
-                Index.Group indexGroup =  Keyspace.openAndGetStore(metadata).indexManager.getIndexGroup(index);
-                if (indexGroup != null)
-                    indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+                if (index != null)
+                {
+                    Index.Group indexGroup = Keyspace.openAndGetStore(metadata).indexManager.getIndexGroup(index);
+                    if (indexGroup != null)
+                        indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+                }
             }
 
             return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
-        private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        private @Nullable IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             try
             {
