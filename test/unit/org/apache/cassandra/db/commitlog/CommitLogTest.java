@@ -404,13 +404,13 @@ public abstract class CommitLogTest
                       .build();
         CommitLog.instance.add(m2);
 
-        assertEquals(2, CommitLog.instance.segmentManager.getActiveSegments().size());
+        assertEquals(2, CommitLog.instance.getSegmentManager().getActiveSegments().size());
 
         TableId id2 = m2.getTableIds().iterator().next();
         CommitLog.instance.discardCompletedSegments(id2, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
 
         // Assert we still have both our segments
-        assertEquals(2, CommitLog.instance.segmentManager.getActiveSegments().size());
+        assertEquals(2, CommitLog.instance.getSegmentManager().getActiveSegments().size());
     }
 
     @Test
@@ -430,14 +430,14 @@ public abstract class CommitLogTest
         CommitLog.instance.add(rm);
         CommitLog.instance.add(rm);
 
-        assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
+        assertEquals(1, CommitLog.instance.getSegmentManager().getActiveSegments().size());
 
         // "Flush": this won't delete anything
         TableId id1 = rm.getTableIds().iterator().next();
         CommitLog.instance.sync(true);
         CommitLog.instance.discardCompletedSegments(id1, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
 
-        assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
+        assertEquals(1, CommitLog.instance.getSegmentManager().getActiveSegments().size());
 
         // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
         Mutation rm2 = new RowUpdateBuilder(cfs2.metadata(), 0, "k")
@@ -449,7 +449,7 @@ public abstract class CommitLogTest
         CommitLog.instance.add(rm2);
         CommitLog.instance.add(rm2);
 
-        Collection<CommitLogSegment> segments = CommitLog.instance.segmentManager.getActiveSegments();
+        Collection<CommitLogSegment> segments = CommitLog.instance.getSegmentManager().getActiveSegments();
 
         assertEquals(String.format("Expected 3 segments but got %d (%s)", segments.size(), getDirtyCFIds(segments)),
                      3,
@@ -461,7 +461,7 @@ public abstract class CommitLogTest
         TableId id2 = rm2.getTableIds().iterator().next();
         CommitLog.instance.discardCompletedSegments(id2, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
 
-        segments = CommitLog.instance.segmentManager.getActiveSegments();
+        segments = CommitLog.instance.getSegmentManager().getActiveSegments();
 
         // Assert we still have both our segment
         assertEquals(String.format("Expected 1 segment but got %d (%s)", segments.size(), getDirtyCFIds(segments)),
@@ -768,13 +768,13 @@ public abstract class CommitLogTest
             for (int i = 0 ; i < 5 ; i++)
                 CommitLog.instance.add(m2);
 
-            assertEquals(2, CommitLog.instance.segmentManager.getActiveSegments().size());
+            assertEquals(2, CommitLog.instance.getSegmentManager().getActiveSegments().size());
             CommitLogPosition position = CommitLog.instance.getCurrentPosition();
             for (Keyspace keyspace : Keyspace.system())
                 for (ColumnFamilyStore syscfs : keyspace.getColumnFamilyStores())
                     CommitLog.instance.discardCompletedSegments(syscfs.metadata().id, CommitLogPosition.NONE, position);
             CommitLog.instance.discardCompletedSegments(cfs2.metadata().id, CommitLogPosition.NONE, position);
-            assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
+            assertEquals(1, CommitLog.instance.getSegmentManager().getActiveSegments().size());
         }
         finally
         {
@@ -836,7 +836,7 @@ public abstract class CommitLogTest
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         assertFalse(activeSegments.isEmpty());
 
-        File[] files = CommitLog.instance.segmentManager.storageDirectory.tryList((file, name) -> activeSegments.contains(name));
+        File[] files = CommitLog.instance.getSegmentManager().storageDirectory.tryList((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
 
         assertEquals(cellCount, replayer.cells);
@@ -857,7 +857,7 @@ public abstract class CommitLogTest
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         assertFalse(activeSegments.isEmpty());
 
-        File[] files = CommitLog.instance.segmentManager.storageDirectory.tryList((file, name) -> activeSegments.contains(name));
+        File[] files = CommitLog.instance.getSegmentManager().storageDirectory.tryList((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
         assertEquals(1, replayer.cells);
 
@@ -896,7 +896,7 @@ public abstract class CommitLogTest
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         assertFalse(activeSegments.isEmpty());
 
-        File[] files = CommitLog.instance.segmentManager.storageDirectory.tryList((file, name) -> activeSegments.contains(name));
+        File[] files = CommitLog.instance.getSegmentManager().storageDirectory.tryList((file, name) -> activeSegments.contains(name));
         replayer.replayFiles(files);
 
         assertEquals(cellCount, replayer.cells);

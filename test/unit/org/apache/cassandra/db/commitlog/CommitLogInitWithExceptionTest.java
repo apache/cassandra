@@ -91,7 +91,7 @@ public class CommitLogInitWithExceptionTest
             Assert.fail();
         }
 
-        Assert.assertEquals(Thread.State.TERMINATED, CommitLog.instance.segmentManager.managerThread.getState()); // exit successfully
+        Assert.assertEquals(Thread.State.TERMINATED, CommitLog.instance.getSegmentManager().managerThread.getState()); // exit successfully
     }
 
     private static class MockCommitLogSegmentMgr extends CommitLogSegmentManagerStandard {
