@@ -254,7 +254,7 @@ public class BackgroundCompactions
         CompactionPick completed = compactions.remove(id);
         if (completed != null)
         {
-            CompactionProgress progress = completed.progress;
+            CompactionProgress progress = completed.progress();
             updateCompactionRate(progress);
             completed.setCompleted();
         }

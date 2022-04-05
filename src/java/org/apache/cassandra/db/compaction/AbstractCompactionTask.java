@@ -179,7 +179,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         return this;
     }
 
-    void addObserver(CompactionObserver compObserver)
+    public void addObserver(CompactionObserver compObserver)
     {
         compObservers.add(compObserver);
     }
