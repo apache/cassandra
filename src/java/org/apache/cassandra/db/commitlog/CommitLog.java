@@ -85,7 +85,7 @@ public class CommitLog implements CommitLogMBean
 
     private static final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
 
-    final public AbstractCommitLogSegmentManager segmentManager;
+    private volatile AbstractCommitLogSegmentManager segmentManager;
 
     public final CommitLogArchiver archiver;
     public final CommitLogMetrics metrics;
@@ -181,6 +181,20 @@ public class CommitLog implements CommitLogMBean
         if (files == null)
             return new File[0];
         return files;
+    }
+
+    /**
+     * Updates the commit log storage directory and re-initializes the segment manager accordingly.
+     * <p/>
+     * Used by CNDB.
+     *
+     * @param commitLogLocation storage directory to update to
+     * @return this commit log with updated storage directory
+     */
+    public CommitLog forPath(File commitLogLocation)
+    {
+        segmentManager = new CommitLogSegmentManagerStandard(this, commitLogLocation);
+        return this;
     }
 
     /**
@@ -604,6 +618,11 @@ public class CommitLog implements CommitLogMBean
                                  msg, segmentSize, unallocatedSpace, DatabaseDescriptor.getCommitLogLocation());
         }
         return msg;
+    }
+
+    public AbstractCommitLogSegmentManager getSegmentManager()
+    {
+        return segmentManager;
     }
 
     public static final class Configuration

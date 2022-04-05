@@ -65,14 +65,14 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         // Need to clean out any files from previous test runs. Prevents flaky test failures.
         CommitLog.instance.stopUnsafe(true);
         CommitLog.instance.start();
-        ((CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager).updateCDCTotalSize();
+        ((CommitLogSegmentManagerCDC)CommitLog.instance.getSegmentManager()).updateCDCTotalSize();
     }
 
     @Test
     public void testCDCWriteFailure() throws Throwable
     {
         createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
-        CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
+        CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.getSegmentManager();
         TableMetadata cfm = currentTableMetadata();
 
         // Confirm that logic to check for whether or not we can allocate new CDC segments works
@@ -127,7 +127,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     @Test
     public void testSegmentFlaggingOnCreation() throws Throwable
     {
-        CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
+        CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.getSegmentManager();
         String ct = createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
 
         int origSize = DatabaseDescriptor.getCDCSpaceInMB();
@@ -179,7 +179,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             .build().apply();
 
         CommitLog.instance.sync(true);
-        CommitLogSegment currentSegment = CommitLog.instance.segmentManager.allocatingFrom();
+        CommitLogSegment currentSegment = CommitLog.instance.getSegmentManager().allocatingFrom();
         int syncOffset = currentSegment.lastSyncedOffset;
 
         // Confirm index file is written
@@ -198,7 +198,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     public void testCompletedFlag() throws IOException
     {
         createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
-        CommitLogSegment initialSegment = CommitLog.instance.segmentManager.allocatingFrom();
+        CommitLogSegment initialSegment = CommitLog.instance.getSegmentManager().allocatingFrom();
         Integer originalCDCSize = DatabaseDescriptor.getCDCSpaceInMB();
 
         DatabaseDescriptor.setCDCSpaceInMB(8);
@@ -241,7 +241,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         new RowUpdateBuilder(currentTableMetadata(), 0, 1)
             .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
             .build().apply();
-        CommitLogSegment currentSegment = CommitLog.instance.segmentManager.allocatingFrom();
+        CommitLogSegment currentSegment = CommitLog.instance.getSegmentManager().allocatingFrom();
 
         // Confirm that, with no CDC data present, we've hard-linked but have no index file
         Path linked = new File(DatabaseDescriptor.getCDCLogLocation(), currentSegment.logFile.name()).toPath();
@@ -256,7 +256,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
         // Force a full recycle and confirm hard-link is deleted
         CommitLog.instance.forceRecycleAllSegments();
-        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
+        CommitLog.instance.getSegmentManager().awaitManagementTasksCompletion();
         Assert.assertFalse("Expected hard link to CLS to be deleted on non-cdc segment: " + linked, Files.exists(linked));
     }
 
@@ -264,7 +264,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     public void testRetainLinkOnDiscardCDC() throws Throwable
     {
         createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
-        CommitLogSegment currentSegment = CommitLog.instance.segmentManager.allocatingFrom();
+        CommitLogSegment currentSegment = CommitLog.instance.getSegmentManager().allocatingFrom();
         File cdcIndexFile = currentSegment.getCDCIndexFile();
         Assert.assertFalse("Expected no index file before flush but found: " + cdcIndexFile, cdcIndexFile.exists());
 
@@ -333,7 +333,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             // hang in the shutdown on CQLTester trying to clean up / drop keyspaces / tables and hanging applying
             // mutations.
             CommitLog.instance.start();
-            CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
+            CommitLog.instance.getSegmentManager().awaitManagementTasksCompletion();
         }
         CDCTestReplayer replayer = new CDCTestReplayer();
         replayer.examineCommitLog();
@@ -447,11 +447,11 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
     private void expectCurrentCDCState(CDCState expectedState)
     {
-        CDCState currentState = CommitLog.instance.segmentManager.allocatingFrom().getCDCState();
+        CDCState currentState = CommitLog.instance.getSegmentManager().allocatingFrom().getCDCState();
         if (currentState != expectedState)
         {
             logger.error("expectCurrentCDCState violation! Expected state: {}. Found state: {}. Current CDC allocation: {}",
-                         expectedState, currentState, ((CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager).updateCDCTotalSize());
+                         expectedState, currentState, ((CommitLogSegmentManagerCDC)CommitLog.instance.getSegmentManager()).updateCDCTotalSize());
             Assert.fail(String.format("Received unexpected CDCState on current allocatingFrom segment. Expected: %s. Received: %s",
                         expectedState, currentState));
         }

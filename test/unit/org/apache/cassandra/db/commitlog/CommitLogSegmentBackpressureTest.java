@@ -111,7 +111,7 @@ public class CommitLogSegmentBackpressureTest
 
             dummyThread.start();
 
-            AbstractCommitLogSegmentManager clsm = CommitLog.instance.segmentManager;
+            AbstractCommitLogSegmentManager clsm = CommitLog.instance.getSegmentManager();
 
             Util.spinAssertEquals(3, () -> clsm.getActiveSegments().size(), 5);
 

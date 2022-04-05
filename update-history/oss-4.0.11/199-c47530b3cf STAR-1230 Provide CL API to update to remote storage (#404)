@@ -1,0 +1,16 @@
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+@@ -83,13 +83,9 @@
+ 
+     public static final CommitLog instance = CommitLog.construct();
+ 
+-<<<<<<<
+     private static final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
+ 
+-    final public AbstractCommitLogSegmentManager segmentManager;
+-=======
+     private volatile AbstractCommitLogSegmentManager segmentManager;
+->>>>>>>
+ 
+     public final CommitLogArchiver archiver;
+     public final CommitLogMetrics metrics;
