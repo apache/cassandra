@@ -131,9 +131,24 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
         return additions != null && !additions.isEmpty();
     }
 
+    public int additionsSize()
+    {
+        return additions != null ? additions.size() : 0;
+    }
+
     public boolean hasDeletions()
     {
         return deletions != null && !deletions.isEmpty();
+    }
+
+    public int deletionsSize()
+    {
+        return deletions != null ? deletions.size() : 0;
+    }
+
+    public int totalModifications()
+    {
+        return additionsSize() + deletionsSize();
     }
 
     public void forEachAddition(BiConsumer<K, V> consumer)

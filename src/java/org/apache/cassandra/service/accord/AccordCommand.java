@@ -204,7 +204,8 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 
     private long unsharedSizeOnHeap()
     {
-        throw new UnsupportedOperationException();
+        // FIXME (metadata): calculate
+        return EMPTY_SIZE + 400;
     }
 
     @Override

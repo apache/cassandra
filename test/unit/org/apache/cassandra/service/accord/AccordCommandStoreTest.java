@@ -68,7 +68,7 @@ public class AccordCommandStoreTest
     }
 
     @Test
-    public void loadSave() throws Throwable
+    public void commandLoadSave() throws Throwable
     {
         AtomicLong clock = new AtomicLong(0);
         TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
@@ -113,7 +113,7 @@ public class AccordCommandStoreTest
         command.addListener(new AccordCommand(commandStore, oldTxnId1));
         processCommandResult(command);
 
-        AccordKeyspace.saveCommand(command);
+        AccordKeyspace.getCommandMutation(command).apply();
         logger.info("E: {}", command);
         Command actual = AccordKeyspace.loadCommand(commandStore, txnId);
         logger.info("A: {}", actual);

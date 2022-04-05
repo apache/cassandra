@@ -19,10 +19,7 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 
 import accord.txn.TxnId;
@@ -35,96 +32,72 @@ import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
-import static com.google.common.collect.Iterators.all;
+import static com.google.common.collect.Iterables.all;
 
 
-public abstract class AsyncLoader
+public class AsyncLoader
 {
     enum State
     {
         INITIALIZED,
         ACQUIRING,
+        DISPATCHING,
         LOADING,
         FINISHED
     }
 
     private State state = State.INITIALIZED;
     protected final AccordCommandStore commandStore;
-    protected Future<?> readFuture;
-    protected final Map<TxnId, AccordCommand> commands = new HashMap<>();
-    protected final Map<PartitionKey, AccordCommandsForKey> keyCommands = new HashMap<>();
+    protected final Iterable<TxnId> commandsToLoad;
+    protected final Iterable<PartitionKey> keyCommandsToLoad;
 
-    public AsyncLoader(AccordCommandStore commandStore)
+    protected Future<?> readFuture;
+
+    public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
     {
         this.commandStore = commandStore;
+        this.commandsToLoad = commandsToLoad;
+        this.keyCommandsToLoad = keyCommandsToLoad;
     }
 
-    protected abstract Iterator<TxnId> commandsToLoad();
-
-    protected abstract Iterator<PartitionKey> keyCommandsToLoad();
-
-    protected boolean acquireCommand(TxnId txnId)
+    protected boolean acquireCommand(TxnId txnId, AsyncContext context)
     {
         AccordCommand command = commandStore.commandCache().acquire(txnId);
         if (command == null)
             return false;
-        commands.put(command.txnId(), command);
+        context.commands.put(command.txnId(), command);
         return true;
     }
 
-    protected boolean acquireCommandsForKey(PartitionKey key)
+    protected boolean acquireCommandsForKey(PartitionKey key, AsyncContext context)
     {
         AccordCommandsForKey commandsForKey = commandStore.commandsForKeyCache().acquire(key);
         if (commandsForKey == null)
             return false;
-        keyCommands.put(key, commandsForKey);
+        context.keyCommands.put(key, commandsForKey);
         return true;
     }
 
-    void releaseResources()
+    private boolean attemptAcquire(AsyncContext context)
     {
-        commands.values().forEach(commandStore.commandCache()::release);
-        commands.clear();
-        keyCommands.values().forEach(commandStore.commandsForKeyCache()::release);
-        keyCommands.clear();
-    }
-
-    /**
-     * identify required objects, retrieve from cache where possible
-     */
-    public void setup()
-    {
-        if (!all(commandsToLoad(), this::acquireCommand))
+        if (!all(commandsToLoad, txnId -> acquireCommand(txnId, context)))
         {
-            releaseResources();
-            return;
-        }
-        if (!all(keyCommandsToLoad(), this::acquireCommandsForKey))
-        {
-            releaseResources();
-            return;
-        }
-    }
-
-    private boolean attemptAcquire()
-    {
-        if (!all(commandsToLoad(), this::acquireCommand))
-        {
-            releaseResources();
+            context.releaseResources(commandStore);
             return false;
         }
-        if (!all(keyCommandsToLoad(), this::acquireCommandsForKey))
+
+        if (!all(keyCommandsToLoad, key -> acquireCommandsForKey(key, context)))
         {
-            releaseResources();
+            context.releaseResources(commandStore);
             return false;
         }
         return true;
     }
 
-    private Future<?> maybeDispatchReads()
+    private Future<?> maybeDispatchReads(AsyncContext context)
     {
         List<Future<?>> futures = null;
-        for (AccordCommand command : commands.values())
+        for (AccordCommand command : context.commands.values())
         {
             if (command.isLoaded())
                 continue;
@@ -134,17 +107,20 @@ public abstract class AsyncLoader
             futures.add(future);
         }
 
-        for (AccordCommandsForKey commandsForKey : keyCommands.values())
+        for (AccordCommandsForKey commandsForKey : context.keyCommands.values())
         {
-            throw new UnsupportedOperationException("TODO: convert commands for key to stored field");
+            if (commandsForKey.isLoaded())
+                continue;
+            if (futures == null) futures = new ArrayList<>();
+            Future<?> future = Stage.READ.submit(() -> AccordKeyspace.loadCommandsForKey(commandsForKey));
+            futures.add(future);
         }
-
 
         return futures != null ? FutureCombiner.allOf(futures) : null;
     }
 
 
-    public boolean load(BiConsumer<Object, Throwable> callback)
+    public boolean load(AsyncContext context, BiConsumer<Object, Throwable> callback)
     {
         commandStore.checkThreadId();
 
@@ -153,16 +129,29 @@ public abstract class AsyncLoader
             case INITIALIZED:
                 state = State.ACQUIRING;
             case ACQUIRING:
-                if (!attemptAcquire())
+                if (!attemptAcquire(context))
                 {
                     commandStore.executor().execute(() -> callback.accept(null, null));
                     break;
                 }
+                state = State.DISPATCHING;
+            case DISPATCHING:
+                readFuture = maybeDispatchReads(context);
                 state = State.LOADING;
-            case LOADING:
-                if (readFuture == null)
-                    readFuture = maybeDispatchReads();
 
+                /*
+                    TODO: do we need to acquire locks to the commands referenced by the commands per keys?
+                      I believe we only ever read the state of them, so it may be safe. The exception being races where
+                      we take an action based on stale state, although I'd expect notify listeners to prevent any issues
+                      there. .... Really, do we even need to acquire locks? We need to avoid evicting cached commands we
+                      expect to be in memory, but since processing is single threaded, we only need to worry about scenarios
+                      where there is a context switch before something is completed. I think Execution/Apply will be the
+                      only scenarios where that might happen (today) so we may only need to acquire locks then. We do
+                      need to wait until all changes are synced to disk before completing the future, but that is
+                      something different
+
+                 */
+            case LOADING:
                 if (readFuture != null && !readFuture.isDone())
                 {
                     // FIXME: this should call back into the AsyncOperation so a separate executor task isn't submitted
@@ -177,11 +166,6 @@ public abstract class AsyncLoader
                 throw new IllegalStateException();
         }
 
-        return state == State.FINISHED;
-    }
-
-    public boolean isFinished()
-    {
         return state == State.FINISHED;
     }
 }

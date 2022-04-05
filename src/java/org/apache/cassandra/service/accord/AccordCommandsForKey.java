@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -28,10 +29,15 @@ import accord.local.CommandsForKey;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.store.StoredNavigableMap;
+import org.apache.cassandra.service.accord.store.StoredValue;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public class AccordCommandsForKey extends CommandsForKey implements AccordStateCache.AccordState<PartitionKey, AccordCommandsForKey>
 {
-    enum SeriesKind {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommandsForKey(null, null));
+
+    public enum SeriesKind {
         UNCOMMITTED(Command::txnId),
         COMMITTED_BY_ID(Command::txnId),
         COMMITTED_BY_EXECUTE_AT(Command::executeAt);
@@ -44,13 +50,10 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         }
     }
 
-    // TODO: should this just be in memory? If it's just (timestamp) pointers, it will be 56 bytes per entry. A little extra if we duplicate status into here as well
-    // TODO: work out a compact timestamp serialization format. These should all be unsigned so it shouldn't be hard. Could just be byte arrays
-    // TODO: the 2 by id only need a single 28b timestamp plus metadata
-    // TODO: need txnId, isWrite, a lot of uses need deps, but that need a command
-    private class Series implements CommandTimeseries
+    public class Series implements CommandTimeseries
     {
-        private final SeriesKind kind;
+        public final SeriesKind kind;
+        public final StoredNavigableMap<Timestamp, TxnId> map = new StoredNavigableMap<>();
 
         public Series(SeriesKind kind)
         {
@@ -60,71 +63,98 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         @Override
         public Command get(Timestamp timestamp)
         {
-            TxnId txnId = AccordKeyspace.getCommandForKeySeriesEntry(commandStore, key, kind, timestamp);
-            return commandStore.command(txnId);
+            TxnId txnId = map.getView().get(timestamp);
+            return commandStore.command(txnId);  // FIXME: will need to lock these commands
         }
 
         @Override
         public void add(Timestamp timestamp, Command command)
         {
-            AccordKeyspace.addCommandForKeySeriesEntry(commandStore, key, kind, timestamp, command.txnId());
+            map.blindPut(timestamp, command.txnId());
         }
 
         @Override
         public void remove(Timestamp timestamp)
         {
-            AccordKeyspace.removeCommandForKeySeriesEntry(commandStore, key, kind, timestamp);
+            map.blindRemove(timestamp);
         }
 
-        private Stream<Command> idsToCommands(List<TxnId> ids)
+        private Stream<Command> idsToCommands(Collection<TxnId> ids)
         {
-            return ids.stream().map(commandStore::command);
-
-        }
-
-        @Override
-        public Stream<Command> before(Timestamp timestamp)
-        {
-            return idsToCommands(AccordKeyspace.commandsForKeysSeriesEntriesBefore(commandStore, key, kind, timestamp));
-        }
-
-        @Override
-        public Stream<Command> after(Timestamp timestamp)
-        {
-            return idsToCommands(AccordKeyspace.commandsForKeysSeriesEntriesAfter(commandStore, key, kind, timestamp));
-        }
-
-        @Override
-        public Stream<Command> between(Timestamp min, Timestamp max)
-        {
-            return idsToCommands(AccordKeyspace.commandsForKeysSeriesEntriesBetween(commandStore, key, kind, min, max));
-        }
-
-        @Override
-        public Stream<Command> all()
-        {
-            return idsToCommands(AccordKeyspace.allCommandsForKeysSeriesEntries(commandStore, key, kind));
+            return ids.stream().map(commandStore::command);  // FIXME: will need to lock these commands, unless they're read only...
         }
 
         @Override
         public boolean isEmpty()
         {
-            return AccordKeyspace.allCommandsForKeysSeriesEntries(commandStore, key, kind).isEmpty();
+            return map.getView().isEmpty();
+        }
+
+        @Override
+        public Stream<Command> before(Timestamp timestamp)
+        {
+            return idsToCommands(map.getView().headMap(timestamp, false).values());
+        }
+
+        @Override
+        public Stream<Command> after(Timestamp timestamp)
+        {
+            return idsToCommands(map.getView().tailMap(timestamp, false).values());
+        }
+
+        @Override
+        public Stream<Command> between(Timestamp min, Timestamp max)
+        {
+            return idsToCommands(map.getView().subMap(min, true, max, true).values());
+        }
+
+        @Override
+        public Stream<Command> all()
+        {
+            return idsToCommands(map.getView().values());
         }
     }
 
     private final CommandStore commandStore;
     private final PartitionKey key;
-    private Timestamp max;
-    private final Series uncommitted = new Series(SeriesKind.UNCOMMITTED);
-    private final Series committedById = new Series(SeriesKind.COMMITTED_BY_ID);
-    private final Series committedByExecuteAt = new Series(SeriesKind.COMMITTED_BY_EXECUTE_AT);
+    public final StoredValue<Timestamp> maxTimestamp = new StoredValue<>();
+    public final Series uncommitted = new Series(SeriesKind.UNCOMMITTED);
+    public final Series committedById = new Series(SeriesKind.COMMITTED_BY_ID);
+    public final Series committedByExecuteAt = new Series(SeriesKind.COMMITTED_BY_EXECUTE_AT);
 
-    public AccordCommandsForKey(CommandStore commandStore, PartitionKey key, Timestamp maxTimestamp)
+    public AccordCommandsForKey(CommandStore commandStore, PartitionKey key)
     {
         this.commandStore = commandStore;
         this.key = key;
-        max = maxTimestamp;
+    }
+
+    public void loadEmpty()
+    {
+        maxTimestamp.load(Timestamp.NONE);
+        uncommitted.map.load(new TreeMap<>());
+        committedById.map.load(new TreeMap<>());
+        committedByExecuteAt.map.load(new TreeMap<>());
+    }
+
+    public boolean hasModifications()
+    {
+        return maxTimestamp.hasModifications()
+               || uncommitted.map.hasModifications()
+               || committedById.map.hasModifications()
+               || committedByExecuteAt.map.hasModifications();
+    }
+
+    public boolean isLoaded()
+    {
+        return maxTimestamp.isLoaded()
+               && uncommitted.map.isLoaded()
+               && committedById.map.isLoaded()
+               && committedByExecuteAt.map.isLoaded();
+    }
+
+    public CommandStore commandStore()
+    {
+        return commandStore;
     }
 
     @Override
@@ -148,7 +178,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
 
     private long unsharedSizeOnHeap()
     {
-        throw new UnsupportedOperationException();
+        // FIXME (metadata): calculate
+        return EMPTY_SIZE + 400;
     }
 
     @Override
@@ -172,20 +203,14 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
     @Override
     public Timestamp max()
     {
-        return max;
+        return maxTimestamp.get();
     }
 
     @Override
     public void updateMax(Timestamp timestamp)
     {
-        if (max.compareTo(timestamp) <= 0)
+        if (maxTimestamp.get().compareTo(timestamp) <= 0)
             return;
-        max = timestamp;
-        AccordKeyspace.updateCommandsForKeyMaxTimestamp(commandStore, key, max);
-    }
-
-    public void save()
-    {
-        // TODO: save accumulated updates
+        maxTimestamp.set(timestamp);
     }
 }

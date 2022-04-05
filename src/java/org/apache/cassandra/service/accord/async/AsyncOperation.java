@@ -21,9 +21,11 @@ package org.apache.cassandra.service.accord.async;
 import java.util.function.Function;
 
 import accord.local.CommandStore;
+import accord.local.TxnOperation;
+import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
 
 public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
 {
@@ -46,19 +48,22 @@ public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
     private State state = State.INITIALIZED;
     private final AccordCommandStore commandStore;
     private final AsyncLoader loader;
-    private final Function<CommandStore, R> function;
+    private final AsyncWriter writer;
+    private final Function<? super CommandStore, R> function;
+    private AsyncContext context = new AsyncContext();
     private R result;
 
-    public AsyncOperation(AccordCommandStore commandStore, AsyncLoader loader, Function<CommandStore, R> function)
+    public AsyncOperation(AccordCommandStore commandStore, AsyncLoader loader, Function<? super CommandStore, R> function)
     {
         this.commandStore = commandStore;
         this.loader = loader;
+        this.writer = new AsyncWriter(commandStore);
         this.function = function;
     }
 
-    private Future<Void> saveStuff()
+    public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad, Function<? super CommandStore, R> function)
     {
-        throw new UnsupportedOperationException("TODO");
+        this(commandStore, new AsyncLoader(commandStore, commandsToLoad, keyCommandsToLoad), function);
     }
 
     private void callback(Object unused, Throwable throwable)
@@ -76,24 +81,27 @@ public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
     public void run()
     {
         commandStore.checkThreadId();
+        commandStore.setContext(context);
         try
         {
             switch (state)
             {
                 case INITIALIZED:
-                    if (!loader.load(this::callback))
-                        return;
+                    state = State.LOADING;
                 case LOADING:
+                    if (!loader.load(context, this::callback))
+                        return;
+
                     state = State.RUNNING;
                     result = function.apply(commandStore);
+                    // FIXME: if there is now a read or write to do, prevent other processes from attempting to perform them also
 
                     state = State.SAVING;
-                    Future<?> saveFuture = saveStuff();
-                    saveFuture.addCallback(this::callback, commandStore.executor());
-                    break;
                 case SAVING:
+                    if (!writer.save(context, this::callback))
+                        return;
                     state = State.COMPLETING;
-                    loader.releaseResources();
+                    context.releaseResources(commandStore);
                     setSuccess(result);
                     state = State.FINISHED;
                     break;
@@ -105,5 +113,25 @@ public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
         {
             tryFailure(t);
         }
+        finally
+        {
+            commandStore.unsetContext(context);
+        }
+    }
+
+    private static Iterable<PartitionKey> toPartitionKeys(Iterable<?> iterable)
+    {
+        return (Iterable<PartitionKey>) iterable;
+    }
+
+    public static <R, S> AsyncOperation<R> operationFor(CommandStore commandStore, S scope, Function<? super CommandStore, R> function)
+    {
+        AccordCommandStore store = (AccordCommandStore) commandStore;
+        if (scope instanceof TxnOperation)
+        {
+            TxnOperation op = (TxnOperation) scope;
+            return new AsyncOperation<>(store, op.expectedTxnIds(), toPartitionKeys(op.expectedKeys()), function);
+        }
+        throw new IllegalArgumentException("Unhandled scope: " + scope);
     }
 }

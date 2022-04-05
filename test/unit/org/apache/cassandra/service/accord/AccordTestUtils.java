@@ -117,7 +117,7 @@ public class AccordTestUtils
         Data readData = read.keys().accumulate(ranges, (key, accumulate) -> {
             Data data = read.read(key, command.executeAt(), null);
             return accumulate != null ? accumulate.merge(data) : data;
-        });
+        }, null);
         Write write = txn.update.apply(readData);
         command.writes(new Writes(command.executeAt(), txn.keys(), write));
         command.result(txn.query.compute(readData));

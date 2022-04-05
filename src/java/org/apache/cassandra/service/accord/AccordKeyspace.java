@@ -20,9 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
@@ -46,9 +44,21 @@ import com.beust.jcommander.internal.Lists;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -58,9 +68,12 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -74,7 +87,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.Views;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.serializers.UUIDSerializer;
+import org.apache.cassandra.service.accord.AccordCommandsForKey.SeriesKind;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
@@ -99,6 +114,8 @@ public class AccordKeyspace
     private static final String KEY_TUPLE = "tuple<uuid, blob>";
     private static final TupleType KEY_TYPE = new TupleType(Lists.newArrayList(UUIDType.instance, BytesType.instance));
 
+    private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
+
     // TODO: store timestamps as blobs (confirm there are no negative numbers, or offset)
     private static final TableMetadata Commands =
         parse(COMMANDS,
@@ -108,7 +125,6 @@ public class AccordKeyspace
               + "store_index int,"
               + format("txn_id %s,", TIMESTAMP_TUPLE)
               + "status int,"
-              + "serializer_version int,"  // TODO: remove serializer_version
               + "txn_version int,"
               + "txn blob,"
               + format("execute_at %s,", TIMESTAMP_TUPLE)
@@ -142,7 +158,6 @@ public class AccordKeyspace
         static final ColumnMetadata txn_id = getColumn(Commands, "txn_id");
 
         static final ColumnMetadata status = getColumn(Commands, "status");
-        static final ColumnMetadata serializer_version = getColumn(Commands, "serializer_version");
         static final ColumnMetadata txn_version = getColumn(Commands, "txn_version");
         static final ColumnMetadata txn = getColumn(Commands, "txn");
         static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
@@ -159,6 +174,7 @@ public class AccordKeyspace
         static final ColumnMetadata listeners = getColumn(Commands, "listeners");
     }
 
+    // TODO: add status and isWrite
     private static final TableMetadata CommandsForKey =
         parse(COMMANDS_FOR_KEY,
               "accord commands per key",
@@ -172,6 +188,47 @@ public class AccordKeyspace
               + format("txn_id %s,", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_generation, store_index, key), series, timestamp)"
               + ')');
+
+    private static class CommandsForKeyColumns
+    {
+        static final ClusteringComparator keyComparator = CommandsForKey.partitionKeyAsClusteringComparator();
+        static final ColumnMetadata store_generation = getColumn(CommandsForKey, "store_generation");
+        static final ColumnMetadata store_index = getColumn(CommandsForKey, "store_index");
+        static final ColumnMetadata key = getColumn(CommandsForKey, "key");
+        static final ColumnMetadata max_timestamp = getColumn(CommandsForKey, "max_timestamp");
+
+        static final ColumnMetadata series = getColumn(CommandsForKey, "series");
+        static final ColumnMetadata timestamp = getColumn(CommandsForKey, "timestamp");
+        static final ColumnMetadata txn_id = getColumn(CommandsForKey, "txn_id");
+
+        static final Columns statics = Columns.of(max_timestamp);
+        static final Columns regulars = Columns.from(Lists.newArrayList(series, timestamp, txn_id));
+        private static final RegularAndStaticColumns all = new RegularAndStaticColumns(statics, regulars);
+        private static final RegularAndStaticColumns justStatic = new RegularAndStaticColumns(statics, Columns.NONE);
+        private static final RegularAndStaticColumns justRegular = new RegularAndStaticColumns(Columns.NONE, regulars);
+
+        static boolean hasStaticChanges(AccordCommandsForKey commandsForKey)
+        {
+            return commandsForKey.maxTimestamp.hasModifications();
+        }
+
+        static RegularAndStaticColumns columnsFor(AccordCommandsForKey commandsForKey)
+        {
+            boolean hasStaticChanges = hasStaticChanges(commandsForKey);
+            boolean hasRegularChanges = commandsForKey.uncommitted.map.hasAdditions()
+                                        || commandsForKey.committedById.map.hasAdditions()
+                                        || commandsForKey.committedByExecuteAt.map.hasAdditions();
+
+            if (hasStaticChanges && hasRegularChanges)
+                return all;
+            else if (hasStaticChanges)
+                return justStatic;
+            else if (hasRegularChanges)
+                return justRegular;
+            else
+                throw new IllegalArgumentException();
+        }
+    }
 
     private static TableMetadata parse(String name, String description, String cql)
     {
@@ -327,13 +384,17 @@ public class AccordKeyspace
         ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
 
         Row.Builder builder = BTreeRow.unsortedBuilder();
+        builder.newRow(Clustering.EMPTY);
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
         int version = MessagingService.current_version;
         ByteBuffer versionBytes = accessor.valueOf(version);
+
+        // TODO: duplicate into commands for key
         if (command.status.hasModifications())
             builder.addCell(live(CommandsColumns.status, timestampMicros, accessor.valueOf(command.status.get().ordinal())));
 
+        // TODO: duplicate isWrite into commands for key
         if (command.txn.hasModifications())
         {
             builder.addCell(live(CommandsColumns.txn_version, timestampMicros, versionBytes));
@@ -408,7 +469,6 @@ public class AccordKeyspace
                      "execute_at=(?, ?, ?, ?), " +
                      "promised_ballot=(?, ?, ?, ?), " +
                      "accepted_ballot=(?, ?, ?, ?), " +
-                     "serializer_version=?, " +
                      "dependencies_version=?, " +
                      "dependencies=?, " +
                      "writes_version=?, " +
@@ -427,7 +487,6 @@ public class AccordKeyspace
                             promised.epoch, promised.real, promised.logical, promised.node.id,
                             accepted.epoch, accepted.real, accepted.logical, accepted.node.id,
                             version,
-                            version,
                             serialize(command.savedDeps(), CommandSerializers.deps, version),
                             version,
                             serializeOrNull(command.writes(), CommandSerializers.writes, version),
@@ -439,6 +498,13 @@ public class AccordKeyspace
                             command.commandStore().generation(),
                             command.commandStore().index(),
                             txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
+    }
+
+    private static ByteBuffer serializeKey(PartitionKey key)
+    {
+        UUIDSerializer.instance.serialize(key.tableId().asUUID());
+        return TupleType.buildValue(new ByteBuffer[]{UUIDSerializer.instance.serialize(key.tableId().asUUID()),
+                                                     key.partitionKey().getKey()});
     }
 
     private static ByteBuffer serializeTimestamp(Timestamp timestamp)
@@ -495,15 +561,14 @@ public class AccordKeyspace
         {
             UntypedResultSet.Row row = result.one();
             Preconditions.checkState(deserializeTimestamp(row, "txn_id", TxnId::new).equals(txnId));
-            int version = row.getInt("serializer_version");
             command.status.load(Status.values()[row.getInt("status")]);
-            command.txn.load(deserializeOrNull(row.getBlob("txn"), CommandSerializers.txn, version));
+            command.txn.load(deserializeOrNull(row.getBlob("txn"), CommandSerializers.txn, row.getInt("txn_version")));
             command.executeAt.load(deserializeTimestamp(row, "execute_at", Timestamp::new));
             command.promised.load(deserializeTimestamp(row, "promised_ballot", Ballot::new));
             command.accepted.load(deserializeTimestamp(row, "accepted_ballot", Ballot::new));
-            command.deps.load(deserialize(row.getBlob("dependencies"), CommandSerializers.deps, version));
-            command.writes.load(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, version));
-            command.result.load(deserializeOrNull(row.getBlob("result"), AccordData.serializer, version));
+            command.deps.load(deserialize(row.getBlob("dependencies"), CommandSerializers.deps, row.getInt("dependencies_version")));
+            command.writes.load(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, row.getInt("writes_version")));
+            command.result.load(deserializeOrNull(row.getBlob("result"), AccordData.serializer, row.getInt("result_version")));
             command.waitingOnCommit.load(deserializeWaitingOn(row, "waiting_on_commit", TxnId::new));
             command.waitingOnApply.load(deserializeWaitingOn(row, "waiting_on_apply", Timestamp::new));
             command.storedListeners.load(deserializeListeners(commandStore, row, "listeners"));
@@ -514,163 +579,150 @@ public class AccordKeyspace
         }
     }
 
-    public static AccordCommandsForKey loadCommandsForKey(CommandStore commandStore, AccordKey.PartitionKey key)
+    private static void addSeriesMutations(AccordCommandsForKey.Series series,
+                                           PartitionUpdate.Builder partitionBuilder,
+                                           Row.Builder rowBuilder,
+                                           long timestampMicros,
+                                           int nowInSeconds)
     {
-        String cql = "SELECT max_timestamp FROM %s.%s " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?) " +
-                     "LIMIT 1";
-        UntypedResultSet result = executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                                                      commandStore.generation(), commandStore.index(),
-                                                      key.tableId(), key.partitionKey().getKey());
+        if (!series.map.hasModifications())
+            return;
 
-        if (result.isEmpty())
-            return new AccordCommandsForKey(commandStore, key, Timestamp.NONE);
-
-        return new AccordCommandsForKey(commandStore, key, deserializeTimestamp(result.one(), "max_timestamp", Timestamp::new));
+        Row.Deletion deletion = series.map.hasDeletions() ?
+                                Row.Deletion.regular(new DeletionTime(timestampMicros, nowInSeconds)) :
+                                null;
+        ByteBuffer ordinalBytes = bytes(series.kind.ordinal());
+        series.map.forEachAddition((timestamp, txnId) -> {
+            rowBuilder.newRow(Clustering.make(ordinalBytes, serializeTimestamp(timestamp)));
+            rowBuilder.addCell(live(CommandsForKeyColumns.txn_id, timestampMicros, serializeTimestamp(txnId)));
+            partitionBuilder.add(rowBuilder.build());
+        });
+        series.map.forEachDeletion(timestamp -> {
+            rowBuilder.newRow(Clustering.make(ordinalBytes, serializeTimestamp(timestamp)));
+            rowBuilder.addRowDeletion(deletion);
+            partitionBuilder.add(rowBuilder.build());
+        });
     }
 
-    public static void updateCommandsForKeyMaxTimestamp(CommandStore commandStore, AccordKey.PartitionKey key, Timestamp time)
+    private static DecoratedKey makeKey(AccordCommandsForKey cfk)
     {
-        String cql = "UPDATE %s.%s " +
-                     "SET max_timestamp=(?, ?, ?, ?) " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?)";
-        executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                            time.epoch, time.real, time.logical, time.node.id,
-                            commandStore.generation(), commandStore.index(),
-                            key.tableId(), key.partitionKey().getKey());
+        ByteBuffer key = CommandsForKeyColumns.keyComparator.make(cfk.commandStore().generation(),
+                                                                  cfk.commandStore().index(),
+                                                                  serializeKey(cfk.key())).serializeAsPartitionKey();
+        return CommandsForKey.partitioner.decorateKey(key);
     }
 
-    public static TxnId getCommandForKeySeriesEntry(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time)
+    public static Mutation getCommandsForKeyMutation(AccordCommandsForKey cfk)
     {
+        Preconditions.checkArgument(cfk.hasModifications());
 
-        String cql = "SELECT txn_id FROM %s.%s " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?), " +
-                     "series=?, " +
-                     "timestamp=(?, ?, ?, ?)";
-        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                                                      commandStore.generation(), commandStore.index(),
-                                                      key.tableId(), key.partitionKey().getKey(),
-                                                      kind.ordinal(),
-                                                      time.epoch, time.real, time.logical, time.node.id);
+        long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
+        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
-        if (result.isEmpty())
-            return null;
+        int expectedRows = (CommandsForKeyColumns.hasStaticChanges(cfk) ? 1 : 0)
+                           + cfk.uncommitted.map.totalModifications()
+                           + cfk.committedById.map.totalModifications()
+                           + cfk.committedByExecuteAt.map.totalModifications();
 
-        return deserializeTimestamp(result.one(), "txn_id", TxnId::new);
+        PartitionUpdate.Builder partitionBuilder = new PartitionUpdate.Builder(CommandsForKey,
+                                                                               makeKey(cfk),
+                                                                               CommandsForKeyColumns.columnsFor(cfk),
+                                                                               expectedRows);
+
+        Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
+        if (cfk.maxTimestamp.hasModifications())
+        {
+            rowBuilder.newRow(Clustering.STATIC_CLUSTERING);
+            rowBuilder.addCell(live(CommandsForKeyColumns.max_timestamp, timestampMicros, serializeTimestamp(cfk.maxTimestamp.get())));
+            partitionBuilder.add(rowBuilder.build());
+        }
+
+        addSeriesMutations(cfk.uncommitted, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
+        addSeriesMutations(cfk.committedById, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
+        addSeriesMutations(cfk.committedByExecuteAt, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
+
+        return new Mutation(partitionBuilder.build());
     }
 
-    public static void addCommandForKeySeriesEntry(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time, TxnId txnId)
+    public static AccordCommandsForKey loadCommandsForKey(CommandStore commandStore, PartitionKey key)
     {
-
-        String cql = "UPDATE %s.%s " +
-                     "SET txn_id=(?, ?, ?, ?) " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?), " +
-                     "series=?, " +
-                     "timestamp=(?, ?, ?, ?)";
-        executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                            txnId.epoch, txnId.real, txnId.logical, txnId.node.id,
-                            commandStore.generation(), commandStore.index(),
-                            key.tableId(), key.partitionKey().getKey(),
-                            kind.ordinal(),
-                            time.epoch, time.real, time.logical, time.node.id);
+        AccordCommandsForKey commandsForKey = new AccordCommandsForKey(commandStore, key);
+        loadCommandsForKey(commandsForKey);
+        return commandsForKey;
     }
 
-    public static void removeCommandForKeySeriesEntry(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time)
+    private static <T> ByteBuffer cellValue(Cell<T> cell)
     {
-
-        String cql = "DELETE FROM %s.%s " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?), " +
-                     "series=?, " +
-                     "timestamp=(?, ?, ?, ?)";
-        executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                            commandStore.generation(), commandStore.index(),
-                            key.tableId(), key.partitionKey().getKey(),
-                            kind.ordinal(),
-                            time.epoch, time.real, time.logical, time.node.id);
+        return cell.accessor().toBuffer(cell.value());
     }
 
-    private static List<TxnId> createTxnIdList(UntypedResultSet result)
+    // TODO: convert to array
+    private static ByteBuffer cellValue(Row row, ColumnMetadata column)
     {
-        if (result.isEmpty())
-            return Collections.emptyList();
-
-        List<TxnId> ids = new ArrayList<>(result.size());
-        for (UntypedResultSet.Row row : result)
-            ids.add(deserializeTimestamp(row, "txn_id", TxnId::new));
-        return ids;
+        Cell<?> cell = row.getCell(column);
+        return  (cell != null && !cell.isTombstone()) ? cellValue(cell) : null;
     }
 
-    public static List<TxnId> commandsForKeysSeriesEntriesBefore(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time)
+    private static <T> ByteBuffer clusteringValue(Clustering<T> clustering, int idx)
     {
-        String cql = "SELECT txn_id FROM %s.%s " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?), " +
-                     "series=?, " +
-                     "timestamp < (?, ?, ?, ?)";
-        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                                                      commandStore.generation(), commandStore.index(),
-                                                      key.tableId(), key.partitionKey().getKey(),
-                                                      kind.ordinal(),
-                                                      time.epoch, time.real, time.logical, time.node.id);
-        return createTxnIdList(result);
+        return clustering.accessor().toBuffer(clustering.get(idx));
     }
 
-    public static List<TxnId> commandsForKeysSeriesEntriesAfter(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp time)
+    public static void loadCommandsForKey(AccordCommandsForKey cfk)
     {
-        String cql = "SELECT txn_id FROM %s.%s " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?), " +
-                     "series=?, " +
-                     "timestamp > (?, ?, ?, ?)";
-        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                                                      commandStore.generation(), commandStore.index(),
-                                                      key.tableId(), key.partitionKey().getKey(),
-                                                      kind.ordinal(),
-                                                      time.epoch, time.real, time.logical, time.node.id);
-        return createTxnIdList(result);
-    }
+        long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
+        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
-    public static List<TxnId> commandsForKeysSeriesEntriesBetween(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind, Timestamp min, Timestamp max)
-    {
-        String cql = "SELECT txn_id FROM %s.%s " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?), " +
-                     "series=?, " +
-                     "timestamp >= (?, ?, ?, ?), " +
-                     "timestamp <= (?, ?, ?, ?)";
-        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                                                      commandStore.generation(), commandStore.index(),
-                                                      key.tableId(), key.partitionKey().getKey(),
-                                                      kind.ordinal(),
-                                                      min.epoch, min.real, min.logical, min.node.id,
-                                                      max.epoch, max.real, max.logical, max.node.id);
-        return createTxnIdList(result);
-    }
+        SinglePartitionReadCommand command = SinglePartitionReadCommand.create(CommandsForKey, nowInSeconds,
+                                                                               ColumnFilter.NONE,
+                                                                               RowFilter.NONE,
+                                                                               DataLimits.NONE,
+                                                                               makeKey(cfk),
+                                                                               FULL_PARTITION);
 
-    public static List<TxnId> allCommandsForKeysSeriesEntries(CommandStore commandStore, AccordKey.PartitionKey key, AccordCommandsForKey.SeriesKind kind)
-    {
-        String cql = "SELECT txn_id FROM %s.%s " +
-                     "WHERE store_generation=?, " +
-                     "store_index=?, " +
-                     "key=(?, ?), " +
-                     "series=?";
-        UntypedResultSet result = executeOnceInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY),
-                                                      commandStore.generation(), commandStore.index(),
-                                                      key.tableId(), key.partitionKey().getKey(),
-                                                      kind.ordinal());
-        return createTxnIdList(result);
+        EnumMap<SeriesKind, TreeMap<Timestamp, TxnId>> seriesMaps = new EnumMap<>(SeriesKind.class);
+        for (SeriesKind kind : SeriesKind.values())
+            seriesMaps.put(kind, new TreeMap<>());
+
+        try(ReadExecutionController controller = command.executionController();
+            FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
+        {
+            if (!partitions.hasNext())
+            {
+                cfk.loadEmpty();
+                return;
+            }
+
+            try (RowIterator partition = partitions.next())
+            {
+                Row staticRow = partition.staticRow();
+                if (!staticRow.isEmpty())
+                {
+                    Cell<?> cell = staticRow.getCell(CommandsForKeyColumns.max_timestamp);
+                    if (cell == null || cell.isTombstone())
+                        cfk.maxTimestamp.load(Timestamp.NONE);
+                    else
+                        cfk.maxTimestamp.load(deserializeTimestamp(cellValue(cell), Timestamp::new));
+                }
+
+                while (partition.hasNext())
+                {
+                    Row row = partition.next();
+                    Clustering<?> clustering = row.clustering();
+                    int ordinal = Int32Type.instance.compose(clusteringValue(clustering, 0));
+                    Timestamp timestamp = deserializeTimestamp(clusteringValue(clustering, 1), Timestamp::new);
+                    ByteBuffer txnIdBytes = cellValue(row, CommandsForKeyColumns.txn_id);
+                    if (txnIdBytes == null)
+                        continue;
+                    TxnId txnId = deserializeTimestamp(txnIdBytes, TxnId::new);
+                    seriesMaps.get(SeriesKind.values()[ordinal]).put(timestamp, txnId);
+                }
+            }
+            Preconditions.checkState(!partitions.hasNext());
+        }
+
+        cfk.uncommitted.map.load(seriesMaps.get(SeriesKind.UNCOMMITTED));
+        cfk.committedById.map.load(seriesMaps.get(SeriesKind.COMMITTED_BY_ID));
+        cfk.committedByExecuteAt.map.load(seriesMaps.get(SeriesKind.COMMITTED_BY_EXECUTE_AT));
     }
 }

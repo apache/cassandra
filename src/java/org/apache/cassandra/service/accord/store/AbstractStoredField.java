@@ -78,7 +78,7 @@ public class AbstractStoredField
 
     void preClear()
     {
-        set(CLEARED_FLAG | CHANGED_FLAG);
+        set(CLEARED_FLAG | LOADED_FLAG | CHANGED_FLAG);
     }
 
     public boolean hasModifications()

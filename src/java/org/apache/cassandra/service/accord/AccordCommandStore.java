@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -51,53 +50,10 @@ public class AccordCommandStore extends CommandStore
         return 5 << 20; // TODO: make configurable
     }
 
-    private class ProcessingContext extends AsyncPromise<Void> implements Runnable
+    public interface Context
     {
-        private final Consumer<? super CommandStore> consumer;
-        private final HashSet<AccordCommand> commands = new HashSet<>();
-        private final HashSet<AccordCommandsForKey> commandsForKeys = new HashSet<>();
-
-        public ProcessingContext(Consumer<? super CommandStore> consumer)
-        {
-            this.consumer = consumer;
-        }
-
-        private void persistChanges() throws IOException
-        {
-            // TODO: accumulate updates and return partition updates
-            for (AccordCommand command : commands)
-                command.save();
-            for (AccordCommandsForKey commandsForKey : commandsForKeys)
-                commandsForKey.save();
-        }
-
-        private void releaseResources()
-        {
-            commands.forEach(commandCache::release);
-            commandsForKeys.forEach(commandsForKeyCache::release);
-        }
-
-        @Override
-        public void run()
-        {
-            Preconditions.checkState(currentCtx == null);
-            try
-            {
-                consumer.accept(AccordCommandStore.this);
-                persistChanges();
-                releaseResources();
-                setSuccess(null);
-            }
-            catch (Throwable e)
-            {
-                tryFailure(e);
-            }
-            finally
-            {
-                Preconditions.checkState(currentCtx == this);
-                currentCtx = null;
-            }
-        }
+        public AccordCommand command(TxnId txnId);
+        public AccordCommandsForKey commandsForKey(PartitionKey key);
     }
 
     private static long getThreadId(ExecutorService executor)
@@ -121,7 +77,7 @@ public class AccordCommandStore extends CommandStore
     private final AccordStateCache stateCache;
     private final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
     private final AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> commandsForKeyCache;
-    private ProcessingContext currentCtx = null;
+    private Context currentCtx = null;
 
     public AccordCommandStore(int generation,
                               int index,
@@ -165,41 +121,49 @@ public class AccordCommandStore extends CommandStore
         return commandsForKeyCache;
     }
 
+    public void setContext(Context context)
+    {
+        Preconditions.checkState(currentCtx == null);
+        currentCtx = context;
+    }
+
+    public void unsetContext(Context context)
+    {
+        Preconditions.checkState(currentCtx == context);
+        currentCtx = null;
+    }
+
+
     @Override
     public Command command(TxnId txnId)
     {
-        // FIXME: these should be pre-loaded and fetched from the context
         Preconditions.checkState(currentCtx != null);
-        AccordCommand command = commandCache.acquire(txnId);
+        AccordCommand command = currentCtx.command(txnId);
         Preconditions.checkArgument(command != null);
-        currentCtx.commands.add(command);
         return command;
     }
 
     @Override
     public CommandsForKey commandsForKey(Key key)
     {
-        // FIXME: these should be pre-loaded and fetched from the context
         Preconditions.checkState(currentCtx != null);
         Preconditions.checkArgument(key instanceof PartitionKey);
-        AccordCommandsForKey commandsForKey = commandsForKeyCache.acquire((PartitionKey) key);
+        AccordCommandsForKey commandsForKey = currentCtx.commandsForKey((PartitionKey) key);
         Preconditions.checkArgument(commandsForKey != null);
-        currentCtx.commandsForKeys.add(commandsForKey);
         return commandsForKey;
-    }
-
-    @Override
-    protected void onRangeUpdate(KeyRanges previous, KeyRanges current)
-    {
-        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
     public Future<Void> process(Consumer<? super CommandStore> consumer)
     {
-        ProcessingContext ctx = new ProcessingContext(consumer);
-        executor.execute(ctx);
-        return ctx;
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T> Future<T> process(Function<? super CommandStore, T> function)
+    {
+        // FIXME: should these be CommandStores implementation details?
+        throw new UnsupportedOperationException();
     }
 
     @Override

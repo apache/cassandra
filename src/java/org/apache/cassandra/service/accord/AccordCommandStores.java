@@ -18,9 +18,15 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.ToLongBiFunction;
 
 import accord.api.Agent;
 import accord.api.Store;
@@ -29,6 +35,9 @@ import accord.local.CommandStores;
 import accord.local.Node;
 import accord.topology.KeyRanges;
 import accord.txn.Timestamp;
+import org.apache.cassandra.service.accord.async.AsyncOperation;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 public class AccordCommandStores extends CommandStores
 {
@@ -62,5 +71,49 @@ public class AccordCommandStores extends CommandStores
                                       ranges,
                                       this::getLocalTopology,
                                       executors[index]);
+    }
+
+    private <S, F, T> T mapReduce(ToLongBiFunction<StoreGroup, S> select, S scope, F f, StoreGroups.Fold<F, ?, List<AsyncOperation<T>>> fold, BiFunction<T, T, T> reduce)
+    {
+        List<AsyncOperation<T>> futures = groups.foldl(select, scope, fold, f, null, ArrayList::new);
+        T result = null;
+        for (Future<T> future : futures)
+        {
+            try
+            {
+                T next = future.get();
+                if (result == null) result = next;
+                else result = reduce.apply(result, next);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e.getCause());
+            }
+        }
+        return result;
+    }
+
+    @Override
+    protected <S, T> T mapReduce(ToLongBiFunction<StoreGroup, S> select, S scope, Function<? super CommandStore, T> map, BiFunction<T, T, T> reduce)
+    {
+        return mapReduce(select, scope, map, (store, f, i, t) -> {
+            AsyncOperation<T> operation = AsyncOperation.operationFor(store, scope, map);
+            t.add(operation);
+            ((AccordCommandStore) store).executor().execute(operation);
+            return t;
+        }, reduce);
+    }
+
+    @Override
+    protected <S> void forEach(ToLongBiFunction<StoreGroup, S> select, S scope, Consumer<? super CommandStore> forEach)
+    {
+        mapReduce(select, scope, store -> {
+            forEach.accept(store);
+            return null;
+        }, (Void i1, Void i2) -> null);
     }
 }
