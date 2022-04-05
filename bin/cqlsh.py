@@ -268,21 +268,6 @@ else:
 
 CQL_DIR = os.path.dirname(CONFIG_FILE)
 
-OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
-if os.path.exists(OLD_CONFIG_FILE):
-    if os.path.exists(CONFIG_FILE):
-        print('\nWarning: cqlshrc config files were found at both the old location ({0})'
-              + ' and the new location ({1}), the old config file will not be migrated to the new'
-              + ' location, and the new location will be used for now.  You should manually'
-              + ' consolidate the config files at the new location and remove the old file.'
-              .format(OLD_CONFIG_FILE, CONFIG_FILE))
-    else:
-        os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
-OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
-if os.path.exists(OLD_HISTORY):
-    os.rename(OLD_HISTORY, HISTORY)
-# END history/config definition
-
 CQL_ERRORS = (
     cassandra.AlreadyExists, cassandra.AuthenticationFailed, cassandra.CoordinationFailure,
     cassandra.InvalidRequest, cassandra.Timeout, cassandra.Unauthorized, cassandra.OperationTimedOut,
@@ -550,11 +535,6 @@ class Shell(cmd.Cmd):
     def batch_mode(self):
         return not self.tty
 
-    @property
-    def is_using_utf8(self):
-        # utf8 encodings from https://docs.python.org/{2,3}/library/codecs.html
-        return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8']
-
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
         self.cql_version = ver
@@ -772,13 +752,6 @@ class Shell(cmd.Cmd):
             return ksmeta.views[name]
 
         raise ObjectNotFound("'{}' not found in keyspace '{}'".format(name, ks))
-
-    def get_usertypes_meta(self):
-        data = self.session.execute("select * from system.schema_usertypes")
-        if not data:
-            return cql3handling.UserTypesMeta({})
-
-        return cql3handling.UserTypesMeta.from_layout(data)
 
     def get_trigger_names(self, ksname=None):
         if ksname is None:
