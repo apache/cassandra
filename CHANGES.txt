@@ -1,4 +1,5 @@
 4.1
+ * Reduce histogram snapshot long[] allocation overhead during speculative read and write threshold updates (CASSANDRA-17523)
  * Add guardrail for creation of secondary indexes (CASSANDRA-17498)
  * Add guardrail to disallow creation of uncompressed tables (CASSANDRA-17504)
  * Add guardrail to disallow creation of new COMPACT STORAGE tables (CASSANDRA-17522)
