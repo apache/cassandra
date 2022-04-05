@@ -17,6 +17,7 @@
 import os
 import sys
 import ssl
+import warnings
 
 import configparser
 
@@ -49,15 +50,7 @@ def ssl_settings(host, config_file, env=os.environ):
             return None
 
     def get_best_tls_protocol(ssl_ver_str):
-        # newer python versions suggest to use PROTOCOL_TLS to negotiate the highest TLS version.
-        # older protocol versions have been deprecated:
-        # https://docs.python.org/2/library/ssl.html#ssl.PROTOCOL_TLS
-        # https://docs.python.org/3/library/ssl.html#ssl.PROTOCOL_TLS
-        if ssl_ver_str:
-            return getattr(ssl, "PROTOCOL_%s" % ssl_ver_str, None)
-        for protocol in ['PROTOCOL_TLS', 'PROTOCOL_TLSv1_2', 'PROTOCOL_TLSv1_1', 'PROTOCOL_TLSv1']:
-            if hasattr(ssl, protocol):
-                return getattr(ssl, protocol)
+        warnings.warn("Explict SSL and TLS versions in the cqlshrc file are ignored as the protocol is auto-negotiated.")
         return ssl.PROTOCOL_TLS
 
     ssl_validate = env.get('SSL_VALIDATE')
