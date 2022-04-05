@@ -48,31 +48,10 @@ def ssl_settings(host, config_file, env=os.environ):
         except configparser.Error:
             return None
 
-    def get_best_tls_protocol(ssl_ver_str):
-        # newer python versions suggest to use PROTOCOL_TLS to negotiate the highest TLS version.
-        # older protocol versions have been deprecated:
-        # https://docs.python.org/2/library/ssl.html#ssl.PROTOCOL_TLS
-        # https://docs.python.org/3/library/ssl.html#ssl.PROTOCOL_TLS
-        if ssl_ver_str:
-            return getattr(ssl, "PROTOCOL_%s" % ssl_ver_str, None)
-        for protocol in ['PROTOCOL_TLS', 'PROTOCOL_TLSv1_2', 'PROTOCOL_TLSv1_1', 'PROTOCOL_TLSv1']:
-            if hasattr(ssl, protocol):
-                return getattr(ssl, protocol)
-        return ssl.PROTOCOL_TLS
-
     ssl_validate = env.get('SSL_VALIDATE')
     if ssl_validate is None:
         ssl_validate = get_option('ssl', 'validate')
     ssl_validate = ssl_validate is None or ssl_validate.lower() != 'false'
-
-    ssl_version_str = env.get('SSL_VERSION')
-    if ssl_version_str is None:
-        ssl_version_str = get_option('ssl', 'version')
-
-    ssl_version = get_best_tls_protocol(ssl_version_str)
-    if ssl_version is None:
-        sys.exit("%s is not a valid SSL protocol, please use one of "
-                 "TLS, TLSv1_2, TLSv1_1, or TLSv1" % (ssl_version_str,))
 
     ssl_certfile = env.get('SSL_CERTFILE')
     if ssl_certfile is None:
@@ -96,5 +75,5 @@ def ssl_settings(host, config_file, env=os.environ):
 
     return dict(ca_certs=ssl_certfile,
                 cert_reqs=ssl.CERT_REQUIRED if ssl_validate else ssl.CERT_NONE,
-                ssl_version=ssl_version,
+                ssl_version=ssl.PROTOCOL_TLS,
                 keyfile=userkey, certfile=usercert)
