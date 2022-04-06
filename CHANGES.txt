@@ -1,4 +1,5 @@
 4.1
+ * Add support for IF EXISTS and IF NOT EXISTS in ALTER statements (CASSANDRA-16916)
  * resolve several pylint issues in cqlsh.py and pylib (CASSANDRA-17480)
  * Streaming sessions longer than 3 minutes fail with timeout (CASSANDRA-17510)
  * Add ability to track state in repair (CASSANDRA-15399)
@@ -122,7 +123,6 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
- * Add support for IF EXISTS and IF NOT EXISTS in ALTER statements (CASSANDRA-16916)
 Merged from 4.0:
  * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)
  * Generate valid KEYSPACE / MATERIALIZED VIEW for CQL for views (CASSANDRA-17266)
