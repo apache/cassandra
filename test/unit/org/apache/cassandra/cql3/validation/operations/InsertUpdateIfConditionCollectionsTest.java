@@ -545,7 +545,8 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                                  "DELETE FROM %s WHERE k=0 IF l[?] = ?", null, "foobar");
             assertInvalidMessage("Invalid negative list index -2",
                                  "DELETE FROM %s WHERE k=0 IF l[?] = ?", -2, "foobar");
-
+            assertInvalidSyntax("DELETE FROM %s WHERE k=0 IF l[?] CONTAINS ?", 0, "bar");
+            assertInvalidSyntax("DELETE FROM %s WHERE k=0 IF l[?] CONTAINS KEY ?", 0, "bar");
             assertRows(execute("DELETE FROM %s WHERE k=0 IF l[?] = ?", 1, null), row(false, list("foo", "bar", "foobar")));
             assertRows(execute("DELETE FROM %s WHERE k=0 IF l[?] = ?", 1, "foobar"), row(false, list("foo", "bar", "foobar")));
             assertRows(execute("SELECT * FROM %s"), row(0, list("foo", "bar", "foobar")));
@@ -754,6 +755,8 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
             execute("INSERT INTO %s (k, m) VALUES (0, {'foo' : 'bar'})");
             assertInvalidMessage("Invalid null value for map element access",
                                  "DELETE FROM %s WHERE k=0 IF m[?] = ?", null, "foo");
+            assertInvalidSyntax("DELETE FROM %s WHERE k=0 IF m[?] CONTAINS ?", "foo", "bar");
+            assertInvalidSyntax("DELETE FROM %s WHERE k=0 IF m[?] CONTAINS KEY ?", "foo", "bar");
             assertRows(execute("DELETE FROM %s WHERE k=0 IF m[?] = ?", "foo", "foo"), row(false, map("foo", "bar")));
             assertRows(execute("DELETE FROM %s WHERE k=0 IF m[?] = ?", "foo", null), row(false, map("foo", "bar")));
             assertRows(execute("SELECT * FROM %s"), row(0, map("foo", "bar")));
