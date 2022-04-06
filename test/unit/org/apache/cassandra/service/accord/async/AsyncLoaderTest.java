@@ -167,6 +167,42 @@ public class AsyncLoaderTest
     @Test
     public void inProgressLoadTest()
     {
+        AtomicLong clock = new AtomicLong(0);
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+        AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
+        AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        Txn txn = createTxn(0);
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
 
+        // acquire / release
+        AccordCommand command = commandCache.getOrCreate(txnId).loadEmpty();
+        command.txn(txn);
+        commandCache.release(command);
+        AccordCommandsForKey cfk = cfkCacche.getOrCreate(key).loadEmpty();
+        cfkCacche.release(cfk);
+
+        AsyncContext context = new AsyncContext();
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
+
+        // since there's a read future associated with the txnId, we'll wait for it to load
+        AsyncPromise<Void> readFuture = new AsyncPromise<>();
+        commandCache.setReadFuture(command.txnId(), readFuture);
+
+        AsyncPromise<Void> cbFired = new AsyncPromise<>();
+        boolean result = loader.load(context, (o, t) -> {
+            Assert.assertNull(t);
+            cbFired.setSuccess(null);
+        });
+        Assert.assertFalse(result);
+
+        Assert.assertFalse(cbFired.isSuccess());
+        readFuture.setSuccess(null);
+        cbFired.awaitUninterruptibly(1, TimeUnit.SECONDS);
+        Assert.assertTrue(cbFired.isSuccess());
+
+        // then return immediately after the callback has fired
+        result = loader.load(context, (o, t) -> Assert.fail());
+        Assert.assertTrue(result);
     }
 }

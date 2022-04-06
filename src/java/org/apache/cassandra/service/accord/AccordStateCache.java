@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between them
@@ -100,6 +101,8 @@ public class AccordStateCache
     public final Map<Object, Node<?, ?>> active = new HashMap<>();
     private final Map<Object, Node<?, ?>> cache = new HashMap<>();
     private final Set<Instance<?, ?>> instances = new HashSet<>();
+    private final Map<Object, Future<?>> readFutures = new HashMap<>();
+    // TODO: add guards to prevent command changes during command execution/apply
 
     Node<?, ?> head;
     Node<?, ?> tail;
@@ -247,6 +250,7 @@ public class AccordStateCache
     private <K, V extends AccordStateCache.AccordState<K, V>> void releaseInternal(V value)
     {
         K key = value.key();
+        maybeClearReadFuture(key);
         Node<K, V> node = (Node<K, V>) active.get(key);
         Preconditions.checkState(node != null && node.references > 0);
         Preconditions.checkState(node.value == value);
@@ -259,6 +263,31 @@ public class AccordStateCache
 
         updateSize(node);
         maybeEvict();
+    }
+
+    private <K> Future<?> getReadFutureInternal(K key)
+    {
+        Future<?> r = readFutures.get(key);
+        if (r == null)
+            return null;
+
+        if (!r.isDone())
+            return r;
+
+        readFutures.remove(key);
+        return null;
+    }
+
+    private <K> void setReadFutureInternal(K key, Future<?> future)
+    {
+        Preconditions.checkState(!readFutures.containsKey(key));
+        readFutures.put(key, future);
+    }
+
+    private <K> void maybeClearReadFuture(K key)
+    {
+        // will clear if it's done
+        getReadFutureInternal(key);
     }
 
     public class Instance<K, V extends AccordStateCache.AccordState<K, V>>
@@ -289,11 +318,6 @@ public class AccordStateCache
             return Objects.hash(keyClass, valClass);
         }
 
-        /**
-         * Should we block and load, or return uninitialized objects to support blind writes?
-         * @param key
-         * @return
-         */
         public V getOrCreate(K key)
         {
             return getOrCreateInternal(key, factory);
@@ -302,6 +326,16 @@ public class AccordStateCache
         public void release(V value)
         {
             releaseInternal(value);
+        }
+
+        public Future<?> getReadFuture(K key)
+        {
+            return getReadFutureInternal(key);
+        }
+
+        public void setReadFuture(K key, Future<?> future)
+        {
+            setReadFutureInternal(key, future);
         }
     }
 
