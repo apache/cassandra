@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.BeforeClass;
@@ -54,6 +53,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.RepairResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
