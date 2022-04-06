@@ -35,6 +35,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -104,48 +105,46 @@ public class ValidationManager
         // particularly in the scenario where a validation is submitted before the drop, and there are compactions
         // started prior to the drop keeping some sstables alive.  Since validationCompaction can run
         // concurrently with other compactions, it would otherwise go ahead and scan those again.
+        ValidationState state = validator.state;
         if (!cfs.isValid())
+        {
+            state.phase.skip(String.format("Table %s is not valid", cfs));
             return;
+        }
 
         // Create Merkle trees suitable to hold estimated partitions for the given ranges.
         // We blindly assume that a partition is evenly distributed on all sstables for now.
         long start = nanoTime();
-        long partitionCount = 0;
-        long estimatedTotalBytes = 0;
         try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator))
         {
+            state.phase.start(vi.estimatedPartitions(), vi.getEstimatedBytes());
             MerkleTrees trees = createMerkleTrees(vi, validator.desc.ranges, cfs);
-            try
+            // validate the CF as we iterate over it
+            validator.prepare(cfs, trees);
+            while (vi.hasNext())
             {
-                // validate the CF as we iterate over it
-                validator.prepare(cfs, trees);
-                while (vi.hasNext())
+                try (UnfilteredRowIterator partition = vi.next())
                 {
-                    try (UnfilteredRowIterator partition = vi.next())
-                    {
-                        validator.add(partition);
-                        partitionCount++;
-                    }
+                    validator.add(partition);
+                    state.partitionsProcessed++;
+                    state.bytesRead = vi.getBytesRead();
+                    if (state.partitionsProcessed % 1024 == 0) // update every so often
+                        state.updated();
                 }
-                validator.complete();
             }
-            finally
-            {
-                estimatedTotalBytes = vi.getEstimatedBytes();
-                partitionCount = vi.estimatedPartitions();
-            }
+            validator.complete();
         }
         finally
         {
-            cfs.metric.bytesValidated.update(estimatedTotalBytes);
-            cfs.metric.partitionsValidated.update(partitionCount);
+            cfs.metric.bytesValidated.update(state.estimatedTotalBytes);
+            cfs.metric.partitionsValidated.update(state.partitionsProcessed);
         }
         if (logger.isDebugEnabled())
         {
             long duration = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
             logger.debug("Validation of {} partitions (~{}) finished in {} msec, for {}",
-                         partitionCount,
-                         FBUtilities.prettyPrintMemory(estimatedTotalBytes),
+                         state.partitionsProcessed,
+                         FBUtilities.prettyPrintMemory(state.estimatedTotalBytes),
                          duration,
                          validator.desc);
         }
@@ -166,13 +165,13 @@ public class ValidationManager
                 }
                 catch (PreviewRepairConflictWithIncrementalRepairException | NoSuchRepairSessionException | CompactionInterruptedException e)
                 {
-                    validator.fail();
+                    validator.fail(e);
                     logger.warn(e.getMessage());
                 }
                 catch (Throwable e)
                 {
                     // we need to inform the remote end of our failure, otherwise it will hang on repair forever
-                    validator.fail();
+                    validator.fail(e);
                     logger.error("Validation failed.", e);
                     throw e;
                 }

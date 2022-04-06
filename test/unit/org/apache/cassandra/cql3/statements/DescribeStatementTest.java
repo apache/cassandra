@@ -536,7 +536,7 @@ public class DescribeStatementTest extends CQLTester
                                   "    WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL\n" +
                                   "    PRIMARY KEY ((pk2, pk1), ck2, ck1)\n" +
                                   " WITH CLUSTERING ORDER BY (ck2 DESC, ck1 ASC)\n" +
-                                  "    AND " + tableParametersCql();
+                                  "    AND " + mvParametersCql();
 
         try
         {
@@ -703,14 +703,25 @@ public class DescribeStatementTest extends CQLTester
 
             String output = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table + withInternals).all().get(0).getString("create_statement");
 
+            executeDescribeNet(KEYSPACE, "CREATE MATERIALIZED VIEW " + table + "_view AS SELECT key FROM " + table
+                    + " WHERE key IS NOT NULL PRIMARY KEY(key)");
+
+            String mvCreateView = executeDescribeNet(KEYSPACE, "DESCRIBE MATERIALIZED VIEW " + table + "_view").all().get(0).getString("create_statement");
+
+            executeDescribeNet(KEYSPACE, "DROP MATERIALIZED VIEW " + table + "_view");
             execute("DROP TABLE %s");
 
             executeNet(output);
+            executeNet(mvCreateView);
 
             String output2 = executeDescribeNet(KEYSPACE, "DESCRIBE TABLE " + table + withInternals).all().get(0).getString("create_statement");
+            String mvCreateView2 = executeDescribeNet(KEYSPACE, "DESCRIBE MATERIALIZED VIEW " + table + "_view").all().get(0).getString("create_statement");
+
             assertEquals(output, output2);
+            assertEquals(mvCreateView, mvCreateView2);
 
             execute("INSERT INTO %s (key) VALUES (1)");
+            executeDescribeNet(KEYSPACE, "DROP MATERIALIZED VIEW " + table + "_view");
         }
     }
 
@@ -784,7 +795,7 @@ public class DescribeStatementTest extends CQLTester
                "    WHERE state IS NOT NULL AND username IS NOT NULL\n" +
                "    PRIMARY KEY (state, username)\n" +
                " WITH CLUSTERING ORDER BY (username ASC)\n" +
-               "    AND " + tableParametersCql();
+               "    AND " + mvParametersCql();
     }
 
     private static String indexOutput(String index, String table, String col)
@@ -836,6 +847,25 @@ public class DescribeStatementTest extends CQLTester
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND crc_check_chance = 1.0\n" +
                "    AND default_time_to_live = 0\n" +
+               "    AND extensions = {}\n" +
+               "    AND gc_grace_seconds = 864000\n" +
+               "    AND max_index_interval = 2048\n" +
+               "    AND memtable_flush_period_in_ms = 0\n" +
+               "    AND min_index_interval = 128\n" +
+               "    AND read_repair = 'BLOCKING'\n" +
+               "    AND speculative_retry = '99p';";
+    }
+
+    private static String mvParametersCql()
+    {
+        return "additional_write_policy = '99p'\n" +
+               "    AND bloom_filter_fp_chance = 0.01\n" +
+               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+               "    AND cdc = false\n" +
+               "    AND comment = ''\n" +
+               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
+               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+               "    AND crc_check_chance = 1.0\n" +
                "    AND extensions = {}\n" +
                "    AND gc_grace_seconds = 864000\n" +
                "    AND max_index_interval = 2048\n" +

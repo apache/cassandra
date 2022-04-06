@@ -190,9 +190,16 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
 
             columns.forEach(c ->
             {
-                Object value = values.get(c);
-                if (null != value)
-                    builder.addCell(BufferCell.live(c, now, decompose(c.type, value)));
+                try
+                {
+                    Object value = values.get(c);
+                    if (null != value)
+                        builder.addCell(BufferCell.live(c, now, decompose(c.type, value)));
+                }
+                catch (Exception e)
+                {
+                    throw new SerializationException(c, e);
+                }
             });
 
             return builder.build();
@@ -207,5 +214,13 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
     private static ByteBuffer decompose(AbstractType<?> type, Object value)
     {
         return type.decomposeUntyped(value);
+    }
+
+    public static class SerializationException extends RuntimeException
+    {
+        public SerializationException(ColumnMetadata c, Throwable t)
+        {
+            super("Unable to serialize column " + c.name + " " + c.type.asCQL3Type(), t, true, false);
+        }
     }
 }

@@ -26,6 +26,11 @@ public interface RepairTask
 {
     String name();
 
+    default String successMessage()
+    {
+        return name() + " completed successfully";
+    }
+
     Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor) throws Exception;
 
     default Future<CoordinatedRepairResult> perform(ExecutorPlus executor)

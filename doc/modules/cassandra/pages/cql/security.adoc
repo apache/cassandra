@@ -58,6 +58,8 @@ authentication, enclosing the password in single quotation marks.
 If internal authentication has not been set up or the role does not have
 `LOGIN` privileges, the `WITH PASSWORD` clause is not necessary.
 
+USE `WITH HASHED PASSWORD` to provide the jBcrypt hashed password directly. See the `hash_password` tool.
+
 ==== Restricting connections to specific datacenters
 
 If a `network_authorizer` has been configured, you can restrict login
@@ -94,6 +96,9 @@ For example:
 ----
 include::example$CQL/alter_role.cql[]
 ----
+If the role does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
+
+USE `WITH HASHED PASSWORD` to provide the jBcrypt hashed password directly. See the `hash_password` tool.
 
 ==== Restricting connections to specific datacenters
 
@@ -277,7 +282,7 @@ Altering the options of a user uses the `ALTER USER` statement:
 ----
 include::example$BNF/alter_user_statement.bnf[]
 ----
-
+If the role does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 For example:
 
 [source,cql]

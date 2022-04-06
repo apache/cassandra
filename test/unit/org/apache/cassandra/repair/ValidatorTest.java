@@ -37,6 +37,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -109,7 +110,8 @@ public class ValidatorTest
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
-        Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, remote), 0, PreviewKind.NONE);
+        validator.state.phase.start(10, 10);
         MerkleTrees trees = new MerkleTrees(partitioner);
         trees.addMerkleTrees((int) Math.pow(2, 15), validator.desc.ranges);
         validator.prepare(cfs, trees);
@@ -145,8 +147,8 @@ public class ValidatorTest
 
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
-        Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
-        validator.fail();
+        Validator validator = new Validator(new ValidationState(desc, remote), 0, PreviewKind.NONE);
+        validator.fail(new Throwable());
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(Verb.VALIDATION_RSP, message.verb());
@@ -204,7 +206,7 @@ public class ValidatorTest
                                                                  false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, host), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
@@ -261,7 +263,7 @@ public class ValidatorTest
                                                                  false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, host), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
@@ -323,7 +325,7 @@ public class ValidatorTest
                                                                  false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, host), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);

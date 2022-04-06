@@ -842,6 +842,13 @@ public class ViewSchemaTest extends ViewAbstractTest
                             expectedViewSnapshot);
     }
 
+    @Test
+    public void testAlterViewIfExists() throws Throwable
+    {
+        executeNet("USE " + keyspace());
+        executeNet("ALTER MATERIALIZED VIEW IF EXISTS mv1_test WITH compaction = { 'class' : 'LeveledCompactionStrategy' }");
+    }
+
     private void testViewMetadataCQL(String createBase, String createView, String viewSnapshotSchema)
     {
         String base = createTable(createBase);

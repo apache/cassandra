@@ -123,12 +123,12 @@ public class RepairJobTest
     {
         private final List<Callable<?>> syncCompleteCallbacks = new ArrayList<>();
 
-        public MeasureableRepairSession(TimeUUID parentRepairSession, TimeUUID id, CommonRange commonRange, String keyspace,
+        public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
                                         PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
                                         String... cfnames)
         {
-            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
+            super(parentRepairSession, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
                   previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
         }
 
@@ -188,14 +188,14 @@ public class RepairJobTest
                                                                  Collections.singletonList(Keyspace.open(KEYSPACE).getColumnFamilyStore(CF)), FULL_RANGE, false,
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
 
-        this.session = new MeasureableRepairSession(parentRepairSession, nextTimeUUID(),
+        this.session = new MeasureableRepairSession(parentRepairSession,
                                                     new CommonRange(neighbors, emptySet(), FULL_RANGE),
                                                     KEYSPACE, SEQUENTIAL, false, false,
                                                     NONE, false, true, false, CF);
 
         this.job = new RepairJob(session, CF);
-        this.sessionJobDesc = new RepairJobDesc(session.parentRepairSession, session.getId(),
-                                                session.keyspace, CF, session.ranges());
+        this.sessionJobDesc = new RepairJobDesc(session.state.parentRepairSession, session.getId(),
+                                                session.state.keyspace, CF, session.ranges());
 
         FBUtilities.setBroadcastInetAddress(addr1.getAddress());
     }

@@ -127,7 +127,7 @@ include::example$BNF/alter_mv_statement.bnf[]
 
 The options that can be updated are the same than at creation time and
 thus the `same than for tables
-<create-table-options>`.
+<create-table-options>`. If the view does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 [[drop-materialized-view-statement]]
 == DROP MATERIALIZED VIEW
