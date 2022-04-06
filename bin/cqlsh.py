@@ -101,24 +101,24 @@ if os.environ.get('CQLSH_NO_BUNDLED', ''):
     ZIPLIB_DIRS = ()
 
 
-def parse_auth_provider_extended(option, opt_str, value, passed_parser):
+def parse_auth_provider_config(option, opt_str, value, passed_parser):
     splits = opt_str.split('.')
     if len(splits) > 2:
-        raise optparse.OptionValueError("Invalid --auth_provider_extended argument only single period should be found: %s" % opt_str)
+        raise optparse.OptionValueError("Invalid --auth_provider_config argument only single period should be found: %s" % opt_str)
     if len(splits) < 2:
-        raise optparse.OptionValueError("Invalid --auth_provider_extended must provide a param using period: %s" % opt_str)
+        raise optparse.OptionValueError("Invalid --auth_provider_config must provide a param using period: %s" % opt_str)
     key = splits[1]
 
-    if not hasattr(passed_parser.values, 'auth_provider_extended') or parser.values.auth_provider_extended is None:
-        passed_parser.values.auth_provider_extended = {}
+    if not hasattr(passed_parser.values, 'auth_provider_config') or parser.values.auth_provider_config is None:
+        passed_parser.values.auth_provider_config = {}
 
-    passed_parser.values.auth_provider_extended[key] = value
+    passed_parser.values.auth_provider_config[key] = value
 
 
-def add_auth_provider_extended_options(passed_parser, argv):
+def add_auth_provider_config_options(passed_parser, argv):
     for arg in argv:
-        if arg.startswith('--auth_provider_extended'):
-            passed_parser.add_option(arg,action="callback", callback=parse_auth_provider_extended,
+        if arg.startswith('--auth_provider_config'):
+            passed_parser.add_option(arg,action="callback", callback=parse_auth_provider_config,
                   type="str", nargs=1)
 
 
@@ -251,10 +251,10 @@ parser.add_option('-v', action="version", help='Print the current version of cql
 # The Cassandra distributed tests (dtests) also use this option in some tests when a well-known password is supplied via the command line.
 parser.add_option("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
                   help=optparse.SUPPRESS_HELP)
-add_auth_provider_extended_options(parser, sys.argv[1:])
+add_auth_provider_config_options(parser, sys.argv[1:])
 
 parser.add_option("--auth_provider",
-                  help='specify the auth provider class (ex: cassandra.auth.PlainTextAuthProvider), use --auth_provider_extended.<name> for properties at construction (ex: --auth_provider_extended.username)',
+                  help='specify the auth provider class (ex: cassandra.auth.PlainTextAuthProvider), use --auth_provider_config.<name> for properties at construction (ex: --auth_provider_config.username)',
                   action="callback", callback=parse_auth_provider_class_module,type="str", nargs=1)
 
 opt_values = optparse.Values()
@@ -2134,8 +2134,8 @@ def load_auth_provider(optvalues):
     module = import_module(optvalues.auth_provider_module)
     auth_provider_klass = getattr(module, optvalues.auth_provider_classname)
 
-    if hasattr(optvalues, 'auth_provider_extended') and optvalues.auth_provider_extended is not None:
-        return auth_provider_klass(**optvalues.auth_provider_extended)
+    if hasattr(optvalues, 'auth_provider_config') and optvalues.auth_provider_config is not None:
+        return auth_provider_klass(**optvalues.auth_provider_config)
     else:
         return auth_provider_klass()
 
@@ -2202,10 +2202,10 @@ def read_options(cmdlineargs, environment):
     optvalues.auth_provider_module = option_with_default(configs.get, 'auth_provider', 'module')
     optvalues.auth_provider_classname = option_with_default(configs.get, 'auth_provider', 'classname')
 
-    if ('auth_provider_extended_properties' in configs.sections()) :
-        optvalues.auth_provider_extended = dict(configs.items("auth_provider_extended_properties"))
+    if ('auth_provider_config' in configs.sections()) :
+        optvalues.auth_provider_config = dict(configs.items("auth_provider_config"))
     else:
-        optvalues.auth_provider_extended = None
+        optvalues.auth_provider_config = None
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
 
