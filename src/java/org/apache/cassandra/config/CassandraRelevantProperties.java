@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.config;
 
+import java.util.concurrent.TimeUnit;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /** A class that extracts system properties for the cassandra node it runs within. */
@@ -146,6 +148,11 @@ public enum CassandraRelevantProperties
      * When bootstraping how long to wait for schema versions to be seen.
      */
     BOOTSTRAP_SCHEMA_DELAY_MS("cassandra.schema_delay_ms"),
+
+    /**
+     * When draining, how long to wait for mutating executors to shutdown.
+     */
+    DRAIN_EXECUTOR_TIMEOUT_MS("cassandra.drain_executor_timeout_ms", String.valueOf(TimeUnit.MINUTES.toMillis(5))),
 
     /**
      * Gossip quarantine delay is used while evaluating membership changes and should only be changed with extreme care.
