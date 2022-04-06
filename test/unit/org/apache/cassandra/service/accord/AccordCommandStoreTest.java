@@ -18,26 +18,18 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
-import accord.local.Node;
 import accord.local.Status;
-import accord.topology.KeyRanges;
-import accord.topology.Shard;
-import accord.topology.Topology;
 import accord.txn.Dependencies;
 import accord.txn.Timestamp;
 import accord.txn.Txn;
@@ -45,17 +37,16 @@ import accord.txn.TxnId;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
-import org.apache.cassandra.utils.FBUtilities;
 
-import static java.lang.String.format;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.AccordTestUtils.*;
-import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.NOT_EXISTS;
+import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createInMemoryCommandStore;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
+import static org.apache.cassandra.service.accord.AccordTestUtils.processCommandResult;
+import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;
+import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
 public class AccordCommandStoreTest
 {
@@ -69,35 +60,12 @@ public class AccordCommandStoreTest
         StorageService.instance.initServer();
     }
 
-    private static Txn createTxn(int key)
-    {
-        return txnBuilder().withRead(format("SELECT * FROM ks.tbl WHERE k=%s AND c=0", key))
-                           .withWrite(format("INSERT INTO ks.tbl (k, c, v) VALUES (%s, 0, 1)", key))
-                           .withCondition("ks", "tbl", key, 0, NOT_EXISTS).build();
-    }
-
-    private static InMemoryCommandStore.Synchronized createCommandStore(long now)
-    {
-        TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
-        TokenRange range = TokenRange.fullRange(metadata.id);
-        Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
-        Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
-        InMemoryCommandStore.Synchronized commandStore = new InMemoryCommandStore.Synchronized(0, 1, 8,
-                                                                                               node,
-                                                                                               ts -> new Timestamp(1, now, 0, node),
-                                                                                               new AccordAgent(),
-                                                                                               null,
-                                                                                               KeyRanges.of(range),
-                                                                                               () -> topology);
-        return commandStore;
-    }
-
     @Test
     public void commandLoadSave() throws Throwable
     {
         AtomicLong clock = new AtomicLong(0);
         Txn depTxn = createTxn(0);
-        InMemoryCommandStore.Synchronized commandStore = createCommandStore(clock.incrementAndGet());
+        InMemoryCommandStore.Synchronized commandStore = createInMemoryCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         Dependencies dependencies = new Dependencies();
         dependencies.add(txnId(1, clock.incrementAndGet(), 0, 1), depTxn);
@@ -134,7 +102,7 @@ public class AccordCommandStoreTest
     public void commandsForKeyLoadSave()
     {
         AtomicLong clock = new AtomicLong(0);
-        InMemoryCommandStore.Synchronized commandStore = createCommandStore(clock.incrementAndGet());
+        InMemoryCommandStore.Synchronized commandStore = createInMemoryCommandStore(clock::incrementAndGet, "ks", "tbl");
         Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 0, 1);
 
         Txn txn = createTxn(1);

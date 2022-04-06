@@ -81,7 +81,7 @@ public class AsyncWriter
 
     public boolean save(AsyncContext context, BiConsumer<Object, Throwable> callback)
     {
-        commandStore.checkThreadId();
+        commandStore.checkInStoreThread();
 
         try
         {

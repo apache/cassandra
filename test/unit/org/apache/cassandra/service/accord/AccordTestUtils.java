@@ -23,6 +23,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.LongSupplier;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -30,7 +33,9 @@ import com.google.common.collect.Sets;
 import accord.api.Data;
 import accord.api.KeyRange;
 import accord.api.Write;
+import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.topology.KeyRanges;
@@ -42,10 +47,16 @@ import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static java.lang.String.format;
+import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.NOT_EXISTS;
 
 public class AccordTestUtils
 {
@@ -121,5 +132,49 @@ public class AccordTestUtils
         Write write = txn.update.apply(readData);
         command.writes(new Writes(command.executeAt(), txn.keys(), write));
         command.result(txn.query.compute(readData));
+    }
+
+    public static Txn createTxn(int key)
+    {
+        return txnBuilder().withRead(format("SELECT * FROM ks.tbl WHERE k=%s AND c=0", key))
+                           .withWrite(format("INSERT INTO ks.tbl (k, c, v) VALUES (%s, 0, 1)", key))
+                           .withCondition("ks", "tbl", key, 0, NOT_EXISTS).build();
+    }
+
+    public static InMemoryCommandStore.Synchronized createInMemoryCommandStore(LongSupplier now, String keyspace, String table)
+    {
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+        TokenRange range = TokenRange.fullRange(metadata.id);
+        Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
+        Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
+        return new InMemoryCommandStore.Synchronized(0, 1, 8,
+                                                     node,
+                                                     ts -> new Timestamp(1, now.getAsLong(), 0, node),
+                                                     new AccordAgent(),
+                                                     null,
+                                                     KeyRanges.of(range),
+                                                     () -> topology);
+    }
+
+    public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
+    {
+
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+        TokenRange range = TokenRange.fullRange(metadata.id);
+        Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
+        Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
+        ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r);
+            thread.setName(CommandStore.class.getSimpleName() + '[' + node + ':' + 0 + ']');
+            return thread;
+        });
+        return new AccordCommandStore(0, 0, 1,
+                                      node,
+                                      ts -> new Timestamp(1, now.getAsLong(), 0, node),
+                                      new AccordAgent(),
+                                      null,
+                                      KeyRanges.of(range),
+                                      () -> topology,
+                                      executor);
     }
 }

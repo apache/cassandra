@@ -119,11 +119,8 @@ public class AsyncLoader
         return futures != null ? FutureCombiner.allOf(futures) : null;
     }
 
-
     public boolean load(AsyncContext context, BiConsumer<Object, Throwable> callback)
     {
-        commandStore.checkThreadId();
-
         switch (state)
         {
             case INITIALIZED:
@@ -154,11 +151,9 @@ public class AsyncLoader
             case LOADING:
                 if (readFuture != null && !readFuture.isDone())
                 {
-                    // FIXME: this should call back into the AsyncOperation so a separate executor task isn't submitted
                     readFuture.addCallback(callback, commandStore.executor());
                     break;
                 }
-                // FIXME: the transition from loading to finished feels awkward
                 state = State.FINISHED;
             case FINISHED:
                 break;

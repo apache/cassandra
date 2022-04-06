@@ -81,7 +81,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     @Override
     public void run()
     {
-        commandStore.checkThreadId();
+        commandStore.checkInStoreThread();
         commandStore.setContext(context);
         try
         {
@@ -90,6 +90,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
                 case INITIALIZED:
                     state = State.LOADING;
                 case LOADING:
+                    // TODO: check for any pending loads for the objects we want, and wait on them
                     if (!loader.load(context, this::callback))
                         return;
 
@@ -105,6 +106,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
                     context.releaseResources(commandStore);
                     setSuccess(result);
                     state = State.FINISHED;
+                case FINISHED:
                     break;
                 default:
                     throw new IllegalStateException();

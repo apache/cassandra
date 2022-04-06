@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -88,7 +87,8 @@ public class AccordCommandStore extends CommandStore
                               Agent agent,
                               Store store,
                               KeyRanges ranges,
-                              Supplier<Topology> localTopologySupplier, ExecutorService executor)
+                              Supplier<Topology> localTopologySupplier,
+                              ExecutorService executor)
     {
         super(generation, index, numShards, nodeId, uniqueNow, agent, store, ranges, localTopologySupplier);
         this.executor = executor;
@@ -96,15 +96,20 @@ public class AccordCommandStore extends CommandStore
         this.stateCache = new AccordStateCache(maxCacheSize() / numShards);
         this.commandCache = stateCache.instance(TxnId.class,
                                                 AccordCommand.class,
-                                                txnId -> AccordKeyspace.loadCommand(this, txnId));
+                                                txnId -> new AccordCommand(this, txnId));
         this.commandsForKeyCache = stateCache.instance(PartitionKey.class,
                                                        AccordCommandsForKey.class,
-                                                       key -> AccordKeyspace.loadCommandsForKey(this, key));
+                                                       key -> new AccordCommandsForKey(this, key));
     }
 
-    public void checkThreadId()
+    public void checkInStoreThread()
     {
         Preconditions.checkState(Thread.currentThread().getId() == threadId);
+    }
+
+    public void checkNotInStoreThread()
+    {
+        Preconditions.checkState(Thread.currentThread().getId() != threadId);
     }
 
     public Executor executor()

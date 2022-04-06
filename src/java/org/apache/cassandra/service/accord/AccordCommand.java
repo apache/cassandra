@@ -70,19 +70,20 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         this.txnId = txnId;
     }
 
-    public void loadEmpty()
+    public AccordCommand loadEmpty()
     {
-        status.load(Status.NotWitnessed);
-        txn.load(null);
+        status.set(Status.NotWitnessed);
+        txn.set(null);
         executeAt.load(null);
-        promised.load(Ballot.ZERO);
-        accepted.load(Ballot.ZERO);
+        promised.set(Ballot.ZERO);
+        accepted.set(Ballot.ZERO);
         deps.load(null);
         writes.load(null);
         result.load(null);
         waitingOnCommit.load(new TreeMap<>());
         waitingOnApply.load(new TreeMap<>());
         storedListeners.load(new TreeSet<>());
+        return this;
     }
 
     public boolean hasModifications()

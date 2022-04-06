@@ -129,12 +129,13 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         this.key = key;
     }
 
-    public void loadEmpty()
+    public AccordCommandsForKey loadEmpty()
     {
-        maxTimestamp.load(Timestamp.NONE);
+        maxTimestamp.set(Timestamp.NONE);
         uncommitted.map.load(new TreeMap<>());
         committedById.map.load(new TreeMap<>());
         committedByExecuteAt.map.load(new TreeMap<>());
+        return this;
     }
 
     public boolean hasModifications()
