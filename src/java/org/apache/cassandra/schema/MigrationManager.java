@@ -50,18 +50,6 @@ public class MigrationManager
 
     public static final MigrationManager instance = new MigrationManager();
 
-    private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
-
-    @VisibleForTesting
-    public static void setUptimeFn(LongSupplier supplier)
-    {
-        getUptimeFn = supplier;
-    }
-
-    private static final int MIGRATION_DELAY_IN_MS = 60000;
-
-    private static final int MIGRATION_TASK_WAIT_IN_SECONDS = Integer.parseInt(System.getProperty("cassandra.migration_task_wait_in_seconds", "1"));
-
     private MigrationManager() {}
 
     private static boolean shouldPushSchemaTo(InetAddressAndPort endpoint)

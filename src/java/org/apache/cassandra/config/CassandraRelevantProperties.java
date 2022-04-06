@@ -152,6 +152,10 @@ public enum CassandraRelevantProperties
      */
     GOSSIPER_QUARANTINE_DELAY("cassandra.gossip_quarantine_delay_ms"),
 
+    IGNORED_SCHEMA_CHECK_VERSIONS("cassandra.skip_schema_check_for_versions"),
+
+    IGNORED_SCHEMA_CHECK_ENDPOINTS("cassandra.skip_schema_check_for_endpoints"),
+
     /**
      * When doing a host replacement its possible that the gossip state is "empty" meaning that the endpoint is known
      * but the current state isn't known.  If the host replacement is needed to repair this state, this property must
