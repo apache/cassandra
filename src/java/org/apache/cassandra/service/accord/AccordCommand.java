@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -131,15 +130,6 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         waitingOnCommit.clearModifiedFlag();
         waitingOnApply.clearModifiedFlag();
         storedListeners.clearModifiedFlag();;
-    }
-
-    void save() throws IOException
-    {
-        if (!hasModifications())
-            return;
-        // TODO: accumulate changes and flush to partition update at end
-        AccordKeyspace.saveCommand(this);
-        resetModificationFlag();
     }
 
     @Override
@@ -354,7 +344,8 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     @Override
     public void notifyListeners()
     {
-        // TODO: defer to executor
+        // TODO: defer command listeners to executor, call cfk immediately (it's updating uncommitted mapping).
+        //  maybe update C* implementation to duplicate status etc into cfk table
         storedListeners.getView().forEach(this);
         transientListeners.forEach(this);
     }

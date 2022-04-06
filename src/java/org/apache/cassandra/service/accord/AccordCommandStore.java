@@ -35,12 +35,13 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
 import accord.local.Node;
+import accord.local.TxnOperation;
 import accord.topology.KeyRanges;
 import accord.topology.Topology;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordCommandStore extends CommandStore
@@ -154,16 +155,19 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public Future<Void> process(Consumer<? super CommandStore> consumer)
+    public <T> Future<T> process(TxnOperation scope, Function<? super CommandStore, T> function)
     {
-        throw new UnsupportedOperationException();
+        AsyncOperation<T> operation = AsyncOperation.create(this, scope, function);
+        executor.execute(operation);
+        return operation;
     }
 
     @Override
-    public <T> Future<T> process(Function<? super CommandStore, T> function)
+    public Future<Void> process(TxnOperation scope, Consumer<? super CommandStore> consumer)
     {
-        // FIXME: should these be CommandStores implementation details?
-        throw new UnsupportedOperationException();
+        AsyncOperation<Void> operation = AsyncOperation.create(this, scope, consumer);
+        executor.execute(operation);
+        return operation;
     }
 
     @Override

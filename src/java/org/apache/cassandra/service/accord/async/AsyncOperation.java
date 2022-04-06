@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.async;
 
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import accord.local.CommandStore;
@@ -27,7 +28,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
-public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
+public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
 {
     enum State
     {
@@ -49,21 +50,19 @@ public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
     private final AccordCommandStore commandStore;
     private final AsyncLoader loader;
     private final AsyncWriter writer;
-    private final Function<? super CommandStore, R> function;
     private AsyncContext context = new AsyncContext();
     private R result;
 
-    public AsyncOperation(AccordCommandStore commandStore, AsyncLoader loader, Function<? super CommandStore, R> function)
+    public AsyncOperation(AccordCommandStore commandStore, AsyncLoader loader)
     {
         this.commandStore = commandStore;
         this.loader = loader;
         this.writer = new AsyncWriter(commandStore);
-        this.function = function;
     }
 
-    public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad, Function<? super CommandStore, R> function)
+    public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
     {
-        this(commandStore, new AsyncLoader(commandStore, commandsToLoad, keyCommandsToLoad), function);
+        this(commandStore, new AsyncLoader(commandStore, commandsToLoad, keyCommandsToLoad));
     }
 
     private void callback(Object unused, Throwable throwable)
@@ -76,6 +75,8 @@ public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
         else
             run();
     }
+
+    abstract R calculateResult(CommandStore commandStore);
 
     @Override
     public void run()
@@ -93,7 +94,7 @@ public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
                         return;
 
                     state = State.RUNNING;
-                    result = function.apply(commandStore);
+                    result = calculateResult(commandStore);
                     // FIXME: if there is now a read or write to do, prevent other processes from attempting to perform them also
 
                     state = State.SAVING;
@@ -124,14 +125,48 @@ public class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
         return (Iterable<PartitionKey>) iterable;
     }
 
-    public static <R, S> AsyncOperation<R> operationFor(CommandStore commandStore, S scope, Function<? super CommandStore, R> function)
+    static class ForFunction<R> extends AsyncOperation<R>
     {
-        AccordCommandStore store = (AccordCommandStore) commandStore;
-        if (scope instanceof TxnOperation)
+        private final Function<? super CommandStore, R> function;
+
+        public ForFunction(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad, Function<? super CommandStore, R> function)
         {
-            TxnOperation op = (TxnOperation) scope;
-            return new AsyncOperation<>(store, op.expectedTxnIds(), toPartitionKeys(op.expectedKeys()), function);
+            super(commandStore, commandsToLoad, keyCommandsToLoad);
+            this.function = function;
         }
-        throw new IllegalArgumentException("Unhandled scope: " + scope);
+
+        @Override
+        R calculateResult(CommandStore commandStore)
+        {
+            return function.apply(commandStore);
+        }
+    }
+
+    public static <T> AsyncOperation<T> create(CommandStore commandStore, TxnOperation scope, Function<? super CommandStore, T> function)
+    {
+        return new ForFunction<>((AccordCommandStore) commandStore, scope.expectedTxnIds(), AsyncOperation.toPartitionKeys(scope.expectedKeys()), function);
+    }
+
+    static class ForConsumer  extends AsyncOperation<Void>
+    {
+        private final Consumer<? super CommandStore> consumer;
+
+        public ForConsumer(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad, Consumer<? super CommandStore> consumer)
+        {
+            super(commandStore, commandsToLoad, keyCommandsToLoad);
+            this.consumer = consumer;
+        }
+
+        @Override
+        Void calculateResult(CommandStore commandStore)
+        {
+            consumer.accept(commandStore);
+            return null;
+        }
+    }
+
+    public static AsyncOperation<Void> create(CommandStore commandStore, TxnOperation scope, Consumer<? super CommandStore> consumer)
+    {
+        return new ForConsumer((AccordCommandStore) commandStore, scope.expectedTxnIds(), AsyncOperation.toPartitionKeys(scope.expectedKeys()), consumer);
     }
 }
