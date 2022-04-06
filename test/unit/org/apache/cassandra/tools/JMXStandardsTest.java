@@ -59,52 +59,53 @@ public class JMXStandardsTest
      * JMX typlically works well with java.* and javax.*, but not all types are serializable and will work, so this class
      * goes with a explicit approval list, new APIs may fail if a java.* or javax.* is used not in this allow list, if
      * that is the case it is fine to add here.
-     *
+     * <p>
      * It is never fine to allow non java.* and javax.* types, they can not be handled by clients, so should never be
      * allowed.
      */
-    private static Set<Class<?>> ALLOWED_TYPES = ImmutableSet.<Class<?>>builder()
-                                                 .add(Void.class).add(Void.TYPE)
-                                                 .add(Boolean.class).add(Boolean.TYPE)
-                                                 .add(Byte.class).add(Byte.TYPE)
-                                                 .add(Short.class).add(Short.TYPE)
-                                                 .add(Integer.class).add(Integer.TYPE)
-                                                 .add(Long.class).add(Long.TYPE)
-                                                 .add(Float.class).add(Float.TYPE)
-                                                 .add(Double.class).add(Double.TYPE)
-                                                 .add(String.class)
-                                                 .add(ByteBuffer.class)
-                                                 .add(InetAddress.class)
-                                                 .add(File.class)
-                                                 .add(List.class).add(Map.class).add(Set.class).add(SortedMap.class).add(Collection.class)
-                                                 .add(ObjectName.class).add(TabularData.class).add(CompositeData.class)
-                                                 // Exceptions
-                                                 // https://www.oracle.com/java/technologies/javase/management-extensions-best-practices.html
-                                                 // "It is recommended that exceptions thrown by MBeans be drawn from
-                                                 // the standard set defined in the java.* and javax.* packages on the
-                                                 // Java SE platform. If an MBean throws a non-standard exception, a
-                                                 // client that does not have that exception class will likely see
-                                                 // another exception such as ClassNotFoundException instead."
-                                                 .add(ExecutionException.class)
-                                                 .add(InterruptedException.class)
-                                                 .add(UnknownHostException.class)
-                                                 .add(IOException.class)
-                                                 .add(TimeoutException.class)
-                                                 .add(IllegalStateException.class)
-                                                 .add(ClassNotFoundException.class)
-                                                 .add(OpenDataException.class)
-                                                 .build();
+    private static final Set<Class<?>> ALLOWED_TYPES = ImmutableSet.<Class<?>>builder()
+                                                       .add(Void.class).add(Void.TYPE)
+                                                       .add(Boolean.class).add(Boolean.TYPE)
+                                                       .add(Byte.class).add(Byte.TYPE)
+                                                       .add(Short.class).add(Short.TYPE)
+                                                       .add(Integer.class).add(Integer.TYPE)
+                                                       .add(Long.class).add(Long.TYPE)
+                                                       .add(Float.class).add(Float.TYPE)
+                                                       .add(Double.class).add(Double.TYPE)
+                                                       .add(String.class)
+                                                       .add(ByteBuffer.class)
+                                                       .add(InetAddress.class)
+                                                       .add(File.class)
+                                                       .add(List.class).add(Map.class).add(Set.class).add(SortedMap.class).add(Collection.class)
+                                                       .add(ObjectName.class).add(TabularData.class).add(CompositeData.class)
+                                                       // Exceptions
+                                                       // https://www.oracle.com/java/technologies/javase/management-extensions-best-practices.html
+                                                       // "It is recommended that exceptions thrown by MBeans be drawn from
+                                                       // the standard set defined in the java.* and javax.* packages on the
+                                                       // Java SE platform. If an MBean throws a non-standard exception, a
+                                                       // client that does not have that exception class will likely see
+                                                       // another exception such as ClassNotFoundException instead."
+                                                       .add(ExecutionException.class)
+                                                       .add(InterruptedException.class)
+                                                       .add(UnknownHostException.class)
+                                                       .add(IOException.class)
+                                                       .add(TimeoutException.class)
+                                                       .add(IllegalStateException.class)
+                                                       .add(ClassNotFoundException.class)
+                                                       .add(OpenDataException.class)
+                                                       .build();
     /**
      * This list is a set of types under java.* and javax.*, but are too vague that could cause issues; this does not
      * mean issues will happen with JMX, only that issues may happen only after running and can not be detected at
      * compile time.
      */
-    private static Set<Class<?>> DANGEROUS_TYPES = ImmutableSet.<Class<?>>builder()
-                                                   .add(Object.class)
-                                                   .add(Comparable.class)
-                                                   .add(Serializable.class)
-                                                   .add(Exception.class)
-                                                   .build();
+    private static final Set<Class<?>> DANGEROUS_TYPES = ImmutableSet.<Class<?>>builder()
+                                                         .add(Object.class)
+                                                         .add(Comparable.class)
+                                                         .add(Serializable.class)
+                                                         .add(Exception.class)
+                                                         .build();
+
     @Test
     public void interfaces() throws ClassNotFoundException
     {
