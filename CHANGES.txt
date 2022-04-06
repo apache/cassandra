@@ -1,4 +1,5 @@
 4.1
+ * repair vtables should expose a completed field due to lack of filtering options in CQL (CASSANDRA-17520)
  * remove outdated code from cqlsh (CASSANDRA-17490)
  * remove support for deprecated version specific TLS in Python 3.6 (CASSANDRA-17365)
  * Add support for IF EXISTS and IF NOT EXISTS in ALTER statements (CASSANDRA-16916)

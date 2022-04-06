@@ -418,6 +418,7 @@ public class LocalRepairTables
         ds.column("failure_cause", state.getFailureCause());
         ds.column("success_message", state.getSuccessMessage());
         ds.column(timestampColumnName("init"), new Date(state.getInitializedAtMillis()));
+        ds.column("completed", result != null);
 
         if (result != null)
             ds.column(timestampColumnName(result.kind), new Date(state.getLastUpdatedAtMillis()));
@@ -479,6 +480,7 @@ public class LocalRepairTables
     {
         String str = "  id timeuuid,\n" +
                      "  last_updated_at timestamp,\n" +
+                     "  completed boolean,\n" +
                      "  duration_millis bigint,\n" +
                      "  failure_cause text,\n" +
                      "  success_message text,\n";

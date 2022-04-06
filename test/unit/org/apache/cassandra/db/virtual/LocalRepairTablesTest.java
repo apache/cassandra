@@ -95,8 +95,8 @@ public class LocalRepairTablesTest extends CQLTester
         state.phase.start(tables, neighbors);
         assertState("repairs", state, CoordinatorState.State.START);
         List<List<String>> expectedRanges = neighbors.commonRanges.stream().map(a -> a.ranges.stream().map(Object::toString).collect(Collectors.toList())).collect(Collectors.toList());
-        assertRowsIgnoringOrder(execute(t("SELECT id, participants, table_names, ranges, unfiltered_ranges, participants FROM %s.repairs")),
-                                row(state.id, ADDRESSES_STR, tables.stream().map(a -> a.name).collect(Collectors.toList()), expectedRanges, expectedRanges, neighbors.participants.stream().map(Object::toString).collect(Collectors.toList())));
+        assertRowsIgnoringOrder(execute(t("SELECT id, completed, participants, table_names, ranges, unfiltered_ranges, participants FROM %s.repairs")),
+                                row(state.id, false, ADDRESSES_STR, tables.stream().map(a -> a.name).collect(Collectors.toList()), expectedRanges, expectedRanges, neighbors.participants.stream().map(Object::toString).collect(Collectors.toList())));
 
         state.phase.prepareStart();
         assertState("repairs", state, CoordinatorState.State.PREPARE_START);
@@ -187,8 +187,8 @@ public class LocalRepairTablesTest extends CQLTester
         state = participate();
         assertInit("repair_participates", state);
         state.phase.fail("testing");
-        assertRowsIgnoringOrder(execute(t("SELECT id, initiator, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
-                                row(state.getId(), FBUtilities.getBroadcastAddressAndPort().toString(), Arrays.asList("(0,42]"), "testing", null, new Date(state.getInitializedAtMillis()), null, new Date(state.getLastUpdatedAtMillis())));
+        assertRowsIgnoringOrder(execute(t("SELECT id, completed, initiator, ranges, failure_cause, success_message, state_init_timestamp, state_success_timestamp, state_failure_timestamp FROM %s.repair_participates WHERE id = ?"), state.id),
+                                row(state.getId(), true, FBUtilities.getBroadcastAddressAndPort().toString(), Arrays.asList("(0,42]"), "testing", null, new Date(state.getInitializedAtMillis()), null, new Date(state.getLastUpdatedAtMillis())));
 
         // make sure serialization works
         execute(t("SELECT * FROM %s.repair_participates"));
@@ -246,14 +246,14 @@ public class LocalRepairTablesTest extends CQLTester
 
     private <T extends Enum<T>> void assertState(String table, State<?, ?> state, T expectedState) throws Throwable
     {
-        assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
-                                row(state.getId(), expectedState.name().toLowerCase(), null, null));
+        assertRowsIgnoringOrder(execute(t("SELECT id, completed, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
+                                row(state.getId(), false, expectedState.name().toLowerCase(), null, null));
     }
 
     private void assertSuccess(String table, State<?, ?> state) throws Throwable
     {
-        assertRowsIgnoringOrder(execute(t("SELECT id, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
-                                row(state.getId(), "success", null, "testing"));
+        assertRowsIgnoringOrder(execute(t("SELECT id, completed, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
+                                row(state.getId(), true, "success", null, "testing"));
     }
 
     private static ColumnFamilyStore table()
