@@ -108,7 +108,7 @@ public class AbstractClusterTest
     }
 
     @Test
-    public void novnodeButTokensDoNotMatch()
+    public void noVnodeButTokensDoNotMatch()
     {
         AbstractBuilder builder = builder();
 
