@@ -31,27 +31,13 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
- * Cache for AccordCommand and AccordCommandsForKey
- *
- * Caching
- *  caches up to a configurable amount of resources. Implements an intrusive LRU cache, where the cacheable objects
- *      implement the linked list node structure used by
+ * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between them
  *
  * Supports dynamic object sizes
  *  after each acquire/free cycle, the cacheable objects size is recomputed to account for data added/removed during
  *      txn processing
  *
- * Locking
- *  should handle locking of objects
- *  should handle batch locking where all are locked, or none are (maybe?) If something is contended, we should avoid
- *
- * Loading
- *  should return futures or something so loading doesn't
- *      (a) block the thread or
- *      (b) hold up operations with common keys that are ready to execute
- *
  * Nice to have
- *  commands and commands for keys could share a common resource pool, but appear as 2 separate stores
  *  cached objects could be asked to reduce their size (unload things unlikely to be used) instead of
  *      immediately evicting
  *  track cache hits, misses, and key contention
@@ -82,7 +68,7 @@ public class AccordStateCache
         final V value;
         private Node<?, ?> prev;
         private Node<?, ?> next;
-        private boolean active = false;
+        private int references = 0;
         private long lastQueriedSize = 0;
 
         Node(V value)
@@ -227,12 +213,16 @@ public class AccordStateCache
      * @param key
      * @return
      */
-    private <K, V extends AccordStateCache.AccordState<K, V>> V acquireInternal(K key, Function<K, V> factory)
+    private <K, V extends AccordStateCache.AccordState<K, V>> V getOrCreateInternal(K key, Function<K, V> factory)
     {
-        if (active.containsKey(key))
-            return null;
+        Node<K, V> node = (Node<K, V>) active.get(key);
+        if (node != null)
+        {
+            node.references++;
+            return node.value;
+        }
 
-        Node<K, V> node = (Node<K, V>) cache.remove(key);
+        node = (Node<K, V>) cache.remove(key);
 
         if (node == null)
         {
@@ -245,10 +235,10 @@ public class AccordStateCache
             unlink(node);
         }
 
-        Preconditions.checkState(!node.active);
+        Preconditions.checkState(node.references == 0);
         maybeEvict();
 
-        node.active = true;
+        node.references++;
         active.put(key, node);
 
         return node.value;
@@ -257,12 +247,15 @@ public class AccordStateCache
     private <K, V extends AccordStateCache.AccordState<K, V>> void releaseInternal(V value)
     {
         K key = value.key();
-        Node<K, V> node = (Node<K, V>) active.remove(key);
-        Preconditions.checkState(node != null && node.active);
+        Node<K, V> node = (Node<K, V>) active.get(key);
+        Preconditions.checkState(node != null && node.references > 0);
         Preconditions.checkState(node.value == value);
-        node.active = false;
-        cache.put(key, node);
-        push(node);
+        if (--node.references == 0)
+        {
+            active.remove(key);
+            cache.put(key, node);
+            push(node);
+        }
 
         updateSize(node);
         maybeEvict();
@@ -301,9 +294,9 @@ public class AccordStateCache
          * @param key
          * @return
          */
-        public V acquire(K key)
+        public V getOrCreate(K key)
         {
-            return acquireInternal(key, factory);
+            return getOrCreateInternal(key, factory);
         }
 
         public void release(V value)
@@ -351,5 +344,12 @@ public class AccordStateCache
     boolean keyIsCached(Object key)
     {
         return cache.containsKey(key);
+    }
+
+    @VisibleForTesting
+    int references(Object key)
+    {
+        Node<?, ?> node = active.get(key);
+        return node != null ? node.references : 0;
     }
 }

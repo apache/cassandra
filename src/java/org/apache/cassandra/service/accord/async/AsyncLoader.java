@@ -62,7 +62,7 @@ public class AsyncLoader
 
     protected boolean acquireCommand(TxnId txnId, AsyncContext context)
     {
-        AccordCommand command = commandStore.commandCache().acquire(txnId);
+        AccordCommand command = commandStore.commandCache().getOrCreate(txnId);
         if (command == null)
             return false;
         context.commands.put(command.txnId(), command);
@@ -71,7 +71,7 @@ public class AsyncLoader
 
     protected boolean acquireCommandsForKey(PartitionKey key, AsyncContext context)
     {
-        AccordCommandsForKey commandsForKey = commandStore.commandsForKeyCache().acquire(key);
+        AccordCommandsForKey commandsForKey = commandStore.commandsForKeyCache().getOrCreate(key);
         if (commandsForKey == null)
             return false;
         context.keyCommands.put(key, commandsForKey);

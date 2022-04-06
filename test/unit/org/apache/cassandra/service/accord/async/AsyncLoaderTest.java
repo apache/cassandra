@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord.async;
 
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -27,7 +26,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.impl.InMemoryCommandStore;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import org.apache.cassandra.SchemaLoader;
@@ -38,7 +36,6 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
@@ -71,10 +68,10 @@ public class AsyncLoaderTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
 
         // acquire / release
-        AccordCommand command = commandCache.acquire(txnId).loadEmpty();
+        AccordCommand command = commandCache.getOrCreate(txnId).loadEmpty();
         command.txn(txn);
         commandCache.release(command);
-        AccordCommandsForKey cfk = cfkCacche.acquire(key).loadEmpty();
+        AccordCommandsForKey cfk = cfkCacche.getOrCreate(key).loadEmpty();
         cfkCacche.release(cfk);
 
         AsyncContext context = new AsyncContext();
@@ -141,7 +138,7 @@ public class AsyncLoaderTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
 
         // acquire /release, create / persist
-        AccordCommand command = commandCache.acquire(txnId).loadEmpty();
+        AccordCommand command = commandCache.getOrCreate(txnId).loadEmpty();
         command.txn(txn);
         commandCache.release(command);
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).loadEmpty();

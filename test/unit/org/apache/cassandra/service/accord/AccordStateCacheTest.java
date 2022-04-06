@@ -79,7 +79,7 @@ public class AccordStateCacheTest
         AccordStateCache.Instance<Integer, Item> instance = cache.instance(Integer.class, Item.class, Item::new);
         assertCacheState(cache, 0, 0, 0);
 
-        Item item1 = instance.acquire(1);
+        Item item1 = instance.getOrCreate(1);
         assertCacheState(cache, 1, 0, DEFAULT_NODE_SIZE);
         Assert.assertNull(cache.head);
         Assert.assertNull(cache.tail);
@@ -90,7 +90,7 @@ public class AccordStateCacheTest
         Assert.assertSame(item1, cache.tail.value);
         Assert.assertSame(item1, cache.head.value);
 
-        Item item2 = instance.acquire(2);
+        Item item2 = instance.getOrCreate(2);
         assertCacheState(cache, 1, 1, DEFAULT_NODE_SIZE + nodeSize(110));
         instance.release(item2);
         assertCacheState(cache, 0, 2, DEFAULT_NODE_SIZE + nodeSize(110));
@@ -109,7 +109,7 @@ public class AccordStateCacheTest
         Item[] items = new Item[3];
         for (int i=0; i<3; i++)
         {
-            Item item = instance.acquire(i);
+            Item item = instance.getOrCreate(i);
             items[i] = item;
             instance.release(item);
         }
@@ -118,7 +118,7 @@ public class AccordStateCacheTest
         Assert.assertSame(items[2], cache.head.value);
         assertCacheState(cache, 0, 3, DEFAULT_NODE_SIZE * 3);
 
-        Item item = instance.acquire(1);
+        Item item = instance.getOrCreate(1);
         assertCacheState(cache, 1, 2, DEFAULT_NODE_SIZE * 3);
 
         // releasing item should return it to the head
@@ -138,7 +138,7 @@ public class AccordStateCacheTest
         Item[] items = new Item[5];
         for (int i=0; i<5; i++)
         {
-            Item item = instance.acquire(i);
+            Item item = instance.getOrCreate(i);
             items[i] = item;
             instance.release(item);
         }
@@ -147,7 +147,7 @@ public class AccordStateCacheTest
         Assert.assertSame(items[0], cache.tail.value);
         Assert.assertSame(items[4], cache.head.value);
 
-        instance.acquire(5);
+        instance.getOrCreate(5);
         assertCacheState(cache, 1, 4, DEFAULT_NODE_SIZE * 5);
         Assert.assertSame(items[1], cache.tail.value);
         Assert.assertSame(items[4], cache.head.value);
@@ -165,7 +165,7 @@ public class AccordStateCacheTest
         Item[] items = new Item[5];
         for (int i=0; i<5; i++)
         {
-            Item item = instance.acquire(i);
+            Item item = instance.getOrCreate(i);
             items[i] = item;
         }
 
@@ -185,16 +185,24 @@ public class AccordStateCacheTest
     }
 
     @Test
-    public void testAcquisitionFailure()
+    public void testMultiAcquireRelease()
     {
         AccordStateCache cache = new AccordStateCache(DEFAULT_NODE_SIZE * 4);
         AccordStateCache.Instance<Integer, Item> instance = cache.instance(Integer.class, Item.class, Item::new);
         assertCacheState(cache, 0, 0, 0);
 
-        Assert.assertNotNull(instance.acquire(0));
+        Item item = instance.getOrCreate(0);
+        Assert.assertNotNull(item);
+        Assert.assertEquals(1, cache.references(0));
         assertCacheState(cache, 1, 0, DEFAULT_NODE_SIZE);
 
-        Assert.assertNull(instance.acquire(0));
+        Assert.assertNotNull(instance.getOrCreate(0));
+        Assert.assertEquals(2, cache.references(0));
         assertCacheState(cache, 1, 0, DEFAULT_NODE_SIZE);
+
+        instance.release(item);
+        assertCacheState(cache, 1, 0, DEFAULT_NODE_SIZE);
+        instance.release(item);
+        assertCacheState(cache, 0, 1, DEFAULT_NODE_SIZE);
     }
 }
