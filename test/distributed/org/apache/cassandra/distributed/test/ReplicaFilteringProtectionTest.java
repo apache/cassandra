@@ -52,6 +52,13 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     private static final int ROWS = 3;
 
     private static Cluster cluster;
+    /**
+     * This class currently does not support vnodes, but the cluster is defined statically!  Junit freaks out if the
+     * setup method throws {@link AssumptionViolatedException} (the error telling junit to skip the test) and says the
+     * class failed rather than the tests were skipped... this skipMessage field is 100% a hack around this limitation!
+     * Every test is expected to check that this is defined, and if so throw {@link AssumptionViolatedException} to
+     * skip the test.
+     */
     private static String skipMessage;
 
     @BeforeClass
@@ -74,6 +81,8 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
             // test isn't allowed to run, but junit freaks out and shows the AssumptionViolatedException in the junit report
             // so it looks like the tests failed rather than were skipped... need the tests to actually skip instead...
             skipMessage = e.getMessage();
+            if (skipMessage == null)
+                skipMessage = "vnodes is not supported";
         }
     }
 
