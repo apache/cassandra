@@ -219,6 +219,9 @@ public class InstanceConfig implements IInstanceConfig
     @Override
     public void validate()
     {
+        // Previous logic would validate vnode was not used, but with vnode support added that validation isn't needed.
+        // Rather than attempting validating the configs here, its best to leave that to the instance; this method
+        // is no longer really needed, but can not be removed due to backwards compatability.
     }
 
     public Object get(String name)
