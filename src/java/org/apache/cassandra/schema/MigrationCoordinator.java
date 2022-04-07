@@ -343,7 +343,7 @@ public class MigrationCoordinator
     private boolean shouldPullImmediately(InetAddressAndPort endpoint, UUID version)
     {
         UUID localSchemaVersion = schemaVersion.get();
-        if (SchemaConstants.emptyVersion.equals(localSchemaVersion) || ManagementFactory.getRuntimeMXBean().getUptime() < MIGRATION_DELAY_IN_MS)
+        if (SchemaConstants.emptyVersion.equals(localSchemaVersion) || getUptimeFn.getAsLong() < MIGRATION_DELAY_IN_MS)
         {
             // If we think we may be bootstrapping or have recently started, submit MigrationTask immediately
             logger.debug("Immediately submitting migration task for {}, " +
