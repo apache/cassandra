@@ -175,6 +175,9 @@ Upgrading
       parameters. List of changed parameters and details to consider during configuration setup can be
       found at https://cassandra.apache.org/doc/latest/cassandra/new/configuration.html. (CASSANDRA-15234)
       Backward compatibility with the old cassandra.yaml file will be in place until at least the next major version.
+      By default we refuse starting Cassandra with a config containing both old and new config keys for the same parameter. Start
+      Cassandra with -Dcassandra.allow_new_old_config_keys=true to override. For historical reasons duplicate config keys
+      in cassandra.yaml are allowed by default, start Cassandra with -Dcassandra.allow_duplicate_config_keys=false to disallow this.
     - Many cassandra.yaml parameters' names have been changed. Full list and details to consider during configuration setup
       when installing/upgrading Cassandra can be found at https://cassandra.apache.org/doc/latest/cassandra/new/configuration.html (CASSANDRA-15234)
     - Negative values cannot be used for parameters of type data rate, duration and data storage with both old and new cassandra.yaml version.

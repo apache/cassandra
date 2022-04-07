@@ -19,10 +19,9 @@ package org.apache.cassandra.config;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1113,7 +1112,7 @@ public class Config
         exception
     }
 
-    private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{
+    private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{
         add("client_encryption_options");
         add("server_encryption_options");
     }};
