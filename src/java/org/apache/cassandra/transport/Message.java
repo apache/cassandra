@@ -253,7 +253,7 @@ public abstract class Message
             return response;
         }
 
-        void setTracingRequested()
+        public void setTracingRequested()
         {
             tracingRequested = true;
         }
@@ -283,7 +283,7 @@ public abstract class Message
             return this;
         }
 
-        UUID getTracingId()
+        public UUID getTracingId()
         {
             return tracingId;
         }
