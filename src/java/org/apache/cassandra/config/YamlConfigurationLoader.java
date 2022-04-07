@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.composer.Composer;
@@ -54,6 +56,8 @@ import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
 import org.yaml.snakeyaml.nodes.Node;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_OLD_CONFIG_KEYS;
 import static org.apache.cassandra.config.Replacements.getNameReplacements;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
@@ -71,7 +75,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * Inspect the classpath to find storage configuration file
      */
     @VisibleForTesting
-    private static URL getStorageConfigURL() throws ConfigurationException
+    protected static URL getStorageConfigURL() throws ConfigurationException
     {
         String configUrl = System.getProperty("cassandra.config");
         if (configUrl == null)
@@ -135,6 +139,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
             Constructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
             Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
+            verifyReplacements(replacements, configBytes);
             PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
             constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
@@ -167,6 +172,43 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             if (!map.isEmpty())
                 updateFromMap(map, false, obj);
         }
+    }
+
+    private static void verifyReplacements(Map<Class<?>, Map<String, Replacement>> replacements, Map<String, Object> rawConfig)
+    {
+        List<String> duplicates = new ArrayList<>();
+        for (Map.Entry<Class<?>, Map<String, Replacement>> outerEntry : replacements.entrySet())
+        {
+            for (Map.Entry<String, Replacement> entry : outerEntry.getValue().entrySet())
+            {
+                Replacement r = entry.getValue();
+                if (!r.isValueFormatReplacement() && rawConfig.containsKey(r.oldName) && rawConfig.containsKey(r.newName))
+                {
+                    String msg = String.format("[%s -> %s]", r.oldName, r.newName);
+                    duplicates.add(msg);
+                }
+            }
+        }
+
+        if (!duplicates.isEmpty())
+        {
+            String msg = String.format("Config contains both old and new keys for the same configuration parameters, migrate old -> new: %s", String.join(", ", duplicates));
+            if (!ALLOW_NEW_OLD_CONFIG_KEYS.getBoolean())
+                throw new ConfigurationException(msg);
+            else
+                logger.warn(msg);
+        }
+    }
+
+    private static void verifyReplacements(Map<Class<?>, Map<String, Replacement>> replacements, byte[] configBytes)
+    {
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setAllowDuplicateKeys(ALLOW_DUPLICATE_CONFIG_KEYS.getBoolean());
+        Yaml rawYaml = new Yaml(loaderOptions);
+
+        Map<String, Object> rawConfig = rawYaml.load(new ByteArrayInputStream(configBytes));
+        verifyReplacements(replacements, rawConfig);
+
     }
 
     private static String readStorageConfig(URL url)
@@ -220,6 +262,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
         Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
+        verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
@@ -420,7 +463,5 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 logger.warn("{} parameters have been deprecated. They have new names and/or value format; For more information, please refer to NEWS.txt", deprecationWarnings);
         }
     }
-
-
 }
 
