@@ -433,20 +433,34 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
 
     void checkAppliesUDT(String condition, Object value) throws Throwable
     {
+        // UPDATE statement
         assertRows(execute("UPDATE %s SET v = ? WHERE k = 0 IF " + condition, value), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, value));
+        // DELETE statement
+        assertRows(execute("DELETE FROM %s WHERE k = 0 IF " + condition), row(true));
+        assertEmpty(execute("SELECT * FROM %s"));
+        execute("INSERT INTO %s (k, v) VALUES (0, ?)", value);
     }
 
     void checkDoesNotApplyUDT(String condition, Object value) throws Throwable
     {
+        // UPDATE statement
         assertRows(execute("UPDATE %s SET v = ? WHERE k = 0 IF " + condition, value),
+                   row(false, value));
+        assertRows(execute("SELECT * FROM %s"), row(0, value));
+        // DELETE statement
+        assertRows(execute("DELETE FROM %s WHERE k = 0 IF " + condition),
                    row(false, value));
         assertRows(execute("SELECT * FROM %s"), row(0, value));
     }
 
     void checkInvalidUDT(String condition, Object value, Class<? extends Throwable> expected) throws Throwable
     {
+        // UPDATE statement
         assertInvalidThrow(expected, "UPDATE %s SET v = ?  WHERE k = 0 IF " + condition, value);
+        assertRows(execute("SELECT * FROM %s"), row(0, value));
+        // DELETE statement
+        assertInvalidThrow(expected, "DELETE FROM %s WHERE k = 0 IF " + condition);
         assertRows(execute("SELECT * FROM %s"), row(0, value));
     }
 
@@ -509,20 +523,34 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
 
     void check_applies_list(String condition) throws Throwable
     {
+        // UPDATE statement
         assertRows(execute("UPDATE %s SET l = ['foo', 'bar', 'foobar'] WHERE k=0 IF " + condition), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, list("foo", "bar", "foobar")));
+        // DELETE statement
+        assertRows(execute("DELETE FROM %s WHERE k=0 IF " + condition), row(true));
+        assertEmpty(execute("SELECT * FROM %s"));
+        execute("INSERT INTO %s(k, l) VALUES (0, ['foo', 'bar', 'foobar'])");
     }
 
     void check_does_not_apply_list(String condition) throws Throwable
     {
+        // UPDATE statement
         assertRows(execute("UPDATE %s SET l = ['foo', 'bar', 'foobar'] WHERE k=0 IF " + condition),
+                   row(false, list("foo", "bar", "foobar")));
+        assertRows(execute("SELECT * FROM %s"), row(0, list("foo", "bar", "foobar")));
+        // DELETE statement
+        assertRows(execute("DELETE FROM %s WHERE k=0 IF " + condition),
                    row(false, list("foo", "bar", "foobar")));
         assertRows(execute("SELECT * FROM %s"), row(0, list("foo", "bar", "foobar")));
     }
 
     void check_invalid_list(String condition, Class<? extends Throwable> expected) throws Throwable
     {
+        // UPDATE statement
         assertInvalidThrow(expected, "UPDATE %s SET l = ['foo', 'bar', 'foobar'] WHERE k=0 IF " + condition);
+        assertRows(execute("SELECT * FROM %s"), row(0, list("foo", "bar", "foobar")));
+        // DELETE statement
+        assertInvalidThrow(expected, "DELETE FROM %s WHERE k=0 IF " + condition);
         assertRows(execute("SELECT * FROM %s"), row(0, list("foo", "bar", "foobar")));
     }
 
@@ -670,19 +698,32 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
 
     void check_applies_set(String condition) throws Throwable
     {
+        // UPDATE statement
         assertRows(execute("UPDATE %s SET s = {'bar', 'foo'} WHERE k=0 IF " + condition), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, set("bar", "foo")));
+        // DELETE statement
+        assertRows(execute("DELETE FROM %s WHERE k=0 IF " + condition), row(true));
+        assertEmpty(execute("SELECT * FROM %s"));
+        execute("INSERT INTO %s (k, s) VALUES (0, {'bar', 'foo'})");
     }
 
     void check_does_not_apply_set(String condition) throws Throwable
     {
+        // UPDATE statement
         assertRows(execute("UPDATE %s SET s = {'bar', 'foo'} WHERE k=0 IF " + condition), row(false, set("bar", "foo")));
+        assertRows(execute("SELECT * FROM %s"), row(0, set("bar", "foo")));
+        // DELETE statement
+        assertRows(execute("DELETE FROM %s WHERE k=0 IF " + condition), row(false, set("bar", "foo")));
         assertRows(execute("SELECT * FROM %s"), row(0, set("bar", "foo")));
     }
 
     void check_invalid_set(String condition, Class<? extends Throwable> expected) throws Throwable
     {
+        // UPDATE statement
         assertInvalidThrow(expected, "UPDATE %s SET s = {'bar', 'foo'} WHERE k=0 IF " + condition);
+        assertRows(execute("SELECT * FROM %s"), row(0, set("bar", "foo")));
+        // DELETE statement
+        assertInvalidThrow(expected, "DELETE FROM %s WHERE k=0 IF " + condition);
         assertRows(execute("SELECT * FROM %s"), row(0, set("bar", "foo")));
     }
 
@@ -845,19 +886,31 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
 
     void check_applies_map(String condition) throws Throwable
     {
+        // UPDATE statement
         assertRows(execute("UPDATE %s SET m = {'foo': 'bar'} WHERE k=0 IF " + condition), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, map("foo", "bar")));
+        // DELETE statement
+        assertRows(execute("DELETE FROM %s WHERE k=0 IF " + condition), row(true));
+        assertEmpty(execute("SELECT * FROM %s"));
+        execute("INSERT INTO %s (k, m) VALUES (0, {'foo' : 'bar'})");
     }
 
     void check_does_not_apply_map(String condition) throws Throwable
     {
         assertRows(execute("UPDATE %s SET m = {'foo': 'bar'} WHERE k=0 IF " + condition), row(false, map("foo", "bar")));
         assertRows(execute("SELECT * FROM %s"), row(0, map("foo", "bar")));
+        // DELETE statement
+        assertRows(execute("DELETE FROM %s WHERE k=0 IF " + condition), row(false, map("foo", "bar")));
+        assertRows(execute("SELECT * FROM %s"), row(0, map("foo", "bar")));
     }
 
     void check_invalid_map(String condition, Class<? extends Throwable> expected) throws Throwable
     {
+        // UPDATE statement
         assertInvalidThrow(expected, "UPDATE %s SET m = {'foo': 'bar'} WHERE k=0 IF " + condition);
+        assertRows(execute("SELECT * FROM %s"), row(0, map("foo", "bar")));
+        // DELETE statement
+        assertInvalidThrow(expected, "DELETE FROM %s WHERE k=0 IF " + condition);
         assertRows(execute("SELECT * FROM %s"), row(0, map("foo", "bar")));
     }
 
