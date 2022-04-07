@@ -31,14 +31,14 @@ import static org.apache.cassandra.service.accord.store.StoredValueTest.assertIS
 
 public class StoredSetTest
 {
-    private static NavigableSet<Integer> getAdditions(StoredNavigableSet<Integer> set)
+    private static NavigableSet<Integer> getAdditions(StoredSet.Navigable<Integer> set)
     {
         NavigableSet<Integer> result = new TreeSet<>();
         set.forEachAddition(result::add);
         return result;
     }
 
-    private static Set<Integer> getDeletions(StoredNavigableSet<Integer> set)
+    private static Set<Integer> getDeletions(StoredSet.Navigable<Integer> set)
     {
         Set<Integer> result = new HashSet<>();
         set.forEachDeletion(result::add);
@@ -52,7 +52,7 @@ public class StoredSetTest
         expected.add(1);
         expected.add(5);
 
-        StoredNavigableSet<Integer> map = new StoredNavigableSet<>();
+        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>();
 
         // no values loaded, getView should fail
         assertISE(map::getView);
@@ -104,7 +104,7 @@ public class StoredSetTest
     @Test
     public void unloadedAddsAndRemoves()
     {
-        StoredNavigableSet<Integer> map = new StoredNavigableSet<>();
+        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>();
         assertISE(map::getView);
 
         // check additions
@@ -141,7 +141,7 @@ public class StoredSetTest
         NavigableSet<Integer> expectedAdditions = new TreeSet<>();
         Set<Integer> expectedDeletions = new HashSet<>();
 
-        StoredNavigableSet<Integer> map = new StoredNavigableSet<>();
+        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>();
         map.load(new TreeSet<>());
         Assert.assertEquals(expectedData, map.getView());
 
@@ -177,7 +177,7 @@ public class StoredSetTest
         NavigableSet<Integer> expectedAdditions = new TreeSet<>();
 
         expectedData.add(1);
-        StoredNavigableSet<Integer> map = new StoredNavigableSet<>();
+        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>();
         map.load(new TreeSet<>(expectedData));
         Assert.assertEquals(expectedData, map.getView());
 

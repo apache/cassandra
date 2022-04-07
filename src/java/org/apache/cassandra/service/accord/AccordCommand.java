@@ -36,7 +36,7 @@ import accord.txn.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
-import org.apache.cassandra.service.accord.store.StoredNavigableSet;
+import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -86,7 +86,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     public final StoredNavigableMap<TxnId, TxnId> waitingOnCommit = new StoredNavigableMap<>();
     public final StoredNavigableMap<Timestamp, TxnId> waitingOnApply = new StoredNavigableMap<>();
 
-    public final StoredNavigableSet<ListenerProxy> storedListeners = new StoredNavigableSet<>();
+    public final StoredSet.DeterministicIdentity<ListenerProxy> storedListeners = new StoredSet.DeterministicIdentity<>();
     private final Listeners transientListeners = new Listeners();
 
     public AccordCommand(CommandStore commandStore, TxnId txnId)

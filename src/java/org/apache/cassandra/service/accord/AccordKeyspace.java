@@ -93,7 +93,7 @@ import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
-import org.apache.cassandra.service.accord.store.StoredNavigableSet;
+import org.apache.cassandra.service.accord.store.StoredSet;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -362,7 +362,7 @@ public class AccordKeyspace
                                                                       ColumnMetadata column,
                                                                       long timestamp,
                                                                       int nowInSec,
-                                                                      StoredNavigableSet<T> map,
+                                                                      StoredSet<T, ?> map,
                                                                       Function<T, ByteBuffer> serialize)
     {
         if (map.wasCleared())

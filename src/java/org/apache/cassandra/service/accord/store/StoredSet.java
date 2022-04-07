@@ -19,18 +19,26 @@
 package org.apache.cassandra.service.accord.store;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredField
+import accord.utils.DeterministicIdentitySet;
+
+public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
 {
-    private NavigableSet<T> set = null;
-    private NavigableSet<T> view = null;
-    private NavigableSet<T> additions = null;
-    private NavigableSet<T> deletions = null;
+    private S set = null;
+    private S view = null;
+    private S additions = null;
+    private S deletions = null;
+
+    abstract S createDataSet();
+    abstract S createMetaSet();
+    abstract S createView(S data);
 
     @Override
     public boolean equals(Object o)
@@ -38,7 +46,7 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
         preGet();
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        StoredNavigableSet<?> that = (StoredNavigableSet<?>) o;
+        StoredSet<?, ?> that = (StoredSet<?, ?>) o;
         return Objects.equals(set, that.set);
     }
 
@@ -67,19 +75,19 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
         deletions = null;
     }
 
-    void setInternal(NavigableSet<T> set)
+    void setInternal(S set)
     {
         this.set = set;
-        this.view = Collections.unmodifiableNavigableSet(set);
+        this.view = createView(set);
     }
 
-    public void load(NavigableSet<T> set)
+    public void load(S set)
     {
         preLoad();
         setInternal(set);
     }
 
-    public NavigableSet<T> getView()
+    public S getView()
     {
         preGet();
         return view;
@@ -92,7 +100,7 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
             set.add(item);
 
         if (additions == null)
-            additions = new TreeSet<>();
+            additions = createMetaSet();
 
         additions.add(item);
         if (deletions != null)
@@ -108,7 +116,7 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
         if (!wasCleared())
         {
             if (deletions == null)
-                deletions = new TreeSet<>();
+                deletions = createMetaSet();
             deletions.add(item);
         }
         if (additions != null)
@@ -119,7 +127,7 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
     {
         clearModifiedFlag();
         preClear();
-        setInternal(new TreeSet<>());
+        setInternal(createDataSet());
     }
 
     @Override
@@ -150,5 +158,47 @@ public class StoredNavigableSet<T extends Comparable<?>> extends AbstractStoredF
     {
         if (deletions != null)
             deletions.forEach(consumer);
+    }
+
+    public static class Navigable<T extends Comparable<?>> extends StoredSet<T, NavigableSet<T>>
+    {
+        @Override
+        NavigableSet<T> createDataSet()
+        {
+            return new TreeSet<>();
+        }
+
+        @Override
+        NavigableSet<T> createMetaSet()
+        {
+            return new TreeSet<>();
+        }
+
+        @Override
+        NavigableSet<T> createView(NavigableSet<T> data)
+        {
+            return Collections.unmodifiableNavigableSet(data);
+        }
+    }
+
+    public static class DeterministicIdentity<T> extends StoredSet<T, Set<T>>
+    {
+        @Override
+        Set<T> createDataSet()
+        {
+            return new DeterministicIdentitySet<>();
+        }
+
+        @Override
+        Set<T> createMetaSet()
+        {
+            return new HashSet<>();
+        }
+
+        @Override
+        Set<T> createView(Set<T> data)
+        {
+            return new DeterministicIdentitySet<>();
+        }
     }
 }
