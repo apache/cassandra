@@ -105,7 +105,7 @@ public class DescribeStatementTest extends CQLTester
                           row(KEYSPACE,
                               "function",
                               shortFunctionName(fNonOverloaded) + "()",
-                              "CREATE FUNCTION " + fNonOverloaded + "()\n" +
+                              "CREATE FUNCTION IF NOT EXISTS " + fNonOverloaded + "()\n" +
                                       "    CALLED ON NULL INPUT\n" +
                                       "    RETURNS int\n" +
                                       "    LANGUAGE java\n" +
@@ -115,7 +115,7 @@ public class DescribeStatementTest extends CQLTester
                           row(KEYSPACE,
                               "function",
                               shortFunctionName(fOverloaded) + "(int, ascii)",
-                              "CREATE FUNCTION " + fOverloaded + "(input int, other_in ascii)\n" +
+                              "CREATE FUNCTION IF NOT EXISTS " + fOverloaded + "(input int, other_in ascii)\n" +
                                       "    RETURNS NULL ON NULL INPUT\n" +
                                       "    RETURNS text\n" +
                                       "    LANGUAGE java\n" +
@@ -123,7 +123,7 @@ public class DescribeStatementTest extends CQLTester
                           row(KEYSPACE,
                               "function",
                               shortFunctionName(fOverloaded) + "(text, ascii)",
-                              "CREATE FUNCTION " + fOverloaded + "(input text, other_in ascii)\n" +
+                              "CREATE FUNCTION IF NOT EXISTS " + fOverloaded + "(input text, other_in ascii)\n" +
                                       "    RETURNS NULL ON NULL INPUT\n" +
                                       "    RETURNS text\n" +
                                       "    LANGUAGE java\n" +
@@ -178,7 +178,7 @@ public class DescribeStatementTest extends CQLTester
                           row(KEYSPACE,
                               "aggregate",
                               shortFunctionName(aNonDeterministic) + "(int)",
-                              "CREATE AGGREGATE " + aNonDeterministic + "(int)\n" +
+                              "CREATE AGGREGATE IF NOT EXISTS " + aNonDeterministic + "(int)\n" +
                                       "    SFUNC " + shortFunctionName(fIntState) + "\n" +
                                       "    STYPE int\n" +
                                   "    INITCOND 42;"));
@@ -186,7 +186,7 @@ public class DescribeStatementTest extends CQLTester
                           row(KEYSPACE,
                               "aggregate",
                               shortFunctionName(aDeterministic) + "(int)",
-                              "CREATE AGGREGATE " + aDeterministic + "(int)\n" +
+                              "CREATE AGGREGATE IF NOT EXISTS " + aDeterministic + "(int)\n" +
                                       "    SFUNC " + shortFunctionName(fIntState) + "\n" +
                                       "    STYPE int\n" +
                                       "    FINALFUNC " + shortFunctionName(fFinal) + ";"));
@@ -215,7 +215,7 @@ public class DescribeStatementTest extends CQLTester
                           row(KEYSPACE,
                               "function",
                               shortFunctionName(function) + "(tuple<int>, list<frozen<tuple<int, text>>>, tuple<frozen<tuple<int, text>>, text>)",
-                              "CREATE FUNCTION " + function + "(t tuple<int>, l list<frozen<tuple<int, text>>>, nt tuple<frozen<tuple<int, text>>, text>)\n" +
+                              "CREATE FUNCTION IF NOT EXISTS " + function + "(t tuple<int>, l list<frozen<tuple<int, text>>>, nt tuple<frozen<tuple<int, text>>, text>)\n" +
                               "    CALLED ON NULL INPUT\n" +
                               "    RETURNS tuple<int, text>\n" +
                               "    LANGUAGE java\n" +
@@ -278,11 +278,11 @@ public class DescribeStatementTest extends CQLTester
 
             Object[][] testSchemaOutput = rows(
                           row(KEYSPACE, "keyspace", KEYSPACE,
-                              "CREATE KEYSPACE " + KEYSPACE +
+                              "CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE +
                                   " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
                                   "  AND durable_writes = true;"),
                           row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST,
-                              "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
+                              "CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE_PER_TEST +
                                   " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
                                   "  AND durable_writes = true;"),
                           row("test", "keyspace", "test", keyspaceOutput()),
@@ -467,7 +467,7 @@ public class DescribeStatementTest extends CQLTester
 
         TableId id = Schema.instance.getTableMetadata(KEYSPACE, table).id;
 
-        String tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+        String tableCreateStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + table + " (\n" +
                                       "    pk1 text,\n" +
                                       "    pk2 int,\n" +
                                       "    c int,\n" +
@@ -518,7 +518,7 @@ public class DescribeStatementTest extends CQLTester
         execute("CREATE MATERIALIZED VIEW IF NOT EXISTS " + KEYSPACE + ".mv AS SELECT * FROM " + KEYSPACE + "." + table
                 + " WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL PRIMARY KEY ((pk2, pk1), ck2, ck1)");
 
-        String tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+        String tableCreateStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + table + " (\n" +
                                       "    pk1 int,\n" +
                                       "    pk2 int,\n" +
                                       "    ck1 int,\n" +
@@ -530,7 +530,7 @@ public class DescribeStatementTest extends CQLTester
                                       ") WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC)\n" +
                                       "    AND " + tableParametersCql();
 
-        String mvCreateStatement ="CREATE MATERIALIZED VIEW " + KEYSPACE + ".mv AS\n" +
+        String mvCreateStatement ="CREATE MATERIALIZED VIEW IF NOT EXISTS " + KEYSPACE + ".mv AS\n" +
                                   "    SELECT *\n" +
                                   "    FROM " + KEYSPACE + "." + table + "\n" +
                                   "    WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL\n" +
@@ -560,7 +560,7 @@ public class DescribeStatementTest extends CQLTester
 
         TableId id = Schema.instance.getTableMetadata(KEYSPACE, table).id;
 
-        String tableCreateStatement = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+        String tableCreateStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + table + " (\n" +
                                       "    pk text PRIMARY KEY,\n" +
                                       "    v1 text,\n" +
                                       "    v2 int,\n" +
@@ -585,7 +585,7 @@ public class DescribeStatementTest extends CQLTester
                           tableCreateStatement + "\n" +
                           dropStatement));
 
-        String tableCreateStatementWithoutDroppedColumn = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+        String tableCreateStatementWithoutDroppedColumn = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + table + " (\n" +
                                                           "    pk text PRIMARY KEY,\n" +
                                                           "    v1 text,\n" +
                                                           "    v2 int\n" +
@@ -648,29 +648,29 @@ public class DescribeStatementTest extends CQLTester
                           row(KEYSPACE, "type", type3));
 
             assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TYPE " + type2),
-                          row(KEYSPACE, "type", type2, "CREATE TYPE " + KEYSPACE + "." + type2 + " (\n" +
+                          row(KEYSPACE, "type", type2, "CREATE TYPE IF NOT EXISTS " + KEYSPACE + "." + type2 + " (\n" +
                                                        "    x text,\n" + 
                                                        "    y text\n" +
                                                        ");"));
             assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE TYPE " + type1),
-                          row(KEYSPACE, "type", type1, "CREATE TYPE " + KEYSPACE + "." + type1 + " (\n" +
+                          row(KEYSPACE, "type", type1, "CREATE TYPE IF NOT EXISTS " + KEYSPACE + "." + type1 + " (\n" +
                                                        "    a int,\n" + 
                                                        "    b frozen<" + type3 + ">\n" +
                                                        ");"));
 
             assertRowsNet(executeDescribeNet(KEYSPACE, "DESCRIBE KEYSPACE " + KEYSPACE),
-                          row(KEYSPACE, "keyspace", KEYSPACE, "CREATE KEYSPACE " + KEYSPACE +
+                          row(KEYSPACE, "keyspace", KEYSPACE, "CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE +
                                                           " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
                                                           "  AND durable_writes = true;"),
-                          row(KEYSPACE, "type", type2, "CREATE TYPE " + KEYSPACE + "." + type2 + " (\n" +
+                          row(KEYSPACE, "type", type2, "CREATE TYPE IF NOT EXISTS " + KEYSPACE + "." + type2 + " (\n" +
                                                        "    x text,\n" + 
                                                        "    y text\n" +
                                                        ");"),
-                          row(KEYSPACE, "type", type3, "CREATE TYPE " + KEYSPACE + "." + type3 + " (\n" +
+                          row(KEYSPACE, "type", type3, "CREATE TYPE IF NOT EXISTS " + KEYSPACE + "." + type3 + " (\n" +
                                                        "    a text,\n" + 
                                                        "    b frozen<" + type2 + ">\n" +
                                                        ");"),
-                          row(KEYSPACE, "type", type1, "CREATE TYPE " + KEYSPACE + "." + type1 + " (\n" +
+                          row(KEYSPACE, "type", type1, "CREATE TYPE IF NOT EXISTS " + KEYSPACE + "." + type1 + " (\n" +
                                                        "    a int,\n" + 
                                                        "    b frozen<" + type3 + ">\n" +
                                                        ");"));
@@ -732,17 +732,17 @@ public class DescribeStatementTest extends CQLTester
         String indexWithoutOptions = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'org.apache.cassandra.index.sasi.SASIIndex';");
         String indexWithOptions = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'is_literal': 'false'};");
 
-        String expectedKeyspaceStmt = "CREATE KEYSPACE " + KEYSPACE +
+        String expectedKeyspaceStmt = "CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE +
                                       " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
                                       "  AND durable_writes = true;";
 
-        String expectedTableStmt = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+        String expectedTableStmt = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + table + " (\n" +
                                    "    id int PRIMARY KEY,\n" +
                                    "    value text\n" +
                                    ") WITH " + tableParametersCql();
 
-        String expectedIndexStmtWithoutOptions = "CREATE CUSTOM INDEX " + indexWithoutOptions + " ON " + KEYSPACE + "." + table + " (value) USING 'org.apache.cassandra.index.sasi.SASIIndex';";
-        String expectedIndexStmtWithOptions = "CREATE CUSTOM INDEX " + indexWithOptions + " ON " + KEYSPACE + "." + table + " (value) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'is_literal': 'false'};";
+        String expectedIndexStmtWithoutOptions = "CREATE CUSTOM INDEX IF NOT EXISTS " + indexWithoutOptions + " ON " + KEYSPACE + "." + table + " (value) USING 'org.apache.cassandra.index.sasi.SASIIndex';";
+        String expectedIndexStmtWithOptions = "CREATE CUSTOM INDEX IF NOT EXISTS " + indexWithOptions + " ON " + KEYSPACE + "." + table + " (value) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'is_literal': 'false'};";
 
         assertRowsNet(executeDescribeNet("DESCRIBE KEYSPACE " + KEYSPACE),
                       row(KEYSPACE, "keyspace", KEYSPACE, expectedKeyspaceStmt),
@@ -759,7 +759,7 @@ public class DescribeStatementTest extends CQLTester
 
     private static String allTypesTable()
     {
-        return "CREATE TABLE test.has_all_types (\n" +
+        return "CREATE TABLE IF NOT EXISTS test.has_all_types (\n" +
                "    num int PRIMARY KEY,\n" +
                "    asciicol ascii,\n" +
                "    bigintcol bigint,\n" +
@@ -789,7 +789,7 @@ public class DescribeStatementTest extends CQLTester
 
     private static String usersByStateMvOutput()
     {
-        return "CREATE MATERIALIZED VIEW test.users_by_state AS\n" +
+        return "CREATE MATERIALIZED VIEW IF NOT EXISTS test.users_by_state AS\n" +
                "    SELECT *\n" +
                "    FROM test.users_mv\n" +
                "    WHERE state IS NOT NULL AND username IS NOT NULL\n" +
@@ -800,12 +800,12 @@ public class DescribeStatementTest extends CQLTester
 
     private static String indexOutput(String index, String table, String col)
     {
-        return format("CREATE INDEX %s ON %s.%s (%s);", index, "test", table, col);
+        return format("CREATE INDEX IF NOT EXISTS %s ON %s.%s (%s);", index, "test", table, col);
     }
 
     private static String usersMvTableOutput()
     {
-        return "CREATE TABLE test.users_mv (\n" +
+        return "CREATE TABLE IF NOT EXISTS test.users_mv (\n" +
                "    username text PRIMARY KEY,\n" +
                "    birth_year bigint,\n" +
                "    gender text,\n" +
@@ -817,7 +817,7 @@ public class DescribeStatementTest extends CQLTester
 
     private static String userTableOutput()
     {
-        return "CREATE TABLE test.users (\n" +
+        return "CREATE TABLE IF NOT EXISTS test.users (\n" +
                "    userid text PRIMARY KEY,\n" +
                "    age int,\n" +
                "    firstname text,\n" +
@@ -827,7 +827,7 @@ public class DescribeStatementTest extends CQLTester
 
     private static String testTableOutput()
     {
-        return "CREATE TABLE test.\"Test\" (\n" +
+        return "CREATE TABLE IF NOT EXISTS test.\"Test\" (\n" +
                    "    id int,\n" +
                    "    col int,\n" +
                    "    val text,\n"  +
@@ -877,7 +877,7 @@ public class DescribeStatementTest extends CQLTester
 
     private static String keyspaceOutput()
     {
-        return "CREATE KEYSPACE test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;";
+        return "CREATE KEYSPACE IF NOT EXISTS test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;";
     }
 
     private void describeError(String cql, String msg) throws Throwable

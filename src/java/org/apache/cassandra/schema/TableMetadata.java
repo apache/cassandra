@@ -1180,7 +1180,7 @@ public class TableMetadata implements SchemaElement
         builder.append(createKeyword)
                .append(" TABLE ");
 
-        if (ifNotExists)
+        if (ifNotExists && !isVirtual())
             builder.append("IF NOT EXISTS ");
 
         builder.append(toString())

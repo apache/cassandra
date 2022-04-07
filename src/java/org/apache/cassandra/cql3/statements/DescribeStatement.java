@@ -376,7 +376,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                 return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
                                         bytes(element.elementType().toString()),
                                         bytes(element.elementNameQuotedIfNeeded()),
-                                        bytes(element.toCqlString(withInternals, false)));
+                                        bytes(element.toCqlString(withInternals, true)));
             }
         };
     }
@@ -426,7 +426,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
                                     bytes(element.elementType().toString()),
                                     bytes(element.elementNameQuotedIfNeeded()),
-                                    bytes(element.toCqlString(withInternals, false)));
+                                    bytes(element.toCqlString(withInternals, true)));
         }
     }
 
@@ -578,7 +578,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                     @Override
                     public String toCqlString(boolean withInternals, boolean ifNotExists)
                     {
-                        return index.toCqlString(table, ifNotExists);
+                        return index.toCqlString(table, true);
                     }
                 };
     }

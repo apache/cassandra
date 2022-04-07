@@ -622,7 +622,7 @@ class TestCqlshOutput(BaseTestCase):
                         curs.execute('drop keyspace {}'.format(new_ks_name))
 
     def check_describe_keyspace_output(self, output, qksname):
-        expected_bits = [r'(?im)^CREATE KEYSPACE %s WITH\b' % re.escape(qksname),
+        expected_bits = [r'(?im)^CREATE KEYSPACE IF NOT EXISTS %s WITH\b' % re.escape(qksname),
                          r';\s*$',
                          r'\breplication = {\'class\':']
         for expr in expected_bits:
@@ -634,7 +634,7 @@ class TestCqlshOutput(BaseTestCase):
 
         # note columns are now comparator-ordered instead of original-order.
         table_desc3 = dedent("""
-            CREATE TABLE %s.has_all_types (
+            CREATE TABLE IF NOT EXISTS %s.has_all_types (
                 num int PRIMARY KEY,
                 asciicol ascii,
                 bigintcol bigint,
@@ -759,7 +759,7 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertNoHasColors(output)
                 # Since CASSANDRA-7622 'DESC FULL SCHEMA' also shows all VIRTUAL keyspaces
                 self.assertIn('VIRTUAL KEYSPACE system_virtual_schema', output)
-                self.assertIn("\nCREATE KEYSPACE system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;\n",
+                self.assertIn("\nCREATE KEYSPACE IF NOT EXISTS system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;\n",
                               output)
                 self.assertRegex(output, r'.*\s*$')
 
