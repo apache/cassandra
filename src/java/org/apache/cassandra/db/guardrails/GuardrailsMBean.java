@@ -245,12 +245,12 @@ public interface GuardrailsMBean
     /**
      * @return the threshold to warn when maximum replication factor for a data center.
      */
-    int getMaxDCReplicationFactorWarnThreshold();
+    int getMaximumKeyspaceRFWarnThreshold();
 
     /**
      * @return the threshold to fail when maximum replication factor for a data center.
      */
-    int getMaxDCReplicationFactorFailThreshold();
+    int getMaximumKeyspaceRFFailThreshold();
 
     /**
      * @param warn the threshold to warn when the maximum replcation factor for a data center is greater than
@@ -258,5 +258,5 @@ public interface GuardrailsMBean
      * @param fail the threshold to fail when the maximum replication factor for a data center is greater than
      *             threshold -1 means disabled.
      */
-    void setMaxDCReplicationFactorThreshold(int warn, int fail);
+    void setMaximumKeyspaceRFThreshold (int warn, int fail);
 }

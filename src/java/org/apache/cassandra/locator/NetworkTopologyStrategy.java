@@ -316,9 +316,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     @Override
     public void validateOptions() throws ConfigurationException
     {
-        super.validateOptions();
         for (Entry<String, String> e : this.configOptions.entrySet())
         {
+
             // prepareOptions should have transformed any "replication_factor" by now
             if (e.getKey().equalsIgnoreCase(REPLICATION_FACTOR))
                 throw new ConfigurationException(REPLICATION_FACTOR + " should not appear as an option to NetworkTopologyStrategy");

@@ -151,9 +151,9 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail setting the maximum datacenter replication factor.
      */
-    public static final Threshold maxDCReplicationFactor =
-    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactorWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaxDCReplicationFactorFailThreshold(),
+    public static final Threshold MaximumKeyspaceRF =
+    new Threshold(state -> CONFIG_PROVIDER.getOrCreate(state).getMaximumKeyspaceRFWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaximumKeyspaceRFFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Keyspaces with %s " + "exceeds warn threshold of %s" , what, value, threshold)
                              :format("Keyspaces with %s " + "exceeds fail threshold of %s", what, value, threshold));
@@ -394,21 +394,21 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public int getMaxDCReplicationFactorWarnThreshold()
+    public int getMaximumKeyspaceRFWarnThreshold()
     {
-        return DEFAULT_CONFIG.getMaxDCReplicationFactorWarnThreshold();
+        return DEFAULT_CONFIG.getMaximumKeyspaceRFWarnThreshold();
     }
 
     @Override
-    public int getMaxDCReplicationFactorFailThreshold()
+    public int getMaximumKeyspaceRFFailThreshold()
     {
-        return DEFAULT_CONFIG.getMaxDCReplicationFactorFailThreshold();
+        return DEFAULT_CONFIG.getMaximumKeyspaceRFFailThreshold();
     }
 
     @Override
-    public void setMaxDCReplicationFactorThreshold(int warn, int fail)
+    public void setMaximumKeyspaceRFThreshold (int warn, int fail)
     {
-        DEFAULT_CONFIG.setMaxDCReplicationFactor(warn, fail);
+        DEFAULT_CONFIG.setMaximumKeyspaceRFThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

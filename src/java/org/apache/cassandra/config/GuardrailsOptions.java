@@ -69,7 +69,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
         validateIntThreshold(config.partition_keys_in_select_warn_threshold,
                              config.partition_keys_in_select_fail_threshold, "partition_keys_in_select");
-        validateIntThreshold(config.max_dc_replication_factor_warn_threshold, config.max_dc_replication_factor_fail_threshold, "max_dc_replication_factor");
+        validateIntThreshold(config.maximum_keyspace_rf_warn_threshold, config.maximum_keyspace_rf_fail_threshold, "max_dc_replication_factor");
     }
 
     @Override
@@ -323,28 +323,28 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public int getMaxDCReplicationFactorWarnThreshold()
+    public int getMaximumKeyspaceRFWarnThreshold()
     {
-        return config.max_dc_replication_factor_warn_threshold;
+        return config.maximum_keyspace_rf_warn_threshold;
     }
 
     @Override
-    public int getMaxDCReplicationFactorFailThreshold()
+    public int getMaximumKeyspaceRFFailThreshold()
     {
-        return config.max_dc_replication_factor_fail_threshold;
+        return config.maximum_keyspace_rf_fail_threshold;
     }
 
-    public void setMaxDCReplicationFactor(int warn, int fail)
+    public void setMaximumKeyspaceRFThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "max_dc_replication_factor");
-        updatePropertyWithLogging("max_dc_replication_factor_warn_threshold",
+        validateIntThreshold(warn, fail, "maximum_keyspace_rf");
+        updatePropertyWithLogging("maximum_keyspace_rf_warn_threshold",
                                   warn,
-                                  () -> config.max_dc_replication_factor_warn_threshold,
-                                  x -> config.max_dc_replication_factor_warn_threshold = x);
-        updatePropertyWithLogging("max_dc_replication_factor_fail_threshold",
+                                  () -> config.maximum_keyspace_rf_warn_threshold,
+                                  x -> config.maximum_keyspace_rf_warn_threshold = x);
+        updatePropertyWithLogging("maximum_keyspace_rf_fail_threshold",
                                   fail,
-                                  () -> config.max_dc_replication_factor_fail_threshold,
-                                  x -> config.max_dc_replication_factor_fail_threshold = x);
+                                  () -> config.maximum_keyspace_rf_fail_threshold,
+                                  x -> config.maximum_keyspace_rf_fail_threshold = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)

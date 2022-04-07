@@ -279,13 +279,7 @@ public abstract class AbstractReplicationStrategy
         return getAddressReplicas(temp, pendingAddress);
     }
 
-    public void validateOptions() throws ConfigurationException
-    {
-        for (Map.Entry<String, String> e : this.configOptions.entrySet())
-        {
-            Guardrails.maxDCReplicationFactor.guard(Integer.parseInt(e.getValue()), e.getKey(), null);
-        }
-    }
+    public abstract void validateOptions() throws ConfigurationException;
 
     public abstract void maybeWarnOnOptions();
 
@@ -422,6 +416,8 @@ public abstract class AbstractReplicationStrategy
         try
         {
             ReplicationFactor rf = ReplicationFactor.fromString(s);
+
+            Guardrails.MaximumKeyspaceRF.guard(rf.fullReplicas, "maximum replication factor", null);
 
             if (rf.fullReplicas < DatabaseDescriptor.getMinimumKeyspaceRF())
             {

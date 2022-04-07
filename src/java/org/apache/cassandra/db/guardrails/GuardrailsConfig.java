@@ -148,10 +148,10 @@ public interface GuardrailsConfig
     /**
      * @return the threshold to fail when maximum replication factor for a data center.
      */
-    int getMaxDCReplicationFactorWarnThreshold();
+    int getMaximumKeyspaceRFWarnThreshold();
 
     /**
      * @return the threshold to warn when maximum replication factor for a data center.
      */
-    int getMaxDCReplicationFactorFailThreshold();
+    int getMaximumKeyspaceRFFailThreshold();
 }
