@@ -42,6 +42,7 @@ import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createInMemoryCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.processCommandResult;
@@ -102,7 +103,7 @@ public class AccordCommandStoreTest
     public void commandsForKeyLoadSave()
     {
         AtomicLong clock = new AtomicLong(0);
-        InMemoryCommandStore.Synchronized commandStore = createInMemoryCommandStore(clock::incrementAndGet, "ks", "tbl");
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 0, 1);
 
         Txn txn = createTxn(1);

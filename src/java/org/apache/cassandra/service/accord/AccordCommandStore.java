@@ -40,6 +40,7 @@ import accord.topology.Topology;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -48,12 +49,6 @@ public class AccordCommandStore extends CommandStore
     public static long maxCacheSize()
     {
         return 5 << 20; // TODO: make configurable
-    }
-
-    public interface Context
-    {
-        public AccordCommand command(TxnId txnId);
-        public AccordCommandsForKey commandsForKey(PartitionKey key);
     }
 
     private static long getThreadId(ExecutorService executor)
@@ -77,7 +72,7 @@ public class AccordCommandStore extends CommandStore
     private final AccordStateCache stateCache;
     private final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
     private final AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> commandsForKeyCache;
-    private Context currentCtx = null;
+    private AsyncContext currentCtx = null;
 
     public AccordCommandStore(int generation,
                               int index,
@@ -127,18 +122,23 @@ public class AccordCommandStore extends CommandStore
         return commandsForKeyCache;
     }
 
-    public void setContext(Context context)
+    public void setContext(AsyncContext context)
     {
         Preconditions.checkState(currentCtx == null);
         currentCtx = context;
     }
 
-    public void unsetContext(Context context)
+    public AsyncContext getContext()
+    {
+        Preconditions.checkState(currentCtx != null);
+        return currentCtx;
+    }
+
+    public void unsetContext(AsyncContext context)
     {
         Preconditions.checkState(currentCtx == context);
         currentCtx = null;
     }
-
 
     @Override
     public Command command(TxnId txnId)

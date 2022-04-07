@@ -27,18 +27,21 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 
-public class AsyncContext implements AccordCommandStore.Context
+public class AsyncContext
 {
     final Map<TxnId, AccordCommand> commands = new HashMap<>();
     final Map<PartitionKey, AccordCommandsForKey> keyCommands = new HashMap<>();
 
-    @Override
     public AccordCommand command(TxnId txnId)
     {
         return commands.get(txnId);
     }
 
-    @Override
+    public void addCommand(AccordCommand command)
+    {
+        commands.put(command.txnId(), command);
+    }
+
     public AccordCommandsForKey commandsForKey(PartitionKey key)
     {
         return keyCommands.get(key);

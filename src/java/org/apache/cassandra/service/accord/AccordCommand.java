@@ -34,6 +34,7 @@ import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredNavigableSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
@@ -43,13 +44,38 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
 
+    enum SummaryVersion
+    {
+        VERSION_0(0, MessagingService.current_version);
+        final byte version;
+        final int msg_version;
+
+        SummaryVersion(int version, int msg_version)
+        {
+            this.version = (byte) version;
+            this.msg_version = msg_version;
+        }
+
+        static final SummaryVersion current = VERSION_0;
+
+        static SummaryVersion fromByte(byte b)
+        {
+            switch (b)
+            {
+                case 0:
+                    return VERSION_0;
+                default:
+                    throw new IllegalArgumentException();
+            }
+        }
+    }
+
     private final CommandStore commandStore;
     private final TxnId txnId;
     public final StoredValue<Txn> txn = new StoredValue<>();
     public final StoredValue<Ballot> promised = new StoredValue<>();
     public final StoredValue<Ballot> accepted = new StoredValue<>();
     public final StoredValue<Timestamp> executeAt = new StoredValue<>();
-    // TODO: optionally load some fields, and throw exceptions if reads are attempted on un-loaded fields
     public final StoredValue<Dependencies> deps = new StoredValue<>();
     public final StoredValue<Writes> writes = new StoredValue<>();
     public final StoredValue<Result> result = new StoredValue<>();
@@ -60,7 +86,6 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     public final StoredNavigableMap<TxnId, TxnId> waitingOnCommit = new StoredNavigableMap<>();
     public final StoredNavigableMap<Timestamp, TxnId> waitingOnApply = new StoredNavigableMap<>();
 
-    // FIXME: just use a set, or hide underlying collection entirely
     public final StoredNavigableSet<ListenerProxy> storedListeners = new StoredNavigableSet<>();
     private final Listeners transientListeners = new Listeners();
 
@@ -88,7 +113,6 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 
     public boolean hasModifications()
     {
-        // TODO: make this less verbose
         return txn.hasModifications()
                || promised.hasModifications()
                || accepted.hasModifications()
@@ -104,7 +128,6 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 
     public boolean isLoaded()
     {
-        // TODO: make this less verbose
         return txn.isLoaded()
                && promised.isLoaded()
                && accepted.isLoaded()

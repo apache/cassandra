@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -27,9 +30,17 @@ import java.util.stream.Stream;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
+import accord.local.Status;
+import accord.txn.Dependencies;
 import accord.txn.Timestamp;
+import accord.txn.Txn;
 import accord.txn.TxnId;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.async.AsyncContext;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -51,10 +62,97 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         }
     }
 
+    /**
+     * serializes:
+         txn_id
+         txn
+         txn is_write
+         status <- to support deps
+         execute_at
+         deps (txn_ids only)
+     */
+    public static class Summary
+    {
+        public static ByteBuffer serialize(AccordCommand command)
+        {
+            AccordCommand.SummaryVersion version = AccordCommand.SummaryVersion.current;
+            int size = serializedSize(command);
+            try (DataOutputBuffer out = new DataOutputBuffer(size))
+            {
+                out.write(version.version);
+                CommandSerializers.txnId.serialize(command.txnId(), out, version.msg_version);
+                CommandSerializers.txn.serialize(command.txn(), out, version.msg_version);
+                out.write(command.status().ordinal());
+                if (command.hasBeen(Status.Committed))
+                    CommandSerializers.timestamp.serialize(command.executeAt(), out, version.msg_version);
+                Dependencies deps = command.savedDeps();
+                out.writeInt(deps.size());
+                for (Map.Entry<TxnId, Txn> entry : deps)
+                    CommandSerializers.txnId.serialize(entry.getKey(), out, version.msg_version);
+                return out.buffer(false);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public static AccordCommand deserialize(AccordCommandStore commandStore, ByteBuffer bytes)
+        {
+            try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+            {
+                AccordCommand.SummaryVersion version = AccordCommand.SummaryVersion.fromByte(in.readByte());
+                TxnId txnId = CommandSerializers.txnId.deserialize(in, version.msg_version);
+                AsyncContext context = commandStore.getContext();
+                AccordCommand command = context.command(txnId);
+                if (command != null)
+                    return command;
+
+                command = commandStore.commandCache().getOrCreate(txnId);
+                context.addCommand(command);
+                if (command.isLoaded())
+                    return command;
+
+                command.txn.load(CommandSerializers.txn.deserialize(in, version.msg_version));
+                command.status.load(Status.values()[in.readByte()]);
+                if (command.hasBeen(Status.Committed))
+                    command.executeAt.load(CommandSerializers.timestamp.deserialize(in, version.msg_version));
+
+                TreeMap<TxnId, Txn> depsMap = new TreeMap<>();
+                int numDeps = in.readInt();
+                for (int i=0; i<numDeps; i++)
+                    depsMap.put(CommandSerializers.txnId.deserialize(in, version.msg_version), null);
+                command.deps.load(new Dependencies(depsMap));
+
+                return command;
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public static int serializedSize(AccordCommand command)
+        {
+            AccordCommand.SummaryVersion version = AccordCommand.SummaryVersion.current;
+            int size = TypeSizes.sizeof(version.version);
+            size += CommandSerializers.txnId.serializedSize();
+            size += TypeSizes.INT_SIZE; // txn size
+            size += TypeSizes.sizeof((byte) command.status.get().ordinal());
+            size += TypeSizes.BOOL_SIZE;
+            if (command.hasBeen(Status.Committed))
+                size += CommandSerializers.timestamp.serializedSize();
+            int numDeps = command.deps.get().size();
+            size += TypeSizes.sizeof(numDeps);
+            size += numDeps * CommandSerializers.txnId.serializedSize();
+            return size;
+        }
+    }
+
     public class Series implements CommandTimeseries
     {
         public final SeriesKind kind;
-        public final StoredNavigableMap<Timestamp, TxnId> map = new StoredNavigableMap<>();
+        public final StoredNavigableMap<Timestamp, ByteBuffer> map = new StoredNavigableMap<>();
 
         public Series(SeriesKind kind)
         {
@@ -64,14 +162,14 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         @Override
         public Command get(Timestamp timestamp)
         {
-            TxnId txnId = map.getView().get(timestamp);
-            return commandStore.command(txnId);  // FIXME: will need to lock these commands
+            ByteBuffer bytes = map.getView().get(timestamp);
+            return Summary.deserialize(commandStore, bytes);
         }
 
         @Override
         public void add(Timestamp timestamp, Command command)
         {
-            map.blindPut(timestamp, command.txnId());
+            map.blindPut(timestamp, Summary.serialize((AccordCommand) command));
         }
 
         @Override
@@ -80,9 +178,9 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
             map.blindRemove(timestamp);
         }
 
-        private Stream<Command> idsToCommands(Collection<TxnId> ids)
+        private Stream<Command> idsToCommands(Collection<ByteBuffer> blobs)
         {
-            return ids.stream().map(commandStore::command);  // FIXME: will need to lock these commands, unless they're read only...
+            return blobs.stream().map(blob -> Summary.deserialize(commandStore, blob));
         }
 
         @Override
@@ -116,14 +214,14 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         }
     }
 
-    private final CommandStore commandStore;
+    private final AccordCommandStore commandStore;
     private final PartitionKey key;
     public final StoredValue<Timestamp> maxTimestamp = new StoredValue<>();
     public final Series uncommitted = new Series(SeriesKind.UNCOMMITTED);
     public final Series committedById = new Series(SeriesKind.COMMITTED_BY_ID);
     public final Series committedByExecuteAt = new Series(SeriesKind.COMMITTED_BY_EXECUTE_AT);
 
-    public AccordCommandsForKey(CommandStore commandStore, PartitionKey key)
+    public AccordCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
     {
         this.commandStore = commandStore;
         this.key = key;

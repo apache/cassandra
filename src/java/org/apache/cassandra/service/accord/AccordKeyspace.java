@@ -102,7 +102,6 @@ import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
-// TODO: rework all of the io methods to emit/accumulate mutations
 public class AccordKeyspace
 {
     public static final String COMMANDS = "commands";
@@ -138,7 +137,11 @@ public class AccordKeyspace
               + "result blob,"
               + format("waiting_on_commit map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
               + format("waiting_on_apply map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
-              + "listeners set<blob>,"
+              + "listeners set<blob>, "
+//              + format("listening_to set<%s>, ", TIMESTAMP_TUPLE)
+//              + format("dependency_of set<%s>, ", TIMESTAMP_TUPLE)
+//              + format("blocked_on_commit set<%s>, ", TIMESTAMP_TUPLE)
+//              + format("blocked_on_apply set<%s>, ", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_generation, store_index, txn_id))"
               + ')');
 
@@ -185,7 +188,7 @@ public class AccordKeyspace
               + format("max_timestamp %s static,", TIMESTAMP_TUPLE)
               + "series int,"
               + format("timestamp %s,", TIMESTAMP_TUPLE)
-              + format("txn_id %s,", TIMESTAMP_TUPLE)
+              + "data blob, "
               + "PRIMARY KEY((store_generation, store_index, key), series, timestamp)"
               + ')');
 
@@ -200,10 +203,10 @@ public class AccordKeyspace
 
         static final ColumnMetadata series = getColumn(CommandsForKey, "series");
         static final ColumnMetadata timestamp = getColumn(CommandsForKey, "timestamp");
-        static final ColumnMetadata txn_id = getColumn(CommandsForKey, "txn_id");
+        static final ColumnMetadata data = getColumn(CommandsForKey, "data");
 
         static final Columns statics = Columns.of(max_timestamp);
-        static final Columns regulars = Columns.from(Lists.newArrayList(series, timestamp, txn_id));
+        static final Columns regulars = Columns.from(Lists.newArrayList(series, timestamp, data));
         private static final RegularAndStaticColumns all = new RegularAndStaticColumns(statics, regulars);
         private static final RegularAndStaticColumns justStatic = new RegularAndStaticColumns(statics, Columns.NONE);
         private static final RegularAndStaticColumns justRegular = new RegularAndStaticColumns(Columns.NONE, regulars);
@@ -601,9 +604,9 @@ public class AccordKeyspace
                                 Row.Deletion.regular(new DeletionTime(timestampMicros, nowInSeconds)) :
                                 null;
         ByteBuffer ordinalBytes = bytes(series.kind.ordinal());
-        series.map.forEachAddition((timestamp, txnId) -> {
+        series.map.forEachAddition((timestamp, bytes) -> {
             rowBuilder.newRow(Clustering.make(ordinalBytes, serializeTimestamp(timestamp)));
-            rowBuilder.addCell(live(CommandsForKeyColumns.txn_id, timestampMicros, serializeTimestamp(txnId)));
+            rowBuilder.addCell(live(CommandsForKeyColumns.data, timestampMicros, bytes));
             partitionBuilder.add(rowBuilder.build());
         });
         series.map.forEachDeletion(timestamp -> {
@@ -653,7 +656,7 @@ public class AccordKeyspace
         return new Mutation(partitionBuilder.build());
     }
 
-    public static AccordCommandsForKey loadCommandsForKey(CommandStore commandStore, PartitionKey key)
+    public static AccordCommandsForKey loadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
     {
         AccordCommandsForKey commandsForKey = new AccordCommandsForKey(commandStore, key);
         loadCommandsForKey(commandsForKey);
@@ -690,7 +693,7 @@ public class AccordKeyspace
                                                                                makeKey(cfk),
                                                                                FULL_PARTITION);
 
-        EnumMap<SeriesKind, TreeMap<Timestamp, TxnId>> seriesMaps = new EnumMap<>(SeriesKind.class);
+        EnumMap<SeriesKind, TreeMap<Timestamp, ByteBuffer>> seriesMaps = new EnumMap<>(SeriesKind.class);
         for (SeriesKind kind : SeriesKind.values())
             seriesMaps.put(kind, new TreeMap<>());
 
@@ -721,11 +724,10 @@ public class AccordKeyspace
                     Clustering<?> clustering = row.clustering();
                     int ordinal = Int32Type.instance.compose(clusteringValue(clustering, 0));
                     Timestamp timestamp = deserializeTimestampOrNull(clusteringValue(clustering, 1), Timestamp::new);
-                    ByteBuffer txnIdBytes = cellValue(row, CommandsForKeyColumns.txn_id);
-                    if (txnIdBytes == null)
+                    ByteBuffer data = cellValue(row, CommandsForKeyColumns.data);
+                    if (data == null)
                         continue;
-                    TxnId txnId = deserializeTimestampOrNull(txnIdBytes, TxnId::new);
-                    seriesMaps.get(SeriesKind.values()[ordinal]).put(timestamp, txnId);
+                    seriesMaps.get(SeriesKind.values()[ordinal]).put(timestamp, data);
                 }
             }
             Preconditions.checkState(!partitions.hasNext());
