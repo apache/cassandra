@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -430,13 +431,28 @@ public class MigrationCoordinator
 
     private static Future<?> submitToMigrationIfNotShutdown(Runnable task)
     {
-        if (Stage.MIGRATION.executor().isShutdown() || Stage.MIGRATION.executor().isTerminated())
+        boolean skipped = false;
+        try
         {
-            logger.info("Skipped scheduled pulling schema from other nodes: the MIGRATION executor service has been shutdown.");
+            if (Stage.MIGRATION.executor().isShutdown() || Stage.MIGRATION.executor().isTerminated())
+            {
+                skipped = true;
+                return null;
+            }
+            return Stage.MIGRATION.submit(task);
+        }
+        catch (RejectedExecutionException ex)
+        {
+            skipped = true;
             return null;
         }
-        else
-            return Stage.MIGRATION.submit(task);
+        finally
+        {
+            if (skipped)
+            {
+                logger.info("Skipped scheduled pulling schema from other nodes: the MIGRATION executor service has been shutdown.");
+            }
+        }
     }
 
     @VisibleForTesting
