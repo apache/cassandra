@@ -43,7 +43,6 @@ public class StressSettings implements Serializable
     public final SettingsSchema schema;
     public final SettingsTransport transport;
     public final SettingsPort port;
-    public final String sendToDaemon;
     public final SettingsGraph graph;
     public final SettingsTokenRange tokenRange;
 
@@ -59,7 +58,6 @@ public class StressSettings implements Serializable
                           SettingsSchema schema,
                           SettingsTransport transport,
                           SettingsPort port,
-                          String sendToDaemon,
                           SettingsGraph graph,
                           SettingsTokenRange tokenRange)
     {
@@ -75,7 +73,6 @@ public class StressSettings implements Serializable
         this.schema = schema;
         this.transport = transport;
         this.port = port;
-        this.sendToDaemon = sendToDaemon;
         this.graph = graph;
         this.tokenRange = tokenRange;
     }
@@ -190,7 +187,6 @@ public class StressSettings implements Serializable
         SettingsCommand command = SettingsCommand.get(clArgs);
         if (command == null)
             throw new IllegalArgumentException("No command specified");
-        String sendToDaemon = SettingsMisc.getSendToDaemon(clArgs);
         SettingsPort port = SettingsPort.get(clArgs);
         SettingsRate rate = SettingsRate.get(clArgs, command);
         SettingsPopulation generate = SettingsPopulation.get(clArgs, command);
@@ -221,7 +217,7 @@ public class StressSettings implements Serializable
             System.exit(1);
         }
 
-        return new StressSettings(command, rate, generate, insert, columns, errors, log, mode, node, schema, transport, port, sendToDaemon, graph, tokenRange);
+        return new StressSettings(command, rate, generate, insert, columns, errors, log, mode, node, schema, transport, port, graph, tokenRange);
     }
 
     private static Map<String, String[]> parseMap(String[] args)
@@ -295,8 +291,6 @@ public class StressSettings implements Serializable
         transport.printSettings(out);
         out.println("Port:");
         port.printSettings(out);
-        out.println("Send To Daemon:");
-        out.printf("  " + (sendToDaemon != null ? sendToDaemon : "*not set*") + "%n");
         out.println("Graph:");
         graph.printSettings(out);
         out.println("TokenRange:");

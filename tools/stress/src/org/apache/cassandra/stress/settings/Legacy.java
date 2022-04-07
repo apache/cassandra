@@ -65,7 +65,6 @@ public class Legacy implements Serializable
         availableOptions.addOption("R",  "replication-strategy", true,   "Replication strategy to use (only on insert if keyspace does not exist), default:org.apache.cassandra.locator.SimpleStrategy");
         availableOptions.addOption("O",  "strategy-properties",  true,   "Replication strategy properties in the following format <dc_name>:<num>,<dc_name>:<num>,...");
         availableOptions.addOption("V",  "average-size-values",  false,  "Generate column values of average rather than specific size");
-        availableOptions.addOption("T",  "send-to",              true,   "Send this as a request to the stress daemon at specified address.");
         availableOptions.addOption("I",  "compression",          true,   "Specify the compression to use for sstable, default:no compression");
         availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
         availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
@@ -237,10 +236,6 @@ public class Legacy implements Serializable
 
             if (cmd.hasOption("D"))
                 r.add("-node", "file=" + cmd.getOptionValue("D"));
-
-
-            if (cmd.hasOption("send-to"))
-                r.add("-send-to", cmd.getOptionValue("send-to"));
 
             if (cmd.hasOption("Z"))
                 r.add("-schema", "compaction=" + cmd.getOptionValue("Z"));
