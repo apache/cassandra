@@ -63,11 +63,22 @@ public class AccordData implements Data, Result
         return Objects.hash(partitions);
     }
 
+    @Override
+    public String toString()
+    {
+        return "AccordData{" + partitions + '}';
+    }
+
+    void put(AccordKey key, FilteredPartition partition)
+    {
+        // TODO: support multiple partitions (ie: read commands) per partition
+        Preconditions.checkArgument(!partitions.containsKey(key) || partitions.get(key).equals(partition));
+        partitions.put(key, partition);
+    }
+
     void put(FilteredPartition partition)
     {
-        DecoratedKey key = partition.partitionKey();
-        Preconditions.checkArgument(!partitions.containsKey(key) || partitions.get(key).equals(partition));
-        partitions.put(partition, partition);
+        put(AccordKey.of(partition), partition);
     }
 
     FilteredPartition get(AccordKey key)
@@ -80,9 +91,19 @@ public class AccordData implements Data, Result
     {
         AccordData that = (AccordData) data;
         AccordData merged = new AccordData();
-        this.forEach(merged::put);
-        that.forEach(merged::put);
+        this.partitions.forEach(merged::put);
+        that.partitions.forEach(merged::put);
         return merged;
+    }
+
+    public static Data merge(Data left, Data right)
+    {
+        if (left == null)
+            return right;
+        if (right == null)
+            return right;
+
+        return left.merge(right);
     }
 
     public void forEach(Consumer<FilteredPartition> consumer)
@@ -95,8 +116,8 @@ public class AccordData implements Data, Result
         @Override
         public void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException
         {
-            partition.tableId().serialize(out);
-            TableMetadata metadata = Schema.instance.getTableMetadata(partition.tableId());
+            partition.metadata().id.serialize(out);
+            TableMetadata metadata = Schema.instance.getTableMetadata(partition.metadata().id);
             try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
             {
                 UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.all(metadata), out, version, partition.rowCount());
@@ -107,6 +128,7 @@ public class AccordData implements Data, Result
         public FilteredPartition deserialize(DataInputPlus in, int version) throws IOException
         {
             TableMetadata metadata = Schema.instance.getTableMetadata(TableId.deserialize(in));
+            Preconditions.checkState(metadata != null);
             try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, ColumnFilter.all(metadata), DeserializationHelper.Flag.FROM_REMOTE))
             {
                 return new FilteredPartition(UnfilteredRowIterators.filter(partition, 0));
@@ -116,8 +138,9 @@ public class AccordData implements Data, Result
         @Override
         public long serializedSize(FilteredPartition partition, int version)
         {
-            long size = partition.tableId().serializedSize();
-            TableMetadata metadata = Schema.instance.getTableMetadata(partition.tableId());
+            long size = TableId.serializedSize();
+            TableMetadata metadata = Schema.instance.getTableMetadata(partition.metadata().id);
+            Preconditions.checkState(metadata != null);
             try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
             {
                 return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.all(metadata), version, partition.rowCount());
@@ -141,7 +164,10 @@ public class AccordData implements Data, Result
             int size = in.readInt();
             AccordData data = new AccordData();
             for (int i=0; i<size; i++)
-                data.put(partitionSerializer.deserialize(in, version));
+            {
+                FilteredPartition partition = partitionSerializer.deserialize(in, version);
+                data.put(AccordKey.of(partition), partition);
+            }
             return data;
         }
 

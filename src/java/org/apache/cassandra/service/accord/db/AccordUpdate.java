@@ -50,6 +50,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AccordUpdate implements Update
@@ -57,7 +58,7 @@ public class AccordUpdate implements Update
     private final List<PartitionUpdate> updates;
     private final List<UpdatePredicate> predicates;
 
-    public static abstract class UpdatePredicate implements AccordKey
+    public static abstract class UpdatePredicate
     {
         public enum Type
         {
@@ -82,6 +83,7 @@ public class AccordUpdate implements Update
         final TableMetadata table;
         final DecoratedKey key;
         final Clustering<?> clustering;
+        final PartitionKey accordKey;
 
         public UpdatePredicate(Type type, TableMetadata table, DecoratedKey key, Clustering<?> clustering)
         {
@@ -89,6 +91,7 @@ public class AccordUpdate implements Update
             this.table = table;
             this.key = key;
             this.clustering = clustering;
+            this.accordKey = new PartitionKey(table.id, key);
         }
 
         @Override
@@ -113,22 +116,9 @@ public class AccordUpdate implements Update
                    + key + ", " + clustering.toString(table) + "] " + type.symbol;
         }
 
-        @Override
-        public TableId tableId()
+        public PartitionKey partitionKey()
         {
-            return table.id;
-        }
-
-        @Override
-        public PartitionPosition partitionKey()
-        {
-            return key;
-        }
-
-        @Override
-        public int keyHash()
-        {
-            return key.getToken().tokenHash();
+            return accordKey;
         }
 
         public Type type()
@@ -340,7 +330,7 @@ public class AccordUpdate implements Update
         AccordData read = (AccordData) data;
         for (UpdatePredicate predicate : predicates)
         {
-            if (!predicate.applies(read.get(predicate)))
+            if (!predicate.applies(read.get(predicate.partitionKey())))
                 return AccordWrite.EMPTY;
         }
         return new AccordWrite(updates);

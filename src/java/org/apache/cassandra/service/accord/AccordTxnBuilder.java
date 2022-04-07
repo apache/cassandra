@@ -73,7 +73,7 @@ public class AccordTxnBuilder
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
         for (SinglePartitionReadCommand command : selectQuery.queries)
         {
-            keys.add(new AccordKey.PartitionKey(command.tableId(), command.partitionKey()));
+            keys.add(AccordKey.of(command));
             reads.add(command);
         }
         return this;
@@ -90,7 +90,7 @@ public class AccordTxnBuilder
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
-                keys.add(new AccordKey.PartitionKey(update.tableId(), update.partitionKey()));
+                keys.add(new AccordKey.PartitionKey(update.metadata().id, update.partitionKey()));
                 updates.add(update);
             }
         }
@@ -138,9 +138,7 @@ public class AccordTxnBuilder
     {
         Key[] keyArray = keys.toArray(Key[]::new);
         Arrays.sort(keyArray, AccordKey::compareKeys);
-        reads.sort(AccordKey::compare);
-        updates.sort(AccordKey::compare);
-        predicates.sort(AccordKey::compare);
+        predicates.sort(Comparator.comparing(UpdatePredicate::partitionKey));
         if (updates.isEmpty())
         {
             return new Txn(new Keys(keyArray), new AccordRead(reads), query);

@@ -27,9 +27,11 @@ import com.google.common.base.Preconditions;
 import accord.api.Key;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -47,6 +49,16 @@ public interface AccordKey extends Key<AccordKey>
     public static AccordKey of(Key key)
     {
         return (AccordKey) key;
+    }
+
+    public static PartitionKey of(Partition partition)
+    {
+        return new PartitionKey(partition.metadata().id, partition.partitionKey());
+    }
+
+    public static PartitionKey of(SinglePartitionReadCommand command)
+    {
+        return new PartitionKey(command.metadata().id, command.partitionKey());
     }
 
     static int compare(AccordKey left, AccordKey right)

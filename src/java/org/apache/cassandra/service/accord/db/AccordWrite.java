@@ -21,6 +21,8 @@ package org.apache.cassandra.service.accord.db;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 import com.google.common.collect.ImmutableList;
 
@@ -44,6 +46,11 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
 
     public AccordWrite(List<PartitionUpdate> items)
     {
+        super(items, AccordKey::of);
+    }
+
+    public AccordWrite(NavigableMap<AccordKey, PartitionUpdate> items)
+    {
         super(items);
     }
 
@@ -64,7 +71,7 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
         public void serialize(AccordWrite write, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(write.items.size());
-            for (PartitionUpdate update : write.items)
+            for (PartitionUpdate update : write.items.values())
                 PartitionUpdate.serializer.serialize(update, out, version);
         }
 
@@ -72,9 +79,12 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
         public AccordWrite deserialize(DataInputPlus in, int version) throws IOException
         {
             int size = in.readInt();
-            List<PartitionUpdate> writes = new ArrayList<>(size);
+            NavigableMap<AccordKey, PartitionUpdate> writes = new TreeMap<>();
             for (int i=0; i<size; i++)
-                writes.add(PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE));
+            {
+                PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);
+                writes.put(AccordKey.of(update), update);
+            }
             return new AccordWrite(writes);
         }
 
@@ -82,7 +92,7 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
         public long serializedSize(AccordWrite write, int version)
         {
             long size = TypeSizes.sizeof(write.items.size());
-            for (PartitionUpdate update : write.items)
+            for (PartitionUpdate update : write.items.values())
                 size += PartitionUpdate.serializer.serializedSize(update, version);
             return size;
         }

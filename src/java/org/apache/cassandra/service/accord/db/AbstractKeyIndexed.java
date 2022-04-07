@@ -19,37 +19,19 @@
 package org.apache.cassandra.service.accord.db;
 
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
 
-import accord.api.Key;
-import accord.api.KeyRange;
-import accord.topology.KeyRanges;
-import accord.txn.Keys;
 import org.apache.cassandra.service.accord.api.AccordKey;
 
-public abstract class AbstractKeyIndexed<T extends AccordKey>
+public abstract class AbstractKeyIndexed<T>
 {
-    private final Keys keys;
-    final List<T> items;
-
-    private static <T extends AccordKey> Keys extractKeys(List<T> items)
-    {
-        Key[] keys = new Key[items.size()];
-        for (int i=0, mi=items.size(); i<mi; i++)
-        {
-            keys[i] = items.get(i);
-            Preconditions.checkState(i == 0 || AccordKey.compareKeys(keys[i], keys[i-1]) > 0);
-        }
-        return new Keys(keys);
-    }
-
-    public Keys keys()
-    {
-        return keys;
-    }
+    final NavigableMap<AccordKey, T> items;
 
     @Override
     public String toString()
@@ -63,67 +45,39 @@ public abstract class AbstractKeyIndexed<T extends AccordKey>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AbstractKeyIndexed<?> that = (AbstractKeyIndexed<?>) o;
-        return keys.equals(that.keys) && items.equals(that.items);
+        return items.equals(that.items);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(keys, items);
+        return Objects.hash(items);
     }
 
-    public AbstractKeyIndexed(List<T> items)
+    public AbstractKeyIndexed(List<T> items, Function<T, AccordKey> keyFunction)
     {
-        this(extractKeys(items), items);
-    }
-
-    public AbstractKeyIndexed(Keys keys, List<T> items)
-    {
-        Preconditions.checkArgument(keys.size() == items.size());
-        this.keys = keys;
-        this.items = items;
-    }
-
-    void forEachIntersecting(KeyRanges ranges, Consumer<T> consumer)
-    {
-        for (int k=0, mk=ranges.size(); k<mk; k++)
+        this.items = new TreeMap<>();
+        for (int i=0, mi=items.size(); i<mi; i++)
         {
-            KeyRange<?> range = ranges.get(k);
-            int lowIdx = range.lowKeyIndex(keys);
-            if (lowIdx < -keys.size())
-                return;
-            if (lowIdx < 0)
-                continue;
-            for (int i = lowIdx, limit = range.higherKeyIndex(keys) ; i < limit ; ++i)
-                consumer.accept(items.get(i));
+            T item = items.get(i);
+            AccordKey key = keyFunction.apply(item);
+            // TODO: support multiple reads/writes per key
+            Preconditions.checkArgument(!this.items.containsKey(key));
+            this.items.put(key, item);
         }
     }
 
-    private int findFirst(Key key)
+    public AbstractKeyIndexed(NavigableMap<AccordKey, T> items)
     {
-        if (keys.isEmpty()) return -1;
-
-        int i = keys.search(0, keys.size(), key,
-                            (k, r) -> ((Key) r).compareTo((Key) k) < 0 ? -1 : 1);
-
-        int minIdx = -1 - i;
-
-        return minIdx < keys.size() ? minIdx : i;
+        this.items = items;
     }
 
     void forEachIntersecting(AccordKey key, Consumer<T> consumer)
     {
-        // there may be multiple items for a given key, so start with the first
-        int idx = findFirst(key);
-        if (idx < 0)
+        T item = items.get(key);
+        if (item == null)
             return;
 
-        for (;idx<keys.size(); idx++)
-        {
-            T item = items.get(idx);
-            if (AccordKey.compare(key, item) != 0)
-                return;
-            consumer.accept(item);
-        }
+        consumer.accept(item);
     }
 }

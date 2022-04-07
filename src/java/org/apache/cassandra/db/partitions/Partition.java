@@ -36,21 +36,9 @@ import org.apache.cassandra.service.accord.api.AccordKey;
  * and so Partition objects should be use as sparingly as possible. There is a couple
  * of cases where we do need to represent partition in-memory (memtables and row cache).
  */
-public interface Partition extends AccordKey
+public interface Partition
 {
     public TableMetadata metadata();
-
-    @Override
-    default TableId tableId()
-    {
-        return metadata().id;
-    }
-
-    @Override
-    default int keyHash()
-    {
-        return partitionKey().getToken().tokenHash();
-    }
 
     public DecoratedKey partitionKey();
     public DeletionTime partitionLevelDeletion();

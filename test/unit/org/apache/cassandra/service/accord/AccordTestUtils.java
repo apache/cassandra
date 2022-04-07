@@ -52,6 +52,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -123,12 +124,10 @@ public class AccordTestUtils
     {
 
         Txn txn = command.txn();
-        KeyRanges ranges = fullRangesFromKeys(txn.keys);
         AccordRead read = (AccordRead) txn.read;
-        Data readData = read.keys().accumulate(ranges, (key, accumulate) -> {
-            Data data = read.read(key, command.executeAt(), null);
-            return accumulate != null ? accumulate.merge(data) : data;
-        }, null);
+        Data readData = read.keys().stream()
+                            .map(key -> read.read(key, command.executeAt(), null))
+                            .reduce(null, AccordData::merge);
         Write write = txn.update.apply(readData);
         command.writes(new Writes(command.executeAt(), txn.keys(), write));
         command.result(txn.query.compute(readData));
