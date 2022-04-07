@@ -240,6 +240,7 @@ public class GossipTest extends TestBaseImpl
     @Test
     public void gossipShutdownUpdatesTokenMetadata() throws Exception
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                       .withInstanceInitializer(FailureHelper::installMoveFailure)

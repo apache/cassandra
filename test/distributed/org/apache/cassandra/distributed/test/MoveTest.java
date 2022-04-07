@@ -47,6 +47,7 @@ public class MoveTest extends TestBaseImpl
 
     private void move(boolean forwards) throws Throwable
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(4)
                                       .withConfig(config -> config.set("paxos_variant", "v2_without_linearizable_reads").with(NETWORK).with(GOSSIP))
                                       .withoutVNodes()

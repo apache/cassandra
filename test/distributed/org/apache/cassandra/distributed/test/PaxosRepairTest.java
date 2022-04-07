@@ -215,6 +215,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosRepairTest() throws Throwable
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).withoutVNodes().start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -264,6 +265,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void topologyChangePaxosTest() throws Throwable
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(4).withConfig(CONFIG_CONSUMER).withoutVNodes().createWithoutStarting())
         {
             for (int i=1; i<=3; i++)
@@ -296,6 +298,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosCleanupWithReproposal() throws Throwable
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = init(Cluster.build(3)
                                            .withConfig(cfg -> cfg
                                                               .set("paxos_variant", "v2")
@@ -366,6 +369,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosCleanupWithReproposalClashingTimestamp() throws Throwable
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = init(Cluster.build(5)
                                            .withConfig(cfg -> cfg
                                                               .set("paxos_variant", "v2")
@@ -437,6 +441,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosCleanupWithDelayedProposal() throws Throwable
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = init(Cluster.build(3)
                                            .withConfig(cfg -> cfg
                                                               .set("paxos_variant", "v2")
@@ -525,6 +530,7 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosRepairVersionGate() throws Throwable
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).withoutVNodes().start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
