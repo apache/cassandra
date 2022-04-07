@@ -562,7 +562,7 @@ public class AccordKeyspace
 
         if (result.isEmpty())
         {
-            command.loadEmpty();
+            command.initialize();
             return;
         }
 
@@ -702,7 +702,7 @@ public class AccordKeyspace
         {
             if (!partitions.hasNext())
             {
-                cfk.loadEmpty();
+                cfk.initialize();
                 return;
             }
 

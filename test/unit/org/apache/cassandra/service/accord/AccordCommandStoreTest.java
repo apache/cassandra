@@ -116,7 +116,7 @@ public class AccordCommandStoreTest
         command2.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
 
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key);
-        cfk.loadEmpty();
+        cfk.initialize();
         cfk.updateMax(maxTimestamp);
 
         cfk.register(command1);

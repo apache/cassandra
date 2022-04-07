@@ -95,7 +95,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         this.txnId = txnId;
     }
 
-    public AccordCommand loadEmpty()
+    public AccordCommand initialize()
     {
         status.set(Status.NotWitnessed);
         txn.set(null);

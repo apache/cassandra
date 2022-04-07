@@ -68,10 +68,10 @@ public class AsyncLoaderTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
 
         // acquire / release
-        AccordCommand command = commandCache.getOrCreate(txnId).loadEmpty();
+        AccordCommand command = commandCache.getOrCreate(txnId).initialize();
         command.txn(txn);
         commandCache.release(command);
-        AccordCommandsForKey cfk = cfkCacche.getOrCreate(key).loadEmpty();
+        AccordCommandsForKey cfk = cfkCacche.getOrCreate(key).initialize();
         cfkCacche.release(cfk);
 
         AsyncContext context = new AsyncContext();
@@ -100,10 +100,10 @@ public class AsyncLoaderTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
 
         // create / persist
-        AccordCommand command = new AccordCommand(commandStore, txnId).loadEmpty();
+        AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
         command.txn(txn);
         AccordKeyspace.getCommandMutation(command).apply();
-        AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).loadEmpty();
+        AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
         AccordKeyspace.getCommandsForKeyMutation(cfk).apply();
 
         // resources are on disk only, so the loader should suspend...
@@ -138,10 +138,10 @@ public class AsyncLoaderTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
 
         // acquire /release, create / persist
-        AccordCommand command = commandCache.getOrCreate(txnId).loadEmpty();
+        AccordCommand command = commandCache.getOrCreate(txnId).initialize();
         command.txn(txn);
         commandCache.release(command);
-        AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).loadEmpty();
+        AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
         AccordKeyspace.getCommandsForKeyMutation(cfk).apply();
 
         // resources are on disk only, so the loader should suspend...
@@ -176,10 +176,10 @@ public class AsyncLoaderTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
 
         // acquire / release
-        AccordCommand command = commandCache.getOrCreate(txnId).loadEmpty();
+        AccordCommand command = commandCache.getOrCreate(txnId).initialize();
         command.txn(txn);
         commandCache.release(command);
-        AccordCommandsForKey cfk = cfkCacche.getOrCreate(key).loadEmpty();
+        AccordCommandsForKey cfk = cfkCacche.getOrCreate(key).initialize();
         cfkCacche.release(cfk);
 
         AsyncContext context = new AsyncContext();

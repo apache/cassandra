@@ -227,7 +227,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         this.key = key;
     }
 
-    public AccordCommandsForKey loadEmpty()
+    public AccordCommandsForKey initialize()
     {
         maxTimestamp.set(Timestamp.NONE);
         uncommitted.map.load(new TreeMap<>());
