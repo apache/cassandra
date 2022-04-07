@@ -216,29 +216,4 @@ class SettingsMisc implements Serializable
             }
         });
     }
-
-    static Runnable sendToDaemonHelpPrinter()
-    {
-        return () -> {
-            System.out.println("Usage: -sendto <host>");
-            System.out.println();
-            System.out.println("Specify a host running the stress server to send this stress command to");
-        };
-    }
-
-    static String getSendToDaemon(Map<String, String[]> clArgs)
-    {
-        String[] params = clArgs.remove("-send-to");
-        if (params == null)
-            params = clArgs.remove("-sendto");
-        if (params == null)
-            return null;
-        if (params.length != 1)
-        {
-            sendToDaemonHelpPrinter().run();
-            System.out.println("Invalid -sendto specifier: " + Arrays.toString(params));
-            System.exit(1);
-        }
-        return params[0];
-    }
 }

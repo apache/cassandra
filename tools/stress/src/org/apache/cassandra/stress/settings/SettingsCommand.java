@@ -233,16 +233,4 @@ public abstract class SettingsCommand implements Serializable
     {
         GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count(), new Duration());
     }
-
-    static Runnable helpPrinter(final Command type)
-    {
-        return new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                printHelp(type);
-            }
-        };
-    }
 }
