@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -475,16 +476,29 @@ public class MigrationCoordinator
         SchemaDiagnostics.versionAnnounced(Schema.instance);
     }
 
-    private Future<Void> submitToMigrationIfNotShutdown(Runnable task)
+    private Future<?> submitToMigrationIfNotShutdown(Runnable task)
     {
-        if (executor.isShutdown() || executor.isTerminated())
+        boolean skipped = false;
+        try
         {
-            logger.info("Skipped scheduled pulling schema from other nodes: the MIGRATION executor service has been shutdown.");
+            if (executor.isShutdown() || executor.isTerminated())
+            {
+                skipped = true;
+                return ImmediateFuture.success(null);
+            }
+            return executor.submit(task);
+        }
+        catch (RejectedExecutionException ex)
+        {
+            skipped = true;
             return ImmediateFuture.success(null);
         }
-        else
+        finally
         {
-            return executor.submit(task, null);
+            if (skipped)
+            {
+                logger.info("Skipped scheduled pulling schema from other nodes: the MIGRATION executor service has been shutdown.");
+            }
         }
     }
 
