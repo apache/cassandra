@@ -137,7 +137,10 @@ public class AccordTxnBuilder
     public Txn build()
     {
         Key[] keyArray = keys.toArray(Key[]::new);
-        Arrays.sort(keyArray, Comparator.naturalOrder());
+        Arrays.sort(keyArray, AccordKey::compareKeys);
+        reads.sort(AccordKey::compare);
+        updates.sort(AccordKey::compare);
+        predicates.sort(AccordKey::compare);
         if (updates.isEmpty())
         {
             return new Txn(new Keys(keyArray), new AccordRead(reads), query);

@@ -65,6 +65,11 @@ public interface AccordKey extends Key<AccordKey>
         return left.partitionKey().compareTo(right.partitionKey());
     }
 
+    static int compareKeys(Key left, Key right)
+    {
+        return compare((AccordKey) left, (AccordKey) right);
+    }
+
     default int compareTo(AccordKey that)
     {
         return compare(this, that);

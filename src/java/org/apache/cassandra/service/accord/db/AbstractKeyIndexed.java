@@ -41,7 +41,7 @@ public abstract class AbstractKeyIndexed<T extends AccordKey>
         for (int i=0, mi=items.size(); i<mi; i++)
         {
             keys[i] = items.get(i);
-            Preconditions.checkState(i == 0 || keys[i].compareTo(keys[i-1]) > 0);
+            Preconditions.checkState(i == 0 || AccordKey.compareKeys(keys[i], keys[i-1]) > 0);
         }
         return new Keys(keys);
     }

@@ -77,7 +77,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         executeAt.load(null);
         promised.set(Ballot.ZERO);
         accepted.set(Ballot.ZERO);
-        deps.load(null);
+        deps.set(new Dependencies());
         writes.load(null);
         result.load(null);
         waitingOnCommit.load(new TreeMap<>());
