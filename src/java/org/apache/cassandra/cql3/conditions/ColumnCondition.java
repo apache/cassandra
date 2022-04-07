@@ -576,7 +576,8 @@ public abstract class ColumnCondition
         }
     }
 
-    private static boolean containsAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, ByteBuffer value, Operator operator){
+    private static boolean containsAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, ByteBuffer value, Operator operator)
+    {
         AbstractType<?> compareType;
         switch (type.kind)
         {
