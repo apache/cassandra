@@ -2342,9 +2342,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @Override
     public void forceCompactionForTokenRangeV2(String... strings)
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        Set<Range<Token>> tokenRanges = toTokenRanges(partitioner, strings);
-        CompactionManager.instance.forceCompactionForTokenRange(this, tokenRanges);
+        CompactionManager.instance.forceCompactionForTokenRange(this, toTokenRanges(DatabaseDescriptor.getPartitioner(), strings));
     }
 
     static Set<Range<Token>> toTokenRanges(IPartitioner partitioner, String... strings)
