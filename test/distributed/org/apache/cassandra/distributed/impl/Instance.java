@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
@@ -153,6 +154,7 @@ import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.fromCa
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.junit.Assert.assertTrue;
 
 /**
  * This class is instantiated on the relevant classloader, so its methods invoke the correct target classes automatically
@@ -161,7 +163,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
     public final IInstanceConfig config;
     private volatile boolean initialized = false;
-    private final long startedAt;
+    private final AtomicLong startedAt = new AtomicLong();
 
     @Deprecated
     Instance(IInstanceConfig config, ClassLoader classLoader)
@@ -183,11 +185,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         Object clusterId = Objects.requireNonNull(config.get(Constants.KEY_DTEST_API_CLUSTER_ID), "cluster_id is not defined");
         ClusterIDDefiner.setId("cluster-" + clusterId);
         InstanceIDDefiner.setInstanceId(config.num());
-        // Defer initialisation of Clock.Global until cluster/instance identifiers are set.
-        // Otherwise, the instance classloader's logging classes are setup ahead of time and
-        // the patterns/file paths are not set correctly. This will be addressed in a subsequent
-        // commit to extend the functionality of the @Shared annotation to app classes.
-        startedAt = nanoTime();
         FBUtilities.setBroadcastInetAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(config.broadcastAddress().getAddress(),
                                                                                                    config.broadcastAddress().getPort()));
 
@@ -540,6 +537,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void startup(ICluster cluster)
     {
+        // Defer initialisation of Clock.Global until cluster/instance identifiers are set.
+        // Otherwise, the instance classloader's logging classes are setup ahead of time and
+        // the patterns/file paths are not set correctly. This will be addressed in a subsequent
+        // commit to extend the functionality of the @Shared annotation to app classes.
+        assertTrue("startedAt uninitialized", startedAt.compareAndSet(0L, nanoTime()));
+
         sync(() -> {
             try
             {
@@ -633,7 +636,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
                 if (config.has(GOSSIP))
                 {
-                    MigrationCoordinator.setUptimeFn(() -> TimeUnit.NANOSECONDS.toMillis(nanoTime() - startedAt));
+                    MigrationCoordinator.setUptimeFn(() -> TimeUnit.NANOSECONDS.toMillis(nanoTime() - startedAt.get()));
                     try
                     {
                         StorageService.instance.initServer();
@@ -815,6 +818,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             finally
             {
                 super.shutdown();
+                startedAt.set(0L);
             }
         });
     }
