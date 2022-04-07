@@ -55,7 +55,14 @@ public interface ColumnFamilyStoreMBean
      * force a major compaction of specified key range in this column family
      */
     @BreaksJMX("This API was released in 3.10 using a parameter that takes Range of Token, which can only be done IFF client has Cassandra binaries in the classpath")
+    @Deprecated
     public void forceCompactionForTokenRange(Collection<Range<Token>> tokenRanges) throws ExecutionException, InterruptedException;
+
+    /**
+     * force a major compaction of specified key range in this column family
+     */
+    public void forceCompactionForTokenRangeV2(String... tokenRanges);
+
     /**
      * Gets the minimum number of sstables in queue before compaction kicks off
      */

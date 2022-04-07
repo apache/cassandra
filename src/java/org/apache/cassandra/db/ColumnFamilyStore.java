@@ -219,6 +219,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static final String SNAPSHOT_TRUNCATE_PREFIX = "truncated";
     public static final String SNAPSHOT_DROP_PREFIX = "dropped";
+    static final String TOKEN_DELIMITER = ":";
 
     static
     {
@@ -2332,9 +2333,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performMaximal(this, splitOutput);
     }
 
+    @Override
     public void forceCompactionForTokenRange(Collection<Range<Token>> tokenRanges) throws ExecutionException, InterruptedException
     {
         CompactionManager.instance.forceCompactionForTokenRange(this, tokenRanges);
+    }
+
+    @Override
+    public void forceCompactionForTokenRangeV2(String... strings)
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        Set<Range<Token>> tokenRanges = toTokenRanges(partitioner, strings);
+        CompactionManager.instance.forceCompactionForTokenRange(this, tokenRanges);
+    }
+
+    static Set<Range<Token>> toTokenRanges(IPartitioner partitioner, String... strings)
+    {
+        Token.TokenFactory tokenFactory = partitioner.getTokenFactory();
+        Set<Range<Token>> tokenRanges = new HashSet<>();
+        for (String str : strings)
+        {
+            String[] splits = str.split(TOKEN_DELIMITER);
+            assert splits.length == 2 : String.format("Unable to parse token range %s; needs to have two tokens seperated by %s", str, TOKEN_DELIMITER);
+            Token lhs = tokenFactory.fromString(splits[0]);
+            Token rhs = tokenFactory.fromString(splits[1]);
+            tokenRanges.add(new Range<>(lhs, rhs));
+        }
+        return tokenRanges;
     }
 
     public static Iterable<ColumnFamilyStore> all()
