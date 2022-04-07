@@ -52,38 +52,19 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     private static final int ROWS = 3;
 
     private static Cluster cluster;
-    /**
-     * This class currently does not support vnodes, but the cluster is defined statically!  Junit freaks out if the
-     * setup method throws {@link AssumptionViolatedException} (the error telling junit to skip the test) and says the
-     * class failed rather than the tests were skipped... this skipMessage field is 100% a hack around this limitation!
-     * Every test is expected to check that this is defined, and if so throw {@link AssumptionViolatedException} to
-     * skip the test.
-     */
-    private static String skipMessage;
 
     @BeforeClass
     public static void setup() throws IOException
     {
-        try
-        {
-            cluster = init(Cluster.build()
-                                  .withNodes(REPLICAS)
-                                  .withConfig(config -> config.set("hinted_handoff_enabled", false)
-                                                              .set("commitlog_sync", "batch")
-                                                              .set("num_tokens", 1)).start());
+        cluster = init(Cluster.build()
+                              .withNodes(REPLICAS)
+                              .withConfig(config -> config.set("hinted_handoff_enabled", false)
+                                                          .set("commitlog_sync", "batch")
+                                                          .set("num_tokens", 1)).start());
 
-            // Make sure we start w/ the correct defaults:
-            cluster.get(1).runOnInstance(() -> assertEquals(DEFAULT_WARN_THRESHOLD, StorageService.instance.getCachedReplicaRowsWarnThreshold()));
-            cluster.get(1).runOnInstance(() -> assertEquals(DEFAULT_FAIL_THRESHOLD, StorageService.instance.getCachedReplicaRowsFailThreshold()));
-        }
-        catch (AssumptionViolatedException e)
-        {
-            // test isn't allowed to run, but junit freaks out and shows the AssumptionViolatedException in the junit report
-            // so it looks like the tests failed rather than were skipped... need the tests to actually skip instead...
-            skipMessage = e.getMessage();
-            if (skipMessage == null)
-                skipMessage = "vnodes is not supported";
-        }
+        // Make sure we start w/ the correct defaults:
+        cluster.get(1).runOnInstance(() -> assertEquals(DEFAULT_WARN_THRESHOLD, StorageService.instance.getCachedReplicaRowsWarnThreshold()));
+        cluster.get(1).runOnInstance(() -> assertEquals(DEFAULT_FAIL_THRESHOLD, StorageService.instance.getCachedReplicaRowsFailThreshold()));
     }
 
     @AfterClass
@@ -96,8 +77,6 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     @Test
     public void testMissedUpdatesBelowCachingWarnThreshold()
     {
-        checkSkip();
-
         String tableName = "missed_updates_no_warning";
         cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
@@ -109,8 +88,6 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     @Test
     public void testMissedUpdatesAboveCachingWarnThreshold()
     {
-        checkSkip();
-
         String tableName = "missed_updates_cache_warn";
         cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
@@ -122,8 +99,6 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     @Test
     public void testMissedUpdatesAroundCachingFailThreshold()
     {
-        checkSkip();
-
         String tableName = "missed_updates_cache_fail";
         cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int PRIMARY KEY, v text)"));
 
@@ -141,11 +116,6 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         {
             assertEquals(e.getClass().getName(), OverloadedException.class.getName());
         }
-    }
-
-    private static void checkSkip()
-    {
-        Assume.assumeFalse(skipMessage, cluster == null);
     }
 
     private void testMissedUpdates(String tableName, int warnThreshold, int failThreshold, boolean shouldWarn)
