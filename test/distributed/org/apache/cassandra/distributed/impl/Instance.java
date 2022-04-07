@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
@@ -140,12 +141,13 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.fromCassandraInetAddressAndPort;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
+import static org.junit.Assert.assertTrue;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
     public final IInstanceConfig config;
     private volatile boolean initialized = false;
-    private final long startedAt = System.nanoTime();
+    private final AtomicLong startedAt = new AtomicLong();
 
     // should never be invoked directly, so that it is instantiated on other class loader;
     // only visible for inheritance
@@ -457,6 +459,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void startup(ICluster cluster)
     {
+        assertTrue("startedAt uninitialized", startedAt.compareAndSet(0L, System.nanoTime()));
+
         sync(() -> {
             try
             {
@@ -541,7 +545,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
                 if (config.has(GOSSIP))
                 {
-                    MigrationCoordinator.setUptimeFn(() -> TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
+                    MigrationCoordinator.setUptimeFn(() -> TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt.get()));
                     StorageService.instance.initServer();
                     StorageService.instance.removeShutdownHook();
                     Gossiper.waitToSettle();
@@ -753,7 +757,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).apply(isolatedExecutor);
 
         return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(future::get), isolatedExecutor)
-                                .thenRun(super::shutdown);
+                                .thenRun(super::shutdown)
+                                .thenRun(() -> startedAt.set(0L));
     }
 
     @Override
