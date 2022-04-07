@@ -223,7 +223,7 @@ public class GossipHelper
                 InetAddressAndPort endpoint = toCassandraInetAddressAndPort(pullFrom);
                 EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
                 MigrationCoordinator.instance.reportEndpointVersion(endpoint, state);
-                assertTrue(MigrationCoordinator.instance.awaitSchemaRequests(TimeUnit.SECONDS.toMillis(10)));
+                assertTrue("schema is ready", MigrationCoordinator.instance.awaitSchemaRequests(TimeUnit.SECONDS.toMillis(10)));
             }).accept(pullFrom);
         }
     }
