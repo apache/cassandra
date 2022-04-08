@@ -2352,7 +2352,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (String str : strings)
         {
             String[] splits = str.split(TOKEN_DELIMITER);
-            assert splits.length == 2 : String.format("Unable to parse token range %s; needs to have two tokens seperated by %s", str, TOKEN_DELIMITER);
+            assert splits.length == 2 : String.format("Unable to parse token range %s; needs to have two tokens separated by %s", str, TOKEN_DELIMITER);
             Token lhs = tokenFactory.fromString(splits[0]);
             Token rhs = tokenFactory.fromString(splits[1]);
             tokenRanges.add(new Range<>(lhs, rhs));
