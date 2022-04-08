@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.TokenSupplier;
@@ -157,7 +158,8 @@ public class NativeIndexDDLTest extends TestBaseImpl
         }, () -> cluster.get(1).runOnInstance(() -> {
             try
             {
-                StorageService.instance.forceKeyspaceCleanup(KEYSPACE, table);
+                int status = StorageService.instance.forceKeyspaceCleanup(KEYSPACE, table);
+                assert status == CompactionManager.AllSSTableOpStatus.SUCCESSFUL.statusCode : "Cleanup failed";
             }
             catch (IOException | ExecutionException | InterruptedException e)
             {

@@ -25,10 +25,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.service.QueryInfoTrackerTest;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
@@ -40,8 +45,7 @@ public class QueryInfoTrackerDistributedTest extends TestBaseImpl
     @BeforeClass
     public static void setupCluster() throws Throwable
     {
-        cluster = init(Cluster.build().withNodes(3).start());
-
+        cluster = init(Cluster.build().withNodes(3).withConfig(config -> config.with(NETWORK, GOSSIP)).start());
         cluster.schemaChange("CREATE KEYSPACE " + rfOneKs +
                              " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
     }
@@ -125,6 +129,7 @@ public class QueryInfoTrackerDistributedTest extends TestBaseImpl
         String table = rfOneKs + ".saiTbl";
         cluster.schemaChange("CREATE TABLE " + table + " (id1 TEXT PRIMARY KEY, v1 INT, v2 TEXT)");
         cluster.schemaChange("CREATE CUSTOM INDEX IF NOT EXISTS test_idx ON " + table + " (v1) USING 'StorageAttachedIndex'");
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
 
         int rowsCount = 1000;
 
