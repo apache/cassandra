@@ -57,9 +57,10 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      * Factory interface for constructing memtables, and querying write durability features.
      *
      * The factory is chosen using the MemtableParams class (passed as argument to
-     * {@code CREATE TABLE ... WITH memtable = {...}} or in the memtable options in cassandra.yaml). To make that
-     * possible, implementations must provide either a static {@code FACTORY} field (if they accept no further option)
-     * or a static {@code factory(Map<String, String>)} method. In the latter case, the method should avoid creating
+     * {@code CREATE TABLE ... WITH memtable = '<configuration_name>'} where the configuration definition is a map given
+     * under {@code memtable_configurations} in cassandra.yaml). To make that possible, implementations must provide
+     * either a static {@code FACTORY} field (if they accept no further option) or a static
+     * {@code factory(Map<String, String>)} method. In the latter case, the method should avoid creating
      * multiple instances of the factory for the same parameters, or factories should at least implement hashCode and
      * equals.
      */

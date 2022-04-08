@@ -248,12 +248,9 @@ public final class SchemaEvent extends DiagnosticEvent
         return ret;
     }
 
-    private HashMap<String, Serializable> repr(MemtableParams params)
+    private String repr(MemtableParams params)
     {
-        HashMap<String, Serializable> ret = new HashMap<>();
-        if (params == null) return ret;
-        ret.putAll(params.asMap());
-        return ret;
+        return params.configurationKey();
     }
 
     private HashMap<String, Serializable> repr(IndexMetadata index)

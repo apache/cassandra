@@ -3326,18 +3326,11 @@ public class DatabaseDescriptor
         return conf.memtable_cleanup_threshold;
     }
 
-    public static Map<String, Map<String, String>> getMemtableTemplates()
+    public static Map<String, Map<String, String>> getMemtableConfigurations()
     {
         if (conf == null)
             return null;
-        return conf.memtable_templates;
-    }
-
-    public static Map<String, String> getMemtableDefault()
-    {
-        if (conf == null)
-            return null;
-        return conf.memtable;
+        return conf.memtable_configurations;
     }
 
     public static int getIndexSummaryResizeIntervalInMinutes()

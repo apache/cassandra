@@ -66,8 +66,8 @@ public class WriteTest extends CQLTester
     @Param({"INMEM", "TRUNCATE", "FLUSH"})
     EndOp flush = EndOp.INMEM;
 
-    @Param({""})
-    String memtableClass = "";
+    @Param({"default"})
+    String memtableClass = "default";
 
     @Param({"false"})
     boolean useNet = false;
@@ -90,7 +90,7 @@ public class WriteTest extends CQLTester
         System.err.println("setupClass done.");
         String memtableSetup = "";
         if (!memtableClass.isEmpty())
-            memtableSetup = String.format(" AND memtable = { 'class': '%s' }", memtableClass);
+            memtableSetup = String.format(" AND memtable = '%s'", memtableClass);
         keyspace = createKeyspace(
         "CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
         table = createTable(keyspace,

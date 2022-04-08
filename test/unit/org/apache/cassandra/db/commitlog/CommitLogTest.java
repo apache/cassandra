@@ -151,7 +151,7 @@ public abstract class CommitLogTest
         SchemaLoader.prepareServer();
         StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
 
-        MemtableParams skipListMemtable = MemtableParams.fromMap(ImmutableMap.of("class", "SkipListMemtable"));
+        MemtableParams skipListMemtable = MemtableParams.get("skiplist");
 
         TableMetadata.Builder custom =
             TableMetadata.builder(KEYSPACE1, CUSTOM1)

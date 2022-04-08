@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.db.memtable;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.TableMetadataRef;
 
 /**
@@ -41,4 +43,5 @@ public class SkipListMemtableFactory implements Memtable.Factory
     }
 
     public static final SkipListMemtableFactory INSTANCE = new SkipListMemtableFactory();
+    public static Map<String, String> CONFIGURATION = ImmutableMap.of("class", SkipListMemtable.class.getName());
 }

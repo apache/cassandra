@@ -124,9 +124,9 @@ public final class TableAttributes extends PropertyDefinitions
         }
 
         if (hasOption(Option.MEMTABLE))
-            builder.memtable(MemtableParams.fromMap(getMap(Option.MEMTABLE)));
+            builder.memtable(MemtableParams.get(getString(Option.MEMTABLE)));
         else
-            builder.memtable(MemtableParams.fromMap(ImmutableMap.of()));
+            builder.memtable(MemtableParams.DEFAULT);
 
         if (hasOption(Option.DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(Option.DEFAULT_TIME_TO_LIVE));

@@ -115,7 +115,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         {
         case SCHEMA_CHANGE:
             return initialComparator != metadata().comparator // If the CF comparator has changed, because our partitions reference the old one
-                   || metadata().params.memtable.factory != factory(); // If a different type of memtable is requested
+                   || metadata().params.memtable.factory() != factory(); // If a different type of memtable is requested
         case OWNED_RANGES_CHANGE:
             return false; // by default we don't use the local ranges, thus this has no effect
         default:

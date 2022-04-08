@@ -52,7 +52,7 @@ public class MemtableQuickTest extends CQLTester
     @Parameterized.Parameters(name = "{0}")
     public static List<Object> parameters()
     {
-        return ImmutableList.of("SkipListMemtable");
+        return ImmutableList.of("skiplist");
     }
 
     @BeforeClass
@@ -70,7 +70,7 @@ public class MemtableQuickTest extends CQLTester
         keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
         table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
                                       " with compression = {'enabled': false}" +
-                                      " and memtable = { 'class': '" + memtableClass + "'}");
+                                      " and memtable = '" + memtableClass + "'");
         execute("use " + keyspace + ';');
 
         String writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";

@@ -183,7 +183,7 @@ public final class TableParams
         if (memtableFlushPeriodInMs < 0)
             fail("%s must be greater than or equal to 0 (got %s)", Option.MEMTABLE_FLUSH_PERIOD_IN_MS, memtableFlushPeriodInMs);
 
-        if (cdc && memtable.factory.writesShouldSkipCommitLog())
+        if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
     }
 
@@ -282,7 +282,7 @@ public final class TableParams
                .newLine()
                .append("AND compression = ").append(compression.asMap())
                .newLine()
-               .append("AND memtable = ").append(memtable.asMap())
+               .append("AND memtable = ").appendWithSingleQuotes(memtable.configurationKey())
                .newLine()
                .append("AND crc_check_chance = ").append(crcCheckChance)
                .newLine();

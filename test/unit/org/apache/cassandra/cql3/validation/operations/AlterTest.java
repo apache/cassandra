@@ -557,17 +557,17 @@ public class AlterTest extends CQLTester
     public void testAlterTableWithMemtable() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
-        assertSame(MemtableParams.DEFAULT.factory, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+        assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map()));
+                   row("default"));
 
-        alterTable("ALTER TABLE %s WITH memtable = { 'class' : 'SkipListMemtable' };");
-        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+        alterTable("ALTER TABLE %s WITH memtable = 'skiplist' ;");
+        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
@@ -575,11 +575,11 @@ public class AlterTest extends CQLTester
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map("class", "SkipListMemtable")));
+                   row("skiplist"));
 
         alterTable("ALTER TABLE %s"
-                   + " WITH memtable = { 'class' : '" + TestMemtable.class.getName() + "'};");
-        assertSame(TestMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+                   + " WITH memtable = 'test_fullname';");
+        assertSame(TestMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
@@ -587,11 +587,11 @@ public class AlterTest extends CQLTester
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map("class", TestMemtable.class.getName())));
+                   row("test_fullname"));
 
         alterTable("ALTER TABLE %s"
-                   + " WITH memtable = { 'class' : '" + TestMemtable.class.getName() + "', 'skiplist' : 'true' };");
-        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+                   + " WITH memtable = 'test_shortname';");
+        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
@@ -599,56 +599,53 @@ public class AlterTest extends CQLTester
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map("class", TestMemtable.class.getName(),
-                           "skiplist", "true")));
+                   row("test_shortname"));
 
         alterTable("ALTER TABLE %s"
-                    + " WITH memtable = {  };");
-        assertSame(MemtableParams.DEFAULT.factory, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+                    + " WITH memtable = default;");
+        assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map()));
-
-        // Use templates defined in test/cassandra.yaml
-        alterTable("ALTER TABLE %s"
-                    + " WITH memtable = {'template' : 'skiplist'};");
-        assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
-
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("template", "skiplist")));
+                   row("default"));
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "The 'class' option must not be empty. To use default implementation, remove option.",
+                                        "The 'class' option must not be empty.",
                                         "ALTER TABLE %s"
-                                        + " WITH memtable = { 'class' : '' };");
+                                           + " WITH memtable = 'test_empty_class';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Could not create memtable factory for type org.apache.cassandra.db.memtable.NotExisting and options {}",
+                                        "Memtable class org.apache.cassandra.db.memtable.SkipListMemtable does not accept any futher parameters, but {invalid=throw} were given.",
                                         "ALTER TABLE %s"
-                                        + " WITH memtable = { 'class' : 'NotExisting'};");
+                                           + " WITH memtable = 'test_invalid_param';");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Could not create memtable factory for {class=NotExisting}",
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'test_unknown_class';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "Options {invalid=throw} not expected.",
                                         "ALTER TABLE %s"
-                                        + " WITH memtable = { 'class' : '" + TestMemtable.class.getName() + "', 'invalid' : 'throw' };");
+                                           + " WITH memtable = 'test_invalid_extra_param';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Memtable template unknown not found.",
+                                        "Could not create memtable factory for {class=" + CreateTest.InvalidMemtableFactoryMethod.class.getName() + "}",
                                         "ALTER TABLE %s"
-                                        + " WITH memtable = { 'template' : 'unknown' };");
+                                           + " WITH memtable = 'test_invalid_factory_method';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "When a memtable template is specified no other parameters can be given, was {template=skiplist, invalid=throw}",
+                                        "Could not create memtable factory for {class=" + CreateTest.InvalidMemtableFactoryField.class.getName() + "}",
                                         "ALTER TABLE %s"
-                                        + " WITH memtable = { 'template' : 'skiplist', 'invalid' : 'throw' };");
+                                           + " WITH memtable = 'test_invalid_factory_field';");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Memtable configuration \"unknown\" not found.",
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'unknown';");
     }
 
     @Test

@@ -21,14 +21,15 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
@@ -42,22 +43,131 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public final class MemtableParams
 {
-    public final Memtable.Factory factory;
-    public final ImmutableMap<String, String> options;
+    private final Memtable.Factory factory;
+    private final String configurationKey;
 
-    private MemtableParams(Memtable.Factory factory, ImmutableMap<String, String> options)
+    private MemtableParams(Memtable.Factory factory, String configurationKey)
     {
-        this.options = options;
+        this.configurationKey = configurationKey;
         this.factory = factory;
     }
 
+    public String configurationKey()
+    {
+        return configurationKey;
+    }
+
+    public Memtable.Factory factory()
+    {
+        return factory;
+    }
+
+    @Override
+    public String toString()
+    {
+        return configurationKey;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof MemtableParams))
+            return false;
+
+        MemtableParams c = (MemtableParams) o;
+
+        return Objects.equal(configurationKey, c.configurationKey);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return configurationKey.hashCode();
+    }
+
+    private static final String CLASS_OPTION = "class";
+    private static final String EXTENDS_OPTION = "extends";
+    private static final String DEFAULT_CONFIGURATION_KEY = "default";
+    private static final Memtable.Factory DEFAULT_MEMTABLE_FACTORY = SkipListMemtableFactory.INSTANCE;
+    private static final Map<String, String> DEFAULT_CONFIGURATION = SkipListMemtableFactory.CONFIGURATION;
+    private static final Map<String, Map<String, String>> CONFIGURATION_DEFINITIONS;
+    private static final Map<String, MemtableParams> CONFIGURATIONS;
+    public static final MemtableParams DEFAULT;
+
+    static {
+        CONFIGURATION_DEFINITIONS = expandDefinitions(DatabaseDescriptor.getMemtableConfigurations());
+        CONFIGURATIONS = new HashMap<>();
+        DEFAULT = get(null);
+    }
+
+    public static MemtableParams get(String key)
+    {
+        if (key == null)
+            key = DEFAULT_CONFIGURATION_KEY;
+
+        synchronized (CONFIGURATIONS)
+        {
+            return CONFIGURATIONS.computeIfAbsent(key, MemtableParams::parseConfiguration);
+        }
+    }
+
+    private static Map<String, Map<String, String>> expandDefinitions(Map<String, Map<String, String>> memtableConfigurations)
+    {
+        if (memtableConfigurations == null)
+            return ImmutableMap.of(DEFAULT_CONFIGURATION_KEY, DEFAULT_CONFIGURATION);
+
+        LinkedHashMap<String, Map<String, String>> configs = new LinkedHashMap<>(memtableConfigurations.size() + 1);
+        if (!memtableConfigurations.containsKey(DEFAULT_CONFIGURATION_KEY))
+            configs.put(DEFAULT_CONFIGURATION_KEY, DEFAULT_CONFIGURATION);
+        for (Map.Entry<String, Map<String, String>> config : memtableConfigurations.entrySet())
+        {
+            String key = config.getKey();
+            Map<String, String> configuration = config.getValue();
+            if (configuration.containsKey(EXTENDS_OPTION))
+            {
+                Map<String, String> parentConfig = configs.get(configuration.get(EXTENDS_OPTION));
+                if (parentConfig == null)
+                    throw new ConfigurationException("Memtable configuration " + key + " extends undefined " + configuration.get(EXTENDS_OPTION)
+                                                     + ". A configuration can only extend one defined earlier or \"default\".");
+                if (configuration.size() == 1)  // only extends, i.e. a new name for an existing config
+                    configuration = parentConfig;
+                else
+                {
+                    Map<String, String> childConfig = new HashMap<>(parentConfig);
+                    childConfig.putAll(configuration);
+                    childConfig.remove(EXTENDS_OPTION);
+                    configuration = childConfig;
+                }
+            }
+            configs.put(key, ImmutableMap.copyOf(configuration));
+        }
+        return ImmutableMap.copyOf(configs);
+    }
+
+    private static MemtableParams parseConfiguration(String configurationKey)
+    {
+        Map<String, String> definition = CONFIGURATION_DEFINITIONS.get(configurationKey);
+
+        if (definition == null)
+            throw new ConfigurationException("Memtable configuration \"" + configurationKey + "\" not found.");
+        return new MemtableParams(getMemtableFactory(definition), configurationKey);
+    }
+
+
     private static Memtable.Factory getMemtableFactory(Map<String, String> options)
     {
+        // Special-case this so that we don't initialize memtable class for tests that need to delay that.
+        if (options == DEFAULT_CONFIGURATION)
+            return DEFAULT_MEMTABLE_FACTORY;
+
         Map<String, String> copy = new HashMap<>(options);
-        String className = copy.remove(Option.CLASS.toString());
+        String className = copy.remove(CLASS_OPTION);
         if (className.isEmpty() || className == null)
             throw new ConfigurationException(
-            "The 'class' option must not be empty. To use default implementation, remove option.");
+            "The 'class' option must not be empty.");
 
         className = className.contains(".") ? className : "org.apache.cassandra.db.memtable." + className;
         try
@@ -84,111 +194,7 @@ public final class MemtableParams
         {
             if (e.getCause() instanceof ConfigurationException)
                 throw (ConfigurationException) e.getCause();
-            throw new ConfigurationException("Could not create memtable factory for type " + className +
-                                             " and options " + copy, e);
+            throw new ConfigurationException("Could not create memtable factory for " + options, e);
         }
-    }
-
-    public static MemtableParams fromMap(Map<String, String> map)
-    {
-        if (map == null || map.isEmpty())
-            return DEFAULT;
-
-        MemtableParams byTemplate = getTemplate(map);
-        if (byTemplate != null)
-            return byTemplate;
-
-        return new MemtableParams(getMemtableFactory(map), ImmutableMap.copyOf(map));
-    }
-
-    private static MemtableParams getTemplate(Map<String, String> map)
-    {
-        String template = map.get(TEMPLATE_OPTION);
-        if (template == null)
-            return null;
-
-        if (map.size() != 1)
-            throw new ConfigurationException("When a memtable template is specified no other parameters can be given, was " + map);
-        MemtableParams params = templates.get(template);
-        if (params == null)
-            throw new ConfigurationException("Memtable template " + template + " not found.");
-        return params;
-    }
-
-    public Map<String, String> asMap()
-    {
-        // options is an immutable map, ok to share
-        return options;
-    }
-
-    @Override
-    public String toString()
-    {
-        return options.toString();
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof MemtableParams))
-            return false;
-
-        MemtableParams c = (MemtableParams) o;
-
-        return Objects.equal(options, c.options);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return factory.hashCode();
-    }
-
-    public enum Option
-    {
-        CLASS;
-
-        @Override
-        public String toString()
-        {
-            return name().toLowerCase();
-        }
-    }
-
-    public static final String TEMPLATE_OPTION = "template";
-    public static final Map<String, MemtableParams> templates;
-    public static final MemtableParams DEFAULT;
-    static {
-        templates = parseTemplates(DatabaseDescriptor.getMemtableTemplates());
-        DEFAULT = new MemtableParams(getDefaultFactory(DatabaseDescriptor.getMemtableDefault()), ImmutableMap.of());
-    }
-
-    private static Map<String, MemtableParams> parseTemplates(Map<String, Map<String, String>> templateDefinition)
-    {
-        if (templateDefinition == null)
-            return ImmutableMap.of();
-
-        Map<String, MemtableParams> templates = new HashMap<>(templateDefinition.size());
-        for (Map.Entry<String, Map<String, String>> definition : templateDefinition.entrySet())
-        {
-            String template = definition.getKey();
-            templates.put(template, new MemtableParams(getMemtableFactory(definition.getValue()),
-                                                       ImmutableMap.of(TEMPLATE_OPTION, template)));
-        }
-        return templates;
-    }
-
-    private static Memtable.Factory getDefaultFactory(Map<String, String> defaultOptions)
-    {
-        if (defaultOptions == null || defaultOptions.isEmpty())
-            return SkipListMemtableFactory.INSTANCE;
-        MemtableParams byTemplate = getTemplate(defaultOptions);
-        if (byTemplate != null)
-            return byTemplate.factory;
-        else
-            return getMemtableFactory(defaultOptions);
     }
 }

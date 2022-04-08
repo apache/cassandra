@@ -62,8 +62,28 @@ local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
 
-memtable_templates:
+memtable_configurations:
     skiplist:
+        extends: default
         class: SkipListMemtable
-memtable:
-    template: skiplist
+    skiplist_remapped:
+        extends: skiplist
+    test_fullname:
+        class: org.apache.cassandra.db.memtable.TestMemtable
+    test_shortname:
+        class: TestMemtable
+        skiplist: "true"
+    test_empty_class:
+        class: ""
+    test_unknown_class:
+        class: NotExisting
+    test_invalid_param:
+        class: SkipListMemtable
+        invalid: throw
+    test_invalid_extra_param:
+        extends: test_shortname
+        invalid: throw
+    test_invalid_factory_method:
+        class: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryMethod
+    test_invalid_factory_field:
+        class: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField

@@ -592,18 +592,18 @@ public class CreateTest extends CQLTester
     public void testCreateTableWithMemtable() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
-        assertSame(MemtableParams.DEFAULT.factory, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+        assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map()));
+                   row("default"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = { 'class' : 'SkipListMemtable' };");
-        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+                    + " WITH memtable = 'skiplist';");
+        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
@@ -611,11 +611,11 @@ public class CreateTest extends CQLTester
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map("class", "SkipListMemtable")));
+                   row("skiplist"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = { 'class' : 'org.apache.cassandra.db.memtable.TestMemtable' };");
-        assertSame(TestMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+                    + " WITH memtable = 'test_fullname';");
+        assertSame(TestMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
@@ -623,87 +623,51 @@ public class CreateTest extends CQLTester
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map("class", "org.apache.cassandra.db.memtable.TestMemtable")));
+                   row("test_fullname"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = { 'class' : '" + TestMemtable.class.getName() + "' };");
-        assertSame(TestMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+                    + " WITH memtable = 'test_shortname';");
+        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
 
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("class", TestMemtable.class.getName())));
-
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = { 'class' : '" + TestMemtable.class.getName() + "', 'skiplist' : 'true' };");
-        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
-        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
+                    + " WITH memtable = 'default';");
+        assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map("class", TestMemtable.class.getName(),
-                           "skiplist", "true")));
+                   row("default"));
 
-        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = {  };");
-        assertSame(MemtableParams.DEFAULT.factory, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
-
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map()));
-
-        // Use templates defined in test/cassandra.yaml
-        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = {'template' : 'skiplist'};");
-        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
-
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("template", "skiplist")));
-
-        assertThrowsConfigurationException("The 'class' option must not be empty. To use default implementation, remove option.",
+        assertThrowsConfigurationException("The 'class' option must not be empty.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH memtable = { 'class' : '' };");
+                                           + " WITH memtable = 'test_empty_class';");
 
         assertThrowsConfigurationException("Memtable class org.apache.cassandra.db.memtable.SkipListMemtable does not accept any futher parameters, but {invalid=throw} were given.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH memtable = { 'class' : 'SkipListMemtable', 'invalid' : 'throw' };");
+                                           + " WITH memtable = 'test_invalid_param';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for type org.apache.cassandra.db.memtable.NotExisting and options {}",
+        assertThrowsConfigurationException("Could not create memtable factory for {class=NotExisting}",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH memtable = { 'class' : 'NotExisting'};");
+                                           + " WITH memtable = 'test_unknown_class';");
 
         assertThrowsConfigurationException("Options {invalid=throw} not expected.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH memtable = { 'class' : '" + TestMemtable.class.getName() + "', 'invalid' : 'throw' };");
+                                           + " WITH memtable = 'test_invalid_extra_param';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for type " + InvalidMemtableFactoryMethod.class.getName() +  " and options {}",
+        assertThrowsConfigurationException("Could not create memtable factory for {class=" + InvalidMemtableFactoryMethod.class.getName() +  "}",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH memtable = { 'class' : '" + InvalidMemtableFactoryMethod.class.getName() + "' };");
+                                           + " WITH memtable = 'test_invalid_factory_method';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for type " + InvalidMemtableFactoryField.class.getName() +  " and options {}",
+        assertThrowsConfigurationException("Could not create memtable factory for {class=" + InvalidMemtableFactoryField.class.getName() +  "}",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH memtable = { 'class' : '" + InvalidMemtableFactoryField.class.getName() + "' };");
+                                           + " WITH memtable = 'test_invalid_factory_field';");
 
-        assertThrowsConfigurationException("Memtable template unknown not found.",
+        assertThrowsConfigurationException("Memtable configuration \"unknown\" not found.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH memtable = { 'template' : 'unknown' };");
-
-        assertThrowsConfigurationException("When a memtable template is specified no other parameters can be given, was {template=skiplist, invalid=throw}",
-                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH memtable = { 'template' : 'skiplist', 'invalid' : 'throw' };");
+                                           + " WITH memtable = 'unknown';");
     }
 
     @Test
