@@ -116,7 +116,8 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
                     Schema.instance.getVersion(),
                     migrationCoordinator.outstandingVersions(),
                     CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK.getKey(),
-                    MigrationCoordinator.IGNORED_ENDPOINTS_PROP, MigrationCoordinator.IGNORED_VERSIONS_PROP);
+                    CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_ENDPOINTS.getKey(),
+                    CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_VERSIONS.getKey());
 
         if (requireSchemas)
         {
