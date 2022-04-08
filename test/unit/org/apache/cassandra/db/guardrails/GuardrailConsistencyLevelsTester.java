@@ -24,8 +24,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -38,24 +38,24 @@ public abstract class GuardrailConsistencyLevelsTester extends GuardrailTester
 {
     private final String warnedPropertyName;
     private final String disallowePropertyName;
-    private final Function<Guardrails, Set<ConsistencyLevel>> warnedGetter;
-    private final Function<Guardrails, Set<ConsistencyLevel>> disallowedGetter;
+    private final Function<Guardrails, Set<String>> warnedGetter;
+    private final Function<Guardrails, Set<String>> disallowedGetter;
     private final Function<Guardrails, String> warnedCSVGetter;
     private final Function<Guardrails, String> disallowedCSVGetter;
-    private final BiConsumer<Guardrails, Set<ConsistencyLevel>> warnedSetter;
-    private final BiConsumer<Guardrails, Set<ConsistencyLevel>> disallowedSetter;
+    private final BiConsumer<Guardrails, Set<String>> warnedSetter;
+    private final BiConsumer<Guardrails, Set<String>> disallowedSetter;
     private final BiConsumer<Guardrails, String> warnedCSVSetter;
     private final BiConsumer<Guardrails, String> disallowedCSVSetter;
 
     public GuardrailConsistencyLevelsTester(String warnedPropertyName,
                                             String disallowePropertyName,
                                             Values<ConsistencyLevel> guardrail,
-                                            Function<Guardrails, Set<ConsistencyLevel>> warnedGetter,
-                                            Function<Guardrails, Set<ConsistencyLevel>> disallowedGetter,
+                                            Function<Guardrails, Set<String>> warnedGetter,
+                                            Function<Guardrails, Set<String>> disallowedGetter,
                                             Function<Guardrails, String> warnedCSVGetter,
                                             Function<Guardrails, String> disallowedCSVGetter,
-                                            BiConsumer<Guardrails, Set<ConsistencyLevel>> warnedSetter,
-                                            BiConsumer<Guardrails, Set<ConsistencyLevel>> disallowedSetter,
+                                            BiConsumer<Guardrails, Set<String>> warnedSetter,
+                                            BiConsumer<Guardrails, Set<String>> disallowedSetter,
                                             BiConsumer<Guardrails, String> warnedCSVSetter,
                                             BiConsumer<Guardrails, String> disallowedCSVSetter)
     {
@@ -81,12 +81,12 @@ public abstract class GuardrailConsistencyLevelsTester extends GuardrailTester
 
     protected void warnConsistencyLevels(ConsistencyLevel... consistencyLevels)
     {
-        warnedSetter.accept(guardrails(), ImmutableSet.copyOf(consistencyLevels));
+        warnedSetter.accept(guardrails(), Stream.of(consistencyLevels).map(ConsistencyLevel::name).collect(Collectors.toSet()));
     }
 
     protected void disableConsistencyLevels(ConsistencyLevel... consistencyLevels)
     {
-        disallowedSetter.accept(guardrails(), ImmutableSet.copyOf(consistencyLevels));
+        disallowedSetter.accept(guardrails(), Stream.of(consistencyLevels).map(ConsistencyLevel::name).collect(Collectors.toSet()));
     }
 
     @Test
@@ -111,8 +111,9 @@ public abstract class GuardrailConsistencyLevelsTester extends GuardrailTester
         assertInvalidPropertyCSV("invalid1,ONE,invalid2", "INVALID1");
     }
 
-    private void assertValidProperty(Set<ConsistencyLevel> properties)
+    private void assertValidProperty(Set<ConsistencyLevel> input)
     {
+        Set<String> properties = input.stream().map(ConsistencyLevel::name).collect(Collectors.toSet());
         assertValidProperty(warnedSetter, warnedGetter, properties);
         assertValidProperty(disallowedSetter, disallowedGetter, properties);
     }

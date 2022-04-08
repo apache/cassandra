@@ -15,18 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.utils;
 
-import java.io.File; //checkstyle: permit this import
-import java.util.Set;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-public interface DisallowedDirectoriesMBean
+/**
+ * Annotation to have JMX breaking APIs not trigger test failures, each example must explain why it is ok to expose a
+ * JMX breaking API
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ ElementType.METHOD })
+public @interface BreaksJMX
 {
-    public Set<File> getUnreadableDirectories();
-    
-    public Set<File> getUnwritableDirectories();
-
-    public void markUnreadable(String path);
-
-    public void markUnwritable(String path);
+    String value();
 }
