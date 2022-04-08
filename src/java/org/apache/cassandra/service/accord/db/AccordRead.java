@@ -35,7 +35,6 @@ import accord.api.Key;
 import accord.api.Read;
 import accord.api.Store;
 import accord.txn.Timestamp;
-import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;

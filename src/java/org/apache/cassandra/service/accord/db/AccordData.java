@@ -28,7 +28,6 @@ import com.google.common.base.Preconditions;
 
 import accord.api.Data;
 import accord.api.Result;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.FilteredPartition;

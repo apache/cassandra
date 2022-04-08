@@ -41,7 +41,7 @@ public class AccordIntegrationTest extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(2).start()))
         {
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
-            cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int,  primary key (k, c))");
+            cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int, primary key (k, c))");
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
 
             cluster.get(1).runOnInstance(() -> {
@@ -73,7 +73,7 @@ public class AccordIntegrationTest extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(2).start()))
         {
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
-            cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int,  primary key (k, c))");
+            cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int, primary key (k, c))");
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
 
             cluster.get(1).runOnInstance(() -> {
@@ -83,7 +83,6 @@ public class AccordIntegrationTest extends TestBaseImpl
                 txnBuilder.withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (0, 0, 0)");
                 txnBuilder.withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (1, 0, 0)");
                 txnBuilder.withCondition(keyspace, "tbl", 0, 0, NOT_EXISTS);
-                txnBuilder.withCondition(keyspace, "tbl", 1, 0, NOT_EXISTS);
                 try
                 {
                     AccordData result = (AccordData) AccordService.instance.node.coordinate(txnBuilder.build()).get();
@@ -97,11 +96,10 @@ public class AccordIntegrationTest extends TestBaseImpl
 
             cluster.get(1).runOnInstance(() -> {
                 AccordTxnBuilder txnBuilder = new AccordTxnBuilder();
-                txnBuilder.withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0");
                 txnBuilder.withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=1 AND c=0");
-                txnBuilder.withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (0, 0, 1)");
+                txnBuilder.withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=2 AND c=0");
                 txnBuilder.withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (1, 0, 1)");
-                txnBuilder.withCondition(keyspace, "tbl", 0, 0, "v", EQUAL, 0);
+                txnBuilder.withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (2, 0, 1)");
                 txnBuilder.withCondition(keyspace, "tbl", 1, 0, "v", EQUAL, 0);
                 try
                 {

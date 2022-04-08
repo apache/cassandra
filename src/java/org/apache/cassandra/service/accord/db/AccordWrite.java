@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
