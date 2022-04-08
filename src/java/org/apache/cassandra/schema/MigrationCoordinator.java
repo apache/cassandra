@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -61,6 +62,9 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_ENDPOINTS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_VERSIONS;
+
 public class MigrationCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
@@ -80,12 +84,9 @@ public class MigrationCoordinator
 
     public static final MigrationCoordinator instance = new MigrationCoordinator();
 
-    public static final String IGNORED_VERSIONS_PROP = "cassandra.skip_schema_check_for_versions";
-    public static final String IGNORED_ENDPOINTS_PROP = "cassandra.skip_schema_check_for_endpoints";
-
     private static ImmutableSet<UUID> getIgnoredVersions()
     {
-        String s = System.getProperty(IGNORED_VERSIONS_PROP);
+        String s = IGNORED_SCHEMA_CHECK_VERSIONS.getString();
         if (s == null || s.isEmpty())
             return ImmutableSet.of();
 
@@ -104,7 +105,7 @@ public class MigrationCoordinator
     {
         Set<InetAddressAndPort> endpoints = new HashSet<>();
 
-        String s = System.getProperty(IGNORED_ENDPOINTS_PROP);
+        String s = IGNORED_SCHEMA_CHECK_ENDPOINTS.getString();
         if (s == null || s.isEmpty())
             return endpoints;
 
@@ -430,13 +431,28 @@ public class MigrationCoordinator
 
     private static Future<?> submitToMigrationIfNotShutdown(Runnable task)
     {
-        if (Stage.MIGRATION.executor().isShutdown() || Stage.MIGRATION.executor().isTerminated())
+        boolean skipped = false;
+        try
         {
-            logger.info("Skipped scheduled pulling schema from other nodes: the MIGRATION executor service has been shutdown.");
+            if (Stage.MIGRATION.executor().isShutdown() || Stage.MIGRATION.executor().isTerminated())
+            {
+                skipped = true;
+                return null;
+            }
+            return Stage.MIGRATION.submit(task);
+        }
+        catch (RejectedExecutionException ex)
+        {
+            skipped = true;
             return null;
         }
-        else
-            return Stage.MIGRATION.submit(task);
+        finally
+        {
+            if (skipped)
+            {
+                logger.info("Skipped scheduled pulling schema from other nodes: the MIGRATION executor service has been shutdown.");
+            }
+        }
     }
 
     @VisibleForTesting

@@ -1,4 +1,5 @@
 4.0.4
+ * Clean up schema migration coordinator and tests (CASSANDRA-17533)
  * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)
  * Generate valid KEYSPACE / MATERIALIZED VIEW for CQL for views (CASSANDRA-17266)
  * Fix timestamp tz parsing (CASSANDRA-17467)
