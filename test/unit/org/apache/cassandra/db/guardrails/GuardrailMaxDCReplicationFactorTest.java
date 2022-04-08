@@ -95,6 +95,15 @@ public class GuardrailMaxDCReplicationFactorTest extends ThresholdTester
                            WHAT, MAXIMUM_KEYSPACE_RF_WARN_THRESHOLD + 1),
                     "CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}");    }
 
+//    @Test
+//    public void testMaxDCRFOnlyWarnAboveAlter() throws Throwable
+//    {
+//        guardrails().setMaximumKeyspaceRFThreshold(MAXIMUM_KEYSPACE_RF_WARN_THRESHOLD, DISABLED_GUARDRAIL);
+//        execute("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}");
+//        assertWarns(format("Keyspaces with %s exceeds warn threshold of %d",
+//                           WHAT, MAXIMUM_KEYSPACE_RF_WARN_THRESHOLD + 1),
+//                    "ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}");    }
+
     @Test
     public void testMaxDCRFOnlyFailBelow() throws Throwable
     {
