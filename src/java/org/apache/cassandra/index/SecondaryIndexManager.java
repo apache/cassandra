@@ -1856,6 +1856,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         try
         {
+            if (versionedValue == null)
+                return;
             if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 return;
 
@@ -1868,13 +1870,48 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 Index.Status status = Index.Status.valueOf(e.getValue());
                 indexStatus.put(keyspaceIndex, status);
             }
-
-            peerIndexStatus.put(endpoint, indexStatus);
+            
+            Map<String, Index.Status> oldStatus = peerIndexStatus.put(endpoint, indexStatus);
+            Map<String, Index.Status> updated = updatedIndexStatuses(oldStatus, indexStatus);
+            Set<String> removed = removedIndexStatuses(oldStatus, indexStatus);
+            if (!updated.isEmpty() || !removed.isEmpty())
+                logger.debug("Received index status for peer {}:\n    Updated: {}\n    Removed: {}",
+                             endpoint, updated, removed);
         }
         catch (Throwable e)
         {
             logger.warn("Unable to parse index status: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Returns the names of indexes that are present in oldStatus but absent in newStatus.
+     */
+    private static @Nonnull Set<String> removedIndexStatuses(
+            @Nullable Map<String, Index.Status> oldStatus,
+            @Nonnull Map<String, Index.Status> newStatus)
+    {
+        if (oldStatus == null)
+            return Collections.emptySet();
+        Set<String> result = new HashSet<>(oldStatus.keySet());
+        result.removeAll(newStatus.keySet());
+        return result;
+    }
+
+    /**
+     * Returns a new map containing only the entries from newStatus that differ from corresponding entries in oldStatus.
+     */
+    private static @Nonnull Map<String, Index.Status> updatedIndexStatuses(
+            @Nullable Map<String, Index.Status> oldStatus,
+            @Nonnull Map<String, Index.Status> newStatus)
+    {
+        Map<String, Index.Status> delta = new HashMap<>();
+        for (Map.Entry<String, Index.Status> e : newStatus.entrySet())
+        {
+            if (oldStatus == null || e.getValue() != oldStatus.get(e.getKey()))
+                delta.put(e.getKey(), e.getValue());
+        }
+        return delta;
     }
 
     @VisibleForTesting
