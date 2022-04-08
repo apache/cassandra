@@ -50,7 +50,7 @@ def load_custom_auth_provider(config_file = None):
     configs = configparser.ConfigParser()
     configs.read(config_file)
 
-    def get_setting(section, option, fallback=None):
+    def get_setting(section, option):
         try:
             return configs.get(section, option)
         except configparser.Error:
