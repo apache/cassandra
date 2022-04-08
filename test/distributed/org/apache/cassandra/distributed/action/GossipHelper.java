@@ -50,6 +50,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
+import static org.junit.Assert.assertTrue;
 
 public class GossipHelper
 {
@@ -222,7 +223,7 @@ public class GossipHelper
                 InetAddressAndPort endpoint = toCassandraInetAddressAndPort(pullFrom);
                 EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
                 MigrationCoordinator.instance.reportEndpointVersion(endpoint, state);
-                MigrationCoordinator.instance.awaitSchemaRequests(TimeUnit.SECONDS.toMillis(10));
+                assertTrue("schema is ready", MigrationCoordinator.instance.awaitSchemaRequests(TimeUnit.SECONDS.toMillis(10)));
             }).accept(pullFrom);
         }
     }
