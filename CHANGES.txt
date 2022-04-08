@@ -1,4 +1,5 @@
 4.1
+ * Clients using JMX are unable to handle non-standard java types but we leak this into our interfaces (CASSANDRA-17527)
  * Remove stress server functionality (CASSANDRA-17535)
  * Reduce histogram snapshot long[] allocation overhead during speculative read and write threshold updates (CASSANDRA-17523)
  * Add guardrail for creation of secondary indexes (CASSANDRA-17498)
