@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import java.util.Arrays;
 import java.util.Random;
-import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import org.junit.BeforeClass;
