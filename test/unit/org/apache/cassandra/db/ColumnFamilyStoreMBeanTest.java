@@ -101,7 +101,7 @@ public class ColumnFamilyStoreMBeanTest
         qt().forAll(tokenGen, tokenGen)
             .checkAssert((left, right) ->
                          assertThat(ColumnFamilyStore.toTokenRanges(partitioner, toString(tokenFactory, left, right)))
-                         .isEqualTo(ImmutableSet.of(new Range(left, right))));
+                         .isEqualTo(ImmutableSet.of(new Range<>(left, right))));
     }
 
     private static String toString(Token.TokenFactory tokenFactory, Token left, Token right)
