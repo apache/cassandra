@@ -334,14 +334,18 @@ public class BackgroundCompactionRunner implements Runnable
     {
         Collection<AbstractCompactionTask> compactionTasks = cfs.getCompactionStrategy()
                                                                 .getNextBackgroundTasks(CompactionManager.getDefaultGcBefore(cfs, FBUtilities.nowInSeconds()));
-
+        CompletableFuture<?>[] compactionTaskFutures = startCompactionTasks(cfs, compactionTasks);
+        return compactionTaskFutures != null ? CompletableFuture.allOf(compactionTaskFutures) : null;
+    }
+    
+    CompletableFuture<?>[] startCompactionTasks(ColumnFamilyStore cfs, Collection<AbstractCompactionTask> compactionTasks)
+    {
         if (!compactionTasks.isEmpty())
         {
             logger.debug("Running compaction tasks: {}", compactionTasks);
-            return CompletableFuture.allOf(
-            compactionTasks.stream()
-                           .map(task -> startTask(cfs, task))
-                           .toArray(CompletableFuture<?>[]::new));
+            return compactionTasks.stream()
+                                  .map(task -> startTask(cfs, task))
+                                  .toArray(CompletableFuture<?>[]::new);
         }
         else
         {
@@ -436,7 +440,7 @@ public class BackgroundCompactionRunner implements Runnable
         return null;
     }
 
-    private static void handleCompactionError(Throwable t, ColumnFamilyStore cfs)
+    public static void handleCompactionError(Throwable t, ColumnFamilyStore cfs)
     {
         t = Throwables.unwrapped(t);
         // FSDiskFullWriteErrors caught during compaction are expected to be recoverable, so we don't explicitly
