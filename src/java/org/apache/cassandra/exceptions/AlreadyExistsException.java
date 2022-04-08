@@ -22,7 +22,7 @@ public class AlreadyExistsException extends ConfigurationException
     public final String ksName;
     public final String cfName;
 
-    private AlreadyExistsException(String ksName, String cfName, String msg)
+    public AlreadyExistsException(String ksName, String cfName, String msg)
     {
         super(ExceptionCode.ALREADY_EXISTS, msg);
         this.ksName = ksName;
