@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.Arrays;
 import java.util.Random;
 import java.util.Set;
 
@@ -33,6 +34,7 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.assertj.core.api.Assertions;
+import org.mockito.Mockito;
 import org.quicktheories.core.Gen;
 import org.quicktheories.impl.Constraint;
 
@@ -70,6 +72,27 @@ public class ColumnFamilyStoreMBeanTest
     public void testToTokenRangesByteOrderedPartitioner()
     {
         testToTokenRanges(ByteOrderedPartitioner.instance);
+    }
+
+    @Test
+    public void testInvalidateTokenRangesFormat()
+    {
+        ColumnFamilyStore store = Mockito.mock(ColumnFamilyStore.class);
+        Mockito.doCallRealMethod().when(store).forceCompactionForTokenRanges(Mockito.any());
+        IPartitioner previous = DatabaseDescriptor.getPartitioner();
+        try
+        {
+            DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+
+            for (String s : Arrays.asList("testing", "t1:", ":t2", "spaces should not have an impact"))
+                Assertions.assertThatThrownBy(() -> store.forceCompactionForTokenRanges(s))
+                          .hasMessageStartingWith(String.format("Unable to parse token range %s;", s));
+        }
+        finally
+        {
+            DatabaseDescriptor.setPartitionerUnsafe(previous);
+        }
+
     }
 
     private static void testToTokenRanges(IPartitioner partitioner)
