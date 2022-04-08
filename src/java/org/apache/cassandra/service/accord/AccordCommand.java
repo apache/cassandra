@@ -44,32 +44,6 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
 
-    enum SummaryVersion
-    {
-        VERSION_0(0, MessagingService.current_version);
-        final byte version;
-        final int msg_version;
-
-        SummaryVersion(int version, int msg_version)
-        {
-            this.version = (byte) version;
-            this.msg_version = msg_version;
-        }
-
-        static final SummaryVersion current = VERSION_0;
-
-        static SummaryVersion fromByte(byte b)
-        {
-            switch (b)
-            {
-                case 0:
-                    return VERSION_0;
-                default:
-                    throw new IllegalArgumentException();
-            }
-        }
-    }
-
     private final CommandStore commandStore;
     private final TxnId txnId;
     public final StoredValue<Txn> txn = new StoredValue<>();
