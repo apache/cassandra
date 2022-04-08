@@ -233,6 +233,11 @@ public class CompactionManager implements CompactionManagerMBean
         return backgroundCompactionRunner.getOngoingCompactionsCount();
     }
 
+    public CompletableFuture<?>[] startCompactionTasks(ColumnFamilyStore cfs, Collection<AbstractCompactionTask> tasks)
+    {
+        return backgroundCompactionRunner.startCompactionTasks(cfs, tasks);
+    }
+    
     public int getOngoingBackgroundUpgradesCount()
     {
         return backgroundCompactionRunner.getOngoingUpgradesCount();
