@@ -61,7 +61,7 @@ public interface ColumnFamilyStoreMBean
     /**
      * force a major compaction of specified key range in this column family
      */
-    public void forceCompactionForTokenRangeV2(String... tokenRanges);
+    public void forceCompactionForTokenRanges(String... tokenRanges);
 
     /**
      * Gets the minimum number of sstables in queue before compaction kicks off

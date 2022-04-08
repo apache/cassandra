@@ -2340,7 +2340,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     @Override
-    public void forceCompactionForTokenRangeV2(String... strings)
+    public void forceCompactionForTokenRanges(String... strings)
     {
         CompactionManager.instance.forceCompactionForTokenRange(this, toTokenRanges(DatabaseDescriptor.getPartitioner(), strings));
     }
