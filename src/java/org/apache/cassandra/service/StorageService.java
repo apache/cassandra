@@ -2388,6 +2388,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
+            if (state == ApplicationState.INDEX_STATUS)
+            {
+                updateIndexStatus(endpoint, value);
+                return;
+            }
+
             EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
             if (epState == null || Gossiper.instance.isDeadState(epState))
             {
@@ -2408,9 +2414,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         break;
                     case NET_VERSION:
                         updateNetVersion(endpoint, value);
-                        break;
-                    case INDEX_STATUS:
-                        updateIndexStatus(endpoint, value);
                         break;
                 }
             }
@@ -3262,7 +3265,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         return changedRanges.build();
     }
-
 
     public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
     {

@@ -30,6 +30,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.Byteman;
 import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
@@ -63,7 +64,8 @@ public class AbstractQueryTester extends TestBaseImpl
     public static void setupCluster() throws Exception
     {
         cluster = Cluster.build(3)
-                         .withConfig(config -> config.set("hinted_handoff_enabled", false))
+                         .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP)
+                                                     .set("hinted_handoff_enabled", false))
                          .withInstanceInitializer((cl, nodeNumber) -> {
                              Byteman.createFromText(INJECTION_SCRIPT).install(cl);
                          })
