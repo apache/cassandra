@@ -22,7 +22,6 @@ import java.io.IOException;
 
 import accord.local.Node;
 import accord.messages.TxnRequest;
-import accord.messages.TxnRequest.Scope.KeysForEpoch;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -53,59 +52,28 @@ public class TopologySerializers
         }
     };
 
-    private static final IVersionedSerializer<KeysForEpoch> keysForEpochSerializer = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(KeysForEpoch keysForEpoch, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeLong(keysForEpoch.epoch);
-            KeySerializers.keys.serialize(keysForEpoch.keys, out, version);
-        }
-
-        @Override
-        public KeysForEpoch deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return new KeysForEpoch(in.readLong(), KeySerializers.keys.deserialize(in, version));
-        }
-
-        @Override
-        public long serializedSize(KeysForEpoch keysForEpoch, int version)
-        {
-            return TypeSizes.sizeof(keysForEpoch.epoch)
-                 + KeySerializers.keys.serializedSize(keysForEpoch.keys, version);
-        }
-    };
-
     public static final IVersionedSerializer<TxnRequest.Scope> requestScope = new IVersionedSerializer<>()
     {
 
         @Override
         public void serialize(TxnRequest.Scope scope, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(scope.maxEpoch());
-            out.writeInt(scope.size());
-            for (int i = 0, mi = scope.size(); i < mi; i++)
-                keysForEpochSerializer.serialize(scope.get(i), out, version);
+            out.writeLong(scope.minRequiredEpoch());
+            KeySerializers.keys.serialize(scope.keys(), out, version);
         }
 
         @Override
         public TxnRequest.Scope deserialize(DataInputPlus in, int version) throws IOException
         {
             long maxEpoch = in.readLong();
-            TxnRequest.Scope.KeysForEpoch[] ranges = new TxnRequest.Scope.KeysForEpoch[in.readInt()];
-            for (int i = 0; i < ranges.length; i++)
-                ranges[i] = keysForEpochSerializer.deserialize(in, version);
-            return new TxnRequest.Scope(maxEpoch, ranges);
+            return new TxnRequest.Scope(maxEpoch, KeySerializers.keys.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(TxnRequest.Scope scope, int version)
         {
-            long size = TypeSizes.sizeof(scope.maxEpoch());
-            size += TypeSizes.sizeof(scope.size());
-            for (int i = 0, mi = scope.size(); i < mi; i++)
-                size += keysForEpochSerializer.serializedSize(scope.get(i), version);
-            return size;
+            long size = TypeSizes.sizeof(scope.minRequiredEpoch());
+            return size + KeySerializers.keys.serializedSize(scope.keys(), version);
         }
     };
 }
