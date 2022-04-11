@@ -5287,12 +5287,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             CommitLog.instance.shutdownBlocking();
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
-            ScheduledExecutors.nonPeriodicTasks.shutdown();
-            if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, MINUTES))
-                logger.warn("Unable to terminate non-periodic tasks within 1 minute.");
-
             ColumnFamilyStore.shutdownPostFlushExecutor();
-            setMode(Mode.DRAINED, !isFinalShutdown);
+
+            try
+            {
+                ScheduledExecutors.shutdownNowAndWait(1, MINUTES);
+            }
+            finally
+            {
+                setMode(Mode.DRAINED, !isFinalShutdown);
+            }
         }
         catch (Throwable t)
         {

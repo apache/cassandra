@@ -20,8 +20,6 @@ package org.apache.cassandra.concurrent;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.cassandra.utils.ExecutorUtils;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -51,7 +49,6 @@ public class ScheduledExecutors
      */
     public static final ScheduledExecutorPlus optionalTasks = executorFactory().scheduled(false, "OptionalTasks");
 
-    @VisibleForTesting
     public static void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownNowAndWait(timeout, unit, scheduledTasks, scheduledFastTasks, nonPeriodicTasks, optionalTasks);

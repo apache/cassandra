@@ -18,11 +18,18 @@
 
 package org.apache.cassandra.service;
 
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -37,10 +44,15 @@ import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class StorageServiceTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(StorageServiceTest.class);
+
     static InetAddressAndPort aAddress;
     static InetAddressAndPort bAddress;
     static InetAddressAndPort cAddress;
@@ -93,6 +105,7 @@ public class StorageServiceTest
         };
 
         DatabaseDescriptor.setEndpointSnitch(snitch);
+        CommitLog.instance.start();
     }
 
     private AbstractReplicationStrategy simpleStrategy(TokenMetadata tmd)
@@ -155,5 +168,31 @@ public class StorageServiceTest
         expectedResult.put(new Replica(aAddress, eRange, true), new Replica(cAddress, eRange, false));
         expectedResult.put(new Replica(aAddress, dRange, false), new Replica(bAddress, dRange, false));
         assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
+    }
+
+    @Test
+    public void testScheduledExecutorsShutdownOnDrain() throws Throwable
+    {
+        final AtomicReference<Integer> numberOfRuns = new AtomicReference<>(0);
+
+        ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> numberOfRuns.updateAndGet(i -> i + 1),
+                                                              0, 20, SECONDS);
+
+        // we expect three runs, at time 0s, 20s and 40s
+        logger.info("Sleeping for 45 seconds to verify scheduled executor was shut down.");
+        Thread.sleep(45_000);
+
+        StorageService.instance.drain();
+
+        // wait another 20s, by that time, if the draining does not work
+        // we would see 4th counter run which would fail the test
+        Thread.sleep(20_000);
+
+        assertEquals(3, numberOfRuns.get().intValue());
+
+        assertTrue(ScheduledExecutors.scheduledTasks.isTerminated());
+        assertTrue(ScheduledExecutors.nonPeriodicTasks.isTerminated());
+        assertTrue(ScheduledExecutors.scheduledFastTasks.isTerminated());
+        assertTrue(ScheduledExecutors.optionalTasks.isTerminated());
     }
 }
