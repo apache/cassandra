@@ -4032,6 +4032,36 @@ jobs:
     working_directory: ~/
 version: 2
 workflows:
+  java11_tests:
+    jobs:
+    - j11_build: {}
+    - j11_unit_tests:
+        requires:
+        - j11_build
+    - j11_jvm_dtests:
+        requires:
+        - j11_build
+    - j11_cqlshlib_tests:
+        requires:
+        - j11_build
+    - j11_dtests-with-vnodes:
+        requires:
+        - j11_build
+    - j11_dtests-no-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py3-with-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py38-with-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py3-no-vnodes:
+        requires:
+        - j11_build
+    - j11_cqlsh-dtests-py38-no-vnodes:
+        requires:
+        - j11_build
   java8_tests:
     jobs:
     - j8_build: {}
@@ -4071,17 +4101,11 @@ workflows:
         requires:
         - start_utests_system_keyspace_directory
         - j8_build
-    - start_j8_dtest_jars_build:
-        type: approval
     - j8_dtest_jars_build:
         requires:
         - j8_build
-        - start_j8_dtest_jars_build
-    - start_jvm_upgrade_dtest:
-        type: approval
     - j8_jvm_upgrade_dtests:
         requires:
-        - start_jvm_upgrade_dtest
         - j8_dtest_jars_build
     - j8_dtests-with-vnodes:
         requires:
@@ -4089,11 +4113,8 @@ workflows:
     - j8_dtests-no-vnodes:
         requires:
         - j8_build
-    - start_upgrade_tests:
-        type: approval
     - j8_upgradetests-no-vnodes:
         requires:
-        - start_upgrade_tests
         - j8_build
     - j8_cqlsh-dtests-py3-with-vnodes:
         requires:
