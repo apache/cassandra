@@ -35,6 +35,7 @@ import accord.api.Key;
 import accord.api.Read;
 import accord.api.Store;
 import accord.txn.Timestamp;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
@@ -48,6 +49,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTimestamps;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> implements Read
 {
@@ -75,23 +79,29 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     }
 
     @Override
-    public Data read(Key key, Timestamp executeAt, Store store)
+    public Future<Data> read(Key key, Timestamp executeAt, Store store)
     {
         logger.debug("READING {}", key);
-        AccordData result = new AccordData();
-        int nowInSeconds = AccordTimestamps.timestampToSeconds(executeAt);
-        forEachIntersecting(((AccordKey) key), read -> {
-            read = read.withNowInSec(nowInSeconds);
+        SinglePartitionReadCommand command = items.get(key);
+        if (command == null)
+            return ImmediateFuture.success(new AccordData());
+
+        AsyncPromise<Data> future = new AsyncPromise<>();
+        Stage.READ.execute(() -> {
+            int nowInSeconds = AccordTimestamps.timestampToSeconds(executeAt);
+            SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
             try (ReadExecutionController controller = read.executionController();
                  UnfilteredPartitionIterator partition = read.executeLocally(controller))
             {
                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec());
                 FilteredPartition filtered = FilteredPartition.create(PartitionIterators.getOnlyElement(iterator, read));
-                result.put(filtered);
+                AccordData result = new AccordData(filtered);
+                logger.debug("Completed read of {}: {}", key, result);
+                future.trySuccess(result);
             }
         });
-        logger.debug("Completed read of {}: {}", key, result);
-        return result;
+
+        return future;
     }
 
     public static AccordRead forCommands(Collection<SinglePartitionReadCommand> commands)

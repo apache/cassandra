@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.LongSupplier;
@@ -55,6 +56,7 @@ import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.NOT_EXISTS;
@@ -126,7 +128,20 @@ public class AccordTestUtils
         Txn txn = command.txn();
         AccordRead read = (AccordRead) txn.read;
         Data readData = read.keys().stream()
-                            .map(key -> read.read(key, command.executeAt(), null))
+                            .map(key -> {
+                                try
+                                {
+                                    return read.read(key, command.executeAt(), null).get();
+                                }
+                                catch (InterruptedException e)
+                                {
+                                    throw new UncheckedInterruptedException(e);
+                                }
+                                catch (ExecutionException e)
+                                {
+                                    throw new RuntimeException(e);
+                                }
+                            })
                             .reduce(null, AccordData::merge);
         Write write = txn.update.apply(readData);
         command.writes(new Writes(command.executeAt(), txn.keys(), write));

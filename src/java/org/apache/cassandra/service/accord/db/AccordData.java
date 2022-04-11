@@ -68,6 +68,13 @@ public class AccordData implements Data, Result
         return "AccordData{" + partitions + '}';
     }
 
+    public AccordData() {}
+
+    public AccordData(FilteredPartition partition)
+    {
+        put(partition);
+    }
+
     void put(AccordKey key, FilteredPartition partition)
     {
         // TODO: support multiple partitions (ie: read commands) per partition

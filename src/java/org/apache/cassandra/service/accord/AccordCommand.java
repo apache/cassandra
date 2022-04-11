@@ -34,7 +34,6 @@ import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
