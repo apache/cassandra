@@ -112,9 +112,9 @@ public class StorageProxyTest
     public void testTransientLoggingTimer()
     {
         StorageProxy.instance.logBlockingReadRepairAttemptsForNSeconds(2);
-        Assert.assertTrue(StorageProxy.instance.loggingReadRepairs());
+        Assert.assertTrue(StorageProxy.instance.isLoggingReadRepairs());
         Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
-        Assert.assertFalse(StorageProxy.instance.loggingReadRepairs());
+        Assert.assertFalse(StorageProxy.instance.isLoggingReadRepairs());
     }
 
     private void shouldHintTest(Consumer<Replica> test) throws UnknownHostException

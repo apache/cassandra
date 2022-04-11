@@ -195,7 +195,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static final PartitionDenylist partitionDenylist = new PartitionDenylist();
 
-    private volatile long logBlockingReadRepairAttemptsUntil = Long.MIN_VALUE;
+    private volatile long logBlockingReadRepairAttemptsUntilNanos = Long.MIN_VALUE;
 
     private StorageProxy()
     {
@@ -2061,7 +2061,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // wait for enough responses to meet the consistency level. If there's a digest mismatch, begin the read
         // repair process by sending full data reads to all replicas we received responses from.
-        boolean logBlockingRepairAttempts = instance.loggingReadRepairs();
+        boolean logBlockingRepairAttempts = instance.isLoggingReadRepairs();
         for (int i=0; i<cmdCount; i++)
         {
             reads[i].awaitResponses(logBlockingRepairAttempts);
@@ -2753,12 +2753,6 @@ public class StorageProxy implements StorageProxyMBean
         return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
     }
 
-    @Override
-    public void logBlockingReadRepairAttemptsForNSeconds(int seconds)
-    {
-        logBlockingReadRepairAttemptsUntil = currentTimeMillis() + TimeUnit.SECONDS.toMillis(seconds);
-    }
-
     @Deprecated
     public int getOtcBacklogExpirationInterval() {
         return 0;
@@ -3039,10 +3033,16 @@ public class StorageProxy implements StorageProxyMBean
         return !partitionDenylist.isKeyPermitted(keyspace, table, bytes);
     }
 
-    @VisibleForTesting
-    public boolean loggingReadRepairs()
+    @Override
+    public void logBlockingReadRepairAttemptsForNSeconds(int seconds)
     {
-        return currentTimeMillis() <= StorageProxy.instance.logBlockingReadRepairAttemptsUntil;
+        logBlockingReadRepairAttemptsUntilNanos = nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+    }
+
+    @Override
+    public boolean isLoggingReadRepairs()
+    {
+        return nanoTime() <= StorageProxy.instance.logBlockingReadRepairAttemptsUntilNanos;
     }
 
     @Override
