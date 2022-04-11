@@ -18,28 +18,34 @@
 
 package org.apache.cassandra.simulator.paxos;
 
+import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
@@ -108,8 +114,8 @@ public class Ballots
             long baseTable = latestBallotFromBaseTable(key, metadata);
             return new LatestBallots(
                 promised.unixMicros(),
-                accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update),
-                latestBallot(committed.update),
+                accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update.iterator()),
+                latestBallot(committed.update.iterator()),
                 baseTable
             );
         });
@@ -166,11 +172,7 @@ public class Ballots
         List<Memtable> memtables = ImmutableList.copyOf(paxos.getTracker().getView().getAllMemtables());
         for (Memtable memtable : memtables)
         {
-            Partition partition = memtable.getPartition(key);
-            if (partition == null)
-                continue;
-
-            Row row = partition.getRow(paxos.metadata.get().comparator.make(metadata.id));
+            Row row = getRow(key, metadata, paxos, memtable);
             if (row == null)
                 continue;
 
@@ -187,10 +189,18 @@ public class Ballots
         return result;
     }
 
+    private static Row getRow(DecoratedKey key, TableMetadata metadata, ColumnFamilyStore paxos, Memtable memtable)
+    {
+        final ClusteringComparator comparator = paxos.metadata.get().comparator;
+        UnfilteredRowIterator iter = memtable.iterator(key, Slices.with(comparator, Slice.make(comparator.make(metadata.id))), ColumnFilter.NONE, false, SSTableReadsListener.NOOP_LISTENER);
+        if (iter == null || !iter.hasNext())
+            return null;
+        return (Row) iter.next();
+    }
+
     public static long latestBallotFromBaseTable(DecoratedKey key, TableMetadata metadata)
     {
         SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(metadata, 0, key, Slice.ALL);
-        ImmutableBTreePartition partition;
         try (ReadExecutionController controller = cmd.executionController(); UnfilteredPartitionIterator partitions = cmd.executeLocally(controller))
         {
             if (!partitions.hasNext())
@@ -198,10 +208,9 @@ public class Ballots
 
             try (UnfilteredRowIterator rows = partitions.next())
             {
-                partition = ImmutableBTreePartition.create(rows);
+                return latestBallot(rows);
             }
         }
-        return latestBallot(partition);
     }
 
     private static long latestBallotFromBaseMemtable(DecoratedKey key, TableMetadata metadata)
@@ -211,20 +220,27 @@ public class Ballots
         List<Memtable> memtables = ImmutableList.copyOf(table.getTracker().getView().getAllMemtables());
         for (Memtable memtable : memtables)
         {
-            Partition partition = memtable.getPartition(key);
-            if (partition == null)
-                continue;
+            try (UnfilteredRowIterator partition = memtable.iterator(key))
+            {
+                if (partition == null)
+                    continue;
 
-            timestamp = max(timestamp, latestBallot((AbstractBTreePartition) partition));
+                timestamp = max(timestamp, latestBallot(partition));
+            }
         }
         return timestamp;
     }
 
-    private static long latestBallot(AbstractBTreePartition partition)
+    private static long latestBallot(Iterator<? extends Unfiltered> partition)
     {
         long timestamp = 0L;
-        for (Row row : partition)
-            timestamp = row.accumulate((cd, v) -> max(v, cd.maxTimestamp()), timestamp);
+        while (partition.hasNext())
+        {
+            Unfiltered unfiltered = partition.next();
+            if (!unfiltered.isRow())
+                continue;
+            timestamp = ((Row) unfiltered).accumulate((cd, v) -> max(v, cd.maxTimestamp()), timestamp);
+        }
         return timestamp;
     }
 
