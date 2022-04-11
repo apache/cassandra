@@ -62,6 +62,8 @@ public class CompactionMetrics
     public final Gauge<Long> completedTasks;
     /** Total number of operations since server [re]start */
     public final Meter totalCompactionsCompleted;
+    /** Total number of failed compactions since server [re]start */
+    public final Counter totalCompactionsFailed;
     /** Total number of bytes processed by operations since server [re]start */
     public final Counter bytesCompacted;
 
@@ -186,6 +188,7 @@ public class CompactionMetrics
             }
         });
         totalCompactionsCompleted = Metrics.meter(factory.createMetricName("TotalCompactionsCompleted"));
+        totalCompactionsFailed = Metrics.counter(factory.createMetricName("FailedCompactions"));
         bytesCompacted = Metrics.counter(factory.createMetricName("BytesCompacted"));
 
         // compaction failure metrics
