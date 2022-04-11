@@ -41,6 +41,7 @@ public class ReadDataSerializers
             TopologySerializers.requestScope.serialize(read.scope(), out, version);
             CommandSerializers.txnId.serialize(read.txnId, out, version);
             CommandSerializers.txn.serialize(read.txn, out, version);
+            CommandSerializers.deps.serialize(read.deps, out, version);
             CommandSerializers.timestamp.serialize(read.executeAt, out, version);
         }
 
@@ -50,6 +51,7 @@ public class ReadDataSerializers
             return new ReadData(TopologySerializers.requestScope.deserialize(in, version),
                                 CommandSerializers.txnId.deserialize(in, version),
                                 CommandSerializers.txn.deserialize(in, version),
+                                CommandSerializers.deps.deserialize(in, version),
                                 CommandSerializers.timestamp.deserialize(in, version));
         }
 
@@ -59,6 +61,7 @@ public class ReadDataSerializers
             long size = TopologySerializers.requestScope.serializedSize(read.scope(), version);
             size += CommandSerializers.txnId.serializedSize(read.txnId, version);
             size += CommandSerializers.txn.serializedSize(read.txn, version);
+            size += CommandSerializers.deps.serializedSize(read.deps, version);
             size += CommandSerializers.timestamp.serializedSize(read.executeAt, version);
             return size;
         }

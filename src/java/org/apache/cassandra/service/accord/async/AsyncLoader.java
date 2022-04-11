@@ -50,14 +50,16 @@ public class AsyncLoader
 
     private State state = State.INITIALIZED;
     private final AccordCommandStore commandStore;
+    private final TxnId txnId;
     private final Iterable<TxnId> commandsToLoad;
     private final Iterable<PartitionKey> keyCommandsToLoad;
 
     protected Future<?> readFuture;
 
-    public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
+    public AsyncLoader(AccordCommandStore commandStore, TxnId txnId, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
     {
         this.commandStore = commandStore;
+        this.txnId = txnId;
         this.commandsToLoad = commandsToLoad;
         this.keyCommandsToLoad = keyCommandsToLoad;
     }

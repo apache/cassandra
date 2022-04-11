@@ -73,7 +73,7 @@ public class AccordMessagingTest
             }
         };
 
-        ReadData req = new ReadData(null, null, null, null);
+        ReadData req = new ReadData(null, null, null, null, null);
         AccordService.instance.messageSink().send(EndpointMapping.getId(peer), req, callback);
         Assert.assertNotEquals(-1, msgId.get());
         Assert.assertTrue(messagingService.callbacks.contains(msgId.get(), peer));
