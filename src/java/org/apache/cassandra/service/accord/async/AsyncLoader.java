@@ -19,11 +19,14 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import com.google.common.collect.Iterables;
 
 import accord.txn.TxnId;
 import org.apache.cassandra.concurrent.Stage;
@@ -50,18 +53,16 @@ public class AsyncLoader
 
     private State state = State.INITIALIZED;
     private final AccordCommandStore commandStore;
-    private final TxnId txnId;
     private final Iterable<TxnId> commandsToLoad;
     private final Iterable<PartitionKey> keyCommandsToLoad;
 
     protected Future<?> readFuture;
 
-    public AsyncLoader(AccordCommandStore commandStore, TxnId txnId, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
+    public AsyncLoader(AccordCommandStore commandStore, TxnId txnId, Iterable<TxnId> depsIds, Iterable<PartitionKey> keys)
     {
         this.commandStore = commandStore;
-        this.txnId = txnId;
-        this.commandsToLoad = commandsToLoad;
-        this.keyCommandsToLoad = keyCommandsToLoad;
+        this.commandsToLoad = Iterables.concat(Collections.singleton(txnId), depsIds);
+        this.keyCommandsToLoad = keys;
     }
 
     private static <K, V extends AccordState<K, V>> List<Future<?>> referenceAndDispatchReads(Iterable<K> keys,
