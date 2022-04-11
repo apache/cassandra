@@ -16,22 +16,29 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator.cluster;
+package org.apache.cassandra.db.guardrails;
 
-import java.time.Duration;
+import org.junit.Test;
 
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.simulator.systems.SimulatedActionTask;
-
-import static org.apache.cassandra.simulator.Action.Modifier.DISPLAY_ORIGIN;
-import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
-import static org.junit.Assert.assertTrue;
-
-class OnInstanceSyncSchemaForBootstrap extends SimulatedActionTask
+public class GuardrailNewCompactStorageTest extends GuardrailTester
 {
-    public OnInstanceSyncSchemaForBootstrap(ClusterActions actions, int node)
+    private void setGuardrail(boolean enabled)
     {
-        super("Sync Schema on " + node, RELIABLE_NO_TIMEOUTS.with(DISPLAY_ORIGIN), RELIABLE_NO_TIMEOUTS, actions, actions.cluster.get(node),
-              () -> assertTrue("schema is ready", Schema.instance.waitUntilReady(Duration.ofMinutes(10))));
+        Guardrails.instance.setCompactTablesEnabled(enabled);
+    }
+
+    @Test
+    public void testFeatureEnabled() throws Throwable
+    {
+        setGuardrail(true);
+        assertValid("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
+    }
+
+    @Test
+    public void testFeatureDisabled() throws Throwable
+    {
+        setGuardrail(false);
+        assertFails("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE",
+                    "Creation of new COMPACT STORAGE tables");
     }
 }

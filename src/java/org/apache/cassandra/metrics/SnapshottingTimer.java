@@ -16,22 +16,29 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator.cluster;
+package org.apache.cassandra.metrics;
 
-import java.time.Duration;
+import com.codahale.metrics.Clock;
+import com.codahale.metrics.Snapshot;
+import com.codahale.metrics.Timer;
 
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.simulator.systems.SimulatedActionTask;
-
-import static org.apache.cassandra.simulator.Action.Modifier.DISPLAY_ORIGIN;
-import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
-import static org.junit.Assert.assertTrue;
-
-class OnInstanceSyncSchemaForBootstrap extends SimulatedActionTask
+public class SnapshottingTimer extends Timer
 {
-    public OnInstanceSyncSchemaForBootstrap(ClusterActions actions, int node)
+    private final SnapshottingReservoir reservoir;
+    
+    public SnapshottingTimer(SnapshottingReservoir reservoir)
     {
-        super("Sync Schema on " + node, RELIABLE_NO_TIMEOUTS.with(DISPLAY_ORIGIN), RELIABLE_NO_TIMEOUTS, actions, actions.cluster.get(node),
-              () -> assertTrue("schema is ready", Schema.instance.waitUntilReady(Duration.ofMinutes(10))));
+        this(reservoir, Clock.defaultClock());
+    }
+
+    public SnapshottingTimer(SnapshottingReservoir reservoir, Clock clock)
+    {
+        super(reservoir, clock);
+        this.reservoir = reservoir;
+    }
+
+    public Snapshot getPercentileSnapshot()
+    {
+        return reservoir.getPercentileSnapshot();
     }
 }

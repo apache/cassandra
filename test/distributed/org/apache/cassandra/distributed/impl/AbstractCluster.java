@@ -95,8 +95,10 @@ import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.Shared.Recursive;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
 import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.NameHelper;
 
 import static java.util.stream.Stream.of;
 import static org.apache.cassandra.distributed.impl.IsolatedExecutor.DEFAULT_SHUTDOWN_EXECUTOR;
@@ -105,7 +107,6 @@ import static org.apache.cassandra.utils.Shared.Recursive.ALL;
 import static org.apache.cassandra.utils.Shared.Recursive.NONE;
 import static org.apache.cassandra.utils.Shared.Scope.ANY;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-import static org.reflections.ReflectionUtils.forNames;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -1081,7 +1082,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private static <A extends Annotation> Set<Class<?>> findClassesMarkedWith(Class<A> annotation, Predicate<A> testAnnotation)
     {
         Reflections reflections = new Reflections(ConfigurationBuilder.build("org.apache.cassandra").setExpandSuperTypes(false));
-        return forNames(reflections.getStore().getAll(TypeAnnotationsScanner.class, annotation.getName()),
+        return Utils.INSTANCE.forNames(reflections.get(Scanners.TypesAnnotated.get(annotation.getName())),
                         reflections.getConfiguration().getClassLoaders())
                .stream()
                .filter(testAnnotation(annotation, testAnnotation))
@@ -1246,6 +1247,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 throw new IllegalStateException("This version of Cassandra does not support multiple nodes with the same InetAddress: " + address + " vs " + prev);
         });
         return lookup;
+    }
+
+    // after upgrading a static function became an interface method, so need this class to mimic old behavior
+    private enum Utils implements NameHelper
+    {
+        INSTANCE;
     }
 }
 

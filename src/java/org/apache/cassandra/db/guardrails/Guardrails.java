@@ -99,6 +99,14 @@ public final class Guardrails implements GuardrailsMBean
                                      threshold, what));
 
     /**
+     * Guardrail disabling user's ability to create secondary indexes
+     */
+    public static final DisableFlag createSecondaryIndexesEnabled =
+    new DisableFlag("secondary_indexes",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesEnabled(),
+                    "User creation of secondary indexes");
+
+    /**
      * Guardrail on the number of materialized views per table.
      */
     public static final Threshold materializedViewsPerTable =
@@ -128,6 +136,22 @@ public final class Guardrails implements GuardrailsMBean
     new DisableFlag("user_timestamps",
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
                     "User provided timestamps (USING TIMESTAMP)");
+
+    /**
+     * Guardrail disabling user's ability to turn off compression
+     */
+    public static final DisableFlag uncompressedTablesEnabled =
+    new DisableFlag("uncompressed_tables_enabled",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getUncompressedTablesEnabled(),
+                    "Uncompressed table");
+
+    /**
+     * Guardrail disabling the creation of new COMPACT STORAGE tables
+     */
+    public static final DisableFlag compactTablesEnabled =
+    new DisableFlag("compact_tables",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getCompactTablesEnabled(),
+                    "Creation of new COMPACT STORAGE tables");
 
     /**
      * Guardrail on the number of elements returned within page.
@@ -340,6 +364,18 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public boolean getSecondaryIndexesEnabled()
+    {
+        return DEFAULT_CONFIG.getSecondaryIndexesEnabled();
+    }
+
+    @Override
+    public void setSecondaryIndexesEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setSecondaryIndexesEnabled(enabled);
+    }
+
+    @Override
     public int getMaterializedViewsPerTableWarnThreshold()
     {
         return DEFAULT_CONFIG.getMaterializedViewsPerTableWarnThreshold();
@@ -457,6 +493,30 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public boolean getUncompressedTablesEnabled()
+    {
+        return DEFAULT_CONFIG.getUncompressedTablesEnabled();
+    }
+
+    @Override
+    public void setUncompressedTablesEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setUncompressedTablesEnabled(enabled);
+    }
+
+    @Override
+    public boolean getCompactTablesEnabled()
+    {
+        return DEFAULT_CONFIG.getCompactTablesEnabled();
+    }
+
+    @Override
+    public void setCompactTablesEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setCompactTablesEnabled(enabled);
+    }
+
+    @Override
     public int getPageSizeWarnThreshold()
     {
         return DEFAULT_CONFIG.getPageSizeWarnThreshold();
@@ -558,9 +618,10 @@ public final class Guardrails implements GuardrailsMBean
         DEFAULT_CONFIG.setInSelectCartesianProductThreshold(warn, fail);
     }
 
-    public Set<ConsistencyLevel> getReadConsistencyLevelsWarned()
+    @Override
+    public Set<String> getReadConsistencyLevelsWarned()
     {
-        return DEFAULT_CONFIG.getReadConsistencyLevelsWarned();
+        return toJmx(DEFAULT_CONFIG.getReadConsistencyLevelsWarned());
     }
 
     @Override
@@ -570,9 +631,9 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public void setReadConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels)
+    public void setReadConsistencyLevelsWarned(Set<String> consistencyLevels)
     {
-        DEFAULT_CONFIG.setReadConsistencyLevelsWarned(consistencyLevels);
+        DEFAULT_CONFIG.setReadConsistencyLevelsWarned(fromJmx(consistencyLevels));
     }
 
     @Override
@@ -582,9 +643,9 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public Set<ConsistencyLevel> getReadConsistencyLevelsDisallowed()
+    public Set<String> getReadConsistencyLevelsDisallowed()
     {
-        return DEFAULT_CONFIG.getReadConsistencyLevelsDisallowed();
+        return toJmx(DEFAULT_CONFIG.getReadConsistencyLevelsDisallowed());
     }
 
     @Override
@@ -594,9 +655,9 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public void setReadConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels)
+    public void setReadConsistencyLevelsDisallowed(Set<String> consistencyLevels)
     {
-        DEFAULT_CONFIG.setReadConsistencyLevelsDisallowed(consistencyLevels);
+        DEFAULT_CONFIG.setReadConsistencyLevelsDisallowed(fromJmx(consistencyLevels));
     }
 
     @Override
@@ -606,9 +667,9 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public Set<ConsistencyLevel> getWriteConsistencyLevelsWarned()
+    public Set<String> getWriteConsistencyLevelsWarned()
     {
-        return DEFAULT_CONFIG.getWriteConsistencyLevelsWarned();
+        return toJmx(DEFAULT_CONFIG.getWriteConsistencyLevelsWarned());
     }
 
     @Override
@@ -618,9 +679,9 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public void setWriteConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels)
+    public void setWriteConsistencyLevelsWarned(Set<String> consistencyLevels)
     {
-        DEFAULT_CONFIG.setWriteConsistencyLevelsWarned(consistencyLevels);
+        DEFAULT_CONFIG.setWriteConsistencyLevelsWarned(fromJmx(consistencyLevels));
     }
 
     @Override
@@ -630,9 +691,9 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed()
+    public Set<String> getWriteConsistencyLevelsDisallowed()
     {
-        return DEFAULT_CONFIG.getWriteConsistencyLevelsDisallowed();
+        return toJmx(DEFAULT_CONFIG.getWriteConsistencyLevelsDisallowed());
     }
 
     @Override
@@ -642,9 +703,9 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public void setWriteConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels)
+    public void setWriteConsistencyLevelsDisallowed(Set<String> consistencyLevels)
     {
-        DEFAULT_CONFIG.setWriteConsistencyLevelsDisallowed(consistencyLevels);
+        DEFAULT_CONFIG.setWriteConsistencyLevelsDisallowed(fromJmx(consistencyLevels));
     }
 
     @Override
@@ -689,5 +750,19 @@ public final class Guardrails implements GuardrailsMBean
     private static <T> Set<T> fromCSV(String csv, Function<String, T> parser)
     {
         return StringUtils.isEmpty(csv) ? Collections.emptySet() : fromCSV(csv).stream().map(parser).collect(Collectors.toSet());
+    }
+
+    private static Set<String> toJmx(Set<ConsistencyLevel> set)
+    {
+        if (set == null)
+            return null;
+        return set.stream().map(ConsistencyLevel::name).collect(Collectors.toSet());
+    }
+
+    private static Set<ConsistencyLevel> fromJmx(Set<String> set)
+    {
+        if (set == null)
+            return null;
+        return set.stream().map(ConsistencyLevel::valueOf).collect(Collectors.toSet());
     }
 }

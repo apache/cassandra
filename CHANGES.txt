@@ -1,4 +1,10 @@
 4.1
+ * Clients using JMX are unable to handle non-standard java types but we leak this into our interfaces (CASSANDRA-17527)
+ * Remove stress server functionality (CASSANDRA-17535)
+ * Reduce histogram snapshot long[] allocation overhead during speculative read and write threshold updates (CASSANDRA-17523)
+ * Add guardrail for creation of secondary indexes (CASSANDRA-17498)
+ * Add guardrail to disallow creation of uncompressed tables (CASSANDRA-17504)
+ * Add guardrail to disallow creation of new COMPACT STORAGE tables (CASSANDRA-17522)
  * repair vtables should expose a completed field due to lack of filtering options in CQL (CASSANDRA-17520)
  * remove outdated code from cqlsh (CASSANDRA-17490)
  * remove support for deprecated version specific TLS in Python 3.6 (CASSANDRA-17365)
@@ -127,6 +133,7 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+ * Clean up schema migration coordinator and tests (CASSANDRA-17533)
  * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)
  * Generate valid KEYSPACE / MATERIALIZED VIEW for CQL for views (CASSANDRA-17266)
  * Fix timestamp tz parsing (CASSANDRA-17467)

@@ -20,8 +20,6 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-
 /**
  * JMX entrypoint for updating the default guardrails configuration parsed from {@code cassandra.yaml}.
  * <p>
@@ -120,6 +118,17 @@ public interface GuardrailsMBean
     void setSecondaryIndexesPerTableThreshold(int warn, int fail);
 
     /**
+     * @return Whether secondary index creation is active or not on the node
+     */
+    boolean getSecondaryIndexesEnabled();
+
+    /**
+     * Enables or disables the ability to create secondary indexes
+     * @param enabled
+     */
+    void setSecondaryIndexesEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when creating more materialized views per table than threshold.
      * -1 means disabled.
      */
@@ -212,6 +221,34 @@ public interface GuardrailsMBean
     void setUserTimestampsEnabled(boolean enabled);
 
     /**
+     * Returns whether users can disable compression on tables
+     *
+     * @return {@code true} if users can disable compression on a table, {@code false} otherwise.
+     */
+    boolean getUncompressedTablesEnabled();
+
+    /**
+     * Sets whether users can disable compression on tables
+     *
+     * @param enabled {@code true} if users can disable compression on a table, {@code false} otherwise.
+     */
+    void setUncompressedTablesEnabled(boolean enabled);
+
+    /**
+     * Returns whether users can create new COMPACT STORAGE tables
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getCompactTablesEnabled();
+
+    /**
+     * Sets whether users can create new COMPACT STORAGE tables
+     *
+     * @param enabled {@code true} if allowed, {@code false} otherwise.
+     */
+    void setCompactTablesEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when requested page size greater than threshold.
      * -1 means disabled.
      */
@@ -286,7 +323,7 @@ public interface GuardrailsMBean
     /**
      * @return consistency levels that are warned about when reading.
      */
-    Set<ConsistencyLevel> getReadConsistencyLevelsWarned();
+    Set<String> getReadConsistencyLevelsWarned();
 
     /**
      * @return Comma-separated list of consistency levels that are warned about when reading.
@@ -296,7 +333,7 @@ public interface GuardrailsMBean
     /**
      * @param consistencyLevels consistency levels that are warned about when reading.
      */
-    void setReadConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels);
+    void setReadConsistencyLevelsWarned(Set<String> consistencyLevels);
 
     /**
      * @param consistencyLevels Comma-separated list of consistency levels that are warned about when reading.
@@ -306,7 +343,7 @@ public interface GuardrailsMBean
     /**
      * @return consistency levels that are not allowed when reading.
      */
-    Set<ConsistencyLevel> getReadConsistencyLevelsDisallowed();
+    Set<String> getReadConsistencyLevelsDisallowed();
 
     /**
      * @return Comma-separated list of consistency levels that are not allowed when reading.
@@ -316,7 +353,7 @@ public interface GuardrailsMBean
     /**
      * @param consistencyLevels consistency levels that are not allowed when reading.
      */
-    void setReadConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels);
+    void setReadConsistencyLevelsDisallowed(Set<String> consistencyLevels);
 
     /**
      * @param consistencyLevels Comma-separated list of consistency levels that are not allowed when reading.
@@ -326,7 +363,7 @@ public interface GuardrailsMBean
     /**
      * @return consistency levels that are warned about when writing.
      */
-    Set<ConsistencyLevel> getWriteConsistencyLevelsWarned();
+    Set<String> getWriteConsistencyLevelsWarned();
 
     /**
      * @return Comma-separated list of consistency levels that are warned about when writing.
@@ -336,7 +373,7 @@ public interface GuardrailsMBean
     /**
      * @param consistencyLevels consistency levels that are warned about when writing.
      */
-    void setWriteConsistencyLevelsWarned(Set<ConsistencyLevel> consistencyLevels);
+    void setWriteConsistencyLevelsWarned(Set<String> consistencyLevels);
 
     /**
      * @param consistencyLevels Comma-separated list of consistency levels that are warned about when writing.
@@ -346,7 +383,7 @@ public interface GuardrailsMBean
     /**
      * @return consistency levels that are not allowed when writing.
      */
-    Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
+    Set<String> getWriteConsistencyLevelsDisallowed();
 
     /**
      * @return Comma-separated list of consistency levels that are not allowed when writing.
@@ -356,7 +393,7 @@ public interface GuardrailsMBean
     /**
      * @param consistencyLevels consistency levels that are not allowed when writing.
      */
-    void setWriteConsistencyLevelsDisallowed(Set<ConsistencyLevel> consistencyLevels);
+    void setWriteConsistencyLevelsDisallowed(Set<String> consistencyLevels);
 
     /**
      * @param consistencyLevels Comma-separated list of consistency levels that are not allowed when writing.

@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.junit.Assert.assertTrue;
 
 public class GossipHelper
 {
@@ -228,7 +229,7 @@ public class GossipHelper
                 InetAddressAndPort endpoint = toCassandraInetAddressAndPort(pullFrom);
                 EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
                 Gossiper.instance.doOnChangeNotifications(endpoint, ApplicationState.SCHEMA, state.getApplicationState(ApplicationState.SCHEMA));
-                Schema.instance.waitUntilReady(Duration.ofSeconds(10));
+                assertTrue("schema is ready", Schema.instance.waitUntilReady(Duration.ofSeconds(10)));
             }).accept(pullFrom);
         }
     }

@@ -333,6 +333,48 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getSecondaryIndexesEnabled()
+    {
+        return config.secondary_indexes_enabled;
+    }
+
+    public void setSecondaryIndexesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("secondary_indexes_enabled",
+                                  enabled,
+                                  () -> config.secondary_indexes_enabled,
+                                  x -> config.secondary_indexes_enabled = x);
+    }
+
+    @Override
+    public boolean getUncompressedTablesEnabled()
+    {
+        return config.uncompressed_tables_enabled;
+    }
+
+    public void setUncompressedTablesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("uncompressed_tables_enabled",
+                                  enabled,
+                                  () -> config.uncompressed_tables_enabled,
+                                  x -> config.uncompressed_tables_enabled = x);
+    }
+
+    @Override
+    public boolean getCompactTablesEnabled()
+    {
+        return config.compact_tables_enabled;
+    }
+
+    public void setCompactTablesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("compact_tables_enabled",
+                                  enabled,
+                                  () -> config.compact_tables_enabled,
+                                  x -> config.compact_tables_enabled = x);
+    }
+
+    @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
         return config.read_before_write_list_operations_enabled;

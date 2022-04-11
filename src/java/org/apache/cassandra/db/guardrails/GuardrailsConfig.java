@@ -94,10 +94,14 @@ public interface GuardrailsConfig
     int getSecondaryIndexesPerTableFailThreshold();
 
     /**
+     * @return Whether creation of secondary indexes is allowed.
+     */
+    boolean getSecondaryIndexesEnabled();
+
+    /**
      * @return The threshold to warn when creating more materialized views per table than threshold.
      */
     int getMaterializedViewsPerTableWarnThreshold();
-
 
     /**
      * @return The threshold to warn when partition keys in select more than threshold.
@@ -135,6 +139,20 @@ public interface GuardrailsConfig
      * @return {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
      */
     boolean getUserTimestampsEnabled();
+
+    /**
+     * Returns whether tables can be uncompressed
+     *
+     * @return {@code true} if user's can disable compression, {@code false} otherwise.
+     */
+    boolean getUncompressedTablesEnabled();
+
+    /**
+     * Returns whether users can create new COMPACT STORAGE tables
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getCompactTablesEnabled();
 
     /**
      * @return The threshold to warn when page size exceeds given size.
