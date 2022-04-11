@@ -39,7 +39,7 @@ import org.apache.cassandra.service.accord.async.AsyncContext;
 
 public class CommandSummaries
 {
-    enum Version
+    public enum Version
     {
         VERSION_0(0, MessagingService.current_version);
         final byte version;
@@ -51,9 +51,9 @@ public class CommandSummaries
             this.msg_version = msg_version;
         }
 
-        static final Version current = VERSION_0;
+        public static final Version current = VERSION_0;
 
-        static Version fromByte(byte b)
+        public static Version fromByte(byte b)
         {
             switch (b)
             {
@@ -67,15 +67,20 @@ public class CommandSummaries
 
     public static abstract class SummarySerializer
     {
+        public void serialize(AccordCommand command, DataOutputPlus out, Version version) throws IOException
+        {
+            out.write(version.version);
+            CommandSerializers.txnId.serialize(command.txnId(), out, version.msg_version);
+            serializeBody(command, out, version);
+        }
+
         public ByteBuffer serialize(AccordCommand command)
         {
             Version version = Version.current;
             int size = serializedBodySize(command, version);
             try (DataOutputBuffer out = new DataOutputBuffer(size))
             {
-                out.write(version.version);
-                CommandSerializers.txnId.serialize(command.txnId(), out, version.msg_version);
-                serializeBody(command, out, version);
+                serialize(command, out, version);
                 return out.buffer(false);
             }
             catch (IOException e)
@@ -84,25 +89,36 @@ public class CommandSummaries
             }
         }
 
+        public Version deserializeVersion(DataInputPlus in) throws IOException
+        {
+            return Version.fromByte(in.readByte());
+        }
+
+        // check for cached command first, otherwise deserialize
+        public AccordCommand deserialize(AccordCommandStore commandStore, DataInputPlus in) throws IOException
+        {
+            Version version = deserializeVersion(in);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version.msg_version);
+            AsyncContext context = commandStore.getContext();
+            AccordCommand command = context.command(txnId);
+            if (command != null)
+                return command;
+
+            command = commandStore.commandCache().getOrCreate(txnId);
+            context.addCommand(command);
+            if (command.isLoaded())
+                return command;
+
+            deserializeBody(command, in, version);
+
+            return command;
+        }
+
         public AccordCommand deserialize(AccordCommandStore commandStore, ByteBuffer bytes)
         {
             try (DataInputBuffer in = new DataInputBuffer(bytes, true))
             {
-                Version version = Version.fromByte(in.readByte());
-                TxnId txnId = CommandSerializers.txnId.deserialize(in, version.msg_version);
-                AsyncContext context = commandStore.getContext();
-                AccordCommand command = context.command(txnId);
-                if (command != null)
-                    return command;
-
-                command = commandStore.commandCache().getOrCreate(txnId);
-                context.addCommand(command);
-                if (command.isLoaded())
-                    return command;
-
-                deserializeBody(command, in, version);
-
-                return command;
+                return deserialize(commandStore, in);
             }
             catch (IOException e)
             {
@@ -121,6 +137,11 @@ public class CommandSummaries
         public abstract void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException;
         public abstract void deserializeBody(AccordCommand command, DataInputPlus in, Version version) throws IOException;
         public abstract int serializedBodySize(AccordCommand command, Version version);
+
+        /**
+         * Determines if current modifications require updating command data duplicated elsewhere
+         */
+        public abstract boolean needsUpdate(AccordCommand command);
     }
 
     /*
@@ -146,21 +167,28 @@ public class CommandSummaries
         status
      */
 
-    private static final SummarySerializer txnStatusExecute = new SummarySerializer()
+    public static class TxnStatusExecuteAtSerializer extends SummarySerializer
     {
         @Override
         public void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException
         {
+            out.writeInt(version.msg_version);
             CommandSerializers.txn.serialize(command.txn(), out, version.msg_version);
             out.write(command.status().ordinal());
             if (command.hasBeen(Status.Committed))
                 CommandSerializers.timestamp.serialize(command.executeAt(), out, version.msg_version);
         }
 
+        public Txn deserializeTxn(DataInputPlus in, Version version) throws IOException
+        {
+            int txn_version = in.readInt();
+            return CommandSerializers.txn.deserialize(in, txn_version);
+        }
+
         @Override
         public void deserializeBody(AccordCommand command, DataInputPlus in, Version version) throws IOException
         {
-            command.txn.load(CommandSerializers.txn.deserialize(in, version.msg_version));
+            command.txn.load(deserializeTxn(in, version));
             command.status.load(Status.values()[in.readByte()]);
             if (command.hasBeen(Status.Committed))
                 command.executeAt.load(CommandSerializers.timestamp.deserialize(in, version.msg_version));
@@ -169,16 +197,26 @@ public class CommandSummaries
         @Override
         public int serializedBodySize(AccordCommand command, Version version)
         {
-            int size = TypeSizes.sizeof((byte) command.status.get().ordinal());
+            int size = TypeSizes.INT_SIZE; // txn version
+            size += TypeSizes.sizeof((byte) command.status.get().ordinal());
             size += TypeSizes.BOOL_SIZE;
             if (command.hasBeen(Status.Committed))
                 size += CommandSerializers.timestamp.serializedSize();
             return size;
         }
+
+        @Override
+        public boolean needsUpdate(AccordCommand command)
+        {
+            return command.txn.hasModifications()
+                   || command.status.hasModifications()
+                   || command.executeAt.hasModifications();
+        }
     };
 
-    public static final SummarySerializer dependencies = txnStatusExecute;
-    public static final SummarySerializer waitingOnApply = txnStatusExecute;
+    public static final TxnStatusExecuteAtSerializer txnStatusExecute = new TxnStatusExecuteAtSerializer();
+    public static final TxnStatusExecuteAtSerializer dependencies = txnStatusExecute;
+    public static final TxnStatusExecuteAtSerializer waitingOnApply = txnStatusExecute;
 
     public static final SummarySerializer commandsPerKey = new SummarySerializer(){
 
@@ -210,88 +248,18 @@ public class CommandSummaries
         {
             int size = txnStatusExecute.serializedBodySize(command, version);
 
+//            int numDeps = command.deps.getView().size();
             int numDeps = command.deps.get().size();
             size += TypeSizes.sizeof(numDeps);
             size += numDeps * CommandSerializers.txnId.serializedSize();
             return size;
+        }
+
+        @Override
+        public boolean needsUpdate(AccordCommand command)
+        {
+            return txnStatusExecute.needsUpdate(command) || command.deps.hasModifications();
         }
     };
 
-    public static class CommandsPerKeySummary
-    {
-        public static ByteBuffer serialize(AccordCommand command)
-        {
-            Version version = Version.current;
-            int size = serializedSize(command);
-            try (DataOutputBuffer out = new DataOutputBuffer(size))
-            {
-                out.write(version.version);
-                CommandSerializers.txnId.serialize(command.txnId(), out, version.msg_version);
-                CommandSerializers.txn.serialize(command.txn(), out, version.msg_version);
-                out.write(command.status().ordinal());
-                if (command.hasBeen(Status.Committed))
-                    CommandSerializers.timestamp.serialize(command.executeAt(), out, version.msg_version);
-                Dependencies deps = command.savedDeps();
-                out.writeInt(deps.size());
-                for (Map.Entry<TxnId, Txn> entry : deps)
-                    CommandSerializers.txnId.serialize(entry.getKey(), out, version.msg_version);
-                return out.buffer(false);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public static AccordCommand deserialize(AccordCommandStore commandStore, ByteBuffer bytes)
-        {
-            try (DataInputBuffer in = new DataInputBuffer(bytes, true))
-            {
-                Version version = Version.fromByte(in.readByte());
-                TxnId txnId = CommandSerializers.txnId.deserialize(in, version.msg_version);
-                AsyncContext context = commandStore.getContext();
-                AccordCommand command = context.command(txnId);
-                if (command != null)
-                    return command;
-
-                command = commandStore.commandCache().getOrCreate(txnId);
-                context.addCommand(command);
-                if (command.isLoaded())
-                    return command;
-
-                command.txn.load(CommandSerializers.txn.deserialize(in, version.msg_version));
-                command.status.load(Status.values()[in.readByte()]);
-                if (command.hasBeen(Status.Committed))
-                    command.executeAt.load(CommandSerializers.timestamp.deserialize(in, version.msg_version));
-
-                TreeMap<TxnId, Txn> depsMap = new TreeMap<>();
-                int numDeps = in.readInt();
-                for (int i=0; i<numDeps; i++)
-                    depsMap.put(CommandSerializers.txnId.deserialize(in, version.msg_version), null);
-                command.deps.load(new Dependencies(depsMap));
-
-                return command;
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public static int serializedSize(AccordCommand command)
-        {
-            Version version = Version.current;
-            int size = TypeSizes.sizeof(version.version);
-            size += CommandSerializers.txnId.serializedSize();
-            size += TypeSizes.INT_SIZE; // txn size
-            size += TypeSizes.sizeof((byte) command.status.get().ordinal());
-            size += TypeSizes.BOOL_SIZE;
-            if (command.hasBeen(Status.Committed))
-                size += CommandSerializers.timestamp.serializedSize();
-            int numDeps = command.deps.get().size();
-            size += TypeSizes.sizeof(numDeps);
-            size += numDeps * CommandSerializers.txnId.serializedSize();
-            return size;
-        }
-    }
 }
