@@ -42,9 +42,6 @@ import static java.util.stream.Collectors.toSet;
  * code checking each guarded constraint. That code should use the higher level abstractions defined in
  * {@link Guardrails}).
  *
- * <p>This contains a main setting, {@code enabled}, controlling if guardrails are globally active or not, and
- * individual settings to control each guardrail.
- *
  * <p>We have 2 variants of guardrails, soft (warn) and hard (fail) limits, each guardrail having either one of the
  * variants or both. Note in particular that hard limits only make sense for guardrails triggering during query
  * execution. For other guardrails, say one triggering during compaction, aborting that compaction does not make sense.
