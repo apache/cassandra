@@ -1914,6 +1914,11 @@ public class CompactionManager implements CompactionManagerMBean
         metrics.compactionsAborted.inc();
     }
 
+    public void incrementFailed()
+    {
+        metrics.totalCompactionsFailed.inc();
+    }
+
     public void incrementCompactionsReduced()
     {
         metrics.compactionsReduced.inc();

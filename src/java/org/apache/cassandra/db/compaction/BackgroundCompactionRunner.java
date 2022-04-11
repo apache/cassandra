@@ -443,6 +443,11 @@ public class BackgroundCompactionRunner implements Runnable
     public static void handleCompactionError(Throwable t, ColumnFamilyStore cfs)
     {
         t = Throwables.unwrapped(t);
+        if (!(t instanceof CompactionInterruptedException))
+        {
+            CompactionManager.instance.incrementFailed();
+        }
+
         // FSDiskFullWriteErrors caught during compaction are expected to be recoverable, so we don't explicitly
         // trigger the disk failure policy because of them (see CASSANDRA-12385).
         if (t instanceof IOError && !(t instanceof FSDiskFullWriteError))
