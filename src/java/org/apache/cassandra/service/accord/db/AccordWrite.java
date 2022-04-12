@@ -29,6 +29,7 @@ import accord.api.Key;
 import accord.api.Store;
 import accord.api.Write;
 import accord.txn.Timestamp;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -38,9 +39,12 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTimestamps;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements Write
 {
+    private static final Future<Void> SUCCESS = ImmediateFuture.success(null);
     public static final AccordWrite EMPTY = new AccordWrite(ImmutableList.of());
 
     public AccordWrite(List<PartitionUpdate> items)
@@ -54,14 +58,14 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
     }
 
     @Override
-    public void apply(Key key, Timestamp executeAt, Store store)
+    public Future<?> apply(Key key, Timestamp executeAt, Store store)
     {
+        PartitionUpdate update = items.get(key);
+        if (update == null)
+            return SUCCESS;
         long timestamp = AccordTimestamps.timestampToMicros(executeAt);
-        forEachIntersecting(((AccordKey) key), update -> {
-            // TODO: accumulate updates
-            Mutation mutation = new Mutation(new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build());
-            mutation.apply();
-        });
+        Mutation mutation = new Mutation(new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build());
+        return Stage.MUTATION.submit((Runnable) mutation::apply);
     }
 
     public static final IVersionedSerializer<AccordWrite> serializer = new IVersionedSerializer<>()
