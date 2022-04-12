@@ -34,6 +34,12 @@ import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicat
 
 public class AccordIntegrationTest extends TestBaseImpl
 {
+    private static void assertRow(Cluster cluster, String query, int k, int c, int v)
+    {
+        Object[][] result = cluster.coordinator(1).execute(query, ConsistencyLevel.QUORUM);
+        Assert.assertArrayEquals(new Object[]{new Object[] {k, c, v}}, result);
+    }
+
     @Test
     public void testQuery() throws Throwable
     {
@@ -60,8 +66,7 @@ public class AccordIntegrationTest extends TestBaseImpl
                 }
             });
 
-            Object[][] result = cluster.coordinator(1).execute("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", ConsistencyLevel.QUORUM);
-            Assert.assertArrayEquals(new Object[]{new Object[] {0, 0, 1}}, result);
+            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 1);
         }
     }
 
@@ -111,9 +116,9 @@ public class AccordIntegrationTest extends TestBaseImpl
                     throw new AssertionError(e);
                 }
             });
-
-            Object[][] result = cluster.coordinator(1).execute("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", ConsistencyLevel.QUORUM);
-            Assert.assertArrayEquals(new Object[]{new Object[] {0, 0, 1}}, result);
+            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 0);
+            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=1 AND c=0", 1, 0, 1);
+            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=2 AND c=0", 2, 0, 1);
         }
     }
 }
