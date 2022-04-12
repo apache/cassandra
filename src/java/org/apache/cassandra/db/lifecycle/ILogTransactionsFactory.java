@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
+import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +46,9 @@ public interface ILogTransactionsFactory
     /**
      * Create {@link AbstractLogTransaction} that tracks sstable files involved in a transaction across sstables:
      */
-    AbstractLogTransaction createLogTransaction(OperationType operationType, TableMetadataRef metadata);
+    AbstractLogTransaction createLogTransaction(OperationType operationType,
+                                                UUID uuid,
+                                                TableMetadataRef metadata);
 
     /**
      * Create {@link ILogAwareFileLister} that lists files which are not removed by log transactions in a folder.

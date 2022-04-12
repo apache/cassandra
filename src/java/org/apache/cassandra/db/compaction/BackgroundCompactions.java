@@ -231,10 +231,14 @@ public class BackgroundCompactions
 
         updateCompactionRate(progress);
 
-        CompactionPick compaction = compactions.computeIfAbsent(progress.operationId(),
-                                                                uuid -> CompactionPick.create(-1, progress.inSSTables()));
+        UUID id = progress.operationId();
+        CompactionPick compaction = compactions.computeIfAbsent(id,
+                                                                uuid ->
+                                                                CompactionPick.create(id,
+                                                                                      -1,
+                                                                                      progress.inSSTables()));
 
-        logger.debug("Setting background compaction {} as in progress", progress.operationId());
+        logger.debug("Setting background compaction {} as in progress", id);
         compaction.setProgress(progress);
     }
 

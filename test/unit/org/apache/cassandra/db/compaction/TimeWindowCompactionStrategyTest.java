@@ -255,7 +255,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         assertEquals("new bucket should be split by max threshold of 32", buckets.keySet().size() + 1, compactions.size());
 
         CompactionPick selected = CompactionAggregate.getSelected(aggregates);
-        assertEquals("first pick should be trimmed to max threshold of 32", 32, selected.ssstables().size());
+        assertEquals("first pick should be trimmed to max threshold of 32", 32, selected.sstables().size());
     }
 
 

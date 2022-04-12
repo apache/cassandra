@@ -1190,7 +1190,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(compaction.isEmpty()).thenReturn(false);
         when(compaction.hasExpiredOnly()).thenReturn(false);
         List<SSTableReader> nonExpiredSSTables = createSStables(realm.getPartitioner());
-        when(compaction.ssstables()).thenReturn(ImmutableSet.copyOf(nonExpiredSSTables));
+        when(compaction.sstables()).thenReturn(ImmutableSet.copyOf(nonExpiredSSTables));
 
         CompactionAggregate.UnifiedAggregate aggregate = Mockito.mock(CompactionAggregate.UnifiedAggregate.class);
         when(aggregate.getSelected()).thenReturn(compaction);
@@ -1389,11 +1389,11 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
             for (CompactionPick pick : picks)
             {
                 assertFalse(pick.hasExpiredOnly());
-                assertEquals(pick.ssstables().size() / 2, pick.expired().size());
-                Set<CompactionSSTable> nonExpired = pick.ssstables().stream()
+                assertEquals(pick.sstables().size() / 2, pick.expired().size());
+                Set<CompactionSSTable> nonExpired = pick.sstables().stream()
                                                                  .filter(sstable -> !pick.expired().contains(sstable))
                                                                  .collect(Collectors.toSet());
-                assertEquals(pick.ssstables().size() / 2, nonExpired.size());
+                assertEquals(pick.sstables().size() / 2, nonExpired.size());
                 long expectedTotSize = nonExpired.stream()
                                                  .mapToLong(CompactionSSTable::onDiskLength)
                                                  .sum();
