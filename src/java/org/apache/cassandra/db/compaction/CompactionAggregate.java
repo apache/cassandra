@@ -100,7 +100,7 @@ public abstract class CompactionAggregate
         long ret = 0;
         for (CompactionPick comp : compactions)
         {
-            if (comp.id() == null)
+            if (!comp.submitted())
                 ret += comp.totSizeInBytes();
         }
         return ret;
@@ -114,7 +114,7 @@ public abstract class CompactionAggregate
         List<CompactionPick> ret = new ArrayList<>(compactions.size());
         for (CompactionPick comp : compactions)
         {
-            if (comp.id() == null)
+            if (!comp.submitted())
                 ret.add(comp);
         }
 
@@ -129,7 +129,7 @@ public abstract class CompactionAggregate
         List<CompactionPick> ret = new ArrayList<>(compactions.size());
         for (CompactionPick comp : compactions)
         {
-            if (comp.id() != null && !comp.completed())
+            if (comp.submitted() && !comp.completed())
                 ret.add(comp);
         }
 
@@ -189,17 +189,17 @@ public abstract class CompactionAggregate
                 continue;
 
             numCompactions++;
-            numCandidateSSTables += compaction.ssstables().size();
+            numCandidateSSTables += compaction.sstables().size();
             numExpiredSSTables += compaction.expired().size();
-            tot += compaction.ssstables().stream().mapToLong(CompactionSSTable::uncompressedLength).reduce(0L, Long::sum);
+            tot += compaction.sstables().stream().mapToLong(CompactionSSTable::uncompressedLength).reduce(0L, Long::sum);
             expiredTot += compaction.expired().stream().mapToLong(CompactionSSTable::uncompressedLength).reduce(0L, Long::sum);
             if (trackHotness)
                 hotness += compaction.hotness();
 
-            if (compaction.id() != null)
+            if (compaction.submitted())
             {
                 numCompactionsInProgress++;
-                numCompactingSSTables += compaction.ssstables().size();
+                numCompactingSSTables += compaction.sstables().size();
             }
 
             if (compaction.progress() != null)
@@ -277,7 +277,7 @@ public abstract class CompactionAggregate
      */
     public CompactionAggregate withAdditionalCompactions(Collection<CompactionPick> comps)
     {
-        List<CompactionSSTable> added = comps.stream().flatMap(comp -> comp.ssstables().stream()).collect(Collectors.toList());
+        List<CompactionSSTable> added = comps.stream().flatMap(comp -> comp.sstables().stream()).collect(Collectors.toList());
         return clone(Iterables.concat(sstables, added), selected, Iterables.concat(compactions, comps));
     }
 
@@ -286,7 +286,7 @@ public abstract class CompactionAggregate
      */
     public CompactionAggregate withOnlyTheseCompactions(Collection<CompactionPick> comps)
     {
-        List<CompactionSSTable> retained = comps.stream().flatMap(comp -> comp.ssstables().stream()).collect(Collectors.toList());
+        List<CompactionSSTable> retained = comps.stream().flatMap(comp -> comp.sstables().stream()).collect(Collectors.toList());
         return clone(retained, CompactionPick.EMPTY, comps);
     }
 

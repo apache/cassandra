@@ -191,7 +191,7 @@ public class SizeTieredCompactionStrategyTest
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
         SizeTieredCompactionStrategy.SizeTieredBuckets sizeTieredBuckets = new SizeTieredCompactionStrategy.SizeTieredBuckets(sstrs.subList(0, 2), stcsOptions, 4, 32);
 
-        List<CompactionSSTable> interestingBucket = new ArrayList<>(CompactionAggregate.getSelected(sizeTieredBuckets.getAggregates()).ssstables());
+        List<CompactionSSTable> interestingBucket = new ArrayList<>(CompactionAggregate.getSelected(sizeTieredBuckets.getAggregates()).sstables());
         assertTrue("nothing should be returned when all buckets are below the min threshold", interestingBucket.isEmpty());
 
         sstrs.get(0).overrideReadMeter(new RestorableMeter(100.0, 100.0));
@@ -210,7 +210,7 @@ public class SizeTieredCompactionStrategyTest
             assertEquals(selected, compactions.get(0));
         List<CompactionPick> pending = compactions.isEmpty() ? ImmutableList.of() : compactions.subList(1, compactions.size());
 
-        assertEquals("one bucket should have been dropped", 2, selected.ssstables().size());
+        assertEquals("one bucket should have been dropped", 2, selected.sstables().size());
         assertEquals("there should be one pending task", 1, pending.size());
 
         double expectedBucketHotness = (200.0 + 300.0) / estimatedKeys;
@@ -471,7 +471,7 @@ public class SizeTieredCompactionStrategyTest
     private void compareBucketToCandidate(Collection<SSTableReader> bucket, CompactionPick candidate)
     {
         List<CompactionSSTable> sortedBucket = new ArrayList<>(bucket);
-        List<CompactionSSTable> sortedCandidate = new ArrayList<>(candidate.ssstables());
+        List<CompactionSSTable> sortedCandidate = new ArrayList<>(candidate.sstables());
 
         // Sort by hash code because sorting by hotness may not work if several sstables have the
         // same hotness and length on disk

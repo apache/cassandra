@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +50,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 
@@ -117,9 +117,12 @@ final class LogTransaction extends AbstractLogTransaction
     // will be recognized as GCable.
     protected static final Queue<Runnable> failedDeletions = new ConcurrentLinkedQueue<>();
 
-    LogTransaction(OperationType opType)
+    LogTransaction(OperationType opType, UUID uuid)
     {
-        this.txnFile = new LogFile(opType, UUIDGen.getTimeUUID());
+        Preconditions.checkNotNull(opType);
+        Preconditions.checkNotNull(uuid);
+
+        this.txnFile = new LogFile(opType, uuid);
         this.lock = new Object();
         this.selfRef = new Ref<>(this, new TransactionTidier(txnFile, lock));
 

@@ -310,7 +310,7 @@ public class TimeWindowCompactionStrategy extends LegacyAbstractCompactionStrate
                 {
                     if (selected.isEmpty())
                     {
-                        selected = CompactionPick.create(key, stcsAggregate.getSelected());
+                        selected = stcsAggregate.getSelected().withParent(key);
                         for (CompactionPick comp : stcsAggregate.getActive())
                         {
                             if (comp != stcsAggregate.getSelected())

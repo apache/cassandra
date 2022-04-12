@@ -243,7 +243,10 @@ public class CompactionTaskTest
         Tracker tracker = Tracker.newDummyTracker(cfs.metadata);
         tracker.addInitialSSTables(sstables);
         tracker.apply(updateCompacting(Collections.emptySet(), sstables));
-        try (LifecycleTransaction txn = new LifecycleTransaction(tracker, OperationType.COMPACTION, sstables))
+        try (LifecycleTransaction txn = new LifecycleTransaction(tracker,
+                                                                 OperationType.COMPACTION,
+                                                                 sstables,
+                                                                 LifecycleTransaction.newId()))
         {
             Assert.assertEquals(4, tracker.getView().liveSSTables().size());
             CompactionTask task = new CompactionTask(cfs, txn, 1000, false, null);

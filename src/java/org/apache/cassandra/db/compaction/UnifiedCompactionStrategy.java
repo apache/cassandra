@@ -32,6 +32,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
@@ -170,7 +171,12 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         Collection<AbstractCompactionTask> tasks = new ArrayList<>(aggregates.size());
         for (CompactionAggregate aggregate : aggregates)
         {
-            LifecycleTransaction transaction = realm.tryModify(aggregate.getSelected().ssstables(), OperationType.COMPACTION);
+            CompactionPick selected = aggregate.getSelected();
+            Preconditions.checkNotNull(selected);
+
+            LifecycleTransaction transaction = realm.tryModify(selected.sstables(),
+                                                               OperationType.COMPACTION,
+                                                               selected.id());
             if (transaction != null)
             {
                 backgroundCompactions.setSubmitted(this, transaction.opId(), aggregate);
@@ -585,7 +591,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                         "To honor the limit, this operation will not be performed, which may result in degraded performance.\n" +
                         "Please verify the compaction parameters, specifically {} and {}.",
                         FBUtilities.prettyPrintMemory(aggregate.selected.totSizeInBytes()),
-                        aggregate.selected.ssstables().size(),
+                        aggregate.selected.sstables().size(),
                         aggregate.getShard().name(),
                         aggregate.bucketIndex(),
                         FBUtilities.prettyPrintMemory(spaceOverheadLimit),
@@ -711,8 +717,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private int shardsSpanned(CompactionPick pick)
     {
-        PartitionPosition min = pick.ssstables().stream().map(CompactionSSTable::getFirst).min(Ordering.natural()).get();
-        PartitionPosition max = pick.ssstables().stream().map(CompactionSSTable::getLast).max(Ordering.natural()).get();
+        PartitionPosition min = pick.sstables().stream().map(CompactionSSTable::getFirst).min(Ordering.natural()).get();
+        PartitionPosition max = pick.sstables().stream().map(CompactionSSTable::getLast).max(Ordering.natural()).get();
         return arenaSelector.shardFor(max) - arenaSelector.shardFor(min) + 1;
     }
 

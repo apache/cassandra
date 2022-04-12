@@ -144,6 +144,10 @@ public class BaseCompactionStrategyTest
         when(realm.tryModify(anyIterable(), any())).thenAnswer(
             request -> dataTracker.tryModify(request.getArgument(0, Iterable.class),
                                              request.getArgument(1)));
+        when(realm.tryModify(anyIterable(), any(), any())).thenAnswer(
+        request -> dataTracker.tryModify(request.getArgument(0, Iterable.class),
+                                         request.getArgument(1),
+                                         request.getArgument(2)));
 
         // use a real compaction logger to execute that code too, even though we don't really check
         // the content of the files, at least we cover the code. The files will be overwritten next

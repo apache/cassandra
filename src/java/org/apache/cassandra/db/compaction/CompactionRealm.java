@@ -222,7 +222,19 @@ public interface CompactionRealm
      * Initiate a transaction to modify the given sstables and operation type, most often a compaction.
      * The transaction will convert the given CompactionSSTable handles into open SSTableReaders.
      */
-    LifecycleTransaction tryModify(Iterable<? extends CompactionSSTable> sstables, OperationType operationType);
+    LifecycleTransaction tryModify(Iterable<? extends CompactionSSTable> sstables,
+                                   OperationType operationType,
+                                   UUID id);
+
+    /**
+     * Initiate a transaction to modify the given sstables and operation type, most often a compaction.
+     * The transaction will convert the given CompactionSSTable handles into open SSTableReaders.
+     */
+    default LifecycleTransaction tryModify(Iterable<? extends CompactionSSTable> sstables,
+                                           OperationType operationType)
+    {
+        return tryModify(sstables, operationType, LifecycleTransaction.newId());
+    }
 
     /**
      * Create an overlap tracker for the given set of source sstables. The tracker is used to identify all sstables
