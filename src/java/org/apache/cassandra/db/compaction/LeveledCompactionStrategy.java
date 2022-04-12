@@ -154,7 +154,7 @@ public class LeveledCompactionStrategy extends LegacyAbstractCompactionStrategy.
         if (compaction instanceof CompactionAggregate.TombstoneAggregate)
         {
             op = OperationType.TOMBSTONE_COMPACTION;
-            nextLevel = Iterables.getOnlyElement(compaction.selected.ssstables()).getSSTableLevel();
+            nextLevel = Iterables.getOnlyElement(compaction.selected.sstables()).getSSTableLevel();
             maxxSSTableBytes = getMaxSSTableBytes();    // TODO: verify this is expected as it can split L0 tables
         }
         else

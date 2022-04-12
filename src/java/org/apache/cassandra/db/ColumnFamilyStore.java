@@ -3474,9 +3474,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return sstable -> sstable.getPendingRepair() != null && sessionID.equals(sstable.getPendingRepair());
     }
 
-    public LifecycleTransaction tryModify(Iterable<? extends CompactionSSTable> ssTableReaders, OperationType operationType)
+    @Override
+    public LifecycleTransaction tryModify(Iterable<? extends CompactionSSTable> ssTableReaders,
+                                          OperationType operationType,
+                                          UUID id)
     {
-        return data.tryModify(Iterables.transform(ssTableReaders, SSTableReader.class::cast), operationType);
+        return data.tryModify(Iterables.transform(ssTableReaders, SSTableReader.class::cast), operationType, id);
     }
 
     public CompactionRealm.OverlapTracker getOverlapTracker(Iterable<SSTableReader> sources)

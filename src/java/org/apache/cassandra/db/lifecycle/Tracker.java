@@ -110,19 +110,27 @@ public class Tracker
 
     public LifecycleTransaction tryModify(SSTableReader sstable, OperationType operationType)
     {
-        return tryModify(singleton(sstable), operationType);
+        return tryModify(singleton(sstable), operationType, LifecycleTransaction.newId());
+    }
+
+    public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables,
+                                          OperationType operationType)
+    {
+        return tryModify(sstables, operationType, LifecycleTransaction.newId());
     }
 
     /**
      * @return a Transaction over the provided sstables if we are able to mark the given @param sstables as compacted, before anyone else
      */
-    public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables, OperationType operationType)
+    public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables,
+                                          OperationType operationType,
+                                          UUID uuid)
     {
         if (Iterables.isEmpty(sstables))
-            return new LifecycleTransaction(this, operationType, sstables);
+            return new LifecycleTransaction(this, operationType, sstables, uuid);
         if (null == apply(permitCompacting(sstables), updateCompacting(emptySet(), sstables)))
             return null;
-        return new LifecycleTransaction(this, operationType, sstables);
+        return new LifecycleTransaction(this, operationType, sstables, uuid);
     }
 
 
@@ -283,7 +291,9 @@ public class Tracker
      */
     public Throwable dropSSTables(final Predicate<SSTableReader> remove, OperationType operationType, Throwable accumulate)
     {
-        try (AbstractLogTransaction txnLogs = ILogTransactionsFactory.instance.createLogTransaction(operationType, metadata))
+        try (AbstractLogTransaction txnLogs = ILogTransactionsFactory.instance.createLogTransaction(operationType,
+                                                                                                    LifecycleTransaction.newId(),
+                                                                                                    metadata))
         {
             Pair<View, View> result = apply(view -> {
                 Set<SSTableReader> toremove = copyOf(filter(view.sstables, and(remove, notIn(view.compacting))));

@@ -254,7 +254,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                                                                   (log) -> log.obsoleted(sstable2),
                                                                                   (log) -> log.txnFile().addAll(LogRecord.Type.ADD, Collections.singleton(sstable2))))
         {
-            try (LogTransaction log = new LogTransaction(OperationType.COMPACTION))
+            try (LogTransaction log = new LogTransaction(OperationType.COMPACTION, LifecycleTransaction.newId()))
             {
                 log.trackNew(sstable1); // creates a log file in datadir1
                 log.untrackNew(sstable1); // removes sstable1 from `records`, but still on disk & in `onDiskRecords`
@@ -629,7 +629,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
     private static LogTransaction createLogTransaction(OperationType type, TableMetadataRef metadata)
     {
-        LogTransaction txn = (LogTransaction) ILogTransactionsFactory.instance.createLogTransaction(type, metadata);
+        LogTransaction txn = (LogTransaction) ILogTransactionsFactory.instance.createLogTransaction(type,
+                                                                                                    LifecycleTransaction.newId(),
+                                                                                                    metadata);
         assertEquals(type, txn.opType());
         return txn;
     }

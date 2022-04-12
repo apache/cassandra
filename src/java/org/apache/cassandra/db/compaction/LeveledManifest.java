@@ -347,7 +347,7 @@ public class LeveledManifest
     {
         Set<CompactionSSTable> sstables = getLevel(0);
         double score = (double) CompactionSSTable.getTotalBytes(sstables) / (double) maxBytesForLevel(0, maxSSTableSizeInBytes);
-        int remainingSSTables = sstables.size() - compaction.ssstables().size();
+        int remainingSSTables = sstables.size() - compaction.sstables().size();
         int pendingTasks = remainingSSTables > realm.getMinimumCompactionThreshold()
                            ? (int) Math.ceil(remainingSSTables / realm.getMaximumCompactionThreshold())
                            : 0;

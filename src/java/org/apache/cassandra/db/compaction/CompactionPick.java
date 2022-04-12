@@ -28,6 +28,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+
 /**
  * A set of sstables that were picked for compaction along with some other relevant properties.
  * <p/>
@@ -39,6 +41,10 @@ import com.google.common.collect.ImmutableSet;
 public class CompactionPick
 {
     final static CompactionPick EMPTY = create(-1, Collections.emptyList(), 0);
+
+    /** The unique compaction id, this is available from the beginning and *MUST BE* used to create the transaction,
+     * when it is submitted */
+    private final UUID id;
 
     /** The key to the parent compaction aggregate, e.g. a level number or tier avg size, -1 if no parent */
     private final long parent;
@@ -58,9 +64,8 @@ public class CompactionPick
     /** The total size on disk for the sstables in this compaction */
     private final long totSizeInBytes;
 
-    /** The unique compaction id, this is only available when a compaction is submitted */
-    @Nullable
-    private volatile UUID id;
+    /** This is set to true when the compaction is submitted */
+    private volatile boolean submitted;
 
     /** The compaction progress, this is only available when compaction actually starts and will be null as long as
      * the candidate is still pending execution, also some tasks cannot report a progress at all, e.g. {@link SingleSSTableLCSTask}.
@@ -71,13 +76,15 @@ public class CompactionPick
     /** Set to true when the compaction has completed */
     private volatile boolean completed;
 
-    private CompactionPick(long parent,
+    private CompactionPick(UUID id,
+                           long parent,
                            Collection<? extends CompactionSSTable> compacting,
                            Collection<? extends CompactionSSTable> expired,
                            double hotness,
                            long avgSizeInBytes,
                            long totSizeInBytes)
     {
+        this.id = Objects.requireNonNull(id);
         this.parent = parent;
         this.sstables = ImmutableSet.copyOf(compacting);
         this.expired = ImmutableSet.copyOf(expired);
@@ -87,12 +94,31 @@ public class CompactionPick
     }
 
     /**
-     * Create a pending compaction candidate calculating hotness and avg size.
+     * Create a pending compaction candidate with the given id, and average hotness and size.
+     */
+    public static CompactionPick create(UUID id,
+                                        long parent,
+                                        Collection<? extends CompactionSSTable> sstables,
+                                        Collection<? extends CompactionSSTable> expired)
+    {
+        Collection<CompactionSSTable> nonExpiring = sstables.stream().filter(sstable -> !expired.contains(sstable)).collect(Collectors.toList());
+        return create(id,
+                      parent,
+                      sstables,
+                      expired,
+                      CompactionAggregate.getTotHotness(nonExpiring),
+                      CompactionAggregate.getAvgSizeBytes(nonExpiring),
+                      CompactionAggregate.getTotSizeBytes(nonExpiring));
+    }
+
+    /**
+     * Create a pending compaction candidate calculating hotness and avg and total size.
      */
     public static CompactionPick create(long parent, Collection<? extends CompactionSSTable> sstables, Collection<? extends CompactionSSTable> expired)
     {
         Collection<CompactionSSTable> nonExpiring = sstables.stream().filter(sstable -> !expired.contains(sstable)).collect(Collectors.toList());
-        return create(parent,
+        return create(LifecycleTransaction.newId(),
+                      parent,
                       sstables,
                       expired,
                       CompactionAggregate.getTotHotness(nonExpiring),
@@ -105,28 +131,31 @@ public class CompactionPick
         return create(parent, sstables, Collections.emptyList());
     }
 
+    static CompactionPick create(UUID id, long parent, Collection<? extends CompactionSSTable> sstables)
+    {
+        return create(id, parent, sstables, Collections.emptyList());
+    }
+
     /**
-     * Create a pending compaction candidate calculating avg size.
+     * Create a pending compaction candidate calculating avg and total size.
      */
     static CompactionPick create(long parent, Collection<? extends CompactionSSTable> sstables, double hotness)
     {
-        return create(parent, sstables, Collections.emptyList(), hotness, CompactionAggregate.getAvgSizeBytes(sstables), CompactionAggregate.getTotSizeBytes(sstables));
+        return create(LifecycleTransaction.newId(), parent, sstables, Collections.emptyList(), hotness, CompactionAggregate.getAvgSizeBytes(sstables), CompactionAggregate.getTotSizeBytes(sstables));
     }
 
     /**
      * Create a pending compaction candidate with the given parameters.
      */
-    static CompactionPick create(long parent, Collection<? extends CompactionSSTable> sstables, Collection<? extends CompactionSSTable> expired, double hotness, long avgSizeInBytes, long totSizeInBytes)
+    static CompactionPick create(UUID id,
+                                 long parent,
+                                 Collection<? extends CompactionSSTable> sstables,
+                                 Collection<? extends CompactionSSTable> expired,
+                                 double hotness,
+                                 long avgSizeInBytes,
+                                 long totSizeInBytes)
     {
-        return new CompactionPick(parent, sstables, expired, hotness, avgSizeInBytes, totSizeInBytes);
-    }
-
-    /**
-     * Create new compaction pick similar to the one provided but with a new parent.
-     */
-    static CompactionPick create(long parent, CompactionPick pick)
-    {
-        return new CompactionPick(parent, pick.sstables, pick.expired, pick.hotness, pick.avgSizeInBytes, pick.totSizeInBytes);
+        return new CompactionPick(id, parent, sstables, expired, hotness, avgSizeInBytes, totSizeInBytes);
     }
 
     public double hotness()
@@ -149,7 +178,7 @@ public class CompactionPick
         return parent;
     }
 
-    public ImmutableSet<CompactionSSTable> ssstables()
+    public ImmutableSet<CompactionSSTable> sstables()
     {
         return sstables;
     }
@@ -159,7 +188,6 @@ public class CompactionPick
         return expired;
     }
 
-    @Nullable
     public UUID id()
     {
         return id;
@@ -175,28 +203,32 @@ public class CompactionPick
         return completed;
     }
 
-    void setSubmitted(UUID id)
+    public boolean submitted() { return submitted; }
+
+    public void setSubmitted(UUID id)
     {
-        if (id == null)
-            throw new IllegalArgumentException("Id cannot be null");
+        if (id == null || !this.id.equals(id))
+            throw new IllegalArgumentException("Id should have been " + this.id);
 
-        if (this.id != null)
-            throw new IllegalStateException("Already submitted");
-
-        this.id = id;
+        this.submitted = true;
     }
     /**
      * Set the compaction progress, this means the compaction pick has started executing.
      */
-    void setProgress(CompactionProgress progress)
+    public void setProgress(CompactionProgress progress)
     {
         if (progress == null)
             throw new IllegalArgumentException("Progress cannot be null");
 
         if (this.progress != null)
-            throw new IllegalStateException("Already compacting");
+        {
+            if (this.progress.operationId() == progress.operationId())
+                return;
+            else
+                throw new IllegalStateException("Already compacting with different id");
+        }
 
-        if (this.id == null)
+        if (!this.submitted())
             setSubmitted(progress.operationId());
         else if (this.id != progress.operationId())
             throw new IllegalStateException("Submitted with a different id");
@@ -204,12 +236,23 @@ public class CompactionPick
         this.progress = progress;
     }
 
-    void setCompleted()
+    public void setCompleted()
     {
-        if (this.completed)
-            throw new IllegalStateException("Already completed");
-
         this.completed = true;
+    }
+
+    /**
+     * Create new compaction pick similar to the one provided but with a new parent.
+     */
+    CompactionPick withParent(long parent)
+    {
+        return new CompactionPick(id,
+                                  parent,
+                                  sstables,
+                                  expired,
+                                  hotness,
+                                  avgSizeInBytes,
+                                  totSizeInBytes);
     }
 
     /**
@@ -229,7 +272,8 @@ public class CompactionPick
                                                              .addAll(this.expired)
                                                              .addAll(expired)
                                                              .build();
-        return new CompactionPick(parent,
+        return new CompactionPick(id,
+                                  parent,
                                   newSSTables,
                                   newExpired,
                                   hotness,
@@ -253,7 +297,7 @@ public class CompactionPick
     @Override
     public int hashCode()
     {
-        return Objects.hash(parent, sstables, expired);
+        return Objects.hash(id, parent, sstables, expired);
     }
 
     @Override
@@ -267,14 +311,25 @@ public class CompactionPick
 
         CompactionPick that = (CompactionPick) obj;
 
-        // a pick is the same if the sstables are the same given that the other properties are derived from sstables and two
-        // picks are the same whether compaction has started or not so the progress and completed properties should not determine equality
-        return parent == that.parent && sstables.equals(that.sstables) && expired.equals(that.expired);
+        // a pick is the same if the sstables are the same given that
+        // the other properties are derived from sstables and two
+        // picks are the same whether compaction has started or not so
+        // the progress and completed properties should not determine equality
+        return id.equals(that.id)
+               && parent == that.parent
+               && sstables.equals(that.sstables)
+               && expired.equals(that.expired);
     }
 
     @Override
     public String toString()
     {
-        return String.format("Parent: %d, Hotness: %f, Avg size in bytes: %d, id: %s, sstables: %s, expired: %s", parent, hotness, avgSizeInBytes, id, sstables, expired);
+        return String.format("Id: %s, Parent: %d, Hotness: %f, Avg size in bytes: %d, sstables: %s, expired: %s",
+                             id,
+                             parent,
+                             hotness,
+                             avgSizeInBytes,
+                             sstables,
+                             expired);
     }
 }

@@ -102,6 +102,8 @@ abstract class AbstractCompactionStrategy implements CompactionStrategy
         return compactionLogger;
     }
 
+    public CompactionRealm getRealm() { return realm; }
+
     //
     // Compaction Observer
     //
