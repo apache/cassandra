@@ -92,6 +92,21 @@ public abstract class Splitter
         return elapsedTokens;
     }
 
+    public Token next(Token token)
+    {
+        return next(token, 1);
+    }
+
+    public Token previous(Token token)
+    {
+        return next(token, -1);
+    }
+
+    protected Token next(Token token, int n)
+    {
+        return tokenForValue(valueForToken(token).add(BigInteger.valueOf(n)));
+    }
+
     /**
      * Computes the normalized position of this token relative to this range
      * @return A number between 0.0 and 1.0 representing this token's position

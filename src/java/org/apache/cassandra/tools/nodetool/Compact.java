@@ -47,6 +47,9 @@ public class Compact extends NodeToolCmd
     @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which compaction range ends")
     private String endToken = EMPTY;
 
+    @Option(title = "partition_key", name = {"--partition"}, description = "String representation of the partition key")
+    private String partitionKey = EMPTY;
+
 
     @Override
     public void execute(NodeProbe probe)
@@ -72,6 +75,7 @@ public class Compact extends NodeToolCmd
             }
             return;
         }
+        final boolean partitionKeyProvided = !partitionKey.isEmpty();
 
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
@@ -83,6 +87,10 @@ public class Compact extends NodeToolCmd
                 if (tokenProvided)
                 {
                     probe.forceKeyspaceCompactionForTokenRange(keyspace, startToken, endToken, tableNames);
+                }
+                else if (partitionKeyProvided)
+                {
+                    probe.forceKeyspaceCompactionForPartitionKey(keyspace, partitionKey, tableNames);
                 }
                 else
                 {

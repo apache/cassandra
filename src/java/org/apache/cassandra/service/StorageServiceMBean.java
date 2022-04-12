@@ -331,6 +331,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
+     * Forces major compactions for the range represented by the partition key
+     */
+    public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
      * Trigger a cleanup of keys on a single keyspace
      */
     @Deprecated
@@ -984,4 +989,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void clearPaxosRepairs();
     public void setSkipPaxosRepairCompatibilityCheck(boolean v);
     public boolean getSkipPaxosRepairCompatibilityCheck();
+
+    String getToken(String keyspaceName, String table, String partitionKey);
+    String getTokenRange(String keyspaceName, String table, String partitionKey);
 }

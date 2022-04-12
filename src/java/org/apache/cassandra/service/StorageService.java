@@ -3912,6 +3912,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         takeMultipleTableSnapshot(tag, false, null, keyspaceName + "." + tableName);
     }
 
+    @Override
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         Collection<Range<Token>> tokenRanges = createRepairRangeFrom(startToken, endToken);
@@ -3919,6 +3920,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
         {
             cfStore.forceCompactionForTokenRange(tokenRanges);
+        }
+    }
+
+    @Override
+    public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
+        {
+            cfStore.forceCompactionForTokenRange(Collections.singleton(getTokenRangeFromPartition(keyspaceName, cfStore.name, partitionKey)));
         }
     }
 
@@ -4571,6 +4581,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, String cf, String key)
     {
+        return getNaturalReplicasForToken(keyspaceName, partitionKeyToBytes(keyspaceName, cf, key));
+    }
+
+    public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, ByteBuffer key)
+    {
+        Token token = tokenMetadata.partitioner.getToken(key);
+        return Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicasForToken(token);
+    }
+
+    public Range<Token> getTokenRangeFromPartition(String keyspaceName, String table, String partitionKey)
+    {
+        return toRange(tokenMetadata.partitioner.getToken(partitionKeyToBytes(keyspaceName, table, partitionKey)));
+    }
+
+    private Range<Token> toRange(Token right)
+    {
+        Splitter splitter = tokenMetadata.partitioner.splitter().orElseThrow(() -> new IllegalStateException("Partitioner " + tokenMetadata.partitioner.getClass().getCanonicalName() + " does not support splitting"));
+        return new Range<>(splitter.previous(right), right);
+    }
+
+    private static ByteBuffer partitionKeyToBytes(String keyspaceName, String cf, String key)
+    {
         KeyspaceMetadata ksMetaData = Schema.instance.getKeyspaceMetadata(keyspaceName);
         if (ksMetaData == null)
             throw new IllegalArgumentException("Unknown keyspace '" + keyspaceName + "'");
@@ -4579,13 +4611,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (metadata == null)
             throw new IllegalArgumentException("Unknown table '" + cf + "' in keyspace '" + keyspaceName + "'");
 
-        return getNaturalReplicasForToken(keyspaceName, metadata.partitionKeyType.fromString(key));
+        return metadata.partitionKeyType.fromString(key);
     }
 
-    public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, ByteBuffer key)
+    @Override
+    public String getToken(String keyspaceName, String table, String key)
     {
-        Token token = tokenMetadata.partitioner.getToken(key);
-        return Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicasForToken(token);
+        return tokenMetadata.partitioner.getToken(partitionKeyToBytes(keyspaceName, table, key)).toString();
+    }
+
+    @Override
+    public String getTokenRange(String keyspaceName, String table, String partitionKey)
+    {
+        return JMXRange.toString(getTokenRangeFromPartition(keyspaceName, table, partitionKey));
     }
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
