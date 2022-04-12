@@ -165,9 +165,8 @@ public final class MemtableParams
 
         Map<String, String> copy = new HashMap<>(options);
         String className = copy.remove(CLASS_OPTION);
-        if (className.isEmpty() || className == null)
-            throw new ConfigurationException(
-            "The 'class' option must not be empty.");
+        if ( className == null || className.isEmpty())
+            throw new ConfigurationException("The 'class' option must be specified.");
 
         className = className.contains(".") ? className : "org.apache.cassandra.db.memtable." + className;
         try

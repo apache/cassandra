@@ -233,7 +233,7 @@ public class WriteTest extends CQLTester
         System.err.format("\n%s in %s mode: %d ops, %s serialized bytes, %s\n",
                           memtable.getClass().getSimpleName(),
                           DatabaseDescriptor.getMemtableAllocationType(),
-                          memtable.getOperations(),
+                          memtable.operationCount(),
                           FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
                           usage);
 

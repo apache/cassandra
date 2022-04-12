@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * Memtable interface. This defines the operations the ColumnFamilyStore can perform with memtables.
  * They are of several types:
  * - construction factory interface
- * - write and read operations: put, getPartition and makePartitionIterator
+ * - write and read operations: put, iterator and partitionIterator
  * - statistics and features, including partition counts, data size, encoding stats, written columns
  * - memory usage tracking, including methods of retrieval and of adding extra allocated space (used non-CFS secondary
  *   indexes)
@@ -144,12 +144,13 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
     }
 
     /**
-     * Interface for providing signals back to the owner.
+     * Interface for providing signals back and requesting information from the owner, i.e. the object that controls the
+     * memtable. This is usually the ColumnFamilyStore; the interface is used to limit the dependency of memtables on
+     * the details of its implementation.
      */
     interface Owner
     {
-        /** Signal to the owner that a flush is required (e.g. in response to hitting space limits)
-         * @return*/
+        /** Signal to the owner that a flush is required (e.g. in response to hitting space limits) */
         Future<CommitLogPosition> signalFlushRequired(Memtable memtable, ColumnFamilyStore.FlushReason reason);
 
         /** Get the current memtable for this owner. Used to avoid capturing memtable in scheduled flush tasks. */
@@ -166,7 +167,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
          * splitting the owned space evenly. It is up to the memtable to use this information.
          * Any changes in the ring structure (e.g. added or removed nodes) will invalidate the splits; in such a case
          * the memtable will be sent a shouldSwitch(OWNED_RANGES_CHANGE) and, should that return false, a
-         * localRangesChanged() call.
+         * {@code localRangesUpdated()} call.
          */
         ShardBoundaries localRangeSplits(int shardCount);
     }
@@ -201,7 +202,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      * Number of "operations" (in the sense defined in {@link PartitionUpdate#operationCount()}) the memtable has
      * executed.
      */
-    long getOperations();
+    long operationCount();
 
     /**
      * The table's definition metadata.
@@ -386,7 +387,8 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      * - SNAPSHOT will be followed by performSnapshot().
      * - STREAMING/REPAIR will be followed by creating a FlushSet for the streamed/repaired ranges. This data will be
      *   used to create sstables, which will be streamed and then deleted.
-     * This will not be called if the sstable is switched because of truncation or drop.
+     * This will not be called to perform truncation or drop (in that case the memtable is unconditionally dropped),
+     * but a flush may nevertheless be requested in that case to prepare a snapshot.
      */
     boolean shouldSwitch(ColumnFamilyStore.FlushReason reason);
 
@@ -400,7 +402,6 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      * Called when the known ranges have been updated and owner.localRangeSplits() may return different values.
      * This will not be called if shouldSwitch(OWNED_RANGES_CHANGE) returns true, the memtable will be swapped out
      * instead.
-     * TODO: Implement call.
      */
     void localRangesUpdated();
 

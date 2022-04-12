@@ -60,7 +60,7 @@ public abstract class AbstractMemtable implements Memtable
         return metadata.get();
     }
 
-    public long getOperations()
+    public long operationCount()
     {
         return currentOperations.get();
     }

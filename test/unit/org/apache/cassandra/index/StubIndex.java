@@ -23,7 +23,6 @@ import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;

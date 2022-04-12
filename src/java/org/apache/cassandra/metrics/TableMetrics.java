@@ -446,7 +446,7 @@ public class TableMetrics
         samplers.put(SamplerType.LOCAL_READ_TIME, topLocalReadQueryTime);
 
         memtableColumnsCount = createTableGauge("MemtableColumnsCount", 
-                                                () -> cfs.getTracker().getView().getCurrentMemtable().getOperations());
+                                                () -> cfs.getTracker().getView().getCurrentMemtable().operationCount());
 
         // MemtableOnHeapSize naming deprecated in 4.0
         memtableOnHeapDataSize = createTableGaugeWithDeprecation("MemtableOnHeapDataSize", "MemtableOnHeapSize", 

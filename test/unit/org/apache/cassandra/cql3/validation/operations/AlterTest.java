@@ -19,12 +19,14 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.UUID;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
@@ -552,58 +554,17 @@ public class AlterTest extends CQLTester
         }
     }
 
-
     @Test
     public void testAlterTableWithMemtable() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
+        assertSchemaOption("memtable", "default");
 
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("default"));
-
-        alterTable("ALTER TABLE %s WITH memtable = 'skiplist' ;");
-        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-        assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
-
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("skiplist"));
-
-        alterTable("ALTER TABLE %s"
-                   + " WITH memtable = 'test_fullname';");
-        assertSame(TestMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-        assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
-
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("test_fullname"));
-
-        alterTable("ALTER TABLE %s"
-                   + " WITH memtable = 'test_shortname';");
-        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-        assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
-
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("test_shortname"));
-
-        alterTable("ALTER TABLE %s"
-                    + " WITH memtable = default;");
-        assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
+        testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
 
         assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -613,7 +574,7 @@ public class AlterTest extends CQLTester
                    row("default"));
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "The 'class' option must not be empty.",
+                                        "The 'class' option must be specified.",
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_empty_class';");
 
@@ -648,72 +609,49 @@ public class AlterTest extends CQLTester
                                            + " WITH memtable = 'unknown';");
     }
 
+    void assertSchemaOption(String option, Object expected) throws Throwable
+    {
+        assertRows(execute(format("SELECT " + option + " FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(expected));
+    }
+
+    private void testMemtableConfig(String memtableConfig, Memtable.Factory factoryInstance, Class<? extends Memtable> memtableClass) throws Throwable
+    {
+        alterTable("ALTER TABLE %s"
+                   + " WITH memtable = '" + memtableConfig + "';");
+        assertSame(factoryInstance, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
+        Assert.assertTrue(memtableClass.isInstance(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable()));
+        assertSchemaOption("memtable", memtableConfig);
+    }
+
     @Test
     public void testAlterTableWithCompression() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'chunk_length_in_kb' : 64 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 2 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "2.0")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "2.0"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 1 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "1.0")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "1.0"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 0 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
         alterTable("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("enabled", "false")));
+        assertSchemaOption("compression", map("enabled", "false"));
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "Missing sub-option 'class' for the 'compression' option.",

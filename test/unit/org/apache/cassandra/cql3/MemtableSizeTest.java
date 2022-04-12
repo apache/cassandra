@@ -39,15 +39,11 @@ import org.apache.cassandra.utils.ObjectSizes;
 @RunWith(Parameterized.class)
 public class MemtableSizeTest extends CQLTester
 {
-    static String keyspace;
-    String table;
-    ColumnFamilyStore cfs;
+    static final int partitions = 50_000;
+    static final int rowsPerPartition = 4;
 
-    int partitions = 50_000;
-    int rowsPerPartition = 4;
-
-    int deletedPartitions = 10_000;
-    int deletedRows = 5_000;
+    static final int deletedPartitions = 10_000;
+    static final int deletedRows = 5_000;
 
     @Parameterized.Parameter()
     public String memtableClass;
@@ -67,7 +63,7 @@ public class MemtableSizeTest extends CQLTester
         CQLTester.setUpClass();
         CQLTester.prepareServer();
         CQLTester.disablePreparedReuseForTest();
-        System.err.println("setupClass done.");
+        System.out.println("setupClass done.");
     }
 
     @Test
@@ -80,15 +76,15 @@ public class MemtableSizeTest extends CQLTester
     {
         try
         {
-            keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
-            table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
-                                      " with compression = {'enabled': false}" +
-                                      " and memtable = '" + memtableClass + "'");
+            String keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
+            String table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
+                                                 " with compression = {'enabled': false}" +
+                                                 " and memtable = '" + memtableClass + "'");
             execute("use " + keyspace + ';');
 
             String writeStatement = "INSERT INTO " + table + "(userid,picid,commentid)VALUES(?,?,?)";
 
-            cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+            ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             cfs.disableAutoCompaction();
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
@@ -120,16 +116,15 @@ public class MemtableSizeTest extends CQLTester
                 execute("DELETE FROM " + table + " WHERE userid = ? AND picid = ?", i, 0L);
             }
 
-
             if (!cfs.getLiveSSTables().isEmpty())
                 System.out.println("Warning: " + cfs.getLiveSSTables().size() + " sstables created.");
 
             Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
             Memtable.MemoryUsage usage = Memtable.getMemoryUsage(memtable);
-        long actualHeap = usage.ownsOnHeap;
-        System.out.printf("Memtable in %s mode: %d ops, %s serialized bytes, %s%n",
+            long actualHeap = usage.ownsOnHeap;
+            System.out.printf("Memtable in %s mode: %d ops, %s serialized bytes, %s%n",
                               DatabaseDescriptor.getMemtableAllocationType(),
-                              memtable.getOperations(),
+                              memtable.operationCount(),
                               FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
                               usage);
 

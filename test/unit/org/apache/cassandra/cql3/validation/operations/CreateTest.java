@@ -31,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
 import org.apache.cassandra.db.partitions.Partition;
@@ -577,6 +578,7 @@ public class CreateTest extends CQLTester
 
     public static class InvalidMemtableFactoryMethod
     {
+        @SuppressWarnings("unused")
         public static String factory(Map<String, String> options)
         {
             return "invalid";
@@ -585,6 +587,7 @@ public class CreateTest extends CQLTester
 
     public static class InvalidMemtableFactoryField
     {
+        @SuppressWarnings("unused")
         public static String FACTORY = "invalid";
     }
 
@@ -594,54 +597,14 @@ public class CreateTest extends CQLTester
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
 
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("default"));
+        assertSchemaOption("memtable", "default");
 
-        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = 'skiplist';");
-        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
+        testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
 
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("skiplist"));
-
-        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = 'test_fullname';");
-        assertSame(TestMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
-
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("test_fullname"));
-
-        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = 'test_shortname';");
-        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
-
-        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH memtable = 'default';");
-        assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("default"));
-
-        assertThrowsConfigurationException("The 'class' option must not be empty.",
+        assertThrowsConfigurationException("The 'class' option must be specified.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_empty_class';");
 
@@ -670,97 +633,63 @@ public class CreateTest extends CQLTester
                                            + " WITH memtable = 'unknown';");
     }
 
+    private void testMemtableConfig(String memtableConfig, Memtable.Factory factoryInstance, Class<? extends Memtable> memtableClass) throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH memtable = '" + memtableConfig + "';");
+        assertSame(factoryInstance, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
+        Assert.assertTrue(memtableClass.isInstance(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable()));
+
+        assertSchemaOption("memtable", memtableConfig);
+    }
+
+    void assertSchemaOption(String option, Object expected) throws Throwable
+    {
+        assertRows(execute(format("SELECT " + option + " FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(expected));
+    }
+
     @Test
     public void testCreateTableWithCompression() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32, 'enabled' : true };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'chunk_length_kb' : 32 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 2 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "2.0")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "2.0"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                     + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 1 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "1.0")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "1.0"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                     + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 0 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'sstable_compression' : '', 'chunk_length_kb' : 32 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("enabled", "false")));
+        assertSchemaOption("compression", map("enabled", "false"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'enabled' : 'false'};");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("enabled", "false")));
+        assertSchemaOption("compression", map("enabled", "false"));
 
         assertThrowsConfigurationException("Missing sub-option 'class' for the 'compression' option.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"

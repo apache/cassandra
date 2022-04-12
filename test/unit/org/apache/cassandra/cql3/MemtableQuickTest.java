@@ -33,18 +33,14 @@ import org.apache.cassandra.db.Keyspace;
 @RunWith(Parameterized.class)
 public class MemtableQuickTest extends CQLTester
 {
-    static String keyspace;
-    String table;
-    ColumnFamilyStore cfs;
+    static final int partitions = 50_000;
+    static final int rowsPerPartition = 4;
 
-    int partitions = 50_000;
-    int rowsPerPartition = 4;
+    static final int deletedPartitionsStart = 20_000;
+    static final int deletedPartitionsEnd = deletedPartitionsStart + 10_000;
 
-    int deletedPartitionsStart = 20_000;
-    int deletedPartitionsEnd = deletedPartitionsStart + 10_000;
-
-    int deletedRowsStart = 40_000;
-    int deletedRowsEnd = deletedRowsStart + 5_000;
+    static final int deletedRowsStart = 40_000;
+    static final int deletedRowsEnd = deletedRowsStart + 5_000;
 
     @Parameterized.Parameter()
     public String memtableClass;
@@ -61,21 +57,22 @@ public class MemtableQuickTest extends CQLTester
         CQLTester.setUpClass();
         CQLTester.prepareServer();
         CQLTester.disablePreparedReuseForTest();
-        System.err.println("setupClass done.");
+        System.out.println("setupClass done.");
     }
 
     @Test
     public void testMemtable() throws Throwable
     {
-        keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
-        table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
-                                      " with compression = {'enabled': false}" +
-                                      " and memtable = '" + memtableClass + "'");
+
+        String keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
+        String table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
+                                             " with compression = {'enabled': false}" +
+                                             " and memtable = '" + memtableClass + "'");
         execute("use " + keyspace + ';');
 
         String writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";
 
-        cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
         cfs.disableAutoCompaction();
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
@@ -119,7 +116,6 @@ public class MemtableQuickTest extends CQLTester
                 assertRows(result, rows);
             }
         }
-
 
         int deletedPartitions = deletedPartitionsEnd - deletedPartitionsStart;
         int deletedRows = deletedRowsEnd - deletedRowsStart;

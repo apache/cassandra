@@ -21,8 +21,6 @@ package org.apache.cassandra.db.memtable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -162,7 +160,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
                              metadata.get().name,
                              hashCode(),
                              FBUtilities.prettyPrintMemory(getLiveDataSize()),
-                             getOperations(),
+                             operationCount(),
                              usage);
     }
 

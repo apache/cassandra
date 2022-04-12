@@ -169,7 +169,7 @@ public class View
         return sstables.isEmpty()
                && liveMemtables.size() <= 1
                && flushingMemtables.size() == 0
-               && (liveMemtables.size() == 0 || liveMemtables.get(0).getOperations() == 0);
+               && (liveMemtables.size() == 0 || liveMemtables.get(0).operationCount() == 0);
     }
 
     @Override
