@@ -187,7 +187,7 @@ public class AsyncLoaderTest
 
         // since there's a read future associated with the txnId, we'll wait for it to load
         AsyncPromise<Void> readFuture = new AsyncPromise<>();
-        commandCache.setReadFuture(command.txnId(), readFuture);
+        commandCache.setLoadFuture(command.txnId(), readFuture);
 
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         boolean result = loader.load(context, (o, t) -> {

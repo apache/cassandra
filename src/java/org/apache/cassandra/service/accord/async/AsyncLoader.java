@@ -77,7 +77,7 @@ public class AsyncLoader
             V item = cache.getOrCreate(key);
             context.put(key, item);
 
-            Future<?> future = cache.getReadFuture(key);
+            Future<?> future = cache.getLoadFuture(key);
 
             if (future == null && isLoaded.test(item))
                 continue;
@@ -88,7 +88,7 @@ public class AsyncLoader
             if (future == null)
             {
                 future = readFunction.apply(item);
-                cache.setReadFuture(item.key(), future);
+                cache.setLoadFuture(item.key(), future);
             }
             futures.add(future);
         }

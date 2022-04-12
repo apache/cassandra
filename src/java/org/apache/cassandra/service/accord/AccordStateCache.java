@@ -101,7 +101,8 @@ public class AccordStateCache
     public final Map<Object, Node<?, ?>> active = new HashMap<>();
     private final Map<Object, Node<?, ?>> cache = new HashMap<>();
     private final Set<Instance<?, ?>> instances = new HashSet<>();
-    private final Map<Object, Future<?>> readFutures = new HashMap<>();
+
+    private final Map<Object, Future<?>> loadFutures = new HashMap<>();
     // TODO: add guards to prevent command changes during command execution/apply
 
     Node<?, ?> head;
@@ -265,29 +266,29 @@ public class AccordStateCache
         maybeEvict();
     }
 
-    private <K> Future<?> getReadFutureInternal(K key)
+    private static <K> Future<?> getFutureInternal(Map<Object, Future<?>> futuresMap, K key)
     {
-        Future<?> r = readFutures.get(key);
+        Future<?> r = futuresMap.get(key);
         if (r == null)
             return null;
 
         if (!r.isDone())
             return r;
 
-        readFutures.remove(key);
+        futuresMap.remove(key);
         return null;
     }
 
-    private <K> void setReadFutureInternal(K key, Future<?> future)
+    private static <K> void setFutureInternal(Map<Object, Future<?>> futuresMap, K key, Future<?> future)
     {
-        Preconditions.checkState(!readFutures.containsKey(key));
-        readFutures.put(key, future);
+        Preconditions.checkState(!futuresMap.containsKey(key));
+        futuresMap.put(key, future);
     }
 
     private <K> void maybeClearReadFuture(K key)
     {
         // will clear if it's done
-        getReadFutureInternal(key);
+        getFutureInternal(loadFutures, key);
     }
 
     public class Instance<K, V extends AccordStateCache.AccordState<K, V>>
@@ -328,14 +329,14 @@ public class AccordStateCache
             releaseInternal(value);
         }
 
-        public Future<?> getReadFuture(K key)
+        public Future<?> getLoadFuture(K key)
         {
-            return getReadFutureInternal(key);
+            return getFutureInternal(loadFutures, key);
         }
 
-        public void setReadFuture(K key, Future<?> future)
+        public void setLoadFuture(K key, Future<?> future)
         {
-            setReadFutureInternal(key, future);
+            setFutureInternal(loadFutures, key, future);
         }
     }
 
