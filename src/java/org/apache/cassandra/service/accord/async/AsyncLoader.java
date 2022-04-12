@@ -61,7 +61,7 @@ public class AsyncLoader
     public AsyncLoader(AccordCommandStore commandStore, TxnId txnId, Iterable<TxnId> depsIds, Iterable<PartitionKey> keys)
     {
         this.commandStore = commandStore;
-        this.commandsToLoad = Iterables.concat(Collections.singleton(txnId), depsIds);
+        this.commandsToLoad = Iterables.concat(txnId != null ? Collections.singleton(txnId) : Collections.emptyList(), depsIds);
         this.keyCommandsToLoad = keys;
     }
 
