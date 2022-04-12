@@ -22,12 +22,10 @@ package org.apache.cassandra.concurrent;
 
 
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import com.google.common.base.Throwables;
 import com.google.common.net.InetAddresses;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
@@ -41,9 +39,8 @@ import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.TraceStateImpl;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.FailingRunnable;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -320,24 +317,5 @@ public class DebuggableThreadPoolExecutorTest
 
     private static final class DebuggingThrowsException extends RuntimeException {
 
-    }
-
-    // REVIEWER : I know this is the same as WrappedRunnable, but that doesn't support lambda...
-    private interface FailingRunnable extends Runnable
-    {
-        void doRun() throws Throwable;
-
-        default void run()
-        {
-            try
-            {
-                doRun();
-            }
-            catch (Throwable t)
-            {
-                Throwables.throwIfUnchecked(t);
-                throw new RuntimeException(t);
-            }
-        }
     }
 }

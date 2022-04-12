@@ -37,6 +37,7 @@ import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.*;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -46,13 +47,13 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.getLocalToken;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.runAndWaitForLogs;
 import static org.junit.Assert.assertEquals;
 
@@ -239,9 +240,11 @@ public class GossipTest extends TestBaseImpl
     @Test
     public void gossipShutdownUpdatesTokenMetadata() throws Exception
     {
+        // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                       .withInstanceInitializer(FailureHelper::installMoveFailure)
+                                      .withoutVNodes()
                                       .start())
         {
             init(cluster, 2);
@@ -275,6 +278,13 @@ public class GossipTest extends TestBaseImpl
             // node1 & node3 should not consider any ranges as still pending for node2
             assertPendingRangesForPeer(false, movingAddress, cluster);
         }
+    }
+
+    private static String getLocalToken(IInvokableInstance node)
+    {
+        Collection<String> tokens = ClusterUtils.getLocalTokens(node);
+        Assertions.assertThat(tokens).hasSize(1);
+        return tokens.stream().findFirst().get();
     }
 
     void assertPendingRangesForPeer(final boolean expectPending, final InetSocketAddress movingAddress, final Cluster cluster)

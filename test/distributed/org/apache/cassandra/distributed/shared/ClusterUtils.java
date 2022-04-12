@@ -275,15 +275,13 @@ public class ClusterUtils
                                                           .collect(Collectors.toList()));
     }
 
-    public static String getLocalToken(IInvokableInstance inst)
+    public static Collection<String> getLocalTokens(IInvokableInstance inst)
     {
         return inst.callOnInstance(() -> {
             List<String> tokens = new ArrayList<>();
             for (Token t : StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddressAndPort()))
                 tokens.add(t.getTokenValue().toString());
-
-            assert tokens.size() == 1 : "getLocalToken assumes a single token, but multiple tokens found";
-            return tokens.get(0);
+            return tokens;
         });
     }
 
@@ -627,6 +625,17 @@ public class ClusterUtils
         String token = conf.getString("initial_token");
         Assert.assertNotNull("initial_token was not found", token);
         return Arrays.asList(token);
+    }
+
+    /**
+     * Get the number of tokens for the instance via config.
+     *
+     * @param instance to get token count from
+     * @return number of tokens
+     */
+    public static int getTokenCount(IInvokableInstance instance)
+    {
+        return instance.config().getInt("num_tokens");
     }
 
     /**

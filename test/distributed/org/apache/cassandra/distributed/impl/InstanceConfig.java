@@ -21,12 +21,14 @@ package org.apache.cassandra.distributed.impl;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.vdurmont.semver4j.Semver;
 
@@ -67,14 +69,16 @@ public class InstanceConfig implements IInstanceConfig
                            String commitlog_directory,
                            String hints_directory,
                            String cdc_raw_directory,
-                           String initial_token,
+                           Collection<String> initial_token,
                            int storage_port,
                            int native_transport_port)
     {
         this.num = num;
         this.networkTopology = networkTopology;
         this.hostId = new UUID(0x4000L, (1L << 63) | num); // deterministic hostId for simulator
-        this    .set("num_tokens", 1)
+        //TODO move away from magic strings in favor of constants
+        this    .set("num_tokens", initial_token.size())
+                .set("initial_token", initial_token.stream().collect(Collectors.joining(",")))
                 .set("broadcast_address", broadcast_address)
                 .set("listen_address", listen_address)
                 .set("broadcast_rpc_address", broadcast_rpc_address)
@@ -84,7 +88,6 @@ public class InstanceConfig implements IInstanceConfig
                 .set("commitlog_directory", commitlog_directory)
                 .set("hints_directory", hints_directory)
                 .set("cdc_raw_directory", cdc_raw_directory)
-                .set("initial_token", initial_token)
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
                 .set("start_native_transport", true)
                 .set("concurrent_writes", 2)
@@ -189,6 +192,12 @@ public class InstanceConfig implements IInstanceConfig
         return this;
     }
 
+    public InstanceConfig remove(String fieldName)
+    {
+        getParams(fieldName).remove(fieldName);
+        return this;
+    }
+
     public InstanceConfig forceSet(String fieldName, Object value)
     {
         getParams(fieldName).put(fieldName, value);
@@ -208,10 +217,12 @@ public class InstanceConfig implements IInstanceConfig
         throw new IllegalStateException("In-JVM dtests no longer support propagate");
     }
 
+    @Override
     public void validate()
     {
-        if (((int) get("num_tokens")) > 1)
-            throw new IllegalArgumentException("In-JVM dtests do not support vnodes as of now.");
+        // Previous logic would validate vnode was not used, but with vnode support added that validation isn't needed.
+        // Rather than attempting validating the configs here, its best to leave that to the instance; this method
+        // is no longer really needed, but can not be removed due to backwards compatability.
     }
 
     public Object get(String name)
@@ -238,7 +249,7 @@ public class InstanceConfig implements IInstanceConfig
                                           INodeProvisionStrategy provisionStrategy,
                                           NetworkTopology networkTopology,
                                           Path root,
-                                          String token,
+                                          Collection<String> tokens,
                                           int datadirCount)
     {
         return new InstanceConfig(nodeNum,
@@ -254,7 +265,7 @@ public class InstanceConfig implements IInstanceConfig
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
-                                  token,
+                                  tokens,
                                   provisionStrategy.storagePort(nodeNum),
                                   provisionStrategy.nativeTransportPort(nodeNum));
     }
