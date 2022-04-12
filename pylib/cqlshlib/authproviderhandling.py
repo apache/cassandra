@@ -22,7 +22,7 @@ def load_custom_auth_provider(config_file = None):
     Function which loads a custom auth provider from available config.
 
     Params:
-    * config_file ..: path to cqlsh config file (usually ~/.cqlshrc).
+    * config_file ..: path to cqlsh config file (usually ~/.cassandra/cqlshrc).
 
     Will attempt to load a custom auth provider from available config file.
     
@@ -64,8 +64,9 @@ def load_custom_auth_provider(config_file = None):
     
     module_name = get_setting('auth_provider', 'module')
     class_name = get_setting('auth_provider', 'classname')
-    if module_name is None:
+    if module_name is None or class_name is None:
         return None
+
     ctor_args = get_auth_provider_config_settings()
 
     # Load class definitions

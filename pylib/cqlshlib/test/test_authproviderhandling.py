@@ -61,6 +61,9 @@ class CustomAuthProviderTest(unittest.TestCase):
         actual = load_custom_auth_provider(construct_config_path('empty_example'))
         assert actual is None
 
+    def test_no_classname_example(self):
+        actual = load_custom_auth_provider(construct_config_path('no_classname_example'))
+        assert actual is None
     def test_improper_config_example(self):
         with pytest.raises(ModuleNotFoundError) as error:
             actual = load_custom_auth_provider(construct_config_path('illegal_example'))
