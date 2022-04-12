@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
@@ -212,6 +214,23 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
             return Collections.emptyMap();
 
         return Collections.unmodifiableMap(cache.asMap());
+    }
+
+    public Map<K, V> getAll(Collection<K> keys, boolean retrieveIfMissing)
+    {
+        if (cache == null)
+        {
+            Map<K, V> r = new HashMap<>();
+            if (retrieveIfMissing)
+                keys.forEach(key -> r.put(key, loadFunction.apply(key)));
+            return r;
+        }
+
+        Map<K, V> result = cache.getAllPresent(keys);
+        if (!retrieveIfMissing && result.size() != keys.size())
+            return result;
+
+        return cache.getAll(keys);
     }
 
     /**

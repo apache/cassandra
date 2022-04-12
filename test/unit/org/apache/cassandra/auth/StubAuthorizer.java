@@ -30,83 +30,124 @@ import org.apache.cassandra.utils.Pair;
 
 public class StubAuthorizer implements IAuthorizer
 {
-    Map<Pair<String, IResource>, Set<Permission>> userPermissions = new HashMap<>();
+    private final Map<Pair<String, IResource>, PermissionSets> userPermissions = new HashMap<>();
 
     public void clear()
     {
         userPermissions.clear();
     }
 
-    public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
+    public PermissionSets allPermissionSets(AuthenticatedUser user, IResource resource)
     {
         Pair<String, IResource> key = Pair.create(user.getName(), resource);
-        Set<Permission> perms = userPermissions.get(key);
-        return perms != null ? perms : Collections.emptySet();
+        PermissionSets perms = userPermissions.get(key);
+        return perms != null ? perms : PermissionSets.EMPTY;
     }
 
     public Set<Permission> grant(AuthenticatedUser performer,
                                  Set<Permission> permissions,
                                  IResource resource,
-                                 RoleResource grantee) throws RequestValidationException, RequestExecutionException
+                                 RoleResource grantee,
+                                 GrantMode grantMode) throws RequestValidationException, RequestExecutionException
     {
         Pair<String, IResource> key = Pair.create(grantee.getRoleName(), resource);
-        Set<Permission> oldPermissions = userPermissions.computeIfAbsent(key, k -> Collections.emptySet());
-        Set<Permission> nonExisting = Sets.difference(permissions, oldPermissions);
+        switch (grantMode)
+        {
+            case GRANT:
+                userPermissions.compute(key, (k, old) ->
+                                             (old != null ? old.unbuild() : PermissionSets.builder()).addGranted(permissions).build());
 
-        if (!nonExisting.isEmpty())
-            userPermissions.put(key, Sets.union(oldPermissions, nonExisting));
+                return userPermissions.get(key).granted;
 
-        return nonExisting;
+            case RESTRICT:
+                userPermissions.compute(key, (k, old) ->
+                                             (old != null ? old.unbuild() : PermissionSets.builder()).addRestricted(permissions).build());
+
+                return userPermissions.get(key).restricted;
+
+            case GRANTABLE:
+                userPermissions.compute(key, (k, old) ->
+                                             (old != null ? old.unbuild() : PermissionSets.builder()).addGrantables(permissions).build());
+
+                return userPermissions.get(key).grantables;
+        }
+        
+        return Collections.EMPTY_SET;
     }
 
     public Set<Permission> revoke(AuthenticatedUser performer,
                                   Set<Permission> permissions,
                                   IResource resource,
-                                  RoleResource revokee) throws RequestValidationException, RequestExecutionException
+                                  RoleResource revokee,
+                                  GrantMode grantMode) throws RequestValidationException, RequestExecutionException
     {
         Pair<String, IResource> key = Pair.create(revokee.getRoleName(), resource);
-        Set<Permission> oldPermissions = userPermissions.computeIfAbsent(key, k -> Collections.emptySet());
-        Set<Permission> existing = Sets.intersection(permissions, oldPermissions);
+        PermissionSets perms = null;
+        switch (grantMode)
+        {
+            case GRANT:
+                perms = userPermissions.compute(key, (k, old) ->
+                                             (old != null ? old.unbuild() : PermissionSets.builder()).removeGranted(permissions).build());
 
-        if (existing.isEmpty())
+                return userPermissions.get(key).granted;
+
+            case RESTRICT:
+                perms = userPermissions.compute(key, (k, old) ->
+                                             (old != null ? old.unbuild() : PermissionSets.builder()).removeRestricted(permissions).build());
+
+                return userPermissions.get(key).restricted;
+
+            case GRANTABLE:
+                perms = userPermissions.compute(key, (k, old) ->
+                                             (old != null ? old.unbuild() : PermissionSets.builder()).removeGrantables(permissions).build());
+
+                return userPermissions.get(key).grantables;
+        }
+
+        if (perms.granted.isEmpty() && perms.restricted.isEmpty() && perms.grantables.isEmpty())
             userPermissions.remove(key);
-        else
-            userPermissions.put(key, Sets.difference(oldPermissions, existing));
 
-        return existing;
+        return Collections.EMPTY_SET;
     }
 
-    public Set<PermissionDetails> list(AuthenticatedUser performer,
-                                       Set<Permission> permissions,
+    public Set<PermissionDetails> list(Set<Permission> permissions,
                                        IResource resource,
                                        RoleResource grantee) throws RequestValidationException, RequestExecutionException
     {
         return userPermissions.entrySet()
-                              .stream()
-                              .filter(entry -> entry.getKey().left.equals(grantee.getRoleName())
-                                               && (resource == null || entry.getKey().right.equals(resource)))
-                              .flatMap(entry -> entry.getValue()
-                                                     .stream()
-                                                     .filter(permissions::contains)
-                                                     .map(p -> new PermissionDetails(entry.getKey().left,
-                                                                                     entry.getKey().right,
-                                                                                     p)))
-                              .collect(Collectors.toSet());
+                .stream()
+                .filter(entry -> entry.getKey().left.equals(grantee.getRoleName())
+                                 && (resource == null || entry.getKey().right.equals(resource))
+                                 && containsAny(entry.getValue(), permissions))
+                .flatMap(entry -> permissions.stream()
+                                             .map(p -> new PermissionDetails(entry.getKey().left,
+                                                                             entry.getKey().right,
+                                                                             p,
+                                                                             entry.getValue().grantModesFor(p))))
+                .collect(Collectors.toSet());
 
+    }
+
+    private static boolean containsAny(PermissionSets value, Set<Permission> permissions)
+    {
+        return permissions.stream()
+                          .anyMatch(p -> value.granted.contains(p) || value.restricted.contains(p) || value.grantables.contains(p));
     }
 
     public void revokeAllFrom(RoleResource revokee)
     {
-        for (Pair<String, IResource> key : userPermissions.keySet())
-            if (key.left.equals(revokee.getRoleName()))
-                userPermissions.remove(key);
+        userPermissions.keySet()
+        .removeAll(userPermissions.keySet()
+                                  .stream()
+                                  .filter(key -> key.left.equals(revokee.getRoleName())).collect(Collectors.toList()));
     }
 
     public void revokeAllOn(IResource droppedResource)
     {
-        for (Pair<String, IResource> key : userPermissions.keySet())
-            if (key.right.equals(droppedResource))
-                userPermissions.remove(key);
+        userPermissions.keySet()
+        .removeAll(userPermissions.keySet()
+                                  .stream()
+                                  .filter(key -> key.right.equals(droppedResource)).collect(Collectors.toList()));
     }
 
     public Set<? extends IResource> protectedResources()

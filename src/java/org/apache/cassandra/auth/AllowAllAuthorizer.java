@@ -28,17 +28,28 @@ public class AllowAllAuthorizer implements IAuthorizer
         return false;
     }
 
-    public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
+    public PermissionSets allPermissionSets(AuthenticatedUser user, IResource resource)
     {
-        return resource.applicablePermissions();
+        return PermissionSets.builder()
+               .addGranted(resource.applicablePermissions())
+               .addGrantables(resource.applicablePermissions())
+               .build();
     }
 
-    public Set<Permission> grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource to)
+    public Set<Permission> grant(AuthenticatedUser performer,
+                                 Set<Permission> permissions,
+                                 IResource resource,
+                                 RoleResource to,
+                                 GrantMode grantMode)
     {
         throw new UnsupportedOperationException("GRANT operation is not supported by AllowAllAuthorizer");
     }
 
-    public Set<Permission> revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource from)
+    public Set<Permission> revoke(AuthenticatedUser performer,
+                                  Set<Permission> permissions,
+                                  IResource resource,
+                                  RoleResource from,
+                                  GrantMode grantMode)
     {
         throw new UnsupportedOperationException("REVOKE operation is not supported by AllowAllAuthorizer");
     }
@@ -51,7 +62,7 @@ public class AllowAllAuthorizer implements IAuthorizer
     {
     }
 
-    public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource of)
+    public Set<PermissionDetails> list(Set<Permission> permissions, IResource resource, RoleResource of)
     {
         throw new UnsupportedOperationException("LIST PERMISSIONS operation is not supported by AllowAllAuthorizer");
     }

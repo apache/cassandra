@@ -462,7 +462,7 @@ public class AuthorizationProxyTest
 
     private static PermissionDetails permission(RoleResource grantee, IResource resource, Permission permission)
     {
-        return new PermissionDetails(grantee.getRoleName(), resource, permission);
+        return new PermissionDetails(grantee.getRoleName(), resource, permission, EnumSet.of(GrantMode.GRANT));
     }
 
     private static Subject subject(String roleName)

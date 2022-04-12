@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.Set;
+import java.util.Collection;
+import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.Pair;
 
-public class PermissionsCache extends AuthCache<Pair<AuthenticatedUser, IResource>, Set<Permission>>
-        implements PermissionsCacheMBean
+public class PermissionsCache extends AuthCache<Pair<AuthenticatedUser, IResource>, PermissionSets> implements PermissionsCacheMBean
 {
     public PermissionsCache(IAuthorizer authorizer)
     {
@@ -36,14 +36,23 @@ public class PermissionsCache extends AuthCache<Pair<AuthenticatedUser, IResourc
               DatabaseDescriptor::getPermissionsCacheMaxEntries,
               DatabaseDescriptor::setPermissionsCacheActiveUpdate,
               DatabaseDescriptor::getPermissionsCacheActiveUpdate,
-              (p) -> authorizer.authorize(p.left, p.right),
+              (userResource) -> authorizer.allPermissionSets(userResource.left, userResource.right),
               authorizer.bulkLoader(),
               authorizer::requireAuthorization);
     }
 
-    public Set<Permission> getPermissions(AuthenticatedUser user, IResource resource)
+    public PermissionSets getPermissions(Collection<Pair<AuthenticatedUser, IResource>> keys)
     {
-        return get(Pair.create(user, resource));
+        PermissionSets.Builder builder = PermissionSets.builder();
+        Map<Pair<AuthenticatedUser, IResource>, PermissionSets> result = getAll(keys, true);
+
+        for (PermissionSets single : result.values())
+        {
+            builder.addGranted(single.granted)
+                   .addRestricted(single.restricted)
+                   .addGrantables(single.grantables);
+        }
+        return builder.build();
     }
 
     public void invalidatePermissions(String roleName, String resourceName)

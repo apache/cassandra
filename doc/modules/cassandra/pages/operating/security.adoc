@@ -596,3 +596,26 @@ http://docs.oracle.com/javase/7/docs/technotes/guides/management/agent.html#gdem
 Java7 Docs],
 https://www.lullabot.com/articles/monitor-java-with-jmx[Monitor Java
 with JMX]
+
+=== Separation of duties
+
+This is enabling certain users to manage permissions without having access to the data. Think of a hospital with patient data which is very sensitive information. IT should be able to grant/revoke/restrict access to the data without having access to the data itself. This is the clear separation of duties between admins and users of the database.
+
+An example is along the lines:
+
+[source,cql]
+----
+As a superuser:
+CREATE KEYSPACE patientdata …;
+CREATE ROLE security_admin;
+GRANT security_admin TO admin_guy;
+GRANT AUTHORIZE FOR SELECT, MODIFY, EXECUTE ON patientdata TO security_admin;
+RESTRICT SELECT, MODIFY, EXECUTE ON KEYSPACE patientdata TO security_admin;
+
+As a security admin:
+GRANT SELECT ON patientdata TO new_nurse;
+GRANT SELECT, MODIFY ON patientdata TO doctor_house;
+----
+
+Notice the usages of `GRANT AUTHORIZE FOR`, `RESTRICT` and `UNRESTRICT` commands.
+

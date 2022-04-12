@@ -41,7 +41,15 @@ public abstract class RoleManagementStatement extends AuthenticationStatement
 
     public void authorize(ClientState state) throws UnauthorizedException
     {
-        super.checkPermission(state, Permission.AUTHORIZE, role);
+        try
+        {
+            super.checkPermission(state, Permission.AUTHORIZE, role);
+        }
+        catch (UnauthorizedException noAuthorizePermission)
+        {
+            if (!state.hasGrantOption(Permission.AUTHORIZE, role))
+                throw noAuthorizePermission;
+        }
     }
 
     public void validate(ClientState state) throws RequestValidationException

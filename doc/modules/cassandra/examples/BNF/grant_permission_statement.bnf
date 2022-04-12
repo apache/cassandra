@@ -1,4 +1,4 @@
-grant_permission_statement ::= GRANT permissions ON resource TO role_name
+grant_permission_statement ::= GRANT (AUTHORIZE FOR)? permissions ON resource TO role_name
 permissions ::= ALL [ PERMISSIONS ] | permission [ PERMISSION ]
 permission ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | EXECUTE
 resource ::=    ALL KEYSPACES

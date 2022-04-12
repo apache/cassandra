@@ -467,18 +467,23 @@ public class ClientState
 
     private void ensurePermissionOnResourceChain(Permission perm, IResource resource)
     {
-        List<? extends IResource> resources = Resources.chain(resource);
-        if (DatabaseDescriptor.getAuthFromRoot())
-            resources = Lists.reverse(resources);
+        PermissionSets chainPermissions = resourceChainPermissions(resource);
+        if (!chainPermissions.granted.contains(perm))
+            throw new UnauthorizedException(String.format("User %s has no %s permission on %s or any of its parents",
+                                                          user.getName(),
+                                                          perm,
+                                                          resource));
 
-        for (IResource r : resources)
-            if (authorize(r).contains(perm))
-                return;
+        if (chainPermissions.restricted.contains(perm))
+            throw new UnauthorizedException(String.format("Access for user %s on %s or any of its parents with %s permission is restricted",
+                                                          user.getName(),
+                                                          resource,
+                                                          perm));
+    }
 
-        throw new UnauthorizedException(String.format("User %s has no %s permission on %s or any of its parents",
-                                                      user.getName(),
-                                                      perm,
-                                                      resource));
+    public boolean hasGrantOption(Permission perm, IResource resource)
+    {
+        return resourceChainPermissions(resource).grantables.contains(perm);
     }
 
     private void preventSystemKSSchemaModification(String keyspace, DataResource resource, Permission perm)
@@ -578,9 +583,8 @@ public class ClientState
         return user;
     }
 
-    private Set<Permission> authorize(IResource resource)
+    private PermissionSets resourceChainPermissions(IResource resource)
     {
-        return user.getPermissions(resource);
+        return user.resourceChainPermissions(resource);
     }
-
 }

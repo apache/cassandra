@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.auth.GrantMode;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
@@ -37,15 +38,15 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class RevokePermissionsStatement extends PermissionsManagementStatement
 {
-    public RevokePermissionsStatement(Set<Permission> permissions, IResource resource, RoleName grantee)
+    public RevokePermissionsStatement(Set<Permission> permissions, IResource resource, RoleName grantee, GrantMode grantMode)
     {
-        super(permissions, resource, grantee);
+        super(permissions, resource, grantee, grantMode);
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
-        Set<Permission> revoked = authorizer.revoke(state.getUser(), permissions, resource, grantee);
+        Set<Permission> revoked = authorizer.revoke(state.getUser(), permissions, resource, grantee, grantMode);
 
         // We want to warn the client if all the specified permissions have not been revoked and the client did
         // not specify ALL in the query.

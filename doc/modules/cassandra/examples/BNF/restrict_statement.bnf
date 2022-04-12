@@ -1,0 +1,1 @@
+restrict_statement ::= RESTRICT (PERMISSIONS | ALL) ON resource TO role_name
