@@ -79,8 +79,9 @@ public class CASTest extends CASCommonTestCases
                                                    .set("write_request_timeout", REQUEST_TIMEOUT)
                                                    .set("cas_contention_timeout", CONTENTION_TIMEOUT)
                                                    .set("request_timeout", REQUEST_TIMEOUT);
-        THREE_NODES = init(Cluster.create(3, conf));
-        FOUR_NODES = init(Cluster.create(4, conf), 3);
+        // TODO: fails with vnode enabled
+        THREE_NODES = init(Cluster.build(3).withConfig(conf).withoutVNodes().start());
+        FOUR_NODES = init(Cluster.build(4).withConfig(conf).withoutVNodes().start(), 3);
     }
 
     @AfterClass

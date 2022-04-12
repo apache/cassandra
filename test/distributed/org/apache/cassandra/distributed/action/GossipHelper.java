@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -370,9 +372,11 @@ public class GossipHelper
     {
         return instance.appliesOnInstance((String partitionerString, String tokenString) -> {
             IPartitioner partitioner = FBUtilities.newPartitioner(partitionerString);
-            Token token = partitioner.getTokenFactory().fromString(tokenString);
+            Collection<Token> tokens = tokenString.contains(",")
+                                       ? Stream.of(tokenString.split(",")).map(partitioner.getTokenFactory()::fromString).collect(Collectors.toList())
+                                       : Collections.singleton(partitioner.getTokenFactory().fromString(tokenString));
 
-            VersionedValue versionedValue = supplier.apply(partitioner, Collections.singleton(token));
+            VersionedValue versionedValue = supplier.apply(partitioner, tokens);
             return new VersionedApplicationState(applicationState.ordinal(), versionedValue.value, versionedValue.version);
         }).apply(partitionerStr, initialTokenStr);
     }

@@ -78,6 +78,7 @@
     <property name="test.simulator-test.src" value="${test.dir}/simulator/test"/>
     <property name="test.driver.connection_timeout_ms" value="5000"/>
     <property name="test.driver.read_timeout_ms" value="12000"/>
+    <property name="test.jvm.args" value="" />
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 
@@ -143,6 +144,8 @@
     <property name="chronicle-bytes.version" value="2.20.111" />
     <property name="chronicle-wire.version" value="2.20.117" />
     <property name="chronicle-threads.version" value="2.20.111" />
+
+    <property name="dtest-api.version" value="0.0.13" />
 
     <condition property="maven-ant-tasks.jar.exists">
       <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
@@ -242,7 +245,7 @@
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
     </resources>
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
-    <condition property="test-jvmargs" value="${_jvm11_test_arg_items_concat}" else="${_jvm8_test_arg_items_concat}">
+    <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}" else="${_jvm8_test_arg_items_concat}">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
@@ -548,9 +551,9 @@
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test">
             <exclusion groupId="com.google.guava" artifactId="guava"/>
           </dependency>
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.12" scope="test"/>
           <dependency groupId="org.apache.cassandra" artifactId="harry-core" version="0.0.1" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.10.2" scope="test"/>
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="${dtest-api.version}" scope="test"/>
           <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="8.40" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
             <exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
@@ -1501,7 +1504,8 @@
         <jvmarg line="${java11-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
-        <jvmarg line="${test-jvmargs}" />
+        <jvmarg line="${_std-test-jvmargs}" />
+        <jvmarg line="${test.jvm.args}" />
         <optjvmargs/>
         <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
         <!--
