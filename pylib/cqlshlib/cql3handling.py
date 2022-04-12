@@ -35,7 +35,8 @@ class UnexpectedTableStructure(UserWarning):
         return 'Unexpected table structure; may not translate correctly to CQL. ' + self.msg
 
 
-SYSTEM_KEYSPACES = ('system', 'system_schema', 'system_traces', 'system_auth', 'system_distributed', 'system_views', 'system_virtual_schema')
+SYSTEM_KEYSPACES = ('system', 'system_schema', 'system_traces', 'system_auth', 'system_distributed', 'system_views',
+                    'system_virtual_schema')
 NONALTERBALE_KEYSPACES = ('system', 'system_schema', 'system_views', 'system_virtual_schema')
 
 
@@ -59,7 +60,8 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         # (CQL3 option name, schema_columnfamilies column name (or None if same),
         #  list of known map keys)
         ('compaction', 'compaction_strategy_options',
-            ('class', 'max_threshold', 'tombstone_compaction_interval', 'tombstone_threshold', 'enabled', 'unchecked_tombstone_compaction', 'only_purge_repaired_tombstones', 'provide_overlapping_tombstones')),
+            ('class', 'max_threshold', 'tombstone_compaction_interval', 'tombstone_threshold', 'enabled',
+             'unchecked_tombstone_compaction', 'only_purge_repaired_tombstones', 'provide_overlapping_tombstones')),
         ('compression', 'compression_parameters',
             ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
         ('caching', None,
@@ -1421,7 +1423,7 @@ def alter_table_col_completer(ctxt, cass):
 @completer_for('alterTypeInstructions', 'existcol')
 def alter_type_field_completer(ctxt, cass):
     layout = get_ut_layout(ctxt, cass)
-    fields = [tuple[0] for tuple in layout]
+    fields = [atuple[0] for atuple in layout]
     return list(map(maybe_escape_name, fields))
 
 

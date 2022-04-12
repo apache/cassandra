@@ -1,4 +1,5 @@
 4.1
+ * make pylib PEP and pylint compliant (CASSANDRA-17546)
  * Add support for vnodes in jvm-dtest (CASSANDRA-17332)
  * Remove guardrails global enable flag (CASSANDRA-17499)
  * Clients using JMX are unable to handle non-standard java types but we leak this into our interfaces (CASSANDRA-17527)
