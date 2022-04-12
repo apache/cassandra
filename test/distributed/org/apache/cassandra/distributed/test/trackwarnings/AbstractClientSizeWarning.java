@@ -211,15 +211,27 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
     }
 
     @Test
-    public void failThresholdSinglePartition() throws UnknownHostException
+    public void failThresholdSinglePartitionTrackingEnabled() throws UnknownHostException
     {
-        failThreshold(CQL_PK_READ);
+        failThresholdEnabled(CQL_PK_READ);
     }
 
     @Test
-    public void failThresholdScan() throws UnknownHostException
+    public void failThresholdSinglePartitionTrackingDisabled() throws UnknownHostException
     {
-        failThreshold(CQL_TABLE_SCAN);
+        failThresholdDisabled(CQL_PK_READ);
+    }
+
+    @Test
+    public void failThresholdScanTrackingEnabled() throws UnknownHostException
+    {
+        failThresholdEnabled(CQL_TABLE_SCAN);
+    }
+
+    @Test
+    public void failThresholdScanTrackingDisabled() throws UnknownHostException
+    {
+        failThresholdDisabled(CQL_TABLE_SCAN);
     }
 
     protected int failThresholdRowCount()
@@ -227,7 +239,7 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
         return 5;
     }
 
-    public void failThreshold(String cql) throws UnknownHostException
+    public void failThresholdEnabled(String cql) throws UnknownHostException
     {
         ICoordinator node = CLUSTER.coordinator(1);
         for (int i = 0; i < failThresholdRowCount(); i++)
@@ -283,15 +295,26 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
         }
         assertHistogramUpdated();
         assertWarnAborts(0, 2, 1);
+    }
+
+    public void failThresholdDisabled(String cql) throws UnknownHostException
+    {
+        ICoordinator node = CLUSTER.coordinator(1);
+        for (int i = 0; i < failThresholdRowCount(); i++)
+            node.execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)", ConsistencyLevel.ALL, i + 1, bytes(512));
+
+        if (shouldFlush())
+            CLUSTER.stream().forEach(i -> i.flush(KEYSPACE));
 
         // query should no longer fail
         enable(false);
+        checkpointHistogram();
         SimpleQueryResult result = node.executeWithResult(cql, ConsistencyLevel.ALL);
         assertThat(result.warnings()).isEmpty();
         assertHistogramNotUpdated();
         assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
         assertHistogramNotUpdated();
-        assertWarnAborts(0, 2, 0);
+        assertWarnAborts(0, 0, 0);
     }
 
     protected static void enable(boolean value)
