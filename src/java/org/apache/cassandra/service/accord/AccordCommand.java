@@ -22,14 +22,15 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import accord.api.Read;
 import accord.api.Result;
 import accord.local.Command;
-import accord.local.CommandStore;
 import accord.local.Listener;
 import accord.local.Listeners;
 import accord.local.Status;
 import accord.txn.Ballot;
 import accord.txn.Dependencies;
+import accord.txn.Keys;
 import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
@@ -38,12 +39,13 @@ import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordCommand extends Command implements AccordStateCache.AccordState<TxnId, AccordCommand>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
 
-    private final CommandStore commandStore;
+    private final AccordCommandStore commandStore;
     private final TxnId txnId;
     public final StoredValue<Txn> txn = new StoredValue<>();
     public final StoredValue<Ballot> promised = new StoredValue<>();
@@ -62,7 +64,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     public final StoredSet.DeterministicIdentity<ListenerProxy> storedListeners = new StoredSet.DeterministicIdentity<>();
     private final Listeners transientListeners = new Listeners();
 
-    public AccordCommand(CommandStore commandStore, TxnId txnId)
+    public AccordCommand(AccordCommandStore commandStore, TxnId txnId)
     {
         this.commandStore = commandStore;
         this.txnId = txnId;
@@ -170,6 +172,11 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
                             transientListeners);
     }
 
+    private AccordStateCache.Instance<TxnId, AccordCommand> cache()
+    {
+        return commandStore.commandCache();
+    }
+
     @Override
     public AccordStateCache.Node<TxnId, AccordCommand> createNode()
     {
@@ -202,7 +209,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     }
 
     @Override
-    public CommandStore commandStore()
+    public AccordCommandStore commandStore()
     {
         return commandStore;
     }
@@ -301,6 +308,35 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     public void status(Status status)
     {
         this.status.set(status);
+    }
+
+    @Override
+    protected void postApply()
+    {
+        super.postApply();
+        cache().clearWriteFuture(txnId);
+    }
+
+    @Override
+    public Future<?> apply(Txn txn, Dependencies deps, Timestamp executeAt, Writes writes, Result result)
+    {
+        Future<?> future = cache().getWriteFuture(txnId);
+        if (future != null)
+            return future;
+        future = super.apply(txn, deps, executeAt, writes, result);
+        cache().setWriteFuture(txnId, future);
+        return future;
+    }
+
+    @Override
+    public Read.ReadFuture read(Keys keyscope)
+    {
+        Read.ReadFuture future = cache().getReadFuture(txnId);
+        if (future != null)
+            return future.keyScope.equals(keyscope) ? future : super.read(keyscope);
+        future = super.read(keyscope);
+        cache().setReadFuture(txnId, future);
+        return future;
     }
 
     private Listener maybeWrapListener(Listener listener)

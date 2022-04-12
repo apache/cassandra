@@ -66,7 +66,7 @@ public class AccordCommandStoreTest
     {
         AtomicLong clock = new AtomicLong(0);
         Txn depTxn = createTxn(0);
-        InMemoryCommandStore.Synchronized commandStore = createInMemoryCommandStore(clock::incrementAndGet, "ks", "tbl");
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         Dependencies dependencies = new Dependencies();
         dependencies.add(txnId(1, clock.incrementAndGet(), 0, 1), depTxn);

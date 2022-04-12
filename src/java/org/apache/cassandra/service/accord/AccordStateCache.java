@@ -28,6 +28,7 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import accord.api.Read;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -103,6 +104,8 @@ public class AccordStateCache
     private final Set<Instance<?, ?>> instances = new HashSet<>();
 
     private final Map<Object, Future<?>> loadFutures = new HashMap<>();
+    private final Map<Object, Read.ReadFuture> readFutures = new HashMap<>();
+    private final Map<Object, Future<?>> writeFutures = new HashMap<>();
     // TODO: add guards to prevent command changes during command execution/apply
 
     Node<?, ?> head;
@@ -251,7 +254,7 @@ public class AccordStateCache
     private <K, V extends AccordStateCache.AccordState<K, V>> void releaseInternal(V value)
     {
         K key = value.key();
-        maybeClearReadFuture(key);
+        maybeClearFuture(key);
         Node<K, V> node = (Node<K, V>) active.get(key);
         Preconditions.checkState(node != null && node.references > 0);
         Preconditions.checkState(node.value == value);
@@ -266,9 +269,9 @@ public class AccordStateCache
         maybeEvict();
     }
 
-    private static <K> Future<?> getFutureInternal(Map<Object, Future<?>> futuresMap, K key)
+    private static <K, F extends Future<?>> F getFutureInternal(Map<Object, F> futuresMap, K key)
     {
-        Future<?> r = futuresMap.get(key);
+        F r = futuresMap.get(key);
         if (r == null)
             return null;
 
@@ -279,16 +282,18 @@ public class AccordStateCache
         return null;
     }
 
-    private static <K> void setFutureInternal(Map<Object, Future<?>> futuresMap, K key, Future<?> future)
+    private static <K, F extends Future<?>> void setFutureInternal(Map<Object, F> futuresMap, K key, F future)
     {
         Preconditions.checkState(!futuresMap.containsKey(key));
         futuresMap.put(key, future);
     }
 
-    private <K> void maybeClearReadFuture(K key)
+    private <K> void maybeClearFuture(K key)
     {
         // will clear if it's done
         getFutureInternal(loadFutures, key);
+        getFutureInternal(readFutures, key);
+        getFutureInternal(writeFutures, key);
     }
 
     public class Instance<K, V extends AccordStateCache.AccordState<K, V>>
@@ -338,6 +343,33 @@ public class AccordStateCache
         {
             setFutureInternal(loadFutures, key, future);
         }
+
+        public Read.ReadFuture getReadFuture(K key)
+        {
+            return getFutureInternal(readFutures, key);
+        }
+
+        public void setReadFuture(K key, Read.ReadFuture future)
+        {
+            setFutureInternal(readFutures, key, future);
+        }
+
+        public Future<?> getWriteFuture(K key)
+        {
+            return getFutureInternal(writeFutures, key);
+        }
+
+        public void setWriteFuture(K key, Future<?> future)
+        {
+            setFutureInternal(writeFutures, key, future);
+        }
+
+        public void clearWriteFuture(K key)
+        {
+            // will clear if it's done
+            getWriteFuture(key);
+        }
+
     }
 
     public <K, V extends AccordStateCache.AccordState<K, V>> Instance<K, V> instance(Class<K> keyClass,

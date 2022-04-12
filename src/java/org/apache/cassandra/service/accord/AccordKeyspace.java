@@ -536,7 +536,7 @@ public class AccordKeyspace
         return deserializeTimestampOrNull(row.getBlob(name), factory);
     }
 
-    public static AccordCommand loadCommand(CommandStore commandStore, TxnId txnId)
+    public static AccordCommand loadCommand(AccordCommandStore commandStore, TxnId txnId)
     {
         AccordCommand command = new AccordCommand(commandStore, txnId);
         loadCommand(command);
