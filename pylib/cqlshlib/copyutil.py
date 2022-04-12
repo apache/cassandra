@@ -31,7 +31,6 @@ import sys
 import threading
 import time
 import traceback
-import errno
 
 from bisect import bisect_right
 from calendar import timegm
@@ -62,6 +61,7 @@ from cqlshlib.sslhandling import ssl_settings
 PROFILE_ON = False
 STRACE_ON = False
 DEBUG = False  # This may be set to True when initializing the task
+# TODO: review this for MacOS, maybe use in ('Linux', 'Darwin')
 IS_LINUX = platform.system() == 'Linux'
 
 CopyOptions = namedtuple('CopyOptions', 'copy dialect unrecognized')
@@ -80,15 +80,10 @@ def printdebugmsg(msg):
         printmsg(msg)
 
 
-def printmsg(msg, eol='\n', encoding='utf8'):
+def printmsg(msg, eol='\n'):
     sys.stdout.write(msg)
     sys.stdout.write(eol)
     sys.stdout.flush()
-
-
-# Keep arguments in sync with printmsg
-def swallowmsg(msg, eol='', encoding=''):
-    pass
 
 
 class OneWayPipe(object):
@@ -170,7 +165,7 @@ class SendingChannels(object):
         for ch in self.channels:
             try:
                 ch.close()
-            except Exception:
+            except ValueError:
                 pass
 
 
@@ -196,11 +191,8 @@ class ReceivingChannels(object):
         while True:
             try:
                 readable, _, _ = select(self._readers, [], [], timeout)
-            except select.error as exc:
-                # TODO: PEP 475 in Python 3.5 should make this unnecessary
-                # Do not abort on window resize:
-                if exc[0] != errno.EINTR:
-                    raise
+            except OSError:
+                raise
             else:
                 break
         for r in readable:
@@ -233,7 +225,7 @@ class ReceivingChannels(object):
         for ch in self.channels:
             try:
                 ch.close()
-            except Exception:
+            except ValueError:
                 pass
 
 
@@ -257,8 +249,7 @@ class CopyTask(object):
             DEBUG = True
 
         # do not display messages when exporting to STDOUT unless --debug is set
-        self.printmsg = printmsg if self.fname is not None or direction == 'from' or DEBUG \
-            else swallowmsg
+        self.printmsg = printmsg if self.fname is not None or direction == 'from' or DEBUG else None
         self.options = self.parse_options(opts, direction)
 
         self.num_processes = self.options.copy['numprocesses']
@@ -661,7 +652,7 @@ class ExportTask(CopyTask):
             return 0
 
         columns = "[" + ", ".join(self.columns) + "]"
-        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns), encoding=self.encoding)
+        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns))
 
         params = self.make_params()
         for i in range(self.num_processes):
@@ -770,6 +761,7 @@ class ExportTask(CopyTask):
             #  For the last ring interval we query the same replicas that hold the first token in the ring
             if previous is not None and (not end_token or previous < end_token):
                 ranges[(previous, end_token)] = first_range_data
+            # TODO: fix this logic added in 4.0: if previous is None, then it can't be compared with less than
             elif previous is None and (not end_token or previous < end_token):
                 previous = begin_token if begin_token else min_token
                 ranges[(previous, end_token)] = first_range_data
@@ -886,7 +878,8 @@ class FilesReader(object):
         self.current_source = None
         self.num_read = 0
 
-    def get_source(self, paths):
+    @staticmethod
+    def get_source(paths):
         """
          Return a source generator. Each source is a named tuple
          wrapping the source input, file name and a boolean indicating
@@ -908,7 +901,7 @@ class FilesReader(object):
                     raise IOError("Can't open %r for reading: no matching file found" % (path,))
 
                 for f in result:
-                    yield (make_source(f))
+                    yield make_source(f)
 
     def start(self):
         self.sources = self.get_source(self.fname)
@@ -1163,7 +1156,7 @@ class ImportTask(CopyTask):
             return 0
 
         columns = "[" + ", ".join(self.valid_columns) + "]"
-        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns), encoding=self.encoding)
+        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns))
 
         try:
             params = self.make_params()
@@ -1337,7 +1330,8 @@ class FeedingProcess(mp.Process):
         try:
             reader.start()
         except IOError as exc:
-            self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
+            self.outmsg.send(
+                ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
 
         channels = self.worker_channels
         max_pending_chunks = self.max_pending_chunks
@@ -1366,7 +1360,8 @@ class FeedingProcess(mp.Process):
                     if rows:
                         sent += self.send_chunk(ch, rows)
                 except Exception as exc:
-                    self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
+                    self.outmsg.send(
+                        ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
 
                 if reader.exhausted:
                     break
@@ -1954,7 +1949,8 @@ class ImportConversion(object):
             empty_str = ''
             dot_str = '.'
             if self.thousands_sep and self.decimal_sep:
-                return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, empty_str).replace(self.decimal_sep, dot_str))
+                return lambda v, ct=cql_type: \
+                    adapter(v.replace(self.thousands_sep, empty_str).replace(self.decimal_sep, dot_str))
             elif self.thousands_sep:
                 return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, empty_str))
             elif self.decimal_sep:
@@ -2010,7 +2006,7 @@ class ImportConversion(object):
             return ret
 
         # this should match all possible CQL and CQLSH datetime formats
-        p = re.compile(r"(\d{4})\-(\d{2})\-(\d{2})\s?(?:'T')?"  # YYYY-MM-DD[( |'T')]
+        p = re.compile(r"(\d{4})-(\d{2})-(\d{2})\s?(?:'T')?"  # YYYY-MM-DD[( |'T')]
                        + r"(?:(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?))?"  # [HH:MM[:SS[.NNNNNN]]]
                        + r"(?:([+\-])(\d{2}):?(\d{2}))?")  # [(+|-)HH[:]MM]]
 
@@ -2631,7 +2627,8 @@ class ImportProcess(ChildProcess):
                     yield filter_replicas(replicas[ring_pos]), make_batch(chunk['id'], rows[i:i + max_batch_size])
             else:
                 # select only the first valid replica to guarantee more overlap or none at all
-                rows_by_replica[tuple(filter_replicas(replicas[ring_pos])[:1])].extend(rows)  # TODO: revisit tuple wrapper
+                # TODO: revisit tuple wrapper
+                rows_by_replica[tuple(filter_replicas(replicas[ring_pos])[:1])].extend(rows)
 
         # Now send the batches by replica
         for replicas, rows in rows_by_replica.items():
@@ -2653,6 +2650,7 @@ class ImportProcess(ChildProcess):
             future.add_callbacks(callback=self.result_callback, callback_args=(batch, chunk),
                                  errback=self.err_callback, errback_args=(batch, chunk, replicas))
 
+    # TODO: review why this is defined twice
     def report_error(self, err, chunk=None, rows=None, attempts=1, final=True):
         if self.debug and sys.exc_info()[1] == err:
             traceback.print_exc()
