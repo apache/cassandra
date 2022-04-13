@@ -42,6 +42,7 @@ import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordCommandStore extends CommandStore
@@ -95,6 +96,12 @@ public class AccordCommandStore extends CommandStore
         this.commandsForKeyCache = stateCache.instance(PartitionKey.class,
                                                        AccordCommandsForKey.class,
                                                        key -> new AccordCommandsForKey(this, key));
+    }
+
+    void setCacheSize(long bytes)
+    {
+        checkInStoreThread();
+        stateCache.maxSizeInBytes(bytes);
     }
 
     public void checkInStoreThread()
@@ -157,6 +164,42 @@ public class AccordCommandStore extends CommandStore
         AccordCommandsForKey commandsForKey = currentCtx.commandsForKey((PartitionKey) key);
         Preconditions.checkArgument(commandsForKey != null);
         return commandsForKey;
+    }
+
+    @Override
+    public Future<Void> processSetup(Consumer<? super CommandStore> function)
+    {
+        AsyncPromise<Void> promise = new AsyncPromise<>();
+        executor.execute(() -> {
+            try
+            {
+                function.accept(this);
+                promise.trySuccess(null);
+            }
+            catch (Throwable t)
+            {
+                promise.tryFailure(t);
+            }
+        });
+        return promise;
+    }
+
+    @Override
+    public <T> Future<T> processSetup(Function<? super CommandStore, T> function)
+    {
+        AsyncPromise<T> promise = new AsyncPromise<>();
+        executor.execute(() -> {
+            try
+            {
+                T result = function.apply(this);
+                promise.trySuccess(result);
+            }
+            catch (Throwable t)
+            {
+                promise.tryFailure(t);
+            }
+        });
+        return promise;
     }
 
     @Override

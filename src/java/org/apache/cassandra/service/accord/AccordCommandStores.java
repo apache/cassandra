@@ -63,4 +63,9 @@ public class AccordCommandStores extends CommandStores
                                       this::getLocalTopology,
                                       executors[index]);
     }
+
+    void setCacheSize(long bytes)
+    {
+        setup(commandStore -> ((AccordCommandStore) commandStore).setCacheSize(bytes));
+    }
 }

@@ -83,4 +83,11 @@ public class AccordService
     {
         return messageSink;
     }
+
+    public void setCacheSize(long kb)
+    {
+        long bytes = kb << 10;
+        AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
+        commandStores.setCacheSize(bytes);
+    }
 }

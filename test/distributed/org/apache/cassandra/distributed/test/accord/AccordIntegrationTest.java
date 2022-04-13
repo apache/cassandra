@@ -49,6 +49,7 @@ public class AccordIntegrationTest extends TestBaseImpl
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
             cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int, primary key (k, c))");
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
 
             cluster.get(1).runOnInstance(() -> {
                 AccordTxnBuilder txnBuilder = new AccordTxnBuilder();
@@ -80,6 +81,8 @@ public class AccordIntegrationTest extends TestBaseImpl
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
             cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int, primary key (k, c))");
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
+
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
 
             cluster.get(1).runOnInstance(() -> {
                 AccordTxnBuilder txnBuilder = new AccordTxnBuilder();
