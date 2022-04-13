@@ -94,6 +94,7 @@ import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -266,7 +267,7 @@ public class AccordKeyspace
 
     private static <T> ByteBuffer serializeOrNull(T obj, IVersionedSerializer<T> serializer, int version) throws IOException
     {
-        return obj != null ? serialize(obj, serializer, version) : null;
+        return obj != null ? serialize(obj, serializer, version) : EMPTY_BYTE_BUFFER;
     }
 
     private static <T> T deserialize(ByteBuffer bytes, IVersionedSerializer<T> serializer, int version) throws IOException
@@ -279,7 +280,7 @@ public class AccordKeyspace
 
     private static <T> T deserializeOrNull(ByteBuffer bytes, IVersionedSerializer<T> serializer, int version) throws IOException
     {
-        return bytes != null ? deserialize(bytes, serializer, version) : null;
+        return bytes != null && ! ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, serializer, version) : null;
     }
 
     private static Map<ByteBuffer, ByteBuffer> serializeWaitingOn(Map<? extends Timestamp, TxnId> waitingOn)
@@ -524,7 +525,7 @@ public class AccordKeyspace
 
     private static <T extends Timestamp> T deserializeTimestampOrNull(ByteBuffer bytes, TimestampFactory<T> factory)
     {
-        if (bytes == null)
+        if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
         ByteBuffer[] split = TIMESTAMP_TYPE.split(bytes);
         return factory.create(split[0].getLong(), split[1].getLong(), split[2].getInt(), new Node.Id(split[3].getLong()));

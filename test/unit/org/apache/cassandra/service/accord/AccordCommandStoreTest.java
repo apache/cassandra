@@ -110,13 +110,14 @@ public class AccordCommandStoreTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
-        AccordCommand command1 = new AccordCommand(commandStore, txnId1);
-        AccordCommand command2 = new AccordCommand(commandStore, txnId2);
+        AccordCommand command1 = new AccordCommand(commandStore, txnId1).initialize();
+        AccordCommand command2 = new AccordCommand(commandStore, txnId2).initialize();
+        command1.txn(txn);
+        command2.txn(txn);
         command1.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
         command2.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
 
-        AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key);
-        cfk.initialize();
+        AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
         cfk.updateMax(maxTimestamp);
 
         cfk.register(command1);
@@ -129,11 +130,5 @@ public class AccordCommandStoreTest
 
         Assert.assertEquals(cfk, actual);
 
-    }
-
-    @Test
-    public void collections()
-    {
-        // TODO: clear, add, delete
     }
 }
