@@ -66,6 +66,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         public Command get(Timestamp timestamp)
         {
             ByteBuffer bytes = map.getView().get(timestamp);
+            if (bytes == null)
+                return null;
             return CommandSummaries.commandsPerKey.deserialize(commandStore, bytes);
         }
 

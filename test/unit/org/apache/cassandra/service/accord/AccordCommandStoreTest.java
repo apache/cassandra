@@ -52,6 +52,7 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 public class AccordCommandStoreTest
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStoreTest.class);
+
     @BeforeClass
     public static void beforeClass() throws Throwable
     {

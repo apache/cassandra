@@ -198,7 +198,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         @Override
         Set<T> createView(Set<T> data)
         {
-            return new DeterministicIdentitySet<>();
+            return Collections.unmodifiableSet(data);
         }
     }
 }

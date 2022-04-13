@@ -148,11 +148,18 @@ public class AccordTestUtils
         command.result(txn.query.compute(readData));
     }
 
+    public static Txn createTxn(int readKey, int... writeKeys)
+    {
+        AccordTxnBuilder builder = txnBuilder().withRead(format("SELECT * FROM ks.tbl WHERE k=%s AND c=0", readKey));
+        for (int key : writeKeys)
+            builder.withWrite(format("INSERT INTO ks.tbl (k, c, v) VALUES (%s, 0, 1)", key));
+        builder.withCondition("ks", "tbl", readKey, 0, NOT_EXISTS).build();
+        return builder.build();
+    }
+
     public static Txn createTxn(int key)
     {
-        return txnBuilder().withRead(format("SELECT * FROM ks.tbl WHERE k=%s AND c=0", key))
-                           .withWrite(format("INSERT INTO ks.tbl (k, c, v) VALUES (%s, 0, 1)", key))
-                           .withCondition("ks", "tbl", key, 0, NOT_EXISTS).build();
+        return createTxn(key, key);
     }
 
     public static InMemoryCommandStore.Synchronized createInMemoryCommandStore(LongSupplier now, String keyspace, String table)
