@@ -162,7 +162,7 @@ public class Schema implements SchemaProvider
      *
      * @param ksm The metadata about keyspace
      */
-    private synchronized void load(KeyspaceMetadata ksm)
+    public synchronized void load(KeyspaceMetadata ksm)
     {
         Preconditions.checkArgument(!SchemaConstants.isLocalSystemKeyspace(ksm.name));
         KeyspaceMetadata previous = distributedKeyspaces.getNullable(ksm.name);
