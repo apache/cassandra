@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
@@ -93,15 +94,10 @@ public final class MemtableParams
     private static final String DEFAULT_CONFIGURATION_KEY = "default";
     private static final Memtable.Factory DEFAULT_MEMTABLE_FACTORY = SkipListMemtableFactory.INSTANCE;
     private static final Map<String, String> DEFAULT_CONFIGURATION = SkipListMemtableFactory.CONFIGURATION;
-    private static final Map<String, Map<String, String>> CONFIGURATION_DEFINITIONS;
-    private static final Map<String, MemtableParams> CONFIGURATIONS;
-    public static final MemtableParams DEFAULT;
-
-    static {
+    private static final Map<String, Map<String, String>>
         CONFIGURATION_DEFINITIONS = expandDefinitions(DatabaseDescriptor.getMemtableConfigurations());
-        CONFIGURATIONS = new HashMap<>();
-        DEFAULT = get(null);
-    }
+    private static final Map<String, MemtableParams> CONFIGURATIONS = new HashMap<>();
+    public static final MemtableParams DEFAULT = get(null);
 
     public static MemtableParams get(String key)
     {
@@ -114,7 +110,8 @@ public final class MemtableParams
         }
     }
 
-    private static Map<String, Map<String, String>> expandDefinitions(Map<String, Map<String, String>> memtableConfigurations)
+    @VisibleForTesting
+    static Map<String, Map<String, String>> expandDefinitions(Map<String, Map<String, String>> memtableConfigurations)
     {
         if (memtableConfigurations == null)
             return ImmutableMap.of(DEFAULT_CONFIGURATION_KEY, DEFAULT_CONFIGURATION);

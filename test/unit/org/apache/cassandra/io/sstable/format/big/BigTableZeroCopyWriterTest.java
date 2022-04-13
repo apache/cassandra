@@ -191,11 +191,11 @@ public class BigTableZeroCopyWriterTest
         for (int i = 0; i < store.metadata().params.minIndexInterval; i++)
         {
             DecoratedKey dk = Util.dk(String.valueOf(i));
-            UnfilteredRowIterator rowIter = sstable.iterator(dk,
-                                                             Slices.ALL,
-                                                             ColumnFilter.all(store.metadata()),
-                                                             false,
-                                                             SSTableReadsListener.NOOP_LISTENER);
+            UnfilteredRowIterator rowIter = sstable.rowIterator(dk,
+                                                                Slices.ALL,
+                                                                ColumnFilter.all(store.metadata()),
+                                                                false,
+                                                                SSTableReadsListener.NOOP_LISTENER);
             while (rowIter.hasNext())
             {
                 rowIter.next();

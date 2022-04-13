@@ -36,9 +36,6 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.partitions.AbstractBTreePartition;
-import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
-import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -192,7 +189,7 @@ public class Ballots
     private static Row getRow(DecoratedKey key, TableMetadata metadata, ColumnFamilyStore paxos, Memtable memtable)
     {
         final ClusteringComparator comparator = paxos.metadata.get().comparator;
-        UnfilteredRowIterator iter = memtable.iterator(key, Slices.with(comparator, Slice.make(comparator.make(metadata.id))), ColumnFilter.NONE, false, SSTableReadsListener.NOOP_LISTENER);
+        UnfilteredRowIterator iter = memtable.rowIterator(key, Slices.with(comparator, Slice.make(comparator.make(metadata.id))), ColumnFilter.NONE, false, SSTableReadsListener.NOOP_LISTENER);
         if (iter == null || !iter.hasNext())
             return null;
         return (Row) iter.next();
@@ -220,7 +217,7 @@ public class Ballots
         List<Memtable> memtables = ImmutableList.copyOf(table.getTracker().getView().getAllMemtables());
         for (Memtable memtable : memtables)
         {
-            try (UnfilteredRowIterator partition = memtable.iterator(key))
+            try (UnfilteredRowIterator partition = memtable.rowIterator(key))
             {
                 if (partition == null)
                     continue;

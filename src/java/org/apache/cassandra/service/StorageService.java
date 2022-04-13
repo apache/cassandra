@@ -4229,6 +4229,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    /**
+     * Flush all memtables for a keyspace and column families.
+     * @param keyspaceName
+     * @throws IOException
+     */
+    public void forceKeyspaceFlush(String keyspaceName, ColumnFamilyStore.FlushReason reason) throws IOException
+    {
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName))
+        {
+            logger.debug("Forcing flush on keyspace {}, CF {}", keyspaceName, cfStore.name);
+            cfStore.forceBlockingFlush(reason);
+        }
+    }
+
     public int repairAsync(String keyspace, Map<String, String> repairSpec)
     {
         return repair(keyspace, repairSpec, Collections.emptyList()).left;

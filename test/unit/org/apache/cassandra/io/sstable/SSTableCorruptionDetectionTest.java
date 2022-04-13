@@ -214,11 +214,11 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
             for (int i = 0; i < numberOfPks; i++)
             {
                 DecoratedKey dk = Util.dk(String.format("pkvalue_%07d", i));
-                try (UnfilteredRowIterator rowIter = sstable.iterator(dk,
-                                                                      Slices.ALL,
-                                                                      ColumnFilter.all(cfs.metadata()),
-                                                                      false,
-                                                                      SSTableReadsListener.NOOP_LISTENER))
+                try (UnfilteredRowIterator rowIter = sstable.rowIterator(dk,
+                                                                         Slices.ALL,
+                                                                         ColumnFilter.all(cfs.metadata()),
+                                                                         false,
+                                                                         SSTableReadsListener.NOOP_LISTENER))
                 {
                     while (rowIter.hasNext())
                     {

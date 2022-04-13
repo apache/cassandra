@@ -566,13 +566,6 @@ public class AlterTest extends CQLTester
         testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
 
-        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row("default"));
-
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "The 'class' option must be specified.",
                                         "ALTER TABLE %s"

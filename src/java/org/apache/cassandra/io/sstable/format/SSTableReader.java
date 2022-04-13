@@ -1420,7 +1420,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                                  boolean permitMatchPastLast,
                                                  SSTableReadsListener listener);
 
-    public abstract UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
+    public abstract UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
 
     public abstract UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, boolean tombstoneOnly);
 

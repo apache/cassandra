@@ -81,8 +81,8 @@ public class BigFormat implements SSTableFormat
         @Override
         public long estimateSize(SSTableWriter.SSTableSizeParameters parameters)
         {
-            return (long) ((parameters.partitionCount() // index entries
-                            + parameters.partitionCount() // keys in data file
+            return (long) ((parameters.partitionKeysSize() // index entries
+                            + parameters.partitionKeysSize() // keys in data file
                             + parameters.dataSize()) // data
                            * 1.2); // bloom filter and row index overhead
         }

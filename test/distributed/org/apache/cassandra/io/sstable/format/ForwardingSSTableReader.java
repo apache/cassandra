@@ -284,15 +284,15 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, SSTableReadsListener listener)
+    public UnfilteredRowIterator rowIterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, SSTableReadsListener listener)
     {
-        return delegate.iterator(key, slices, selectedColumns, reversed, listener);
+        return delegate.rowIterator(key, slices, selectedColumns, reversed, listener);
     }
 
     @Override
-    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
+    public UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
     {
-        return delegate.iterator(file, key, indexEntry, slices, selectedColumns, reversed);
+        return delegate.rowIterator(file, key, indexEntry, slices, selectedColumns, reversed);
     }
 
     @Override

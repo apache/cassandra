@@ -93,35 +93,12 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 
     // Only for testing
     @VisibleForTesting
-    public SkipListMemtable(TableMetadataRef metadataRef)
+    public SkipListMemtable(TableMetadataRef metadataRef, Owner owner)
     {
-        this(null, metadataRef, new Owner()
-        {
-            @Override
-            public Future<CommitLogPosition> signalFlushRequired(Memtable memtable, ColumnFamilyStore.FlushReason reason)
-            {
-                return null;
-            }
-
-            @Override
-            public Memtable getCurrentMemtable()
-            {
-                return null;
-            }
-
-            @Override
-            public Iterable<Memtable> getIndexMemtables()
-            {
-                return Collections.emptyList();
-            }
-
-            public ShardBoundaries localRangeSplits(int shardCount)
-            {
-                return null; // not implemented
-            }
-        });
+        this(null, metadataRef, owner);
     }
 
+    @Override
     protected Factory factory()
     {
         return FACTORY;
@@ -133,6 +110,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         super.addMemoryUsageTo(stats);
     }
 
+    @Override
     public boolean isClean()
     {
         return partitions.isEmpty();
@@ -144,6 +122,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
      *
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
+    @Override
     public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
     {
         AtomicBTreePartition previous = partitions.get(update.partitionKey());
@@ -176,11 +155,13 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         return pair[1];
     }
 
+    @Override
     public long partitionCount()
     {
         return partitions.size();
     }
 
+    @Override
     public MemtableUnfilteredPartitionIterator partitionIterator(final ColumnFilter columnFilter,
                                                                  final DataRange dataRange,
                                                                  SSTableReadsListener readsListener)
@@ -228,12 +209,13 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         }
     }
 
-    public Partition getPartition(DecoratedKey key)
+    Partition getPartition(DecoratedKey key)
     {
         return partitions.get(key);
     }
 
-    public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, SSTableReadsListener listener)
+    @Override
+    public UnfilteredRowIterator rowIterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, SSTableReadsListener listener)
     {
         Partition p = getPartition(key);
         if (p == null)
@@ -242,7 +224,8 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             return p.unfilteredIterator(selectedColumns, slices, reversed);
     }
 
-    public UnfilteredRowIterator iterator(DecoratedKey key)
+    @Override
+    public UnfilteredRowIterator rowIterator(DecoratedKey key)
     {
         Partition p = getPartition(key);
         return p != null ? p.unfilteredIterator() : null;
@@ -270,10 +253,12 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         }
     }
 
+    @Override
     public FlushCollection<?> getFlushSet(PartitionPosition from, PartitionPosition to)
     {
         Map<PartitionPosition, AtomicBTreePartition> toFlush = getPartitionsSubMap(from, true, to, false);
-        long keySize = 0;
+        long keysSize = 0;
+        long keyCount = 0;
 
         boolean trackContention = logger.isTraceEnabled();
         if (trackContention)
@@ -282,7 +267,8 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 
             for (AtomicBTreePartition partition : toFlush.values())
             {
-                keySize += partition.partitionKey().getKey().remaining();
+                keysSize += partition.partitionKey().getKey().remaining();
+                ++keyCount;
                 if (trackContention && partition.useLock())
                     heavilyContendedRowCount++;
             }
@@ -296,73 +282,82 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             {
                 //  make sure we don't write non-sensical keys
                 assert key instanceof DecoratedKey;
-                keySize += ((DecoratedKey) key).getKey().remaining();
+                keysSize += ((DecoratedKey) key).getKey().remaining();
+                ++keyCount;
             }
         }
-        final long partitionKeySize = keySize;
+        final long partitionKeysSize = keysSize;
+        final long partitionCount = keyCount;
 
         return new AbstractFlushCollection<AtomicBTreePartition>()
         {
+            @Override
             public Memtable memtable()
             {
                 return SkipListMemtable.this;
             }
 
+            @Override
             public PartitionPosition from()
             {
                 return from;
             }
 
+            @Override
             public PartitionPosition to()
             {
                 return to;
             }
 
+            @Override
             public long partitionCount()
             {
-                return toFlush.size();
+                return partitionCount;
             }
 
+            @Override
             public Iterator<AtomicBTreePartition> iterator()
             {
                 return toFlush.values().iterator();
             }
 
-            public long partitionKeySize()
+            @Override
+            public long partitionKeysSize()
             {
-                return partitionKeySize;
+                return partitionKeysSize;
             }
         };
     }
 
 
-    public static class MemtableUnfilteredPartitionIterator extends AbstractUnfilteredPartitionIterator implements UnfilteredPartitionIterator
+    private static class MemtableUnfilteredPartitionIterator extends AbstractUnfilteredPartitionIterator implements UnfilteredPartitionIterator
     {
         private final TableMetadata metadata;
         private final Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter;
-        private final Map<PartitionPosition, AtomicBTreePartition> source;
         private final ColumnFilter columnFilter;
         private final DataRange dataRange;
 
-        public MemtableUnfilteredPartitionIterator(TableMetadata metadata, Map<PartitionPosition, AtomicBTreePartition> map, ColumnFilter columnFilter, DataRange dataRange)
+        MemtableUnfilteredPartitionIterator(TableMetadata metadata, Map<PartitionPosition, AtomicBTreePartition> map, ColumnFilter columnFilter, DataRange dataRange)
         {
             this.metadata = metadata;
-            this.source = map;
             this.iter = map.entrySet().iterator();
             this.columnFilter = columnFilter;
             this.dataRange = dataRange;
         }
 
+        @Override
         public TableMetadata metadata()
         {
             return metadata;
         }
 
+        @Override
         public boolean hasNext()
         {
             return iter.hasNext();
         }
 
+        @Override
         public UnfilteredRowIterator next()
         {
             Map.Entry<PartitionPosition, AtomicBTreePartition> entry = iter.next();
@@ -375,6 +370,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         }
     }
 
+    @Override
     public long getLiveDataSize()
     {
         return liveDataSize.get();

@@ -666,7 +666,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             for (Memtable memtable : view.memtables)
             {
                 @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
-                UnfilteredRowIterator iter = memtable.iterator(partitionKey(), filter.getSlices(metadata()), columnFilter(), filter.isReversed(), metricsCollector);
+                UnfilteredRowIterator iter = memtable.rowIterator(partitionKey(), filter.getSlices(metadata()), columnFilter(), filter.isReversed(), metricsCollector);
                 if (iter == null)
                     continue;
 
@@ -863,7 +863,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         Tracing.trace("Merging memtable contents");
         for (Memtable memtable : view.memtables)
         {
-            try (UnfilteredRowIterator iter = memtable.iterator(partitionKey, filter.getSlices(metadata()), columnFilter(), isReversed(), metricsCollector))
+            try (UnfilteredRowIterator iter = memtable.rowIterator(partitionKey, filter.getSlices(metadata()), columnFilter(), isReversed(), metricsCollector))
             {
                 if (iter == null)
                     continue;

@@ -50,7 +50,7 @@ public interface Partition
     public boolean isEmpty();
 
     /**
-     * Whether the partition object has rows. This may be true but partition still be non-empty if it has a deletion.
+     * Whether the partition object has rows. This may be false but partition still be non-empty if it has a deletion.
      */
     boolean hasRows();
 

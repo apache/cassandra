@@ -165,7 +165,7 @@ public class KeyCacheCqlTest extends CQLTester
             }
         }
 
-        StorageService.instance.forceKeyspaceFlush(KEYSPACE_PER_TEST);
+        StorageService.instance.forceKeyspaceFlush(KEYSPACE_PER_TEST, ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         for (int pkInt = 0; pkInt < 20; pkInt++)
         {

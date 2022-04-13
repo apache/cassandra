@@ -127,6 +127,7 @@ public class CassandraStreamManager implements TableStreamManager
                 return sstables;
             }).refs);
 
+            // This call is normally preceded by a memtable flush in StreamSession.addTransferRanges.
             // Persistent memtables will not flush, make an sstable with their data.
             cfs.writeAndAddMemtableRanges(session.getPendingRepair(), () -> Range.normalize(keyRanges), refs);
 

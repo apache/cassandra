@@ -39,15 +39,15 @@ public interface UnfilteredSource
      * @param reversed true if the content should be returned in reverse order
      * @param listener a listener used to handle internal read events
      */
-    UnfilteredRowIterator iterator(DecoratedKey key,
-                                   Slices slices,
-                                   ColumnFilter columnFilter,
-                                   boolean reversed,
-                                   SSTableReadsListener listener);
+    UnfilteredRowIterator rowIterator(DecoratedKey key,
+                                      Slices slices,
+                                      ColumnFilter columnFilter,
+                                      boolean reversed,
+                                      SSTableReadsListener listener);
 
-    default UnfilteredRowIterator iterator(DecoratedKey key)
+    default UnfilteredRowIterator rowIterator(DecoratedKey key)
     {
-        return iterator(key, Slices.ALL, ColumnFilter.NONE, false, SSTableReadsListener.NOOP_LISTENER);
+        return rowIterator(key, Slices.ALL, ColumnFilter.NONE, false, SSTableReadsListener.NOOP_LISTENER);
     }
 
     /**

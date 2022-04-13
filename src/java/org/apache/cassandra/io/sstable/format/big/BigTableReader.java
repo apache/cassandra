@@ -57,18 +57,18 @@ public class BigTableReader extends SSTableReader
         super(builder);
     }
 
-    public UnfilteredRowIterator iterator(DecoratedKey key,
-                                          Slices slices,
-                                          ColumnFilter selectedColumns,
-                                          boolean reversed,
-                                          SSTableReadsListener listener)
+    public UnfilteredRowIterator rowIterator(DecoratedKey key,
+                                             Slices slices,
+                                             ColumnFilter selectedColumns,
+                                             boolean reversed,
+                                             SSTableReadsListener listener)
     {
         RowIndexEntry rie = getPosition(key, SSTableReader.Operator.EQ, listener);
-        return iterator(null, key, rie, slices, selectedColumns, reversed);
+        return rowIterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
     @SuppressWarnings("resource")
-    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
+    public UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
     {
         if (indexEntry == null)
             return UnfilteredRowIterators.noRowsIterator(metadata(), key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, reversed);
