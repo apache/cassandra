@@ -20,17 +20,21 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
+import accord.api.Key;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Listener;
+import accord.local.TxnOperation;
 import accord.txn.TxnId;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 
 public abstract class ListenerProxy implements Listener, Comparable<ListenerProxy>
@@ -51,6 +55,31 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
     public int compareTo(ListenerProxy that)
     {
         return kind().compareTo(that.kind());
+    }
+
+    protected abstract boolean subjectIsInContext(AsyncContext context);
+    protected abstract void onChangeInternal(Command command);
+    protected abstract TxnOperation scopeForCommand(Command command);
+
+    @Override
+    public void onChange(Command c)
+    {
+        AccordCommand command = (AccordCommand) c;
+        AccordCommandStore commandStore = command.commandStore();
+        AsyncContext context = commandStore.getContext();
+        if (subjectIsInContext(context))
+        {
+            onChangeInternal(command);
+        }
+        else
+        {
+            TxnId callingTxnId = command.txnId();
+            commandStore.process(scopeForCommand(command), instance -> {
+                Command caller = instance.command(callingTxnId);
+                onChangeInternal(caller);
+            });
+
+        }
     }
 
     static class CommandListenerProxy extends ListenerProxy
@@ -113,9 +142,41 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        public void onChange(Command command)
+        protected boolean subjectIsInContext(AsyncContext context)
+        {
+            return context.command(txnId) != null;
+        }
+
+        @Override
+        protected void onChangeInternal(Command command)
         {
             commandStore.command(txnId).onChange(command);
+        }
+
+        @Override
+        protected TxnOperation scopeForCommand(Command command)
+        {
+            TxnId caller = command.txnId();
+            return new TxnOperation()
+            {
+                @Override
+                public TxnId txnId()
+                {
+                    return caller;
+                }
+
+                @Override
+                public Iterable<TxnId> depsIds()
+                {
+                    return Collections.singleton(txnId);
+                }
+
+                @Override
+                public Iterable<Key> keys()
+                {
+                    return Collections.emptyList();
+                }
+            };
         }
     }
 
@@ -179,9 +240,35 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        public void onChange(Command command)
+        protected boolean subjectIsInContext(AsyncContext context)
+        {
+            return context.commandsForKey(key) != null;
+        }
+
+        @Override
+        protected void onChangeInternal(Command command)
         {
             commandStore.commandsForKey(key).onChange(command);
+        }
+
+        @Override
+        protected TxnOperation scopeForCommand(Command command)
+        {
+            TxnId caller = command.txnId();
+            return new TxnOperation()
+            {
+                @Override
+                public TxnId txnId()
+                {
+                    return caller;
+                }
+
+                @Override
+                public Iterable<Key> keys()
+                {
+                    return Collections.singleton(key);
+                }
+            };
         }
     }
 
