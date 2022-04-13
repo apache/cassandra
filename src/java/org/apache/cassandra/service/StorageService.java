@@ -810,7 +810,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             public void runMayThrow() throws InterruptedException, ExecutionException, IOException
             {
                 drain(true);
-                LoggingSupportFactory.getLoggingSupport().onShutdown();
+                try
+                {
+                    ExecutorUtils.shutdownNowAndWait(1, MINUTES, ScheduledExecutors.scheduledFastTasks);
+                }
+                catch (Throwable t)
+                {
+                    logger.warn("Unable to terminate fast tasks within 1 minute.", t);
+                }
+                finally
+                {
+                    LoggingSupportFactory.getLoggingSupport().onShutdown();
+                }
             }
         }, "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
@@ -5291,7 +5302,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             try
             {
-                ScheduledExecutors.shutdownNowAndWait(1, MINUTES);
+                // we are not shutting down ScheduledExecutors#scheduledFastTasks to be still able to progress time
+                // fast-tasks executor is shut down in StorageService's shutdown hook added to Runtime
+                ExecutorUtils.shutdownNowAndWait(1, MINUTES,
+                                                 ScheduledExecutors.nonPeriodicTasks,
+                                                 ScheduledExecutors.scheduledTasks,
+                                                 ScheduledExecutors.optionalTasks);
             }
             finally
             {

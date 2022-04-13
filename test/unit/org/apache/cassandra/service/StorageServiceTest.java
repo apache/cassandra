@@ -18,41 +18,41 @@
 
 package org.apache.cassandra.service;
 
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.ReplicaCollection;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.Assert.assertEquals;
+import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class StorageServiceTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(StorageServiceTest.class);
-
     static InetAddressAndPort aAddress;
     static InetAddressAndPort bAddress;
     static InetAddressAndPort cAddress;
@@ -175,11 +175,11 @@ public class StorageServiceTest
     {
         final AtomicInteger numberOfRuns = new AtomicInteger(0);
 
-        ScheduledFuture<?> f = ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> numberOfRuns.incrementAndGet(),
-                                                                                 0, 1, MILLISECONDS);
+        ScheduledFuture<?> f = ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(numberOfRuns::incrementAndGet,
+                                                                                     0, 1, SECONDS);
 
         // Prove the task was scheduled more than once before checking cancelled.
-        Awaitility.await("first run").atMost(1, TimeUnit.MINUTES).until(() -> numberOfRuns.get() > 1);
+        await("first run").atMost(1, MINUTES).until(() -> numberOfRuns.get() > 1);
 
         assertFalse(f.isCancelled());
         StorageService.instance.drain();
@@ -187,7 +187,9 @@ public class StorageServiceTest
 
         assertTrue(ScheduledExecutors.scheduledTasks.isTerminated());
         assertTrue(ScheduledExecutors.nonPeriodicTasks.isTerminated());
-        assertTrue(ScheduledExecutors.scheduledFastTasks.isTerminated());
         assertTrue(ScheduledExecutors.optionalTasks.isTerminated());
+
+        // fast tasks are shut down as part of the Runtime shutdown hook.
+        assertFalse(ScheduledExecutors.scheduledFastTasks.isTerminated());
     }
 }
