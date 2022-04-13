@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 4.0.4
  * Clean up schema migration coordinator and tests (CASSANDRA-17533)
  * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)
@@ -18,11 +17,8 @@
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
  * Validate existence of DCs when repairing (CASSANDRA-17407)
 Merged from 3.0:
-=======
-3.0.27
  * Add procps dependency to RPM/Debian packages (CASSANDRA-17516)
  * Suppress CVE-2021-44521 (CASSANDRA-17492)
->>>>>>> 6bdfe13283 (Add procps Debian dependency)
  * ConnectionLimitHandler may leaks connection count if remote connection drops (CASSANDRA-17252)
  * Require ant >= 1.10 (CASSANDRA-17428)
  * Disallow CONTAINS for UPDATE and DELETE (CASSANDRA-15266)
