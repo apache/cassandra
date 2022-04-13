@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -106,6 +107,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         {
             int nodeCount = StorageService.instance.getHostIdToEndpoint().size();
             // nodeCount==0 on many tests
+            Guardrails.MaximumKeyspaceRF.guard(rf.fullReplicas, "maximum replication factor", null);
             if (rf.fullReplicas > nodeCount && nodeCount != 0)
             {
                 String msg = "Your replication factor " + rf.fullReplicas

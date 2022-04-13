@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.Map.Entry;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -338,6 +340,8 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
                 String dc = e.getKey();
                 ReplicationFactor rf = getReplicationFactor(dc);
+                Guardrails.MaximumKeyspaceRF.guard(rf.fullReplicas, "maximum replication factor", null);
+
                 int nodeCount = dcsNodes.get(dc).size();
                 // nodeCount==0 on many tests
                 if (rf.fullReplicas > nodeCount && nodeCount != 0)

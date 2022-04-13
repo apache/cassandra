@@ -417,8 +417,6 @@ public abstract class AbstractReplicationStrategy
         {
             ReplicationFactor rf = ReplicationFactor.fromString(s);
 
-            Guardrails.MaximumKeyspaceRF.guard(rf.fullReplicas, "maximum replication factor", null);
-
             if (rf.fullReplicas < DatabaseDescriptor.getMinimumKeyspaceRF())
             {
                 throw new ConfigurationException(String.format("Replication factor cannot be less than minimum_keyspace_rf (%d), found %d", DatabaseDescriptor.getMinimumKeyspaceRF(), rf.fullReplicas));
