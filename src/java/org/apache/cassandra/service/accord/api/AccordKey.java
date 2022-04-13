@@ -228,7 +228,7 @@ public interface AccordKey extends Key<AccordKey>
                 ByteBuffer bytes = key.partitionKey().getKey();
                 int numBytes = ByteBufferAccessor.instance.size(bytes);
                 Preconditions.checkState(numBytes <= Short.MAX_VALUE);
-                position += accessor.putShort(dst, offset, (short) numBytes);
+                position += accessor.putShort(dst, position, (short) numBytes);
                 position += accessor.copyByteBufferTo(bytes, 0, dst, position, numBytes);
                 return position - offset;
 

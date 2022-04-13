@@ -35,7 +35,7 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 
 public abstract class ListenerProxy implements Listener, Comparable<ListenerProxy>
 {
-    public enum Kind {COMMAND, COMMANDs_FOR_KEY}
+    public enum Kind {COMMAND, COMMANDS_FOR_KEY}
 
     public abstract Kind kind();
     public abstract ByteBuffer identifier();
@@ -166,13 +166,13 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         @Override
         public Kind kind()
         {
-            return Kind.COMMANDs_FOR_KEY;
+            return Kind.COMMANDS_FOR_KEY;
         }
 
         @Override
         public ByteBuffer identifier()
         {
-            ByteBuffer bytes = ByteBuffer.allocate(1 + CommandSerializers.txnId.serializedSize());
+            ByteBuffer bytes = ByteBuffer.allocate((int) (1 + AccordKey.PartitionKey.serializer.serializedSize(key)));
             ByteBufferAccessor.instance.putByte(bytes, 0, (byte) kind().ordinal());
             AccordKey.PartitionKey.serializer.serialize(key, bytes, ByteBufferAccessor.instance, 1);
             return bytes;
@@ -195,7 +195,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             case COMMAND:
                 TxnId txnId = CommandSerializers.txnId.deserialize(src, accessor, offset);
                 return new CommandListenerProxy(commandStore, txnId);
-            case COMMANDs_FOR_KEY:
+            case COMMANDS_FOR_KEY:
                 AccordKey.PartitionKey key = AccordKey.PartitionKey.serializer.deserialize(src, accessor, offset);
                 return new CommandsForKeyListenerProxy(commandStore, key);
             default:

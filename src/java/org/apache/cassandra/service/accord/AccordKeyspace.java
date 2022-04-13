@@ -271,7 +271,7 @@ public class AccordKeyspace
 
     private static <T> T deserialize(ByteBuffer bytes, IVersionedSerializer<T> serializer, int version) throws IOException
     {
-        try (DataInputBuffer in = new DataInputBuffer(bytes, false))
+        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
             return serializer.deserialize(in, version);
         }
@@ -400,7 +400,6 @@ public class AccordKeyspace
         if (command.status.hasModifications())
             builder.addCell(live(CommandsColumns.status, timestampMicros, accessor.valueOf(command.status.get().ordinal())));
 
-        // TODO: duplicate isWrite into commands for key
         if (command.txn.hasModifications())
         {
             builder.addCell(live(CommandsColumns.txn_version, timestampMicros, versionBytes));
