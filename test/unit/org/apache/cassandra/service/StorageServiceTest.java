@@ -173,22 +173,17 @@ public class StorageServiceTest
     @Test
     public void testScheduledExecutorsShutdownOnDrain() throws Throwable
     {
-        final AtomicReference<Integer> numberOfRuns = new AtomicReference<>(0);
+        final AtomicInteger numberOfRuns = new AtomicInteger(0);
 
-        ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> numberOfRuns.updateAndGet(i -> i + 1),
-                                                              0, 20, SECONDS);
+        ScheduledFuture<?> f = ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> numberOfRuns.incrementAndGet(),
+                                                                                 0, 1, MILLISECONDS);
 
-        // we expect three runs, at time 0s, 20s and 40s
-        logger.info("Sleeping for 45 seconds to verify scheduled executor was shut down.");
-        Thread.sleep(45_000);
+        // Prove the task was scheduled more than once before checking cancelled.
+        Awaitility.await("first run").atMost(1, TimeUnit.MINUTES).until(() -> numberOfRuns.get() > 1);
 
+        assertFalse(f.isCancelled());
         StorageService.instance.drain();
-
-        // wait another 20s, by that time, if the draining does not work
-        // we would see 4th counter run which would fail the test
-        Thread.sleep(20_000);
-
-        assertEquals(3, numberOfRuns.get().intValue());
+        assertTrue(f.isCancelled());
 
         assertTrue(ScheduledExecutors.scheduledTasks.isTerminated());
         assertTrue(ScheduledExecutors.nonPeriodicTasks.isTerminated());
