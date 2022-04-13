@@ -384,7 +384,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['>=', '!=', '<=', 'IN', '[', ';', '=', '<', '>', '.', 'CONTAINS'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF lonelykey ",
-                            choices=['>=', '!=', '<=', 'IN', '[', ';', '=', '<', '>', '.', 'CONTAINS'])
+                            choices=['>=', '!=', '<=', 'IN', '=', '<', '>', 'CONTAINS'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF lonelykey CONTAINS ",
                             choices=['false', 'true', '<pgStringLiteral>',
