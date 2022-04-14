@@ -34,6 +34,7 @@ public class AccordStateCacheTest
         long size = DEFAULT_ITEM_SIZE;
 
         final Integer key;
+        boolean modified = false;
 
         public Item(Integer key)
         {
@@ -57,6 +58,18 @@ public class AccordStateCacheTest
         public Integer key()
         {
             return key;
+        }
+
+        @Override
+        public boolean hasModifications()
+        {
+            return modified;
+        }
+
+        @Override
+        public void clearModifiedFlag()
+        {
+            modified = false;
         }
     }
 
@@ -85,6 +98,7 @@ public class AccordStateCacheTest
         Assert.assertNull(cache.tail);
 
         item1.size = 110;
+        item1.modified = true;
         instance.release(item1);
         assertCacheState(cache, 0, 1, nodeSize(110));
         Assert.assertSame(item1, cache.tail.value);

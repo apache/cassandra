@@ -142,12 +142,22 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         return this;
     }
 
+    @Override
     public boolean hasModifications()
     {
         return maxTimestamp.hasModifications()
                || uncommitted.map.hasModifications()
                || committedById.map.hasModifications()
                || committedByExecuteAt.map.hasModifications();
+    }
+
+    @Override
+    public void clearModifiedFlag()
+    {
+        maxTimestamp.clearModifiedFlag();
+        uncommitted.map.clearModifiedFlag();
+        committedById.map.clearModifiedFlag();
+        committedByExecuteAt.map.clearModifiedFlag();
     }
 
     public boolean isLoaded()

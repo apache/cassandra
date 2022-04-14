@@ -50,6 +50,8 @@ public class AccordStateCache
     {
         Node<K, V> createNode();
         K key();
+        boolean hasModifications();
+        void clearModifiedFlag();
     }
 
     static abstract class Node<K, V extends AccordStateCache.AccordState<K, V>>
@@ -62,9 +64,9 @@ public class AccordStateCache
             {
                 return new Node<>(this) { @Override long sizeInBytes(MeasurableState value) { return 0; } };
             }
-            @Override
-            public Object key() { return null; }
-        }
+            @Override public Object key() { return null; }
+            @Override public boolean hasModifications() { return false; }
+            @Override public void clearModifiedFlag() { } }
         static final long EMPTY_SIZE = ObjectSizes.measure(new MeasurableState().createNode());
 
         final V value;
@@ -265,7 +267,11 @@ public class AccordStateCache
             push(node);
         }
 
-        updateSize(node);
+        if (value.hasModifications())
+        {
+            value.clearModifiedFlag();
+            updateSize(node);
+        }
         maybeEvict();
     }
 

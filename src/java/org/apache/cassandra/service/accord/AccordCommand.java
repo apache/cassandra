@@ -87,21 +87,6 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         return this;
     }
 
-    public boolean hasModifications()
-    {
-        return txn.hasModifications()
-               || promised.hasModifications()
-               || accepted.hasModifications()
-               || executeAt.hasModifications()
-               || deps.hasModifications()
-               || writes.hasModifications()
-               || result.hasModifications()
-               || status.hasModifications()
-               || waitingOnCommit.hasModifications()
-               || waitingOnApply.hasModifications()
-               || storedListeners.hasModifications();
-    }
-
     public boolean isLoaded()
     {
         return txn.isLoaded()
@@ -117,7 +102,24 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
                && storedListeners.isLoaded();
     }
 
-    private void resetModificationFlag()
+    @Override
+    public boolean hasModifications()
+    {
+        return txn.hasModifications()
+               || promised.hasModifications()
+               || accepted.hasModifications()
+               || executeAt.hasModifications()
+               || deps.hasModifications()
+               || writes.hasModifications()
+               || result.hasModifications()
+               || status.hasModifications()
+               || waitingOnCommit.hasModifications()
+               || waitingOnApply.hasModifications()
+               || storedListeners.hasModifications();
+    }
+
+    @Override
+    public void clearModifiedFlag()
     {
         txn.clearModifiedFlag();
         promised.clearModifiedFlag();
