@@ -22,6 +22,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.service.accord.AccordStateCache.Node;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 public class AccordStateCacheTest
 {
@@ -218,5 +219,33 @@ public class AccordStateCacheTest
         assertCacheState(cache, 1, 0, DEFAULT_NODE_SIZE);
         instance.release(item);
         assertCacheState(cache, 0, 1, DEFAULT_NODE_SIZE);
+    }
+
+    @Test
+    public void evictionBlockedOnSaveFuture()
+    {
+        AccordStateCache cache = new AccordStateCache(DEFAULT_NODE_SIZE * 4);
+        AccordStateCache.Instance<Integer, Item> instance = cache.instance(Integer.class, Item.class, Item::new);
+        assertCacheState(cache, 0, 0, 0);
+
+        Item[] items = new Item[4];
+        for (int i=0; i<4; i++)
+        {
+            Item item = instance.getOrCreate(i);
+            items[i] = item;
+            instance.release(item);
+        }
+
+        assertCacheState(cache, 0, 4, DEFAULT_NODE_SIZE * 4);
+
+        AsyncPromise<Void> saveFuture = new AsyncPromise<>();
+        instance.setSaveFuture(0, saveFuture);
+        cache.maxSizeInBytes(0);
+
+        // all should have been evicted except 0
+        assertCacheState(cache, 0, 1, DEFAULT_NODE_SIZE);
+
+
+
     }
 }

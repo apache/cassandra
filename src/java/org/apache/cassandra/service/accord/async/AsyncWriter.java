@@ -65,6 +65,7 @@ public class AsyncWriter
             if (futures == null) futures = new ArrayList<>();
             Mutation mutation = AccordKeyspace.getCommandMutation(command);
             Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
+            commandStore.commandCache().setSaveFuture(command.txnId(), future);
             futures.add(future);
         }
 
@@ -75,6 +76,7 @@ public class AsyncWriter
             if (futures == null) futures = new ArrayList<>();
             Mutation mutation = AccordKeyspace.getCommandsForKeyMutation(commandsForKey);
             Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
+            commandStore.commandsForKeyCache().setSaveFuture(commandsForKey.key(), future);
             futures.add(future);
         }
 

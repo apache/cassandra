@@ -33,16 +33,10 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 
 /**
- * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between them
+ * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
  *
- * Supports dynamic object sizes
- *  after each acquire/free cycle, the cacheable objects size is recomputed to account for data added/removed during
- *      txn processing
- *
- * Nice to have
- *  cached objects could be asked to reduce their size (unload things unlikely to be used) instead of
- *      immediately evicting
- *  track cache hits, misses, and key contention
+ * Supports dynamic object sizes. After each acquire/free cycle, the cacheable objects size is recomputed to
+ * account for data added/removed during txn processing if it's modified flag is set
  */
 public class AccordStateCache
 {
@@ -101,19 +95,28 @@ public class AccordStateCache
         }
     }
 
+    static class Stats
+    {
+        private long queries;
+        private long hits;
+        private long misses;
+    }
+
     public final Map<Object, Node<?, ?>> active = new HashMap<>();
     private final Map<Object, Node<?, ?>> cache = new HashMap<>();
     private final Set<Instance<?, ?>> instances = new HashSet<>();
 
     private final Map<Object, Future<?>> loadFutures = new HashMap<>();
+    private final Map<Object, Future<?>> saveFutures = new HashMap<>();
+
     private final Map<Object, Read.ReadFuture> readFutures = new HashMap<>();
     private final Map<Object, Future<?>> writeFutures = new HashMap<>();
-    // TODO: add guards to prevent command changes during command execution/apply
 
     Node<?, ?> head;
     Node<?, ?> tail;
     private long maxSizeInBytes;
     private long bytesCached = 0;
+    private final Stats stats = new Stats();
 
     public AccordStateCache(long maxSizeInBytes)
     {
@@ -171,32 +174,6 @@ public class AccordStateCache
         }
     }
 
-    private Node<?, ?> pop()
-    {
-        if (tail == null)
-            return null;
-
-        Node<?, ?> node = tail;
-        if (node == head)
-        {
-            Preconditions.checkState(node.prev == null);
-            head = null;
-            tail = null;
-        }
-        else
-        {
-            Preconditions.checkState(node.prev != null);
-            tail = node.prev;
-        }
-
-        if (cache.remove(node.key()) == null)
-            throw new IllegalStateException("Popped node was not in cache");
-
-        node.prev = null;
-        node.next = null;
-        return node;
-    }
-
     private void updateSize(Node<?, ?> node)
     {
         bytesCached += node.sizeDelta();
@@ -207,26 +184,36 @@ public class AccordStateCache
         if (bytesCached <= maxSizeInBytes)
             return;
 
-        while (bytesCached > maxSizeInBytes)
+        Node<?, ?> current = tail;
+        while (current != null && bytesCached > maxSizeInBytes)
         {
-            Node<?, ?> node = pop();
-            if (node == null)
-                return;
+            // don't evict if there's an outstanding save future. If an item is evicted then reloaded
+            // before it's mutation is applied, out of date info will be loaded
+            Future<?> future = getFutureInternal(saveFutures, current.key());
+            if (future != null && !future.isDone())
+            {
+                current = current.prev;
+                continue;
+            }
+            Node<?, ?> evict = current;
+            current = current.prev;
 
-            bytesCached -= node.size();
+            unlink(evict);
+            cache.remove(evict.key());
+            bytesCached -= evict.size();
         }
     }
 
-    /**
-     * Should we block and load, or return uninitialized objects to support blind writes?
-     * @param key
-     * @return
-     */
-    private <K, V extends AccordStateCache.AccordState<K, V>> V getOrCreateInternal(K key, Function<K, V> factory)
+    private <K, V extends AccordStateCache.AccordState<K, V>> V getOrCreateInternal(K key, Function<K, V> factory, Stats instanceStats)
     {
+        stats.queries++;
+        instanceStats.queries++;
+
         Node<K, V> node = (Node<K, V>) active.get(key);
         if (node != null)
         {
+            stats.hits++;
+            instanceStats.hits++;
             node.references++;
             return node.value;
         }
@@ -235,12 +222,16 @@ public class AccordStateCache
 
         if (node == null)
         {
+            stats.misses++;
+            instanceStats.misses++;
             V value = factory.apply(key);
             node = value.createNode();
             updateSize(node);
         }
         else
         {
+            stats.hits++;
+            instanceStats.hits++;
             unlink(node);
         }
 
@@ -298,6 +289,7 @@ public class AccordStateCache
     {
         // will clear if it's done
         getFutureInternal(loadFutures, key);
+        getFutureInternal(saveFutures, key);
         getFutureInternal(readFutures, key);
         getFutureInternal(writeFutures, key);
     }
@@ -307,6 +299,7 @@ public class AccordStateCache
         private final Class<K> keyClass;
         private final Class<V> valClass;
         private final Function<K, V> factory;
+        private final Stats stats = new Stats();
 
         public Instance(Class<K> keyClass, Class<V> valClass, Function<K, V> factory)
         {
@@ -332,7 +325,7 @@ public class AccordStateCache
 
         public V getOrCreate(K key)
         {
-            return getOrCreateInternal(key, factory);
+            return getOrCreateInternal(key, factory, stats);
         }
 
         public void release(V value)
@@ -348,6 +341,16 @@ public class AccordStateCache
         public void setLoadFuture(K key, Future<?> future)
         {
             setFutureInternal(loadFutures, key, future);
+        }
+
+        public Future<?> getSaveFuture(K key)
+        {
+            return getFutureInternal(saveFutures, key);
+        }
+
+        public void setSaveFuture(K key, Future<?> future)
+        {
+            setFutureInternal(saveFutures, key, future);
         }
 
         public Read.ReadFuture getReadFuture(K key)
@@ -376,6 +379,20 @@ public class AccordStateCache
             getWriteFuture(key);
         }
 
+        public long cacheQueries()
+        {
+            return stats.queries;
+        }
+
+        public long cacheHits()
+        {
+            return stats.hits;
+        }
+
+        public long cacheMisses()
+        {
+            return stats.misses;
+        }
     }
 
     public <K, V extends AccordStateCache.AccordState<K, V>> Instance<K, V> instance(Class<K> keyClass,
@@ -424,5 +441,20 @@ public class AccordStateCache
     {
         Node<?, ?> node = active.get(key);
         return node != null ? node.references : 0;
+    }
+
+    public long cacheQueries()
+    {
+        return stats.queries;
+    }
+
+    public long cacheHits()
+    {
+        return stats.hits;
+    }
+
+    public long cacheMisses()
+    {
+        return stats.misses;
     }
 }
