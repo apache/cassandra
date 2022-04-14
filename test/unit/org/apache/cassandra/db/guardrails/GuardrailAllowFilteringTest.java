@@ -22,6 +22,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
+
 public class GuardrailAllowFilteringTest extends GuardrailTester
 {
     private boolean enableState;
@@ -57,11 +60,10 @@ public class GuardrailAllowFilteringTest extends GuardrailTester
     }
 
     @Test
-    public void testAllowFilteringDisabedNotUsed()
+    public void testAllowFilteringDisabedNotUsed() throws Throwable
     {
         setGuardrail(false);
-        execute("INSERT INTO %s (k, a, b) VALUES (1, 1, 1)");
-        assertAllRows(row(1, 1, 1));
+        assertValid("INSERT INTO %s (k, a, b) VALUES (1, 1, 1)");
     }
 
     @Test
@@ -77,5 +79,15 @@ public class GuardrailAllowFilteringTest extends GuardrailTester
     {
         setGuardrail(false);
         testExcludedUsers(() -> "SELECT * FROM %s WHERE a = 5 ALLOW FILTERING");
+    }
+
+    @Test
+    public void testSystemTable() throws Throwable
+    {
+        setGuardrail(false);
+        assertValid(String.format("SELECT * FROM %s.%s WHERE table_name = '%s' ALLOW FILTERING",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES,
+                                  currentTable()));
     }
 }
