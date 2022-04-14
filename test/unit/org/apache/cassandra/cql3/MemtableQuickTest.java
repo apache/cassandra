@@ -27,12 +27,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 
 @RunWith(Parameterized.class)
 public class MemtableQuickTest extends CQLTester
 {
+    static final Logger logger = LoggerFactory.getLogger(MemtableQuickTest.class);
+
     static final int partitions = 50_000;
     static final int rowsPerPartition = 4;
 
@@ -57,7 +62,7 @@ public class MemtableQuickTest extends CQLTester
         CQLTester.setUpClass();
         CQLTester.prepareServer();
         CQLTester.disablePreparedReuseForTest();
-        System.out.println("setupClass done.");
+        logger.info("setupClass done.");
     }
 
     @Test
@@ -78,28 +83,28 @@ public class MemtableQuickTest extends CQLTester
 
         long i;
         long limit = partitions;
-        System.out.println("Writing " + partitions + " partitions of " + rowsPerPartition + " rows");
+        logger.info("Writing {} partitions of {} rows", partitions, rowsPerPartition);
         for (i = 0; i < limit; ++i)
         {
             for (long j = 0; j < rowsPerPartition; ++j)
                 execute(writeStatement, i, j, i + j);
         }
 
-        System.out.println("Deleting partitions between " + deletedPartitionsStart + " and " + deletedPartitionsEnd);
+        logger.info("Deleting partitions between {} and {}", deletedPartitionsStart, deletedPartitionsEnd);
         for (i = deletedPartitionsStart; i < deletedPartitionsEnd; ++i)
         {
             // no partition exists, but we will create a tombstone
             execute("DELETE FROM " + table + " WHERE userid = ?", i);
         }
 
-        System.out.println("Deleting rows between " + deletedRowsStart + " and " + deletedRowsEnd);
+        logger.info("Deleting rows between {} and {}", deletedRowsStart, deletedRowsEnd);
         for (i = deletedRowsStart; i < deletedRowsEnd; ++i)
         {
             // no row exists, but we will create a tombstone (and partition)
             execute("DELETE FROM " + table + " WHERE userid = ? AND picid = ?", i, 0L);
         }
 
-        System.out.println("Reading " + partitions + " partitions");
+        logger.info("Reading {} partitions", partitions);
         for (i = 0; i < limit; ++i)
         {
             UntypedResultSet result = execute("SELECT * FROM " + table + " WHERE userid = ?", i);
@@ -119,13 +124,13 @@ public class MemtableQuickTest extends CQLTester
 
         int deletedPartitions = deletedPartitionsEnd - deletedPartitionsStart;
         int deletedRows = deletedRowsEnd - deletedRowsStart;
-        System.out.println("Selecting *");
+        logger.info("Selecting *");
         UntypedResultSet result = execute("SELECT * FROM " + table);
         assertRowCount(result, rowsPerPartition * (partitions - deletedPartitions) - deletedRows);
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
-        System.out.println("Selecting *");
+        logger.info("Selecting *");
         result = execute("SELECT * FROM " + table);
         assertRowCount(result, rowsPerPartition * (partitions - deletedPartitions) - deletedRows);
     }
