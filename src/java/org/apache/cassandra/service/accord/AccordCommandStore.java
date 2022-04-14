@@ -152,6 +152,8 @@ public class AccordCommandStore extends CommandStore
     {
         Preconditions.checkState(currentCtx != null);
         AccordCommand command = currentCtx.command(txnId);
+        if (command == null)
+            command = currentCtx.summary(txnId);
         Preconditions.checkArgument(command != null);
         return command;
     }

@@ -30,6 +30,7 @@ import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 public class AsyncContext
 {
     final Map<TxnId, AccordCommand> commands = new HashMap<>();
+    final Map<TxnId, AccordCommand> summaries = new HashMap<>();
     final Map<PartitionKey, AccordCommandsForKey> keyCommands = new HashMap<>();
 
     public AccordCommand command(TxnId txnId)
@@ -40,6 +41,16 @@ public class AsyncContext
     public void addCommand(AccordCommand command)
     {
         commands.put(command.txnId(), command);
+    }
+
+    public AccordCommand summary(TxnId txnId)
+    {
+        return summaries.get(txnId);
+    }
+
+    public void addSummary(AccordCommand command)
+    {
+        summaries.put(command.txnId(), command);
     }
 
     public AccordCommandsForKey commandsForKey(PartitionKey key)

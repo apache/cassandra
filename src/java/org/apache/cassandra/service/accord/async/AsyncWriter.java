@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.service.accord.AccordCommand;
@@ -90,6 +92,9 @@ public class AsyncWriter
                 case INITIALIZED:
                     state = State.DISPATCHING;
                 case DISPATCHING:
+                    for (AccordCommand summary : context.summaries.values())
+                        Preconditions.checkState(!summary.hasModifications(),
+                                                 "Summaries cannot be modified");
                     if (writeFuture == null)
                         writeFuture = maybeDispatchWrites(context);
 

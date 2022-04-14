@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -29,6 +30,7 @@ import org.junit.Test;
 
 import accord.api.Key;
 import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.CommandsForKey;
 import accord.local.Node;
 import accord.local.Status;
@@ -194,5 +196,29 @@ public class AccordCommandTest
             Assert.assertNotNull(cfk.committedById().get(txnId));
             Assert.assertNotNull(cfk.committedByExecuteAt().get(commit.executeAt));
         }).get();
+    }
+
+    @Test
+    public void computeDeps() throws Throwable
+    {
+        AtomicLong clock = new AtomicLong(0);
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+        commandStore.processSetup(instance -> { ((AccordCommandStore) instance).setCacheSize(0); });
+
+        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
+        Txn txn = createTxn(2);
+        PreAccept preAccept1 = new PreAccept(null, txnId1, txn);
+
+        commandStore.process(preAccept1, (Consumer<CommandStore>) preAccept1::process).get();
+
+        // second preaccept should identify txnId1 as a dependency
+        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
+        PreAccept preAccept2 = new PreAccept(null, txnId2, txn);
+        commandStore.process(preAccept2, instance -> {
+            PreAccept.PreAcceptReply reply = preAccept2.process(instance);
+            Assert.assertTrue(reply.isOK());
+            PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
+            Assert.assertTrue(ok.deps.contains(txnId1));
+        });
     }
 }

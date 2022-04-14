@@ -61,6 +61,7 @@ public class AsyncLoader
     public AsyncLoader(AccordCommandStore commandStore, TxnId txnId, Iterable<TxnId> depsIds, Iterable<PartitionKey> keys)
     {
         this.commandStore = commandStore;
+        // TODO: consider duplicating status/executeAt into commandsOnKey to avoid loading all deps for commit/apply
         this.commandsToLoad = Iterables.concat(txnId != null ? Collections.singleton(txnId) : Collections.emptyList(), depsIds);
         this.keyCommandsToLoad = keys;
     }
