@@ -239,7 +239,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         REPAIR,
         SCHEMA_CHANGE,
         OWNED_RANGES_CHANGE,
-        UNIT_TESTS; // explicitly requested flush needed for a test
+        UNIT_TESTS // explicitly requested flush needed for a test
     }
 
     private static final String[] COUNTER_NAMES = new String[]{"table", "count", "error", "value"};
@@ -1382,6 +1382,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
+    @Override
     public Future<CommitLogPosition> signalFlushRequired(Memtable memtable, FlushReason reason)
     {
         return switchMemtableIfCurrent(memtable, reason);
@@ -1399,6 +1400,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                    cfs -> cfs.getTracker().getView().getCurrentMemtable());
     }
 
+    @Override
     public Iterable<Memtable> getIndexMemtables()
     {
         return Iterables.transform(indexManager.getAllIndexColumnFamilyStores(),
@@ -1443,6 +1445,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
+    @Override
     public ShardBoundaries localRangeSplits(int shardCount)
     {
         if (shardCount == 1 || !getPartitioner().splitter().isPresent() || SchemaConstants.isLocalSystemKeyspace(keyspace.getName()))
@@ -1475,7 +1478,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             shardBoundaries = new ShardBoundaries(boundaries.subList(0, boundaries.size() - 1),
                                                   versionedLocalRanges.ringVersion);
             cachedShardBoundaries = shardBoundaries;
-            logger.info("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), boundaries);
+            logger.debug("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), boundaries);
         }
         return shardBoundaries;
     }
@@ -2591,8 +2594,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         final CommitLogPosition replayAfter;
 
         if (!noSnapshot &&
-               (keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
-               || DatabaseDescriptor.isAutoSnapshot()) // need sstable for snapshot
+               ((keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
+               || DatabaseDescriptor.isAutoSnapshot())) // need sstable for snapshot
         {
             replayAfter = forceBlockingFlush(FlushReason.TRUNCATE);
             viewManager.forceBlockingFlush(FlushReason.TRUNCATE);
@@ -2648,7 +2651,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     /**
-     * Drops current memtable without flushing to disk. This should only be called when truncating a column family which is not durable.
+     * Drops current memtable without flushing to disk. This should only be called when truncating a column family
+     * that cannot have dirty intervals in the commit log (i.e. one which is not durable, or where the memtable itself
+     * performs durable writes).
      */
     public Future<CommitLogPosition> dumpMemtable(FlushReason reason)
     {

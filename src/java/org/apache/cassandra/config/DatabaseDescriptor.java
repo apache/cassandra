@@ -3328,7 +3328,7 @@ public class DatabaseDescriptor
 
     public static Map<String, InheritingClass> getMemtableConfigurations()
     {
-        if (conf == null)
+        if (conf == null || conf.memtable == null)
             return null;
         return conf.memtable.configurations;
     }

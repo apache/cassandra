@@ -32,7 +32,7 @@ import org.apache.cassandra.dht.Token;
  * In practice, each keyspace has its associated boundaries, see {@link Keyspace}.
  * <p>
  * Technically, if we use {@code n} shards, this is a list of {@code n-1} tokens and each token {@code tk} gets assigned
- * to the core ID corresponding to the slot of the smallest token in the list that is greater to {@code tk}, or {@code n}
+ * to the shard ID corresponding to the slot of the smallest token in the list that is greater to {@code tk}, or {@code n}
  * if {@code tk} is bigger than any token in the list.
  */
 public class ShardBoundaries
