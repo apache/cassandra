@@ -30,6 +30,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.config.Config;
@@ -413,7 +414,7 @@ public class CompactionsCQLTest extends CQLTester
             {
                 execute("insert into %s (id, id2, t) values (?, ?, ?)", i, j, value);
             }
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
         assertEquals(50, cfs.getLiveSSTables().size());
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
@@ -430,7 +431,7 @@ public class CompactionsCQLTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
         execute("insert into %s (id, id2, t) values (?, ?, ?)", 1,1,"L1");
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         cfs.forceMajorCompaction();
         SSTableReader l1sstable = cfs.getLiveSSTables().iterator().next();
         assertEquals(1, l1sstable.getSSTableLevel());
@@ -444,7 +445,7 @@ public class CompactionsCQLTest extends CQLTester
             {
                 execute("insert into %s (id, id2, t) values (?, ?, ?)", i, j, value);
             }
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
         assertEquals(51, cfs.getLiveSSTables().size());
 

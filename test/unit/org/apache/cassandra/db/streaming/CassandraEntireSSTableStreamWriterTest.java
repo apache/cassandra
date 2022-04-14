@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Queue;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -102,7 +103,7 @@ public class CassandraEntireSSTableStreamWriterTest
             .build()
             .applyUnsafe();
         }
-        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(store);
         CompactionManager.instance.performMaximal(store, false);
 
         sstable = store.getLiveSSTables().iterator().next();

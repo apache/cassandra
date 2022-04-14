@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.io.IOException;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
@@ -269,7 +270,7 @@ public class TTLTest extends CQLTester
         // Maybe Flush
         Keyspace ks = Keyspace.open(keyspace());
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
 
         // Verify data
         verifyData(simple);

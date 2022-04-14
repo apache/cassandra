@@ -231,9 +231,9 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
                 .clustering("column")
                 .add("val", value).build().applyUnsafe();
 
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
 
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
 
@@ -267,9 +267,9 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
                 .clustering("column")
                 .add("val", value).build().applyUnsafe();
 
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
 
         Iterable<SSTableReader> filtered;
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
@@ -304,7 +304,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         SSTableReader expiredSSTable = cfs.getLiveSSTables().iterator().next();
         Thread.sleep(10);
 
@@ -313,7 +313,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         assertEquals(cfs.getLiveSSTables().size(), 2);
 
         Map<String, String> options = new HashMap<>();
@@ -357,7 +357,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
                     .clustering("column")
                     .add("val", bigValue).build().applyUnsafe();
             }
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
         // and small ones:
         for (int r = 0; r < numSSTables / 2; r++)
@@ -366,7 +366,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             new RowUpdateBuilder(cfs.metadata(), timestamp, key.getKey())
                 .clustering("column")
                 .add("val", value).build().applyUnsafe();
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
         Map<String, String> options = new HashMap<>();
         options.put(SizeTieredCompactionStrategyOptions.MIN_SSTABLE_SIZE_KEY, "1");

@@ -34,6 +34,7 @@ import harry.operations.Relation;
 import harry.operations.Query;
 import harry.operations.QueryGenerator;
 import harry.util.BitSet;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.AbstractMarker;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -113,7 +114,7 @@ public class SSTableGenerator
 
     public Collection<SSTableReader> flush()
     {
-        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(store);
         sstables.removeAll(store.getLiveSSTables());
 
         Set<SSTableReader> ret = new HashSet<>(sstables);

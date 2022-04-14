@@ -46,6 +46,7 @@ import javax.management.NotificationListener;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -513,7 +514,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void flush(String keyspace)
     {
-        FBUtilities.waitOnFutures(Keyspace.open(keyspace).flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+        Util.flushKeyspace(keyspace);
     }
 
     public void forceCompact(String keyspace, String table)

@@ -23,9 +23,9 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.utils.FBUtilities;
 
 /* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes
@@ -302,14 +302,14 @@ public class ViewFiltering2Test extends ViewAbstractParameterizedTest
         assertRows(executeView("SELECT d FROM %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0));
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
 
         //update c's timestamp TS=2
         executeNet("UPDATE %s USING TIMESTAMP 2 SET c = ? WHERE a = ? and b = ? ", 1, 0, 0);
         assertRows(executeView("SELECT d FROM %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0));
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
 
         //change c's value and TS=3, tombstones c=1 and adds c=0 record
         executeNet("UPDATE %s USING TIMESTAMP 3 SET c = ? WHERE a = ? and b = ? ", 0, 0, 0);
@@ -318,7 +318,7 @@ public class ViewFiltering2Test extends ViewAbstractParameterizedTest
         if (flush)
         {
             ks.getColumnFamilyStore(mv).forceMajorCompaction();
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
         }
 
         //change c's value back to 1 with TS=4, check we can see d
@@ -326,7 +326,7 @@ public class ViewFiltering2Test extends ViewAbstractParameterizedTest
         if (flush)
         {
             ks.getColumnFamilyStore(mv).forceMajorCompaction();
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
         }
 
         assertRows(executeView("SELECT d, e FROM %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0, null));
@@ -336,14 +336,14 @@ public class ViewFiltering2Test extends ViewAbstractParameterizedTest
         assertRows(executeView("SELECT d, e FROM %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0, 1));
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
 
         //Change d value @ TS=2
         executeNet("UPDATE %s USING TIMESTAMP 2 SET d = ? WHERE a = ? and b = ? ", 2, 0, 0);
         assertRows(executeView("SELECT d FROM %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(2));
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
 
         //Change d value @ TS=3
         executeNet("UPDATE %s USING TIMESTAMP 3 SET d = ? WHERE a = ? and b = ? ", 1, 0, 0);

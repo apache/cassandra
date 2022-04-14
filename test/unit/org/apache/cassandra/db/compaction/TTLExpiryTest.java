@@ -92,7 +92,7 @@ public class TTLExpiryTest
                     .add("col2", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                     .build()
                     .applyUnsafe();
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         new RowUpdateBuilder(cfs.metadata(), 2L, 1, key)
                     .add("col1", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                     .build()
@@ -103,7 +103,7 @@ public class TTLExpiryTest
                     .build()
                     .applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
 
         new RowUpdateBuilder(cfs.metadata(), 4L, 1, key)
                     .add("col1", ByteBufferUtil.EMPTY_BYTE_BUFFER)
@@ -115,7 +115,7 @@ public class TTLExpiryTest
                     .build()
                     .applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
 
 
         new RowUpdateBuilder(cfs.metadata(), 6L, 3, key)
@@ -128,7 +128,7 @@ public class TTLExpiryTest
                     .build()
                     .applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
 
         Set<SSTableReader> sstables = Sets.newHashSet(cfs.getLiveSSTables());
         int now = (int)(System.currentTimeMillis() / 1000);
@@ -171,7 +171,7 @@ public class TTLExpiryTest
                         .build()
                         .applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
 
         new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
             .add("col2", ByteBufferUtil.EMPTY_BYTE_BUFFER)
@@ -181,7 +181,7 @@ public class TTLExpiryTest
             .applyUnsafe();
 
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         // To reproduce #10944, we need to avoid the optimization that get rid of full sstable because everything
         // is known to be gcAble, so keep some data non-expiring in that case.
         new RowUpdateBuilder(cfs.metadata(), timestamp, force10944Bug ? 0 : 1, key)
@@ -190,14 +190,14 @@ public class TTLExpiryTest
                     .applyUnsafe();
 
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
                             .add("col311", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                             .build()
                             .applyUnsafe();
 
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         Thread.sleep(2000); // wait for ttl to expire
         assertEquals(4, cfs.getLiveSSTables().size());
         cfs.enableAutoCompaction(true);
@@ -219,24 +219,24 @@ public class TTLExpiryTest
             .build()
             .applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
             .add("col2", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
             .applyUnsafe();
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
             .add("col3", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
             .applyUnsafe();
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         String noTTLKey = "nottl";
         new RowUpdateBuilder(cfs.metadata(), timestamp, noTTLKey)
             .add("col311", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
             .applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         Thread.sleep(2000); // wait for ttl to expire
         assertEquals(4, cfs.getLiveSSTables().size());
         cfs.enableAutoCompaction(true);
@@ -268,7 +268,7 @@ public class TTLExpiryTest
                 .build()
                 .applyUnsafe();
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
         SSTableReader blockingSSTable = cfs.getSSTables(SSTableSet.LIVE).iterator().next();
         for (int i = 0; i < 10; i++)
         {
@@ -277,7 +277,7 @@ public class TTLExpiryTest
                             .delete("col1")
                             .build()
                             .applyUnsafe();
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
         Multimap<SSTableReader, SSTableReader> blockers = SSTableExpiredBlockers.checkForExpiredSSTableBlockers(cfs.getSSTables(SSTableSet.LIVE), (int) (System.currentTimeMillis() / 1000) + 100);
         assertEquals(1, blockers.keySet().size());

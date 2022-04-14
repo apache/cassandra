@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -131,7 +132,7 @@ public class PaxosUncommittedTrackerIntegrationTest
             Assert.assertEquals(key, Iterators.getOnlyElement(iterator).getKey());
         }
 
-        PAXOS_CFS.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(PAXOS_CFS);
 
         PaxosState.commitDirect(proposal.agreed());
         try (CloseableIterator<UncommittedPaxosKey> iterator = tracker.uncommittedKeyIterator(cfm.id, ALL_RANGES))

@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -109,7 +110,7 @@ public abstract class AbstractPendingAntiCompactionTest
             int val = i * rowsPerSSTable;  // multiplied to prevent ranges from overlapping
             for (int j = 0; j < rowsPerSSTable; j++)
                 QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (?, ?)", ks, cfs.getTableName()), val + j, val + j);
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
         Assert.assertEquals(num, cfs.getLiveSSTables().size());
     }

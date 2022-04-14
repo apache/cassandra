@@ -29,11 +29,10 @@ import org.junit.Test;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.exceptions.WriteTimeoutException;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ViewLongTest extends ViewAbstractParameterizedTest
@@ -333,7 +332,7 @@ public class ViewLongTest extends ViewAbstractParameterizedTest
 
             updateViewWithFlush("UPDATE %s USING TTL 90  SET b = null WHERE k = 1 AND c = 2", flush);
             if (flush)
-                FBUtilities.waitOnFutures(Keyspace.open(keyspace()).flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+                Util.flushKeyspace(keyspace());
             assertRows(execute("select k,c,a,b from %s"));
             assertRows(executeView("select k,c,a from %s"));
 

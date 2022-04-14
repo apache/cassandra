@@ -36,6 +36,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.Util;
 import org.apache.cassandra.index.internal.CollatedViewIndexBuilder;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -524,7 +526,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                    Util.flush(cfs);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());
@@ -639,7 +641,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                    Util.flush(cfs);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());
@@ -739,7 +741,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                    Util.flush(cfs);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());
@@ -833,7 +835,7 @@ public class CompactionAllocationTest
                                                            makeRandomString(rowWidth>>2), makeRandomString(rowWidth>>2));
                         }
                     }
-                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                    Util.flush(cfs);
                 }
 
                 for (IndexDef index : indexes)

@@ -75,7 +75,7 @@ public class DeletePartitionTest
         assertTrue(r.getCell(column).value().equals(ByteBufferUtil.bytes("asdf")));
 
         if (flushBeforeRemove)
-            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(store);
 
         // delete the partition
         new Mutation.PartitionUpdateCollector(KEYSPACE1, key)
@@ -84,7 +84,7 @@ public class DeletePartitionTest
                 .applyUnsafe();
 
         if (flushAfterRemove)
-            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(store);
 
         // validate removal
         ImmutableBTreePartition partitionUnfiltered = Util.getOnlyPartitionUnfiltered(Util.cmd(store, key).build());

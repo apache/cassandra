@@ -495,7 +495,7 @@ public class RowCacheTest
         SchemaLoader.insertData(KEYSPACE_CACHED, CF_CACHED, 0, 100);
 
         //force flush for confidence that SSTables exists
-        cachedStore.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cachedStore);
 
         ((ClearableHistogram)cachedStore.metric.sstablesPerReadHistogram.cf).clear();
 

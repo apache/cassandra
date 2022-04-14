@@ -961,7 +961,7 @@ public abstract class CommitLogTest
                 {
                     try (Closeable c = Util.markDirectoriesUnwriteable(cfs))
                     {
-                        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                        Util.flush(cfs);
                     }
                     catch (Throwable t)
                     {
@@ -971,7 +971,7 @@ public abstract class CommitLogTest
                     }
                 }
                 else
-                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                    Util.flush(cfs);
             }
         }
         finally
@@ -1025,7 +1025,7 @@ public abstract class CommitLogTest
     {
         try
         {
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Util.flush(cfs);
         }
         catch (Throwable t)
         {

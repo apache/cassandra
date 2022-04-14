@@ -24,9 +24,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -69,7 +69,7 @@ public class RangeAwareSSTableWriterTest
     {
 
         SchemaLoader.insertData(KEYSPACE1, CF_STANDARD, 0, 1);
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
 
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 

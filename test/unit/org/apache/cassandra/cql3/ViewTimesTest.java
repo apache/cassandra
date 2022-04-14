@@ -26,10 +26,9 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
-import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
@@ -107,18 +106,18 @@ public class ViewTimesTest extends ViewAbstractTest
         assertRows(executeView("SELECT d from %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0));
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
 
         // change c's value and TS=3, tombstones c=1 and adds c=0 record
         executeNet("UPDATE %s USING TIMESTAMP 3 SET c = ? WHERE a = ? and b = ? ", 0, 0, 0);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
         assertRows(executeView("SELECT d from %s WHERE c = ? and a = ? and b = ?", 1, 0, 0));
 
         if(flush)
         {
             ks.getColumnFamilyStore(currentView()).forceMajorCompaction();
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
         }
 
 
@@ -127,7 +126,7 @@ public class ViewTimesTest extends ViewAbstractTest
         if (flush)
         {
             ks.getColumnFamilyStore(currentView()).forceMajorCompaction();
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
         }
 
         assertRows(executeView("SELECT d,e from %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0, null));
@@ -137,7 +136,7 @@ public class ViewTimesTest extends ViewAbstractTest
         assertRows(executeView("SELECT d,e from %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0, 1));
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
 
 
         //Change d value @ TS=2
@@ -145,7 +144,7 @@ public class ViewTimesTest extends ViewAbstractTest
         assertRows(executeView("SELECT d from %s WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(2));
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+            Util.flush(ks);
 
         //Change d value @ TS=3
         executeNet("UPDATE %s USING TIMESTAMP 3 SET d = ? WHERE a = ? and b = ? ", 1, 0, 0);

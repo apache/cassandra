@@ -20,6 +20,7 @@ package org.apache.cassandra.simulator.cluster;
 
 import java.util.function.Function;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -47,7 +48,7 @@ class OnInstanceFlushAndCleanup extends ClusterReliableAction
                 {
                     try
                     {
-                        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                        Util.flush(cfs);
                         if (cfs.forceCleanup(1) != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
                             throw new IllegalStateException();
                         cfs.forceMajorCompaction();

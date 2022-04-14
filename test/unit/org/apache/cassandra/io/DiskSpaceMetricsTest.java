@@ -28,6 +28,7 @@ import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
@@ -96,7 +97,7 @@ public class DiskSpaceMetricsTest extends CQLTester
             execute("INSERT INTO %s (pk) VALUES (?)", base + i);
 
         // flush to write the sstable
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        Util.flush(cfs);
     }
 
     private void assertDiskSpaceEqual(ColumnFamilyStore cfs)
