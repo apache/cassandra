@@ -173,7 +173,17 @@ public class Config
     @Replaces(oldName = "memtable_offheap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public SmallestDataStorageMebibytes memtable_offheap_space;
     public Float memtable_cleanup_threshold = null;
-    public Map<String, Map<String, String>> memtable_configurations;
+
+    public static class MemtableOptions
+    {
+        public Map<String, InheritingClass> configurations;
+
+        public MemtableOptions()
+        {
+        }
+    }
+
+    public MemtableOptions memtable;
 
     // Limit the maximum depth of repair session merkle trees
     @Deprecated

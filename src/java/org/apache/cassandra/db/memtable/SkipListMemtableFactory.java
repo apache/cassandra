@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.InheritingClass;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableMetadataRef;
 
@@ -43,5 +45,5 @@ public class SkipListMemtableFactory implements Memtable.Factory
     }
 
     public static final SkipListMemtableFactory INSTANCE = new SkipListMemtableFactory();
-    public static Map<String, String> CONFIGURATION = ImmutableMap.of("class", SkipListMemtable.class.getName());
+    public static InheritingClass CONFIGURATION = new InheritingClass(null, SkipListMemtable.class.getName(), ImmutableMap.of());
 }

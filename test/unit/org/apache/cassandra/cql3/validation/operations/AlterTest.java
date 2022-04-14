@@ -567,7 +567,7 @@ public class AlterTest extends CQLTester
         testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "The 'class' option must be specified.",
+                                        "The 'class_name' option must be specified.",
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_empty_class';");
 
@@ -577,22 +577,22 @@ public class AlterTest extends CQLTester
                                            + " WITH memtable = 'test_invalid_param';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Could not create memtable factory for {class=NotExisting}",
+                                        "Could not create memtable factory for class NotExisting",
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_unknown_class';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Options {invalid=throw} not expected.",
+                                        "Memtable class org.apache.cassandra.db.memtable.TestMemtable does not accept any futher parameters, but {invalid=throw} were given.",
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_invalid_extra_param';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Could not create memtable factory for {class=" + CreateTest.InvalidMemtableFactoryMethod.class.getName() + "}",
+                                        "Could not create memtable factory for class " + CreateTest.InvalidMemtableFactoryMethod.class.getName(),
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_invalid_factory_method';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Could not create memtable factory for {class=" + CreateTest.InvalidMemtableFactoryField.class.getName() + "}",
+                                        "Could not create memtable factory for class " + CreateTest.InvalidMemtableFactoryField.class.getName(),
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_invalid_factory_field';");
 

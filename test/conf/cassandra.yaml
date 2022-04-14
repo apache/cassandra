@@ -62,28 +62,35 @@ local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
 
-memtable_configurations:
-    skiplist:
-        extends: default
-        class: SkipListMemtable
-    skiplist_remapped:
-        extends: skiplist
-    test_fullname:
-        class: org.apache.cassandra.db.memtable.TestMemtable
-    test_shortname:
-        class: TestMemtable
-        skiplist: "true"
-    test_empty_class:
-        class: ""
-    test_unknown_class:
-        class: NotExisting
-    test_invalid_param:
-        class: SkipListMemtable
-        invalid: throw
-    test_invalid_extra_param:
-        extends: test_shortname
-        invalid: throw
-    test_invalid_factory_method:
-        class: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryMethod
-    test_invalid_factory_field:
-        class: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField
+memtable:
+    configurations:
+        skiplist:
+            inherits: default
+            class_name: SkipListMemtable
+        skiplist_remapped:
+            inherits: skiplist
+        test_fullname:
+            inherits: default
+            class_name: org.apache.cassandra.db.memtable.TestMemtable
+        test_shortname:
+            class_name: TestMemtable
+            parameters:
+                skiplist: true  # note: YAML must interpret this as string, not a boolean
+        test_empty_class:
+            class_name: ""
+        test_missing_class:
+            parameters:
+        test_unknown_class:
+            class_name: NotExisting
+        test_invalid_param:
+            class_name: SkipListMemtable
+            parameters:
+                invalid: throw
+        test_invalid_extra_param:
+            inherits: test_shortname
+            parameters:
+                invalid: throw
+        test_invalid_factory_method:
+            class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryMethod
+        test_invalid_factory_field:
+            class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField

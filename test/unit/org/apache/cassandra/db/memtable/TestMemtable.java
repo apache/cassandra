@@ -20,15 +20,11 @@ package org.apache.cassandra.db.memtable;
 
 import java.util.Map;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 public class TestMemtable
 {
     public static Memtable.Factory factory(Map<String, String> options)
     {
         String skiplist = options.remove("skiplist");
-        if (!options.isEmpty())
-            throw new ConfigurationException("Options " + options + " not expected.");
         if (Boolean.parseBoolean(skiplist))
             return SkipListMemtable.FACTORY;
         else

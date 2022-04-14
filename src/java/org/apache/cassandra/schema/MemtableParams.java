@@ -29,6 +29,8 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.InheritingClass;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -93,8 +95,8 @@ public final class MemtableParams
     private static final String EXTENDS_OPTION = "extends";
     private static final String DEFAULT_CONFIGURATION_KEY = "default";
     private static final Memtable.Factory DEFAULT_MEMTABLE_FACTORY = SkipListMemtableFactory.INSTANCE;
-    private static final Map<String, String> DEFAULT_CONFIGURATION = SkipListMemtableFactory.CONFIGURATION;
-    private static final Map<String, Map<String, String>>
+    private static final ParameterizedClass DEFAULT_CONFIGURATION = SkipListMemtableFactory.CONFIGURATION;
+    private static final Map<String, ParameterizedClass>
         CONFIGURATION_DEFINITIONS = expandDefinitions(DatabaseDescriptor.getMemtableConfigurations());
     private static final Map<String, MemtableParams> CONFIGURATIONS = new HashMap<>();
     public static final MemtableParams DEFAULT = get(null);
@@ -111,42 +113,27 @@ public final class MemtableParams
     }
 
     @VisibleForTesting
-    static Map<String, Map<String, String>> expandDefinitions(Map<String, Map<String, String>> memtableConfigurations)
+    static Map<String, ParameterizedClass> expandDefinitions(Map<String, InheritingClass> memtableConfigurations)
     {
         if (memtableConfigurations == null)
             return ImmutableMap.of(DEFAULT_CONFIGURATION_KEY, DEFAULT_CONFIGURATION);
 
-        LinkedHashMap<String, Map<String, String>> configs = new LinkedHashMap<>(memtableConfigurations.size() + 1);
+        LinkedHashMap<String, ParameterizedClass> configs = new LinkedHashMap<>(memtableConfigurations.size() + 1);
+
+        // If default is not overridden, add an entry first so that other configurations can inherit from it.
+        // If it is, process it in its point of definition, so that the default can inherit from another configuration.
         if (!memtableConfigurations.containsKey(DEFAULT_CONFIGURATION_KEY))
             configs.put(DEFAULT_CONFIGURATION_KEY, DEFAULT_CONFIGURATION);
-        for (Map.Entry<String, Map<String, String>> config : memtableConfigurations.entrySet())
-        {
-            String key = config.getKey();
-            Map<String, String> configuration = config.getValue();
-            if (configuration.containsKey(EXTENDS_OPTION))
-            {
-                Map<String, String> parentConfig = configs.get(configuration.get(EXTENDS_OPTION));
-                if (parentConfig == null)
-                    throw new ConfigurationException("Memtable configuration " + key + " extends undefined " + configuration.get(EXTENDS_OPTION)
-                                                     + ". A configuration can only extend one defined earlier or \"default\".");
-                if (configuration.size() == 1)  // only extends, i.e. a new name for an existing config
-                    configuration = parentConfig;
-                else
-                {
-                    Map<String, String> childConfig = new HashMap<>(parentConfig);
-                    childConfig.putAll(configuration);
-                    childConfig.remove(EXTENDS_OPTION);
-                    configuration = childConfig;
-                }
-            }
-            configs.put(key, ImmutableMap.copyOf(configuration));
-        }
+
+        for (Map.Entry<String, InheritingClass> en : memtableConfigurations.entrySet())
+            configs.put(en.getKey(), en.getValue().resolve(configs));
+
         return ImmutableMap.copyOf(configs);
     }
 
     private static MemtableParams parseConfiguration(String configurationKey)
     {
-        Map<String, String> definition = CONFIGURATION_DEFINITIONS.get(configurationKey);
+        ParameterizedClass definition = CONFIGURATION_DEFINITIONS.get(configurationKey);
 
         if (definition == null)
             throw new ConfigurationException("Memtable configuration \"" + configurationKey + "\" not found.");
@@ -154,26 +141,26 @@ public final class MemtableParams
     }
 
 
-    private static Memtable.Factory getMemtableFactory(Map<String, String> options)
+    private static Memtable.Factory getMemtableFactory(ParameterizedClass options)
     {
         // Special-case this so that we don't initialize memtable class for tests that need to delay that.
         if (options == DEFAULT_CONFIGURATION)
             return DEFAULT_MEMTABLE_FACTORY;
 
-        Map<String, String> copy = new HashMap<>(options);
-        String className = copy.remove(CLASS_OPTION);
+        String className = options.class_name;
         if ( className == null || className.isEmpty())
-            throw new ConfigurationException("The 'class' option must be specified.");
+            throw new ConfigurationException("The 'class_name' option must be specified.");
 
         className = className.contains(".") ? className : "org.apache.cassandra.db.memtable." + className;
         try
         {
             Memtable.Factory factory;
             Class<?> clazz = Class.forName(className);
+            final Map<String, String> parametersCopy = options.parameters != null ? new HashMap<>(options.parameters) : new HashMap<>();
             try
             {
                 Method factoryMethod = clazz.getDeclaredMethod("factory", Map.class);
-                factory = (Memtable.Factory) factoryMethod.invoke(null, copy);
+                factory = (Memtable.Factory) factoryMethod.invoke(null, parametersCopy);
             }
             catch (NoSuchMethodException e)
             {
@@ -181,16 +168,16 @@ public final class MemtableParams
                 Field factoryField = clazz.getDeclaredField("FACTORY");
                 factory = (Memtable.Factory) factoryField.get(null);
             }
-            if (!copy.isEmpty())
+            if (parametersCopy != null && !parametersCopy.isEmpty())
                 throw new ConfigurationException("Memtable class " + className + " does not accept any futher parameters, but " +
-                                                 copy + " were given.");
+                                                 parametersCopy + " were given.");
             return factory;
         }
         catch (NoSuchFieldException | ClassNotFoundException | IllegalAccessException | InvocationTargetException | ClassCastException e)
         {
             if (e.getCause() instanceof ConfigurationException)
                 throw (ConfigurationException) e.getCause();
-            throw new ConfigurationException("Could not create memtable factory for " + options, e);
+            throw new ConfigurationException("Could not create memtable factory for class " + options, e);
         }
     }
 }

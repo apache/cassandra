@@ -605,27 +605,31 @@ public class CreateTest extends CQLTester
         testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
 
-        assertThrowsConfigurationException("The 'class' option must be specified.",
+        assertThrowsConfigurationException("The 'class_name' option must be specified.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_empty_class';");
+
+        assertThrowsConfigurationException("The 'class_name' option must be specified.",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = 'test_missing_class';");
 
         assertThrowsConfigurationException("Memtable class org.apache.cassandra.db.memtable.SkipListMemtable does not accept any futher parameters, but {invalid=throw} were given.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_invalid_param';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for {class=NotExisting}",
+        assertThrowsConfigurationException("Could not create memtable factory for class NotExisting",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_unknown_class';");
 
-        assertThrowsConfigurationException("Options {invalid=throw} not expected.",
+        assertThrowsConfigurationException("Memtable class org.apache.cassandra.db.memtable.TestMemtable does not accept any futher parameters, but {invalid=throw} were given.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_invalid_extra_param';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for {class=" + InvalidMemtableFactoryMethod.class.getName() +  "}",
+        assertThrowsConfigurationException("Could not create memtable factory for class " + InvalidMemtableFactoryMethod.class.getName(),
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_invalid_factory_method';");
 
-        assertThrowsConfigurationException("Could not create memtable factory for {class=" + InvalidMemtableFactoryField.class.getName() +  "}",
+        assertThrowsConfigurationException("Could not create memtable factory for class " + InvalidMemtableFactoryField.class.getName(),
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH memtable = 'test_invalid_factory_field';");
 
