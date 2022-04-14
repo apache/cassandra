@@ -43,10 +43,10 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisabledThreshold() throws Throwable
     {
         Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledThreshold(new Threshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
+        testDisabledThreshold(new MaxThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
     }
 
-    private void testDisabledThreshold(Threshold guard) throws Throwable
+    private void testDisabledThreshold(MaxThreshold guard) throws Throwable
     {
         assertFalse(guard.enabled(userClientState));
 
@@ -63,10 +63,10 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testThreshold() throws Throwable
     {
-        Threshold guard = new Threshold("x",
+        MaxThreshold guard = new MaxThreshold("x",
                                         state -> 10,
                                         state -> 100,
-                                        (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
+                                              (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
@@ -89,10 +89,10 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testWarnOnlyThreshold() throws Throwable
     {
-        Threshold guard = new Threshold("x",
+        MaxThreshold guard = new MaxThreshold("x",
                                         state -> 10,
                                         state -> DISABLED,
-                                        (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
+                                              (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
@@ -107,10 +107,10 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testFailOnlyThreshold() throws Throwable
     {
-        Threshold guard = new Threshold("x",
+        MaxThreshold guard = new MaxThreshold("x",
                                         state -> DISABLED,
                                         state -> 10,
-                                        (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
+                                              (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
@@ -125,10 +125,10 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testThresholdUsers() throws Throwable
     {
-        Threshold guard = new Threshold("x",
+        MaxThreshold guard = new MaxThreshold("x",
                                         state -> 10,
                                         state -> 100,
-                                        (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
+                                              (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Failure", what, v, t));
 
         // value under both thresholds

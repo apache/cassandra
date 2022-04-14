@@ -53,6 +53,8 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
     private final HashSet<String> clientWarnings = new HashSet<>();
 
+    private ClientState state;
+
     public CreateKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifNotExists)
     {
         super(keyspaceName);
@@ -80,7 +82,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         if (keyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        keyspace.params.validate(keyspaceName);
+        keyspace.params.validate(keyspaceName, state);
         return schema.withAddedOrUpdated(keyspace);
     }
 
@@ -118,6 +120,9 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         // Guardrail on number of keyspaces
         Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, false, state);
+
+        // save the query state to use it for guardrails validation in #apply
+        this.state = state;
     }
 
     @Override

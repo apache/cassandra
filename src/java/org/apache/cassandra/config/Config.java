@@ -636,10 +636,9 @@ public class Config
 
     public volatile boolean diagnostic_events_enabled = false;
 
-    // Default and minimum keyspace replication factors allow validation of newly created keyspaces
+    // Default keyspace replication factors allow validation of newly created keyspaces
     // and good defaults if no replication factor is provided by the user
     public volatile int default_keyspace_rf = 1;
-    public volatile int minimum_keyspace_rf = 0;
 
     /**
      * flags for enabling tracking repaired state of data during reads
@@ -822,6 +821,8 @@ public class Config
     public volatile int data_disk_usage_percentage_warn_threshold = -1;
     public volatile int data_disk_usage_percentage_fail_threshold = -1;
     public volatile DataStorageSpec data_disk_usage_max_disk_size = null;
+    public volatile int minimum_keyspace_rf_warn_threshold = -1;
+    public volatile int minimum_keyspace_rf_fail_threshold = -1;
 
     public volatile DurationSpec streaming_state_expires = DurationSpec.inDays(3);
     public volatile DataStorageSpec streaming_state_size = DataStorageSpec.inMebibytes(40);

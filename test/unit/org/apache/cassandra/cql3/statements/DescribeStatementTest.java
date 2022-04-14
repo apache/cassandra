@@ -51,7 +51,7 @@ import static org.junit.Assert.fail;
 public class DescribeStatementTest extends CQLTester
 {
     @Test
-    public void testSchemaChangeDuringPaging()
+    public void testSchemaChangeDuringPaging() throws Throwable
     {
             SimpleStatement stmt = new SimpleStatement("DESCRIBE KEYSPACES");
             stmt.setFetchSize(1);

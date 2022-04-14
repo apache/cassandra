@@ -1239,7 +1239,7 @@ public abstract class CQLTester
         return sessionNet().execute(formatViewQuery(query), values);
     }
 
-    protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, Statement statement)
+    protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, Statement statement) throws Throwable
     {
         return sessionNet(protocolVersion).execute(statement);
     }

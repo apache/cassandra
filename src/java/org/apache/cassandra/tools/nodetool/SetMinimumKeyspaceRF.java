@@ -18,19 +18,31 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
+import static java.lang.Boolean.parseBoolean;
+import static java.lang.Integer.parseInt;
+
 @Command(name = "setminimumrf", description = "Sets minimum keyspace replication factor.")
 public class SetMinimumKeyspaceRF extends NodeTool.NodeToolCmd
 {
-    @Arguments(title = "minimum_rf", usage = "<value>", description = "Minimum replication factor", required = true)
-    private Integer minimumRF = null;
+    @Arguments(title = "<setWarn> <value>", usage = "<setWarn> <value>", description = "warn flag and minimum keyspace rf value", required = true)
+    private List<String> args = new ArrayList<>();
+    private static int DISABLED_GUARDRAIL = -1;
 
     protected void execute(NodeProbe probe)
     {
-        probe.setMinimumKeyspaceReplicationFactor(minimumRF);
+        boolean setWarn = parseBoolean(args.get(0));
+        int value = parseInt(args.get(1));
+        if(setWarn)
+            probe.setMinimumKeyspaceReplicationFactor(value, DISABLED_GUARDRAIL);
+        else
+            probe.setMinimumKeyspaceReplicationFactor(DISABLED_GUARDRAIL, value);
     }
 }

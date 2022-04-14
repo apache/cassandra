@@ -26,8 +26,11 @@ import org.apache.cassandra.tools.NodeTool;
 @Command(name = "getminimumrf", description = "Gets minimum keyspace replication factor.")
 public class GetMinimumKeyspaceRF extends NodeTool.NodeToolCmd
 {
+    @Arguments(title = "<getWarn>", usage = "<getWarn>", description = "warn flag", required = true)
+    private Boolean getWarn = false;
+
     protected void execute(NodeProbe probe)
     {
-        probe.output().out.println(probe.getMinimumKeyspaceReplicationFactor());
+        probe.output().out.println(probe.getMinimumKeyspaceReplicationFactor(getWarn));
     }
 }

@@ -259,4 +259,15 @@ public interface GuardrailsConfig
      */
     @Nullable
     DataStorageSpec getDataDiskUsageMaxDiskSize();
+
+    /**
+     * @return The threshold to warn when minimum keyspace replication factor more than threshold.
+     */
+    int getMinimumKeyspaceRFWarnThreshold();
+
+    /**
+     * @return The threshold to warn when minimum keyspace replication factor more than threshold.
+     */
+    int getMinimumKeyspaceRFFailThreshold();
+
 }

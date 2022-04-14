@@ -508,4 +508,23 @@ public interface GuardrailsMBean
      *             A {@code null} value means disabled.
      */
     void setDataDiskUsageMaxDiskSize(@Nullable String size);
+
+    /**
+     * @return The threshold to warn when minimum keyspace replication factor more than threshold.
+     */
+    int getMinimumKeyspaceRFWarnThreshold();
+
+    /**
+     * @return The threshold to warn when minimum keyspace replication factor more than threshold.
+     */
+    int getMinimumKeyspaceRFFailThreshold();
+
+    /**
+     * @param warn the threshold to warn when the minimum replcation factor for a keyspace is greater than
+     *             threshold -1 means disabled.
+     * @param fail the threshold to fail when the minimum replication factor for a keyspace is greater than
+     *             threshold -1 means disabled.
+     */
+    void setMinimumKeyspaceRFThreshold (int warn, int fail);
+
 }

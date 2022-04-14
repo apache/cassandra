@@ -75,6 +75,7 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.db.guardrails.GuardrailsMBean;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -136,6 +137,7 @@ public class NodeProbe implements AutoCloseable
     protected MBeanServerConnection mbeanServerConn;
     protected CompactionManagerMBean compactionProxy;
     protected StorageServiceMBean ssProxy;
+    protected GuardrailsMBean guardrailsProxy;
     protected GossiperMBean gossProxy;
     protected MemoryMXBean memProxy;
     protected GCInspectorMXBean gcProxy;
@@ -2039,14 +2041,17 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getDefaultKeyspaceReplicationFactor();
     }
 
-    public void setMinimumKeyspaceReplicationFactor(int value)
+    public void setMinimumKeyspaceReplicationFactor(int warn, int fail)
     {
-        ssProxy.setMinimumKeyspaceReplicationFactor(value);
+        guardrailsProxy.setMinimumKeyspaceRFThreshold(warn, fail);
     }
 
-    public int getMinimumKeyspaceReplicationFactor()
+    public int getMinimumKeyspaceReplicationFactor(boolean getWarn)
     {
-        return ssProxy.getMinimumKeyspaceReplicationFactor();
+        if(getWarn)
+            return guardrailsProxy.getMinimumKeyspaceRFWarnThreshold();
+        else
+            return guardrailsProxy.getMinimumKeyspaceRFFailThreshold();
     }
 }
 

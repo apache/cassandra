@@ -23,38 +23,30 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.service.ClientState;
 
-/**
- * A guardrail based on numeric threshold(s).
- *
- * <p>A {@link Threshold} guardrail defines (up to) 2 thresholds, one at which a warning is issued, and a higher one
- * at which the operation is aborted with an exception. Only one of those thresholds can be activated if desired.
- *
- * <p>This guardrail only handles guarding positive values.
- */
-public class Threshold extends Guardrail
+public abstract class Threshold extends Guardrail
 {
     private final ToLongFunction<ClientState> warnThreshold;
     private final ToLongFunction<ClientState> failThreshold;
     protected final ErrorMessageProvider messageProvider;
 
-    /**
-     * Creates a new threshold guardrail.
-     *
-     * @param name            the identifying name of the guardrail
-     * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
-     * @param failThreshold   a {@link ClientState}-based provider of the value above which the operation should be aborted.
-     * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
-     */
-    public Threshold(String name,
-                     ToLongFunction<ClientState> warnThreshold,
-                     ToLongFunction<ClientState> failThreshold,
-                     ErrorMessageProvider messageProvider)
-    {
-        super(name);
-        this.warnThreshold = warnThreshold;
-        this.failThreshold = failThreshold;
-        this.messageProvider = messageProvider;
-    }
+        /**
+         * Creates a new threshold guardrail.
+         *
+         * @param name            the identifying name of the guardrail
+         * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
+         * @param failThreshold   a {@link ClientState}-based provider of the value above which the operation should be aborted.
+         * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
+         */
+        public Threshold(String name,
+                            ToLongFunction<ClientState> warnThreshold,
+                            ToLongFunction<ClientState> failThreshold,
+                            ErrorMessageProvider messageProvider)
+        {
+            super(name);
+            this.warnThreshold = warnThreshold;
+            this.failThreshold = failThreshold;
+            this.messageProvider = messageProvider;
+        }
 
     protected String errMsg(boolean isWarning, String what, long value, long thresholdValue)
     {
@@ -64,49 +56,18 @@ public class Threshold extends Guardrail
                                              Long.toString(thresholdValue));
     }
 
-    private String redactedErrMsg(boolean isWarning, long value, long thresholdValue)
-    {
-        return errMsg(isWarning, REDACTED, value, thresholdValue);
-    }
+        protected String redactedErrMsg(boolean isWarning, long value, long thresholdValue)
+        {
+            return errMsg(isWarning, REDACTED, value, thresholdValue);
+        }
 
-    private long failValue(ClientState state)
-    {
-        long failValue = failThreshold.applyAsLong(state);
-        return failValue <= 0 ? Long.MAX_VALUE : failValue;
-    }
+        public boolean enabled(@Nullable ClientState state)
+        {
+            if (!super.enabled(state))
+                return false;
 
-    private long warnValue(ClientState state)
-    {
-        long warnValue = warnThreshold.applyAsLong(state);
-        return warnValue <= 0 ? Long.MAX_VALUE : warnValue;
-    }
-
-    @Override
-    public boolean enabled(@Nullable ClientState state)
-    {
-        if (!super.enabled(state))
-            return false;
-
-        return failThreshold.applyAsLong(state) > 0 || warnThreshold.applyAsLong(state) > 0;
-    }
-
-    /**
-     * Checks whether the provided value would trigger a warning or failure if passed to {@link #guard}.
-     *
-     * <p>This method is optional (does not have to be called) but can be used in the case where the "what"
-     * argument to {@link #guard} is expensive to build to save doing so in the common case (of the guardrail
-     * not being triggered).
-     *
-     * @param value the value to test.
-     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
-     *              A {@code null} value means that the check should be done regardless of the query.
-     * @return {@code true} if {@code value} is above the warning or failure thresholds of this guardrail,
-     * {@code false otherwise}.
-     */
-    public boolean triggersOn(long value, @Nullable ClientState state)
-    {
-        return enabled(state) && (value > Math.min(failValue(state), warnValue(state)));
-    }
+            return failThreshold.applyAsLong(state) > 0 || warnThreshold.applyAsLong(state) > 0;
+        }
 
     public boolean warnsOn(long value, @Nullable ClientState state)
     {
@@ -137,27 +98,17 @@ public class Threshold extends Guardrail
 
         long failValue = failValue(state);
         if (value > failValue)
+        protected void triggerFail(long value, long failValue, String what, boolean containsUserData, ClientState state)
         {
-            triggerFail(value, failValue, what, containsUserData, state);
-            return;
+            String fullMessage = errMsg(false, what, value, failValue);
+            fail(fullMessage, containsUserData ? redactedErrMsg(false, value, failValue) : fullMessage, state);
         }
 
-        long warnValue = warnValue(state);
-        if (value > warnValue)
-            triggerWarn(value, warnValue, what, containsUserData);
-    }
-
-    private void triggerFail(long value, long failValue, String what, boolean containsUserData, ClientState state)
-    {
-        String fullMessage = errMsg(false, what, value, failValue);
-        fail(fullMessage, containsUserData ? redactedErrMsg(false, value, failValue) : fullMessage, state);
-    }
-
-    private void triggerWarn(long value, long warnValue, String what, boolean containsUserData)
-    {
-        String fullMessage = errMsg(true, what, value, warnValue);
-        warn(fullMessage, containsUserData ? redactedErrMsg(true, value, warnValue) : fullMessage);
-    }
+        protected void triggerWarn(long value, long warnValue, String what, boolean containsUserData)
+        {
+            String fullMessage = errMsg(true, what, value, warnValue);
+            warn(fullMessage, containsUserData ? redactedErrMsg(true, value, warnValue) : fullMessage);
+        }
 
     /**
      * A function used to build the error message of a triggered {@link Threshold} guardrail.
@@ -176,3 +127,4 @@ public class Threshold extends Guardrail
         String createMessage(boolean isWarning, String what, String value, String threshold);
     }
 }
+

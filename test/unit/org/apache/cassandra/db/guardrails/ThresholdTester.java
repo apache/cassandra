@@ -38,7 +38,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 /**
- * Utility class for testing a {@link Threshold} guardrail.
+ * Utility class for testing a {@link MaxThreshold} guardrail.
  */
 public abstract class ThresholdTester extends GuardrailTester
 {
@@ -136,14 +136,40 @@ public abstract class ThresholdTester extends GuardrailTester
                   .hasMessageContaining(guardrail.name + "_warn_threshold should be lower than the fail threshold");
     }
 
-    protected void assertThresholdValid(String query) throws Throwable
+    protected void assertMaxThresholdValid(String query) throws Throwable
     {
         assertValid(query);
 
-        Assertions.assertThat(currentValue())
-                  .isLessThanOrEqualTo(warnGetter.applyAsLong(guardrails()))
-                  .isLessThanOrEqualTo(failGetter.applyAsLong(guardrails()));
+        long warnValue = warnGetter.applyAsLong(guardrails());
+        long failValue = failGetter.applyAsLong(guardrails());
+        long current = currentValue();
+
+        if (warnValue != Config.DISABLED_GUARDRAIL)
+            Assertions.assertThat(current)
+                      .isLessThanOrEqualTo(warnValue);
+
+        if (failValue != Config.DISABLED_GUARDRAIL)
+            Assertions.assertThat(current)
+                      .isLessThanOrEqualTo(failValue);
     }
+
+    protected void assertMinThresholdValid(String query) throws Throwable
+    {
+        assertValid(query);
+
+        long warnValue = warnGetter.applyAsLong(guardrails());
+        long failValue = failGetter.applyAsLong(guardrails());
+        long current = currentValue();
+
+        if (warnValue != Config.DISABLED_GUARDRAIL)
+            Assertions.assertThat(current)
+                      .isGreaterThanOrEqualTo(warnValue);
+
+        if (failValue != Config.DISABLED_GUARDRAIL)
+            Assertions.assertThat(current)
+                      .isGreaterThanOrEqualTo(failValue);
+    }
+
 
     protected void assertThresholdWarns(String query, String message) throws Throwable
     {
@@ -193,7 +219,7 @@ public abstract class ThresholdTester extends GuardrailTester
                   .isEqualTo(failGetter.applyAsLong(guardrails()));
     }
 
-    private void assertInvalidPositiveProperty(BiConsumer<Guardrails, Long> setter,
+    protected void assertInvalidPositiveProperty(BiConsumer<Guardrails, Long> setter,
                                                long value,
                                                long maxValue,
                                                String name)

@@ -25,6 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class LocalStrategy extends AbstractReplicationStrategy
@@ -70,7 +71,7 @@ public class LocalStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    public void maybeWarnOnOptions()
+    public void maybeWarnOnOptions(ClientState state)
     {
     }
 

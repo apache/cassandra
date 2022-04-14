@@ -53,6 +53,9 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     private final HashSet<String> clientWarnings = new HashSet<>();
 
     private final KeyspaceAttributes attrs;
+
+    private ClientState state;
+
     private final boolean ifExists;
 
     public AlterKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifExists)
@@ -79,7 +82,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (newKeyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        newKeyspace.params.validate(keyspaceName);
+        newKeyspace.params.validate(keyspaceName, state);
 
         validateNoRangeMovements();
         validateTransientReplication(keyspace.createReplicationStrategy(), newKeyspace.createReplicationStrategy());
@@ -97,6 +100,15 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     public void authorize(ClientState client)
     {
         client.ensureKeyspacePermission(keyspaceName, Permission.ALTER);
+    }
+
+    @Override
+    public void validate(ClientState state)
+    {
+        super.validate(state);
+
+        // save the query state to use it for guardrails validation in #apply
+        this.state = state;
     }
 
     @Override

@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
@@ -286,7 +287,17 @@ public abstract class AbstractReplicationStrategy
 
     public abstract void validateOptions() throws ConfigurationException;
 
-    public abstract void maybeWarnOnOptions();
+    @Deprecated // use #maybeWarnOnOptions(ClientState) instead
+    public void maybeWarnOnOptions()
+    {
+        // nothing to do here
+    }
+
+    public void maybeWarnOnOptions(ClientState state)
+    {
+        maybeWarnOnOptions();
+    }
+
 
     /*
      * The options recognized by the strategy.
@@ -384,12 +395,13 @@ public abstract class AbstractReplicationStrategy
                                                    Class<? extends AbstractReplicationStrategy> strategyClass,
                                                    TokenMetadata tokenMetadata,
                                                    IEndpointSnitch snitch,
-                                                   Map<String, String> strategyOptions) throws ConfigurationException
+                                                   Map<String, String> strategyOptions,
+                                                   ClientState state) throws ConfigurationException
     {
         AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
         strategy.validateExpectedOptions();
         strategy.validateOptions();
-        strategy.maybeWarnOnOptions();
+        strategy.maybeWarnOnOptions(state);
         if (strategy.hasTransientReplicas() && !DatabaseDescriptor.isTransientReplicationEnabled())
         {
             throw new ConfigurationException("Transient replication is disabled. Enable in cassandra.yaml to use.");
@@ -422,10 +434,7 @@ public abstract class AbstractReplicationStrategy
         {
             ReplicationFactor rf = ReplicationFactor.fromString(s);
 
-            if (rf.fullReplicas < DatabaseDescriptor.getMinimumKeyspaceRF())
-            {
-                throw new ConfigurationException(String.format("Replication factor cannot be less than minimum_keyspace_rf (%d), found %d", DatabaseDescriptor.getMinimumKeyspaceRF(), rf.fullReplicas));
-            }
+            // mininum replication factor checked in #maybeWarnOnOptions
 
             if (rf.hasTransientReplicas())
             {
