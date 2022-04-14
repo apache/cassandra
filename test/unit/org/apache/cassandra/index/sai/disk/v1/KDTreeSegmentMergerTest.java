@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
@@ -116,7 +117,11 @@ public class KDTreeSegmentMergerTest extends SAITester
         expected.keySet().forEach(term -> assertThat(expected.get(term), is(actual.get(term))));
     }
 
-
+    // Ignored because it requires mock-maker-inline mockito extension to be able to mock final methods.
+    // Unfortunately dtest API InstanceClassloader cannot load that extension properly and enabling it causes failures
+    // in some other distributed tests.
+    // See: https://github.com/mockito/mockito/issues/2203
+    @Ignore
     @Test
     public void closeEmptyIterators() throws Throwable
     {
@@ -128,8 +133,9 @@ public class KDTreeSegmentMergerTest extends SAITester
         Mockito.verify(iterator, Mockito.times(1)).close();
     }
 
+    @Ignore
     @Test
-    public void closeIteratorsOnFailure() throws Throwable
+    public void closeIteratorsOnFailure()
     {
         BKDReader.IteratorState iterator = Mockito.mock(BKDReader.IteratorState.class);
         Mockito.when(iterator.hasNext()).thenReturn(true);
