@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.service.accord.store;
 
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Objects;
@@ -27,13 +27,17 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
+
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * Navigable Map, capable of blind add/remove
  */
 public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStoredField
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new StoredNavigableMap<>());
     private NavigableMap<K, V> map = null;
     private NavigableMap<K, V> view = null;
     private NavigableMap<K, V> additions = null;
@@ -172,5 +176,19 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
     {
         if (deletions != null)
             deletions.forEach(consumer);
+    }
+
+    public long estimatedSizeOnHeap(ToLongFunction<K> measureKey, ToLongFunction<V> measureVal)
+    {
+        long size = EMPTY_SIZE;
+        if (isLoaded() && ! map.isEmpty())
+        {
+            for (Map.Entry<K, V> entry : map.entrySet())
+            {
+                size += measureKey.applyAsLong(entry.getKey());
+                size += measureVal.applyAsLong(entry.getValue());
+            }
+        }
+        return size;
     }
 }

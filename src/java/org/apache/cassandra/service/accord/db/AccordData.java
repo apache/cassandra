@@ -19,16 +19,15 @@
 package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.NavigableMap;
-import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
 
 import accord.api.Data;
 import accord.api.Result;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.DeserializationHelper;
@@ -42,44 +41,73 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.utils.ObjectSizes;
 
-public class AccordData implements Data, Result
+public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements Data, Result
 {
-    private final NavigableMap<AccordKey, FilteredPartition> partitions = new TreeMap<>(AccordKey::compare);
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordData());
 
-    @Override
-    public boolean equals(Object o)
+    private static PartitionKey getKey(FilteredPartition partition)
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AccordData data = (AccordData) o;
-        return partitions.equals(data.partitions);
+        return new PartitionKey(partition.metadata().id, partition.partitionKey());
     }
 
-    @Override
-    public int hashCode()
+    public AccordData()
     {
-        return Objects.hash(partitions);
+        this(new TreeMap<>());
     }
-
-    @Override
-    public String toString()
-    {
-        return "AccordData{" + partitions + '}';
-    }
-
-    public AccordData() {}
 
     public AccordData(FilteredPartition partition)
     {
+        this();
         put(partition);
     }
 
-    void put(AccordKey key, FilteredPartition partition)
+    public AccordData(List<FilteredPartition> items)
+    {
+        super(items, AccordData::getKey);
+    }
+
+    public AccordData(NavigableMap<PartitionKey, ByteBuffer> serialized)
+    {
+        super(serialized);
+    }
+
+    @Override
+    void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException
+    {
+        partitionSerializer.serialize(partition, out, version);
+    }
+
+    @Override
+    FilteredPartition deserialize(DataInputPlus in, int version) throws IOException
+    {
+        return partitionSerializer.deserialize(in, version);
+    }
+
+    @Override
+    long serializedSize(FilteredPartition partition, int version)
+    {
+        return partitionSerializer.serializedSize(partition, version);
+    }
+
+    @Override
+    long emptySizeOnHeap()
+    {
+        return EMPTY_SIZE;
+    }
+
+    private void put(PartitionKey key, ByteBuffer bytes)
     {
         // TODO: support multiple partitions (ie: read commands) per partition
-        Preconditions.checkArgument(!partitions.containsKey(key) || partitions.get(key).equals(partition));
-        partitions.put(key, partition);
+        Preconditions.checkArgument(!serialized.containsKey(key) || serialized.get(key).equals(bytes));
+        serialized.put(key, bytes);
+    }
+
+    void put(PartitionKey key, FilteredPartition partition)
+    {
+        put(key, serialize(partition));
     }
 
     void put(FilteredPartition partition)
@@ -87,9 +115,9 @@ public class AccordData implements Data, Result
         put(AccordKey.of(partition), partition);
     }
 
-    FilteredPartition get(AccordKey key)
+    FilteredPartition get(PartitionKey key)
     {
-        return partitions.get(key);
+        return getDeserialized(key);
     }
 
     @Override
@@ -97,8 +125,8 @@ public class AccordData implements Data, Result
     {
         AccordData that = (AccordData) data;
         AccordData merged = new AccordData();
-        this.partitions.forEach(merged::put);
-        that.partitions.forEach(merged::put);
+        this.serialized.forEach(merged::put);
+        that.serialized.forEach(merged::put);
         return merged;
     }
 
@@ -110,11 +138,6 @@ public class AccordData implements Data, Result
             return right;
 
         return left.merge(right);
-    }
-
-    public void forEach(Consumer<FilteredPartition> consumer)
-    {
-        partitions.values().forEach(consumer);
     }
 
     private static final IVersionedSerializer<FilteredPartition> partitionSerializer = new IVersionedSerializer<>()
@@ -154,36 +177,5 @@ public class AccordData implements Data, Result
         }
     };
 
-    public static final IVersionedSerializer<AccordData> serializer = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(AccordData data, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeInt(data.partitions.size());
-            for (FilteredPartition partition : data.partitions.values())
-                partitionSerializer.serialize(partition, out, version);
-        }
-
-        @Override
-        public AccordData deserialize(DataInputPlus in, int version) throws IOException
-        {
-            int size = in.readInt();
-            AccordData data = new AccordData();
-            for (int i=0; i<size; i++)
-            {
-                FilteredPartition partition = partitionSerializer.deserialize(in, version);
-                data.put(AccordKey.of(partition), partition);
-            }
-            return data;
-        }
-
-        @Override
-        public long serializedSize(AccordData data, int version)
-        {
-            long size = TypeSizes.sizeof(data.partitions.size());
-            for (FilteredPartition partition : data.partitions.values())
-                size += partitionSerializer.serializedSize(partition, version);
-            return size;
-        }
-    };
+    public static final IVersionedSerializer<AccordData> serializer = new Serializer<>(AccordData::new);
 }

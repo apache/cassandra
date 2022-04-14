@@ -33,11 +33,12 @@ import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredValue;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class AccordCommandsForKey extends CommandsForKey implements AccordStateCache.AccordState<PartitionKey, AccordCommandsForKey>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommandsForKey(null, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordCommandsForKey(null, null));
 
     public enum SeriesKind {
         UNCOMMITTED(Command::txnId),
@@ -170,7 +171,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
             @Override
             long sizeInBytes(AccordCommandsForKey value)
             {
-                return unsharedSizeOnHeap();
+                return estimatedSizeOnHeap();
             }
         };
     }
@@ -181,10 +182,14 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         return key;
     }
 
-    private long unsharedSizeOnHeap()
+    private long estimatedSizeOnHeap()
     {
-        // FIXME (metadata): calculate
-        return EMPTY_SIZE + 400;
+        long size = EMPTY_SIZE;
+        size += maxTimestamp.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
+        size += uncommitted.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += committedById.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += committedByExecuteAt.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        return size;
     }
 
     @Override

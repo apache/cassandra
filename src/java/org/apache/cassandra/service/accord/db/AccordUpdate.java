@@ -33,7 +33,6 @@ import accord.api.Update;
 import accord.api.Write;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -43,20 +42,24 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public class AccordUpdate implements Update
 {
-    private final List<PartitionUpdate> updates;
-    private final List<UpdatePredicate> predicates;
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordUpdate((ByteBuffer[]) null, (ByteBuffer[]) null));;
+    private final ByteBuffer[] updates;
+    private final ByteBuffer[] predicates;
 
     public static abstract class UpdatePredicate
     {
@@ -296,6 +299,12 @@ public class AccordUpdate implements Update
 
     public AccordUpdate(List<PartitionUpdate> updates, List<UpdatePredicate> predicates)
     {
+        this.updates = serialize(updates, updateSerializer);
+        this.predicates = serialize(predicates, predicateSerializer);
+    }
+
+    public AccordUpdate(ByteBuffer[] updates, ByteBuffer[] predicates)
+    {
         this.updates = updates;
         this.predicates = predicates;
     }
@@ -328,22 +337,28 @@ public class AccordUpdate implements Update
     public Write apply(Data data)
     {
         AccordData read = (AccordData) data;
-        for (UpdatePredicate predicate : predicates)
+        for (ByteBuffer bytes : predicates)
         {
+            UpdatePredicate predicate = deserialize(bytes, predicateSerializer);
             if (!predicate.applies(read.get(predicate.partitionKey())))
                 return AccordWrite.EMPTY;
         }
-        return new AccordWrite(updates);
-    }
-
-    PartitionUpdate getPartitionUpdate(int i)
-    {
-        return updates.get(i);
+        return new AccordWrite(deserialize(updates, updateSerializer));
     }
 
     UpdatePredicate getPredicate(int i)
     {
-        return predicates.get(i);
+        return deserialize(predicates[i], predicateSerializer);
+    }
+
+    public long estimatedSizeOnHeap()
+    {
+        long size = EMPTY_SIZE + ObjectSizes.sizeOfReferenceArray(updates.length) + ObjectSizes.sizeOfReferenceArray(predicates.length);
+        for (ByteBuffer buffer : updates)
+            size += ByteBufferUtil.estimatedSizeOnHeap(buffer);
+        for (ByteBuffer buffer : predicates)
+            size += ByteBufferUtil.estimatedSizeOnHeap(buffer);
+        return size;
     }
 
     static final IVersionedSerializer<UpdatePredicate> predicateSerializer = new IVersionedSerializer<>()
@@ -396,32 +411,53 @@ public class AccordUpdate implements Update
         }
     };
 
+    private static final IVersionedSerializer<PartitionUpdate> updateSerializer = new IVersionedSerializer<PartitionUpdate>()
+    {
+        @Override
+        public void serialize(PartitionUpdate upd, DataOutputPlus out, int version) throws IOException
+        {
+            PartitionUpdate.serializer.serialize(upd, out, version);
+        }
+
+        @Override
+        public PartitionUpdate deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);
+        }
+
+        @Override
+        public long serializedSize(PartitionUpdate upd, int version)
+        {
+            return PartitionUpdate.serializer.serializedSize(upd, version);
+        }
+    };
+
     public static final IVersionedSerializer<AccordUpdate> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(AccordUpdate update, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(update.updates.size());
-            for (PartitionUpdate upd : update.updates)
-                PartitionUpdate.serializer.serialize(upd, out, version);
+            out.writeInt(update.updates.length);
+            for (ByteBuffer buffer : update.updates)
+                ByteBufferUtil.writeWithVIntLength(buffer, out);
 
-            out.writeInt(update.predicates.size());
-            for (UpdatePredicate predicate : update.predicates)
-                predicateSerializer.serialize(predicate, out, version);
+            out.writeInt(update.predicates.length);
+            for (ByteBuffer buffer : update.predicates)
+                ByteBufferUtil.writeWithVIntLength(buffer, out);
         }
 
         @Override
         public AccordUpdate deserialize(DataInputPlus in, int version) throws IOException
         {
             int numUpdate = in.readInt();
-            List<PartitionUpdate> updates = new ArrayList<>(numUpdate);
+            ByteBuffer[] updates = new ByteBuffer[numUpdate];
             for (int i=0; i<numUpdate; i++)
-                updates.add(PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE));
+                updates[i] = ByteBufferUtil.readWithVIntLength(in);
 
             int numPredicate = in.readInt();
-            List<UpdatePredicate> predicates = new ArrayList<>(numPredicate);
+            ByteBuffer[] predicates = new ByteBuffer[numPredicate];
             for (int i=0; i<numPredicate; i++)
-                predicates.add(predicateSerializer.deserialize(in, version));
+                predicates[i] = ByteBufferUtil.readWithVIntLength(in);
 
             return new AccordUpdate(updates, predicates);
         }
@@ -429,15 +465,61 @@ public class AccordUpdate implements Update
         @Override
         public long serializedSize(AccordUpdate update, int version)
         {
-            long size = TypeSizes.sizeof(update.updates.size());
-            for (PartitionUpdate upd : update.updates)
-                size += PartitionUpdate.serializer.serializedSize(upd, version);
+            long size = TypeSizes.sizeof(update.updates.length);
 
-            size += TypeSizes.sizeof(update.predicates.size());
-            for (UpdatePredicate predicate : update.predicates)
-                size += predicateSerializer.serializedSize(predicate, version);
+            for (ByteBuffer buffer : update.updates)
+                size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
+
+            size += TypeSizes.sizeof(update.predicates.length);
+            for (ByteBuffer buffer : update.predicates)
+                size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
 
             return size;
         }
     };
+
+    private static <T> ByteBuffer serialize(T item, IVersionedSerializer<T> serializer)
+    {
+        int version = MessagingService.current_version;
+        long size = serializer.serializedSize(item, version) + TypeSizes.INT_SIZE;
+        try (DataOutputBuffer out = new DataOutputBuffer((int) size))
+        {
+            out.writeInt(version);
+            serializer.serialize(item, out, version);
+            return out.buffer(false);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static <T> ByteBuffer[] serialize(List<T> items, IVersionedSerializer<T> serializer)
+    {
+        ByteBuffer[] result = new ByteBuffer[items.size()];
+        for (int i=0,mi=items.size(); i<mi; i++)
+            result[i] = serialize(items.get(i), serializer);
+        return result;
+    }
+
+    private static <T> T deserialize(ByteBuffer bytes, IVersionedSerializer<T> serializer)
+    {
+        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+        {
+            int version = in.readInt();
+            return serializer.deserialize(in, version);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static <T> List<T> deserialize(ByteBuffer[] buffers, IVersionedSerializer<T> serializer)
+    {
+        List<T> result = new ArrayList<>(buffers.length);
+        for (ByteBuffer bytes : buffers)
+            result.add(deserialize(bytes, serializer));
+        return result;
+    }
 }

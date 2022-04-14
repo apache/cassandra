@@ -29,6 +29,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class AccordQuery implements Query
 {
@@ -50,7 +51,14 @@ public abstract class AccordQuery implements Query
         }
     };
 
+    private static final long SIZE = ObjectSizes.measure(ALL);
+
     private AccordQuery() {}
+
+    public long unsharedSizeOnHeap()
+    {
+        return SIZE;
+    }
 
     public static final IVersionedSerializer<AccordQuery> serializer = new IVersionedSerializer<>()
     {

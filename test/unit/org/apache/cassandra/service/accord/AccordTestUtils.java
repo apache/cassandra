@@ -177,13 +177,8 @@ public class AccordTestUtils
                                                      () -> topology);
     }
 
-    public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
+    public static AccordCommandStore createAccordCommandStore(Node.Id node, LongSupplier now, Topology topology)
     {
-
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-        TokenRange range = TokenRange.fullRange(metadata.id);
-        Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
-        Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
         ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
             Thread thread = new Thread(r);
             thread.setName(CommandStore.class.getSimpleName() + '[' + node + ':' + 0 + ']');
@@ -194,8 +189,16 @@ public class AccordTestUtils
                                       ts -> new Timestamp(1, now.getAsLong(), 0, node),
                                       new AccordAgent(),
                                       null,
-                                      KeyRanges.of(range),
+                                      topology.rangesForNode(node),
                                       () -> topology,
                                       executor);
+    }
+    public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
+    {
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+        TokenRange range = TokenRange.fullRange(metadata.id);
+        Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
+        Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
+        return createAccordCommandStore(node, now, topology);
     }
 }

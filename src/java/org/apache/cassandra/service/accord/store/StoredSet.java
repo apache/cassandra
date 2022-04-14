@@ -25,9 +25,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import accord.utils.DeterministicIdentitySet;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
 {
@@ -39,6 +41,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
     abstract S createDataSet();
     abstract S createMetaSet();
     abstract S createView(S data);
+    abstract long emptySize();
 
     @Override
     public boolean equals(Object o)
@@ -160,8 +163,21 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
             deletions.forEach(consumer);
     }
 
+    public long estimatedSizeOnHeap(ToLongFunction<T> measure)
+    {
+        long size = emptySize();
+        if (isLoaded() && !set.isEmpty())
+        {
+            for (T val : set)
+                size += measure.applyAsLong(val);
+        }
+        return size;
+    }
+
     public static class Navigable<T extends Comparable<?>> extends StoredSet<T, NavigableSet<T>>
     {
+        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new Navigable<>());
+
         @Override
         NavigableSet<T> createDataSet()
         {
@@ -179,10 +195,18 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         {
             return Collections.unmodifiableNavigableSet(data);
         }
+
+        @Override
+        long emptySize()
+        {
+            return EMPTY_SIZE;
+        }
     }
 
     public static class DeterministicIdentity<T> extends StoredSet<T, Set<T>>
     {
+        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new DeterministicIdentitySet<>());
+
         @Override
         Set<T> createDataSet()
         {
@@ -199,6 +223,12 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         Set<T> createView(Set<T> data)
         {
             return Collections.unmodifiableSet(data);
+        }
+
+        @Override
+        long emptySize()
+        {
+            return EMPTY_SIZE;
         }
     }
 }

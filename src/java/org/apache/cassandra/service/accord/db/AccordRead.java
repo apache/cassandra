@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NavigableMap;
+import java.util.TreeMap;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -49,12 +50,14 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTimestamps;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> implements Read
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordRead(new TreeMap<>()));
     private static final Logger logger = LoggerFactory.getLogger(AccordRead.class);
 
     public AccordRead(List<SinglePartitionReadCommand> items)
@@ -83,6 +86,12 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     long serializedSize(SinglePartitionReadCommand command, int version)
     {
         return SinglePartitionReadCommand.serializer.serializedSize(command, version);
+    }
+
+    @Override
+    long emptySizeOnHeap()
+    {
+        return EMPTY_SIZE;
     }
 
     @VisibleForTesting

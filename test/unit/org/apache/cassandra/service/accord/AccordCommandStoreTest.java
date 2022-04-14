@@ -27,7 +27,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
 import accord.local.Status;
 import accord.txn.Dependencies;
@@ -43,7 +42,6 @@ import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
-import static org.apache.cassandra.service.accord.AccordTestUtils.createInMemoryCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.processCommandResult;
 import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;

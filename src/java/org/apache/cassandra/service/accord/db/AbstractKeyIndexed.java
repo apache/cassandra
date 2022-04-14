@@ -40,27 +40,17 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class AbstractKeyIndexed<T>
 {
-    private static final long EMPTY_BYTEBUFFER_SIZE = ObjectSizes.measureDeep(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-
     final NavigableMap<PartitionKey, ByteBuffer> serialized;
-
-    @Override
-    public String toString()
-    {
-        return serialized.entrySet().stream()
-                         .map(e -> e.getKey() + "=" + deserialize(e.getValue()))
-                         .collect(Collectors.joining(", ", "{", "}"));
-    }
 
     abstract void serialize(T t, DataOutputPlus out, int version) throws IOException;
     abstract T deserialize(DataInputPlus in, int version) throws IOException;
     abstract long serializedSize(T t, int version);
+    abstract long emptySizeOnHeap();
 
-    private ByteBuffer serialize(T item)
+    protected ByteBuffer serialize(T item)
     {
         int version = MessagingService.current_version;
         long size = serializedSize(item, version) + TypeSizes.INT_SIZE;
@@ -76,7 +66,7 @@ public abstract class AbstractKeyIndexed<T>
         }
     }
 
-    private T deserialize(ByteBuffer bytes)
+    protected T deserialize(ByteBuffer bytes)
     {
         try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
@@ -102,6 +92,14 @@ public abstract class AbstractKeyIndexed<T>
     public int hashCode()
     {
         return Objects.hash(serialized);
+    }
+
+    @Override
+    public String toString()
+    {
+        return getClass().getSimpleName() + serialized.entrySet().stream()
+                         .map(e -> e.getKey() + "=" + deserialize(e.getValue()))
+                         .collect(Collectors.joining(", ", "{", "}"));
     }
 
     public AbstractKeyIndexed(List<T> items, Function<T, PartitionKey> keyFunction)
@@ -130,13 +128,13 @@ public abstract class AbstractKeyIndexed<T>
         return deserialize(bytes);
     }
 
-    public long unsharedSizeOnHeap()
+    public long estimatedSizeOnHeap()
     {
-        long size = 0;
+        long size = emptySizeOnHeap();
         for (Map.Entry<PartitionKey, ByteBuffer> entry : serialized.entrySet())
         {
             size += entry.getKey().unsharedSizeOnHeap();
-            size += EMPTY_BYTEBUFFER_SIZE + ByteBufferAccessor.instance.size(entry.getValue());
+            size += ByteBufferUtil.EMPTY_SIZE_ON_HEAP + ByteBufferAccessor.instance.size(entry.getValue());
         }
         return size;
     }

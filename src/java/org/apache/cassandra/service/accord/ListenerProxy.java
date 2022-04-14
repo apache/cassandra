@@ -36,6 +36,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class ListenerProxy implements Listener, Comparable<ListenerProxy>
 {
@@ -60,6 +61,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
     protected abstract boolean subjectIsInContext(AsyncContext context);
     protected abstract void onChangeInternal(Command command);
     protected abstract TxnOperation scopeForCommand(Command command);
+    protected abstract long estimatedSizeOnHeap();
 
     @Override
     public void onChange(Command c)
@@ -84,12 +86,12 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
 
     static class CommandListenerProxy extends ListenerProxy
     {
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandListenerProxy(null, null));
         private final TxnId txnId;
 
         public CommandListenerProxy(CommandStore commandStore, TxnId txnId)
         {
             super(commandStore);
-            Preconditions.checkArgument(txnId != null);
             this.txnId = txnId;
         }
 
@@ -178,16 +180,22 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
                 }
             };
         }
+
+        @Override
+        protected long estimatedSizeOnHeap()
+        {
+            return EMPTY_SIZE + AccordObjectSizes.timestamp(txnId);
+        }
     }
 
     static class CommandsForKeyListenerProxy extends ListenerProxy
     {
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandsForKeyListenerProxy(null, null));
         private final AccordKey.PartitionKey key;
 
         public CommandsForKeyListenerProxy(CommandStore commandStore, AccordKey.PartitionKey key)
         {
             super(commandStore);
-            Preconditions.checkArgument(key != null);
             this.key = key;
         }
 
@@ -269,6 +277,12 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
                     return Collections.singleton(key);
                 }
             };
+        }
+
+        @Override
+        protected long estimatedSizeOnHeap()
+        {
+            return EMPTY_SIZE + key.unsharedSizeOnHeap();
         }
     }
 

@@ -19,9 +19,13 @@
 package org.apache.cassandra.service.accord.store;
 
 import java.util.Objects;
+import java.util.function.ToLongFunction;
+
+import org.apache.cassandra.utils.ObjectSizes;
 
 public class StoredValue<T> extends AbstractStoredField
 {
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredValue<>());
     private T value;
 
     @Override
@@ -39,6 +43,14 @@ public class StoredValue<T> extends AbstractStoredField
     {
         preGet();
         return Objects.hash(value);
+    }
+
+    public long estimatedSizeOnHeap(ToLongFunction<T> measure)
+    {
+        if (!isLoaded() || value == null)
+            return EMPTY_SIZE;
+
+        return EMPTY_SIZE + measure.applyAsLong(value);
     }
 
     public void unload()

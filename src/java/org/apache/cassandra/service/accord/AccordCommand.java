@@ -35,6 +35,7 @@ import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
+import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
@@ -185,7 +186,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
             @Override
             long sizeInBytes(AccordCommand value)
             {
-                return value.unsharedSizeOnHeap();
+                return value.estimatedSizeOnHeap();
             }
         };
     }
@@ -196,10 +197,22 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         return txnId;
     }
 
-    private long unsharedSizeOnHeap()
+    private long estimatedSizeOnHeap()
     {
-        // FIXME (metadata): calculate
-        return EMPTY_SIZE + 400;
+        long size = EMPTY_SIZE;
+        size += AccordObjectSizes.timestamp(txnId);
+        size += txn.estimatedSizeOnHeap(AccordObjectSizes::txn);
+        size += promised.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
+        size += accepted.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
+        size += executeAt.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
+        size += deps.estimatedSizeOnHeap(AccordObjectSizes::dependencies);
+        size += writes.estimatedSizeOnHeap(AccordObjectSizes::writes);
+        size += result.estimatedSizeOnHeap(r -> ((AccordData) r).estimatedSizeOnHeap());
+        size += status.estimatedSizeOnHeap(s -> 0);
+        size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp, AccordObjectSizes::timestamp);
+        size += waitingOnApply.estimatedSizeOnHeap(AccordObjectSizes::timestamp, AccordObjectSizes::timestamp);
+        size += storedListeners.estimatedSizeOnHeap(ListenerProxy::estimatedSizeOnHeap);
+        return size;
     }
 
     @Override

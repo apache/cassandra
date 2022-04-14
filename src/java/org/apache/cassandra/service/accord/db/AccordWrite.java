@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.TreeMap;
 
 import com.google.common.collect.ImmutableList;
 
@@ -32,7 +31,6 @@ import accord.api.Write;
 import accord.txn.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -41,6 +39,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTimestamps;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
@@ -48,6 +47,7 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
 {
     private static final Future<Void> SUCCESS = ImmediateFuture.success(null);
     public static final AccordWrite EMPTY = new AccordWrite(ImmutableList.of());
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(EMPTY);
 
     public AccordWrite(List<PartitionUpdate> items)
     {
@@ -75,6 +75,12 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
     long serializedSize(PartitionUpdate update, int version)
     {
         return PartitionUpdate.serializer.serializedSize(update, version);
+    }
+
+    @Override
+    long emptySizeOnHeap()
+    {
+        return EMPTY_SIZE;
     }
 
     @Override
