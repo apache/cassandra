@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -39,6 +40,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTimestamps;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
@@ -52,15 +54,33 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
         super(items, AccordKey::of);
     }
 
-    public AccordWrite(NavigableMap<AccordKey, PartitionUpdate> items)
+    public AccordWrite(NavigableMap<PartitionKey, ByteBuffer> items)
     {
         super(items);
     }
 
     @Override
+    void serialize(PartitionUpdate update, DataOutputPlus out, int version) throws IOException
+    {
+        PartitionUpdate.serializer.serialize(update, out, version);
+    }
+
+    @Override
+    PartitionUpdate deserialize(DataInputPlus in, int version) throws IOException
+    {
+        return PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);
+    }
+
+    @Override
+    long serializedSize(PartitionUpdate update, int version)
+    {
+        return PartitionUpdate.serializer.serializedSize(update, version);
+    }
+
+    @Override
     public Future<?> apply(Key key, Timestamp executeAt, Store store)
     {
-        PartitionUpdate update = items.get(key);
+        PartitionUpdate update = getDeserialized((PartitionKey) key);
         if (update == null)
             return SUCCESS;
         long timestamp = AccordTimestamps.timestampToMicros(executeAt);
@@ -68,36 +88,5 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
         return Stage.MUTATION.submit((Runnable) mutation::apply);
     }
 
-    public static final IVersionedSerializer<AccordWrite> serializer = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(AccordWrite write, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeInt(write.items.size());
-            for (PartitionUpdate update : write.items.values())
-                PartitionUpdate.serializer.serialize(update, out, version);
-        }
-
-        @Override
-        public AccordWrite deserialize(DataInputPlus in, int version) throws IOException
-        {
-            int size = in.readInt();
-            NavigableMap<AccordKey, PartitionUpdate> writes = new TreeMap<>();
-            for (int i=0; i<size; i++)
-            {
-                PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);
-                writes.put(AccordKey.of(update), update);
-            }
-            return new AccordWrite(writes);
-        }
-
-        @Override
-        public long serializedSize(AccordWrite write, int version)
-        {
-            long size = TypeSizes.sizeof(write.items.size());
-            for (PartitionUpdate update : write.items.values())
-                size += PartitionUpdate.serializer.serializedSize(update, version);
-            return size;
-        }
-    };
+    public static final IVersionedSerializer<AccordWrite> serializer = new Serializer<>(AccordWrite::new);
 }

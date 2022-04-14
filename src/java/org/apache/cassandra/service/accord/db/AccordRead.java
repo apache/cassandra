@@ -19,12 +19,12 @@
 package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.TreeMap;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -38,7 +38,6 @@ import accord.txn.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
@@ -49,6 +48,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTimestamps;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -62,15 +62,33 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
         super(items, AccordKey::of);
     }
 
-    public AccordRead(NavigableMap<AccordKey, SinglePartitionReadCommand> items)
+    public AccordRead(NavigableMap<PartitionKey, ByteBuffer> serialized)
     {
-        super(items);
+        super(serialized);
+    }
+
+    @Override
+    void serialize(SinglePartitionReadCommand command, DataOutputPlus out, int version) throws IOException
+    {
+        SinglePartitionReadCommand.serializer.serialize(command, out, version);
+    }
+
+    @Override
+    SinglePartitionReadCommand deserialize(DataInputPlus in, int version) throws IOException
+    {
+        return (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version);
+    }
+
+    @Override
+    long serializedSize(SinglePartitionReadCommand command, int version)
+    {
+        return SinglePartitionReadCommand.serializer.serializedSize(command, version);
     }
 
     @VisibleForTesting
-    public Collection<AccordKey> keys()
+    public Collection<PartitionKey> keys()
     {
-        return items.keySet();
+        return serialized.keySet();
     }
 
     public String toString()
@@ -82,7 +100,7 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     public Future<Data> read(Key key, Timestamp executeAt, Store store)
     {
         logger.debug("READING {}", key);
-        SinglePartitionReadCommand command = items.get(key);
+        SinglePartitionReadCommand command = getDeserialized((PartitionKey) key);
         if (command == null)
             return ImmediateFuture.success(new AccordData());
 
@@ -111,36 +129,5 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
         return new AccordRead(reads);
     }
 
-    public static final IVersionedSerializer<AccordRead> serializer = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(AccordRead read, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeInt(read.items.size());
-            for (SinglePartitionReadCommand command : read.items.values())
-                SinglePartitionReadCommand.serializer.serialize(command, out, version);
-        }
-
-        @Override
-        public AccordRead deserialize(DataInputPlus in, int version) throws IOException
-        {
-            int size = in.readInt();
-            NavigableMap<AccordKey, SinglePartitionReadCommand> commands = new TreeMap<>();
-            for (int i=0; i<size; i++)
-            {
-                SinglePartitionReadCommand command = (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version);
-                commands.put(AccordKey.of(command), command);
-            }
-            return new AccordRead(commands);
-        }
-
-        @Override
-        public long serializedSize(AccordRead read, int version)
-        {
-            long size = TypeSizes.sizeof(read.items.size());
-            for (SinglePartitionReadCommand command : read.items.values())
-                size += SinglePartitionReadCommand.serializer.serializedSize(command, version);
-            return size;
-        }
-    };
+    public static final IVersionedSerializer<AccordRead> serializer = new Serializer<>(AccordRead::new);
 }

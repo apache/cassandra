@@ -18,25 +18,75 @@
 
 package org.apache.cassandra.service.accord.db;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class AbstractKeyIndexed<T>
 {
-    final NavigableMap<AccordKey, T> items;
+    private static final long EMPTY_BYTEBUFFER_SIZE = ObjectSizes.measureDeep(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+
+    final NavigableMap<PartitionKey, ByteBuffer> serialized;
 
     @Override
     public String toString()
     {
-        return items.toString();
+        return serialized.entrySet().stream()
+                         .map(e -> e.getKey() + "=" + deserialize(e.getValue()))
+                         .collect(Collectors.joining(", ", "{", "}"));
+    }
+
+    abstract void serialize(T t, DataOutputPlus out, int version) throws IOException;
+    abstract T deserialize(DataInputPlus in, int version) throws IOException;
+    abstract long serializedSize(T t, int version);
+
+    private ByteBuffer serialize(T item)
+    {
+        int version = MessagingService.current_version;
+        long size = serializedSize(item, version) + TypeSizes.INT_SIZE;
+        try (DataOutputBuffer out = new DataOutputBuffer((int) size))
+        {
+            out.writeInt(version);
+            serialize(item, out, version);
+            return out.buffer(false);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private T deserialize(ByteBuffer bytes)
+    {
+        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+        {
+            int version = in.readInt();
+            return deserialize(in, version);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -45,39 +95,92 @@ public abstract class AbstractKeyIndexed<T>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AbstractKeyIndexed<?> that = (AbstractKeyIndexed<?>) o;
-        return items.equals(that.items);
+        return serialized.equals(that.serialized);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(items);
+        return Objects.hash(serialized);
     }
 
-    public AbstractKeyIndexed(List<T> items, Function<T, AccordKey> keyFunction)
+    public AbstractKeyIndexed(List<T> items, Function<T, PartitionKey> keyFunction)
     {
-        this.items = new TreeMap<>();
+        this.serialized = new TreeMap<>();
         for (int i=0, mi=items.size(); i<mi; i++)
         {
             T item = items.get(i);
-            AccordKey key = keyFunction.apply(item);
+            PartitionKey key = keyFunction.apply(item);
             // TODO: support multiple reads/writes per key
-            Preconditions.checkArgument(!this.items.containsKey(key));
-            this.items.put(key, item);
+            Preconditions.checkArgument(!this.serialized.containsKey(key));
+            this.serialized.put(key, serialize(item));
         }
     }
 
-    public AbstractKeyIndexed(NavigableMap<AccordKey, T> items)
+    public AbstractKeyIndexed(NavigableMap<PartitionKey, ByteBuffer> serialized)
     {
-        this.items = items;
+        this.serialized = serialized;
     }
 
-    void forEachIntersecting(AccordKey key, Consumer<T> consumer)
+    public T getDeserialized(PartitionKey key)
     {
-        T item = items.get(key);
-        if (item == null)
-            return;
+        ByteBuffer bytes = serialized.get(key);
+        if (bytes == null)
+            return null;
+        return deserialize(bytes);
+    }
 
-        consumer.accept(item);
+    public long unsharedSizeOnHeap()
+    {
+        long size = 0;
+        for (Map.Entry<PartitionKey, ByteBuffer> entry : serialized.entrySet())
+        {
+            size += entry.getKey().unsharedSizeOnHeap();
+            size += EMPTY_BYTEBUFFER_SIZE + ByteBufferAccessor.instance.size(entry.getValue());
+        }
+        return size;
+    }
+
+    static class Serializer<V, S extends AbstractKeyIndexed<V>> implements IVersionedSerializer<S>
+    {
+        private final Function<NavigableMap<PartitionKey, ByteBuffer>, S> factory;
+
+        Serializer(Function<NavigableMap<PartitionKey, ByteBuffer>, S> factory)
+        {
+            this.factory = factory;
+        }
+
+        @Override
+        public void serialize(S items, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeInt(items.serialized.size());
+            for (Map.Entry<PartitionKey, ByteBuffer> entry : items.serialized.entrySet())
+            {
+                PartitionKey.serializer.serialize(entry.getKey(), out, version);
+                ByteBufferUtil.writeWithVIntLength(entry.getValue(), out);
+            }
+        }
+
+        @Override
+        public S deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int size = in.readInt();
+            NavigableMap<PartitionKey, ByteBuffer> items = new TreeMap<>();
+            for (int i=0; i<size; i++)
+                items.put(PartitionKey.serializer.deserialize(in, version), ByteBufferUtil.readWithVIntLength(in));
+            return factory.apply(items);
+        }
+
+        @Override
+        public long serializedSize(S items, int version)
+        {
+            long size = TypeSizes.sizeof(items.serialized.size());
+            for (Map.Entry<PartitionKey, ByteBuffer> entry : items.serialized.entrySet())
+            {
+                size += PartitionKey.serializer.serializedSize(entry.getKey());
+                size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getValue());
+            }
+            return size;
+        }
     }
 }

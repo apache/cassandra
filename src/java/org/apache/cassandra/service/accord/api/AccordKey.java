@@ -25,6 +25,7 @@ import java.util.Objects;
 import com.google.common.base.Preconditions;
 
 import accord.api.Key;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -40,6 +41,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public interface AccordKey extends Key<AccordKey>
 {
@@ -188,6 +190,12 @@ public interface AccordKey extends Key<AccordKey>
 
     public static class PartitionKey extends AbstractKey<DecoratedKey>
     {
+        private static DecoratedKey emptyKey()
+        {
+            return DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        }
+        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new PartitionKey(null, emptyKey()));
+
         public PartitionKey(TableId tableId, DecoratedKey key)
         {
             super(tableId, key);
@@ -206,6 +214,11 @@ public interface AccordKey extends Key<AccordKey>
                    "tableId=" + tableId() +
                    ", key=" + partitionKey() +
                    '}';
+        }
+
+        public long unsharedSizeOnHeap()
+        {
+            return EMPTY_SIZE + ByteBufferAccessor.instance.size(partitionKey().getKey());
         }
 
         public static final Serializer serializer = new Serializer();
