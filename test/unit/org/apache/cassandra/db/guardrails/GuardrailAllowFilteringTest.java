@@ -63,7 +63,8 @@ public class GuardrailAllowFilteringTest extends GuardrailTester
     public void testAllowFilteringDisabedNotUsed() throws Throwable
     {
         setGuardrail(false);
-        assertValid("INSERT INTO %s (k, a, b) VALUES (1, 1, 1)");
+        execute("INSERT INTO %s (k, a, b) VALUES (1, 1, 1)");
+        assertValid("SELECT * FROM %s");
     }
 
     @Test
