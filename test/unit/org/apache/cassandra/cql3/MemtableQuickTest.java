@@ -21,7 +21,6 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;

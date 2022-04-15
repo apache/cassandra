@@ -20,6 +20,8 @@ package org.apache.cassandra.db.memtable;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -166,8 +168,8 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
          * Construct a list of boundaries that split the locally-owned ranges into the given number of shards,
          * splitting the owned space evenly. It is up to the memtable to use this information.
          * Any changes in the ring structure (e.g. added or removed nodes) will invalidate the splits; in such a case
-         * the memtable will be sent a shouldSwitch(OWNED_RANGES_CHANGE) and, should that return false, a
-         * {@code localRangesUpdated()} call.
+         * the memtable will be sent a {@link #shouldSwitch}(OWNED_RANGES_CHANGE) and, should that return false, a
+         * {@link #localRangesUpdated()} call.
          */
         ShardBoundaries localRangeSplits(int shardCount);
     }
@@ -243,6 +245,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
         return usage;
     }
 
+    @NotThreadSafe
     class MemoryUsage
     {
         /** On-heap memory used in bytes */
@@ -254,6 +257,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
         /** Off-heap memory as ratio to permitted memtable space */
         public float ownershipRatioOffHeap = 0.0f;
 
+        @Override
         public String toString()
         {
             return String.format("%s (%.0f%%) on-heap, %s (%.0f%%) off-heap",
@@ -290,7 +294,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
     /**
      * Get the collection of data between the given partition boundaries in a form suitable for flushing.
      */
-    FlushCollection<?> getFlushSet(PartitionPosition from, PartitionPosition to);
+    FlushablePartitionSet<?> getFlushSet(PartitionPosition from, PartitionPosition to);
 
     /**
      * A collection of partitions for flushing plus some information required for writing an sstable.
@@ -299,7 +303,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      * being written to, care must be taken to not list newer items as they may violate the bounds collected by the
      * encoding stats or refer to columns that don't exist in the collected columns set.
      */
-    interface FlushCollection<P extends Partition> extends Iterable<P>, SSTableWriter.SSTableSizeParameters
+    interface FlushablePartitionSet<P extends Partition> extends Iterable<P>, SSTableWriter.SSTableSizeParameters
     {
         Memtable memtable();
 
@@ -321,7 +325,6 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
             return memtable().metadata();
         }
 
-        long partitionCount();
         default boolean isEmpty()
         {
             return partitionCount() > 0;
@@ -394,14 +397,15 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 
     /**
      * Called when the table's metadata is updated. The memtable's metadata reference now points to the new version.
-     * This will not be called if shouldSwitch(SCHEMA_CHANGE) returns true, the memtable will be swapped out instead.
+     * This will not be called if {@link #shouldSwitch)(SCHEMA_CHANGE) returns true, as the memtable will be swapped out
+     * instead.
      */
     void metadataUpdated();
 
     /**
      * Called when the known ranges have been updated and owner.localRangeSplits() may return different values.
-     * This will not be called if shouldSwitch(OWNED_RANGES_CHANGE) returns true, the memtable will be swapped out
-     * instead.
+     * This will not be called if {@link #shouldSwitch)(OWNED_RANGES_CHANGE) returns true, as the memtable will be
+     * swapped out instead.
      */
     void localRangesUpdated();
 

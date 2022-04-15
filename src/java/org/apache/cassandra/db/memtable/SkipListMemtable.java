@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.memtable;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -30,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -56,7 +54,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 
@@ -102,12 +99,6 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     protected Factory factory()
     {
         return FACTORY;
-    }
-
-    @Override
-    public void addMemoryUsageTo(MemoryUsage stats)
-    {
-        super.addMemoryUsageTo(stats);
     }
 
     @Override
@@ -254,7 +245,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     }
 
     @Override
-    public FlushCollection<?> getFlushSet(PartitionPosition from, PartitionPosition to)
+    public FlushablePartitionSet<?> getFlushSet(PartitionPosition from, PartitionPosition to)
     {
         Map<PartitionPosition, AtomicBTreePartition> toFlush = getPartitionsSubMap(from, true, to, false);
         long keysSize = 0;
@@ -269,7 +260,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             {
                 keysSize += partition.partitionKey().getKey().remaining();
                 ++keyCount;
-                if (trackContention && partition.useLock())
+                if (partition.useLock())
                     heavilyContendedRowCount++;
             }
 
@@ -289,7 +280,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         final long partitionKeysSize = keysSize;
         final long partitionCount = keyCount;
 
-        return new AbstractFlushCollection<AtomicBTreePartition>()
+        return new AbstractFlushablePartitionSet<AtomicBTreePartition>()
         {
             @Override
             public Memtable memtable()

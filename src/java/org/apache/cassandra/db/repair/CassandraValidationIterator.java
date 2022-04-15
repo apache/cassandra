@@ -196,7 +196,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
             if (!isIncremental)
             {
                 // flush first so everyone is validating data that is as similar as possible
-                cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.REPAIR);
+                cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.VALIDATION);
                 // Note: we also flush for incremental repair during the anti-compaction process.
             }
             sstables = getSSTablesToValidate(cfs, ranges, parentId, isIncremental);

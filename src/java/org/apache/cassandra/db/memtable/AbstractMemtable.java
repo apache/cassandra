@@ -202,7 +202,7 @@ public abstract class AbstractMemtable implements Memtable
         }
     }
 
-    protected abstract class AbstractFlushCollection<P extends Partition> implements FlushCollection<P>
+    protected abstract class AbstractFlushablePartitionSet<P extends Partition> implements FlushablePartitionSet<P>
     {
         public long dataSize()
         {

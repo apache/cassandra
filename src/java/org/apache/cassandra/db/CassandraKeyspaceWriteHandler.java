@@ -23,6 +23,7 @@ import java.util.Set;
 
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
@@ -66,13 +67,12 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
 
     private CommitLogPosition addToCommitLog(Mutation mutation)
     {
-        CommitLogPosition position;
         // Usually one of these will be true, so first check if that's the case.
         boolean allSkipCommitlog = true;
         boolean noneSkipCommitlog = true;
-        for (TableId id : mutation.getTableIds())
+        for (PartitionUpdate update : mutation.getPartitionUpdates())
         {
-            if (keyspace.getColumnFamilyStore(id).writesShouldSkipCommitLog())
+            if (update.metadata().params.memtable.factory().writesShouldSkipCommitLog())
                 noneSkipCommitlog = false;
             else
                 allSkipCommitlog = false;
@@ -85,10 +85,10 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
             else
             {
                 Set<TableId> ids = new HashSet<>();
-                for (TableId id : mutation.getTableIds())
+                for (PartitionUpdate update : mutation.getPartitionUpdates())
                 {
-                    if (keyspace.getColumnFamilyStore(id).writesShouldSkipCommitLog())
-                        ids.add(id);
+                    if (update.metadata().params.memtable.factory().writesShouldSkipCommitLog())
+                        ids.add(update.metadata().id);
                 }
                 mutation = mutation.without(ids);
             }
@@ -97,8 +97,7 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
         // or memoize the mutation.getTableIds()->ids map (needs invalidation on schema version change).
 
         Tracing.trace("Appending to commitlog");
-        position = CommitLog.instance.add(mutation);
-        return position;
+        return CommitLog.instance.add(mutation);
     }
 
     @SuppressWarnings("resource") // group is closed when CassandraWriteContext is closed

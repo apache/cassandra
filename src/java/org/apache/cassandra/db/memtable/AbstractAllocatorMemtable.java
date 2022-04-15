@@ -61,7 +61,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     // Record the comparator of the CFS at the creation of the memtable. This
     // is only used when a user update the CF comparator, to know if the
     // memtable was created with the new or old comparator.
-    public final ClusteringComparator initialComparator;
+    protected final ClusteringComparator initialComparator;
 
     private final long creationNano = Clock.Global.nanoTime();
 
@@ -107,6 +107,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         return allocator;
     }
 
+    @Override
     public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason)
     {
         switch (reason)
@@ -135,8 +136,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
 
     public void performSnapshot(String snapshotName)
     {
-        // unless shouldSwitch(SNAPSHOT) returns false, this cannot be called.
-        throw new AssertionError();
+        throw new AssertionError("performSnapshot must be implemented if shouldSwitch(SNAPSHOT) can return false.");
     }
 
     protected abstract Factory factory();

@@ -5302,7 +5302,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Keyspace keyspace : Keyspace.nonSystem())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-                    flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.SHUTDOWN));
+                    flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.DRAIN));
             }
             // wait for the flushes.
             // TODO this is a godawful way to track progress, since they flush in parallel.  a long one could
@@ -5334,7 +5334,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Keyspace keyspace : Keyspace.system())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-                    flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.SHUTDOWN));
+                    flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.DRAIN));
             }
             FBUtilities.waitOnFutures(flushes);
 

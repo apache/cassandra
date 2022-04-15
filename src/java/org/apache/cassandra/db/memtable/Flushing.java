@@ -49,6 +49,10 @@ public class Flushing
 {
     private static final Logger logger = LoggerFactory.getLogger(Flushing.class);
 
+    private Flushing() // prevent instantiation
+    {
+    }
+
     public static List<FlushRunnable> flushRunnables(ColumnFamilyStore cfs,
                                                      Memtable memtable,
                                                      LifecycleTransaction txn)
@@ -90,7 +94,7 @@ public class Flushing
                                        LifecycleTransaction txn,
                                        Directories.DataDirectory flushLocation)
     {
-        Memtable.FlushCollection<?> flushSet = memtable.getFlushSet(from, to);
+        Memtable.FlushablePartitionSet<?> flushSet = memtable.getFlushSet(from, to);
         SSTableFormat.Type formatType = SSTableFormat.Type.current();
         long estimatedSize = formatType.info.getWriterFactory().estimateSize(flushSet);
 
@@ -117,14 +121,14 @@ public class Flushing
 
     public static class FlushRunnable implements Callable<SSTableMultiWriter>
     {
-        private final Memtable.FlushCollection<?> toFlush;
+        private final Memtable.FlushablePartitionSet<?> toFlush;
 
         private final SSTableMultiWriter writer;
         private final TableMetrics metrics;
         private final boolean isBatchLogTable;
         private final boolean logCompletion;
 
-        public FlushRunnable(Memtable.FlushCollection<?> flushSet,
+        public FlushRunnable(Memtable.FlushablePartitionSet<?> flushSet,
                              SSTableMultiWriter writer,
                              TableMetrics metrics,
                              boolean logCompletion)
@@ -189,7 +193,7 @@ public class Flushing
     }
 
     public static SSTableMultiWriter createFlushWriter(ColumnFamilyStore cfs,
-                                                       Memtable.FlushCollection<?> flushSet,
+                                                       Memtable.FlushablePartitionSet<?> flushSet,
                                                        LifecycleTransaction txn,
                                                        Descriptor descriptor,
                                                        long partitionCount)

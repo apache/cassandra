@@ -41,8 +41,44 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  *
  * The latter should consume any further options (using map.remove).
  *
+ * The memtable configurations are defined in cassandra.yaml, using the following format:
+ * {@code
+ * memtable:
+ *   configurations:
+ *     〈configuration name〉:
+ *       class_name: 〈class〉
+ *       inherits: 〈configuration name〉
+ *       parameters:
+ *         〈parameters〉
+ * }
+ * and specifed in the CQL table definition using {@code memtable = 〈configuration name〉}.
  *
- * CQL: {'class' : 'SkipListMemtable'}
+ * Configurations can copy the properties from others, including being full copies of another, which can be useful for
+ * easily remapping one name to another configuration.
+ *
+ * The default memtable configuration is named 'default'. It can be overridden if the yaml specifies it (including
+ * using inheritance to copy another configuration), and it can be inherited, even if it is not explicitly defined in
+ * the yaml (e.g. to change some parameter but not the memtable class).
+ *
+ * Examples:
+ *
+ * {@code
+ * memtable:
+ *   configurations:
+ *     more_shards:
+ *       inherits: default
+ *       parameters:
+ *          shards: 32
+ *
+ * memtable:
+ *   configurations:
+ *     skiplist:
+ *       class_name: SkipListMemtable
+ *     trie:
+ *       class_name: TrieMemtable
+ *     default:
+ *       inherits: trie
+ * }
  */
 public final class MemtableParams
 {
@@ -91,8 +127,6 @@ public final class MemtableParams
         return configurationKey.hashCode();
     }
 
-    private static final String CLASS_OPTION = "class";
-    private static final String EXTENDS_OPTION = "extends";
     private static final String DEFAULT_CONFIGURATION_KEY = "default";
     private static final Memtable.Factory DEFAULT_MEMTABLE_FACTORY = SkipListMemtableFactory.INSTANCE;
     private static final ParameterizedClass DEFAULT_CONFIGURATION = SkipListMemtableFactory.CONFIGURATION;
@@ -148,7 +182,7 @@ public final class MemtableParams
             return DEFAULT_MEMTABLE_FACTORY;
 
         String className = options.class_name;
-        if ( className == null || className.isEmpty())
+        if (className == null || className.isEmpty())
             throw new ConfigurationException("The 'class_name' option must be specified.");
 
         className = className.contains(".") ? className : "org.apache.cassandra.db.memtable." + className;
@@ -156,7 +190,9 @@ public final class MemtableParams
         {
             Memtable.Factory factory;
             Class<?> clazz = Class.forName(className);
-            final Map<String, String> parametersCopy = options.parameters != null ? new HashMap<>(options.parameters) : new HashMap<>();
+            final Map<String, String> parametersCopy = options.parameters != null
+                                                       ? new HashMap<>(options.parameters)
+                                                       : new HashMap<>();
             try
             {
                 Method factoryMethod = clazz.getDeclaredMethod("factory", Map.class);
@@ -168,7 +204,7 @@ public final class MemtableParams
                 Field factoryField = clazz.getDeclaredField("FACTORY");
                 factory = (Memtable.Factory) factoryField.get(null);
             }
-            if (parametersCopy != null && !parametersCopy.isEmpty())
+            if (!parametersCopy.isEmpty())
                 throw new ConfigurationException("Memtable class " + className + " does not accept any futher parameters, but " +
                                                  parametersCopy + " were given.");
             return factory;

@@ -230,13 +230,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         INTERNALLY_FORCED,  // explicitly requested flush, necessary for the operation of an internal table
         USER_FORCED, // flush explicitly requested by the user (e.g. nodetool flush)
         STARTUP,
-        SHUTDOWN,
+        DRAIN,
         SNAPSHOT,
         TRUNCATE,
         DROP,
         STREAMING,
         STREAMS_RECEIVED,
-        REPAIR,
+        VALIDATION,
+        ANTICOMPACTION,
         SCHEMA_CHANGE,
         OWNED_RANGES_CHANGE,
         UNIT_TESTS // explicitly requested flush needed for a test
@@ -276,7 +277,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     private final String oldMBeanName;
     private volatile boolean valid = true;
 
-    private Memtable.Factory memtableFactory;
+    private volatile Memtable.Factory memtableFactory;
 
     /**
      * Memtables and SSTables on disk for this column family.
@@ -322,7 +323,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     @VisibleForTesting
     final DiskBoundaryManager diskBoundaryManager = new DiskBoundaryManager();
-    ShardBoundaries cachedShardBoundaries = null;
+    private volatile ShardBoundaries cachedShardBoundaries = null;
 
     private volatile boolean neverPurgeTombstones = false;
 
@@ -1006,10 +1007,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         for (ColumnFamilyStore indexCfs : indexManager.getAllIndexColumnFamilyStores())
             indexCfs.getTracker().getView().getCurrentMemtable().addMemoryUsageTo(usage);
 
-        logger.info("Enqueuing flush of {} ({}): {}",
-                     name,
-                     reason,
-                     usage);
+        logger.info("Enqueuing flush of {}.{}, Reason: {}, Usage: {}", keyspace.getName(), name, reason, usage);
     }
 
 
@@ -2485,11 +2483,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (current.isClean())
             return null;
 
-        List<Memtable.FlushCollection<?>> dataSets = new ArrayList<>(ranges.size());
+        List<Memtable.FlushablePartitionSet<?>> dataSets = new ArrayList<>(ranges.size());
         long keys = 0;
         for (Range<PartitionPosition> range : ranges)
         {
-            Memtable.FlushCollection<?> dataSet = current.getFlushSet(range.left, range.right);
+            Memtable.FlushablePartitionSet<?> dataSet = current.getFlushSet(range.left, range.right);
             dataSets.add(dataSet);
             keys += dataSet.partitionCount();
         }
@@ -2497,7 +2495,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             return null;
 
         // TODO: Can we write directly to stream, skipping disk?
-        Memtable.FlushCollection<?> firstDataSet = dataSets.get(0);
+        Memtable.FlushablePartitionSet<?> firstDataSet = dataSets.get(0);
         SSTableMultiWriter writer = createSSTableMultiWriter(newSSTableDescriptor(directories.getDirectoryForNewSSTables()),
                                                              keys,
                                                              0,
@@ -2511,7 +2509,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                              DO_NOT_TRACK);
         try
         {
-            for (Memtable.FlushCollection<?> dataSet : dataSets)
+            for (Memtable.FlushablePartitionSet<?> dataSet : dataSets)
                 new Flushing.FlushRunnable(dataSet, writer, metric, false).call();  // executes on this thread
 
             return writer;

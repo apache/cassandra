@@ -27,6 +27,7 @@ public class InheritingClass extends ParameterizedClass
 {
     public String inherits = null;
 
+    @SuppressWarnings("unused") // for snakeyaml
     public InheritingClass()
     {
     }
@@ -37,6 +38,7 @@ public class InheritingClass extends ParameterizedClass
         this.inherits = inherits;
     }
 
+    @SuppressWarnings("unused")
     public InheritingClass(Map<String, ?> p)
     {
         super(p);

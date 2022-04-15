@@ -37,8 +37,6 @@ import java.util.zip.Checksum;
 
 import javax.crypto.Cipher;
 
-import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.io.Files;
 
@@ -1050,14 +1048,7 @@ public abstract class CommitLogTest
 
     private void waitForStartedFlushes(ColumnFamilyStore cfs, Memtable current)
     {
-        try
-        {
-            cfs.switchMemtableIfCurrent(current, ColumnFamilyStore.FlushReason.UNIT_TESTS).get();
-        }
-        catch (InterruptedException|ExecutionException e)
-        {
-            throw Throwables.propagate(e);
-        }
+        FBUtilities.waitOnFuture(cfs.switchMemtableIfCurrent(current, ColumnFamilyStore.FlushReason.UNIT_TESTS));
     }
 
     @Test
