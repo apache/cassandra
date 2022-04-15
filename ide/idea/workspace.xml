@@ -191,6 +191,7 @@
                                           -Dcassandra.test.messagingService.nonGracefulShutdown=true
                                           -Dcassandra.tolerate_sstable_size=true
                                           -Dcassandra.use_nix_recursive_delete=true
+                                          -Dcassandra.testtag=ide
                                           -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables
