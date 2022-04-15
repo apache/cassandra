@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import org.slf4j.ILoggerFactory;
@@ -40,7 +42,6 @@ import org.apache.cassandra.distributed.shared.InstanceClassLoader;
  */
 public class LogbackStatusListener implements StatusListener, LoggerContextListener
 {
-
     public static final PrintStream originalOut = System.out;
     public static final PrintStream originalErr = System.err;
 
@@ -50,6 +51,22 @@ public class LogbackStatusListener implements StatusListener, LoggerContextListe
 
     private PrintStream replacementOut;
     private PrintStream replacementErr;
+
+    /*
+     * Set the property for the test suite name so that log configuration can pick it up
+     * and log to a file specific to this test suite
+     */
+    static
+    {
+        String command = System.getProperty("sun.java.command");
+        List<String> args = Arrays.asList(command.split(" "));
+        int idx = args.lastIndexOf("-junit4");
+
+        if (idx > 0 && (idx + 1) < args.size())
+            System.setProperty("suitename", args.get(idx + 1));
+        else
+            System.setProperty("suitename", args.get(1));
+    }
 
     @Override
     public void addStatusEvent(Status s)
@@ -145,7 +162,7 @@ public class LogbackStatusListener implements StatusListener, LoggerContextListe
                 reset();
             }
         }
-    };
+    }
 
     private static class WrappedPrintStream extends PrintStream
     {
@@ -285,7 +302,7 @@ public class LogbackStatusListener implements StatusListener, LoggerContextListe
         @Override
         public void print(char[] s)
         {
-            if(isAsyncAppender())
+            if (isAsyncAppender())
                 original.println(s);
             else
                 super.print(s);
@@ -460,7 +477,8 @@ public class LogbackStatusListener implements StatusListener, LoggerContextListe
                 return original.append(c);
             else
                 return super.append(c);
-        }    }
+        }
+    }
 
     public boolean isResetResistant()
     {
@@ -514,7 +532,7 @@ public class LogbackStatusListener implements StatusListener, LoggerContextListe
             haveRegisteredListener = false;
             if (haveRegisteredListener)
             {
-                ((LoggerContext)LoggerFactory.getILoggerFactory()).removeListener(this);
+                ((LoggerContext) LoggerFactory.getILoggerFactory()).removeListener(this);
             }
         }
     }

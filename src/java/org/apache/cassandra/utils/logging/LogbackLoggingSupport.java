@@ -20,17 +20,19 @@ package org.apache.cassandra.utils.logging;
 
 import java.lang.management.ManagementFactory;
 import java.security.AccessControlException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.management.JMX;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.security.ThreadAwareSecurityManager;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.collect.Maps;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.ILoggerFactory;
+import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -41,7 +43,10 @@ import ch.qos.logback.classic.spi.TurboFilterList;
 import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
 import ch.qos.logback.classic.turbo.TurboFilter;
 import ch.qos.logback.core.Appender;
+import ch.qos.logback.core.filter.Filter;
 import ch.qos.logback.core.hook.DelayingShutdownHook;
+import ch.qos.logback.core.spi.AppenderAttachable;
+import org.apache.cassandra.security.ThreadAwareSecurityManager;
 
 /**
  * Encapsulates all logback-specific implementations in a central place.
@@ -130,6 +135,30 @@ public class LogbackLoggingSupport implements LoggingSupport
                 logLevelMaps.put(logBackLogger.getName(), logBackLogger.getLevel().toString());
         }
         return logLevelMaps;
+    }
+
+    private Set<Appender<?>> getAllLogbackAppenders()
+    {
+        ILoggerFactory factory = LoggerFactory.getILoggerFactory();
+        LoggerContext ctx = (LoggerContext) factory;
+
+        Set<Appender<?>> appenders = new HashSet<>();
+        ctx.getLoggerList().forEach(logger -> logger.iteratorForAppenders().forEachRemaining(a -> collectAppenders(a, appenders)));
+        return appenders;
+    }
+
+    private static void collectAppenders(Appender<?> appender, Collection<Appender<?>> collection)
+    {
+        collection.add(appender);
+        if (appender instanceof AppenderAttachable<?>)
+            ((AppenderAttachable<?>) appender).iteratorForAppenders().forEachRemaining(a -> collectAppenders(a, collection));
+    }
+
+    public Set<Filter<?>> getAllLogbackFilters()
+    {
+        return getAllLogbackAppenders().stream()
+                                       .flatMap(a -> a.getCopyOfAttachedFiltersList().stream())
+                                       .collect(Collectors.toSet());
     }
 
     private boolean hasAppenders(Logger logBackLogger)
