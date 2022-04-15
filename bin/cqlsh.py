@@ -426,7 +426,7 @@ class Shell(cmd.Cmd):
     default_page_size = 100
 
     def __init__(self, hostname, port, color=False,
-                 username=None, password=None, encoding=None, stdin=None, tty=True,
+                 username=None, encoding=None, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
@@ -449,10 +449,12 @@ class Shell(cmd.Cmd):
         self.port = port
         self.auth_provider = auth_provider
 
-        if username:
-            if not password:
+        if isinstance(auth_provider, PlainTextAuthProvider):
+            if not auth_provider.password:
+                # if no password is provided, we need to query the user to get one.
                 password = getpass.getpass()
-            self.auth_provider = PlainTextAuthProvider(username=username, password=password)
+                self.auth_provider = PlainTextAuthProvider(username=auth_provider.username, password=password)
+
         self.username = username
         self.keyspace = keyspace
         self.ssl = ssl
@@ -1615,10 +1617,8 @@ class Shell(cmd.Cmd):
         except IOError as e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
-        username = self.auth_provider.username if self.auth_provider else None
-        password = self.auth_provider.password if self.auth_provider else None
         subshell = Shell(self.hostname, self.port, color=self.color,
-                         username=username, password=password,
+                         username=self.username,
                          encoding=self.encoding, stdin=f, tty=False, use_conn=self.conn,
                          cqlver=self.cql_version, keyspace=self.current_keyspace,
                          tracing_enabled=self.tracing_enabled,
@@ -1631,7 +1631,8 @@ class Shell(cmd.Cmd):
                          max_trace_wait=self.max_trace_wait, ssl=self.ssl,
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
-                         is_subshell=True)
+                         is_subshell=True,
+                         auth_provider=self.auth_provider)
         # duplicate coverage related settings in subshell
         if self.coverage:
             subshell.coverage = True
@@ -2154,6 +2155,13 @@ def read_options(cmdlineargs, environment):
     optvalues.insecure_password_without_warning = False
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
+    
+    # Credentials from cqlshrc will be expanded, 
+    # credentials from the command line are also expanded if there is a space...
+    # we need the following so that these two scenarios will work
+    #   cqlsh --credentials=~/.cassandra/creds
+    #   cqlsh --credentials ~/.cassandra/creds
+    options.credentials = os.path.expanduser(options.credentials)
 
     if not is_file_secure(options.credentials):
         print("\nWarning: Credentials file '{0}' exists but is not used, because:"
@@ -2332,7 +2340,6 @@ def main(options, hostname, port):
                       port,
                       color=options.color,
                       username=options.username,
-                      password=options.password,
                       stdin=stdin,
                       tty=options.tty,
                       completekey=options.completekey,
@@ -2352,7 +2359,11 @@ def main(options, hostname, port):
                       request_timeout=options.request_timeout,
                       connect_timeout=options.connect_timeout,
                       encoding=options.encoding,
-                      auth_provider=authproviderhandling.load_custom_auth_provider(CONFIG_FILE))
+                      auth_provider=authproviderhandling.load_auth_provider(
+                          config_file=CONFIG_FILE,
+                          cred_file=options.credentials,
+                          username=options.username,
+                          password=options.password))
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS as e:
