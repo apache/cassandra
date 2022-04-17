@@ -1,4 +1,5 @@
 4.1
+ * Fix repair_request_timeout_in_ms and remove paxos_auto_repair_threshold_mb (CASSANDRA-17557)
  * Incremental repair leaks SomeRepairFailedException after switch away from flatMap (CASSANDRA-17620)
  * StorageService read threshold get methods throw NullPointerException due to not handling null configs (CASSANDRA-17593)
  * Rename truncate_drop guardrail to drop_truncate_table (CASSANDRA-17592)
