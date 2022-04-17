@@ -210,6 +210,7 @@ Merged from 3.11:
  * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
+ * Fix data corruption in AbstractCompositeType due to static boolean byte buffers (CASSANDRA-14752)
  * Add procps dependency to RPM/Debian packages (CASSANDRA-17516)
  * Suppress CVE-2021-44521 (CASSANDRA-17492)
  * ConnectionLimitHandler may leaks connection count if remote connection drops (CASSANDRA-17252)
