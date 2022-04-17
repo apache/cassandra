@@ -688,4 +688,22 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         "\tWITH ID = " + cfs.metadata.cfId + "\n" +
         "\tAND COMPACT STORAGE"));
     }
+
+    @Test
+    public void testBooleanCompositeKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (t_id boolean, id boolean, ck boolean, nk boolean, PRIMARY KEY ((t_id, id), ck))");
+
+        execute("insert into %s (t_id, id, ck, nk) VALUES (true, false, false, true)");
+        assertRows(execute("select * from %s"), row(true, false, false, true));
+
+        // CASSANDRA-14752 -
+        // a problem with composite boolean types meant that calling this would
+        // prevent any boolean values to be inserted afterwards
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.getSSTablesForKey("false:true");
+
+        execute("insert into %s (t_id, id, ck, nk) VALUES (true, true, false, true)");
+        assertRows(execute("select t_id, id, ck, nk from %s"), row(true, true, false, true), row(true, false, false, true));
+    }
 }

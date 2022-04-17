@@ -6,6 +6,7 @@
  * Validate existence of DCs when repairing (CASSANDRA-17407)
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
 Merged from 3.0:
+ * Fix data corruption in AbstractCompositeType due to static boolean byte buffers (CASSANDRA-14752)
  * Add procps dependency to RPM/Debian packages (CASSANDRA-17516)
  * Suppress CVE-2021-44521 (CASSANDRA-17492)
  * ConnectionLimitHandler may leaks connection count if remote connection drops (CASSANDRA-17252)
