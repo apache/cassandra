@@ -89,7 +89,7 @@ public class MockSchema
 
     public static Memtable memtable(ColumnFamilyStore cfs)
     {
-        return new SkipListMemtable(cfs.metadata, cfs);
+        return SkipListMemtable.FACTORY.create(null, cfs.metadata, cfs);
     }
 
     public static SSTableReader sstable(int generation, ColumnFamilyStore cfs)

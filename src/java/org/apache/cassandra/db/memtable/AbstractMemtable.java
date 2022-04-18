@@ -44,9 +44,9 @@ public abstract class AbstractMemtable implements Memtable
     protected AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
     // The smallest local deletion time for all partitions in this memtable
     protected AtomicInteger minLocalDeletionTime = new AtomicInteger(Integer.MAX_VALUE);
-    // TODO: understand why statsCollector's value cannot be used instead of these
+    // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
+    // correct for their usage.
 
-    private final AtomicReference<LifecycleTransaction> flushTransaction = new AtomicReference<>(null);
     protected TableMetadataRef metadata;
 
     public AbstractMemtable(TableMetadataRef metadataRef)
@@ -107,16 +107,6 @@ public abstract class AbstractMemtable implements Memtable
     EncodingStats encodingStats()
     {
         return statsCollector.get();
-    }
-
-    public LifecycleTransaction getFlushTransaction()
-    {
-        return flushTransaction.get();
-    }
-
-    public LifecycleTransaction setFlushTransaction(LifecycleTransaction flushTransaction)
-    {
-        return this.flushTransaction.getAndSet(flushTransaction);
     }
 
     protected static class ColumnsCollector

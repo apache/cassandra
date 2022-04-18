@@ -83,16 +83,9 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 
     private final AtomicLong liveDataSize = new AtomicLong(0);
 
-    SkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)
+    protected SkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)
     {
         super(commitLogLowerBound, metadataRef, owner);
-    }
-
-    // Only for testing
-    @VisibleForTesting
-    public SkipListMemtable(TableMetadataRef metadataRef, Owner owner)
-    {
-        this(null, metadataRef, owner);
     }
 
     @Override

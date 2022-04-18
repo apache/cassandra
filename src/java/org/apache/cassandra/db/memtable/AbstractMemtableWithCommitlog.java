@@ -67,6 +67,7 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
     }
 
     // decide if this memtable should take the write, or if it should go to the next memtable
+    @Override
     public boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
     {
         // if the barrier hasn't been set yet, then this memtable is still the newest and is taking ALL writes.
