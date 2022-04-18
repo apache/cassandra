@@ -69,6 +69,7 @@ New features
     - New Guardrails added:
       - Whether ALTER TABLE commands are allowed to mutate columns
       - Whether SimpleStrategy is allowed on keyspace creation or alteration
+      - Maximum replication factor
 
 Upgrading
 ---------

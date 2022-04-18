@@ -344,10 +344,19 @@ public final class Guardrails implements GuardrailsMBean
                      state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumReplicationFactorWarnThreshold(),
                      state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumReplicationFactorFailThreshold(),
                      (isWarning, what, value, threshold) ->
-                     isWarning ? format("The keyspace %s has a replication factor of %s, below the warning threshold of %s.",
-                                        what, value, threshold)
-                               : format("The keyspace %s has a replication factor of %s, below the failure threshold of %s.",
-                                        what, value, threshold));
+                     format("The keyspace %s has a replication factor of %s, below the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the maximum replication factor.
+     */
+    public static final MaxThreshold maximumReplicationFactor =
+    new MaxThreshold("maximum_replication_factor",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMaximumReplicationFactorWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMaximumReplicationFactorFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     format("The keyspace %s has a replication factor of %s, above the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     private Guardrails()
     {
@@ -855,6 +864,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setFieldsPerUDTThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setFieldsPerUDTThreshold(warn, fail);
+    }
+
+    @Override
+    public int getMaximumReplicationFactorWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getMaximumReplicationFactorWarnThreshold();
+    }
+
+    @Override
+    public int getMaximumReplicationFactorFailThreshold()
+    {
+        return DEFAULT_CONFIG.getMaximumReplicationFactorFailThreshold();
+    }
+
+    @Override
+    public void setMaximumReplicationFactorThreshold (int warn, int fail)
+    {
+        DEFAULT_CONFIG.setMaximumReplicationFactorThreshold(warn, fail);
     }
 
     @Override
