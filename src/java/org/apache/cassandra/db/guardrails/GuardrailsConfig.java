@@ -291,4 +291,13 @@ public interface GuardrailsConfig
      */
     int getMinimumReplicationFactorFailThreshold();
 
+    /**
+     * @return The threshold to warn when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorFailThreshold();
 }

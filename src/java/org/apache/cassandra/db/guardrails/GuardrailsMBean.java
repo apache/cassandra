@@ -550,21 +550,38 @@ public interface GuardrailsMBean
     void setDataDiskUsageMaxDiskSize(@Nullable String size);
 
     /**
-     * @return The threshold to warn when replication factor is lesser threshold.
+     * @return The threshold to warn when replication factor is lesser than threshold.
      */
     int getMinimumReplicationFactorWarnThreshold();
 
     /**
-     * @return The threshold to fail when replication factor is lesser threshold.
+     * @return The threshold to fail when replication factor is lesser than threshold.
      */
     int getMinimumReplicationFactorFailThreshold();
 
     /**
-     * @param warn the threshold to warn when the minimum replication factor is lesser than
-     *             threshold -1 means disabled.
-     * @param fail the threshold to fail when the minimum replication factor is lesser than
-     *             threshold -1 means disabled.
+     * @param warn The threshold to warn when the minimum replication factor is lesser than threshold.
+     *             -1 means disabled.
+     * @param fail The threshold to fail when the minimum replication factor is lesser than threshold.
+     *            -1 means disabled.
      */
     void setMinimumReplicationFactorThreshold (int warn, int fail);
 
+    /**
+     * @return The threshold to fail when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when the maximum replication factor is greater than threshold.
+     *             -1 means disabled.
+     * @param fail The threshold to fail when the maximum replication factor is greater than threshold.
+     *             -1 means disabled.
+     */
+    void setMaximumReplicationFactorThreshold (int warn, int fail);
 }

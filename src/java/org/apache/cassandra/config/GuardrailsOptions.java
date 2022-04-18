@@ -81,7 +81,8 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
         validatePercentageThreshold(config.data_disk_usage_percentage_warn_threshold, config.data_disk_usage_percentage_fail_threshold, "data_disk_usage_percentage");
         validateDataDiskUsageMaxDiskSize(config.data_disk_usage_max_disk_size);
-        validateMinRFThreshold(config.minimum_replication_factor_warn_threshold, config.minimum_replication_factor_fail_threshold, "minimum_replication_factor");
+        validateMinRFThreshold(config.minimum_replication_factor_warn_threshold, config.minimum_replication_factor_fail_threshold);
+        validateMaxRFThreshold(config.maximum_replication_factor_warn_threshold, config.maximum_replication_factor_fail_threshold);
     }
 
     @Override
@@ -651,7 +652,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setMinimumReplicationFactorThreshold(int warn, int fail)
     {
-        validateMinRFThreshold(warn, fail, "minimum_replication_factor");
+        validateMinRFThreshold(warn, fail);
         updatePropertyWithLogging("minimum_replication_factor_warn_threshold",
                                   warn,
                                   () -> config.minimum_replication_factor_warn_threshold,
@@ -660,6 +661,31 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.minimum_replication_factor_fail_threshold,
                                   x -> config.minimum_replication_factor_fail_threshold = x);
+    }
+
+    @Override
+    public int getMaximumReplicationFactorWarnThreshold()
+    {
+        return config.maximum_replication_factor_warn_threshold;
+    }
+
+    @Override
+    public int getMaximumReplicationFactorFailThreshold()
+    {
+        return config.maximum_replication_factor_fail_threshold;
+    }
+
+    public void setMaximumReplicationFactorThreshold(int warn, int fail)
+    {
+        validateMaxRFThreshold(warn, fail);
+        updatePropertyWithLogging("maximum_replication_factor_warn_threshold",
+                                  warn,
+                                  () -> config.maximum_replication_factor_warn_threshold,
+                                  x -> config.maximum_replication_factor_warn_threshold = x);
+        updatePropertyWithLogging("maximum_replication_factor_fail_threshold",
+                                  fail,
+                                  () -> config.maximum_replication_factor_fail_threshold,
+                                  x -> config.maximum_replication_factor_fail_threshold = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
@@ -717,10 +743,24 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateWarnGreaterThanFail(warn, fail, name);
     }
 
-    private static void validateMinRFThreshold(int warn, int fail, String name)
+    private static void validateMinRFThreshold(int warn, int fail)
     {
-        validateMinIntThreshold(warn, fail, name);
-        validateMinRFVersusDefaultRF(fail, name);
+        validateMinIntThreshold(warn, fail, "minimum_replication_factor");
+
+        if (fail > DatabaseDescriptor.getDefaultKeyspaceRF())
+            throw new IllegalArgumentException(format("minimum_replication_factor_fail_threshold to be set (%d) " +
+                                                      "cannot be greater than default_keyspace_rf (%d)",
+                                                      fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
+    }
+
+    private static void validateMaxRFThreshold(int warn, int fail)
+    {
+        validateMaxIntThreshold(warn, fail, "maximum_replication_factor");
+
+        if (fail != -1 && fail < DatabaseDescriptor.getDefaultKeyspaceRF())
+            throw new IllegalArgumentException(format("maximum_replication_factor_fail_threshold to be set (%d) " +
+                                                      "cannot be lesser than default_keyspace_rf (%d)",
+                                                      fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
     }
 
     private static void validateWarnLowerThanFail(long warn, long fail, String name)
@@ -741,15 +781,6 @@ public class GuardrailsOptions implements GuardrailsConfig
         if (fail > warn)
             throw new IllegalArgumentException(format("The warn threshold %d for %s_warn_threshold should be greater " +
                                                       "than the fail threshold %d", warn, name, fail));
-    }
-
-    private static void validateMinRFVersusDefaultRF(int fail, String name) throws IllegalArgumentException
-    {
-        if (fail > DatabaseDescriptor.getDefaultKeyspaceRF())
-        {
-            throw new IllegalArgumentException(String.format("%s_fail_threshold to be set (%d) cannot be greater than default_keyspace_rf (%d)",
-                                                           name, fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
-        }
     }
 
     private static void validateSize(DataStorageSpec.LongBytesBound size, boolean allowZero, String name)

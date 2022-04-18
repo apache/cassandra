@@ -1,4 +1,5 @@
 4.2
+ * Add guardrail for maximum replication factor (CASSANDRA-17500)
  * Increment CQLSH to version 6.2.0 for release 4.2 (CASSANDRA-17646)
  * Adding support to perform certificate based internode authentication (CASSANDRA-17661)
  * Option to disable CDC writes of repaired data (CASSANDRA-17666)
