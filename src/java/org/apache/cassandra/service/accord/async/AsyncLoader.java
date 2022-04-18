@@ -66,6 +66,27 @@ public class AsyncLoader
         this.keyCommandsToLoad = keys;
     }
 
+    private static <K, V extends AccordState<K, V>> Future<?> referenceAndDispatch(K key,
+                                                                                   AccordStateCache.Instance<K, V> cache,
+                                                                                   Map<K, V> context,
+                                                                                   Predicate<V> isLoaded,
+                                                                                   Function<V, Future<?>> readFunction)
+    {
+        Future<?> future = cache.getLoadFuture(key);
+        if (future != null)
+            return future;
+
+        V item = cache.getOrCreate(key);
+        context.put(key, item);
+        if (isLoaded.test(item))
+            return null;
+
+        future = readFunction.apply(item);
+        cache.setLoadFuture(item.key(), future);
+        return future;
+    }
+
+
     private static <K, V extends AccordState<K, V>> List<Future<?>> referenceAndDispatchReads(Iterable<K> keys,
                                                                                               AccordStateCache.Instance<K, V> cache,
                                                                                               Map<K, V> context,
@@ -75,24 +96,16 @@ public class AsyncLoader
     {
         for (K key : keys)
         {
-            V item = cache.getOrCreate(key);
-            context.put(key, item);
-
-            Future<?> future = cache.getLoadFuture(key);
-
-            if (future == null && isLoaded.test(item))
+            Future<?> future = referenceAndDispatch(key, cache, context, isLoaded, readFunction);
+            if (future == null)
                 continue;
 
             if (futures == null)
                 futures = new ArrayList<>();
 
-            if (future == null)
-            {
-                future = readFunction.apply(item);
-                cache.setLoadFuture(item.key(), future);
-            }
             futures.add(future);
         }
+
         return futures;
     }
 
