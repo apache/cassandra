@@ -55,9 +55,9 @@ file_cache_enabled: true
 auto_hints_cleanup_enabled: true
 
 read_thresholds_enabled: true
-coordinator_read_size_warn_threshold: 1KiB
-coordinator_read_size_fail_threshold: 4KiB
-local_read_size_warn_threshold: 4KiB
-local_read_size_fail_threshold: 8KiB
-row_index_size_warn_threshold: 4KiB
-row_index_size_fail_threshold: 8KiB
+coordinator_read_size_warn_threshold: 1024KiB
+coordinator_read_size_fail_threshold: 4096KiB
+local_read_size_warn_threshold: 4096KiB
+local_read_size_fail_threshold: 8192KiB
+row_index_size_warn_threshold: 4096KiB
+row_index_size_fail_threshold: 8192KiB

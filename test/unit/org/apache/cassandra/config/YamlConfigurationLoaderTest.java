@@ -44,14 +44,14 @@ public class YamlConfigurationLoaderTest
 
         assertThat(c.read_thresholds_enabled).isTrue();
 
-        assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 10));
-        assertThat(c.coordinator_read_size_fail_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 12));
+        assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 10));
+        assertThat(c.coordinator_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
 
-        assertThat(c.local_read_size_warn_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 12));
-        assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 13));
+        assertThat(c.local_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
+        assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 13));
 
-        assertThat(c.row_index_size_warn_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 12));
-        assertThat(c.row_index_size_fail_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 13));
+        assertThat(c.row_index_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
+        assertThat(c.row_index_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 13));
     }
 
     @Test
