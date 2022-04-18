@@ -250,26 +250,25 @@ public class GuardrailsTest extends GuardrailTester
         assertValid(() -> guard.guard(9, "z", false, superClientState));
     }
 
-    @Test
-    public void testDisableFlag() throws Throwable
+    public void testEnableFlag() throws Throwable
     {
-        assertFails(() -> new DisableFlag("x", state -> true, "X").ensureEnabled(userClientState), "X is not allowed");
-        assertValid(() -> new DisableFlag("x", state -> false, "X").ensureEnabled(userClientState));
+        assertFails(() -> new EnableFlag("x", state -> false, "X").ensureEnabled(userClientState), "X is not allowed");
+        assertValid(() -> new EnableFlag("x", state -> true, "X").ensureEnabled(userClientState));
 
-        assertFails(() -> new DisableFlag("x", state -> true, "X").ensureEnabled("Y", userClientState), "Y is not allowed");
-        assertValid(() -> new DisableFlag("x", state -> false, "X").ensureEnabled("Y", userClientState));
+        assertFails(() -> new EnableFlag("x", state -> false, "X").ensureEnabled("Y", userClientState), "Y is not allowed");
+        assertValid(() -> new EnableFlag("x", state -> true, "X").ensureEnabled("Y", userClientState));
     }
 
     @Test
-    public void testDisableFlagUsers() throws Throwable
+    public void testEnableFlagUsers() throws Throwable
     {
-        DisableFlag enabled = new DisableFlag("x", state -> false, "X");
+        EnableFlag enabled = new EnableFlag("x", state -> true, "X");
         assertValid(() -> enabled.ensureEnabled(null));
         assertValid(() -> enabled.ensureEnabled(userClientState));
         assertValid(() -> enabled.ensureEnabled(systemClientState));
         assertValid(() -> enabled.ensureEnabled(superClientState));
 
-        DisableFlag disabled = new DisableFlag("x", state -> true, "X");
+        EnableFlag disabled = new EnableFlag("x", state -> false, "X");
         assertFails(() -> disabled.ensureEnabled(userClientState), "X is not allowed");
         assertValid(() -> disabled.ensureEnabled(systemClientState));
         assertValid(() -> disabled.ensureEnabled(superClientState));

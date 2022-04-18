@@ -5,6 +5,7 @@ Merged from 3.0:
 
 
 4.1
+ * Rename DisableFlag class to EnableFlag (CASSANDRA-17544)
  * Add auto_snapshot_ttl configuration (CASSANDRA-16790)
  * List snapshots of dropped tables (CASSANDRA-16843)
  * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)

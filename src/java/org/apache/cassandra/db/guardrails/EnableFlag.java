@@ -24,35 +24,35 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.service.ClientState;
 
 /**
- * A guardrail that completely disables the use of a particular feature.
+ * A guardrail that enables the use of a particular feature.
  *
- * <p>Note that this guardrail only aborts operations (if the feature is disabled) so is only meant for
+ * <p>Note that this guardrail only enables operations (if the feature is enables) so is only meant for
  * query-based guardrails (we're happy to reject queries deemed dangerous, but we don't want to create a guardrail
  * that breaks compaction for instance).
  */
-public class DisableFlag extends Guardrail
+public class EnableFlag extends Guardrail
 {
-    private final Predicate<ClientState> disabled;
+    private final Predicate<ClientState> enabled;
     private final String what;
 
     /**
-     * Creates a new {@link DisableFlag} guardrail.
+     * Creates a new {@link EnableFlag} guardrail.
      *
      * @param name     the identifying name of the guardrail
-     * @param disabled a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
-     *                 guardrail must be disabled.
+     * @param enabled a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
+     *                 guardrail is enabled.
      * @param what     The feature that is guarded by this guardrail (for reporting in error messages),
-     *                 {@link DisableFlag#ensureEnabled(String, ClientState)} can specify a different {@code what}.
+     *                 {@link EnableFlag#ensureEnabled(String, ClientState)} can specify a different {@code what}.
      */
-    public DisableFlag(String name, Predicate<ClientState> disabled, String what)
+    public EnableFlag(String name, Predicate<ClientState> enabled, String what)
     {
         super(name);
-        this.disabled = disabled;
+        this.enabled = enabled;
         this.what = what;
     }
 
     /**
-     * Aborts the operation if this guardrail is disabled.
+     * Aborts the operation if this guardrail is not enabled.
      *
      * <p>This must be called when the feature guarded by this guardrail is used to ensure such use is in fact
      * allowed.
@@ -66,7 +66,7 @@ public class DisableFlag extends Guardrail
     }
 
     /**
-     * Aborts the operation if this guardrail is disabled.
+     * Aborts the operation if this guardrail is not enabled.
      *
      * <p>This must be called when the feature guarded by this guardrail is used to ensure such use is in fact
      * allowed.
@@ -80,7 +80,7 @@ public class DisableFlag extends Guardrail
      */
     public void ensureEnabled(String what, @Nullable ClientState state)
     {
-        if (enabled(state) && disabled.test(state))
+        if (enabled(state) && !enabled.test(state))
             fail(what + " is not allowed", state);
     }
 }
