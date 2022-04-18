@@ -22,15 +22,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
@@ -53,32 +53,38 @@ public class AsyncWriter
         this.commandStore = commandStore;
     }
 
+    private static <K, V extends AccordStateCache.AccordState<K, V>> List<Future<?>> dispatchWrites(Iterable<V> items,
+                                                                                                    AccordStateCache.Instance<K, V> cache,
+                                                                                                    Function<V, Mutation> mutationFunction,
+                                                                                                    List<Future<?>> futures)
+    {
+        for (V item : items)
+        {
+            if (!item.hasModifications())
+                continue;
+
+            if (futures == null) futures = new ArrayList<>();
+            Mutation mutation = mutationFunction.apply(item);
+            Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
+            cache.setSaveFuture(item.key(), future);
+            futures.add(future);
+        }
+        return futures;
+    }
+
     private Future<?> maybeDispatchWrites(AsyncContext context) throws IOException
     {
         List<Future<?>> futures = null;
 
-        for (AccordCommand command : context.commands.values())
-        {
-            if (!command.hasModifications())
-                continue;
+        futures = dispatchWrites(context.commands.values(),
+                                 commandStore.commandCache(),
+                                 AccordKeyspace::getCommandMutation,
+                                 futures);
 
-            if (futures == null) futures = new ArrayList<>();
-            Mutation mutation = AccordKeyspace.getCommandMutation(command);
-            Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
-            commandStore.commandCache().setSaveFuture(command.txnId(), future);
-            futures.add(future);
-        }
-
-        for (AccordCommandsForKey commandsForKey : context.keyCommands.values())
-        {
-            if (!commandsForKey.hasModifications())
-                continue;
-            if (futures == null) futures = new ArrayList<>();
-            Mutation mutation = AccordKeyspace.getCommandsForKeyMutation(commandsForKey);
-            Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
-            commandStore.commandsForKeyCache().setSaveFuture(commandsForKey.key(), future);
-            futures.add(future);
-        }
+        futures = dispatchWrites(context.keyCommands.values(),
+                                 commandStore.commandsForKeyCache(),
+                                 AccordKeyspace::getCommandsForKeyMutation,
+                                 futures);
 
         return futures != null ? FutureCombiner.allOf(futures) : null;
     }
@@ -94,9 +100,8 @@ public class AsyncWriter
                 case INITIALIZED:
                     state = State.DISPATCHING;
                 case DISPATCHING:
-                    for (AccordCommand summary : context.summaries.values())
-                        Preconditions.checkState(!summary.hasModifications(),
-                                                 "Summaries cannot be modified");
+                    context.summaries.values().forEach(summary -> Preconditions.checkState(!summary.hasModifications(),
+                                                                                           "Summaries cannot be modified"));
                     if (writeFuture == null)
                         writeFuture = maybeDispatchWrites(context);
 
