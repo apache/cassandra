@@ -1,4 +1,5 @@
 4.2
+ * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.1:
 Merged from 4.0:
 Merged from 3.11:
