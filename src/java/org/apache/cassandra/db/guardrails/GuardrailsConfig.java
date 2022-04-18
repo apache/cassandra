@@ -152,6 +152,13 @@ public interface GuardrailsConfig
     boolean getGroupByEnabled();
 
     /**
+     * Returns whether TRUNCATE or DROP table are allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getTruncateDropEnabled();
+
+    /**
      * @return The threshold to warn when page size exceeds given size.
      */
     int getPageSizeWarnThreshold();

@@ -325,6 +325,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getTruncateDropEnabled()
+    {
+        return config.truncate_drop_enabled;
+    }
+
+    public void setTruncateDropEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("truncate_drop_enabled",
+                                  enabled,
+                                  () -> config.truncate_drop_enabled,
+                                  x -> config.truncate_drop_enabled = x);
+    }
+
+    @Override
     public boolean getSecondaryIndexesEnabled()
     {
         return config.secondary_indexes_enabled;

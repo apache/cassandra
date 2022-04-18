@@ -1,4 +1,5 @@
 4.1
+ * Add guardrail to disallow TRUNCATE and DROP TABLE commands (CASSANDRA-17558)
  * Shutdown ScheduledExecutors as part of node drainage (CASSANDRA-17493)
  * Provide JMX endpoint to allow transient logging of blocking read repairs (CASSANDRA-17471)
  * Add guardrail for GROUP BY queries (CASSANDRA-17509)
