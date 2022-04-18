@@ -40,41 +40,43 @@ public class YamlConfigurationLoaderTest
     {
         // this test just makes sure snakeyaml loads the test config properly and populates the fields (track warnings uses final in some places)
         // if the config is changed, its ok to update this test to reflect that change
-        TrackWarnings tw = load("test/conf/cassandra.yaml").track_warnings;
-        assertThat(tw.enabled).isTrue();
+        Config c = load("test/conf/cassandra.yaml");
 
-        assertThat(tw.coordinator_read_size.warn_threshold_kb).isGreaterThan(0);
-        assertThat(tw.coordinator_read_size.abort_threshold_kb).isGreaterThan(0);
+        assertThat(c.read_thresholds_enabled).isTrue();
 
-        assertThat(tw.local_read_size.warn_threshold_kb).isGreaterThan(0);
-        assertThat(tw.local_read_size.abort_threshold_kb).isGreaterThan(0);
+        assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 10));
+        assertThat(c.coordinator_read_size_fail_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 12));
 
-        assertThat(tw.row_index_size.warn_threshold_kb).isGreaterThan(0);
-        assertThat(tw.row_index_size.abort_threshold_kb).isGreaterThan(0);
+        assertThat(c.local_read_size_warn_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 12));
+        assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 13));
+
+        assertThat(c.row_index_size_warn_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 12));
+        assertThat(c.row_index_size_fail_threshold).isEqualTo(DataStorageSpec.inBytes(1 << 13));
     }
 
     @Test
     public void trackWarningsFromMap()
     {
-        Map<String, Object> map = ImmutableMap.of("track_warnings", ImmutableMap.of(
-        "enabled", true,
-        "coordinator_read_size", ImmutableMap.of("warn_threshold_kb", 1024),
-        "local_read_size", ImmutableMap.of("abort_threshold_kb", 1024),
-        "row_index_size", ImmutableMap.of("warn_threshold_kb", 1024, "abort_threshold_kb", 1024)
-        ));
 
-        Config config = YamlConfigurationLoader.fromMap(map, Config.class);
-        TrackWarnings tw = config.track_warnings;
-        assertThat(tw.enabled).isTrue();
+        Map<String, Object> map = ImmutableMap.of(
+        "read_thresholds_enabled", true,
+        "coordinator_read_size_warn_threshold", "1024KiB",
+        "local_read_size_fail_threshold", "1024KiB",
+        "row_index_size_warn_threshold", "1024KiB",
+        "row_index_size_fail_threshold", "1024KiB"
+        );
 
-        assertThat(tw.coordinator_read_size.warn_threshold_kb).isEqualTo(1024);
-        assertThat(tw.coordinator_read_size.abort_threshold_kb).isEqualTo(0);
+        Config c = YamlConfigurationLoader.fromMap(map, Config.class);
+        assertThat(c.read_thresholds_enabled).isTrue();
 
-        assertThat(tw.local_read_size.warn_threshold_kb).isEqualTo(0);
-        assertThat(tw.local_read_size.abort_threshold_kb).isEqualTo(1024);
+        assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
+        assertThat(c.coordinator_read_size_fail_threshold).isNull();;
 
-        assertThat(tw.row_index_size.warn_threshold_kb).isEqualTo(1024);
-        assertThat(tw.row_index_size.abort_threshold_kb).isEqualTo(1024);
+        assertThat(c.local_read_size_warn_threshold).isNull();
+        assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
+
+        assertThat(c.row_index_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
+        assertThat(c.row_index_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
     }
 
     @Test

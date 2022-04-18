@@ -6371,106 +6371,75 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public boolean getTrackWarningsEnabled()
+    public String getCoordinatorLargeReadWarnThreshold()
     {
-        return DatabaseDescriptor.getTrackWarningsEnabled();
+        return DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold().toString();
     }
 
     @Override
-    public void setTrackWarningsEnabled(boolean value)
+    public void setCoordinatorLargeReadWarnThreshold(String threshold)
     {
-        DatabaseDescriptor.setTrackWarningsEnabled(value);
-        logger.info("updated track_warnings.enabled to {}", value);
+        DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(threshold);
     }
 
     @Override
-    public long getCoordinatorLargeReadWarnThresholdKB()
+    public String getCoordinatorLargeReadAbortThreshold()
     {
-        return DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();
+        return DatabaseDescriptor.getCoordinatorReadSizeFailThreshold().toString();
     }
 
     @Override
-    public void setCoordinatorLargeReadWarnThresholdKB(long threshold)
+    public void setCoordinatorLargeReadAbortThreshold(String threshold)
     {
-        if (threshold < 0)
-            throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(threshold);
-        logger.info("updated track_warnings.coordinator_large_read.warn_threshold_kb to {}", threshold);
+        DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(threshold);
     }
 
     @Override
-    public long getCoordinatorLargeReadAbortThresholdKB()
+    public String getLocalReadTooLargeWarnThreshold()
     {
-        return DatabaseDescriptor.getCoordinatorReadSizeAbortThresholdKB();
+        return DatabaseDescriptor.getLocalReadSizeWarnThreshold().toString();
     }
 
     @Override
-    public void setCoordinatorLargeReadAbortThresholdKB(long threshold)
+    public void setLocalReadTooLargeWarnThreshold(String value)
     {
-        if (threshold < 0)
-            throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(threshold);
-        logger.info("updated track_warnings.coordinator_large_read.abort_threshold_kb to {}", threshold);
+        DatabaseDescriptor.setLocalReadSizeWarnThreshold(value);
     }
 
     @Override
-    public long getLocalReadTooLargeWarnThresholdKb()
+    public String getLocalReadTooLargeAbortThreshold()
     {
-        return DatabaseDescriptor.getLocalReadSizeWarnThresholdKb();
+        return DatabaseDescriptor.getLocalReadSizeFailThreshold().toString();
     }
 
     @Override
-    public void setLocalReadTooLargeWarnThresholdKb(long value)
+    public void setLocalReadTooLargeAbortThreshold(String value)
     {
-        if (value < 0)
-            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(value);
-        logger.info("updated track_warnings.local_read_size.warn_threshold_kb to {}", value);
+        DatabaseDescriptor.setLocalReadSizeFailThreshold(value);
     }
 
     @Override
-    public long getLocalReadTooLargeAbortThresholdKb()
+    public String getRowIndexSizeWarnThreshold()
     {
-        return DatabaseDescriptor.getLocalReadSizeAbortThresholdKb();
+        return DatabaseDescriptor.getRowIndexSizeWarnThreshold().toString();
     }
 
     @Override
-    public void setLocalReadTooLargeAbortThresholdKb(long value)
+    public void setRowIndexSizeWarnThreshold(String value)
     {
-        if (value < 0)
-            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setLocalReadSizeAbortThresholdKb(value);
-        logger.info("updated track_warnings.local_read_size.abort_threshold_kb to {}", value);
+        DatabaseDescriptor.setRowIndexSizeWarnThreshold(value);
     }
 
     @Override
-    public int getRowIndexSizeWarnThresholdKb()
+    public String getRowIndexSizeAbortThreshold()
     {
-        return DatabaseDescriptor.getRowIndexSizeWarnThresholdKiB();
+        return DatabaseDescriptor.getRowIndexSizeFailThreshold().toString();
     }
 
     @Override
-    public void setRowIndexSizeWarnThresholdKb(int value)
+    public void setRowIndexSizeAbortThreshold(String value)
     {
-        if (value < 0)
-            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setRowIndexSizeWarnThresholdKiB(value);
-        logger.info("updated track_warnings.row_index_size.warn_threshold_kb to {}", value);
-    }
-
-    @Override
-    public int getRowIndexSizeAbortThresholdKb()
-    {
-        return DatabaseDescriptor.getRowIndexSizeAbortThresholdKiB();
-    }
-
-    @Override
-    public void setRowIndexSizeAbortThresholdKb(int value)
-    {
-        if (value < 0)
-            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setRowIndexSizeAbortThresholdKiB(value);
-        logger.info("updated track_warnings.row_index_size.abort_threshold_kb to {}", value);
+        DatabaseDescriptor.setRowIndexSizeFailThreshold(value);
     }
 
     public void setDefaultKeyspaceReplicationFactor(int value)

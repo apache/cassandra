@@ -24,6 +24,8 @@ import com.google.common.collect.ImmutableList;
 
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -235,14 +237,14 @@ public abstract class QueryOptions
         return getTrackWarnings().isEnabled();
     }
 
-    public long getCoordinatorReadSizeWarnThresholdKB()
+    public long getCoordinatorReadSizeWarnThresholdBytes()
     {
-        return getTrackWarnings().getCoordinatorReadSizeWarnThresholdKB();
+        return getTrackWarnings().getCoordinatorReadSizeWarnThresholdBytes();
     }
 
-    public long getCoordinatorReadSizeAbortThresholdKB()
+    public long getCoordinatorReadSizeAbortThresholdBytes()
     {
-        return getTrackWarnings().getCoordinatorReadSizeAbortThresholdKB();
+        return getTrackWarnings().getCoordinatorReadSizeFailThresholdBytes();
     }
 
     public QueryOptions prepare(List<ColumnSpecification> specs)
@@ -254,21 +256,16 @@ public abstract class QueryOptions
     {
         boolean isEnabled();
 
-        long getCoordinatorReadSizeWarnThresholdKB();
+        long getCoordinatorReadSizeWarnThresholdBytes();
 
-        long getCoordinatorReadSizeAbortThresholdKB();
+        long getCoordinatorReadSizeFailThresholdBytes();
 
         static TrackWarnings create()
         {
             // if daemon initialization hasn't happened yet (very common in tests) then ignore
-            if (!DatabaseDescriptor.isDaemonInitialized())
+            if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getReadThresholdsEnabled())
                 return DisabledTrackWarnings.INSTANCE;
-            boolean enabled = DatabaseDescriptor.getTrackWarningsEnabled();
-            if (!enabled)
-                return DisabledTrackWarnings.INSTANCE;
-            long warnThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();
-            long abortThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeAbortThresholdKB();
-            return new DefaultTrackWarnings(warnThresholdKB, abortThresholdKB);
+            return new DefaultTrackWarnings(DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold(), DatabaseDescriptor.getCoordinatorReadSizeFailThreshold());
         }
     }
 
@@ -283,27 +280,27 @@ public abstract class QueryOptions
         }
 
         @Override
-        public long getCoordinatorReadSizeWarnThresholdKB()
+        public long getCoordinatorReadSizeWarnThresholdBytes()
         {
-            return 0;
+            return Config.DISABLED_GUARDRAIL;
         }
 
         @Override
-        public long getCoordinatorReadSizeAbortThresholdKB()
+        public long getCoordinatorReadSizeFailThresholdBytes()
         {
-            return 0;
+            return Config.DISABLED_GUARDRAIL;
         }
     }
 
     private static class DefaultTrackWarnings implements TrackWarnings
     {
-        private final long warnThresholdKB;
-        private final long abortThresholdKB;
+        private final long warnThresholdBytes;
+        private final long abortThresholdBytes;
 
-        public DefaultTrackWarnings(long warnThresholdKB, long abortThresholdKB)
+        public DefaultTrackWarnings(DataStorageSpec warnThreshold, DataStorageSpec abortThreshold)
         {
-            this.warnThresholdKB = warnThresholdKB;
-            this.abortThresholdKB = abortThresholdKB;
+            this.warnThresholdBytes = warnThreshold == null ? Config.DISABLED_GUARDRAIL : warnThreshold.toBytes();
+            this.abortThresholdBytes = abortThreshold == null ? Config.DISABLED_GUARDRAIL : abortThreshold.toBytes();
         }
 
         @Override
@@ -313,15 +310,15 @@ public abstract class QueryOptions
         }
 
         @Override
-        public long getCoordinatorReadSizeWarnThresholdKB()
+        public long getCoordinatorReadSizeWarnThresholdBytes()
         {
-            return warnThresholdKB;
+            return warnThresholdBytes;
         }
 
         @Override
-        public long getCoordinatorReadSizeAbortThresholdKB()
+        public long getCoordinatorReadSizeFailThresholdBytes()
         {
-            return abortThresholdKB;
+            return abortThresholdBytes;
         }
     }
 

@@ -116,25 +116,25 @@ public class WarningsSnapshot
     @VisibleForTesting
     public static String localReadSizeAbortMessage(long nodes, long bytes, String cql)
     {
-        return String.format("%s nodes loaded over %s bytes and aborted the query %s (see track_warnings.local_read_size.abort_threshold_kb)", nodes, bytes, cql);
+        return String.format("%s nodes loaded over %s bytes and aborted the query %s (see local_read_size_fail_threshold)", nodes, bytes, cql);
     }
 
     @VisibleForTesting
     public static String localReadSizeWarnMessage(int nodes, long bytes, String cql)
     {
-        return String.format("%s nodes loaded over %s bytes and issued local read size warnings for query %s  (see track_warnings.local_read_size.warn_threshold_kb)", nodes, bytes, cql);
+        return String.format("%s nodes loaded over %s bytes and issued local read size warnings for query %s  (see local_read_size_warn_threshold)", nodes, bytes, cql);
     }
 
     @VisibleForTesting
     public static String rowIndexSizeAbortMessage(long nodes, long bytes, String cql)
     {
-        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and aborted the query %s (see track_warnings.row_index_size.abort_threshold_kb)", nodes, bytes, cql);
+        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and aborted the query %s (see row_index_size_fail_threshold)", nodes, bytes, cql);
     }
 
     @VisibleForTesting
     public static String rowIndexSizeWarnMessage(int nodes, long bytes, String cql)
     {
-        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and issued warnings for query %s  (see track_warnings.row_index_size.warn_threshold_kb)", nodes, bytes, cql);
+        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and issued warnings for query %s  (see row_index_size_warn_threshold)", nodes, bytes, cql);
     }
 
     @Override

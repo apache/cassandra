@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.ResultSet.ResultMetadata;
 import org.apache.cassandra.cql3.selection.Selection.Selectors;
@@ -91,9 +93,9 @@ public final class ResultSetBuilder
         }
     }
 
-    public boolean shouldWarn(long thresholdKB)
+    public boolean shouldWarn(long thresholdBytes)
     {
-        if (thresholdKB > 0 && !sizeWarningEmitted && size > thresholdKB << 10)
+        if (thresholdBytes != Config.DISABLED_GUARDRAIL &&!sizeWarningEmitted && size > thresholdBytes)
         {
             sizeWarningEmitted = true;
             return true;
@@ -101,9 +103,9 @@ public final class ResultSetBuilder
         return false;
     }
 
-    public boolean shouldReject(long thresholdKB)
+    public boolean shouldReject(long thresholdBytes)
     {
-        return thresholdKB > 0 && size > thresholdKB << 10;
+        return thresholdBytes != Config.DISABLED_GUARDRAIL && size > thresholdBytes;
     }
 
     public long getSize()

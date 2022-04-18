@@ -38,11 +38,11 @@ public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
         // the test uses a rather small limit, which causes driver to fail while loading metadata
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
             // disable coordinator version
-            DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(0);
-            DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(0);
+            DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(null);
+            DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(null);
 
-            DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(1);
-            DatabaseDescriptor.setLocalReadSizeAbortThresholdKb(2);
+            DatabaseDescriptor.setLocalReadSizeWarnThreshold("1KiB");
+            DatabaseDescriptor.setLocalReadSizeFailThreshold("2KiB");
         }));
     }
 
@@ -50,14 +50,14 @@ public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.warn_threshold_kb)").contains("and issued local read size warnings for query");
+        assertThat(warnings.get(0)).contains("(see local_read_size_warn_threshold)").contains("and issued local read size warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.abort_threshold_kb)").contains("aborted the query");
+        assertThat(warnings.get(0)).contains("(see local_read_size_fail_threshold)").contains("aborted the query");
     }
 
     @Override

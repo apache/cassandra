@@ -920,23 +920,20 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setCompactionTombstoneWarningThreshold(int count);
     public int getCompactionTombstoneWarningThreshold();
 
-    public boolean getTrackWarningsEnabled();
-    public void setTrackWarningsEnabled(boolean value);
+    public String getCoordinatorLargeReadWarnThreshold();
+    public void setCoordinatorLargeReadWarnThreshold(String threshold);
+    public String getCoordinatorLargeReadAbortThreshold();
+    public void setCoordinatorLargeReadAbortThreshold(String threshold);
 
-    public long getCoordinatorLargeReadWarnThresholdKB();
-    public void setCoordinatorLargeReadWarnThresholdKB(long threshold);
-    public long getCoordinatorLargeReadAbortThresholdKB();
-    public void setCoordinatorLargeReadAbortThresholdKB(long threshold);
+    public String getLocalReadTooLargeWarnThreshold();
+    public void setLocalReadTooLargeWarnThreshold(String value);
+    public String getLocalReadTooLargeAbortThreshold();
+    public void setLocalReadTooLargeAbortThreshold(String value);
 
-    public long getLocalReadTooLargeWarnThresholdKb();
-    public void setLocalReadTooLargeWarnThresholdKb(long value);
-    public long getLocalReadTooLargeAbortThresholdKb();
-    public void setLocalReadTooLargeAbortThresholdKb(long value);
-
-    public int getRowIndexSizeWarnThresholdKb();
-    public void setRowIndexSizeWarnThresholdKb(int value);
-    public int getRowIndexSizeAbortThresholdKb();
-    public void setRowIndexSizeAbortThresholdKb(int value);
+    public String getRowIndexSizeWarnThreshold();
+    public void setRowIndexSizeWarnThreshold(String value);
+    public String getRowIndexSizeAbortThreshold();
+    public void setRowIndexSizeAbortThreshold(String value);
 
     public void setDefaultKeyspaceReplicationFactor(int value);
     public int getDefaultKeyspaceReplicationFactor();
