@@ -265,6 +265,18 @@ public interface GuardrailsMBean
     void setGroupByEnabled(boolean enabled);
 
     /**
+     * Returns whether users can TRUNCATE or DROP TABLE
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getTruncateDropEnabled();
+
+    /**
+     * Sets whether users can TRUNCATE or DROP TABLE
+     */
+    void setTruncateDropEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when requested page size greater than threshold.
      * -1 means disabled.
      */
