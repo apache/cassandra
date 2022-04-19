@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 import accord.api.Key;
@@ -156,19 +157,13 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         @Override
         protected TxnOperation scopeForCommand(Command command)
         {
-            TxnId caller = command.txnId();
+            Iterable<TxnId> txnIds = List.of(command.txnId(), txnId);
             return new TxnOperation()
             {
                 @Override
-                public TxnId txnId()
+                public Iterable<TxnId> txnIds()
                 {
-                    return caller;
-                }
-
-                @Override
-                public Iterable<TxnId> depsIds()
-                {
-                    return Collections.singleton(txnId);
+                    return txnIds;
                 }
 
                 @Override
@@ -260,19 +255,20 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         @Override
         protected TxnOperation scopeForCommand(Command command)
         {
-            TxnId caller = command.txnId();
+            Iterable<TxnId> txnIds = Collections.singleton(command.txnId());
+            Iterable<Key> keys = Collections.singleton(key);
             return new TxnOperation()
             {
                 @Override
-                public TxnId txnId()
+                public Iterable<TxnId> txnIds()
                 {
-                    return caller;
+                    return txnIds;
                 }
 
                 @Override
                 public Iterable<Key> keys()
                 {
-                    return Collections.singleton(key);
+                    return keys;
                 }
             };
         }

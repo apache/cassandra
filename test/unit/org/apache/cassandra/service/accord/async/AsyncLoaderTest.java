@@ -75,7 +75,7 @@ public class AsyncLoaderTest
         cfkCacche.release(cfk);
 
         AsyncContext context = new AsyncContext();
-        AsyncLoader loader = new AsyncLoader(commandStore, txnId, singleton(txnId), singleton(key));
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
 
         // everything is cached, so the loader should return immediately
         boolean result = loader.load(context, (o, t) -> Assert.fail());
@@ -108,7 +108,7 @@ public class AsyncLoaderTest
 
         // resources are on disk only, so the loader should suspend...
         AsyncContext context = new AsyncContext();
-        AsyncLoader loader = new AsyncLoader(commandStore, txnId, singleton(txnId), singleton(key));
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         boolean result = loader.load(context, (o, t) -> {
             Assert.assertNull(t);
@@ -146,7 +146,7 @@ public class AsyncLoaderTest
 
         // resources are on disk only, so the loader should suspend...
         AsyncContext context = new AsyncContext();
-        AsyncLoader loader = new AsyncLoader(commandStore, txnId, singleton(txnId), singleton(key));
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         boolean result = loader.load(context, (o, t) -> {
             Assert.assertNull(t);
@@ -183,7 +183,7 @@ public class AsyncLoaderTest
         cfkCacche.release(cfk);
 
         AsyncContext context = new AsyncContext();
-        AsyncLoader loader = new AsyncLoader(commandStore, txnId, singleton(txnId), singleton(key));
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
 
         // since there's a read future associated with the txnId, we'll wait for it to load
         AsyncPromise<Void> readFuture = new AsyncPromise<>();

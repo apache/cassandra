@@ -70,20 +70,14 @@ public class AccordCommandTest
         StorageService.instance.initServer();
     }
 
-    private static TxnOperation op(TxnId txnId, Collection<TxnId> deps, Collection<Key> keys)
+    private static TxnOperation op(Collection<TxnId> txnIds, Collection<Key> keys)
     {
         return new TxnOperation()
         {
             @Override
-            public TxnId txnId()
+            public Iterable<TxnId> txnIds()
             {
-                return txnId;
-            }
-
-            @Override
-            public Iterable<TxnId> depsIds()
-            {
-                return deps;
+                return txnIds;
             }
 
             @Override
@@ -96,7 +90,7 @@ public class AccordCommandTest
 
     private static TxnOperation op(TxnId txnId)
     {
-        return op(txnId, Collections.emptyList(), Collections.emptyList());
+        return op(Collections.singleton(txnId), Collections.emptyList());
     }
 
     private static PartitionKey key(int k)

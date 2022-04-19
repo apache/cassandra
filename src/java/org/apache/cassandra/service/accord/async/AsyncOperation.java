@@ -61,9 +61,9 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         this.writer = new AsyncWriter(commandStore);
     }
 
-    public AsyncOperation(AccordCommandStore commandStore, TxnId txnId, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
+    public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
     {
-        this(commandStore, new AsyncLoader(commandStore, txnId, commandsToLoad, keyCommandsToLoad));
+        this(commandStore, new AsyncLoader(commandStore, commandsToLoad, keyCommandsToLoad));
     }
 
     private void callback(Object unused, Throwable throwable)
@@ -128,9 +128,9 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     {
         private final Function<? super CommandStore, R> function;
 
-        public ForFunction(AccordCommandStore commandStore, TxnId txnId, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad, Function<? super CommandStore, R> function)
+        public ForFunction(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys, Function<? super CommandStore, R> function)
         {
-            super(commandStore, txnId, commandsToLoad, keyCommandsToLoad);
+            super(commandStore, txnIds, keys);
             this.function = function;
         }
 
@@ -143,16 +143,16 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
 
     public static <T> AsyncOperation<T> create(CommandStore commandStore, TxnOperation scope, Function<? super CommandStore, T> function)
     {
-        return new ForFunction<>((AccordCommandStore) commandStore, scope.txnId(), scope.depsIds(), AsyncOperation.toPartitionKeys(scope.keys()), function);
+        return new ForFunction<>((AccordCommandStore) commandStore, scope.txnIds(), AsyncOperation.toPartitionKeys(scope.keys()), function);
     }
 
     static class ForConsumer  extends AsyncOperation<Void>
     {
         private final Consumer<? super CommandStore> consumer;
 
-        public ForConsumer(AccordCommandStore commandStore, TxnId txnId, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad, Consumer<? super CommandStore> consumer)
+        public ForConsumer(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys, Consumer<? super CommandStore> consumer)
         {
-            super(commandStore, txnId, commandsToLoad, keyCommandsToLoad);
+            super(commandStore, txnIds, keys);
             this.consumer = consumer;
         }
 
@@ -166,6 +166,6 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
 
     public static AsyncOperation<Void> create(CommandStore commandStore, TxnOperation scope, Consumer<? super CommandStore> consumer)
     {
-        return new ForConsumer((AccordCommandStore) commandStore, scope.txnId(), scope.depsIds(), AsyncOperation.toPartitionKeys(scope.keys()), consumer);
+        return new ForConsumer((AccordCommandStore) commandStore, scope.txnIds(), AsyncOperation.toPartitionKeys(scope.keys()), consumer);
     }
 }
