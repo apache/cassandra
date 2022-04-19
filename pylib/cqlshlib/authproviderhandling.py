@@ -13,6 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Handles loading of AuthProvider for CQLSH authentication.
+"""
 
 import configparser
 from importlib import import_module
@@ -27,26 +30,26 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
     * cred_file ....: path to cqlsh credentials file (default is  ~/.cassandra/credentials).
     * username .....: override used to return PlainTextAuthProvider according to legacy case
     * password .....: override used to return PlainTextAuthProvider according to legacy case
-    
-    Will attempt to load an auth provider from available config file, using what's found in 
+
+    Will attempt to load an auth provider from available config file, using what's found in
     credentials file as an override.
-    
+
     Config file is expected to list module name /class in the *auth_provider*
     section for dynamic loading (which is to be of type auth_provider)
-    
+
     Additional params passed to the constructor of class should be specified
-    in the *auth_provider* section and can be freely named to match 
+    in the *auth_provider* section and can be freely named to match
     auth provider's expectation.
 
-    If passed username and password, function will return a PlainTextAuthProvider using the traditional
-    logic.  It will try to use properties specified in [Auth_provider] section if the PlainTextAuthProvider 
-    is the specified class.
+    If passed username and password, function will return a PlainTextAuthProvider using the
+    traditional logic.  It will try to use properties specified in [Auth_provider] section if
+    the PlainTextAuthProvider is the specified class.
 
     None is returned if no possible auth provider is found.
 
-    EXAMPLE  CQLSHRC: 
+    EXAMPLE  CQLSHRC:
     # .. inside cqlshrc file
-    
+
     [auth_provider]
     module = cassandra.auth
     classname = PlainTextAuthProvider
@@ -59,12 +62,14 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
     [PlainTextAuthProvider]
     password = password2
 
-    Credentials attributes will override found in the cqlshrc.
-    in the above example, PlainTextAuthProvider would be used with a password of 'password2', 
+    Credential attributes will override found in the cqlshrc.
+    in the above example, PlainTextAuthProvider would be used with a password of 'password2',
     and username of 'user1'
     """
 
-    def get_settings_from_config(section_name, conf_file, interpolation=configparser.BasicInterpolation()):
+    def get_settings_from_config(section_name,
+                                 conf_file,
+                                 interpolation=configparser.BasicInterpolation()):
         """
         Returns dict from section_name, and ini based conf_file
 
@@ -76,29 +81,29 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
         """
         conf = configparser.ConfigParser(interpolation=interpolation)
         if conf_file is None:
-            return dict()
+            return {}
 
         conf.read(conf_file)
         if section_name in conf.sections():
             return dict(conf.items(section_name))
-        return dict()
+        return {}
 
     def get_cred_file_settings(classname, creds_file):
         # Since this is the credentials file we may be encountering raw strings
         # as these are what passwords, or security tokens may inadvertently fall into
         # we don't want interpolation to mess with them.
         return get_settings_from_config(
-                section_name=classname, 
+                section_name=classname,
                 conf_file=creds_file,
                 interpolation=None)
 
     def get_auth_provider_settings(conf_file):
         return get_settings_from_config(
-                section_name='auth_provider', 
+                section_name='auth_provider',
                 conf_file=conf_file)
 
     def get_legacy_settings(legacy_username, legacy_password):
-        result = dict()
+        result = {}
         if legacy_username is not None:
             result['username'] = legacy_username
         if legacy_password is not None:
@@ -110,7 +115,7 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
     class_name = provider_settings.pop('classname', None)
 
     # if a legacy username or password is passed to us
-    # regardless of what the module / class is specified, we have been overriden to using 
+    # regardless of what the module / class is specified, we have been overridden to using
     # PlainTextAuthProvider
     if username is not None or password is not None:
         module_name = 'cassandra.auth'
@@ -122,18 +127,19 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
     credential_settings = get_cred_file_settings(class_name, cred_file)
 
     if module_name == 'cassandra.auth' and class_name == 'PlainTextAuthProvider':
-        legacy_settings = get_legacy_settings(username, password)
-
         # merge credential settings as overrides on top of provider settings.
 
         # we need to ensure that password property gets "set" in all cases.
         # this is to support the ability to give the user a prompt in other parts
         # of the code.
-        ctor_args = {'password': None, **provider_settings, **credential_settings, **legacy_settings}
+        ctor_args = {'password': None,
+                     **provider_settings,
+                     **credential_settings,
+                     **get_legacy_settings(username, password)}
     else:
         # merge credential settings as overrides on top of provider settings.
         ctor_args = {**provider_settings, **credential_settings}
-    
+
     # Load class definitions
     module = import_module(module_name)
     auth_provider_klass = getattr(module, class_name)
