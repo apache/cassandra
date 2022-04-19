@@ -920,6 +920,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setCompactionTombstoneWarningThreshold(int count);
     public int getCompactionTombstoneWarningThreshold();
 
+    public boolean getReadThresholdsEnabled();
+    public void setReadThresholdsEnabled(boolean value);
+
     public String getCoordinatorLargeReadWarnThreshold();
     public void setCoordinatorLargeReadWarnThreshold(String threshold);
     public String getCoordinatorLargeReadAbortThreshold();

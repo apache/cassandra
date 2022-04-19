@@ -6371,6 +6371,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
+    public boolean getReadThresholdsEnabled()
+    {
+        return DatabaseDescriptor.getReadThresholdsEnabled();
+    }
+
+    @Override
+    public void setReadThresholdsEnabled(boolean value)
+    {
+        DatabaseDescriptor.setReadThresholdsEnabled(value);
+    }
+
+    @Override
     public String getCoordinatorLargeReadWarnThreshold()
     {
         return DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold().toString();
