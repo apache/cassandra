@@ -991,5 +991,4 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean getSkipPaxosRepairCompatibilityCheck();
 
     String getToken(String keyspaceName, String table, String partitionKey);
-    String getTokenRange(String keyspaceName, String table, String partitionKey);
 }

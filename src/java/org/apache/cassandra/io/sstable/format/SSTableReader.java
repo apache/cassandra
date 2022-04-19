@@ -2003,6 +2003,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     }
 
+    public boolean isPresent(DecoratedKey key)
+    {
+        // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
+        // we check index file instead.
+        IFilter bf = getBloomFilter();
+        return bf instanceof AlwaysPresentFilter && getPosition(key, Operator.EQ, false) != null || bf.isPresent(key);
+    }
+
     /**
      * One instance per SSTableReader we create.
      *

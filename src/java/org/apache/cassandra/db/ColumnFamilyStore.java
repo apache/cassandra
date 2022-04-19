@@ -2354,6 +2354,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return tokenRanges;
     }
 
+    public void forceCompactionForKey(DecoratedKey key)
+    {
+        CompactionManager.instance.forceCompactionForKey(this, key);
+    }
+
     public static Iterable<ColumnFamilyStore> all()
     {
         List<Iterable<ColumnFamilyStore>> stores = new ArrayList<>(Schema.instance.getKeyspaces().size());

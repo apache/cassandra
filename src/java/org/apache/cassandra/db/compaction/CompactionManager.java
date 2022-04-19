@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
@@ -928,10 +929,10 @@ public class CompactionManager implements CompactionManagerMBean
         return futures;
     }
 
-    public void forceCompactionForTokenRange(ColumnFamilyStore cfStore, Collection<Range<Token>> ranges)
+    public void forceCompaction(ColumnFamilyStore cfStore, Supplier<Collection<SSTableReader>> fn)
     {
         Callable<CompactionTasks> taskCreator = () -> {
-            Collection<SSTableReader> sstables = sstablesInBounds(cfStore, ranges);
+            Collection<SSTableReader> sstables = fn.get();
             if (sstables == null || sstables.isEmpty())
             {
                 logger.debug("No sstables found for the provided token range");
@@ -941,7 +942,7 @@ public class CompactionManager implements CompactionManagerMBean
         };
 
         try (CompactionTasks tasks = cfStore.runWithCompactionsDisabled(taskCreator,
-                                                                        (sstable) -> new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges),
+                                                                        ignore -> true,
                                                                         false,
                                                                         false,
                                                                         false))
@@ -961,6 +962,11 @@ public class CompactionManager implements CompactionManagerMBean
 
             FBUtilities.waitOnFuture(executor.submitIfRunning(runnable, "force compaction for token range"));
         }
+    }
+
+    public void forceCompactionForTokenRange(ColumnFamilyStore cfStore, Collection<Range<Token>> ranges)
+    {
+        forceCompaction(cfStore, () -> sstablesInBounds(cfStore, ranges));
     }
 
     private static Collection<SSTableReader> sstablesInBounds(ColumnFamilyStore cfs, Collection<Range<Token>> tokenRangeCollection)
@@ -988,6 +994,23 @@ public class CompactionManager implements CompactionManagerMBean
             }
         }
         return sstables;
+    }
+
+    public void forceCompactionForKey(ColumnFamilyStore cfStore, DecoratedKey key)
+    {
+        forceCompaction(cfStore, () -> sstablesWithKey(cfStore, key));
+    }
+
+    private static Collection<SSTableReader> sstablesWithKey(ColumnFamilyStore cfs, DecoratedKey key)
+    {
+        final Set<SSTableReader> sstables = new HashSet<>();
+        Iterable<SSTableReader> liveTables = cfs.getTracker().getView().select(SSTableSet.LIVE);
+        for (SSTableReader sstable : liveTables)
+        {
+            if (sstable.isPresent(key))
+                sstables.add(sstable);
+        }
+        return sstables.isEmpty() ? Collections.emptyList() : sstables;
     }
 
     public void forceUserDefinedCompaction(String dataFiles)
