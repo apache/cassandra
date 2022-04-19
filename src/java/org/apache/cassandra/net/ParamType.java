@@ -26,8 +26,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.Int64Serializer;
+import org.apache.cassandra.utils.RangesSerializer;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
 import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.fwdFrmSerializer;
@@ -42,28 +42,29 @@ import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.f
  */
 public enum ParamType
 {
-    FORWARD_TO          (0, "FWD_TO",        ForwardingInfo.serializer),
-    RESPOND_TO          (1, "FWD_FRM",       fwdFrmSerializer),
+    FORWARD_TO             (0,  "FWD_TO",         ForwardingInfo.serializer),
+    RESPOND_TO             (1,  "FWD_FRM",        fwdFrmSerializer),
 
     @Deprecated
-    FAILURE_RESPONSE    (2, "FAIL",          LegacyFlag.serializer),
+    FAILURE_RESPONSE       (2,  "FAIL",           LegacyFlag.serializer),
     @Deprecated
-    FAILURE_REASON      (3, "FAIL_REASON",   RequestFailureReason.serializer),
+    FAILURE_REASON         (3,  "FAIL_REASON",    RequestFailureReason.serializer),
     @Deprecated
-    FAILURE_CALLBACK    (4, "CAL_BAC",       LegacyFlag.serializer),
+    FAILURE_CALLBACK       (4,  "CAL_BAC",        LegacyFlag.serializer),
 
-    TRACE_SESSION       (5, "TraceSession",  TimeUUID.Serializer.instance),
-    TRACE_TYPE          (6, "TraceType",     Tracing.traceTypeSerializer),
+    TRACE_SESSION          (5, "TraceSession",    TimeUUID.Serializer.instance),
+    TRACE_TYPE             (6, "TraceType",       Tracing.traceTypeSerializer),
 
     @Deprecated
-    TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
+    TRACK_REPAIRED_DATA    (7,  "TrackRepaired",  LegacyFlag.serializer),
 
-    TOMBSTONE_ABORT(8, "TSA", Int32Serializer.serializer),
-    TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer),
-    LOCAL_READ_SIZE_ABORT(10, "LRSA", Int64Serializer.serializer),
-    LOCAL_READ_SIZE_WARN(11, "LRSW", Int64Serializer.serializer),
-    ROW_INDEX_SIZE_ABORT(12, "RISA", Int64Serializer.serializer),
-    ROW_INDEX_SIZE_WARN(13, "RISW", Int64Serializer.serializer);
+    TOMBSTONE_ABORT        (8,  "TSA",            Int32Serializer.serializer),
+    TOMBSTONE_WARNING      (9,  "TSW",            Int32Serializer.serializer),
+    LOCAL_READ_SIZE_ABORT  (10, "LRSA",           Int64Serializer.serializer),
+    LOCAL_READ_SIZE_WARN   (11, "LRSW",           Int64Serializer.serializer),
+    ROW_INDEX_SIZE_ABORT   (12, "RISA",           Int64Serializer.serializer),
+    ROW_INDEX_SIZE_WARN    (13, "RISW",           Int64Serializer.serializer),
+    SNAPSHOT_RANGES        (14, "SNAPSHOT_RANGES",RangesSerializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string

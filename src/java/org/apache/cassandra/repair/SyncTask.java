@@ -57,7 +57,7 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
         this.rangesToSync = rangesToSync;
         this.nodePair = new SyncNodePair(primaryEndpoint, peer);
         this.previewKind = previewKind;
-        this.stat = new SyncStat(nodePair, rangesToSync.size());
+        this.stat = new SyncStat(nodePair, rangesToSync);
     }
 
     protected abstract void startSync();
