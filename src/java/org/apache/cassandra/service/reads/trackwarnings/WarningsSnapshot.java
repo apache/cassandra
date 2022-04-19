@@ -36,13 +36,13 @@ public class WarningsSnapshot
 {
     private static final WarningsSnapshot EMPTY = new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY);
 
-    public final Warnings tombstones, localReadSize, rowIndexTooSize;
+    public final Warnings tombstones, localReadSize, rowIndexReadSize;
 
-    private WarningsSnapshot(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooSize)
+    private WarningsSnapshot(Warnings tombstones, Warnings localReadSize, Warnings rowIndexReadSize)
     {
         this.tombstones = tombstones;
         this.localReadSize = localReadSize;
-        this.rowIndexTooSize = rowIndexTooSize;
+        this.rowIndexReadSize = rowIndexReadSize;
     }
 
     public static WarningsSnapshot empty()
@@ -83,7 +83,7 @@ public class WarningsSnapshot
     {
         if (other == null || other == EMPTY)
             return this;
-        return WarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexTooSize.merge(other.rowIndexTooSize));
+        return WarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexReadSize.merge(other.rowIndexReadSize));
     }
 
     public void maybeAbort(ReadCommand command, ConsistencyLevel cl, int received, int blockFor, boolean isDataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
@@ -96,8 +96,8 @@ public class WarningsSnapshot
             throw new ReadSizeAbortException(localReadSizeAbortMessage(localReadSize.aborts.instances.size(), localReadSize.aborts.maxValue, command.toCQLString()),
                                              cl, received, blockFor, isDataPresent, failureReasonByEndpoint);
 
-        if (!rowIndexTooSize.aborts.instances.isEmpty())
-            throw new ReadSizeAbortException(rowIndexSizeAbortMessage(rowIndexTooSize.aborts.instances.size(), rowIndexTooSize.aborts.maxValue, command.toCQLString()),
+        if (!rowIndexReadSize.aborts.instances.isEmpty())
+            throw new ReadSizeAbortException(rowIndexReadSizeAbortMessage(rowIndexReadSize.aborts.instances.size(), rowIndexReadSize.aborts.maxValue, command.toCQLString()),
                                              cl, received, blockFor, isDataPresent, failureReasonByEndpoint);
     }
 
@@ -126,7 +126,7 @@ public class WarningsSnapshot
     }
 
     @VisibleForTesting
-    public static String rowIndexSizeAbortMessage(long nodes, long bytes, String cql)
+    public static String rowIndexReadSizeAbortMessage(long nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes in RowIndexEntry and aborted the query %s (see row_index_size_fail_threshold)", nodes, bytes, cql);
     }
@@ -143,19 +143,19 @@ public class WarningsSnapshot
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WarningsSnapshot that = (WarningsSnapshot) o;
-        return Objects.equals(tombstones, that.tombstones) && Objects.equals(localReadSize, that.localReadSize) && Objects.equals(rowIndexTooSize, that.rowIndexTooSize);
+        return Objects.equals(tombstones, that.tombstones) && Objects.equals(localReadSize, that.localReadSize) && Objects.equals(rowIndexReadSize, that.rowIndexReadSize);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(tombstones, localReadSize, rowIndexTooSize);
+        return Objects.hash(tombstones, localReadSize, rowIndexReadSize);
     }
 
     @Override
     public String toString()
     {
-        return "(tombstones=" + tombstones + ", localReadSize=" + localReadSize + ", rowIndexTooLarge=" + rowIndexTooSize + ')';
+        return "(tombstones=" + tombstones + ", localReadSize=" + localReadSize + ", rowIndexTooLarge=" + rowIndexReadSize + ')';
     }
 
     public static final class Warnings
