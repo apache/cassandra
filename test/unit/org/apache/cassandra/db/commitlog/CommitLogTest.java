@@ -452,7 +452,7 @@ public abstract class CommitLogTest
                       .add("val", ByteBuffer.allocate(allocSize)).build();
 
         int max = DatabaseDescriptor.getMaxMutationSize();
-        max -= CommitLogSegment.ENTRY_OVERHEAD_SIZE; // log entry overhead
+        max -= ENTRY_OVERHEAD_SIZE; // log entry overhead
 
         // Note that the size of the value if vint encoded. So we first compute the ovehead of the mutation without the value and it's size
         int mutationOverhead = rm.serializedSize(MessagingService.current_version) - (VIntCoding.computeVIntSize(allocSize) + allocSize);
@@ -536,7 +536,7 @@ public abstract class CommitLogTest
             String message = exception.getMessage();
 
             long mutationSize = mutation.serializedSize(MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
-            final String expectedMessagePrefix = String.format("Encountered an oversized mutation (%d/%d) for keyspace: %s.",
+            final String expectedMessagePrefix = String.format("Rejected an oversized mutation (%d/%d) for keyspace: %s.",
                                                                mutationSize,
                                                                DatabaseDescriptor.getMaxMutationSize(),
                                                                KEYSPACE1);

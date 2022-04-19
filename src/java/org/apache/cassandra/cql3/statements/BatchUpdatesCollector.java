@@ -24,7 +24,9 @@ import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.virtual.VirtualMutation;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -131,6 +133,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
             {
                 IMutation mutation = builder.build();
                 mutation.validateIndexedColumns();
+                mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
                 ms.add(mutation);
             }
         }
