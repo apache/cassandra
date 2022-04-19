@@ -929,7 +929,7 @@ public class CompactionManager implements CompactionManagerMBean
         return futures;
     }
 
-    public void forceCompaction(ColumnFamilyStore cfStore, Supplier<Collection<SSTableReader>> fn)
+    public void forceCompaction(ColumnFamilyStore cfStore, Supplier<Collection<SSTableReader>> fn, com.google.common.base.Predicate<SSTableReader> sstablesPredicate)
     {
         Callable<CompactionTasks> taskCreator = () -> {
             Collection<SSTableReader> sstables = fn.get();
@@ -942,7 +942,7 @@ public class CompactionManager implements CompactionManagerMBean
         };
 
         try (CompactionTasks tasks = cfStore.runWithCompactionsDisabled(taskCreator,
-                                                                        ignore -> true,
+                                                                        sstablesPredicate,
                                                                         false,
                                                                         false,
                                                                         false))
@@ -966,7 +966,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void forceCompactionForTokenRange(ColumnFamilyStore cfStore, Collection<Range<Token>> ranges)
     {
-        forceCompaction(cfStore, () -> sstablesInBounds(cfStore, ranges));
+        forceCompaction(cfStore, () -> sstablesInBounds(cfStore, ranges), (sstable) -> new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges));
     }
 
     private static Collection<SSTableReader> sstablesInBounds(ColumnFamilyStore cfs, Collection<Range<Token>> tokenRangeCollection)
@@ -998,7 +998,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void forceCompactionForKey(ColumnFamilyStore cfStore, DecoratedKey key)
     {
-        forceCompaction(cfStore, () -> sstablesWithKey(cfStore, key));
+        forceCompaction(cfStore, () -> sstablesWithKey(cfStore, key), sstable -> sstable.isPresent(key));
     }
 
     private static Collection<SSTableReader> sstablesWithKey(ColumnFamilyStore cfs, DecoratedKey key)
