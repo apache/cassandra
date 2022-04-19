@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.ResultSet.ResultMetadata;
 import org.apache.cassandra.cql3.selection.Selection.Selectors;
