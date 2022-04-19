@@ -68,4 +68,12 @@ public class AccordCommandStores extends CommandStores
     {
         setup(commandStore -> ((AccordCommandStore) commandStore).setCacheSize(bytes));
     }
+
+    @Override
+    public synchronized void shutdown()
+    {
+        super.shutdown();
+        for (ExecutorService executor : executors)
+            executor.shutdown();
+    }
 }

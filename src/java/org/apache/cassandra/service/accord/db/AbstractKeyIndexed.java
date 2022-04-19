@@ -133,7 +133,7 @@ public abstract class AbstractKeyIndexed<T>
         long size = emptySizeOnHeap();
         for (Map.Entry<PartitionKey, ByteBuffer> entry : serialized.entrySet())
         {
-            size += entry.getKey().unsharedSizeOnHeap();
+            size += entry.getKey().estimatedSizeOnHeap();
             size += ByteBufferUtil.EMPTY_SIZE_ON_HEAP + ByteBufferAccessor.instance.size(entry.getValue());
         }
         return size;

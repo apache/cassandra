@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Objects;
 
-import com.google.common.base.Preconditions;
-
 import accord.api.Key;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -282,7 +280,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         @Override
         protected long estimatedSizeOnHeap()
         {
-            return EMPTY_SIZE + key.unsharedSizeOnHeap();
+            return EMPTY_SIZE + key.estimatedSizeOnHeap();
         }
     }
 

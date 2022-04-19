@@ -43,7 +43,7 @@ public class AccordObjectSizes
         long size = EMPTY_KEYS_SIZE;
         size += ObjectSizes.sizeOfReferenceArray(keys.size());
         for (int i=0, mi=keys.size(); i<mi; i++)
-            size += ((AccordKey.PartitionKey) keys.get(i)).unsharedSizeOnHeap();
+            size += ((AccordKey.PartitionKey) keys.get(i)).estimatedSizeOnHeap();
         return size;
     }
 
@@ -55,7 +55,7 @@ public class AccordObjectSizes
         size += ((AccordRead) txn.read).estimatedSizeOnHeap();
         if (txn.update != null)
             size += ((AccordUpdate) txn.update).estimatedSizeOnHeap();
-        size += ((AccordQuery) txn.query).unsharedSizeOnHeap();
+        size += ((AccordQuery) txn.query).estimatedSizeOnHeap();
         return size;
     }
 

@@ -58,7 +58,6 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> implements Read
 {
     private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordRead(new TreeMap<>()));
-    private static final Logger logger = LoggerFactory.getLogger(AccordRead.class);
 
     public AccordRead(List<SinglePartitionReadCommand> items)
     {
@@ -108,7 +107,6 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     @Override
     public Future<Data> read(Key key, Timestamp executeAt, Store store)
     {
-        logger.debug("READING {}", key);
         SinglePartitionReadCommand command = getDeserialized((PartitionKey) key);
         if (command == null)
             return ImmediateFuture.success(new AccordData());
@@ -123,7 +121,6 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec());
                 FilteredPartition filtered = FilteredPartition.create(PartitionIterators.getOnlyElement(iterator, read));
                 AccordData result = new AccordData(filtered);
-                logger.debug("Completed read of {}: {}", key, result);
                 future.trySuccess(result);
             }
         });

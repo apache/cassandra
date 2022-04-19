@@ -383,82 +383,90 @@ public class AccordKeyspace
             map.forEachDeletion(k -> builder.addCell(tombstone(column, timestamp, nowInSec, CellPath.create(serialize.apply(k)))));
     }
 
-    public static Mutation getCommandMutation(AccordCommand command) throws IOException
+    public static Mutation getCommandMutation(AccordCommand command)
     {
-        Preconditions.checkArgument(command.hasModifications());
-
-        // TODO: convert to byte arrays
-        ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
-
-        Row.Builder builder = BTreeRow.unsortedBuilder();
-        builder.newRow(Clustering.EMPTY);
-        long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
-        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
-        int version = MessagingService.current_version;
-        ByteBuffer versionBytes = accessor.valueOf(version);
-
-        // TODO: duplicate into commands for key
-        if (command.status.hasModifications())
-            builder.addCell(live(CommandsColumns.status, timestampMicros, accessor.valueOf(command.status.get().ordinal())));
-
-        if (command.txn.hasModifications())
+        try
         {
-            builder.addCell(live(CommandsColumns.txn_version, timestampMicros, versionBytes));
-            builder.addCell(live(CommandsColumns.txn, timestampMicros, serializeOrNull(command.txn.get(), CommandSerializers.txn, version)));
+
+            Preconditions.checkArgument(command.hasModifications());
+
+            // TODO: convert to byte arrays
+            ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
+
+            Row.Builder builder = BTreeRow.unsortedBuilder();
+            builder.newRow(Clustering.EMPTY);
+            long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
+            int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
+            int version = MessagingService.current_version;
+            ByteBuffer versionBytes = accessor.valueOf(version);
+
+            // TODO: duplicate into commands for key
+            if (command.status.hasModifications())
+                builder.addCell(live(CommandsColumns.status, timestampMicros, accessor.valueOf(command.status.get().ordinal())));
+
+            if (command.txn.hasModifications())
+            {
+                builder.addCell(live(CommandsColumns.txn_version, timestampMicros, versionBytes));
+                builder.addCell(live(CommandsColumns.txn, timestampMicros, serializeOrNull(command.txn.get(), CommandSerializers.txn, version)));
+            }
+
+            if (command.executeAt.hasModifications())
+                builder.addCell(live(CommandsColumns.execute_at, timestampMicros, serializeTimestamp(command.executeAt.get())));
+
+            if (command.promised.hasModifications())
+                builder.addCell(live(CommandsColumns.promised_ballot, timestampMicros, serializeTimestamp(command.promised.get())));
+
+            if (command.accepted.hasModifications())
+                builder.addCell(live(CommandsColumns.accepted_ballot, timestampMicros, serializeTimestamp(command.accepted.get())));
+
+            if (command.deps.hasModifications())
+            {
+                builder.addCell(live(CommandsColumns.dependencies_version, timestampMicros, versionBytes));
+                builder.addCell(live(CommandsColumns.dependencies, timestampMicros, serialize(command.deps.get(), CommandSerializers.deps, version)));
+            }
+
+            if (command.writes.hasModifications())
+            {
+                builder.addCell(live(CommandsColumns.writes_version, timestampMicros, versionBytes));
+                builder.addCell(live(CommandsColumns.writes, timestampMicros, serialize(command.writes.get(), CommandSerializers.writes, version)));
+            }
+
+            if (command.result.hasModifications())
+            {
+                builder.addCell(live(CommandsColumns.result_version, timestampMicros, versionBytes));
+                builder.addCell(live(CommandsColumns.result, timestampMicros, serialize((AccordData) command.result.get(), AccordData.serializer, version)));
+            }
+
+            if (command.waitingOnCommit.hasModifications())
+            {
+                addStoredMapChanges(builder, CommandsColumns.waiting_on_commit,
+                                    timestampMicros, nowInSeconds, command.waitingOnCommit,
+                                    AccordKeyspace::serializeTimestamp, AccordKeyspace::serializeTimestamp);
+            }
+
+            if (command.waitingOnApply.hasModifications())
+            {
+                addStoredMapChanges(builder, CommandsColumns.waiting_on_apply,
+                                    timestampMicros, nowInSeconds, command.waitingOnApply,
+                                    AccordKeyspace::serializeTimestamp, AccordKeyspace::serializeTimestamp);
+            }
+
+            if (command.storedListeners.hasModifications())
+            {
+                addStoredSetChanges(builder, CommandsColumns.listeners,
+                                    timestampMicros, nowInSeconds, command.storedListeners,
+                                    ListenerProxy::identifier);
+            }
+            ByteBuffer key = CommandsColumns.keyComparator.make(command.commandStore().generation(),
+                                                                command.commandStore().index(),
+                                                                serializeTimestamp(command.txnId())).serializeAsPartitionKey();
+            PartitionUpdate update = PartitionUpdate.singleRowUpdate(Commands, Commands.partitioner.decorateKey(key), builder.build(), Rows.EMPTY_STATIC_ROW);
+            return new Mutation(update);
         }
-
-        if (command.executeAt.hasModifications())
-            builder.addCell(live(CommandsColumns.execute_at, timestampMicros, serializeTimestamp(command.executeAt.get())));
-
-        if (command.promised.hasModifications())
-            builder.addCell(live(CommandsColumns.promised_ballot, timestampMicros, serializeTimestamp(command.promised.get())));
-
-        if (command.accepted.hasModifications())
-            builder.addCell(live(CommandsColumns.accepted_ballot, timestampMicros, serializeTimestamp(command.accepted.get())));
-
-        if (command.deps.hasModifications())
+        catch (IOException e)
         {
-            builder.addCell(live(CommandsColumns.dependencies_version, timestampMicros, versionBytes));
-            builder.addCell(live(CommandsColumns.dependencies, timestampMicros, serialize(command.deps.get(), CommandSerializers.deps, version)));
+            throw new RuntimeException(e);
         }
-
-        if (command.writes.hasModifications())
-        {
-            builder.addCell(live(CommandsColumns.writes_version, timestampMicros, versionBytes));
-            builder.addCell(live(CommandsColumns.writes, timestampMicros, serialize(command.writes.get(), CommandSerializers.writes, version)));
-        }
-
-        if (command.result.hasModifications())
-        {
-            builder.addCell(live(CommandsColumns.result_version, timestampMicros, versionBytes));
-            builder.addCell(live(CommandsColumns.result, timestampMicros, serialize((AccordData) command.result.get(), AccordData.serializer, version)));
-        }
-
-        if (command.waitingOnCommit.hasModifications())
-        {
-            addStoredMapChanges(builder, CommandsColumns.waiting_on_commit,
-                                timestampMicros, nowInSeconds, command.waitingOnCommit,
-                                AccordKeyspace::serializeTimestamp, AccordKeyspace::serializeTimestamp);
-        }
-
-        if (command.waitingOnApply.hasModifications())
-        {
-            addStoredMapChanges(builder, CommandsColumns.waiting_on_apply,
-                                timestampMicros, nowInSeconds, command.waitingOnApply,
-                                AccordKeyspace::serializeTimestamp, AccordKeyspace::serializeTimestamp);
-        }
-
-        if (command.storedListeners.hasModifications())
-        {
-            addStoredSetChanges(builder, CommandsColumns.listeners,
-                                timestampMicros, nowInSeconds, command.storedListeners,
-                                ListenerProxy::identifier);
-        }
-        ByteBuffer key = CommandsColumns.keyComparator.make(command.commandStore().generation(),
-                                                            command.commandStore().index(),
-                                                            serializeTimestamp(command.txnId())).serializeAsPartitionKey();
-        PartitionUpdate update = PartitionUpdate.singleRowUpdate(Commands, Commands.partitioner.decorateKey(key), builder.build(), Rows.EMPTY_STATIC_ROW);
-        return new Mutation(update);
     }
 
     public static void saveCommand(AccordCommand command) throws IOException
@@ -543,7 +551,6 @@ public class AccordKeyspace
         return command;
     }
 
-    // FIXME: indicate which fields need to be loaded
     public static void loadCommand(AccordCommand command)
     {
         TxnId txnId = command.txnId();

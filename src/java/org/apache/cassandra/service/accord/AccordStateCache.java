@@ -123,7 +123,7 @@ public class AccordStateCache
         this.maxSizeInBytes = maxSizeInBytes;
     }
 
-    public void maxSizeInBytes(long size)
+    public void setMaxSize(long size)
     {
         maxSizeInBytes = size;
         maybeEvict();

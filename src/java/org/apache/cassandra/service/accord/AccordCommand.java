@@ -58,7 +58,6 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 
     public final StoredValue<Status> status = new StoredValue<>();
 
-    // TODO: compact binary format for below collections, with a step to materialize when needed
     public final StoredNavigableMap<TxnId, TxnId> waitingOnCommit = new StoredNavigableMap<>();
     public final StoredNavigableMap<Timestamp, TxnId> waitingOnApply = new StoredNavigableMap<>();
 
@@ -392,8 +391,6 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     @Override
     public void notifyListeners()
     {
-        // TODO: defer command listeners to executor, call cfk immediately (it's updating uncommitted mapping).
-        //  maybe update C* implementation to duplicate status etc into cfk table
         storedListeners.getView().forEach(this);
         transientListeners.forEach(this);
     }

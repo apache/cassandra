@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.async;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import accord.api.Key;
 import accord.local.CommandStore;
 import accord.local.TxnOperation;
 import accord.txn.TxnId;
@@ -28,7 +29,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
-public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable
+public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<CommandStore, R>
 {
     enum State
     {
@@ -76,8 +77,6 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
             run();
     }
 
-    abstract R calculateResult(CommandStore commandStore);
-
     @Override
     public void run()
     {
@@ -90,13 +89,11 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
                 case INITIALIZED:
                     state = State.LOADING;
                 case LOADING:
-                    // TODO: check for any pending loads for the objects we want, and wait on them
                     if (!loader.load(context, this::callback))
                         return;
 
                     state = State.RUNNING;
-                    result = calculateResult(commandStore);
-                    // FIXME: if there is now a read or write to do, prevent other processes from attempting to perform them also
+                    result = apply(commandStore);
 
                     state = State.SAVING;
                 case SAVING:
@@ -122,7 +119,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         }
     }
 
-    private static Iterable<PartitionKey> toPartitionKeys(Iterable<?> iterable)
+    private static Iterable<PartitionKey> toPartitionKeys(Iterable<? extends Key> iterable)
     {
         return (Iterable<PartitionKey>) iterable;
     }
@@ -138,7 +135,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         }
 
         @Override
-        R calculateResult(CommandStore commandStore)
+        public R apply(CommandStore commandStore)
         {
             return function.apply(commandStore);
         }
@@ -160,7 +157,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         }
 
         @Override
-        Void calculateResult(CommandStore commandStore)
+        public Void apply(CommandStore commandStore)
         {
             consumer.accept(commandStore);
             return null;

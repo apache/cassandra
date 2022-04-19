@@ -101,7 +101,7 @@ public class AccordCommandStore extends CommandStore
     void setCacheSize(long bytes)
     {
         checkInStoreThread();
-        stateCache.maxSizeInBytes(bytes);
+        stateCache.setMaxSize(bytes);
     }
 
     public void checkInStoreThread()
@@ -223,6 +223,6 @@ public class AccordCommandStore extends CommandStore
     @Override
     public void shutdown()
     {
-        throw new UnsupportedOperationException("TODO");
+        // executors are shutdown by AccordCommandStores
     }
 }

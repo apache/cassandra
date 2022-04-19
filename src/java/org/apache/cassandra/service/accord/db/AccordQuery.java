@@ -55,7 +55,7 @@ public abstract class AccordQuery implements Query
 
     private AccordQuery() {}
 
-    public long unsharedSizeOnHeap()
+    public long estimatedSizeOnHeap()
     {
         return SIZE;
     }

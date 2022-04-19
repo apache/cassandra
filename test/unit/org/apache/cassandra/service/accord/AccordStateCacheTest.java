@@ -240,12 +240,9 @@ public class AccordStateCacheTest
 
         AsyncPromise<Void> saveFuture = new AsyncPromise<>();
         instance.setSaveFuture(0, saveFuture);
-        cache.maxSizeInBytes(0);
+        cache.setMaxSize(0);
 
         // all should have been evicted except 0
         assertCacheState(cache, 0, 1, DEFAULT_NODE_SIZE);
-
-
-
     }
 }
