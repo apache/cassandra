@@ -929,10 +929,10 @@ public class CompactionManager implements CompactionManagerMBean
         return futures;
     }
 
-    public void forceCompaction(ColumnFamilyStore cfStore, Supplier<Collection<SSTableReader>> fn, com.google.common.base.Predicate<SSTableReader> sstablesPredicate)
+    public void forceCompaction(ColumnFamilyStore cfStore, Supplier<Collection<SSTableReader>> sstablesFn, com.google.common.base.Predicate<SSTableReader> sstablesPredicate)
     {
         Callable<CompactionTasks> taskCreator = () -> {
-            Collection<SSTableReader> sstables = fn.get();
+            Collection<SSTableReader> sstables = sstablesFn.get();
             if (sstables == null || sstables.isEmpty())
             {
                 logger.debug("No sstables found for the provided token range");
