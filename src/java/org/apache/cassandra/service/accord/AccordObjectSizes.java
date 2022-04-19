@@ -47,15 +47,15 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_TXN = ObjectSizes.measure(new Txn(null, null, null));
+    private static final long EMPTY_TXN = ObjectSizes.measure(new Txn.InMemory(null, null, null));
     public static long txn(Txn txn)
     {
         long size = EMPTY_TXN;
         size += keys(txn.keys());
-        size += ((AccordRead) txn.read).estimatedSizeOnHeap();
-        if (txn.update != null)
-            size += ((AccordUpdate) txn.update).estimatedSizeOnHeap();
-        size += ((AccordQuery) txn.query).estimatedSizeOnHeap();
+        size += ((AccordRead) txn.read()).estimatedSizeOnHeap();
+        if (txn.update() != null)
+            size += ((AccordUpdate) txn.update()).estimatedSizeOnHeap();
+        size += ((AccordQuery) txn.query()).estimatedSizeOnHeap();
         return size;
     }
 

@@ -106,7 +106,7 @@ public class AccordCommandStoreTest
         Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 0, 1);
 
         Txn txn = createTxn(1);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
         AccordCommand command1 = new AccordCommand(commandStore, txnId1).initialize();

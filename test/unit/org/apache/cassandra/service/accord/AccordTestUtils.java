@@ -126,7 +126,7 @@ public class AccordTestUtils
     {
 
         Txn txn = command.txn();
-        AccordRead read = (AccordRead) txn.read;
+        AccordRead read = (AccordRead) txn.read();
         Data readData = read.keys().stream()
                             .map(key -> {
                                 try
@@ -143,9 +143,9 @@ public class AccordTestUtils
                                 }
                             })
                             .reduce(null, AccordData::merge);
-        Write write = txn.update.apply(readData);
+        Write write = txn.update().apply(readData);
         command.writes(new Writes(command.executeAt(), txn.keys(), write));
-        command.result(txn.query.compute(readData));
+        command.result(txn.query().compute(readData));
     }
 
     public static Txn createTxn(int readKey, int... writeKeys)

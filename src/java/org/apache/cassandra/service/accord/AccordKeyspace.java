@@ -139,8 +139,6 @@ public class AccordKeyspace
               + format("waiting_on_commit map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
               + format("waiting_on_apply map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
               + "listeners set<blob>, "
-//              + format("listening_to set<%s>, ", TIMESTAMP_TUPLE)
-//              + format("dependency_of set<%s>, ", TIMESTAMP_TUPLE)
 //              + format("blocking_commit_on set<%s>, ", TIMESTAMP_TUPLE)
 //              + format("blocking_apply_on set<%s>, ", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_generation, store_index, txn_id))"

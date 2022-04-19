@@ -52,7 +52,7 @@ public class AccordUpdateTest
         Txn txn = txnBuilder.build();
 
 
-        AccordUpdate update = (AccordUpdate) txn.update;
+        AccordUpdate update = (AccordUpdate) txn.update();
         assertSerializerIOEquality(update.getPredicate(0), AccordUpdate.predicateSerializer);
     }
 }

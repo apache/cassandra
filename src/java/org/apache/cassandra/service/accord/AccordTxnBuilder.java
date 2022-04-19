@@ -141,7 +141,7 @@ public class AccordTxnBuilder
         predicates.sort(Comparator.comparing(UpdatePredicate::partitionKey));
         if (updates.isEmpty())
         {
-            return new Txn(new Keys(keyArray), new AccordRead(reads), query);
+            return new Txn.InMemory(new Keys(keyArray), new AccordRead(reads), query);
         }
         else
         {
@@ -155,7 +155,7 @@ public class AccordTxnBuilder
                 throw new IllegalStateException(msg);
             }
 
-            return new Txn(new Keys(keyArray), new AccordRead(reads), query, new AccordUpdate(updates, predicates));
+            return new Txn.InMemory(new Keys(keyArray), new AccordRead(reads), query, new AccordUpdate(updates, predicates));
         }
     }
 

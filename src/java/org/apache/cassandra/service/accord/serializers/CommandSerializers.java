@@ -126,12 +126,12 @@ public class CommandSerializers
         @Override
         public void serialize(Txn txn, DataOutputPlus out, int version) throws IOException
         {
-            KeySerializers.keys.serialize(txn.keys, out, version);
-            AccordRead.serializer.serialize((AccordRead) txn.read, out, version);
-            AccordQuery.serializer.serialize((AccordQuery) txn.query, out, version);
-            out.writeBoolean(txn.update != null);
-            if (txn.update != null)
-                AccordUpdate.serializer.serialize((AccordUpdate) txn.update, out, version);
+            KeySerializers.keys.serialize(txn.keys(), out, version);
+            AccordRead.serializer.serialize((AccordRead) txn.read(), out, version);
+            AccordQuery.serializer.serialize((AccordQuery) txn.query(), out, version);
+            out.writeBoolean(txn.update() != null);
+            if (txn.update() != null)
+                AccordUpdate.serializer.serialize((AccordUpdate) txn.update(), out, version);
 
         }
 
@@ -142,20 +142,20 @@ public class CommandSerializers
             AccordRead read = AccordRead.serializer.deserialize(in, version);
             AccordQuery query = AccordQuery.serializer.deserialize(in, version);
             if (in.readBoolean())
-                return new Txn(keys, read, query, AccordUpdate.serializer.deserialize(in, version));
+                return new Txn.InMemory(keys, read, query, AccordUpdate.serializer.deserialize(in, version));
             else
-                return new Txn(keys, read, query);
+                return new Txn.InMemory(keys, read, query);
         }
 
         @Override
         public long serializedSize(Txn txn, int version)
         {
-            long size = KeySerializers.keys.serializedSize(txn.keys, version);
-            size += AccordRead.serializer.serializedSize((AccordRead) txn.read, version);
-            size += AccordQuery.serializer.serializedSize((AccordQuery) txn.query, version);
-            size += TypeSizes.sizeof(txn.update != null);
-            if (txn.update != null)
-                size += AccordUpdate.serializer.serializedSize((AccordUpdate) txn.update, version);
+            long size = KeySerializers.keys.serializedSize(txn.keys(), version);
+            size += AccordRead.serializer.serializedSize((AccordRead) txn.read(), version);
+            size += AccordQuery.serializer.serializedSize((AccordQuery) txn.query(), version);
+            size += TypeSizes.sizeof(txn.update() != null);
+            if (txn.update() != null)
+                size += AccordUpdate.serializer.serializedSize((AccordUpdate) txn.update(), version);
             return size;
         }
     };

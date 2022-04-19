@@ -162,21 +162,21 @@ public class CommandSummaries
         txn  (these are serialized in the deps map)
       waiting on apply:
         txn_id
-        txn
+//        txn
         status
         executeAt
       waiting on commit:
         txn_id
         status
+        executeAt
      */
 
-    public static class TxnStatusExecuteAtSerializer extends SummarySerializer
+    public static class StatusExecuteAtSerializer extends SummarySerializer
     {
         @Override
         public void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException
         {
             out.writeInt(version.msg_version);
-            CommandSerializers.txn.serialize(command.txn(), out, version.msg_version);
             out.write(command.status().ordinal());
             if (command.hasBeen(Status.Committed))
                 CommandSerializers.timestamp.serialize(command.executeAt(), out, version.msg_version);
@@ -217,9 +217,8 @@ public class CommandSummaries
         }
     };
 
-    public static final TxnStatusExecuteAtSerializer txnStatusExecute = new TxnStatusExecuteAtSerializer();
-    public static final TxnStatusExecuteAtSerializer dependencies = txnStatusExecute;
-    public static final TxnStatusExecuteAtSerializer waitingOnApply = txnStatusExecute;
+    public static final StatusExecuteAtSerializer txnStatusExecute = new StatusExecuteAtSerializer();
+    public static final StatusExecuteAtSerializer waitingOnApply = txnStatusExecute;
 
     public static final SummarySerializer commandsPerKey = new SummarySerializer(){
 
@@ -228,6 +227,10 @@ public class CommandSummaries
         {
             txnStatusExecute.serializeBody(command, out, version);
 
+            // TODO: maybe make Txn an interface, we only need to know if the txn is a write here
+            CommandSerializers.txn.serialize(command.txn(), out, version.msg_version);
+
+            // deps are used by BeginRecovery
             Dependencies deps = command.savedDeps();
             out.writeInt(deps.size());
             for (Map.Entry<TxnId, Txn> entry : deps)

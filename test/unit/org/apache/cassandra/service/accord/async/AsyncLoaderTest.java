@@ -65,7 +65,7 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // acquire / release
         AccordCommand command = commandCache.getOrCreate(txnId).initialize();
@@ -97,7 +97,7 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // create / persist
         AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
@@ -135,7 +135,7 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // acquire /release, create / persist
         AccordCommand command = commandCache.getOrCreate(txnId).initialize();
@@ -173,7 +173,7 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys);
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // acquire / release
         AccordCommand command = commandCache.getOrCreate(txnId).initialize();
