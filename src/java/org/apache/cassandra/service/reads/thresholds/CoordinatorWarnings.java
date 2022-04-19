@@ -36,7 +36,7 @@ import org.apache.cassandra.service.ClientWarn;
 public class CoordinatorWarnings
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorWarnings.class);
-    private static final boolean ENABLE_DEFENSIVE_CHECKS = Boolean.getBoolean("cassandra.track_warnings.coordinator.defensive_checks_enabled");
+    private static final boolean ENABLE_DEFENSIVE_CHECKS = Boolean.getBoolean("cassandra.reads.thresholds.coordinator.defensive_checks_enabled");
 
     // when .init() is called set the STATE to be INIT; this is to lazy allocate the map only when warnings are generated
     private static final Map<ReadCommand, WarningsSnapshot> INIT = Collections.emptyMap();
