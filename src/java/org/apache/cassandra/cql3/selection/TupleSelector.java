@@ -116,7 +116,7 @@ final class TupleSelector extends Selector
     {
         for (int i = 0, m = elements.size(); i < m; i++)
         {
-            if(!elements.get(i).isTerminal())
+            if (!elements.get(i).isTerminal())
                 return false;
         }
         return true;

@@ -132,14 +132,15 @@ public abstract class GroupMaker
         @Override
         public boolean isNewGroup(DecoratedKey partitionKey, Clustering<?> clustering)
         {
+            ByteBuffer key = partitionKey.getKey();
             // We are entering a new group if:
             // - the partition key is a new one
             // - the last clustering was not null and does not have the same prefix as the new clustering one
-            boolean isNew = !partitionKey.getKey().equals(lastPartitionKey)
+            boolean isNew = !key.equals(lastPartitionKey)
                             || lastClustering == null
                             || comparator.compare(lastClustering, clustering, clusteringPrefixSize) != 0;
 
-            lastPartitionKey = partitionKey.getKey();
+            lastPartitionKey = key;
             lastClustering =  Clustering.STATIC_CLUSTERING == clustering ? null : clustering;
             return isNew;
         }

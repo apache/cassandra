@@ -426,8 +426,7 @@ public final class Duration
         // as time zones are not supported, and simply look at the milliseconds
         if (duration.months == 0)
         {
-            // We can ignore daylight saving as time zones are not supported
-            long durationInMillis = (duration.days * MILLIS_PER_DAY) + (duration.nanoseconds / NANOS_PER_MILLI);
+            long durationInMillis = getDurationMilliseconds(duration);
 
             // If the duration is smaller than millisecond
             if (durationInMillis == 0)
@@ -472,7 +471,7 @@ public final class Duration
         if (duration.days == 0 && duration.nanoseconds == 0)
             return calendar.getTimeInMillis();
 
-        long durationInMillis = (duration.days * MILLIS_PER_DAY) + (duration.nanoseconds / NANOS_PER_MILLI);
+        long durationInMillis = getDurationMilliseconds(duration);
         long floor = calendar.getTimeInMillis() + (multiplier * durationInMillis);
 
         // Once the milliseconds have been added we might have gone too far. If it is the case we will reduce the
@@ -485,6 +484,18 @@ public final class Duration
         }
 
         return Math.max(startingTimeInMillis, floor);
+    }
+
+    /**
+     * Returns the milliseconds part of the duration ignoring the month part
+     *
+     * @param duration the duration
+     * @return the milliseconds corresponding to the duration days and nanoseconds
+     */
+    private static long getDurationMilliseconds(Duration duration)
+    {
+        // We can ignore daylight saving as time zones are not supported
+        return (duration.days * MILLIS_PER_DAY) + (duration.nanoseconds / NANOS_PER_MILLI);
     }
 
     /**

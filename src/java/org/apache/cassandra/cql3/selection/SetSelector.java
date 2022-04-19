@@ -32,7 +32,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
@@ -119,7 +118,7 @@ final class SetSelector extends Selector
     {
         for (int i = 0, m = elements.size(); i < m; i++)
         {
-            if(!elements.get(i).isTerminal())
+            if (!elements.get(i).isTerminal())
                 return false;
         }
         return true;
