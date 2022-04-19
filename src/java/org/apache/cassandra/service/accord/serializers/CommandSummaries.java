@@ -23,8 +23,12 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.TreeMap;
 
+import accord.api.Query;
+import accord.api.Read;
+import accord.api.Update;
 import accord.local.Status;
 import accord.txn.Dependencies;
+import accord.txn.Keys;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import org.apache.cassandra.db.TypeSizes;
@@ -39,6 +43,26 @@ import org.apache.cassandra.service.accord.async.AsyncContext;
 
 public class CommandSummaries
 {
+    private static class KindOnlyTxn extends Txn
+    {
+        private final Txn.Kind kind;
+        public KindOnlyTxn(Txn.Kind kind) { this.kind = kind; }
+        @Override public Kind kind() { return kind; }
+        @Override public Keys keys() { throw new UnsupportedOperationException(); }
+        @Override public Read read() { throw new UnsupportedOperationException(); }
+        @Override public Query query() { throw new UnsupportedOperationException(); }
+        @Override public Update update() { throw new UnsupportedOperationException(); }
+    }
+
+    private static final Txn DUMMY_TXN = new Txn()
+    {
+        @Override public Kind kind() { throw new UnsupportedOperationException(); }
+        @Override public Keys keys() { throw new UnsupportedOperationException(); }
+        @Override public Read read() { throw new UnsupportedOperationException(); }
+        @Override public Query query() { throw new UnsupportedOperationException(); }
+        @Override public Update update() { throw new UnsupportedOperationException(); }
+    };
+
     public enum Version
     {
         VERSION_0(0, MessagingService.current_version);
@@ -147,51 +171,19 @@ public class CommandSummaries
         public abstract boolean needsUpdate(AccordCommand command);
     }
 
-    /*
-      commands for keys:
-        txn_id
-        txn
-        txn is_write
-        status <- to support deps
-        execute_at
-        deps (txn_ids)
-      deps:
-        txn_id
-        status
-        execute_at
-        txn  (these are serialized in the deps map)
-      waiting on apply:
-        txn_id
-//        txn
-        status
-        executeAt
-      waiting on commit:
-        txn_id
-        status
-        executeAt
-     */
-
-    public static class StatusExecuteAtSerializer extends SummarySerializer
+    private static final SummarySerializer statusExecute = new SummarySerializer()
     {
         @Override
         public void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeInt(version.msg_version);
             out.write(command.status().ordinal());
             if (command.hasBeen(Status.Committed))
                 CommandSerializers.timestamp.serialize(command.executeAt(), out, version.msg_version);
         }
 
-        public Txn deserializeTxn(DataInputPlus in, Version version) throws IOException
-        {
-            int txn_version = in.readInt();
-            return CommandSerializers.txn.deserialize(in, txn_version);
-        }
-
         @Override
         public void deserializeBody(AccordCommand command, DataInputPlus in, Version version) throws IOException
         {
-            command.txn.load(deserializeTxn(in, version));
             command.status.load(Status.values()[in.readByte()]);
             if (command.hasBeen(Status.Committed))
                 command.executeAt.load(CommandSerializers.timestamp.deserialize(in, version.msg_version));
@@ -200,9 +192,7 @@ public class CommandSummaries
         @Override
         public int serializedBodySize(AccordCommand command, Version version)
         {
-            int size = TypeSizes.INT_SIZE; // txn version
-            size += TypeSizes.sizeof((byte) command.status.get().ordinal());
-            size += TypeSizes.BOOL_SIZE;
+            int size = TypeSizes.sizeof((byte) command.status.get().ordinal());
             if (command.hasBeen(Status.Committed))
                 size += CommandSerializers.timestamp.serializedSize();
             return size;
@@ -211,25 +201,19 @@ public class CommandSummaries
         @Override
         public boolean needsUpdate(AccordCommand command)
         {
-            return command.txn.hasModifications()
-                   || command.status.hasModifications()
-                   || command.executeAt.hasModifications();
+            return command.status.hasModifications() || command.executeAt.hasModifications();
         }
     };
 
-    public static final StatusExecuteAtSerializer txnStatusExecute = new StatusExecuteAtSerializer();
-    public static final StatusExecuteAtSerializer waitingOnApply = txnStatusExecute;
+    public static final SummarySerializer waitingOn = statusExecute;
 
     public static final SummarySerializer commandsPerKey = new SummarySerializer(){
 
         @Override
         public void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException
         {
-            txnStatusExecute.serializeBody(command, out, version);
-
-            // TODO: maybe make Txn an interface, we only need to know if the txn is a write here
-            CommandSerializers.txn.serialize(command.txn(), out, version.msg_version);
-
+            statusExecute.serializeBody(command, out, version);
+            out.write(command.txn().kind().ordinal());
             // deps are used by BeginRecovery
             Dependencies deps = command.savedDeps();
             out.writeInt(deps.size());
@@ -240,21 +224,20 @@ public class CommandSummaries
         @Override
         public void deserializeBody(AccordCommand command, DataInputPlus in, Version version) throws IOException
         {
-            txnStatusExecute.deserializeBody(command, in, version);
-
+            statusExecute.deserializeBody(command, in, version);
+            command.txn.load(new KindOnlyTxn(Txn.Kind.values()[in.readByte()]));
             TreeMap<TxnId, Txn> depsMap = new TreeMap<>();
             int numDeps = in.readInt();
             for (int i=0; i<numDeps; i++)
-                depsMap.put(CommandSerializers.txnId.deserialize(in, version.msg_version), null);
+                depsMap.put(CommandSerializers.txnId.deserialize(in, version.msg_version), DUMMY_TXN);
             command.deps.load(new Dependencies(depsMap));
         }
 
         @Override
         public int serializedBodySize(AccordCommand command, Version version)
         {
-            int size = txnStatusExecute.serializedBodySize(command, version);
-
-//            int numDeps = command.deps.getView().size();
+            int size = statusExecute.serializedBodySize(command, version);
+            size += TypeSizes.sizeof((byte) command.txn().kind().ordinal());
             int numDeps = command.deps.get().size();
             size += TypeSizes.sizeof(numDeps);
             size += numDeps * CommandSerializers.txnId.serializedSize();
@@ -264,7 +247,9 @@ public class CommandSummaries
         @Override
         public boolean needsUpdate(AccordCommand command)
         {
-            return txnStatusExecute.needsUpdate(command) || command.deps.hasModifications();
+            return statusExecute.needsUpdate(command)
+                   || command.txn.hasModifications()
+                   || command.deps.hasModifications();
         }
     };
 
