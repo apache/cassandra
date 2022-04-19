@@ -448,14 +448,15 @@ class Shell(cmd.Cmd):
         self.hostname = hostname
         self.port = port
         self.auth_provider = auth_provider
+        self.username = username
 
         if isinstance(auth_provider, PlainTextAuthProvider):
+            self.username = auth_provider.username
             if not auth_provider.password:
                 # if no password is provided, we need to query the user to get one.
                 password = getpass.getpass()
                 self.auth_provider = PlainTextAuthProvider(username=auth_provider.username, password=password)
 
-        self.username = username
         self.keyspace = keyspace
         self.ssl = ssl
         self.tracing_enabled = tracing_enabled
@@ -2155,8 +2156,8 @@ def read_options(cmdlineargs, environment):
     optvalues.insecure_password_without_warning = False
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
-    
-    # Credentials from cqlshrc will be expanded, 
+
+    # Credentials from cqlshrc will be expanded,
     # credentials from the command line are also expanded if there is a space...
     # we need the following so that these two scenarios will work
     #   cqlsh --credentials=~/.cassandra/creds
@@ -2179,7 +2180,7 @@ def read_options(cmdlineargs, environment):
         credentials.read(options.credentials)
 
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
-        options.username = option_with_default(credentials.get, 'plain_text_auth', 'username', username_from_cqlshrc)
+        options.username = username_from_cqlshrc
 
     if not options.password:
         rawcredentials = configparser.RawConfigParser()
@@ -2187,6 +2188,7 @@ def read_options(cmdlineargs, environment):
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
         options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
+        options.password = password_from_cqlshrc
     elif not options.insecure_password_without_warning:
         print("\nWarning: Using a password on the command line interface can be insecure."
               "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
