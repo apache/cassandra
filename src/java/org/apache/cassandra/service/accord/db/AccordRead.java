@@ -28,8 +28,6 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import accord.api.Data;
 import accord.api.Key;

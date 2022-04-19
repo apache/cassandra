@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -324,7 +325,7 @@ public class AccordUpdate implements Update
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AccordUpdate update = (AccordUpdate) o;
-        return updates.equals(update.updates) && predicates.equals(update.predicates);
+        return Arrays.equals(updates, update.updates) && Arrays.equals(predicates, update.predicates);
     }
 
     @Override
