@@ -17,19 +17,19 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.BufferedWriter;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.DataOutput;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
-
-import com.google.common.base.Charsets;
 
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
@@ -209,9 +209,12 @@ public class DataIntegrityMetadata
             if (descriptor.digestComponent == null)
                 throw new NullPointerException("Null digest component for " + descriptor.ksname + '.' + descriptor.cfname + " file " + descriptor.baseFilename());
             File outFile = new File(descriptor.filenameFor(descriptor.digestComponent));
-            try (BufferedWriter out =Files.newBufferedWriter(outFile.toPath(), Charsets.UTF_8))
+            try (FileOutputStream fos = new FileOutputStream(outFile);
+                 DataOutputStream out = new DataOutputStream(new BufferedOutputStream(fos)))
             {
-                out.write(String.valueOf(fullChecksum.getValue()));
+                out.write(String.valueOf(fullChecksum.getValue()).getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                fos.getFD().sync();
             }
             catch (IOException e)
             {
