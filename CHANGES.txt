@@ -1,4 +1,5 @@
 4.2
+ * Snapshot only sstables containing mismatching ranges on preview repair mismatch (CASSANDRA-17561)
  * More accurate skipping of sstables in read path (CASSANDRA-18134)
  * Prepare for JDK17 experimental support (CASSANDRA-18179, CASSANDRA-18258)
  * Remove Scripted UDFs internals; hooks to be added later in CASSANDRA-17281 (CASSANDRA-18252)
