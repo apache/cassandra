@@ -216,6 +216,8 @@ Upgrading
       and do not do, as well as the edge cases associated with their use.
       NOTE: ANY SCRIPTS THAT RELY ON sstableverify OR nodetool verify WILL STOP WORKING UNTIL MODIFIED.
       Please see CASSANDRA-17017 for details: https://issues.apache.org/jira/browse/CASSANDRA-17017
+    - `MutationExceededMaxSizeException` thrown when a mutation exceeds `max_mutation_size` inherits
+      from `InvalidRequestException` instead of `RuntimeException`. See CASSANDRA-17456 for details.
 
 Deprecation
 -----------
