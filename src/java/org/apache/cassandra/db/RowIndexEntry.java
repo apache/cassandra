@@ -357,8 +357,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 return;
 
             DataStorageSpec warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThreshold();
-            DataStorageSpec abortThreshold = DatabaseDescriptor.getRowIndexSizeFailThreshold();
-            if (warnThreshold == null && abortThreshold == null)
+            DataStorageSpec failThreshold = DatabaseDescriptor.getRowIndexSizeFailThreshold();
+            if (warnThreshold == null && failThreshold == null)
                 return;
 
             long estimatedMemory = estimateMaterializedIndexSize(entries, bytes);
@@ -366,12 +366,12 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             if (cfs != null)
                 cfs.metric.rowIndexSize.update(estimatedMemory);
 
-            if (abortThreshold != null && estimatedMemory > abortThreshold.toBytes())
+            if (failThreshold != null && estimatedMemory > failThreshold.toBytes())
             {
                 String msg = String.format("Query %s attempted to access a large RowIndexEntry estimated to be %d bytes " +
                                            "in-memory (total entries: %d, total bytes: %d) but the max allowed is %s;" +
                                            " query aborted  (see row_index_size_failed_threshold)",
-                                           command.toCQLString(), estimatedMemory, entries, bytes, abortThreshold.toString());
+                                           command.toCQLString(), estimatedMemory, entries, bytes, failThreshold);
                 MessageParams.remove(ParamType.ROW_INDEX_SIZE_WARN);
                 MessageParams.add(ParamType.ROW_INDEX_SIZE_ABORT, estimatedMemory);
 
