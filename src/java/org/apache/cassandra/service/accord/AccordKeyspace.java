@@ -141,8 +141,8 @@ public class AccordKeyspace
               + "listeners set<blob>, "
 //              + format("listening_to set<%s>, ", TIMESTAMP_TUPLE)
 //              + format("dependency_of set<%s>, ", TIMESTAMP_TUPLE)
-//              + format("blocked_on_commit set<%s>, ", TIMESTAMP_TUPLE)
-//              + format("blocked_on_apply set<%s>, ", TIMESTAMP_TUPLE)
+//              + format("blocking_commit_on set<%s>, ", TIMESTAMP_TUPLE)
+//              + format("blocking_apply_on set<%s>, ", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_generation, store_index, txn_id))"
               + ')');
 
