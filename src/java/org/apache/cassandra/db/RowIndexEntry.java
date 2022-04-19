@@ -25,7 +25,7 @@ import com.codahale.metrics.Histogram;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.filter.RowIndexEntryTooLargeException;
+import org.apache.cassandra.db.filter.RowIndexEntryReadSizeTooLargeException;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -356,8 +356,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             if (command == null || SchemaConstants.isSystemKeyspace(command.metadata().keyspace) || !DatabaseDescriptor.getReadThresholdsEnabled())
                 return;
 
-            DataStorageSpec warnThreshold = DatabaseDescriptor.getRowIndexSizeWarnThreshold();
-            DataStorageSpec failThreshold = DatabaseDescriptor.getRowIndexSizeFailThreshold();
+            DataStorageSpec warnThreshold = DatabaseDescriptor.getRowIndexReadSizeWarnThreshold();
+            DataStorageSpec failThreshold = DatabaseDescriptor.getRowIndexReadSizeFailThreshold();
             if (warnThreshold == null && failThreshold == null)
                 return;
 
@@ -370,19 +370,19 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             {
                 String msg = String.format("Query %s attempted to access a large RowIndexEntry estimated to be %d bytes " +
                                            "in-memory (total entries: %d, total bytes: %d) but the max allowed is %s;" +
-                                           " query aborted  (see row_index_size_failed_threshold)",
+                                           " query aborted  (see row_index_read_size_fail_threshold)",
                                            command.toCQLString(), estimatedMemory, entries, bytes, failThreshold);
-                MessageParams.remove(ParamType.ROW_INDEX_SIZE_WARN);
-                MessageParams.add(ParamType.ROW_INDEX_SIZE_FAIL, estimatedMemory);
+                MessageParams.remove(ParamType.ROW_INDEX_READ_SIZE_WARN);
+                MessageParams.add(ParamType.ROW_INDEX_READ_SIZE_FAIL, estimatedMemory);
 
-                throw new RowIndexEntryTooLargeException(msg);
+                throw new RowIndexEntryReadSizeTooLargeException(msg);
             }
             else if (warnThreshold != null && estimatedMemory > warnThreshold.toBytes())
             {
                 // use addIfLarger rather than add as a previous partition may be larger than this one
-                Long current = MessageParams.get(ParamType.ROW_INDEX_SIZE_WARN);
+                Long current = MessageParams.get(ParamType.ROW_INDEX_READ_SIZE_WARN);
                 if (current == null || current.compareTo(estimatedMemory) < 0)
-                    MessageParams.add(ParamType.ROW_INDEX_SIZE_WARN, estimatedMemory);
+                    MessageParams.add(ParamType.ROW_INDEX_READ_SIZE_WARN, estimatedMemory);
             }
         }
 

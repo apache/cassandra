@@ -915,7 +915,7 @@ public class DatabaseDescriptor
     {
         validateReadThresholds("coordinator_read_size", config.coordinator_read_size_warn_threshold, config.coordinator_read_size_fail_threshold);
         validateReadThresholds("local_read_size", config.local_read_size_warn_threshold, config.local_read_size_fail_threshold);
-        validateReadThresholds("row_index_size", config.row_index_size_warn_threshold, config.row_index_size_fail_threshold);
+        validateReadThresholds("row_index_read_size", config.row_index_read_size_warn_threshold, config.row_index_read_size_fail_threshold);
     }
 
     private static void validateReadThresholds(String name, DataStorageSpec warn, DataStorageSpec fail)
@@ -4004,28 +4004,28 @@ public class DatabaseDescriptor
         conf.local_read_size_fail_threshold = value;
     }
 
-    public static DataStorageSpec getRowIndexSizeWarnThreshold()
+    public static DataStorageSpec getRowIndexReadSizeWarnThreshold()
     {
-        return conf.row_index_size_warn_threshold;
+        return conf.row_index_read_size_warn_threshold;
     }
 
-    public static void setRowIndexSizeWarnThreshold(String threshold)
+    public static void setRowIndexReadSizeWarnThreshold(String threshold)
     {
         DataStorageSpec value = parseDataStorageSpec(threshold);
         logger.info("updated row_index_size_warn_threshold to {}", value);
-        conf.row_index_size_warn_threshold = value;
+        conf.row_index_read_size_warn_threshold = value;
     }
 
-    public static DataStorageSpec getRowIndexSizeFailThreshold()
+    public static DataStorageSpec getRowIndexReadSizeFailThreshold()
     {
-        return conf.row_index_size_fail_threshold;
+        return conf.row_index_read_size_fail_threshold;
     }
 
-    public static void setRowIndexSizeFailThreshold(String threshold)
+    public static void setRowIndexReadSizeFailThreshold(String threshold)
     {
         DataStorageSpec value = parseDataStorageSpec(threshold);
-        logger.info("updated row_index_size_fail_threshold to {}", value);
-        conf.row_index_size_fail_threshold = value;
+        logger.info("updated row_index_read_size_fail_threshold to {}", value);
+        conf.row_index_read_size_fail_threshold = value;
     }
 
     private static DataStorageSpec parseDataStorageSpec(String threshold)

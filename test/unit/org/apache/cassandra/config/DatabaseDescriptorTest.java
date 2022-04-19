@@ -705,8 +705,8 @@ public class DatabaseDescriptorTest
     public void testRowIndexSizeWarnGreaterThanAbort()
     {
         Config conf = new Config();
-        conf.row_index_size_warn_threshold = DataStorageSpec.inKibibytes(2);
-        conf.row_index_size_fail_threshold = DataStorageSpec.inKibibytes(1);
+        conf.row_index_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.row_index_read_size_fail_threshold = DataStorageSpec.inKibibytes(1);
         Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("row_index_size_fail_threshold (1KiB) must be greater than or equal to row_index_size_warn_threshold (2KiB)");
@@ -716,8 +716,8 @@ public class DatabaseDescriptorTest
     public void testRowIndexSizeWarnEqAbort()
     {
         Config conf = new Config();
-        conf.row_index_size_warn_threshold = DataStorageSpec.inKibibytes(2);
-        conf.row_index_size_fail_threshold = DataStorageSpec.inKibibytes(2);
+        conf.row_index_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.row_index_read_size_fail_threshold = DataStorageSpec.inKibibytes(2);
         DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
@@ -725,8 +725,8 @@ public class DatabaseDescriptorTest
     public void testRowIndexSizeWarnEnabledAbortDisabled()
     {
         Config conf = new Config();
-        conf.row_index_size_warn_threshold = DataStorageSpec.inKibibytes(2);
-        conf.row_index_size_fail_threshold = null;
+        conf.row_index_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.row_index_read_size_fail_threshold = null;
         DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
@@ -734,8 +734,8 @@ public class DatabaseDescriptorTest
     public void testRowIndexSizeAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
-        conf.row_index_size_warn_threshold = DataStorageSpec.inKibibytes(0);
-        conf.row_index_size_fail_threshold = DataStorageSpec.inKibibytes(2);
+        conf.row_index_read_size_warn_threshold = DataStorageSpec.inKibibytes(0);
+        conf.row_index_read_size_fail_threshold = DataStorageSpec.inKibibytes(2);
         DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 

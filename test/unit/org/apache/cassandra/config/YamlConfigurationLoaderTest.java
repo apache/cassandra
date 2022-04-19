@@ -48,8 +48,8 @@ public class YamlConfigurationLoaderTest
         assertThat(c.local_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
         assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 13));
 
-        assertThat(c.row_index_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
-        assertThat(c.row_index_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 13));
+        assertThat(c.row_index_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 12));
+        assertThat(c.row_index_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1 << 13));
     }
 
     @Test
@@ -60,8 +60,8 @@ public class YamlConfigurationLoaderTest
         "read_thresholds_enabled", true,
         "coordinator_read_size_warn_threshold", "1024KiB",
         "local_read_size_fail_threshold", "1024KiB",
-        "row_index_size_warn_threshold", "1024KiB",
-        "row_index_size_fail_threshold", "1024KiB"
+        "row_index_read_size_warn_threshold", "1024KiB",
+        "row_index_read_size_fail_threshold", "1024KiB"
         );
 
         Config c = YamlConfigurationLoader.fromMap(map, Config.class);
@@ -73,8 +73,8 @@ public class YamlConfigurationLoaderTest
         assertThat(c.local_read_size_warn_threshold).isNull();
         assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
 
-        assertThat(c.row_index_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
-        assertThat(c.row_index_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
+        assertThat(c.row_index_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
+        assertThat(c.row_index_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
     }
 
     @Test

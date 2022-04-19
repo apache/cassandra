@@ -20,9 +20,9 @@ package org.apache.cassandra.db.filter;
 
 import org.apache.cassandra.db.RejectException;
 
-public class RowIndexEntryTooLargeException extends RejectException
+public class RowIndexEntryReadSizeTooLargeException extends RejectException
 {
-    public RowIndexEntryTooLargeException(String message)
+    public RowIndexEntryReadSizeTooLargeException(String message)
     {
         super(message);
     }

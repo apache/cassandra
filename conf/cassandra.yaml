@@ -1591,8 +1591,8 @@ drop_compact_storage_enabled: false
 # local_read_size_fail_threshold:
 # When read_thresholds_enabled: true, this tracks the expected memory size of the RowIndexEntry
 # and will warn/fail based off these thresholds; undefined disables these checks
-# row_index_size_warn_threshold:
-# row_index_size_fail_threshold:
+# row_index_read_size_warn_threshold:
+# row_index_read_size_fail_threshold:
 
 # Guardrail to warn or fail when creating more user keyspaces than threshold.
 # The two thresholds default to -1 to disable.

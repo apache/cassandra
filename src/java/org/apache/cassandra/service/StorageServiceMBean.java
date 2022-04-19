@@ -933,10 +933,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getLocalReadTooLargeAbortThreshold();
     public void setLocalReadTooLargeAbortThreshold(String value);
 
-    public String getRowIndexSizeWarnThreshold();
-    public void setRowIndexSizeWarnThreshold(String value);
-    public String getRowIndexSizeAbortThreshold();
-    public void setRowIndexSizeAbortThreshold(String value);
+    public String getRowIndexReadSizeWarnThreshold();
+    public void setRowIndexReadSizeWarnThreshold(String value);
+    public String getRowIndexReadSizeAbortThreshold();
+    public void setRowIndexReadSizeAbortThreshold(String value);
 
     public void setDefaultKeyspaceReplicationFactor(int value);
     public int getDefaultKeyspaceReplicationFactor();

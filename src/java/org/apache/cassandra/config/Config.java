@@ -468,8 +468,8 @@ public class Config
     public volatile DataStorageSpec coordinator_read_size_fail_threshold = null;
     public volatile DataStorageSpec local_read_size_warn_threshold = null;
     public volatile DataStorageSpec local_read_size_fail_threshold = null;
-    public volatile DataStorageSpec row_index_size_warn_threshold = null;
-    public volatile DataStorageSpec row_index_size_fail_threshold = null;
+    public volatile DataStorageSpec row_index_read_size_warn_threshold = null;
+    public volatile DataStorageSpec row_index_read_size_fail_threshold = null;
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;

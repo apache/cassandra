@@ -6431,27 +6431,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public String getRowIndexSizeWarnThreshold()
+    public String getRowIndexReadSizeWarnThreshold()
     {
-        return DatabaseDescriptor.getRowIndexSizeWarnThreshold().toString();
+        return DatabaseDescriptor.getRowIndexReadSizeWarnThreshold().toString();
     }
 
     @Override
-    public void setRowIndexSizeWarnThreshold(String value)
+    public void setRowIndexReadSizeWarnThreshold(String value)
     {
-        DatabaseDescriptor.setRowIndexSizeWarnThreshold(value);
+        DatabaseDescriptor.setRowIndexReadSizeWarnThreshold(value);
     }
 
     @Override
-    public String getRowIndexSizeAbortThreshold()
+    public String getRowIndexReadSizeAbortThreshold()
     {
-        return DatabaseDescriptor.getRowIndexSizeFailThreshold().toString();
+        return DatabaseDescriptor.getRowIndexReadSizeFailThreshold().toString();
     }
 
     @Override
-    public void setRowIndexSizeAbortThreshold(String value)
+    public void setRowIndexReadSizeAbortThreshold(String value)
     {
-        DatabaseDescriptor.setRowIndexSizeFailThreshold(value);
+        DatabaseDescriptor.setRowIndexReadSizeFailThreshold(value);
     }
 
     public void setDefaultKeyspaceReplicationFactor(int value)
