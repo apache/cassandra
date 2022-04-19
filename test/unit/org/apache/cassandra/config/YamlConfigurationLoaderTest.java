@@ -36,10 +36,8 @@ import static org.junit.Assert.assertEquals;
 public class YamlConfigurationLoaderTest
 {
     @Test
-    public void trackWarningsFromConfig()
+    public void readThresholdsFromConfig()
     {
-        // this test just makes sure snakeyaml loads the test config properly and populates the fields (track warnings uses final in some places)
-        // if the config is changed, its ok to update this test to reflect that change
         Config c = load("test/conf/cassandra.yaml");
 
         assertThat(c.read_thresholds_enabled).isTrue();
@@ -55,7 +53,7 @@ public class YamlConfigurationLoaderTest
     }
 
     @Test
-    public void trackWarningsFromMap()
+    public void readThresholdsFromMap()
     {
 
         Map<String, Object> map = ImmutableMap.of(
