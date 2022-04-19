@@ -712,7 +712,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 if (failBytes != Config.DISABLED_GUARDRAIL && this.sizeInBytes >= failBytes)
                 {
                     String msg = String.format("Query %s attempted to read %d bytes but max allowed is %s; query aborted  (see local_read_size_fail_threshold)",
-                                               ReadCommand.this.toCQLString(), this.sizeInBytes, failThreshold.toString());
+                                               ReadCommand.this.toCQLString(), this.sizeInBytes, failThreshold);
                     Tracing.trace(msg);
                     MessageParams.remove(ParamType.LOCAL_READ_SIZE_WARN);
                     MessageParams.add(ParamType.LOCAL_READ_SIZE_ABORT, this.sizeInBytes);
