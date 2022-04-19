@@ -32,7 +32,6 @@ import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.JMXRange;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 import org.quicktheories.core.Gen;
@@ -107,7 +106,7 @@ public class ColumnFamilyStoreMBeanTest
 
     private static String toString(Token.TokenFactory tokenFactory, Token left, Token right)
     {
-        return tokenFactory.toString(left) + JMXRange.TOKEN_DELIMITER + tokenFactory.toString(right);
+        return tokenFactory.toString(left) + ColumnFamilyStore.TOKEN_DELIMITER + tokenFactory.toString(right);
     }
 
     private static Gen<Token> tokenGen(IPartitioner partitioner)
