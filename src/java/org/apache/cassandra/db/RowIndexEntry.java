@@ -373,7 +373,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                                            " query aborted  (see row_index_size_failed_threshold)",
                                            command.toCQLString(), estimatedMemory, entries, bytes, failThreshold);
                 MessageParams.remove(ParamType.ROW_INDEX_SIZE_WARN);
-                MessageParams.add(ParamType.ROW_INDEX_SIZE_ABORT, estimatedMemory);
+                MessageParams.add(ParamType.ROW_INDEX_SIZE_FAIL, estimatedMemory);
 
                 throw new RowIndexEntryTooLargeException(msg);
             }

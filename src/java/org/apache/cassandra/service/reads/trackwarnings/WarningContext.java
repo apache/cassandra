@@ -28,9 +28,9 @@ import org.apache.cassandra.net.ParamType;
 
 public class WarningContext
 {
-    private static EnumSet<ParamType> SUPPORTED = EnumSet.of(ParamType.TOMBSTONE_WARNING, ParamType.TOMBSTONE_ABORT,
-                                                             ParamType.LOCAL_READ_SIZE_WARN, ParamType.LOCAL_READ_SIZE_ABORT,
-                                                             ParamType.ROW_INDEX_SIZE_WARN, ParamType.ROW_INDEX_SIZE_ABORT);
+    private static EnumSet<ParamType> SUPPORTED = EnumSet.of(ParamType.TOMBSTONE_WARNING, ParamType.TOMBSTONE_FAIL,
+                                                             ParamType.LOCAL_READ_SIZE_WARN, ParamType.LOCAL_READ_SIZE_FAIL,
+                                                             ParamType.ROW_INDEX_SIZE_WARN, ParamType.ROW_INDEX_SIZE_FAIL);
 
     final WarnAbortCounter tombstones = new WarnAbortCounter();
     final WarnAbortCounter localReadSize = new WarnAbortCounter();
@@ -49,17 +49,17 @@ public class WarningContext
             RequestFailureReason reason = null;
             switch (entry.getKey())
             {
-                case ROW_INDEX_SIZE_ABORT:
+                case ROW_INDEX_SIZE_FAIL:
                     reason = RequestFailureReason.READ_SIZE;
                 case ROW_INDEX_SIZE_WARN:
                     counter = rowIndexTooLarge;
                     break;
-                case LOCAL_READ_SIZE_ABORT:
+                case LOCAL_READ_SIZE_FAIL:
                     reason = RequestFailureReason.READ_SIZE;
                 case LOCAL_READ_SIZE_WARN:
                     counter = localReadSize;
                     break;
-                case TOMBSTONE_ABORT:
+                case TOMBSTONE_FAIL:
                     reason = RequestFailureReason.READ_TOO_MANY_TOMBSTONES;
                 case TOMBSTONE_WARNING:
                     counter = tombstones;

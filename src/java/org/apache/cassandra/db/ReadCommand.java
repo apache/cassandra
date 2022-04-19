@@ -560,7 +560,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     if (trackWarnings)
                     {
                         MessageParams.remove(ParamType.TOMBSTONE_WARNING);
-                        MessageParams.add(ParamType.TOMBSTONE_ABORT, tombstones);
+                        MessageParams.add(ParamType.TOMBSTONE_FAIL, tombstones);
                     }
                     throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
                 }
@@ -715,7 +715,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                ReadCommand.this.toCQLString(), this.sizeInBytes, failThreshold);
                     Tracing.trace(msg);
                     MessageParams.remove(ParamType.LOCAL_READ_SIZE_WARN);
-                    MessageParams.add(ParamType.LOCAL_READ_SIZE_ABORT, this.sizeInBytes);
+                    MessageParams.add(ParamType.LOCAL_READ_SIZE_FAIL, this.sizeInBytes);
                     throw new LocalReadSizeTooLargeException(msg);
                 }
                 else if (warnBytes != Config.DISABLED_GUARDRAIL && this.sizeInBytes >= warnBytes)
