@@ -1010,7 +1010,7 @@ public class Util
 
     public static void flush(ColumnFamilyStore cfs)
     {
-        Util.flush(cfs);
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
     public static void flushTable(Keyspace keyspace, String table)

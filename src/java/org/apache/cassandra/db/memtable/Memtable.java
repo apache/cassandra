@@ -43,7 +43,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * Memtable interface. This defines the operations the ColumnFamilyStore can perform with memtables.
  * They are of several types:
  * - construction factory interface
- * - write and read operations: put, iterator and partitionIterator
+ * - write and read operations: put, rowIterator and partitionIterator
  * - statistics and features, including partition counts, data size, encoding stats, written columns
  * - memory usage tracking, including methods of retrieval and of adding extra allocated space (used non-CFS secondary
  *   indexes)
