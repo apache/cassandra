@@ -687,7 +687,7 @@ public class DatabaseDescriptor
 
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
-        applyTrackWarningsValidations(conf);
+        applyReadThresholdsValidations(conf);
 
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
@@ -911,14 +911,14 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    static void applyTrackWarningsValidations(Config config)
+    static void applyReadThresholdsValidations(Config config)
     {
-        validateTrackWarnings("coordinator_read_size", config.coordinator_read_size_warn_threshold, config.coordinator_read_size_fail_threshold);
-        validateTrackWarnings("local_read_size", config.local_read_size_warn_threshold, config.local_read_size_fail_threshold);
-        validateTrackWarnings("row_index_size", config.row_index_size_warn_threshold, config.row_index_size_fail_threshold);
+        validateReadThresholds("coordinator_read_size", config.coordinator_read_size_warn_threshold, config.coordinator_read_size_fail_threshold);
+        validateReadThresholds("local_read_size", config.local_read_size_warn_threshold, config.local_read_size_fail_threshold);
+        validateReadThresholds("row_index_size", config.row_index_size_warn_threshold, config.row_index_size_fail_threshold);
     }
 
-    private static void validateTrackWarnings(String name, DataStorageSpec warn, DataStorageSpec fail)
+    private static void validateReadThresholds(String name, DataStorageSpec warn, DataStorageSpec fail)
     {
         if (fail != null && warn != null && fail.toBytes() < warn.toBytes())
             throw new ConfigurationException(String.format("%s (%s) must be greater than or equal to %s (%s)",

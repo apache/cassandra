@@ -230,21 +230,21 @@ public abstract class QueryOptions
     // Mainly for the sake of BatchQueryOptions
     abstract SpecificOptions getSpecificOptions();
 
-    abstract TrackWarnings getTrackWarnings();
+    abstract ReadThresholds getReadThresholds();
 
-    public boolean isTrackWarningsEnabled()
+    public boolean isReadThresholdsEnabled()
     {
-        return getTrackWarnings().isEnabled();
+        return getReadThresholds().isEnabled();
     }
 
     public long getCoordinatorReadSizeWarnThresholdBytes()
     {
-        return getTrackWarnings().getCoordinatorReadSizeWarnThresholdBytes();
+        return getReadThresholds().getCoordinatorReadSizeWarnThresholdBytes();
     }
 
     public long getCoordinatorReadSizeAbortThresholdBytes()
     {
-        return getTrackWarnings().getCoordinatorReadSizeFailThresholdBytes();
+        return getReadThresholds().getCoordinatorReadSizeFailThresholdBytes();
     }
 
     public QueryOptions prepare(List<ColumnSpecification> specs)
@@ -252,7 +252,7 @@ public abstract class QueryOptions
         return this;
     }
 
-    interface TrackWarnings
+    interface ReadThresholds
     {
         boolean isEnabled();
 
@@ -260,16 +260,16 @@ public abstract class QueryOptions
 
         long getCoordinatorReadSizeFailThresholdBytes();
 
-        static TrackWarnings create()
+        static ReadThresholds create()
         {
             // if daemon initialization hasn't happened yet (very common in tests) then ignore
             if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getReadThresholdsEnabled())
-                return DisabledTrackWarnings.INSTANCE;
-            return new DefaultTrackWarnings(DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold(), DatabaseDescriptor.getCoordinatorReadSizeFailThreshold());
+                return DisabledReadThresholds.INSTANCE;
+            return new DefaultReadThresholds(DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold(), DatabaseDescriptor.getCoordinatorReadSizeFailThreshold());
         }
     }
 
-    private enum DisabledTrackWarnings implements TrackWarnings
+    private enum DisabledReadThresholds implements ReadThresholds
     {
         INSTANCE;
 
@@ -292,12 +292,12 @@ public abstract class QueryOptions
         }
     }
 
-    private static class DefaultTrackWarnings implements TrackWarnings
+    private static class DefaultReadThresholds implements ReadThresholds
     {
         private final long warnThresholdBytes;
         private final long abortThresholdBytes;
 
-        public DefaultTrackWarnings(DataStorageSpec warnThreshold, DataStorageSpec abortThreshold)
+        public DefaultReadThresholds(DataStorageSpec warnThreshold, DataStorageSpec abortThreshold)
         {
             this.warnThresholdBytes = warnThreshold == null ? Config.DISABLED_GUARDRAIL : warnThreshold.toBytes();
             this.abortThresholdBytes = abortThreshold == null ? Config.DISABLED_GUARDRAIL : abortThreshold.toBytes();
@@ -331,7 +331,7 @@ public abstract class QueryOptions
         private final SpecificOptions options;
 
         private final transient ProtocolVersion protocolVersion;
-        private final transient TrackWarnings trackWarnings = TrackWarnings.create();
+        private final transient ReadThresholds readThresholds = ReadThresholds.create();
 
         DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options, ProtocolVersion protocolVersion)
         {
@@ -368,9 +368,9 @@ public abstract class QueryOptions
         }
 
         @Override
-        TrackWarnings getTrackWarnings()
+        ReadThresholds getReadThresholds()
         {
-            return trackWarnings;
+            return readThresholds;
         }
     }
 
@@ -409,9 +409,9 @@ public abstract class QueryOptions
         }
 
         @Override
-        TrackWarnings getTrackWarnings()
+        ReadThresholds getReadThresholds()
         {
-            return wrapped.getTrackWarnings();
+            return wrapped.getReadThresholds();
         }
 
         @Override

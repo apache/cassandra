@@ -251,7 +251,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(),
                                    nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
-        if (options.isTrackWarningsEnabled())
+        if (options.isReadThresholdsEnabled())
             query.trackWarnings();
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
@@ -880,7 +880,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     private void maybeWarn(ResultSetBuilder result, QueryOptions options)
     {
-        if (!options.isTrackWarningsEnabled())
+        if (!options.isReadThresholdsEnabled())
             return;
         ColumnFamilyStore store = cfs();
         if (store != null)
@@ -898,7 +898,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     private void maybeFail(ResultSetBuilder result, QueryOptions options)
     {
-        if (!options.isTrackWarningsEnabled())
+        if (!options.isReadThresholdsEnabled())
             return;
         if (result.shouldReject(options.getCoordinatorReadSizeAbortThresholdBytes()))
         {
