@@ -58,8 +58,7 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
     public void testSnapshot() throws IOException
     {
         try(Cluster cluster = init(Cluster.build(2).withConfig(config ->
-                                                               config.set("disable_incremental_repair", false)
-                                                                     .set("snapshot_on_repaired_data_mismatch", true)
+                                                               config.set("snapshot_on_repaired_data_mismatch", true)
                                                                      .with(GOSSIP)
                                                                      .with(NETWORK)).start()))
         {
