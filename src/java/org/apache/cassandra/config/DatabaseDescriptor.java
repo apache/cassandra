@@ -922,8 +922,8 @@ public class DatabaseDescriptor
     {
         if (fail != null && warn != null && fail.toBytes() < warn.toBytes())
             throw new ConfigurationException(String.format("%s (%s) must be greater than or equal to %s (%s)",
-                                                           name + "_fail_threshold", fail.toString(),
-                                                           name + "_warn_threshold", warn.toString()));
+                                                           name + "_fail_threshold", fail,
+                                                           name + "_warn_threshold", warn));
     }
 
     public static GuardrailsOptions getGuardrailsConfig()
