@@ -70,7 +70,7 @@ public class YamlConfigurationLoaderTest
         assertThat(c.read_thresholds_enabled).isTrue();
 
         assertThat(c.coordinator_read_size_warn_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
-        assertThat(c.coordinator_read_size_fail_threshold).isNull();;
+        assertThat(c.coordinator_read_size_fail_threshold).isNull();
 
         assertThat(c.local_read_size_warn_threshold).isNull();
         assertThat(c.local_read_size_fail_threshold).isEqualTo(DataStorageSpec.inKibibytes(1024));
