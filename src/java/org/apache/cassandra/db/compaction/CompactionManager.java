@@ -1004,7 +1004,8 @@ public class CompactionManager implements CompactionManagerMBean
     private static Collection<SSTableReader> sstablesWithKey(ColumnFamilyStore cfs, DecoratedKey key)
     {
         final Set<SSTableReader> sstables = new HashSet<>();
-        Iterable<SSTableReader> liveTables = cfs.getTracker().getView().select(SSTableSet.LIVE);
+        Iterable<SSTableReader> liveTables = cfs.getTracker().getView().liveSSTablesInBounds(key.getToken().minKeyBound(),
+                                                                                             key.getToken().maxKeyBound());
         for (SSTableReader sstable : liveTables)
         {
             if (sstable.isPresent(key))
