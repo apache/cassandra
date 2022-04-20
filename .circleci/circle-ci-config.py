@@ -48,20 +48,30 @@ targets = {
             '_default_job_':                            {'parallelism': 25,    'exec_resource_class': 'large'},
             'jobs': {
                 'j8_jvm_upgrade_dtests':                {'parallelism': 4},
-                'j11_jvm_dtests':                       {'parallelism': 5},
-                'j11_jvm_dtests_vnode':                 {'parallelism': 5},
-                'j8_jvm_dtests':                        {'parallelism': 5},
-                'j8_jvm_dtests_vnode':                  {'parallelism': 5},
 
-                'j11_unit_tests':                       {'parallelism': 50, 'exec_resource_class': 'medium'},
-                'j11_cqlsh-dtests-py3-no-vnodes':       {'parallelism': 50, 'exec_resource_class': 'medium'},
-                'j11_cqlsh-dtests-py3-with-vnodes':     {'parallelism': 50, 'exec_resource_class': 'medium'},
-                'j11_cqlsh-dtests-py38-no-vnodes':      {'parallelism': 50, 'exec_resource_class': 'medium'},
-                'j11_cqlsh-dtests-py38-with-vnodes':    {'parallelism': 50, 'exec_resource_class': 'medium'},
+                'j11_jvm_dtests':                       {'parallelism': 10},
+                'j11_jvm_dtests_vnode':                 {'parallelism': 10},
+
+                'j8_jvm_dtests':                        {'parallelism': 10},
+                'j8_jvm_dtests_vnode':                  {'parallelism': 10},
+
+                'j11_cqlsh-dtests-py3-with-vnodes':     {'parallelism': 50},
+                'j11_cqlsh-dtests-py38-with-vnodes':    {'parallelism': 50},
+                'j11_cqlsh-dtests-py3-no-vnodes':       {'parallelism': 50},
+                'j11_cqlsh-dtests-py38-no-vnodes':      {'parallelism': 50},
+
+                'j8_cqlsh-dtests-py3-with-vnodes':      {'parallelism': 50},
+                'j8_cqlsh-dtests-py38-with-vnodes':     {'parallelism': 50},
+                'j8_cqlsh-dtests-py3-no-vnodes':        {'parallelism': 50},
+                'j8_cqlsh-dtests-py38-no-vnodes':       {'parallelism': 50},
+
                 'j11_dtests-no-vnodes':                 {'parallelism': 50},
                 'j11_dtests-with-vnodes':               {'parallelism': 50},
 
-                'repeated_upgrade_dtest':               {'exec_resource_class': 'xlarge'},
+                'j8_dtests-no-vnodes':                  {'parallelism': 50},
+                'j8_dtests-with-vnodes':                {'parallelism': 50},
+
+                'j8_upgradetests-no-vnodes':            {'parallelism': 100, 'exec_resource_class': 'xlarge'},
             },
         },
         'HIGHER': {
