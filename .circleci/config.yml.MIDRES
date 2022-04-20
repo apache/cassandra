@@ -414,7 +414,7 @@ jobs:
   j11_unit_tests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: large
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 25
@@ -524,7 +524,7 @@ jobs:
   repeated_upgrade_dtest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: large
+    resource_class: xlarge
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 25
@@ -646,7 +646,7 @@ jobs:
   j8_cqlsh-dtests-py38-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: large
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 50
@@ -1029,7 +1029,7 @@ jobs:
   j11_jvm_dtests_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: large
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 10
@@ -1139,7 +1139,7 @@ jobs:
   j8_cqlsh-dtests-py3-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: large
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 50
@@ -1600,7 +1600,7 @@ jobs:
   j8_dtests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: large
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 50
@@ -1752,7 +1752,7 @@ jobs:
   utests_stress:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: large
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 1
@@ -1815,7 +1815,7 @@ jobs:
   j8_unit_tests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 25
@@ -1924,7 +1924,7 @@ jobs:
   j11_jvm_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: large
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 10
@@ -2188,7 +2188,7 @@ jobs:
   j11_repeated_utest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
-    resource_class: large
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 25
@@ -2364,7 +2364,7 @@ jobs:
   j8_dtests-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: large
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 50
@@ -2743,7 +2743,7 @@ jobs:
   j8_cqlsh-dtests-py3-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: large
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 50
@@ -2838,7 +2838,7 @@ jobs:
   j8_cqlsh-dtests-py38-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: large
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 50
@@ -2933,7 +2933,7 @@ jobs:
   utests_long:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: large
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 1
@@ -2996,7 +2996,7 @@ jobs:
   utests_system_keyspace_directory:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 25
@@ -3159,7 +3159,7 @@ jobs:
   utests_fqltool:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: large
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 1
@@ -3321,7 +3321,7 @@ jobs:
   utests_compression:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: xlarge
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 25
@@ -3430,7 +3430,7 @@ jobs:
   j8_repeated_utest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
-    resource_class: large
+    resource_class: medium
     shell: /bin/bash -eo pipefail -l
     working_directory: ~/
     parallelism: 25
