@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -38,9 +39,11 @@ import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.service.accord.db.AccordData;
+import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -60,8 +63,8 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 
     public final StoredValue<Status> status = new StoredValue<>();
 
-    public final StoredNavigableMap<TxnId, TxnId> waitingOnCommit = new StoredNavigableMap<>();
-    public final StoredNavigableMap<TxnId, TxnId> waitingOnApply = new StoredNavigableMap<>();
+    public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnCommit = new StoredNavigableMap<>();
+    public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnApply = new StoredNavigableMap<>();
 
     public final StoredSet.DeterministicIdentity<ListenerProxy> storedListeners = new StoredSet.DeterministicIdentity<>();
     private final Listeners transientListeners = new Listeners();
@@ -212,8 +215,8 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         size += writes.estimatedSizeOnHeap(AccordObjectSizes::writes);
         size += result.estimatedSizeOnHeap(r -> ((AccordData) r).estimatedSizeOnHeap());
         size += status.estimatedSizeOnHeap(s -> 0);
-        size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp, AccordObjectSizes::timestamp);
-        size += waitingOnApply.estimatedSizeOnHeap(AccordObjectSizes::timestamp, AccordObjectSizes::timestamp);
+        size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += waitingOnApply.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
         size += storedListeners.estimatedSizeOnHeap(ListenerProxy::estimatedSizeOnHeap);
         return size;
     }
@@ -400,7 +403,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     @Override
     public void addWaitingOnCommit(Command command)
     {
-        waitingOnCommit.blindPut(command.txnId(), command.txnId());
+        waitingOnCommit.blindPut(command.txnId(), CommandSummaries.waitingOn.serialize((AccordCommand) command));
     }
 
     @Override
@@ -418,13 +421,16 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     @Override
     public Command firstWaitingOnCommit()
     {
-        return isWaitingOnCommit() ? commandStore.command(waitingOnCommit.getView().firstEntry().getValue()) : null;
+        if (!isWaitingOnCommit())
+            return null;
+        ByteBuffer bytes = waitingOnCommit.getView().firstEntry().getValue();
+        return CommandSummaries.waitingOn.deserialize(commandStore, bytes);
     }
 
     @Override
     public void addWaitingOnApplyIfAbsent(Command command)
     {
-        waitingOnApply.blindPut(command.txnId(), command.txnId());
+        waitingOnApply.blindPut(command.txnId(), CommandSummaries.waitingOn.serialize((AccordCommand) command));
     }
 
     @Override
@@ -442,6 +448,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     @Override
     public Command firstWaitingOnApply()
     {
-        return isWaitingOnApply() ? commandStore.command(waitingOnApply.getView().firstEntry().getValue()) : null;
+        if (!isWaitingOnApply())
+            return null;
+        ByteBuffer bytes = waitingOnApply.getView().firstEntry().getValue();
+        return CommandSummaries.waitingOn.deserialize(commandStore, bytes);
     }
 }

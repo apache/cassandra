@@ -280,26 +280,26 @@ public class AccordKeyspace
         return bytes != null && ! ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, serializer, version) : null;
     }
 
-    private static Map<ByteBuffer, ByteBuffer> serializeWaitingOn(Map<? extends Timestamp, TxnId> waitingOn)
+    private static Map<ByteBuffer, ByteBuffer> serializeWaitingOn(Map<TxnId, ByteBuffer> waitingOn)
     {
         Map<ByteBuffer, ByteBuffer> result = Maps.newHashMapWithExpectedSize(waitingOn.size());
-        for (Map.Entry<? extends Timestamp, TxnId> entry : waitingOn.entrySet())
-            result.put(serializeTimestamp(entry.getKey()), serializeTimestamp(entry.getValue()));
+        for (Map.Entry<TxnId, ByteBuffer> entry : waitingOn.entrySet())
+            result.put(serializeTimestamp(entry.getKey()), entry.getValue());
         return result;
     }
 
-    private static NavigableMap<TxnId, TxnId> deserializeWaitingOn(Map<ByteBuffer, ByteBuffer> serialized)
+    private static NavigableMap<TxnId, ByteBuffer> deserializeWaitingOn(Map<ByteBuffer, ByteBuffer> serialized)
     {
         if (serialized == null || serialized.isEmpty())
             return new TreeMap<>();
 
-        NavigableMap<TxnId, TxnId> result = new TreeMap<>();
+        NavigableMap<TxnId, ByteBuffer> result = new TreeMap<>();
         for (Map.Entry<ByteBuffer, ByteBuffer> entry : serialized.entrySet())
-            result.put(deserializeTimestampOrNull(entry.getKey(), TxnId::new), deserializeTimestampOrNull(entry.getValue(), TxnId::new));
+            result.put(deserializeTimestampOrNull(entry.getKey(), TxnId::new), entry.getValue());
         return result;
     }
 
-    private static NavigableMap<TxnId, TxnId> deserializeWaitingOn(UntypedResultSet.Row row, String name)
+    private static NavigableMap<TxnId, ByteBuffer> deserializeWaitingOn(UntypedResultSet.Row row, String name)
     {
         return deserializeWaitingOn(row.getMap(name, BytesType.instance, BytesType.instance));
     }
@@ -438,14 +438,14 @@ public class AccordKeyspace
             {
                 addStoredMapChanges(builder, CommandsColumns.waiting_on_commit,
                                     timestampMicros, nowInSeconds, command.waitingOnCommit,
-                                    AccordKeyspace::serializeTimestamp, AccordKeyspace::serializeTimestamp);
+                                    AccordKeyspace::serializeTimestamp, bytes -> bytes);
             }
 
             if (command.waitingOnApply.hasModifications())
             {
                 addStoredMapChanges(builder, CommandsColumns.waiting_on_apply,
                                     timestampMicros, nowInSeconds, command.waitingOnApply,
-                                    AccordKeyspace::serializeTimestamp, AccordKeyspace::serializeTimestamp);
+                                    AccordKeyspace::serializeTimestamp, bytes -> bytes);
             }
 
             if (command.storedListeners.hasModifications())
