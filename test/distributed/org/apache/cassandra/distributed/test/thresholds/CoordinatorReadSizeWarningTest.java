@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.junit.*;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,8 +42,8 @@ public class CoordinatorReadSizeWarningTest extends AbstractClientSizeWarning
         // setup threshold after init to avoid driver issues loading
         // the test uses a rather small limit, which causes driver to fail while loading metadata
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold("1KiB");
-            DatabaseDescriptor.setCoordinatorReadSizeFailThreshold("2KiB");
+            DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(DataStorageSpec.inKibibytes(1));
+            DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(DataStorageSpec.inKibibytes(2));
         }));
     }
 

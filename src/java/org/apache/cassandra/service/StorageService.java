@@ -63,6 +63,7 @@ import com.google.common.util.concurrent.*;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.concurrent.*;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
@@ -6391,7 +6392,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setCoordinatorLargeReadWarnThreshold(String threshold)
     {
-        DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(threshold);
+        DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
@@ -6403,7 +6404,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setCoordinatorLargeReadAbortThreshold(String threshold)
     {
-        DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(threshold);
+        DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
@@ -6413,9 +6414,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void setLocalReadTooLargeWarnThreshold(String value)
+    public void setLocalReadTooLargeWarnThreshold(String threshold)
     {
-        DatabaseDescriptor.setLocalReadSizeWarnThreshold(value);
+        DatabaseDescriptor.setLocalReadSizeWarnThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
@@ -6425,9 +6426,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void setLocalReadTooLargeAbortThreshold(String value)
+    public void setLocalReadTooLargeAbortThreshold(String threshold)
     {
-        DatabaseDescriptor.setLocalReadSizeFailThreshold(value);
+        DatabaseDescriptor.setLocalReadSizeFailThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
@@ -6437,9 +6438,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void setRowIndexReadSizeWarnThreshold(String value)
+    public void setRowIndexReadSizeWarnThreshold(String threshold)
     {
-        DatabaseDescriptor.setRowIndexReadSizeWarnThreshold(value);
+        DatabaseDescriptor.setRowIndexReadSizeWarnThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
@@ -6449,15 +6450,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void setRowIndexReadSizeAbortThreshold(String value)
+    public void setRowIndexReadSizeAbortThreshold(String threshold)
     {
-        DatabaseDescriptor.setRowIndexReadSizeFailThreshold(value);
+        DatabaseDescriptor.setRowIndexReadSizeFailThreshold(parseDataStorageSpec(threshold));
     }
 
     public void setDefaultKeyspaceReplicationFactor(int value)
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(value);
         logger.info("set default keyspace rf to {}", value);
+    }
+
+    private static DataStorageSpec parseDataStorageSpec(String threshold)
+    {
+        return threshold == null
+               ? null
+               : new DataStorageSpec(threshold);
     }
 
     public int getDefaultKeyspaceReplicationFactor()

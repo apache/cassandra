@@ -24,6 +24,7 @@ import java.util.List;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,8 +37,8 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
         AbstractClientSizeWarning.setupClass();
 
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setRowIndexReadSizeWarnThreshold("1KiB");
-            DatabaseDescriptor.setRowIndexReadSizeFailThreshold("2KiB");
+            DatabaseDescriptor.setRowIndexReadSizeWarnThreshold(DataStorageSpec.inKibibytes(1));
+            DatabaseDescriptor.setRowIndexReadSizeFailThreshold(DataStorageSpec.inKibibytes(2));
 
             // hack to force multiple index entries
             DatabaseDescriptor.setColumnIndexCacheSize(1 << 20);

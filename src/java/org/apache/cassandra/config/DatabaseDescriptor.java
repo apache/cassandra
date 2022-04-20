@@ -3961,9 +3961,8 @@ public class DatabaseDescriptor
         return conf.coordinator_read_size_warn_threshold;
     }
 
-    public static void setCoordinatorReadSizeWarnThreshold(String threshold)
+    public static void setCoordinatorReadSizeWarnThreshold(DataStorageSpec value)
     {
-        DataStorageSpec value = parseDataStorageSpec(threshold);
         logger.info("updated coordinator_read_size_warn_threshold to {}", value);
         conf.coordinator_read_size_warn_threshold = value;
     }
@@ -3973,9 +3972,8 @@ public class DatabaseDescriptor
         return conf.coordinator_read_size_fail_threshold;
     }
 
-    public static void setCoordinatorReadSizeFailThreshold(String threshold)
+    public static void setCoordinatorReadSizeFailThreshold(DataStorageSpec value)
     {
-        DataStorageSpec value = parseDataStorageSpec(threshold);
         logger.info("updated coordinator_read_size_fail_threshold to {}", value);
         conf.coordinator_read_size_fail_threshold = value;
     }
@@ -3985,9 +3983,8 @@ public class DatabaseDescriptor
         return conf.local_read_size_warn_threshold;
     }
 
-    public static void setLocalReadSizeWarnThreshold(String threshold)
+    public static void setLocalReadSizeWarnThreshold(DataStorageSpec value)
     {
-        DataStorageSpec value = parseDataStorageSpec(threshold);
         logger.info("updated local_read_size_warn_threshold to {}", value);
         conf.local_read_size_warn_threshold = value;
     }
@@ -3997,9 +3994,8 @@ public class DatabaseDescriptor
         return conf.local_read_size_fail_threshold;
     }
 
-    public static void setLocalReadSizeFailThreshold(String threshold)
+    public static void setLocalReadSizeFailThreshold(DataStorageSpec value)
     {
-        DataStorageSpec value = parseDataStorageSpec(threshold);
         logger.info("updated local_read_size_fail_threshold to {}", value);
         conf.local_read_size_fail_threshold = value;
     }
@@ -4009,9 +4005,8 @@ public class DatabaseDescriptor
         return conf.row_index_read_size_warn_threshold;
     }
 
-    public static void setRowIndexReadSizeWarnThreshold(String threshold)
+    public static void setRowIndexReadSizeWarnThreshold(DataStorageSpec value)
     {
-        DataStorageSpec value = parseDataStorageSpec(threshold);
         logger.info("updated row_index_size_warn_threshold to {}", value);
         conf.row_index_read_size_warn_threshold = value;
     }
@@ -4021,18 +4016,10 @@ public class DatabaseDescriptor
         return conf.row_index_read_size_fail_threshold;
     }
 
-    public static void setRowIndexReadSizeFailThreshold(String threshold)
+    public static void setRowIndexReadSizeFailThreshold(DataStorageSpec value)
     {
-        DataStorageSpec value = parseDataStorageSpec(threshold);
         logger.info("updated row_index_read_size_fail_threshold to {}", value);
         conf.row_index_read_size_fail_threshold = value;
-    }
-
-    private static DataStorageSpec parseDataStorageSpec(String threshold)
-    {
-        return threshold == null
-               ? null
-               : new DataStorageSpec(threshold);
     }
 
     public static int getDefaultKeyspaceRF() { return conf.default_keyspace_rf; }
