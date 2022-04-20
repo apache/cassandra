@@ -998,7 +998,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void forceCompactionForKey(ColumnFamilyStore cfStore, DecoratedKey key)
     {
-        forceCompaction(cfStore, () -> sstablesWithKey(cfStore, key), sstable -> sstable.isPresent(key));
+        forceCompaction(cfStore, () -> sstablesWithKey(cfStore, key), sstable -> sstable.maybePresent(key));
     }
 
     private static Collection<SSTableReader> sstablesWithKey(ColumnFamilyStore cfs, DecoratedKey key)
@@ -1008,7 +1008,7 @@ public class CompactionManager implements CompactionManagerMBean
                                                                                              key.getToken().maxKeyBound());
         for (SSTableReader sstable : liveTables)
         {
-            if (sstable.isPresent(key))
+            if (sstable.maybePresent(key))
                 sstables.add(sstable);
         }
         return sstables.isEmpty() ? Collections.emptyList() : sstables;
