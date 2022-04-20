@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.reads.trackwarnings;
+package org.apache.cassandra.service.reads.thresholds;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -28,7 +28,7 @@ import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
 
-import static org.apache.cassandra.service.reads.trackwarnings.WarningsSnapshot.*;
+import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.quicktheories.QuickTheory.qt;
 

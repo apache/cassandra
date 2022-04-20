@@ -89,16 +89,16 @@ New features
       paxos_state_purging: repaired. Once this has been set across the cluster, users are encouraged to set their
       applications to supply a Commit consistency level of ANY with their LWT write operations, saving one additional WAN
       round-trip. See upgrade notes below.
-    - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
-      emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
-      to be enabled in 4.2; it is controlled with the configuration track_warnings.enabled,
-      setting to true will enable this feature.  Each check has its own warn/abort thresholds, currently
+    - Warn/fail thresholds added to read queries notifying clients when these thresholds trigger (by
+      emitting a client warning or failing the query).  This feature is disabled by default, scheduled
+      to be enabled in 4.2; it is controlled with the configuration read_thresholds_enabled,
+      setting to true will enable this feature.  Each check has its own warn/fail thresholds, currently
       tombstones (tombstone_warn_threshold, and tombstone_failure_threshold), coordinator result set
-      materialized size (track_warnings.coordinator_large_read.warn_threshold_kb, and
-      track_warnings.coordinator_large_read.abort_threshold_kb), local read materialized heap size
-      (track_warnings.local_read_size.warn_threshold_kb and track_warnings.local_read_size.abort_threshold_kb),
-      and RowIndexEntry estimated memory size (track_warnings.row_index_size.warn_threshold_kb and
-      track_warnings.row_index_size.abort_threshold_kb) are supported; more checks will be added over time.
+      materialized size (coordinator_read_size_warn_threshold and coordinator_read_size_fail_threshold),
+      local read materialized heap size
+      (local_read_size_warn_threshold and local_read_size_fail_threshold),
+      and RowIndexEntry estimated memory size (row_index_read_size_warn_threshold and
+      row_index_read_size_fail_threshold) are supported; more checks will be added over time.
     - Prior to this version, the hint system was storing a window of hints as defined by
       configuration property max_hint_window_in_ms, however this window is not persistent across restarts.
       For example, if a node is restarted, it will be still eligible for a hint to be sent to it because it

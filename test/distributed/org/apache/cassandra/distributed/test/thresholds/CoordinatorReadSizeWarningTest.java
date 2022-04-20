@@ -16,18 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.trackwarnings;
+package org.apache.cassandra.distributed.test.thresholds;
 
 import java.io.IOException;
 import java.util.List;
 
-import org.junit.BeforeClass;
+import org.junit.*;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
+/**
+ * ReadSize client warn/abort is coordinator only, so the fact ClientMetrics is coordinator only does not
+ * impact the user experience
+ */
+public class CoordinatorReadSizeWarningTest extends AbstractClientSizeWarning
 {
     @BeforeClass
     public static void setupClass() throws IOException
@@ -37,44 +42,46 @@ public class LocalReadSizeWarningTest extends AbstractClientSizeWarning
         // setup threshold after init to avoid driver issues loading
         // the test uses a rather small limit, which causes driver to fail while loading metadata
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            // disable coordinator version
-            DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(0);
-            DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(0);
-
-            DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(1);
-            DatabaseDescriptor.setLocalReadSizeAbortThresholdKb(2);
+            DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(DataStorageSpec.inKibibytes(1));
+            DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(DataStorageSpec.inKibibytes(2));
         }));
+    }
+
+    private static void assertPrefix(String expectedPrefix, String actual)
+    {
+        if (!actual.startsWith(expectedPrefix))
+            throw new AssertionError(String.format("expected \"%s\" to begin with \"%s\"", actual, expectedPrefix));
     }
 
     @Override
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.warn_threshold_kb)").contains("and issued local read size warnings for query");
+        assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size warning threshold", warnings.get(0));
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.local_read_size.abort_threshold_kb)").contains("aborted the query");
+        assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size failure threshold", warnings.get(0));
     }
 
     @Override
     protected long[] getHistogram()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.LocalReadSize." + KEYSPACE)).toArray();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.CoordinatorReadSize." + KEYSPACE)).toArray();
     }
 
     @Override
     protected long totalWarnings()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.LocalReadSizeWarnings." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.CoordinatorReadSizeWarnings." + KEYSPACE)).sum();
     }
 
     @Override
     protected long totalAborts()
     {
-        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.LocalReadSizeAborts." + KEYSPACE)).sum();
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.CoordinatorReadSizeAborts." + KEYSPACE)).sum();
     }
 }

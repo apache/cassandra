@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import com.datastax.driver.core.ProtocolVersion;
@@ -44,10 +43,8 @@ public class NativeMixedVersionTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(1)
                                       .withConfig(c ->
                                                   c.with(Feature.values())
-                                                   .set("track_warnings", ImmutableMap.of(
-                                                       "enabled", true,
-                                                       "local_read_size", ImmutableMap.of("warn_threshold_kb", 1)
-                                                   ))
+                                                   .set("read_thresholds_enabled", true)
+                                                   .set("local_read_size_warn_threshold", "1KiB")
                                       )
                                       .start())
         {
