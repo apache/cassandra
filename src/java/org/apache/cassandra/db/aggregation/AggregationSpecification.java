@@ -231,8 +231,9 @@ public abstract class AggregationSpecification
                     AggregateByPkPrefixWithSelector spec = (AggregateByPkPrefixWithSelector) aggregationSpec;
                     out.writeUnsignedVInt(spec.clusteringPrefixSize);
                     Selector.serializer.serialize(spec.selector, out, version);
+                    break;
                 default:
-                    throw new AssertionError();
+                    throw new AssertionError("Unknow aggregation kind: " + aggregationSpec.kind());
             }
         }
 
@@ -252,7 +253,7 @@ public abstract class AggregationSpecification
                                                                clusteringPrefixSize,
                                                                selector);
                 default:
-                    throw new AssertionError();
+                    throw new AssertionError("Unknow aggregation kind: " + kind);
             }
         }
 
@@ -274,7 +275,7 @@ public abstract class AggregationSpecification
                             );
                     break;
                 default:
-                    throw new AssertionError();
+                    throw new AssertionError("Unknow aggregation kind: " + aggregationSpec.kind());
             }
             return size;
         }
