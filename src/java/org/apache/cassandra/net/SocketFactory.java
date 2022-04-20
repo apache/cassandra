@@ -54,6 +54,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.unix.Errors;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.ssl.SslClosedEngineException;
 import io.netty.util.concurrent.DefaultEventExecutorChooserFactory;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.concurrent.RejectedExecutionHandlers;
@@ -292,6 +293,8 @@ public final class SocketFactory
     static boolean isConnectionReset(Throwable t)
     {
         if (t instanceof ClosedChannelException)
+            return true;
+        if (t instanceof SslClosedEngineException)
             return true;
         if (t instanceof ConnectException)
             return true;
