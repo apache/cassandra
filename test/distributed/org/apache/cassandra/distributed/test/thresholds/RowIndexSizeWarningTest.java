@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.trackwarnings;
+package org.apache.cassandra.distributed.test.thresholds;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,6 +24,7 @@ import java.util.List;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,8 +37,8 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
         AbstractClientSizeWarning.setupClass();
 
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setRowIndexSizeWarnThresholdKiB(1);
-            DatabaseDescriptor.setRowIndexSizeAbortThresholdKiB(2);
+            DatabaseDescriptor.setRowIndexReadSizeWarnThreshold(DataStorageSpec.inKibibytes(1));
+            DatabaseDescriptor.setRowIndexReadSizeFailThreshold(DataStorageSpec.inKibibytes(2));
 
             // hack to force multiple index entries
             DatabaseDescriptor.setColumnIndexCacheSize(1 << 20);
@@ -99,14 +100,14 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
     protected void assertWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.warn_threshold_kb)").contains("bytes in RowIndexEntry and issued warnings for query");
+        assertThat(warnings.get(0)).contains("(see row_index_size_warn_threshold)").contains("bytes in RowIndexEntry and issued warnings for query");
     }
 
     @Override
     protected void assertAbortWarnings(List<String> warnings)
     {
         assertThat(warnings).hasSize(1);
-        assertThat(warnings.get(0)).contains("(see track_warnings.row_index_size.abort_threshold_kb)").contains("bytes in RowIndexEntry and aborted the query");
+        assertThat(warnings.get(0)).contains("(see row_index_size_fail_threshold)").contains("bytes in RowIndexEntry and aborted the query");
     }
 
     @Override

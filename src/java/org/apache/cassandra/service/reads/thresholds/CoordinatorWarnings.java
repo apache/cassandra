@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.reads.trackwarnings;
+package org.apache.cassandra.service.reads.thresholds;
 
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -32,12 +32,11 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.reads.ReadCallback;
 
 public class CoordinatorWarnings
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorWarnings.class);
-    private static final boolean ENABLE_DEFENSIVE_CHECKS = Boolean.getBoolean("cassandra.track_warnings.coordinator.defensive_checks_enabled");
+    private static final boolean ENABLE_DEFENSIVE_CHECKS = Boolean.getBoolean("cassandra.reads.thresholds.coordinator.defensive_checks_enabled");
 
     // when .init() is called set the STATE to be INIT; this is to lazy allocate the map only when warnings are generated
     private static final Map<ReadCommand, WarningsSnapshot> INIT = Collections.emptyMap();
@@ -93,8 +92,8 @@ public class CoordinatorWarnings
             recordAborts(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeAborts, WarningsSnapshot::localReadSizeAbortMessage);
             recordWarnings(merged.localReadSize, cql, loggableTokens, cfs.metric.localReadSizeWarnings, WarningsSnapshot::localReadSizeWarnMessage);
 
-            recordAborts(merged.rowIndexTooSize, cql, loggableTokens, cfs.metric.rowIndexSizeAborts, WarningsSnapshot::rowIndexSizeAbortMessage);
-            recordWarnings(merged.rowIndexTooSize, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, WarningsSnapshot::rowIndexSizeWarnMessage);
+            recordAborts(merged.rowIndexReadSize, cql, loggableTokens, cfs.metric.rowIndexSizeAborts, WarningsSnapshot::rowIndexReadSizeAbortMessage);
+            recordWarnings(merged.rowIndexReadSize, cql, loggableTokens, cfs.metric.rowIndexSizeWarnings, WarningsSnapshot::rowIndexSizeWarnMessage);
         });
 
         // reset the state to block from double publishing

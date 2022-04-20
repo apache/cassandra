@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.trackwarnings;
+package org.apache.cassandra.distributed.test.thresholds;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -51,7 +51,7 @@ import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
+import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.assertj.core.api.Condition;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -319,7 +319,7 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
 
     protected static void enable(boolean value)
     {
-        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setTrackWarningsEnabled(value)));
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setReadThresholdsEnabled(value)));
     }
 
     protected static ByteBuffer bytes(int size)

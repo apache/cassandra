@@ -251,7 +251,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(),
                                    nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
-        if (options.isTrackWarningsEnabled())
+        if (options.isReadThresholdsEnabled())
             query.trackWarnings();
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
@@ -880,14 +880,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     private void maybeWarn(ResultSetBuilder result, QueryOptions options)
     {
-        if (!options.isTrackWarningsEnabled())
+        if (!options.isReadThresholdsEnabled())
             return;
         ColumnFamilyStore store = cfs();
         if (store != null)
             store.metric.coordinatorReadSize.update(result.getSize());
-        if (result.shouldWarn(options.getCoordinatorReadSizeWarnThresholdKB()))
+        if (result.shouldWarn(options.getCoordinatorReadSizeWarnThresholdBytes()))
         {
-            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, options.getCoordinatorReadSizeWarnThresholdKB());
+            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d bytes", table, options.getCoordinatorReadSizeWarnThresholdBytes());
             ClientState state = ClientState.forInternalCalls();
             ClientWarn.instance.warn(msg + " with " + loggableTokens(options, state));
             logger.warn("{} with query {}", msg, asCQL(options, state));
@@ -898,11 +898,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     private void maybeFail(ResultSetBuilder result, QueryOptions options)
     {
-        if (!options.isTrackWarningsEnabled())
+        if (!options.isReadThresholdsEnabled())
             return;
-        if (result.shouldReject(options.getCoordinatorReadSizeAbortThresholdKB()))
+        if (result.shouldReject(options.getCoordinatorReadSizeAbortThresholdBytes()))
         {
-            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, options.getCoordinatorReadSizeAbortThresholdKB());
+            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d bytes", table, options.getCoordinatorReadSizeAbortThresholdBytes());
             ClientState state = ClientState.forInternalCalls();
             String clientMsg = msg + " with " + loggableTokens(options, state);
             ClientWarn.instance.warn(clientMsg);

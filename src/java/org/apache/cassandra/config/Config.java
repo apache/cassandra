@@ -467,7 +467,13 @@ public class Config
 
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
-    public final TrackWarnings track_warnings = new TrackWarnings();
+    public volatile boolean read_thresholds_enabled = false;
+    public volatile DataStorageSpec coordinator_read_size_warn_threshold = null;
+    public volatile DataStorageSpec coordinator_read_size_fail_threshold = null;
+    public volatile DataStorageSpec local_read_size_warn_threshold = null;
+    public volatile DataStorageSpec local_read_size_fail_threshold = null;
+    public volatile DataStorageSpec row_index_read_size_warn_threshold = null;
+    public volatile DataStorageSpec row_index_read_size_fail_threshold = null;
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;

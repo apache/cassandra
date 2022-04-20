@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.reads.trackwarnings;
+package org.apache.cassandra.service.reads.thresholds;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -28,13 +28,13 @@ import org.apache.cassandra.net.ParamType;
 
 public class WarningContext
 {
-    private static EnumSet<ParamType> SUPPORTED = EnumSet.of(ParamType.TOMBSTONE_WARNING, ParamType.TOMBSTONE_ABORT,
-                                                             ParamType.LOCAL_READ_SIZE_WARN, ParamType.LOCAL_READ_SIZE_ABORT,
-                                                             ParamType.ROW_INDEX_SIZE_WARN, ParamType.ROW_INDEX_SIZE_ABORT);
+    private static EnumSet<ParamType> SUPPORTED = EnumSet.of(ParamType.TOMBSTONE_WARNING, ParamType.TOMBSTONE_FAIL,
+                                                             ParamType.LOCAL_READ_SIZE_WARN, ParamType.LOCAL_READ_SIZE_FAIL,
+                                                             ParamType.ROW_INDEX_READ_SIZE_WARN, ParamType.ROW_INDEX_READ_SIZE_FAIL);
 
     final WarnAbortCounter tombstones = new WarnAbortCounter();
     final WarnAbortCounter localReadSize = new WarnAbortCounter();
-    final WarnAbortCounter rowIndexTooLarge = new WarnAbortCounter();
+    final WarnAbortCounter rowIndexReadSize = new WarnAbortCounter();
 
     public static boolean isSupported(Set<ParamType> keys)
     {
@@ -49,17 +49,17 @@ public class WarningContext
             RequestFailureReason reason = null;
             switch (entry.getKey())
             {
-                case ROW_INDEX_SIZE_ABORT:
+                case ROW_INDEX_READ_SIZE_FAIL:
                     reason = RequestFailureReason.READ_SIZE;
-                case ROW_INDEX_SIZE_WARN:
-                    counter = rowIndexTooLarge;
+                case ROW_INDEX_READ_SIZE_WARN:
+                    counter = rowIndexReadSize;
                     break;
-                case LOCAL_READ_SIZE_ABORT:
+                case LOCAL_READ_SIZE_FAIL:
                     reason = RequestFailureReason.READ_SIZE;
                 case LOCAL_READ_SIZE_WARN:
                     counter = localReadSize;
                     break;
-                case TOMBSTONE_ABORT:
+                case TOMBSTONE_FAIL:
                     reason = RequestFailureReason.READ_TOO_MANY_TOMBSTONES;
                 case TOMBSTONE_WARNING:
                     counter = tombstones;
@@ -78,6 +78,6 @@ public class WarningContext
 
     public WarningsSnapshot snapshot()
     {
-        return WarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexTooLarge.snapshot());
+        return WarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexReadSize.snapshot());
     }
 }

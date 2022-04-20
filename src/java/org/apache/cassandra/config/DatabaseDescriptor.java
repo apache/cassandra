@@ -687,7 +687,7 @@ public class DatabaseDescriptor
 
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
-        applyTrackWarningsValidations(conf);
+        applyReadThresholdsValidations(conf);
 
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
@@ -906,9 +906,19 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    static void applyTrackWarningsValidations(Config config)
+    static void applyReadThresholdsValidations(Config config)
     {
-        config.track_warnings.validate("track_warnings");
+        validateReadThresholds("coordinator_read_size", config.coordinator_read_size_warn_threshold, config.coordinator_read_size_fail_threshold);
+        validateReadThresholds("local_read_size", config.local_read_size_warn_threshold, config.local_read_size_fail_threshold);
+        validateReadThresholds("row_index_read_size", config.row_index_read_size_warn_threshold, config.row_index_read_size_fail_threshold);
+    }
+
+    private static void validateReadThresholds(String name, DataStorageSpec warn, DataStorageSpec fail)
+    {
+        if (fail != null && warn != null && fail.toBytes() < warn.toBytes())
+            throw new ConfigurationException(String.format("%s (%s) must be greater than or equal to %s (%s)",
+                                                           name + "_fail_threshold", fail,
+                                                           name + "_warn_threshold", warn));
     }
 
     public static GuardrailsOptions getGuardrailsConfig()
@@ -3982,74 +3992,84 @@ public class DatabaseDescriptor
         return conf.internode_error_reporting_exclusions;
     }
 
-    public static boolean getTrackWarningsEnabled()
+    public static boolean getReadThresholdsEnabled()
     {
-        return conf.track_warnings.enabled;
+        return conf.read_thresholds_enabled;
     }
 
-    public static void setTrackWarningsEnabled(boolean value)
+    public static void setReadThresholdsEnabled(boolean value)
     {
-        conf.track_warnings.enabled = value;
+        if (conf.read_thresholds_enabled != value)
+        {
+            conf.read_thresholds_enabled = value;
+            logger.info("updated read_thresholds_enabled to {}", value);
+        }
     }
 
-    public static long getCoordinatorReadSizeWarnThresholdKB()
+    public static DataStorageSpec getCoordinatorReadSizeWarnThreshold()
     {
-        return conf.track_warnings.coordinator_read_size.getWarnThresholdKb();
+        return conf.coordinator_read_size_warn_threshold;
     }
 
-    public static void setCoordinatorReadSizeWarnThresholdKB(long threshold)
+    public static void setCoordinatorReadSizeWarnThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.coordinator_read_size.setWarnThresholdKb(threshold);
+        logger.info("updating  coordinator_read_size_warn_threshold to {}", value);
+        conf.coordinator_read_size_warn_threshold = value;
     }
 
-    public static long getCoordinatorReadSizeAbortThresholdKB()
+    public static DataStorageSpec getCoordinatorReadSizeFailThreshold()
     {
-        return conf.track_warnings.coordinator_read_size.getAbortThresholdKb();
+        return conf.coordinator_read_size_fail_threshold;
     }
 
-    public static void setCoordinatorReadSizeAbortThresholdKB(long threshold)
+    public static void setCoordinatorReadSizeFailThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.coordinator_read_size.setAbortThresholdKb(threshold);
+        logger.info("updating  coordinator_read_size_fail_threshold to {}", value);
+        conf.coordinator_read_size_fail_threshold = value;
     }
 
-    public static long getLocalReadSizeWarnThresholdKb()
+    public static DataStorageSpec getLocalReadSizeWarnThreshold()
     {
-        return conf.track_warnings.local_read_size.getWarnThresholdKb();
+        return conf.local_read_size_warn_threshold;
     }
 
-    public static void setLocalReadSizeWarnThresholdKb(long value)
+    public static void setLocalReadSizeWarnThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.local_read_size.setWarnThresholdKb(value);
+        logger.info("updating  local_read_size_warn_threshold to {}", value);
+        conf.local_read_size_warn_threshold = value;
     }
 
-    public static long getLocalReadSizeAbortThresholdKb()
+    public static DataStorageSpec getLocalReadSizeFailThreshold()
     {
-        return conf.track_warnings.local_read_size.getAbortThresholdKb();
+        return conf.local_read_size_fail_threshold;
     }
 
-    public static void setLocalReadSizeAbortThresholdKb(long value)
+    public static void setLocalReadSizeFailThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.local_read_size.setAbortThresholdKb(value);
+        logger.info("updating  local_read_size_fail_threshold to {}", value);
+        conf.local_read_size_fail_threshold = value;
     }
 
-    public static int getRowIndexSizeWarnThresholdKiB()
+    public static DataStorageSpec getRowIndexReadSizeWarnThreshold()
     {
-        return conf.track_warnings.row_index_size.getWarnThresholdKb();
+        return conf.row_index_read_size_warn_threshold;
     }
 
-    public static void setRowIndexSizeWarnThresholdKiB(int value)
+    public static void setRowIndexReadSizeWarnThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.row_index_size.setWarnThresholdKb(value);
+        logger.info("updating  row_index_size_warn_threshold to {}", value);
+        conf.row_index_read_size_warn_threshold = value;
     }
 
-    public static int getRowIndexSizeAbortThresholdKiB()
+    public static DataStorageSpec getRowIndexReadSizeFailThreshold()
     {
-        return conf.track_warnings.row_index_size.getAbortThresholdKb();
+        return conf.row_index_read_size_fail_threshold;
     }
 
-    public static void setRowIndexSizeAbortThresholdKiB(int value)
+    public static void setRowIndexReadSizeFailThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.row_index_size.setAbortThresholdKb(value);
+        logger.info("updating  row_index_read_size_fail_threshold to {}", value);
+        conf.row_index_read_size_fail_threshold = value;
     }
 
     public static int getDefaultKeyspaceRF() { return conf.default_keyspace_rf; }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.trackwarnings;
+package org.apache.cassandra.distributed.test.thresholds;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -51,7 +51,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
+import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
 
@@ -96,7 +96,7 @@ public class TombstoneCountWarningTest extends TestBaseImpl
 
     private static void enable(boolean value)
     {
-        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setTrackWarningsEnabled(value)));
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setReadThresholdsEnabled(value)));
     }
 
     @Test

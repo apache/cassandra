@@ -36,7 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
+import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.Flusher.FlushItem;
 import org.apache.cassandra.transport.messages.ErrorMessage;
