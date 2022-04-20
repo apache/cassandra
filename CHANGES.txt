@@ -1,4 +1,5 @@
 4.1
+ * Tool to list data paths of existing tables (CASSANDRA-17568)
  * Migrate advanced config parameters to the new Config types (CASSANDRA-17431)
  * Make null to be meaning disabled and leave 0 as a valid value for permissions_update_interval, roles_update_interval, credentials_update_interval (CASSANDRA-17431)
  * Fix typo in Config annotation (CASSANDRA-17431)
