@@ -1,4 +1,5 @@
 4.1
+ * Tool to list data paths of existing tables (CASSANDRA-17568)
  * Migrate track_warnings to more standard naming conventions and use latest configuration types rather than long (CASSANDRA-17560)
  * Add support for CONTAINS and CONTAINS KEY in conditional UPDATE and DELETE statement (CASSANDRA-10537)
  * Migrate advanced config parameters to the new Config types (CASSANDRA-17431)

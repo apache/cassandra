@@ -240,3 +240,46 @@ concurrent compactions such that compactions complete quickly but don't
 take too many resources away from query threads is very important for
 performance. If you notice compaction unable to keep up, try tuning
 Cassandra's `concurrent_compactors` or `compaction_throughput` options.
+
+[[nodetool-datapaths]]
+== Paths used for data files
+
+Cassandra is persisting data on disk within the configured directories. Data
+files are distributed among the directories configured with `data_file_directories`.
+Resembling the structure of keyspaces and tables, Cassandra is creating
+subdirectories within `data_file_directories`. However, directories aren't removed
+even if the tables and keyspaces are dropped. While these directories are kept with
+the reason of holding snapshots, they are subject to removal. This is where operators
+need to know which directories are still in use. Running the `nodetool datapaths`
+command is an easy way to list in which directories Cassandra is actually storing
+sstable data on disk.
+
+[source, bash]
+----
+% nodetool datapaths -- system_auth
+Keyspace: system_auth
+	Table: role_permissions
+	Paths:
+		/var/lib/cassandra/data/system_auth/role_permissions-3afbe79f219431a7add7f5ab90d8ec9c
+
+	Table: network_permissions
+	Paths:
+		/var/lib/cassandra/data/system_auth/network_permissions-d46780c22f1c3db9b4c1b8d9fbc0cc23
+
+	Table: resource_role_permissons_index
+	Paths:
+		/var/lib/cassandra/data/system_auth/resource_role_permissons_index-5f2fbdad91f13946bd25d5da3a5c35ec
+
+	Table: roles
+	Paths:
+		/var/lib/cassandra/data/system_auth/roles-5bc52802de2535edaeab188eecebb090
+
+	Table: role_members
+	Paths:
+		/var/lib/cassandra/data/system_auth/role_members-0ecdaa87f8fb3e6088d174fb36fe5c0d
+
+----
+
+By default all keyspaces and tables are listed, however, a list of `keyspace` and
+`keyspace.table` arguments can be given to query specific data paths. Using the `--format`
+option the output can be formatted as YAML or JSON.

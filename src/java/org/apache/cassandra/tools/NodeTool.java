@@ -102,6 +102,7 @@ public class NodeTool
                 Compact.class,
                 CompactionHistory.class,
                 CompactionStats.class,
+                DataPaths.class,
                 Decommission.class,
                 DescribeCluster.class,
                 DescribeRing.class,
