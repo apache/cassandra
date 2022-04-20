@@ -38,35 +38,10 @@ except ImportError:
     import yaml
 
 try:
-    from yaml import CLoader as Loader, CDumper as Dumper
+    from yaml import CLoader as Loader
 except ImportError:
-    from yaml import Loader, Dumper
+    from yaml import Loader
 
-
-def apply_job_spec(job, spec):
-    if 'parallelism' in spec:
-        job['parallelism'] = spec['parallelism']
-    # executor can be a str (reference to .executors.value) or dict (name reference, and/or exec_resource_class)
-    executor = job['executor']
-    if type(executor) == str:
-        # convert simple name to object with name reference, so its easier to add exec_resource_class
-        executor = { 'name': executor }
-        job['executor'] = executor
-    if 'exec_resource_class' in spec:
-        executor['exec_resource_class'] = spec['exec_resource_class']
-
-def update_jobs(target, contents):
-    # update jobs
-    if 'jobs' in target:
-        target_jobs = target['jobs']
-        jobs = contents['jobs']
-        default_spec = target.get('_default_job_')
-        if default_spec:
-            for name, job in jobs.items():
-                apply_job_spec(job, default_spec)
-
-        for name, spec in target_jobs.items():
-            apply_job_spec(jobs[name], spec)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Apache Cassandra Circle CI Job Resources')
