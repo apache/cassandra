@@ -176,7 +176,6 @@ public class AccordKeyspace
         static final ColumnMetadata listeners = getColumn(Commands, "listeners");
     }
 
-    // TODO: add status and isWrite
     private static final TableMetadata CommandsForKey =
         parse(COMMANDS_FOR_KEY,
               "accord commands per key",
@@ -289,20 +288,20 @@ public class AccordKeyspace
         return result;
     }
 
-    private static <T extends Timestamp> NavigableMap<T, TxnId> deserializeWaitingOn(Map<ByteBuffer, ByteBuffer> serialized, TimestampFactory<T> factory)
+    private static NavigableMap<TxnId, TxnId> deserializeWaitingOn(Map<ByteBuffer, ByteBuffer> serialized)
     {
         if (serialized == null || serialized.isEmpty())
             return new TreeMap<>();
 
-        NavigableMap<T, TxnId> result = new TreeMap<>();
+        NavigableMap<TxnId, TxnId> result = new TreeMap<>();
         for (Map.Entry<ByteBuffer, ByteBuffer> entry : serialized.entrySet())
-            result.put(deserializeTimestampOrNull(entry.getKey(), factory), deserializeTimestampOrNull(entry.getValue(), TxnId::new));
+            result.put(deserializeTimestampOrNull(entry.getKey(), TxnId::new), deserializeTimestampOrNull(entry.getValue(), TxnId::new));
         return result;
     }
 
-    private static <T extends Timestamp> NavigableMap<T, TxnId> deserializeWaitingOn(UntypedResultSet.Row row, String name, TimestampFactory<T> factory)
+    private static NavigableMap<TxnId, TxnId> deserializeWaitingOn(UntypedResultSet.Row row, String name)
     {
-        return deserializeWaitingOn(row.getMap(name, BytesType.instance, BytesType.instance), factory);
+        return deserializeWaitingOn(row.getMap(name, BytesType.instance, BytesType.instance));
     }
 
     public static Set<ByteBuffer> serializeListeners(Set<ListenerProxy> listeners)
@@ -586,8 +585,8 @@ public class AccordKeyspace
                 command.writes.load(deserialize(row.getBlob("writes"), CommandSerializers.writes, row.getInt("writes_version")));
             if (row.has("result_version"))
                 command.result.load(deserialize(row.getBlob("result"), AccordData.serializer, row.getInt("result_version")));
-            command.waitingOnCommit.load(deserializeWaitingOn(row, "waiting_on_commit", TxnId::new));
-            command.waitingOnApply.load(deserializeWaitingOn(row, "waiting_on_apply", Timestamp::new));
+            command.waitingOnCommit.load(deserializeWaitingOn(row, "waiting_on_commit"));
+            command.waitingOnApply.load(deserializeWaitingOn(row, "waiting_on_apply"));
             command.storedListeners.load(deserializeListeners(commandStore, row, "listeners"));
         }
         catch (IOException e)

@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 public class StoredValue<T> extends AbstractStoredField
 {
     public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredValue<>());
-    private T value;
+    protected T value;
 
     @Override
     public boolean equals(Object o)
@@ -75,5 +75,36 @@ public class StoredValue<T> extends AbstractStoredField
     {
         preGet();
         return value;
+    }
+
+    public static class HistoryPreserving<T> extends StoredValue<T>
+    {
+        T previous;
+
+        public T previous()
+        {
+            return previous;
+        }
+
+        @Override
+        public void unload()
+        {
+            super.unload();
+            previous = null;
+        }
+
+        @Override
+        public void load(T value)
+        {
+            super.load(value);
+            previous = value;
+        }
+
+        @Override
+        public void clearModifiedFlag()
+        {
+            super.clearModifiedFlag();
+            previous = value;
+        }
     }
 }

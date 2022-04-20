@@ -33,6 +33,9 @@ public class AsyncContext
     final Map<TxnId, AccordCommand> summaries = new HashMap<>();
     final Map<PartitionKey, AccordCommandsForKey> keyCommands = new HashMap<>();
 
+    final Map<TxnId, AccordCommand> denormalizedCommands = new HashMap<>();
+    final Map<PartitionKey, AccordCommandsForKey> denormalizedCfks = new HashMap<>();
+
     public AccordCommand command(TxnId txnId)
     {
         return commands.get(txnId);
@@ -56,6 +59,22 @@ public class AsyncContext
     public AccordCommandsForKey commandsForKey(PartitionKey key)
     {
         return keyCommands.get(key);
+    }
+
+    public void maybeAddDenormalizedCommand(AccordCommand command)
+    {
+        if (commands.containsKey(command.txnId()))
+            return;
+
+        denormalizedCommands.put(command.txnId(), command);
+    }
+
+    public void maybeAddDenormalizedCFK(AccordCommandsForKey cfk)
+    {
+        if (keyCommands.containsKey(cfk.key()))
+            return;
+
+        denormalizedCfks.put(cfk.key(), cfk);
     }
 
     void releaseResources(AccordCommandStore commandStore)

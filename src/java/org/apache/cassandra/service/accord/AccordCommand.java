@@ -22,6 +22,8 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import com.google.common.base.Preconditions;
+
 import accord.api.Read;
 import accord.api.Result;
 import accord.local.Command;
@@ -59,7 +61,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     public final StoredValue<Status> status = new StoredValue<>();
 
     public final StoredNavigableMap<TxnId, TxnId> waitingOnCommit = new StoredNavigableMap<>();
-    public final StoredNavigableMap<Timestamp, TxnId> waitingOnApply = new StoredNavigableMap<>();
+    public final StoredNavigableMap<TxnId, TxnId> waitingOnApply = new StoredNavigableMap<>();
 
     public final StoredSet.DeterministicIdentity<ListenerProxy> storedListeners = new StoredSet.DeterministicIdentity<>();
     private final Listeners transientListeners = new Listeners();
@@ -396,15 +398,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     }
 
     @Override
-    public void clearWaitingOnCommit()
+    public void addWaitingOnCommit(Command command)
     {
-        waitingOnCommit.clear();
-    }
-
-    @Override
-    public void addWaitingOnCommit(TxnId txnId, Command command)
-    {
-        waitingOnCommit.blindPut(txnId, command.txnId());
+        waitingOnCommit.blindPut(command.txnId(), command.txnId());
     }
 
     @Override
@@ -414,9 +410,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     }
 
     @Override
-    public void removeWaitingOnCommit(TxnId txnId)
+    public void removeWaitingOnCommit(Command command)
     {
-        waitingOnCommit.blindRemove(txnId);
+        waitingOnCommit.blindRemove(command.txnId());
     }
 
     @Override
@@ -426,15 +422,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     }
 
     @Override
-    public void clearWaitingOnApply()
+    public void addWaitingOnApplyIfAbsent(Command command)
     {
-        waitingOnApply.clear();
-    }
-
-    @Override
-    public void addWaitingOnApplyIfAbsent(Timestamp timestamp, Command command)
-    {
-        waitingOnApply.blindPut(timestamp, command.txnId());
+        waitingOnApply.blindPut(command.txnId(), command.txnId());
     }
 
     @Override
@@ -444,9 +434,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     }
 
     @Override
-    public void removeWaitingOnApply(Timestamp timestamp)
+    public void removeWaitingOnApply(Command command)
     {
-        waitingOnApply.blindRemove(timestamp);
+        waitingOnApply.blindRemove(command.txnId());
     }
 
     @Override

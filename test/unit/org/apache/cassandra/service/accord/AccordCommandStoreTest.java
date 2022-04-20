@@ -82,10 +82,8 @@ public class AccordCommandStoreTest
         command.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
         command.savedDeps(dependencies);
         command.status(Status.Accepted);
-        command.clearWaitingOnCommit();
-        command.addWaitingOnCommit(oldTxnId1, new AccordCommand(commandStore, oldTxnId1));
-        command.clearWaitingOnApply();
-        command.addWaitingOnApplyIfAbsent(oldTimestamp, new AccordCommand(commandStore, oldTxnId2));
+        command.addWaitingOnCommit(new AccordCommand(commandStore, oldTxnId1));
+        command.addWaitingOnApplyIfAbsent(new AccordCommand(commandStore, oldTxnId2));
         command.storedListeners.clear();
         command.addListener(new AccordCommand(commandStore, oldTxnId1));
         processCommandResult(command);

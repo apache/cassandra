@@ -26,13 +26,26 @@ import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
 
+import accord.api.Key;
+import accord.local.Status;
+import accord.txn.TxnId;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.CommandSummaries;
+import org.apache.cassandra.service.accord.store.StoredNavigableMap;
+import org.apache.cassandra.service.accord.store.StoredSet;
+import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
+
+import static accord.local.Status.Committed;
 
 public class AsyncWriter
 {
@@ -47,10 +60,15 @@ public class AsyncWriter
     private State state = State.INITIALIZED;
     protected Future<?> writeFuture;
     private final AccordCommandStore commandStore;
+    AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
+    AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCache;
+
 
     public AsyncWriter(AccordCommandStore commandStore)
     {
         this.commandStore = commandStore;
+        this.commandCache = commandStore.commandCache();
+        this.cfkCache = commandStore.commandsForKeyCache();
     }
 
     private static <K, V extends AccordStateCache.AccordState<K, V>> List<Future<?>> dispatchWrites(Iterable<V> items,
@@ -87,6 +105,63 @@ public class AsyncWriter
                                  futures);
 
         return futures != null ? FutureCombiner.allOf(futures) : null;
+    }
+
+    private void denormalizeBlockedOn(AccordCommand command,
+                                      AsyncContext context,
+                                      Function<AccordCommand, StoredNavigableMap<TxnId, ?>> waitingField,
+                                      Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
+    {
+        StoredNavigableMap<TxnId, ?> waitingOn = waitingField.apply(command);
+        waitingOn.forEachDeletion(deletedId -> {
+            AccordCommand blockedOn = commandCache.getOrCreate(deletedId);
+            blockingField.apply(blockedOn).blindRemove(command.txnId());
+            context.maybeAddDenormalizedCommand(blockedOn);
+        });
+
+        waitingOn.forEachAddition((addedId, unused) -> {
+            AccordCommand blockedOn = commandCache.getOrCreate(addedId);
+            blockingField.apply(blockedOn).blindAdd(command.txnId());
+            context.maybeAddDenormalizedCommand(blockedOn);
+        });
+    }
+
+    private void denormalize(AccordCommand command, AsyncContext context)
+    {
+        if (CommandSummaries.commandsPerKey.needsUpdate(command))
+        {
+            for (Key key : command.txn().keys())
+            {
+                AccordCommandsForKey cfk = cfkCache.getOrCreate((PartitionKey) key);
+                cfk.updateSummaries(command);
+                context.maybeAddDenormalizedCFK(cfk);
+            }
+        }
+
+        if (command.waitingOnCommit.hasModifications())
+        {
+
+            command.waitingOnCommit.forEachDeletion(deletedId -> {
+                AccordCommand blockedOn = commandCache.getOrCreate(deletedId);
+                blockedOn.blockingCommitOn.blindRemove(command.txnId());
+                context.maybeAddDenormalizedCommand(blockedOn);
+            });
+
+            command.waitingOnCommit.forEachAddition((addedId, unused) -> {
+                AccordCommand blockedOn = commandCache.getOrCreate(addedId);
+                blockedOn.blockingCommitOn.blindAdd(command.txnId());
+                context.maybeAddDenormalizedCommand(blockedOn);
+            });
+        }
+//            denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
+
+        if (command.waitingOnApply.hasModifications())
+            denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
+    }
+
+    private void denormalize(AsyncContext context)
+    {
+        context.commands.values().forEach(command -> denormalize(command, context));
     }
 
     public boolean save(AsyncContext context, BiConsumer<Object, Throwable> callback)
