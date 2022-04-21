@@ -140,16 +140,19 @@ if $lowres; then
   ($all || $midres || $highres) && die "Cannot use option -l with options -a, -m or -h"
   echo "Generating new config.yml file with low resources from config-2_1.yml"
   lowers
+  cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
 
 elif $midres; then
   ($all || $lowres || $highres) && die "Cannot use option -m with options -a, -l or -h"
   echo "Generating new config.yml file with middle resources from config-2_1.yml"
   midres
+  cp $BASEDIR/config.yml.MIDRES $BASEDIR/config.yml
 
 elif $highres; then
   ($all || $lowres || $midres) && die "Cannot use option -h with options -a, -l or -m"
   echo "Generating new config.yml file with high resources from config-2_1.yml"
   highers
+  cp $BASEDIR/config.yml.HIGHRES $BASEDIR/config.yml
 
 elif $all; then
   ($lowres || $midres || $highres || $has_env_vars) && die "Cannot use option -a with options -l, -m, -h or -e"
