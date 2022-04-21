@@ -62,6 +62,11 @@ public class ActiveOperations implements TableOperationObserver
         listeners.add(listener);
     }
 
+    public void unregisterListener(CompactionProgressListener listener)
+    {
+        listeners.remove(listener);
+    }
+
     /**
      * @return all the table operations currently in progress. This is mostly compactions but it can include other
      *         operations too, basically any operation that calls {@link this#onOperationStart(TableOperation).}

@@ -92,6 +92,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -681,8 +683,18 @@ public class CompactionsTest
 
         Assert.assertEquals(totalByteScanned, operation.getProgress().totalByteScanned());
         try (NonThrowingCloseable cls = CompactionManager.instance.active.onOperationStart(operation))
-        {}
-        verify(listener).onStarted(progress);
-        verify(listener).onCompleted(progress);
+        {
+            verify(listener).onStarted(progress);
+            verify(listener, never()).onCompleted(progress);
+        }
+        verify(listener, times(1)).onStarted(progress);
+        verify(listener, times(1)).onCompleted(progress);
+
+        try (NonThrowingCloseable cls = CompactionManager.instance.active.onOperationStart(operation))
+        {
+            CompactionManager.instance.active.unregisterListener(listener);
+        }
+        verify(listener, times(2)).onStarted(progress);
+        verify(listener, times(1)).onCompleted(progress);
     }
 }
