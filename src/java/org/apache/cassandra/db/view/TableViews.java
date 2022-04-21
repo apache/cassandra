@@ -110,10 +110,10 @@ public class TableViews extends AbstractCollection<View>
             viewCfs.forceBlockingFlush(reason);
     }
 
-    public void dumpMemtables(ColumnFamilyStore.FlushReason reason)
+    public void dumpMemtables()
     {
         for (ColumnFamilyStore viewCfs : allViewsCfs())
-            viewCfs.dumpMemtable(reason);
+            viewCfs.dumpMemtable();
     }
 
     public void truncateBlocking(CommitLogPosition replayAfter, long truncatedAt)

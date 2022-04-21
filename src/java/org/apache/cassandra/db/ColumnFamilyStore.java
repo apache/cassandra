@@ -2603,8 +2603,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // just nuke the memtable data w/o writing to disk first
             // note: this does not wait for the switch to complete, but because the post-flush processing is serial,
             // the call below does.
-            viewManager.dumpMemtables(FlushReason.TRUNCATE);
-            replayAfter = FBUtilities.waitOnFuture(dumpMemtable(FlushReason.TRUNCATE));
+            viewManager.dumpMemtables();
+            replayAfter = FBUtilities.waitOnFuture(dumpMemtable());
         }
 
         long now = currentTimeMillis();
@@ -2653,7 +2653,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * that cannot have dirty intervals in the commit log (i.e. one which is not durable, or where the memtable itself
      * performs durable writes).
      */
-    public Future<CommitLogPosition> dumpMemtable(FlushReason reason)
+    public Future<CommitLogPosition> dumpMemtable()
     {
         synchronized (data)
         {
@@ -2669,7 +2669,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
             forceBlockingFlush(ColumnFamilyStore.FlushReason.DROP);
         else
-            FBUtilities.waitOnFuture(dumpMemtable(ColumnFamilyStore.FlushReason.DROP));
+            FBUtilities.waitOnFuture(dumpMemtable());
     }
 
     public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews)
