@@ -102,7 +102,7 @@ Read below for details how to generate the files manually without the `generate.
    config-2_1.yml)
    Note that if the patch no longer applies to `config-2_1.yml` a new patch file
    is needed, do this by manually making `config-2_1.yml` high resource and create
-   the patch file based on the diff (don't commit it though).
+   the patch file by running `./create-patches.sh`
 5. generate the HIGHRES file:
    `circleci config process config-2_1.yml.HIGHRES > config.yml.HIGHRES`
 6. remove the temporary patched HIGHRES file: `rm config-2_1.yml.HIGHRES`
