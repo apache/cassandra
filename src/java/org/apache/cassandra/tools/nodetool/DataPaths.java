@@ -30,7 +30,7 @@ import org.apache.cassandra.tools.nodetool.stats.DataPathsPrinter;
 import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 
-@Command(name = "datapaths", description = "Print paths where the table data is stored in")
+@Command(name = "datapaths", description = "Print all directories where data of tables are stored")
 public class DataPaths extends NodeToolCmd
 {
     @Arguments(usage = "[<keyspace.table>...]", description = "List of table (or keyspace) names")
