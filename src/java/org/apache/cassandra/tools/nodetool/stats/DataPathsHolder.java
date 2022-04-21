@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool.stats;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -55,7 +54,7 @@ public class DataPathsHolder implements StatsHolder
             {
                 dataPaths = entry.getValue().getDataPaths();
             }
-            catch (IOException e)
+            catch (Throwable e)
             {
                 probe.output().err.println("Failed to get data paths for " + keyspaceName + '.' + tableName + ". Skipped.");
                 probe.output().err.println("error: " + e.getMessage());
