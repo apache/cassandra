@@ -340,7 +340,7 @@ public class Config
      * @deprecated since 4.0 This value was near useless, and we're not using it anymore
      */
     public double commitlog_sync_batch_window_in_ms = Double.NaN;
-    @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converters.MILLIS_DOUBLE_DURATION, deprecated = true)
+    @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converters.MILLIS_DURATION_DOUBLE, deprecated = true)
     public SmallestDurationMilliseconds commitlog_sync_group_window = new SmallestDurationMilliseconds("0ms");
     @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public SmallestDurationMilliseconds commitlog_sync_period = new SmallestDurationMilliseconds("0ms");

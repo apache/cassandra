@@ -43,7 +43,7 @@ public enum Converters
     MILLIS_DURATION_INT(Integer.class, SmallestDurationMilliseconds.class,
                         i -> SmallestDurationMilliseconds.inMilliseconds(i),
                         DurationSpec::toMillisecondsAsInt),
-    MILLIS_DOUBLE_DURATION(Double.class, SmallestDurationMilliseconds.class,
+    MILLIS_DURATION_DOUBLE(Double.class, SmallestDurationMilliseconds.class,
                            o -> Double.isNaN(o) ? SmallestDurationMilliseconds.inMilliseconds(0) : SmallestDurationMilliseconds.inDoubleMilliseconds(o),
                            o -> (double) o.toMilliseconds()),
     /**
