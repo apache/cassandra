@@ -112,7 +112,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         writes.load(null);
         result.load(null);
         waitingOnCommit.load(new TreeMap<>());
+        blockingCommitOn.load(new TreeSet<>());
         waitingOnApply.load(new TreeMap<>());
+        blockingApplyOn.load(new TreeSet<>());
         storedListeners.load(new TreeSet<>());
         return this;
     }
@@ -129,7 +131,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
                && result.isLoaded()
                && status.isLoaded()
                && waitingOnCommit.isLoaded()
+               && blockingCommitOn.isLoaded()
                && waitingOnApply.isLoaded()
+               && blockingApplyOn.isLoaded()
                && storedListeners.isLoaded();
     }
 
@@ -145,7 +149,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
                || result.hasModifications()
                || status.hasModifications()
                || waitingOnCommit.hasModifications()
+               || blockingCommitOn.hasModifications()
                || waitingOnApply.hasModifications()
+               || blockingApplyOn.hasModifications()
                || storedListeners.hasModifications();
     }
 
@@ -161,7 +167,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         result.clearModifiedFlag();
         status.clearModifiedFlag();
         waitingOnCommit.clearModifiedFlag();
+        blockingCommitOn.clearModifiedFlag();
         waitingOnApply.clearModifiedFlag();
+        blockingApplyOn.clearModifiedFlag();
         storedListeners.clearModifiedFlag();;
     }
 
@@ -182,7 +190,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
                && result.equals(command.result)
                && status.equals(command.status)
                && waitingOnCommit.equals(command.waitingOnCommit)
+               && blockingCommitOn.equals(command.blockingCommitOn)
                && waitingOnApply.equals(command.waitingOnApply)
+               && blockingApplyOn.equals(command.blockingApplyOn)
                && storedListeners.equals(command.storedListeners)
                && transientListeners.equals(command.transientListeners);
     }
@@ -201,7 +211,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
                             result,
                             status,
                             waitingOnCommit,
+                            blockingCommitOn,
                             waitingOnApply,
+                            blockingApplyOn,
                             storedListeners,
                             transientListeners);
     }
@@ -243,7 +255,9 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         size += result.estimatedSizeOnHeap(r -> ((AccordData) r).estimatedSizeOnHeap());
         size += status.estimatedSizeOnHeap(s -> 0);
         size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += blockingCommitOn.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += waitingOnApply.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += blockingApplyOn.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += storedListeners.estimatedSizeOnHeap(ListenerProxy::estimatedSizeOnHeap);
         return size;
     }
