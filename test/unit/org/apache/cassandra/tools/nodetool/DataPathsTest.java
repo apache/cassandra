@@ -52,7 +52,8 @@ public class DataPathsTest extends CQLTester
                       "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
                       "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
                       "                [(-u <username> | --username <username>)] datapaths\n" +
-                      "                [(-F <format> | --format <format>)] [--] [<keyspace.table>...]\n" +
+                      "                [(-F <format> | --format <format>)] [--list-orphaned] [--]\n" +
+                      "                [<keyspace.table>...]\n" +
                       "\n" +
                       "OPTIONS\n" +
                       "        -F <format>, --format <format>\n" +
@@ -60,6 +61,10 @@ public class DataPathsTest extends CQLTester
                       "\n" +
                       "        -h <host>, --host <host>\n" +
                       "            Node hostname or ip address\n" +
+                      "\n" +
+                      "        --list-orphaned\n" +
+                      "            List directories in the data paths which are not controlled by\n" +
+                      "            Cassandra\n" +
                       "\n" +
                       "        -p <port>, --port <port>\n" +
                       "            Remote jmx agent port number\n" +

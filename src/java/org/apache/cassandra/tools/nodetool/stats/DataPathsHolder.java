@@ -18,9 +18,11 @@
 package org.apache.cassandra.tools.nodetool.stats;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
 
@@ -30,6 +32,7 @@ import org.apache.cassandra.tools.NodeProbe;
 public class DataPathsHolder implements StatsHolder
 {
     public final Map<String, Object> pathsHash = new HashMap<>();
+    public final Set<String> allPaths = new HashSet<>();
 
     public DataPathsHolder(NodeProbe probe, List<String> tableNames)
     {
@@ -39,15 +42,6 @@ public class DataPathsHolder implements StatsHolder
             Map.Entry<String, ColumnFamilyStoreMBean> entry = mbeansIterator.next();
             String keyspaceName = entry.getKey();
             String tableName = entry.getValue().getTableName();
-
-            if (!(tableNames.isEmpty() || 
-                  tableNames.contains(keyspaceName + '.' + tableName) || 
-                  tableNames.contains(keyspaceName) ))
-            {
-                continue;
-            }
-
-            Map<String, List<String>> ksPaths;
             List<String> dataPaths;
 
             try
@@ -62,7 +56,16 @@ public class DataPathsHolder implements StatsHolder
                 probe.output().err.println(getStackTraceAsString(e));
                 continue;
             }
+            allPaths.addAll(dataPaths);
 
+            if (!(tableNames.isEmpty() ||
+                  tableNames.contains(keyspaceName + '.' + tableName) ||
+                  tableNames.contains(keyspaceName)))
+            {
+                continue;
+            }
+
+            Map<String, List<String>> ksPaths;
             if (pathsHash.containsKey(keyspaceName))
             {
                 ksPaths = (Map<String, List<String>>) pathsHash.get(keyspaceName);
