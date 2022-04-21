@@ -151,9 +151,9 @@ public class AccordCommandStore extends CommandStore
     public Command command(TxnId txnId)
     {
         Preconditions.checkState(currentCtx != null);
-        AccordCommand command = currentCtx.command(txnId);
+        AccordCommand command = currentCtx.commands.get(txnId);
         if (command == null)
-            command = currentCtx.summary(txnId);
+            command = currentCtx.commands.summary(txnId);
         Preconditions.checkArgument(command != null);
         return command;
     }
@@ -163,7 +163,7 @@ public class AccordCommandStore extends CommandStore
     {
         Preconditions.checkState(currentCtx != null);
         Preconditions.checkArgument(key instanceof PartitionKey);
-        AccordCommandsForKey commandsForKey = currentCtx.commandsForKey((PartitionKey) key);
+        AccordCommandsForKey commandsForKey = currentCtx.commandsForKey.get((PartitionKey) key);
         Preconditions.checkArgument(commandsForKey != null);
         return commandsForKey;
     }

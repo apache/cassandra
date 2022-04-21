@@ -82,7 +82,7 @@ public class AsyncLoaderTest
         Assert.assertTrue(result);
 
         Assert.assertSame(command, context.commands.get(txnId));
-        Assert.assertSame(cfk, context.commandsForKey(key));
+        Assert.assertSame(cfk, context.commandsForKey.get(key));
     }
 
     /**

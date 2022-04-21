@@ -111,14 +111,14 @@ public class AsyncLoader
 
         futures = referenceAndDispatchReads(commandsToLoad,
                                             commandStore.commandCache(),
-                                            context.commands,
+                                            context.commands.items,
                                             AccordCommand::isLoaded,
                                             command -> Stage.READ.submit(() -> AccordKeyspace.loadCommand(command)),
                                             futures);
 
         futures = referenceAndDispatchReads(keyCommandsToLoad,
                                             commandStore.commandsForKeyCache(),
-                                            context.keyCommands,
+                                            context.commandsForKey.items,
                                             AccordCommandsForKey::isLoaded,
                                             cfk -> Stage.READ.submit(() -> AccordKeyspace.loadCommandsForKey(cfk)),
                                             futures);

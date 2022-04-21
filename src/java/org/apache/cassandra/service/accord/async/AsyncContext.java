@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.async;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import com.google.common.base.Preconditions;
 
@@ -27,77 +28,70 @@ import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
+import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.AccordStateCache.WriteOnly;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 
 public class AsyncContext
 {
-    final Map<TxnId, AccordCommand> commands = new HashMap<>();
-    final Map<TxnId, AccordCommand> summaries = new HashMap<>();
-    final Map<PartitionKey, AccordCommandsForKey> keyCommands = new HashMap<>();
-
-    final Map<TxnId, AccordCommand.WriteOnly> writeOnlyCommands = new HashMap<>();
-    final Map<PartitionKey, AccordCommandsForKey.WriteOnly> writeOnlyCFKs = new HashMap<>();
-
-    public AccordCommand command(TxnId txnId)
+    public static class Group<K, V extends AccordStateCache.AccordState<K, V>>
     {
-        return commands.get(txnId);
-    }
+        final Map<K, V> items = new HashMap<>();
+        final Map<K, WriteOnly<K, V>> writeOnly = new HashMap<>();
 
-    public void addCommand(AccordCommand command)
-    {
-        commands.put(command.txnId(), command);
-    }
-
-    public AccordCommand summary(TxnId txnId)
-    {
-        return summaries.get(txnId);
-    }
-
-    public void addSummary(AccordCommand command)
-    {
-        summaries.put(command.txnId(), command);
-    }
-
-    public AccordCommandsForKey commandsForKey(PartitionKey key)
-    {
-        return keyCommands.get(key);
-    }
-
-    public void addCommandsForKey(AccordCommandsForKey cfk)
-    {
-        keyCommands.put(cfk.key(), cfk);
-    }
-
-    public AccordCommand.WriteOnly getOrCreateWriteOnlyCommand(TxnId txnId, AccordCommandStore commandStore)
-    {
-        Preconditions.checkState(!keyCommands.containsKey(txnId));
-        AccordCommand.WriteOnly command = writeOnlyCommands.get(txnId);
-        if (command == null)
+        public V get(K key)
         {
-            command = new AccordCommand.WriteOnly(commandStore, txnId);
-            writeOnlyCommands.put(txnId, command);
+            return items.get(key);
         }
-        return command;
-    }
 
-    public AccordCommandsForKey.WriteOnly getOrCreateWriteOnlyCFK(PartitionKey key, AccordCommandStore commandStore)
-    {
-        Preconditions.checkState(!keyCommands.containsKey(key));
-        AccordCommandsForKey.WriteOnly cfk = writeOnlyCFKs.get(key);
-        if (cfk == null)
+        void releaseResources(AccordStateCache.Instance<K, V> cache)
         {
-            cfk = new AccordCommandsForKey.WriteOnly(commandStore, key);
-            writeOnlyCFKs.put(key, cfk);
+            items.values().forEach(cache::release);
+            items.clear();
+            writeOnly.clear();
         }
-        return cfk;
+
+        public WriteOnly<K, V> getOrCreateWriteOnly(K key, BiFunction<AccordCommandStore, K, WriteOnly<K, V>> factory, AccordCommandStore commandStore)
+        {
+            Preconditions.checkState(!items.containsKey(key));
+            WriteOnly<K, V> command = writeOnly.get(key);
+            if (command == null)
+            {
+                command = factory.apply(commandStore, key);
+                writeOnly.put(key, command);
+            }
+            return command;
+        }
     }
 
+    public static class SummaryGroup<K, V extends AccordStateCache.AccordState<K, V>> extends Group<K, V>
+    {
+        final Map<K, V> summaries = new HashMap<>();
+
+        public V summary(K key)
+        {
+            return summaries.get(key);
+        }
+
+        public void addSummary(V summary)
+        {
+            summaries.put(summary.key(), summary);
+        }
+
+        @Override
+        void releaseResources(AccordStateCache.Instance<K, V> cache)
+        {
+            super.releaseResources(cache);
+            summaries.clear();
+        }
+    }
+
+    public final SummaryGroup<TxnId, AccordCommand> commands = new SummaryGroup<>();
+    public final Group<PartitionKey, AccordCommandsForKey> commandsForKey = new Group<>();
 
     void releaseResources(AccordCommandStore commandStore)
     {
-        commands.values().forEach(commandStore.commandCache()::release);
-        commands.clear();
-        keyCommands.values().forEach(commandStore.commandsForKeyCache()::release);
-        keyCommands.clear();
+        commands.releaseResources(commandStore.commandCache());
+        commandsForKey.releaseResources(commandStore.commandsForKeyCache());
     }
 }

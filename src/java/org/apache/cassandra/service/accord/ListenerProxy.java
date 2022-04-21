@@ -145,7 +145,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         @Override
         protected boolean subjectIsInContext(AsyncContext context)
         {
-            return context.command(txnId) != null;
+            return context.commands.get(txnId) != null;
         }
 
         @Override
@@ -243,7 +243,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         @Override
         protected boolean subjectIsInContext(AsyncContext context)
         {
-            return context.commandsForKey(key) != null;
+            return context.commandsForKey.get(key) != null;
         }
 
         @Override

@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
@@ -38,6 +39,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.AccordStateCache.AccordState;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
@@ -68,12 +70,12 @@ public class AsyncWriter
         this.cfkCache = commandStore.commandsForKeyCache();
     }
 
-    private static <K, V extends AccordStateCache.AccordState<K, V>> List<Future<?>> dispatchWrites(Iterable<V> items,
+    private static <K, V extends AccordState<K, V>> List<Future<?>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
                                                                                                     AccordStateCache.Instance<K, V> cache,
                                                                                                     Function<V, Mutation> mutationFunction,
                                                                                                     List<Future<?>> futures)
     {
-        for (V item : items)
+        for (V item : ctxGroup.items.values())
         {
             if (!item.hasModifications())
                 continue;
@@ -91,12 +93,12 @@ public class AsyncWriter
     {
         List<Future<?>> futures = null;
 
-        futures = dispatchWrites(context.commands.values(),
+        futures = dispatchWrites(context.commands,
                                  commandStore.commandCache(),
                                  AccordKeyspace::getCommandMutation,
                                  futures);
 
-        futures = dispatchWrites(context.keyCommands.values(),
+        futures = dispatchWrites(context.commandsForKey,
                                  commandStore.commandsForKeyCache(),
                                  AccordKeyspace::getCommandsForKeyMutation,
                                  futures);
@@ -135,34 +137,36 @@ public class AsyncWriter
         });
     }
 
+    private static <K, V extends AccordState<K, V>>
+            AccordState<K, V> getForDenormalization(K key,
+                                                    AccordCommandStore commandStore,
+                                                    AsyncContext.Group<K, V> ctxGroup,
+                                                    AccordStateCache.Instance<K, V> cache,
+                                                    BiFunction<AccordCommandStore, K, AccordStateCache.WriteOnly<K, V>> factory,
+                                                    Map<K, V> addToCtx)
+    {
+        V item = ctxGroup.get(key);
+        if (item != null)
+            return item;
+
+        item = cache.getOrNull(key);
+        if (item != null)
+        {
+            addToCtx.put(key, item);
+            return item;
+        }
+
+        return ctxGroup.getOrCreateWriteOnly(key, factory, commandStore);
+    }
+
     private AccordCommand commandForDenormalization(TxnId txnId, AsyncContext context, Map<TxnId, AccordCommand> addToCtx)
     {
-        AccordCommand command = context.command(txnId);
-        if (command != null)
-            return command;
-
-        command = commandCache.getOrNull(txnId);
-        if (command != null)
-        {
-            addToCtx.put(txnId, command);
-            return command;
-        }
-        return context.getOrCreateWriteOnlyCommand(txnId, commandStore);
+        return (AccordCommand) getForDenormalization(txnId, commandStore, context.commands, commandCache, AccordCommand.WriteOnly::new, addToCtx);
     }
 
     private AccordCommandsForKey cfkForDenormalization(PartitionKey key, AsyncContext context, Map<PartitionKey, AccordCommandsForKey> addToCtx)
     {
-        AccordCommandsForKey cfk = context.commandsForKey(key);
-        if (cfk != null)
-            return cfk;
-
-        cfk = cfkCache.getOrNull(key);
-        if (cfk != null)
-        {
-            addToCtx.put(key, cfk);
-            return cfk;
-        }
-        return context.getOrCreateWriteOnlyCFK(key, commandStore);
+        return (AccordCommandsForKey) getForDenormalization(key, commandStore, context.commandsForKey, cfkCache, AccordCommandsForKey.WriteOnly::new, addToCtx);
     }
 
     private void denormalize(AccordCommand command, AsyncContext context)
@@ -193,13 +197,19 @@ public class AsyncWriter
             }
         }
 
-        context.commands.putAll(addCmdToCtx);
-        context.keyCommands.putAll(addCfkToCtx);
+        context.commands.items.putAll(addCmdToCtx);
+        context.commandsForKey.items.putAll(addCfkToCtx);
     }
 
     private void denormalize(AsyncContext context)
     {
-        context.commands.values().forEach(command -> denormalize(command, context));
+        context.commands.items.values().forEach(command -> denormalize(command, context));
+    }
+
+    private static void confirmNoSummaryChanges(AsyncContext context)
+    {
+        context.commands.summaries.values().forEach(summary -> Preconditions.checkState(!summary.hasModifications(),
+                                                                                        "Summaries cannot be modified"));
     }
 
     public boolean save(AsyncContext context, BiConsumer<Object, Throwable> callback)
@@ -213,8 +223,7 @@ public class AsyncWriter
                 case INITIALIZED:
                     state = State.SETUP;
                 case SETUP:
-                    context.summaries.values().forEach(summary -> Preconditions.checkState(!summary.hasModifications(),
-                                                                                           "Summaries cannot be modified"));
+                    confirmNoSummaryChanges(context);
                     denormalize(context);
                     if (writeFuture == null)
                         writeFuture = maybeDispatchWrites(context);

@@ -124,15 +124,15 @@ public class CommandSummaries
             Version version = deserializeVersion(in);
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version.msg_version);
             AsyncContext context = commandStore.getContext();
-            AccordCommand command = context.command(txnId);
+            AccordCommand command = context.commands.get(txnId);
             if (command != null)
                 return command;
 
-            command = context.summary(txnId);
+            command = context.commands.summary(txnId);
             if (command == null)
                 command = new AccordCommand(commandStore, txnId);
 
-            context.addSummary(command);
+            context.commands.addSummary(command);
             if (command.isLoaded())
                 return command;
 
