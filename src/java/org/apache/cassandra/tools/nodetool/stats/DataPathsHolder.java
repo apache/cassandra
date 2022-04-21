@@ -23,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static com.google.common.base.Throwables.getStackTraceAsString;
+
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.tools.NodeProbe;
 
@@ -53,8 +55,12 @@ public class DataPathsHolder implements StatsHolder
             {
                 dataPaths = entry.getValue().getDataPaths();
             }
-            catch (IOException ex)
+            catch (IOException e)
             {
+                probe.output().err.println("Failed to get data paths for " + keyspaceName + '.' + tableName + ". Skipped.");
+                probe.output().err.println("error: " + e.getMessage());
+                probe.output().err.println("-- StackTrace --");
+                probe.output().err.println(getStackTraceAsString(e));
                 continue;
             }
 

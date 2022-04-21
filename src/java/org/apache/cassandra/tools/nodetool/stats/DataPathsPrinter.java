@@ -18,6 +18,7 @@
 package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -35,28 +36,30 @@ public class DataPathsPrinter<T extends StatsHolder>
 
     public static class DefaultPrinter implements StatsPrinter<DataPathsHolder>
     {
-
         @Override
         public void print(DataPathsHolder data, PrintStream out)
         {
-            Map<String, List<String>> ksPaths = null;
+            Iterator<Map.Entry<String, Object>> iterator = data.pathsHash.entrySet().iterator();
 
-            for (String keyspace : data.pathsHash.keySet())
+            while (iterator.hasNext())
             {
-                if (ksPaths != null)
-                    out.println("----------------");
+                Map.Entry<String, Object> entry = iterator.next();
 
-                out.println("Keyspace : " + keyspace);
-                ksPaths = (Map<String, List<String>>) data.pathsHash.get(keyspace);
-                for (String table : ksPaths.keySet())
+                out.println("Keyspace : " + entry.getKey());
+                Map<String, List<String>> ksPaths = (Map<String, List<String>>) entry.getValue();
+                for (Map.Entry<String, List<String>> table : ksPaths.entrySet())
                 {
-                    out.println("\tTable : " + table);
+                    out.println("\tTable : " + table.getKey());
                     out.println("\tPaths :");
-                    for (String path : ksPaths.get(table))
+
+                    for (String path : table.getValue())
                         out.println("\t\t" + path);
 
                     out.println("");
                 }
+
+                if (iterator.hasNext())
+                    out.println("----------------");
             }
         }
     }
