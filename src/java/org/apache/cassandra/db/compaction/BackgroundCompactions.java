@@ -103,12 +103,14 @@ public class BackgroundCompactions
         // Then add all the pending aggregates
         for (CompactionAggregate aggregate : pending)
         {
-            CompactionAggregate prev = aggregatesMap.put(aggregate.getKey(), aggregate);
+            CompactionAggregate prev = aggregatesMap.get(aggregate.getKey());
             if (logger.isTraceEnabled())
-                logger.trace("Adding new pending aggregate: {}", aggregate);
+                logger.trace("Adding new pending aggregate: prev={}, current={}", prev, aggregate);
 
-            if (prev != null)
-                throw new IllegalArgumentException("Received pending aggregates with non unique keys: " + prev.getKey());
+            if (prev == null)
+                aggregatesMap.put(aggregate.getKey(), aggregate);
+            else
+                aggregatesMap.put(aggregate.getKey(), prev.withAdditionalCompactions(aggregate.getActive()));
         }
 
         // Then add the old aggregates but only if they have ongoing compactions
