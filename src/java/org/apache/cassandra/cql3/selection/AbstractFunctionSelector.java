@@ -29,7 +29,6 @@ import com.google.common.collect.Iterables;
 
 import org.apache.commons.lang3.text.StrBuilder;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -58,13 +57,11 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         {
             FunctionName name = new FunctionName(in.readUTF(), in.readUTF());
 
-            KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
-
             int numberOfArguments = (int) in.readUnsignedVInt();
             List<AbstractType<?>> argTypes = new ArrayList<>(numberOfArguments);
             for (int i = 0; i < numberOfArguments; i++)
             {
-                argTypes.add(readType(keyspace, in));
+                argTypes.add(readType(metadata, in));
             }
 
             Optional<Function> optional = Schema.instance.findFunction(name, argTypes);

@@ -251,6 +251,8 @@ public abstract class TimeFcts
                                  AbstractType<?>... argsType)
          {
              super("floor", returnType, argsType);
+             // The function can accept either 2 parameters (time and duration) or 3 parameters (time, duration and startTime)r
+             assert argsType.length == 2 || argsType.length == 3; 
          }
 
          @Override

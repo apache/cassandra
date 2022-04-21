@@ -166,6 +166,15 @@ public class DurationTest
     }
 
     @Test
+    public void testFloorTime()
+    {
+        long time = floorTime("16:12:00", "2h");
+        Duration result = Duration.newInstance(0, 0, time);
+        Duration expected = Duration.from("16h");
+        assertEquals(expected, result);
+    }
+
+    @Test
     public void testInvalidFloorTimestamp()
     {
         try
