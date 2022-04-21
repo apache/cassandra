@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -27,7 +28,6 @@ import java.util.function.Function;
 import com.google.common.base.Preconditions;
 
 import accord.api.Key;
-import accord.local.Status;
 import accord.txn.TxnId;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
@@ -36,16 +36,12 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
-import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
-
-import static accord.local.Status.Committed;
 
 public class AsyncWriter
 {
@@ -109,7 +105,7 @@ public class AsyncWriter
 
     private void denormalizeBlockedOn(AccordCommand command,
                                       AsyncContext context,
-                                      Function<AccordCommand, StoredNavigableMap<TxnId, ?>> waitingField,
+                                      Function<AccordCommand, StoredNavigableMap<TxnId, ByteBuffer>> waitingField,
                                       Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
     {
         StoredNavigableMap<TxnId, ?> waitingOn = waitingField.apply(command);
@@ -126,6 +122,19 @@ public class AsyncWriter
         });
     }
 
+    private void denormalizeWaitingOnSummaries(AccordCommand command,
+                                               AsyncContext context,
+                                               ByteBuffer summary,
+                                               Function<AccordCommand, StoredNavigableMap<TxnId, ByteBuffer>> waitingField,
+                                               Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
+    {
+        blockingField.apply(command).getView().forEach(blockingId -> {
+            AccordCommand blocking = commandCache.getOrCreate(blockingId);
+            waitingField.apply(blocking).blindPut(command.txnId(), summary.duplicate());
+            context.maybeAddDenormalizedCommand(blocking);
+        });
+    }
+
     private void denormalize(AccordCommand command, AsyncContext context)
     {
         if (CommandSummaries.commandsPerKey.needsUpdate(command))
@@ -138,25 +147,18 @@ public class AsyncWriter
             }
         }
 
+        // notify commands we're waiting on that they need to update the summaries in our maps
         if (command.waitingOnCommit.hasModifications())
-        {
-
-            command.waitingOnCommit.forEachDeletion(deletedId -> {
-                AccordCommand blockedOn = commandCache.getOrCreate(deletedId);
-                blockedOn.blockingCommitOn.blindRemove(command.txnId());
-                context.maybeAddDenormalizedCommand(blockedOn);
-            });
-
-            command.waitingOnCommit.forEachAddition((addedId, unused) -> {
-                AccordCommand blockedOn = commandCache.getOrCreate(addedId);
-                blockedOn.blockingCommitOn.blindAdd(command.txnId());
-                context.maybeAddDenormalizedCommand(blockedOn);
-            });
-        }
-//            denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
-
+            denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
         if (command.waitingOnApply.hasModifications())
             denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
+
+        if (command.shouldUpdateDenormalizedWaitingOn())
+        {
+            ByteBuffer summary = CommandSummaries.waitingOn.serialize(command);
+            denormalizeWaitingOnSummaries(command, context, summary, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
+            denormalizeWaitingOnSummaries(command, context, summary, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
+        }
     }
 
     private void denormalize(AsyncContext context)

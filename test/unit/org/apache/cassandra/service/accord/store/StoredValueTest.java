@@ -62,4 +62,22 @@ public class StoredValueTest
         // value is unloaded again, read should fail
         assertISE(() -> value.get());
     }
+
+    @Test
+    public void historyPreservingTest()
+    {
+        StoredValue.HistoryPreserving<Integer> value = new StoredValue.HistoryPreserving<>();
+        value.load(5);
+
+        Assert.assertEquals(Integer.valueOf(5), value.get());
+        Assert.assertEquals(Integer.valueOf(5), value.previous());
+
+        value.set(6);
+        Assert.assertEquals(Integer.valueOf(6), value.get());
+        Assert.assertEquals(Integer.valueOf(5), value.previous());
+
+        value.clearModifiedFlag();
+        Assert.assertEquals(Integer.valueOf(6), value.get());
+        Assert.assertEquals(Integer.valueOf(6), value.previous());
+    }
 }

@@ -61,13 +61,16 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     public final StoredValue<Writes> writes = new StoredValue<>();
     public final StoredValue<Result> result = new StoredValue<>();
 
-    public final StoredValue<Status> status = new StoredValue<>();
+    public final StoredValue.HistoryPreserving<Status> status = new StoredValue.HistoryPreserving<>();
 
     public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnCommit = new StoredNavigableMap<>();
     public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnApply = new StoredNavigableMap<>();
 
     public final StoredSet.DeterministicIdentity<ListenerProxy> storedListeners = new StoredSet.DeterministicIdentity<>();
     private final Listeners transientListeners = new Listeners();
+
+    public final StoredSet.Navigable<TxnId> blockingCommitOn = new StoredSet.Navigable<>();
+    public final StoredSet.Navigable<TxnId> blockingApplyOn = new StoredSet.Navigable<>();
 
     public AccordCommand(AccordCommandStore commandStore, TxnId txnId)
     {
@@ -221,6 +224,13 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         return size;
     }
 
+    public boolean shouldUpdateDenormalizedWaitingOn()
+    {
+        if (blockingCommitOn.getView().isEmpty() && blockingApplyOn.getView().isEmpty())
+            return false;
+        return CommandSummaries.waitingOn.needsUpdate(this);
+    }
+
     @Override
     public TxnId txnId()
     {
@@ -278,6 +288,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     @Override
     public void executeAt(Timestamp timestamp)
     {
+        Preconditions.checkState(!status().hasBeen(Status.Committed));
         this.executeAt.set(timestamp);
     }
 

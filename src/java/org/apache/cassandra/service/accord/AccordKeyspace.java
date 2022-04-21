@@ -139,8 +139,8 @@ public class AccordKeyspace
               + format("waiting_on_commit map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
               + format("waiting_on_apply map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
               + "listeners set<blob>, "
-//              + format("blocking_commit_on set<%s>, ", TIMESTAMP_TUPLE)
-//              + format("blocking_apply_on set<%s>, ", TIMESTAMP_TUPLE)
+              + format("blocking_commit_on set<%s>, ", TIMESTAMP_TUPLE)
+              + format("blocking_apply_on set<%s>, ", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_generation, store_index, txn_id))"
               + ')');
 
@@ -174,6 +174,8 @@ public class AccordKeyspace
         static final ColumnMetadata waiting_on_commit = getColumn(Commands, "waiting_on_commit");
         static final ColumnMetadata waiting_on_apply = getColumn(Commands, "waiting_on_apply");
         static final ColumnMetadata listeners = getColumn(Commands, "listeners");
+        static final ColumnMetadata blocking_commit_on = getColumn(Commands, "blocking_commit_on");
+        static final ColumnMetadata blocking_apply_on = getColumn(Commands, "blocking_apply_on");
     }
 
     private static final TableMetadata CommandsForKey =
@@ -384,7 +386,6 @@ public class AccordKeyspace
     {
         try
         {
-
             Preconditions.checkArgument(command.hasModifications());
 
             // TODO: convert to byte arrays
@@ -397,7 +398,6 @@ public class AccordKeyspace
             int version = MessagingService.current_version;
             ByteBuffer versionBytes = accessor.valueOf(version);
 
-            // TODO: duplicate into commands for key
             if (command.status.hasModifications())
                 builder.addCell(live(CommandsColumns.status, timestampMicros, accessor.valueOf(command.status.get().ordinal())));
 
@@ -441,11 +441,25 @@ public class AccordKeyspace
                                     AccordKeyspace::serializeTimestamp, bytes -> bytes);
             }
 
+            if (command.blockingCommitOn.hasModifications())
+            {
+                addStoredSetChanges(builder, CommandsColumns.blocking_commit_on,
+                                    timestampMicros, nowInSeconds, command.blockingApplyOn,
+                                    AccordKeyspace::serializeTimestamp);
+            }
+
             if (command.waitingOnApply.hasModifications())
             {
                 addStoredMapChanges(builder, CommandsColumns.waiting_on_apply,
                                     timestampMicros, nowInSeconds, command.waitingOnApply,
                                     AccordKeyspace::serializeTimestamp, bytes -> bytes);
+            }
+
+            if (command.blockingApplyOn.hasModifications())
+            {
+                addStoredSetChanges(builder, CommandsColumns.blocking_apply_on,
+                                    timestampMicros, nowInSeconds, command.blockingApplyOn,
+                                    AccordKeyspace::serializeTimestamp);
             }
 
             if (command.storedListeners.hasModifications())
@@ -672,7 +686,7 @@ public class AccordKeyspace
         return cell.accessor().toBuffer(cell.value());
     }
 
-    // TODO: convert to array
+    // TODO: convert to byte array
     private static ByteBuffer cellValue(Row row, ColumnMetadata column)
     {
         Cell<?> cell = row.getCell(column);

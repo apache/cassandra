@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
+import accord.local.Status;
 import accord.txn.Timestamp;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
@@ -232,6 +233,22 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         if (maxTimestamp.get().compareTo(timestamp) >= 0)
             return;
         maxTimestamp.set(timestamp);
+    }
+
+    public void updateSummaries(AccordCommand command)
+    {
+        if (command.status.get().hasBeen(Status.Committed))
+        {
+            if (!command.status.previous().hasBeen(Status.Committed))
+                uncommitted.map.blindRemove(command.txnId());
+
+            committedById.map.blindPut(command.txnId(), CommandSummaries.commandsPerKey.serialize(command));
+            committedByExecuteAt.map.blindPut(command.executeAt(), CommandSummaries.commandsPerKey.serialize(command));
+        }
+        else
+        {
+            uncommitted.map.blindPut(command.txnId(), CommandSummaries.commandsPerKey.serialize(command));
+        }
     }
 
     @Override
