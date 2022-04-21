@@ -933,6 +933,10 @@ public class CompactionManager implements CompactionManagerMBean
     {
         Callable<CompactionTasks> taskCreator = () -> {
             Collection<SSTableReader> sstables = sstablesFn.get();
+            // make sure that the predicate includes these sstables
+            List<SSTableReader> sstablesNotInPredicate = sstables.stream().filter(a -> ! sstablesPredicate.test(a)).collect(Collectors.toList());
+            assert sstablesNotInPredicate.isEmpty() : String.format("Attempted to force compact %s, but predicate does not include", sstablesNotInPredicate);
+
             if (sstables == null || sstables.isEmpty())
             {
                 logger.debug("No sstables found for the provided token range");
