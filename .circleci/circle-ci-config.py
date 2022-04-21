@@ -183,7 +183,7 @@ def main():
 # limitations under the License.
 
 """)
-            yaml.dump(contents, r, Dumper=NoAliasDumper)
+            yaml.dump(contents, r, Dumper=NoAliasDumper, sort_keys=False)
 
     if args.stdout:
         writeout(sys.stdout)
