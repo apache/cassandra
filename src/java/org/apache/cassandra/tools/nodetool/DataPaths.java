@@ -27,7 +27,6 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.DataPathsHolder;
 import org.apache.cassandra.tools.nodetool.stats.DataPathsPrinter;
-import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 
 @Command(name = "datapaths", description = "Print all directories where data of tables are stored")
@@ -47,8 +46,8 @@ public class DataPaths extends NodeToolCmd
             throw new IllegalArgumentException("arguments for -F are yaml and json only.");
         }
 
-        StatsHolder holder = new DataPathsHolder(probe, tableNames);
-        StatsPrinter printer = DataPathsPrinter.from(outputFormat);
+        DataPathsHolder holder = new DataPathsHolder(probe, tableNames);
+        StatsPrinter<DataPathsHolder> printer = DataPathsPrinter.from(outputFormat);
         printer.print(holder, probe.output().out);
     }
 }

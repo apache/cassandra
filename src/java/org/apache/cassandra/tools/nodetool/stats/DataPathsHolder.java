@@ -28,21 +28,19 @@ import org.apache.cassandra.tools.NodeProbe;
 
 public class DataPathsHolder implements StatsHolder
 {
-    public final Map<String, Object> pathsHash;
+    public final Map<String, Object> pathsHash = new HashMap<>();
 
     public DataPathsHolder(NodeProbe probe, List<String> tableNames)
     {
-        this.pathsHash = new HashMap();
-
-        Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> tableMBeans = probe.getColumnFamilyStoreMBeanProxies();
-        while (tableMBeans.hasNext())
+        Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> mbeansIterator = probe.getColumnFamilyStoreMBeanProxies();
+        while (mbeansIterator.hasNext())
         {
-            Map.Entry<String, ColumnFamilyStoreMBean> entry = tableMBeans.next();
+            Map.Entry<String, ColumnFamilyStoreMBean> entry = mbeansIterator.next();
             String keyspaceName = entry.getKey();
             String tableName = entry.getValue().getTableName();
 
             if (!(tableNames.isEmpty() || 
-                  tableNames.contains(keyspaceName + "." + tableName) || 
+                  tableNames.contains(keyspaceName + '.' + tableName) || 
                   tableNames.contains(keyspaceName) ))
             {
                 continue;
@@ -66,7 +64,7 @@ public class DataPathsHolder implements StatsHolder
             }
             else
             {
-                ksPaths = new HashMap();
+                ksPaths = new HashMap<>();
                 pathsHash.put(keyspaceName, ksPaths);
             }
             ksPaths.put(tableName, dataPaths);
@@ -76,6 +74,6 @@ public class DataPathsHolder implements StatsHolder
     @Override
     public Map<String, Object> convert2Map()
     {
-        return this.pathsHash;
+        return pathsHash;
     }
 }

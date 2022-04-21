@@ -23,40 +23,40 @@ import java.util.Map;
 
 public class DataPathsPrinter<T extends StatsHolder>
 {
-    public static <T extends StatsHolder> StatsPrinter<T> from (String format)
+    public static StatsPrinter<DataPathsHolder> from(String format)
     {
-        switch(format)
-        {
-            case "json":
-                return new StatsPrinter.JsonPrinter<T>();
-            case "yaml":
-                return new StatsPrinter.YamlPrinter<T>();
-            default:
-                return (StatsPrinter<T>) new DefaultPrinter();
-        }
+        if ("json".equals(format))
+            return new StatsPrinter.JsonPrinter<>();
+        if ("yaml".equals(format))
+            return new StatsPrinter.YamlPrinter<>();
+
+        return new DefaultPrinter();
     }
-    
+
     public static class DefaultPrinter implements StatsPrinter<DataPathsHolder>
     {
 
         @Override
         public void print(DataPathsHolder data, PrintStream out)
         {
+            Map<String, List<String>> ksPaths = null;
+
             for (String keyspace : data.pathsHash.keySet())
             {
+                if (ksPaths != null)
+                    out.println("----------------");
+
                 out.println("Keyspace : " + keyspace);
-                Map<String, List<String>> ksPaths = (Map<String, List<String>>) data.pathsHash.get(keyspace);
+                ksPaths = (Map<String, List<String>>) data.pathsHash.get(keyspace);
                 for (String table : ksPaths.keySet())
                 {
                     out.println("\tTable : " + table);
                     out.println("\tPaths :");
                     for (String path : ksPaths.get(table))
-                    {
                         out.println("\t\t" + path);
-                    }
+
                     out.println("");
                 }
-                out.println("----------------");
             }
         }
     }

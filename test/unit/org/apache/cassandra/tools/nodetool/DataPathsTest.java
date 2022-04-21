@@ -44,7 +44,8 @@ public class DataPathsTest extends CQLTester
         tool.assertOnCleanExit();
         
         String help = "NAME\n" +
-                      "        nodetool datapaths - Print paths where the table data is stored in\n" +
+                      "        nodetool datapaths - Print all directories where data of tables are\n" +
+                      "        stored\n" +
                       "\n" +
                       "SYNOPSIS\n" +
                       "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
