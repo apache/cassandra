@@ -39,6 +39,7 @@ import org.mockito.MockitoAnnotations;
 
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -122,17 +123,33 @@ public class BackgroundCompactionsTest
         backgroundCompactions.setPending(strategyContainer, null);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testDuplicatePendingCompactions()
+    @Test
+    public void testDuplicatePendingCompactionsAreMerged()
     {
         BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
 
         List<CompactionAggregate> pending = new ArrayList<>(0);
+        CompactionAggregate prev = null;
         for (int i = 0; i < 5; i++)
-            pending.add(mockAggregate(1, 1, 0));
+        {
+            CompactionAggregate aggregate = mockAggregate(1, 1, 0);
+            pending.add(aggregate);
 
-        // Two compactions with the same key are invalid
+            if (prev != null)
+            {
+                CompactionAggregate combinedAggregate = mockAggregate(1, i + 1, 0);
+                when(prev.withAdditionalCompactions(anyCollection())).thenReturn(combinedAggregate);
+            }
+
+
+            prev = aggregate;
+        }
+
+        // Compactions with the same key are merged
         backgroundCompactions.setPending(strategyContainer, pending);
+
+        assertEquals(pending.size(), backgroundCompactions.getEstimatedRemainingTasks());
+        assertEquals(pending.size(), backgroundCompactions.getTotalCompactions());
     }
 
     @Test

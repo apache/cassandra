@@ -493,6 +493,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         final CompactionLimits limits = getCurrentLimits(controller.maxConcurrentCompactions());
 
         List<CompactionAggregate.UnifiedAggregate> pending = getPendingCompactionAggregates(limits.spaceAvailable, gcBefore);
+        setPendingCompactionAggregates(pending);
+
         for (CompactionAggregate.UnifiedAggregate aggregate : pending)
         {
             // The space overhead limit also applies when a single compaction is above that limit. This should
@@ -546,6 +548,26 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         return getPendingCompactionAggregates(controller.maxCompactionSpaceBytes(), gcBefore);
     }
 
+    /**
+     * Set the compaction aggregates passed in as pending in {@link BackgroundCompactions}. This ensures
+     * that the compaction statistics will be accurate.
+     * <p/>
+     * This is called by {@link UnifiedCompactionStrategy#getNextCompactionAggregates(int)}
+     * and externally after calling {@link UnifiedCompactionStrategy#getPendingCompactionAggregates(int)} 
+     * or before submitting tasks.
+     *
+     * Also, note that skipping the call to {@link BackgroundCompactions#setPending(CompactionStrategy, Collection)}
+     * would result in memory leaks: the aggregates added in {@link BackgroundCompactions#setSubmitted(CompactionStrategy, UUID, CompactionAggregate)}
+     * would never be removed, and the aggregates hold references to the compaction tasks, so they retain a significant
+     * size of heap memory.
+     *
+     * @param pending the aggregates that should be set as pending compactions
+     */
+    public void setPendingCompactionAggregates(Collection<? extends CompactionAggregate> pending)
+    {
+        backgroundCompactions.setPending(this, pending);
+    }
+
     private List<CompactionAggregate.UnifiedAggregate> getPendingCompactionAggregates(long spaceAvailable, int gcBefore)
     {
         maybeUpdateSelector();
@@ -578,8 +600,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             }
         }
 
-        // Update the tracked background tasks.
-        backgroundCompactions.setPending(this, pending);
         return pending;
     }
 
