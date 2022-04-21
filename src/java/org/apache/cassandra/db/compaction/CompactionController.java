@@ -34,7 +34,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.OverlapIterator;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -255,10 +254,7 @@ public class CompactionController extends AbstractCompactionController
 
         for (SSTableReader sstable: filteredSSTables)
         {
-            // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
-            // we check index file instead.
-            if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null
-                || sstable.getBloomFilter().isPresent(key))
+            if (sstable.maybePresent(key))
             {
                 minTimestampSeen = Math.min(minTimestampSeen, sstable.getMinTimestamp());
                 hasTimestamp = true;

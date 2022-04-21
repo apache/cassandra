@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
@@ -45,8 +46,11 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.utils.Pair;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.util.Lists;
+import org.assertj.core.util.Strings;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -454,6 +458,55 @@ public class ToolRunner
         {
             assertOnExitCode();
             assertCleanStdErr();
+        }
+
+        public AssertHelp asserts()
+        {
+            return new AssertHelp();
+        }
+
+        public final class AssertHelp
+        {
+            public AssertHelp success()
+            {
+                if (exitCode != 0)
+                    fail("was not successful");
+                return this;
+            }
+
+            public AssertHelp failure()
+            {
+                if (exitCode == 0)
+                    fail("was not successful");
+                return this;
+            }
+
+            public AssertHelp errorContains(String messages)
+            {
+                return errorContainsAny(messages);
+            }
+
+            public AssertHelp errorContainsAny(String... messages)
+            {
+                assertThat(messages).hasSizeGreaterThan(0);
+                assertThat(stderr).isNotNull();
+                if (!Stream.of(messages).anyMatch(stderr::contains))
+                    fail("stderr does not contain " + Arrays.toString(messages));
+                return this;
+            }
+
+            private void fail(String msg)
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.append("nodetool command ").append(String.join(" ", allArgs)).append(": ").append(msg).append('\n');
+                if (stdout != null)
+                    sb.append("stdout:\n").append(stdout).append('\n');
+                if (stderr != null)
+                    sb.append("stderr:\n").append(stderr).append('\n');
+                if (e != null)
+                    sb.append("Exception:\n").append(Throwables.getStackTraceAsString(e)).append('\n');
+                throw new AssertionError(sb.toString());
+            }
         }
     }
 
