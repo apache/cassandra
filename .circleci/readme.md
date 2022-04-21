@@ -96,10 +96,13 @@ Read below for details how to generate the files manually without the `generate.
    `circleci config process config-2_1.yml > config.yml.LOWRES`
 3. add the Apache license header to the newly created LOWRES file:
    `cat license.yml config.yml.LOWRES > config.yml.LOWRES.new && mv config.yml.LOWRES.new config.yml.LOWRES`
-4. then apply the highres changes to config-2_1.yml;
-   `./circle-ci-config.py HIGHRES --stdout > config-2_1.yml.HIGHRES`
+4. then apply the highres patch to config-2_1.yml;
+   `patch -o config-2_1.yml.HIGHRES config-2_1.yml config-2_1.yml.high_res.patch`
    (this creates a new file `config-2_1.yml.HIGHRES` instead of in-place patching
    config-2_1.yml)
+   Note that if the patch no longer applies to `config-2_1.yml` a new patch file
+   is needed, do this by manually making `config-2_1.yml` high resource and create
+   the patch file based on the diff (don't commit it though).
 5. generate the HIGHRES file:
    `circleci config process config-2_1.yml.HIGHRES > config.yml.HIGHRES`
 6. remove the temporary patched HIGHRES file: `rm config-2_1.yml.HIGHRES`
@@ -107,7 +110,7 @@ Read below for details how to generate the files manually without the `generate.
    `cat license.yml config.yml.HIGHRES > config.yml.HIGHRES.new && mv config.yml.HIGHRES.new config.yml.HIGHRES`
 8. repeat the last steps to generate the MIDRES file:
    ```
-   ./circle-ci-config.py MIDRES --stdout > config-2_1.yml.MIDRES
+   patch -o config-2_1.yml.MIDRES config-2_1.yml config-2_1.yml.mid_res.patch
    circleci config process config-2_1.yml.MIDRES > config.yml.MIDRES
    rm config-2_1.yml.MIDRES
    cat license.yml config.yml.MIDRES > config.yml.MIDRES.new && mv config.yml.MIDRES.new config.yml.MIDRES

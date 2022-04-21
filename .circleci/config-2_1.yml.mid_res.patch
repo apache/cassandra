@@ -1,0 +1,137 @@
+104,105c104,105
+<     #exec_resource_class: xlarge
+<   parallelism: 4
+---
+>     exec_resource_class: medium
+>   parallelism: 25
+110,111c110,111
+<     #exec_resource_class: xlarge
+<   parallelism: 1
+---
+>     exec_resource_class: large
+>   parallelism: 10
+122,123c122,135
+<     #exec_resource_class: xlarge
+<   parallelism: 1
+---
+>     exec_resource_class: large
+>   parallelism: 4
+> 
+> j8_large_par_executor: &j8_large_par_executor
+>   executor:
+>     name: java8-executor
+>     exec_resource_class: large
+>   parallelism: 50
+> 
+> j8_very_large_par_executor: &j8_very_large_par_executor
+>   executor:
+>     name: java8-executor
+>     exec_resource_class: xlarge
+>   parallelism: 100
+128c140
+<     #exec_resource_class: xlarge
+---
+>     exec_resource_class: medium
+134,135c146,147
+<     #exec_resource_class: xlarge
+<   parallelism: 4
+---
+>     exec_resource_class: medium
+>   parallelism: 25
+140,141c152,153
+<     #exec_resource_class: xlarge
+<   parallelism: 1
+---
+>     #exec_resource_class: large
+>   parallelism: 10
+148a161,166
+> j11_large_par_executor: &j11_large_par_executor
+>   executor:
+>     name: java11-executor
+>     exec_resource_class: large
+>   parallelism: 50
+> 
+152c170,171
+<   parallelism: 4
+---
+>     exec_resource_class: medium
+>   parallelism: 25
+157c176,177
+<   parallelism: 4
+---
+>     exec_resource_class: large
+>   parallelism: 25
+162c182,183
+<   parallelism: 4
+---
+>     exec_resource_class: xlarge
+>   parallelism: 25
+167c188,189
+<   parallelism: 4
+---
+>     exec_resource_class: large
+>   parallelism: 25
+172c194,195
+<   parallelism: 4
+---
+>     exec_resource_class: medium
+>   parallelism: 25
+177c200,201
+<   parallelism: 4
+---
+>     exec_resource_class: large
+>   parallelism: 25
+833c857
+<     <<: *j8_par_executor
+---
+>     <<: *j8_large_par_executor
+847c871
+<     <<: *j11_par_executor
+---
+>     <<: *j11_large_par_executor
+862c886
+<     <<: *j8_par_executor
+---
+>     <<: *j8_large_par_executor
+876c900
+<     <<: *j11_par_executor
+---
+>     <<: *j11_large_par_executor
+891c915
+<     <<: *j8_par_executor
+---
+>     <<: *j8_very_large_par_executor
+905c929
+<     <<: *j8_par_executor
+---
+>     <<: *j8_large_par_executor
+920c944
+<     <<: *j8_par_executor
+---
+>     <<: *j8_large_par_executor
+938c962
+<     <<: *j8_par_executor
+---
+>     <<: *j8_large_par_executor
+953c977
+<     <<: *j8_par_executor
+---
+>     <<: *j8_large_par_executor
+971c995
+<     <<: *j11_par_executor
+---
+>     <<: *j11_large_par_executor
+986c1010
+<     <<: *j11_par_executor
+---
+>     <<: *j11_large_par_executor
+1004c1028
+<     <<: *j11_par_executor
+---
+>     <<: *j11_large_par_executor
+1019c1043
+<     <<: *j11_par_executor
+---
+>     <<: *j11_large_par_executor
+1660a1685
+> 

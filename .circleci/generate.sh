@@ -116,56 +116,49 @@ if $has_env_vars && $check_env_vars; then
   done
 fi
 
-lowers() {
-  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml.LOWRES
-  rm $BASEDIR/config.yml.LOWRES.tmp
-}
-
-midres() {
-  $BASEDIR/circle-ci-config.py MIDRES --stdout > $BASEDIR/config-2_1.yml.MIDRES
-  circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MIDRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml.MIDRES
-  rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
-}
-
-highers() {
-  $BASEDIR/circle-ci-config.py HIGHER --stdout > $BASEDIR/config-2_1.yml.HIGHRES
-  circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml.HIGHRES
-  rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
-}
-
 if $lowres; then
   ($all || $midres || $highres) && die "Cannot use option -l with options -a, -m or -h"
   echo "Generating new config.yml file with low resources from config-2_1.yml"
-  lowers
-  cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
+  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml
+  rm $BASEDIR/config.yml.LOWRES.tmp
 
 elif $midres; then
   ($all || $lowres || $highres) && die "Cannot use option -m with options -a, -l or -h"
   echo "Generating new config.yml file with middle resources from config-2_1.yml"
-  midres
-  cp $BASEDIR/config.yml.MIDRES $BASEDIR/config.yml
+  patch -o $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.mid_res.patch
+  circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MIDRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml
+  rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
 
 elif $highres; then
   ($all || $lowres || $midres) && die "Cannot use option -h with options -a, -l or -m"
   echo "Generating new config.yml file with high resources from config-2_1.yml"
-  highers
-  cp $BASEDIR/config.yml.HIGHRES $BASEDIR/config.yml
+  patch -o $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
+  circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml
+  rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
 
 elif $all; then
   ($lowres || $midres || $highres || $has_env_vars) && die "Cannot use option -a with options -l, -m, -h or -e"
   echo "Generating new config.yml file with low resources and LOWRES/MIDRES/HIGHRES templates from config-2_1.yml"
 
   # setup lowres
-  lowers
+  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml.LOWRES
+  rm $BASEDIR/config.yml.LOWRES.tmp
 
   # setup midres
-  midres
+  patch -o $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.mid_res.patch
+  circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MIDRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml.MIDRES
+  rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
 
   # setup highres
-  highers
+  patch -o $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
+  circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml.HIGHRES
+  rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
 
   # copy lower into config.yml to make sure this gets updated
   cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
