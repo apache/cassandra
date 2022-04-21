@@ -21,7 +21,9 @@ package org.apache.cassandra.service.accord.async;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -48,7 +50,7 @@ public class AsyncWriter
     enum State
     {
         INITIALIZED,
-        DISPATCHING,
+        SETUP,
         SAVING,
         FINISHED
     }
@@ -58,7 +60,6 @@ public class AsyncWriter
     private final AccordCommandStore commandStore;
     AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
     AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCache;
-
 
     public AsyncWriter(AccordCommandStore commandStore)
     {
@@ -105,60 +106,95 @@ public class AsyncWriter
 
     private void denormalizeBlockedOn(AccordCommand command,
                                       AsyncContext context,
+                                      Map<TxnId, AccordCommand> addToCtx,
                                       Function<AccordCommand, StoredNavigableMap<TxnId, ByteBuffer>> waitingField,
                                       Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
     {
         StoredNavigableMap<TxnId, ?> waitingOn = waitingField.apply(command);
         waitingOn.forEachDeletion(deletedId -> {
-            AccordCommand blockedOn = commandCache.getOrCreate(deletedId);
+            AccordCommand blockedOn = commandForDenormalization(deletedId, context, addToCtx);
             blockingField.apply(blockedOn).blindRemove(command.txnId());
-            context.maybeAddDenormalizedCommand(blockedOn);
         });
 
         waitingOn.forEachAddition((addedId, unused) -> {
-            AccordCommand blockedOn = commandCache.getOrCreate(addedId);
+            AccordCommand blockedOn = commandForDenormalization(addedId, context, addToCtx);
             blockingField.apply(blockedOn).blindAdd(command.txnId());
-            context.maybeAddDenormalizedCommand(blockedOn);
         });
     }
 
     private void denormalizeWaitingOnSummaries(AccordCommand command,
                                                AsyncContext context,
+                                               Map<TxnId, AccordCommand> addToCtx,
                                                ByteBuffer summary,
                                                Function<AccordCommand, StoredNavigableMap<TxnId, ByteBuffer>> waitingField,
                                                Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
     {
         blockingField.apply(command).getView().forEach(blockingId -> {
-            AccordCommand blocking = commandCache.getOrCreate(blockingId);
+            AccordCommand blocking = commandForDenormalization(blockingId, context, addToCtx);
             waitingField.apply(blocking).blindPut(command.txnId(), summary.duplicate());
-            context.maybeAddDenormalizedCommand(blocking);
         });
+    }
+
+    private AccordCommand commandForDenormalization(TxnId txnId, AsyncContext context, Map<TxnId, AccordCommand> addToCtx)
+    {
+        AccordCommand command = context.command(txnId);
+        if (command != null)
+            return command;
+
+        command = commandCache.getOrNull(txnId);
+        if (command != null)
+        {
+            addToCtx.put(txnId, command);
+            return command;
+        }
+        return context.getOrCreateWriteOnlyCommand(txnId, commandStore);
+    }
+
+    private AccordCommandsForKey cfkForDenormalization(PartitionKey key, AsyncContext context, Map<PartitionKey, AccordCommandsForKey> addToCtx)
+    {
+        AccordCommandsForKey cfk = context.commandsForKey(key);
+        if (cfk != null)
+            return cfk;
+
+        cfk = cfkCache.getOrNull(key);
+        if (cfk != null)
+        {
+            addToCtx.put(key, cfk);
+            return cfk;
+        }
+        return context.getOrCreateWriteOnlyCFK(key, commandStore);
     }
 
     private void denormalize(AccordCommand command, AsyncContext context)
     {
-        if (CommandSummaries.commandsPerKey.needsUpdate(command))
-        {
-            for (Key key : command.txn().keys())
-            {
-                AccordCommandsForKey cfk = cfkCache.getOrCreate((PartitionKey) key);
-                cfk.updateSummaries(command);
-                context.maybeAddDenormalizedCFK(cfk);
-            }
-        }
+        Map<TxnId, AccordCommand> addCmdToCtx = new HashMap<>();
 
         // notify commands we're waiting on that they need to update the summaries in our maps
         if (command.waitingOnCommit.hasModifications())
-            denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
+            denormalizeBlockedOn(command, context, addCmdToCtx, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
         if (command.waitingOnApply.hasModifications())
-            denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
+            denormalizeBlockedOn(command, context, addCmdToCtx, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
 
         if (command.shouldUpdateDenormalizedWaitingOn())
         {
             ByteBuffer summary = CommandSummaries.waitingOn.serialize(command);
-            denormalizeWaitingOnSummaries(command, context, summary, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
-            denormalizeWaitingOnSummaries(command, context, summary, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
+            denormalizeWaitingOnSummaries(command, context, addCmdToCtx, summary, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
+            denormalizeWaitingOnSummaries(command, context, addCmdToCtx, summary, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
         }
+
+        Map<PartitionKey, AccordCommandsForKey> addCfkToCtx = new HashMap<>();
+        if (CommandSummaries.commandsPerKey.needsUpdate(command))
+        {
+            for (Key key : command.txn().keys())
+            {
+                PartitionKey partitionKey = (PartitionKey) key;
+                AccordCommandsForKey cfk = cfkForDenormalization(partitionKey, context, addCfkToCtx);
+                cfk.updateSummaries(command);
+            }
+        }
+
+        context.commands.putAll(addCmdToCtx);
+        context.keyCommands.putAll(addCfkToCtx);
     }
 
     private void denormalize(AsyncContext context)
@@ -175,10 +211,11 @@ public class AsyncWriter
             switch (state)
             {
                 case INITIALIZED:
-                    state = State.DISPATCHING;
-                case DISPATCHING:
+                    state = State.SETUP;
+                case SETUP:
                     context.summaries.values().forEach(summary -> Preconditions.checkState(!summary.hasModifications(),
                                                                                            "Summaries cannot be modified"));
+                    denormalize(context);
                     if (writeFuture == null)
                         writeFuture = maybeDispatchWrites(context);
 

@@ -25,6 +25,8 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import com.google.common.base.Preconditions;
+
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
@@ -36,10 +38,35 @@ import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordCommandsForKey extends CommandsForKey implements AccordStateCache.AccordState<PartitionKey, AccordCommandsForKey>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordCommandsForKey(null, null));
+
+    public static class WriteOnly extends AccordCommandsForKey implements AccordStateCache.WriteOnly<PartitionKey, AccordCommandsForKey>
+    {
+        private Future<?> future = null;
+
+        public WriteOnly(AccordCommandStore commandStore, PartitionKey key)
+        {
+            super(commandStore, key);
+        }
+
+        @Override
+        public void future(Future<?> future)
+        {
+            Preconditions.checkArgument(this.future == null);
+            this.future = future;
+
+        }
+
+        @Override
+        public Future<?> future()
+        {
+            return future;
+        }
+    }
 
     public enum SeriesKind {
         UNCOMMITTED(Command::txnId),

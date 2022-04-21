@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -46,6 +48,12 @@ public class AccordStateCache
         K key();
         boolean hasModifications();
         void clearModifiedFlag();
+    }
+
+    public interface WriteOnly<K, V extends AccordState<K, V>> extends AccordState<K, V>
+    {
+        void future(Future<?> future);
+        Future<?> future();
     }
 
     static abstract class Node<K, V extends AccordStateCache.AccordState<K, V>>
@@ -104,6 +112,7 @@ public class AccordStateCache
 
     public final Map<Object, Node<?, ?>> active = new HashMap<>();
     private final Map<Object, Node<?, ?>> cache = new HashMap<>();
+    private final Map<Object, List<WriteOnly<?, ?>>> pendingWriteOnly = new HashMap<>();
     private final Set<Instance<?, ?>> instances = new HashSet<>();
 
     private final Map<Object, Future<?>> loadFutures = new HashMap<>();
@@ -224,6 +233,8 @@ public class AccordStateCache
         {
             stats.misses++;
             instanceStats.misses++;
+            if (factory == null)
+                return null;
             V value = factory.apply(key);
             node = value.createNode();
             updateSize(node);
@@ -264,6 +275,59 @@ public class AccordStateCache
             updateSize(node);
         }
         maybeEvict();
+    }
+
+    private static void purgeWriteOnly(List<WriteOnly<?, ?>> list)
+    {
+        for (int i=0, mi=list.size(); i<mi; )
+        {
+            WriteOnly<?, ?> item = list.get(i);
+            if (item.future() != null && item.future().isDone())
+            {
+                list.remove(i);
+                mi--;
+            }
+            else
+            {
+                i++;
+            }
+        }
+    }
+
+    private void purgeWriteOnlyInternal(Object key)
+    {
+        List<WriteOnly<?, ?>> items = pendingWriteOnly.get(key);
+        if (items == null)
+            return;
+
+        purgeWriteOnly(items);
+        if (items.isEmpty())
+            pendingWriteOnly.remove(key);
+    }
+
+    private <K, V extends AccordStateCache.AccordState<K, V>> List<WriteOnly<K, V>> getWriteOnlyInternal(K key)
+    {
+        List<WriteOnly<?, ?>> items = pendingWriteOnly.get(key);
+        if (items == null)
+            return null;
+
+        purgeWriteOnly(items);
+        if (items.isEmpty())
+        {
+            pendingWriteOnly.remove(key);
+            return null;
+        }
+
+        List<WriteOnly<K, V>> result = new ArrayList<>(items.size());
+        for (int i=0, mi=items.size(); i<mi; i++)
+            result.add((WriteOnly<K, V>) items.get(i));
+
+        return result;
+    }
+
+    private <K, V extends AccordStateCache.AccordState<K, V>> void addWriteOnlyInternal(K key, WriteOnly<K, V> value)
+    {
+        pendingWriteOnly.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
     }
 
     private static <K, F extends Future<?>> F getFutureInternal(Map<Object, F> futuresMap, K key)
@@ -328,9 +392,29 @@ public class AccordStateCache
             return getOrCreateInternal(key, factory, stats);
         }
 
+        public V getOrNull(K key)
+        {
+            return getOrCreateInternal(key, null, stats);
+        }
+
         public void release(V value)
         {
             releaseInternal(value);
+        }
+
+        public void addWriteOnly(WriteOnly<K, V> writeOnly)
+        {
+            addWriteOnlyInternal(writeOnly.key(), writeOnly);
+        }
+
+        public List<WriteOnly<K, V>> getWriteOnly(K key)
+        {
+            return getWriteOnlyInternal(key);
+        }
+
+        public void purgeWriteOnly(K key)
+        {
+            purgeWriteOnlyInternal(key);
         }
 
         public Future<?> getLoadFuture(K key)

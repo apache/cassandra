@@ -21,6 +21,8 @@ package org.apache.cassandra.service.accord.async;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.common.base.Preconditions;
+
 import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
@@ -33,8 +35,8 @@ public class AsyncContext
     final Map<TxnId, AccordCommand> summaries = new HashMap<>();
     final Map<PartitionKey, AccordCommandsForKey> keyCommands = new HashMap<>();
 
-    final Map<TxnId, AccordCommand> denormalizedCommands = new HashMap<>();
-    final Map<PartitionKey, AccordCommandsForKey> denormalizedCfks = new HashMap<>();
+    final Map<TxnId, AccordCommand.WriteOnly> writeOnlyCommands = new HashMap<>();
+    final Map<PartitionKey, AccordCommandsForKey.WriteOnly> writeOnlyCFKs = new HashMap<>();
 
     public AccordCommand command(TxnId txnId)
     {
@@ -61,21 +63,35 @@ public class AsyncContext
         return keyCommands.get(key);
     }
 
-    public void maybeAddDenormalizedCommand(AccordCommand command)
+    public void addCommandsForKey(AccordCommandsForKey cfk)
     {
-        if (commands.containsKey(command.txnId()))
-            return;
-
-        denormalizedCommands.put(command.txnId(), command);
+        keyCommands.put(cfk.key(), cfk);
     }
 
-    public void maybeAddDenormalizedCFK(AccordCommandsForKey cfk)
+    public AccordCommand.WriteOnly getOrCreateWriteOnlyCommand(TxnId txnId, AccordCommandStore commandStore)
     {
-        if (keyCommands.containsKey(cfk.key()))
-            return;
-
-        denormalizedCfks.put(cfk.key(), cfk);
+        Preconditions.checkState(!keyCommands.containsKey(txnId));
+        AccordCommand.WriteOnly command = writeOnlyCommands.get(txnId);
+        if (command == null)
+        {
+            command = new AccordCommand.WriteOnly(commandStore, txnId);
+            writeOnlyCommands.put(txnId, command);
+        }
+        return command;
     }
+
+    public AccordCommandsForKey.WriteOnly getOrCreateWriteOnlyCFK(PartitionKey key, AccordCommandStore commandStore)
+    {
+        Preconditions.checkState(!keyCommands.containsKey(key));
+        AccordCommandsForKey.WriteOnly cfk = writeOnlyCFKs.get(key);
+        if (cfk == null)
+        {
+            cfk = new AccordCommandsForKey.WriteOnly(commandStore, key);
+            writeOnlyCFKs.put(key, cfk);
+        }
+        return cfk;
+    }
+
 
     void releaseResources(AccordCommandStore commandStore)
     {

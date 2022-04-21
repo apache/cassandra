@@ -51,6 +51,29 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
 
+    public static class WriteOnly extends AccordCommand implements AccordStateCache.WriteOnly<TxnId, AccordCommand>
+    {
+        private Future<?> future = null;
+
+        public WriteOnly(AccordCommandStore commandStore, TxnId txnId)
+        {
+            super(commandStore, txnId);
+        }
+
+        @Override
+        public void future(Future<?> future)
+        {
+            Preconditions.checkArgument(this.future == null);
+            this.future = future;
+        }
+
+        @Override
+        public Future<?> future()
+        {
+            return future;
+        }
+    }
+
     private final AccordCommandStore commandStore;
     private final TxnId txnId;
     public final StoredValue<Txn> txn = new StoredValue<>();
@@ -94,6 +117,7 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         return this;
     }
 
+    // FIXME: should be able to get rid of this with segregated command classes
     public boolean isLoaded()
     {
         return txn.isLoaded()
