@@ -263,7 +263,8 @@ public class EncryptionOptions
         }
     }
 
-    private void initializeSslContextFactory() {
+    private void initializeSslContextFactory()
+    {
         Map<String,Object> sslContextFactoryParameters = new HashMap<>();
         prepareSslContextFactoryParameterizedKeys(sslContextFactoryParameters);
 
@@ -296,7 +297,8 @@ public class EncryptionOptions
     }
 
     private void putSslContextFactoryParameter(Map<String,Object> existingParameters, ConfigKey configKey,
-                                               Object value) {
+                                               Object value)
+    {
         if (value != null) {
             existingParameters.put(configKey.getKeyName(), value);
         }
@@ -319,7 +321,8 @@ public class EncryptionOptions
      *
      * @return if the channel should be encrypted
      */
-    public Boolean getEnabled() {
+    public Boolean getEnabled()
+    {
         ensureConfigApplied();
         return isEnabled;
     }
@@ -330,7 +333,8 @@ public class EncryptionOptions
      * is probably a bad idea.
      * @param enabled value to set
      */
-    public void setEnabled(Boolean enabled) {
+    public void setEnabled(Boolean enabled)
+    {
         ensureConfigNotApplied();
         this.enabled = enabled;
     }
@@ -356,7 +360,8 @@ public class EncryptionOptions
      * is probably a bad idea.
      * @param optional value to set
      */
-    public void setOptional(Boolean optional) {
+    public void setOptional(Boolean optional)
+    {
         ensureConfigNotApplied();
         this.optional = optional;
     }
@@ -368,7 +373,8 @@ public class EncryptionOptions
      * @param protocol value to set
      */
     @VisibleForTesting
-    public void setProtocol(String protocol) {
+    public void setProtocol(String protocol)
+    {
         this.protocol = protocol;
     }
 
@@ -383,7 +389,8 @@ public class EncryptionOptions
      * is probably a bad idea. The function casing is required for snakeyaml to find this setter for the protected field.
      * @param accepted_protocols value to set
      */
-    public void setAcceptedProtocols(List<String> accepted_protocols) {
+    public void setAcceptedProtocols(List<String> accepted_protocols)
+    {
         this.accepted_protocols = accepted_protocols == null ? null : ImmutableList.copyOf(accepted_protocols);
     }
 
@@ -414,7 +421,8 @@ public class EncryptionOptions
         }
     }
 
-    public EncryptionOptions withSslContextFactory(ParameterizedClass sslContextFactoryClass) {
+    public EncryptionOptions withSslContextFactory(ParameterizedClass sslContextFactoryClass)
+    {
         return new EncryptionOptions(sslContextFactoryClass, keystore, keystore_password, truststore,
                                      truststore_password, cipher_suites,protocol, accepted_protocols, algorithm,
                                      store_type, require_client_auth, require_endpoint_verification,enabled,
