@@ -86,6 +86,17 @@ public class AsyncWriter
             cache.setSaveFuture(item.key(), future);
             futures.add(future);
         }
+
+        for (AccordStateCache.WriteOnly<K, V> item : ctxGroup.writeOnly.values())
+        {
+            Preconditions.checkState(item.hasModifications());
+            if (futures == null) futures = new ArrayList<>();
+            Mutation mutation = mutationFunction.apply((V) item);
+            Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
+            item.future(future);
+            futures.add(future);
+        }
+
         return futures;
     }
 
