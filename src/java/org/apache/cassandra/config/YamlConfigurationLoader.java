@@ -354,10 +354,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             {
                 missingProperties.add(result.getName());
             }
-            else
+            else if (result.getAnnotation(Deprecated.class) != null)
             {
-                if (result.getAnnotation(Deprecated.class) != null)
-                    deprecationWarnings.add(result.getName());
+                deprecationWarnings.add(result.getName());
             }
 
             return new ForwardingProperty(result.getName(), result)
