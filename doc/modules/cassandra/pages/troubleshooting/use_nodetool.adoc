@@ -257,25 +257,25 @@ sstable data on disk.
 [source, bash]
 ---
 % nodetool datapaths -- system_auth
-Keyspace : system_auth
-	Table : role_permissions
-	Paths :
+Keyspace: system_auth
+	Table: role_permissions
+	Paths:
 		/var/lib/cassandra/data/system_auth/role_permissions-3afbe79f219431a7add7f5ab90d8ec9c
 
-	Table : network_permissions
-	Paths :
+	Table: network_permissions
+	Paths:
 		/var/lib/cassandra/data/system_auth/network_permissions-d46780c22f1c3db9b4c1b8d9fbc0cc23
 
-	Table : resource_role_permissons_index
-	Paths :
+	Table: resource_role_permissons_index
+	Paths:
 		/var/lib/cassandra/data/system_auth/resource_role_permissons_index-5f2fbdad91f13946bd25d5da3a5c35ec
 
-	Table : roles
-	Paths :
+	Table: roles
+	Paths:
 		/var/lib/cassandra/data/system_auth/roles-5bc52802de2535edaeab188eecebb090
 
-	Table : role_members
-	Paths :
+	Table: role_members
+	Paths:
 		/var/lib/cassandra/data/system_auth/role_members-0ecdaa87f8fb3e6088d174fb36fe5c0d
 
 ---

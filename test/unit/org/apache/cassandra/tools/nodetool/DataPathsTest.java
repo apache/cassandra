@@ -93,10 +93,10 @@ public class DataPathsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND);
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_schema");
-        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace :")).isGreaterThan(1);
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable :")).isGreaterThan(1);
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths :")).isGreaterThan(1);
+        assertThat(tool.getStdout()).contains("Keyspace: system_schema");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isGreaterThan(1);
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable:")).isGreaterThan(1);
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths:")).isGreaterThan(1);
     }
 
     @Test
@@ -104,10 +104,10 @@ public class DataPathsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "system_traces");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_traces");
-        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace :")).isEqualTo(1);
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable :")).isGreaterThan(1);
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths :")).isGreaterThan(1);
+        assertThat(tool.getStdout()).contains("Keyspace: system_traces");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isEqualTo(1);
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable:")).isGreaterThan(1);
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths:")).isGreaterThan(1);
     }
 
     @Test
@@ -115,11 +115,11 @@ public class DataPathsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "system_traces", "system_auth");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_traces");
-        assertThat(tool.getStdout()).contains("Keyspace : system_auth");
-        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace :")).isEqualTo(2);
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable :")).isGreaterThan(1);
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths :")).isGreaterThan(1);
+        assertThat(tool.getStdout()).contains("Keyspace: system_traces");
+        assertThat(tool.getStdout()).contains("Keyspace: system_auth");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isEqualTo(2);
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable:")).isGreaterThan(1);
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths:")).isGreaterThan(1);
     }
 
     @Test
@@ -127,11 +127,11 @@ public class DataPathsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "system_auth.roles");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_auth");
-        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace :")).isEqualTo(1);
-        assertThat(tool.getStdout()).contains("Table : roles");
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable :")).isEqualTo(1);
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths :")).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("Keyspace: system_auth");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("Table: roles");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable:")).isEqualTo(1);
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths:")).isEqualTo(1);
     }
 
     @Test
@@ -139,12 +139,12 @@ public class DataPathsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "system_auth.roles", "system_auth.role_members");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_auth");
-        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace :")).isEqualTo(1);
-        assertThat(tool.getStdout()).contains("Table : roles");
-        assertThat(tool.getStdout()).contains("Table : role_members");
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable :")).isEqualTo(2);
-        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths :")).isEqualTo(2);
+        assertThat(tool.getStdout()).contains("Keyspace: system_auth");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("Table: roles");
+        assertThat(tool.getStdout()).contains("Table: role_members");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tTable:")).isEqualTo(2);
+        assertThat(StringUtils.countMatches(tool.getStdout(), "\tPaths:")).isEqualTo(2);
     }
 
     @Test

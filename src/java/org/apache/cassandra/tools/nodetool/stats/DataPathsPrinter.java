@@ -45,12 +45,12 @@ public class DataPathsPrinter<T extends StatsHolder>
             {
                 Map.Entry<String, Object> entry = iterator.next();
 
-                out.println("Keyspace : " + entry.getKey());
+                out.println("Keyspace: " + entry.getKey());
                 Map<String, List<String>> ksPaths = (Map<String, List<String>>) entry.getValue();
                 for (Map.Entry<String, List<String>> table : ksPaths.entrySet())
                 {
-                    out.println("\tTable : " + table.getKey());
-                    out.println("\tPaths :");
+                    out.println("\tTable: " + table.getKey());
+                    out.println("\tPaths:");
 
                     for (String path : table.getValue())
                         out.println("\t\t" + path);
