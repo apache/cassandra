@@ -16,6 +16,7 @@
 
 package org.apache.cassandra.cql3;
 
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -53,6 +54,12 @@ public class CompactionOutOfSpaceTest extends CQLTester
         StorageService.instance.registerDaemon(d);
     }
 
+    @AfterClass
+    public static void tearDownClass()
+    {
+        StorageService.instance.registerDaemon(null);
+    }
+
     @Before
     public void setup()
     {
@@ -70,6 +77,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
     targetLocation = "AT ENTRY",
+    condition = "org.apache.cassandra.cql3.CompactionOutOfSpaceTest.isKillerForTestsInstalled()",
     action = "throw new java.io.IOError(new java.io.IOException(\"No space left on device\"))")
     public void testUcsBackgroundCompactionNoDiskSpaceIgnore() throws Throwable
     {
@@ -82,6 +90,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
     targetLocation = "AT ENTRY",
+    condition = "org.apache.cassandra.cql3.CompactionOutOfSpaceTest.isKillerForTestsInstalled()",
     action = "throw new java.io.IOError(new java.io.IOException(\"No space left on device\"))")
     public void testUcsBackgroundCompactionNoDiskSpaceStop() throws Throwable
     {
@@ -94,6 +103,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
     targetLocation = "AT ENTRY",
+    condition = "org.apache.cassandra.cql3.CompactionOutOfSpaceTest.isKillerForTestsInstalled()",
     action = "throw new java.io.IOError(new java.io.IOException(\"No space left on device\"))")
     public void testUcsBackgroundCompactionNoDiskSpaceDie() throws Throwable
     {
@@ -106,6 +116,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
     targetLocation = "AT ENTRY",
+    condition = "org.apache.cassandra.cql3.CompactionOutOfSpaceTest.isKillerForTestsInstalled()",
     action = "throw new java.io.IOError(new java.io.IOException(\"No space left on device\"))")
     public void testStcsBackgroundCompactionNoDiskSpaceIgnore() throws Throwable
     {
@@ -118,6 +129,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
     targetLocation = "AT ENTRY",
+    condition = "org.apache.cassandra.cql3.CompactionOutOfSpaceTest.isKillerForTestsInstalled()",
     action = "throw new java.io.IOError(new java.io.IOException(\"No space left on device\"))")
     public void testStcsBackgroundCompactionNoDiskSpaceStop() throws Throwable
     {
@@ -130,6 +142,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
     targetLocation = "AT ENTRY",
+    condition = "org.apache.cassandra.cql3.CompactionOutOfSpaceTest.isKillerForTestsInstalled()",
     action = "throw new java.io.IOError(new java.io.IOException(\"No space left on device\"))")
     public void testStcsBackgroundCompactionNoDiskSpaceDie() throws Throwable
     {
@@ -242,5 +255,11 @@ public class CompactionOutOfSpaceTest extends CQLTester
         // the next test will not fail due to the port being already in use
         if (!isRunning)
             StorageService.instance.stopNativeTransport();
+    }
+
+    public static boolean isKillerForTestsInstalled()
+    {
+        logger.info("Checking if killer for tests is installed: {}", JVMStabilityInspector.killer().getClass().getName());
+        return JVMStabilityInspector.killer().getClass().getName().contains("KillerForTests");
     }
 }
