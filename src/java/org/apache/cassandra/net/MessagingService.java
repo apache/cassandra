@@ -214,6 +214,8 @@ public class MessagingService extends MessagingServiceMBeanImpl
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
 
+    public final static boolean NON_GRACEFUL_SHUTDOWN = Boolean.getBoolean("cassandra.test.messagingService.nonGracefulShutdown");
+
     public enum Version
     {
         VERSION_30(MessagingService.VERSION_30),
@@ -441,7 +443,10 @@ public class MessagingService extends MessagingServiceMBeanImpl
      */
     public void shutdown()
     {
-        shutdown(1L, MINUTES, true, true);
+        if (NON_GRACEFUL_SHUTDOWN)
+            shutdown(100, TimeUnit.MILLISECONDS, false, true);
+        else
+            shutdown(1L, MINUTES, true, true);
     }
 
     public void shutdown(long timeout, TimeUnit units, boolean shutdownGracefully, boolean shutdownExecutors)
@@ -469,7 +474,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
                       () -> {
                           List<ExecutorService> inboundExecutors = new ArrayList<>();
                           inboundSockets.close(synchronizedList(inboundExecutors)::add).get();
-                          ExecutorUtils.awaitTermination(1L, TimeUnit.MINUTES, inboundExecutors);
+                          ExecutorUtils.awaitTermination(timeout, units, inboundExecutors);
                       },
                       () -> {
                           if (shutdownExecutors)
@@ -489,15 +494,25 @@ public class MessagingService extends MessagingServiceMBeanImpl
                 closing.add(pool.close(false));
 
             long deadline = System.nanoTime() + units.toNanos(timeout);
-            maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
-                      () -> {
-                          if (shutdownExecutors)
-                              shutdownExecutors(deadline);
-                      },
-                      () -> ExecutorUtils.awaitTermination(timeout, units, inboundExecutors),
-                      () -> callbacks.awaitTerminationUntil(deadline),
-                      inboundSink::clear,
-                      outboundSink::clear);
+            try
+            {
+                maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
+                          () -> {
+                              if (shutdownExecutors)
+                                  shutdownExecutors(deadline);
+                          },
+                          () -> ExecutorUtils.awaitTermination(timeout, units, inboundExecutors),
+                          () -> callbacks.awaitTerminationUntil(deadline),
+                          inboundSink::clear,
+                          outboundSink::clear);
+            }
+            catch (Throwable t)
+            {
+                if (NON_GRACEFUL_SHUTDOWN)
+                    logger.info("Timeout when waiting for messaging service shutdown", t);
+                else
+                    throw t;
+            }
         }
     }
 
