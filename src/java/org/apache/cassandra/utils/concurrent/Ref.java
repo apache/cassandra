@@ -139,6 +139,11 @@ public final class Ref<T> implements RefCounted<T>
         return referent;
     }
 
+    public boolean refers(T object)
+    {
+        return referent == object;
+    }
+
     public Ref<T> tryRef()
     {
         return state.globalState.ref() ? new Ref<>(referent, state.globalState) : null;

@@ -45,6 +45,7 @@ import java.util.stream.Collector;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
@@ -2195,7 +2196,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             this.setup = true;
             // get a new reference to the shared descriptor-type tidy
-            this.globalRef = GlobalTidy.get(reader);
+            this.globalRef = GlobalTidy.get(reader.getDescriptor());
             this.global = globalRef.get();
             if (trackHotness)
                 global.ensureReadMeter();
@@ -2304,9 +2305,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // shared state managing if the logical sstable has been compacted; this is used in cleanup
         private volatile AbstractLogTransaction.ReaderTidier obsoletion;
 
-        GlobalTidy(final SSTableReader reader)
+        GlobalTidy(Descriptor descriptor)
         {
-            this.desc = reader.descriptor;
+            this.desc = descriptor;
         }
 
         void ensureReadMeter()
@@ -2358,6 +2359,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         public void tidy()
         {
+            // Before proceeding with lookup.remove(desc) and with the tidier,
+            // make sure this instance is actually the one stored in the lookup.
+            // If there is no instance stored, or if the referent is not this
+            // instance, then this GlobalTidy instance was created in GlobalTidy.get()
+            // because of a race, and should not remove the real tidy from the lookup,
+            // or perform any cleanup
+            Ref<GlobalTidy> existing = lookup.get(desc);
+            if (existing == null || !existing.refers(this))
+            {
+                return;
+            }
+
             try
             {
                 if (obsoletion != null)
@@ -2370,7 +2383,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             finally
             {
                 // remove reference after deleting local files, to avoid racing with {@link GlobalTidy#exists}
-                lookup.remove(desc);
+                boolean removed = lookup.remove(desc, existing);
+                if (!removed)
+                {
+                    throw new IllegalStateException("the reference changed behind our back? existing: " + existing + ", in lookup: " + lookup.get(desc));
+                }
             }
         }
 
@@ -2381,21 +2398,58 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         // get a new reference to the shared GlobalTidy for this sstable
         @SuppressWarnings("resource")
-        public static Ref<GlobalTidy> get(SSTableReader sstable)
+        public static Ref<GlobalTidy> get(Descriptor descriptor)
         {
-            Descriptor descriptor = sstable.descriptor;
-            Ref<GlobalTidy> refc = lookup.get(descriptor);
-            if (refc != null)
-                return refc.ref();
-            final GlobalTidy tidy = new GlobalTidy(sstable);
-            refc = new Ref<>(tidy, tidy);
-            Ref<?> ex = lookup.putIfAbsent(descriptor, refc);
-            if (ex != null)
+            for (Ref<GlobalTidy> globallySharedTidy = null;;)
             {
-                refc.close();
-                throw new AssertionError();
+                if (globallySharedTidy == null)
+                {
+                    globallySharedTidy = lookup.get(descriptor);
+                }
+                if (globallySharedTidy != null)
+                {
+                    // there's a potentialy alive ref in our lookup table;
+                    // try to bump the counter
+                    Ref<GlobalTidy> newRef = globallySharedTidy.tryRef();
+                    if (newRef != null)
+                    {
+                        // the Ref was alive, bumping ref count succeeded.
+                        // we're ok to return the newRef
+                        return newRef;
+                    }
+                    else
+                    {
+                        // bumping ref count failed => ref count dropped to zero; tidy is in progress
+                        // globallySharedTidy is a dead reference
+                        // active waiting for tidy to complete and remove
+                        // the old entry from the lookup table;
+                        globallySharedTidy = null;
+                        Thread.yield();
+                    }
+                }
+                else
+                {
+                    // there is no entry in the lookup table for this sstable
+                    // let's create one and memoize it (if we're lucky)
+
+                    final GlobalTidy tidy = new GlobalTidy(descriptor);
+                    Ref<GlobalTidy> newRef = new Ref<>(tidy, tidy);
+                    globallySharedTidy = lookup.putIfAbsent(descriptor, newRef);
+                    if (globallySharedTidy != null)
+                    {
+                        // we raced with another put; tough luck, lets try again
+                        // we've got to clean up the just-created Ref
+                        // it's OK to close this Ref because GlobalTidy.tidy() is a no-op if
+                        // the ref in lookup is different
+                        newRef.close();
+                    }
+                    else
+                    {
+                        // put succeeded; returning reference
+                        return newRef;
+                    }
+                }
             }
-            return refc;
         }
 
         public static boolean exists(Descriptor descriptor)
