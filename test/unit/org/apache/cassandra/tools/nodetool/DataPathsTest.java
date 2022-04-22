@@ -45,34 +45,46 @@ public class DataPathsTest extends CQLTester
         
         String help = "NAME\n" +
                       "        nodetool datapaths - Print all directories where data of tables are\n" +
-                      "        stored\n\n" +
+                      "        stored\n" +
+                      '\n' +
                       "SYNOPSIS\n" +
                       "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
                       "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
                       "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
                       "                [(-u <username> | --username <username>)] datapaths\n" +
-                      "                [(-F <format> | --format <format>)] [--] [<keyspace.table>...]\n\n" +
+                      "                [(-F <format> | --format <format>)] [--] [<keyspace.table>...]\n" +
+                      '\n' +
                       "OPTIONS\n" +
                       "        -F <format>, --format <format>\n" +
-                      "            Output format (json, yaml)\n\n" +
+                      "            Output format (json, yaml)\n" +
+                      '\n' +
                       "        -h <host>, --host <host>\n" +
-                      "            Node hostname or ip address\n\n" +
+                      "            Node hostname or ip address\n" +
+                      '\n' +
                       "        -p <port>, --port <port>\n" +
-                      "            Remote jmx agent port number\n\n" +
+                      "            Remote jmx agent port number\n" +
+                      '\n' +
                       "        -pp, --print-port\n" +
-                      "            Operate in 4.0 mode with hosts disambiguated by port number\n\n" +
+                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
+                      '\n' +
                       "        -pw <password>, --password <password>\n" +
-                      "            Remote jmx agent password\n\n" +
+                      "            Remote jmx agent password\n" +
+                      '\n' +
                       "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                      "            Path to the JMX password file\n\n" +
+                      "            Path to the JMX password file\n" +
+                      '\n' +
                       "        -u <username>, --username <username>\n" +
-                      "            Remote jmx agent username\n\n" +
+                      "            Remote jmx agent username\n" +
+                      '\n' +
                       "        --\n" +
                       "            This option can be used to separate command-line options from the\n" +
                       "            list of argument, (useful when arguments might be mistaken for\n" +
-                      "            command-line options\n\n" +
+                      "            command-line options\n" +
+                      '\n' +
                       "        [<keyspace.table>...]\n" +
-                      "            List of table (or keyspace) names\n\n\n";
+                      "            List of table (or keyspace) names\n" +
+                      '\n' +
+                      '\n';
         assertThat(tool.getStdout()).isEqualTo(help);
     }
 
