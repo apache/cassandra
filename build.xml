@@ -118,12 +118,21 @@
     <property name="cassandra.test.processorCount" value="4"/>
 
     <!-- skip flushing schema tables during tests -->
-    <property name="cassandra.test.flush_local_schema_changes" value="false" />
+    <property name="cassandra.test.flush_local_schema_changes" value="true" />
+
+    <!-- fast shutdown of messaging service -->
+    <property name="cassandra.test.messagingService.nonGracefulShutdown" value="false"/>
 
     <!-- fast shutdown of messaging service -->
     <property name="cassandra.test.messagingService.nonGracefulShutdown" value="true"/>
 
     <property name="cassandra.test.fail_on_forbidden_log_entries" value="false"/>
+
+    <property name="test.noverify" value="false"/>
+
+    <condition property="noverify-arg" value="-noverify" else="-Da=b">
+        <equals arg1="${test.noverify}" arg2="true"/>
+    </condition>
 
     <!-- https://www.eclemma.org/jacoco/ -->
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
@@ -1452,6 +1461,10 @@
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+        <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
+        <jvmarg value="-Dcassandra.test.messagingService.nonGracefulShutdown=${cassandra.test.messagingService.nonGracefulShutdown}"/>
+        <jvmarg value="${noverify-arg}"/>
+
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
         <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
@@ -2012,7 +2025,7 @@
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testhelper testdelegate="testlist-system-keyspace-directory"/>
   </target>
-  <target name="testclasslist-sai-legacy" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+  <target name="testclasslist-sai-legacy" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
       </path>

@@ -156,10 +156,10 @@ public class NodeToolTPStatsTest extends CQLTester
     {
         Arrays.asList(Pair.of("-F", "json"), Pair.of("--format", "json")).forEach(arg -> {
             ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
+            assertThat(tool.getCleanedStderr()).isEmpty();
             String json = tool.getStdout();
             assertThat(isJSONString(json)).isTrue();
             assertThat(json).containsPattern("\"WaitLatencies\"\\s*:\\s*\\{\\s*\"");
-            assertTrue(tool.getCleanedStderr().isEmpty());
             assertEquals(0, tool.getExitCode());
         });
 

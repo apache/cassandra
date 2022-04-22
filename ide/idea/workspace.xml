@@ -199,7 +199,8 @@
                                           -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables
                                           -XX:ActiveProcessorCount=4
                                           -XX:SoftRefLRUPolicyMSPerMB=0
-                                          -ea" />
+                                          -ea
+                                          -noverify" />
       <option name="PARAMETERS" value="" />
       <fork_mode value="class" />
       <option name="WORKING_DIRECTORY" value="" />

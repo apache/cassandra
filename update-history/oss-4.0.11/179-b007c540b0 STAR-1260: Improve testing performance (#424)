@@ -1,0 +1,67 @@
+--- a/ide/idea/workspace.xml
++++ b/ide/idea/workspace.xml
+@@ -180,7 +180,6 @@
+       <option name="MAIN_CLASS_NAME" value="" />
+       <option name="METHOD_NAME" value="" />
+       <option name="TEST_OBJECT" value="class" />
+-<<<<<<<
+       <option name="VM_PARAMETERS" value="
+                                           -Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml
+                                           -Dcassandra.disable_tcactive_openssl=true 
+@@ -200,10 +199,8 @@
+                                           -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables
+                                           -XX:ActiveProcessorCount=4
+                                           -XX:SoftRefLRUPolicyMSPerMB=0
+-                                          -ea" />
+-=======
+-      <option name="VM_PARAMETERS" value="-Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml -Dcassandra.logdir=$PROJECT_DIR$/build/test/logs -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables -Dcassandra.ring_delay_ms=1000 -Dcassandra.skip_sync=true -ea -XX:SoftRefLRUPolicyMSPerMB=0 -Dcassandra.strict.runtime.checks=true -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables -Dcassandra.ring_delay_ms=1000 -Dcassandra.tolerate_sstable_size=true -Dcassandra.skip_sync=true -Dcassandra.disable_tcactive_openssl=true -Dcassandra.use_nix_recursive_delete=true -XX:ActiveProcessorCount=2 -Dcassandra.testtag=ide -Dcassandra.test.flush_local_schema_changes=false -Dcassandra.test.messagingService.nonGracefulShutdown=true -noverify"/>
+->>>>>>>
++                                          -ea
++                                          -noverify" />
+       <option name="PARAMETERS" value="" />
+       <fork_mode value="class" />
+       <option name="WORKING_DIRECTORY" value="" />
+--- a/src/java/org/apache/cassandra/net/MessagingService.java
++++ b/src/java/org/apache/cassandra/net/MessagingService.java
+@@ -444,14 +444,9 @@
+      */
+     public void shutdown()
+     {
+-<<<<<<<
+         if (NON_GRACEFUL_SHUTDOWN)
+-            shutdown(100, TimeUnit.MILLISECONDS, false, true);
+-=======
+-        if (NON_GRACEFUL_SHUTDOWN.getBoolean())
+             // this branch is used in unit-tests when we really never restart a node and shutting down means the end of test
+             shutdownAbrubtly();
+->>>>>>>
+         else
+             shutdown(1L, MINUTES, true, true);
+     }
+--- a/src/java/org/apache/cassandra/security/ThreadAwareSecurityManager.java
++++ b/src/java/org/apache/cassandra/security/ThreadAwareSecurityManager.java
+@@ -32,11 +32,8 @@
+ 
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+-<<<<<<<
+-=======
+ 
+ import io.netty.util.concurrent.FastThreadLocal;
+->>>>>>>
+ 
+ import io.netty.util.concurrent.FastThreadLocal;
+ import org.apache.cassandra.config.DatabaseDescriptor;
+--- a/test/unit/org/apache/cassandra/tools/NodeToolTPStatsTest.java
++++ b/test/unit/org/apache/cassandra/tools/NodeToolTPStatsTest.java
+@@ -124,10 +124,7 @@
+         createTable("CREATE TABLE %s (pk int, c int, PRIMARY KEY(pk))");
+         execute("INSERT INTO %s (pk, c) VALUES (?, ?)", 1, 1);
+         flush();
+-<<<<<<<
+-=======
+ 
+->>>>>>>
+         tool = ToolRunner.invokeNodetool("tpstats");
+         assertTrue(tool.getCleanedStderr().isEmpty());
+         assertEquals(0, tool.getExitCode());
