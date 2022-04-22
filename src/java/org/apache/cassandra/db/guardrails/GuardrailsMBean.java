@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
+import javax.annotation.Nullable;
 
 /**
  * JMX entrypoint for updating the default guardrails configuration parsed from {@code cassandra.yaml}.
@@ -110,6 +111,7 @@ public interface GuardrailsMBean
 
     /**
      * Enables or disables the ability to create secondary indexes
+     *
      * @param enabled
      */
     void setSecondaryIndexesEnabled(boolean enabled);
@@ -401,20 +403,30 @@ public interface GuardrailsMBean
     void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
 
     /**
-     * @return The threshold to warn when encountering larger size of collection data than threshold, in KiB.
+     * @return The threshold to warn when encountering larger size of collection data than threshold, as a string
+     * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
+     * means that the threshold is disabled.
      */
-    long getCollectionSizeWarnThresholdInKiB();
+    @Nullable
+    String getCollectionSizeWarnThreshold();
 
     /**
-     * @return The threshold to prevent collections with larger data size than threshold, in KiB.
+     * @return The threshold to prevent collections with larger data size than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means that the
+     * threshold is disabled.
      */
-    long getCollectionSizeFailThresholdInKiB();
+    @Nullable
+    String getCollectionSizeFailThreshold();
 
     /**
-     * @param warnInKiB The threshold to warn when encountering larger size of collection data than threshold, in KiB.
-     * @param failInKiB The threshold to prevent collections with larger data size than threshold, in KiB.
+     * @param warnSize The threshold to warn when encountering larger size of collection data than threshold, as a
+     *                 string formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent collections with larger data size than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null}
+     *                 value means disabled.
      */
-    void setCollectionSizeThresholdInKiB(long warnInKiB, long failInKiB);
+    void setCollectionSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
      * @return The threshold to warn when encountering more elements in a collection than threshold.
@@ -447,4 +459,39 @@ public interface GuardrailsMBean
      * @param fail The threshold to prevent creating a UDT with more fields than threshold. -1 means disabled.
      */
     void setFieldsPerUDTThreshold(int warn, int fail);
+
+    /**
+     * @return The threshold to warn when local data disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageWarnThreshold();
+
+    /**
+     * @return The threshold to fail when local data disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when local disk usage percentage exceeds that threshold.
+     *             Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     * @param fail The threshold to fail when local disk usage percentage exceeds that threshold.
+     *             Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    public void setDataDiskUsagePercentageThreshold(int warn, int fail);
+
+    /**
+     * @return The max disk size of the data directories when calculating disk usage thresholds, as a string formatted
+     * as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means
+     * disabled.
+     */
+    @Nullable
+    String getDataDiskUsageMaxDiskSize();
+
+    /**
+     * @param size The max disk size of the data directories when calculating disk usage thresholds, as a string
+     *             formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *             A {@code null} value means disabled.
+     */
+    void setDataDiskUsageMaxDiskSize(@Nullable String size);
 }

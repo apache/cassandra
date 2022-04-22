@@ -1653,9 +1653,9 @@ drop_compact_storage_enabled: false
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
 # prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
 # although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
-# The two thresholds default to 0KiB to disable.
-# collection_size_warn_threshold: 0KiB
-# collection_size_fail_threshold: 0KiB
+# The two thresholds default to null to disable.
+# collection_size_warn_threshold:
+# collection_size_fail_threshold:
 # Guardrail to warn or fail when encountering more elements in collection than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
@@ -1668,6 +1668,24 @@ drop_compact_storage_enabled: false
 # Default -1 to disable.
 # fields_per_udt_warn_threshold: -1
 # fields_per_udt_fail_threshold: -1
+# Guardrail to warn or fail when local data disk usage percentage exceeds threshold. Valid values are in [1, 100].
+# This is only used for the disks storing data directories, so it won't count any separate disks used for storing
+# the commitlog, hints nor saved caches. The disk usage is the ratio between the amount of space used by the data
+# directories and the addition of that same space and the remaining free space on disk. The main purpose of this
+# guardrail is rejecting user writes when the disks are over the defined usage percentage, so the writes done by
+# background processes such as compaction and streaming don't fail due to a full disk. The limits should be defined
+# accordingly to the expected data growth due to those background processes, so for example a compaction strategy
+# doubling the size of the data would require to keep the disk usage under 50%.
+# The two thresholds default to -1 to disable.
+# data_disk_usage_percentage_warn_threshold: -1
+# data_disk_usage_percentage_fail_threshold: -1
+# Allows defining the max disk size of the data directories when calculating thresholds for
+# disk_usage_percentage_warn_threshold and disk_usage_percentage_fail_threshold, so if this is greater than zero they
+# become percentages of a fixed size on disk instead of percentages of the physically available disk size. This should
+# be useful when we have a large disk and we only want to use a part of it for Cassandra's data directories.
+# Valid values are in [1, max available disk size of all data directories].
+# Defaults to null to disable and use the physically available disk size of data directories during calculations.
+# data_disk_usage_max_disk_size:
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableList;
 
 import io.netty.buffer.ByteBuf;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -282,13 +281,13 @@ public abstract class QueryOptions
         @Override
         public long getCoordinatorReadSizeWarnThresholdBytes()
         {
-            return Config.DISABLED_GUARDRAIL;
+            return -1;
         }
 
         @Override
         public long getCoordinatorReadSizeFailThresholdBytes()
         {
-            return Config.DISABLED_GUARDRAIL;
+            return -1;
         }
     }
 
@@ -299,8 +298,8 @@ public abstract class QueryOptions
 
         public DefaultReadThresholds(DataStorageSpec warnThreshold, DataStorageSpec abortThreshold)
         {
-            this.warnThresholdBytes = warnThreshold == null ? Config.DISABLED_GUARDRAIL : warnThreshold.toBytes();
-            this.abortThresholdBytes = abortThreshold == null ? Config.DISABLED_GUARDRAIL : abortThreshold.toBytes();
+            this.warnThresholdBytes = warnThreshold == null ? -1 : warnThreshold.toBytes();
+            this.abortThresholdBytes = abortThreshold == null ? -1 : abortThreshold.toBytes();
         }
 
         @Override

@@ -398,7 +398,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public static void guardCollectionSize(TableMetadata metadata, DecoratedKey partitionKey, Unfiltered unfiltered)
     {
-        if (!Guardrails.collectionSize.enabled(null) && !Guardrails.itemsPerCollection.enabled(null))
+        if (!Guardrails.collectionSize.enabled() && !Guardrails.itemsPerCollection.enabled())
             return;
 
         if (!unfiltered.isRow() || SchemaConstants.isSystemKeyspace(metadata.keyspace))

@@ -666,8 +666,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         DataStorageSpec failThreshold = DatabaseDescriptor.getLocalReadSizeFailThreshold();
         if (!shouldTrackSize(warnThreshold, failThreshold))
             return iterator;
-        final long warnBytes = warnThreshold == null ? Config.DISABLED_GUARDRAIL : warnThreshold.toBytes();
-        final long failBytes = failThreshold == null ? Config.DISABLED_GUARDRAIL : failThreshold.toBytes();
+        final long warnBytes = warnThreshold == null ? -1 : warnThreshold.toBytes();
+        final long failBytes = failThreshold == null ? -1 : failThreshold.toBytes();
         class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
         {
             private long sizeInBytes = 0;
@@ -709,7 +709,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             private void addSize(long size)
             {
                 this.sizeInBytes += size;
-                if (failBytes != Config.DISABLED_GUARDRAIL && this.sizeInBytes >= failBytes)
+                if (failBytes != -1 && this.sizeInBytes >= failBytes)
                 {
                     String msg = String.format("Query %s attempted to read %d bytes but max allowed is %s; query aborted  (see local_read_size_fail_threshold)",
                                                ReadCommand.this.toCQLString(), this.sizeInBytes, failThreshold);
@@ -718,7 +718,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     MessageParams.add(ParamType.LOCAL_READ_SIZE_FAIL, this.sizeInBytes);
                     throw new LocalReadSizeTooLargeException(msg);
                 }
-                else if (warnBytes != Config.DISABLED_GUARDRAIL && this.sizeInBytes >= warnBytes)
+                else if (warnBytes != -1 && this.sizeInBytes >= warnBytes)
                 {
                     MessageParams.add(ParamType.LOCAL_READ_SIZE_WARN, this.sizeInBytes);
                 }

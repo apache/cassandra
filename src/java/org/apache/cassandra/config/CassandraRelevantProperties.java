@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.config;
 
+import java.util.concurrent.TimeUnit;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
 
@@ -264,6 +266,12 @@ public enum CassandraRelevantProperties
     DISABLE_SSTABLE_ACTIVITY_TRACKING("cassandra.sstable_activity_tracking", "true"),
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar", "false"),
     PAXOS_EXECUTE_ON_SELF("cassandra.paxos.use_self_execution", "true"),
+
+    /** property for the rate of the scheduled task that monitors disk usage */
+    DISK_USAGE_MONITOR_INTERVAL_MS("cassandra.disk_usage.monitor_interval_ms", Long.toString(TimeUnit.SECONDS.toMillis(30))),
+
+    /** property for the interval on which the repeated client warnings and diagnostic events about disk usage are ignored */
+    DISK_USAGE_NOTIFY_INTERVAL_MS("cassandra.disk_usage.notify_interval_ms", Long.toString(TimeUnit.MINUTES.toMillis(30))),
 
     // for specific tests
     ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),

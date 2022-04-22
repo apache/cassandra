@@ -56,6 +56,7 @@ public enum ApplicationState
      * a comma-separated list.
      **/
     SSTABLE_VERSIONS,
+    DISK_USAGE,
     // DO NOT EDIT OR REMOVE PADDING STATES BELOW - only add new states above.  See CASSANDRA-16484
     X1,
     X2,

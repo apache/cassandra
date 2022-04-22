@@ -80,7 +80,7 @@ public class GossipInfoTableTest extends CQLTester
             assertThat(entry).isNotEmpty();
 
             UntypedResultSet.Row row = resultSet.one();
-            assertThat(row.getColumns().size()).isEqualTo(62);
+            assertThat(row.getColumns().size()).isEqualTo(64);
 
             InetAddressAndPort endpoint = entry.get().getKey();
             EndpointState localState = entry.get().getValue();
@@ -109,6 +109,7 @@ public class GossipInfoTableTest extends CQLTester
             assertValue(row, "native_address_and_port", localState, ApplicationState.NATIVE_ADDRESS_AND_PORT);
             assertValue(row, "status_with_port", localState, ApplicationState.STATUS_WITH_PORT);
             assertValue(row, "sstable_versions", localState, ApplicationState.SSTABLE_VERSIONS);
+            assertValue(row, "disk_usage", localState, ApplicationState.DISK_USAGE);
             assertValue(row, "x_11_padding", localState, ApplicationState.X_11_PADDING);
             assertValue(row, "x1", localState, ApplicationState.X1);
             assertValue(row, "x2", localState, ApplicationState.X2);

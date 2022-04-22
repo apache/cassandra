@@ -411,8 +411,12 @@ public class BatchStatement implements CQLStatement
         if (options.getSerialConsistency() == null)
             throw new InvalidRequestException("Invalid empty serial consistency level");
 
+        ClientState clientState = queryState.getClientState();
         Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
-                                                queryState.getClientState());
+                                                clientState);
+
+        for (int i = 0; i < statements.size(); i++ )
+            statements.get(i).validateDiskUsage(options.forStatement(i), clientState);
 
         if (hasConditions)
             return executeWithConditions(options, queryState, queryStartNanoTime);
@@ -420,7 +424,7 @@ public class BatchStatement implements CQLStatement
         if (updatesVirtualTables)
             executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
         else    
-            executeWithoutConditions(getMutations(queryState.getClientState(), options, false, timestamp, nowInSeconds, queryStartNanoTime),
+            executeWithoutConditions(getMutations(clientState, options, false, timestamp, nowInSeconds, queryStartNanoTime),
                                      options.getConsistency(), queryStartNanoTime);
 
         return new ResultMessage.Void();

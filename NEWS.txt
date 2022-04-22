@@ -56,6 +56,34 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added a new guardrails framework allowing to define soft/hard limits for different user actions, such as limiting
+      the number of tables, columns per table or the size of collections. These guardrails are only applied to regular
+      user queries, and superusers and internal queries are excluded. Reaching the soft limit raises a client warning,
+      whereas reaching the hard limit aborts the query. In both cases a log message and a diagnostic event are emitted.
+      Additionally, some guardrails are not linked to specific user queries due to techincal limitations, such as
+      detecting the size of large collections during compaction or periodically monitoring the disk usage. These
+      guardrails would only emit the proper logs and diagnostic events when triggered, without aborting any processes.
+      Guardrails config is defined through cassandra.yaml properties, and they can be dynamically updated through the
+      JMX MBean `org.apache.cassandra.db:type=Guardrails`. There are guardrails for:
+        - Number of user keyspaces.
+        - Number of user tables.
+        - Number of columns per table.
+        - Number of secondary indexes per table.
+        - Number of materialized tables per table.
+        - Number of fields per user-defined type.
+        - Number of items in a collection .
+        - Number of partition keys selected by an IN restriction.
+        - Number of partition keys selected by the cartesian product of multiple IN restrictions.
+        - Allowed table properties.
+        - Allowed read consistency levels.
+        - Allowed write consistency levels.
+        - Collections size.
+        - Query page size.
+        - Data disk usage, defined either as a percentage or as an absolute size.
+        - Whether user-defined timestamps are allowed.
+        - Whether GROUP BY queries are allowed.
+        - Whether the creation of secondary indexes is allowed.
+        - Whether the creation of uncompressed tables is allowed.
     - Add support for the use of pure monotonic functions on the last attribute of the GROUP BY clause.
     - Add floor functions that can be use to group by time range.
     - Support for native transport rate limiting via native_transport_rate_limiting_enabled and 

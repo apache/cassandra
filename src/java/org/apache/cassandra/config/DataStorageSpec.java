@@ -135,6 +135,17 @@ public class DataStorageSpec
     }
 
     /**
+     * Creates a {@code DataStorageSpec} of the specified amount of gibibytes.
+     *
+     * @param gibibytes the amount of gibibytes
+     * @return a {@code DataStorageSpec}
+     */
+    public static DataStorageSpec inGibibytes(long gibibytes)
+    {
+        return new DataStorageSpec(gibibytes, GIBIBYTES);
+    }
+
+    /**
      * @return the data storage unit.
      */
     public DataStorageUnit getUnit()

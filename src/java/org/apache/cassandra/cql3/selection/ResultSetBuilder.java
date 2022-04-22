@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.ResultSet.ResultMetadata;
 import org.apache.cassandra.cql3.selection.Selection.Selectors;
@@ -76,7 +75,7 @@ public final class ResultSetBuilder
 
     public boolean shouldWarn(long thresholdBytes)
     {
-        if (thresholdBytes != Config.DISABLED_GUARDRAIL &&!sizeWarningEmitted && size > thresholdBytes)
+        if (thresholdBytes != -1 &&!sizeWarningEmitted && size > thresholdBytes)
         {
             sizeWarningEmitted = true;
             return true;
@@ -86,7 +85,7 @@ public final class ResultSetBuilder
 
     public boolean shouldReject(long thresholdBytes)
     {
-        return thresholdBytes != Config.DISABLED_GUARDRAIL && size > thresholdBytes;
+        return thresholdBytes != -1 && size > thresholdBytes;
     }
 
     public long getSize()
