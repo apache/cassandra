@@ -255,7 +255,7 @@ command is an easy way to list in which directories Cassandra is actually storin
 sstable data on disk.
 
 [source, bash]
----
+----
 % nodetool datapaths -- system_auth
 Keyspace: system_auth
 	Table: role_permissions
@@ -278,7 +278,7 @@ Keyspace: system_auth
 	Paths:
 		/var/lib/cassandra/data/system_auth/role_members-0ecdaa87f8fb3e6088d174fb36fe5c0d
 
----
+----
 
 By default all keyspaces and tables are listed, however, a list of `keyspace` and
 `keyspace.table` arguments can be given to query specific data paths. Using the `--format`
