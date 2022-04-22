@@ -57,9 +57,6 @@ public class DataPathsPrinter<T extends StatsHolder>
 
                     out.println("");
                 }
-
-                if (iterator.hasNext())
-                    out.println("----------------");
             }
         }
     }
