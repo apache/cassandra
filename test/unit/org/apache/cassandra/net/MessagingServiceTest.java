@@ -403,12 +403,12 @@ public class MessagingServiceTest
             final int legacySslPort = DatabaseDescriptor.getSSLStoragePort();
             for (InboundSockets.InboundSocket socket : connections.sockets())
             {
-                Assert.assertEquals(serverEncryptionOptions.isEnabled(), socket.settings.encryption.isEnabled());
-                Assert.assertEquals(serverEncryptionOptions.isOptional(), socket.settings.encryption.isOptional());
-                if (!serverEncryptionOptions.isEnabled())
+                Assert.assertEquals(serverEncryptionOptions.getEnabled(), socket.settings.encryption.getEnabled());
+                Assert.assertEquals(serverEncryptionOptions.getOptional(), socket.settings.encryption.getOptional());
+                if (!serverEncryptionOptions.getEnabled())
                     assertNotEquals(legacySslPort, socket.settings.bindAddress.getPort());
                 if (legacySslPort == socket.settings.bindAddress.getPort())
-                    Assert.assertFalse(socket.settings.encryption.isOptional());
+                    Assert.assertFalse(socket.settings.encryption.getOptional());
                 Assert.assertTrue(socket.settings.bindAddress.toString(), expect.remove(socket.settings.bindAddress));
             }
         }

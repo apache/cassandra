@@ -28,8 +28,11 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
+import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -37,6 +40,57 @@ import static org.junit.Assert.assertEquals;
 
 public class YamlConfigurationLoaderTest
 {
+    @Test
+    public void updateInPlace()
+    {
+        Config config = new Config();
+        Map<String, Object> map = ImmutableMap.<String, Object>builder().put("storage_port", 123)
+                                                                        .put("commitlog_sync", Config.CommitLogSync.batch)
+                                                                        .put("seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider")
+                                                                        .put("client_encryption_options.cipher_suites", Collections.singletonList("FakeCipher"))
+                                                                        .put("client_encryption_options.optional", false)
+                                                                        .put("client_encryption_options.enabled", true)
+                                                                        .build();
+        Config updated = YamlConfigurationLoader.updateFromMap(map, true, config);
+        assert updated == config : "Config pointers do not match";
+        assertThat(config.storage_port).isEqualTo(123);
+        assertThat(config.commitlog_sync).isEqualTo(Config.CommitLogSync.batch);
+        assertThat(config.seed_provider.class_name).isEqualTo("org.apache.cassandra.locator.SimpleSeedProvider");
+        assertThat(config.client_encryption_options.cipher_suites).isEqualTo(Collections.singletonList("FakeCipher"));
+        assertThat(config.client_encryption_options.optional).isFalse();
+        assertThat(config.client_encryption_options.enabled).isTrue();
+    }
+
+    @Test
+    public void withSystemProperties()
+    {
+        // for primitive types or data-types which use a String constructor, we can support these as nested
+        // if the type is a collection, then the string format doesn't make sense and will fail with an error such as
+        //   Cannot create property=client_encryption_options.cipher_suites for JavaBean=org.apache.cassandra.config.Config@1f59a598
+        //   No single argument constructor found for interface java.util.List : null
+        // the reason is that its not a scalar but a complex type (collection type), so the map we use needs to have a collection to match.
+        // It is possible that we define a common string representation for these types so they can be written to; this
+        // is an issue that SettingsTable may need to worry about.
+        try (WithProperties ignore = new WithProperties(CONFIG_ALLOW_SYSTEM_PROPERTIES.getKey(), "true",
+                                                        SYSTEM_PROPERTY_PREFIX + "storage_port", "123",
+                                                        SYSTEM_PROPERTY_PREFIX + "commitlog_sync", "batch",
+                                                        SYSTEM_PROPERTY_PREFIX + "seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider",
+//                                                        PROPERTY_PREFIX + "client_encryption_options.cipher_suites", "[\"FakeCipher\"]",
+                                                        SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", "false",
+                                                        SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", "true",
+                                                        SYSTEM_PROPERTY_PREFIX + "doesnotexist", "true"
+        ))
+        {
+            Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
+            assertThat(config.storage_port).isEqualTo(123);
+            assertThat(config.commitlog_sync).isEqualTo(Config.CommitLogSync.batch);
+            assertThat(config.seed_provider.class_name).isEqualTo("org.apache.cassandra.locator.SimpleSeedProvider");
+//            assertThat(config.client_encryption_options.cipher_suites).isEqualTo(Collections.singletonList("FakeCipher"));
+            assertThat(config.client_encryption_options.optional).isFalse();
+            assertThat(config.client_encryption_options.enabled).isTrue();
+        }
+    }
+
     @Test
     public void readThresholdsFromConfig()
     {

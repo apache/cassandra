@@ -249,7 +249,7 @@ public class BulkLoader
     private static SSLOptions buildSSLOptions(EncryptionOptions clientEncryptionOptions)
     {
 
-        if (!clientEncryptionOptions.isEnabled())
+        if (!clientEncryptionOptions.getEnabled())
         {
             return null;
         }
