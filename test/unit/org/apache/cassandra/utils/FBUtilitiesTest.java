@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -45,7 +46,9 @@ import org.apache.cassandra.dht.*;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.assertj.core.api.Assertions;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -226,5 +229,30 @@ public class FBUtilitiesTest
         {
             executor.shutdown();
         }
+    }
+
+    @Test
+    public void testCamelToSnake()
+    {
+        AssertionError error = null;
+        for (Pair<String, String> a : Arrays.asList(Pair.create("Testing", "testing"),
+                                                    Pair.create("fooBarBaz", "foo_bar_baz"),
+                                                    Pair.create("foo_bar_baz", "foo_bar_baz")
+        ))
+        {
+            try
+            {
+                assertThat(FBUtilities.camelToSnake(a.left)).isEqualTo(a.right);
+            }
+            catch (AssertionError e)
+            {
+                if (error == null)
+                    error = e;
+                else
+                    error.addSuppressed(e);
+            }
+        }
+        if (error != null)
+            throw error;
     }
 }

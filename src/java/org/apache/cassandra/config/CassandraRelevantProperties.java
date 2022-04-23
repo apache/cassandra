@@ -246,6 +246,10 @@ public enum CassandraRelevantProperties
     @Deprecated // should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck)
     FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN(FileSystemOwnershipCheck.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN),
 
+    // defaults to false for 4.1 but plan to switch to true in a later release
+    // the thinking is that environments may not work right off the bat so safer to add this feature disabled by default
+    CONFIG_ALLOW_SYSTEM_PROPERTIES("cassandra.config.allow_system_properties", "false"),
+
     // properties for debugging simulator ASM output
     TEST_SIMULATOR_PRINT_ASM("cassandra.test.simulator.print_asm", "none"),
     TEST_SIMULATOR_PRINT_ASM_TYPES("cassandra.test.simulator.print_asm_types", ""),

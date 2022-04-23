@@ -1099,4 +1099,24 @@ public class FBUtilities
             // ignore
         }
     }
+
+    public static String camelToSnake(String camel)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (char c : camel.toCharArray())
+        {
+            if (Character.isUpperCase(c))
+            {
+                // if first char is uppercase, then avoid adding the _ prefix
+                if (sb.length() > 0)
+                    sb.append('_');
+                sb.append(Character.toLowerCase(c));
+            }
+            else
+            {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
 }
