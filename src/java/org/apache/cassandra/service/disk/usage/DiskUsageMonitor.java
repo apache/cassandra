@@ -186,7 +186,7 @@ public class DiskUsageMonitor
         return DiskUsageState.SPACIOUS;
     }
 
-    public static Multimap<FileStore, Directories.DataDirectory> dataDirectoriesGroupedByFileStore()
+    private static Multimap<FileStore, Directories.DataDirectory> dataDirectoriesGroupedByFileStore()
     {
         Multimap<FileStore, Directories.DataDirectory> directories = HashMultimap.create();
         try
@@ -202,6 +202,19 @@ public class DiskUsageMonitor
             throw new RuntimeException("Cannot get data directories grouped by file store", e);
         }
         return directories;
+    }
+
+    public static long totalDiskSpace()
+    {
+        BigInteger size = dataDirectoriesGroupedByFileStore().keys()
+                                                             .stream()
+                                                             .map(DiskUsageMonitor::totalSpace)
+                                                             .map(BigInteger::valueOf)
+                                                             .reduce(BigInteger.ZERO, BigInteger::add);
+
+        return size.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) >= 0
+               ? Long.MAX_VALUE
+               : size.longValue();
     }
 
     public static long totalSpace(FileStore store)
