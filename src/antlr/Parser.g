@@ -415,9 +415,9 @@ simpleUnaliasedSelector returns [Selectable.Raw s]
 
 selectionFunction returns [Selectable.Raw s]
     : K_COUNT '(' '\*' ')'                      { $s = Selectable.WithFunction.Raw.newCountRowsFunction(); }
-    | K_MAXWRITETIME '(' c=sident ')'           { $s = new Selectable.MaxWritetime.Raw(c); }
-    | K_WRITETIME '(' c=sident ')'              { $s = new Selectable.WritetimeOrTTL.Raw(c, true); }
-    | K_TTL       '(' c=sident ')'              { $s = new Selectable.WritetimeOrTTL.Raw(c, false); }
+    | K_MAXWRITETIME '(' c=sident ')'           { $s = new Selectable.WritetimeOrTTL.Raw(c, Selectable.WritetimeOrTTL.Kind.MAX_WRITE_TIME); }
+    | K_WRITETIME '(' c=sident ')'              { $s = new Selectable.WritetimeOrTTL.Raw(c, Selectable.WritetimeOrTTL.Kind.WRITE_TIME); }
+    | K_TTL       '(' c=sident ')'              { $s = new Selectable.WritetimeOrTTL.Raw(c, Selectable.WritetimeOrTTL.Kind.TTL); }
     | K_CAST      '(' sn=unaliasedSelector K_AS t=native_type ')' {$s = new Selectable.WithCast.Raw(sn, t);}
     | f=functionName args=selectionFunctionArgs { $s = new Selectable.WithFunction.Raw(f, args); }
     ;

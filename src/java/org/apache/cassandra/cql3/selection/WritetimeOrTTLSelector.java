@@ -29,8 +29,6 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -45,29 +43,30 @@ final class WritetimeOrTTLSelector extends Selector
             ByteBuffer columnName = ByteBufferUtil.readWithVIntLength(in);
             ColumnMetadata column = metadata.getColumn(columnName);
             int idx = in.readInt();
-            boolean isWritetime = in.readBoolean();
-            return new WritetimeOrTTLSelector(column, idx, isWritetime);
+            int ordinal = (int) in.readUnsignedVInt();
+            Selectable.WritetimeOrTTL.Kind k = Selectable.WritetimeOrTTL.Kind.fromOrdinal(ordinal);
+            return new WritetimeOrTTLSelector(column, idx, k);
         }
     };
 
     private final ColumnMetadata column;
     private final int idx;
-    private final boolean isWritetime;
+    private final Selectable.WritetimeOrTTL.Kind kind;
     private ByteBuffer current;
     private boolean isSet;
 
-    public static Factory newFactory(final ColumnMetadata def, final int idx, final boolean isWritetime)
+    public static Factory newFactory(final ColumnMetadata def, final int idx, final Selectable.WritetimeOrTTL.Kind kind)
     {
         return new Factory()
         {
             protected String getColumnName()
             {
-                return String.format("%s(%s)", isWritetime ? "writetime" : "ttl", def.name.toString());
+                return String.format("%s(%s)", kind.name, def.name.toString());
             }
 
             protected AbstractType<?> getReturnType()
             {
-                return isWritetime ? LongType.instance : Int32Type.instance;
+                return kind.returnType;
             }
 
             protected void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn)
@@ -77,17 +76,25 @@ final class WritetimeOrTTLSelector extends Selector
 
             public Selector newInstance(QueryOptions options)
             {
-                return new WritetimeOrTTLSelector(def, idx, isWritetime);
+                return new WritetimeOrTTLSelector(def, idx, kind);
             }
 
+            @Override
             public boolean isWritetimeSelectorFactory()
             {
-                return isWritetime;
+                return kind != Selectable.WritetimeOrTTL.Kind.TTL;
             }
 
+            @Override
             public boolean isTTLSelectorFactory()
             {
-                return !isWritetime;
+                return kind == Selectable.WritetimeOrTTL.Kind.TTL;
+            }
+
+            @Override
+            public boolean isMaxWritetimeSelectorFactory()
+            {
+                return kind == Selectable.WritetimeOrTTL.Kind.MAX_WRITE_TIME;
             }
 
             public boolean areAllFetchedColumnsKnown()
@@ -114,15 +121,15 @@ final class WritetimeOrTTLSelector extends Selector
 
         isSet = true;
 
-        if (isWritetime)
-        {
-            long ts = input.getTimestamp(idx);
-            current = ts != Long.MIN_VALUE ? ByteBufferUtil.bytes(ts) : null;
-        }
-        else
+        if (kind == Selectable.WritetimeOrTTL.Kind.TTL)
         {
             int ttl = input.getTtl(idx);
             current = ttl > 0 ? ByteBufferUtil.bytes(ttl) : null;
+        }
+        else
+        {
+            long ts = input.getTimestamp(idx);
+            current = ts != Long.MIN_VALUE ? ByteBufferUtil.bytes(ts) : null;
         }
     }
 
@@ -139,7 +146,7 @@ final class WritetimeOrTTLSelector extends Selector
 
     public AbstractType<?> getType()
     {
-        return isWritetime ? LongType.instance : Int32Type.instance;
+        return kind.returnType;
     }
 
     @Override
@@ -148,12 +155,12 @@ final class WritetimeOrTTLSelector extends Selector
         return column.name.toString();
     }
 
-    private WritetimeOrTTLSelector(ColumnMetadata column, int idx, boolean isWritetime)
+    private WritetimeOrTTLSelector(ColumnMetadata column, int idx, Selectable.WritetimeOrTTL.Kind kind)
     {
         super(Kind.WRITETIME_OR_TTL_SELECTOR);
         this.column = column;
         this.idx = idx;
-        this.isWritetime = isWritetime;
+        this.kind = kind;
     }
 
     @Override
@@ -169,13 +176,13 @@ final class WritetimeOrTTLSelector extends Selector
 
         return Objects.equal(column, s.column)
             && Objects.equal(idx, s.idx)
-            && Objects.equal(isWritetime, s.isWritetime);
+            && kind == s.kind;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(column, idx, isWritetime);
+        return Objects.hashCode(column, idx, kind);
     }
 
     @Override
@@ -183,7 +190,7 @@ final class WritetimeOrTTLSelector extends Selector
     {
         return ByteBufferUtil.serializedSizeWithVIntLength(column.name.bytes)
                 + TypeSizes.sizeof(idx)
-                + TypeSizes.sizeof(isWritetime);
+                + TypeSizes.sizeofUnsignedVInt(kind.ordinal());
     }
 
     @Override
@@ -191,6 +198,6 @@ final class WritetimeOrTTLSelector extends Selector
     {
         ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
         out.writeInt(idx);
-        out.writeBoolean(isWritetime);
+        out.writeUnsignedVInt(kind.ordinal());
     }
 }

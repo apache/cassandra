@@ -87,8 +87,7 @@ public abstract class Selector
         SCALAR_FUNCTION_SELECTOR(ScalarFunctionSelector.deserializer),
         AGGREGATE_FUNCTION_SELECTOR(AggregateFunctionSelector.deserializer),
         ELEMENT_SELECTOR(ElementsSelector.ElementSelector.deserializer),
-        SLICE_SELECTOR(ElementsSelector.SliceSelector.deserializer),
-        MAX_WRITETIME_SELECTOR(MaxWritetimeSelector.deserializer);
+        SLICE_SELECTOR(ElementsSelector.SliceSelector.deserializer);
 
         private final SelectorDeserializer deserializer;
 

@@ -220,76 +220,42 @@ public interface Selectable extends AssignmentTestable
         }
     }
 
-    public static class MaxWritetime implements Selectable
-    {
-        public final ColumnMetadata column;
-
-        public MaxWritetime(ColumnMetadata column)
-        {
-            this.column = column;
-        }
-
-        @Override
-        public String toString() {
-            return "maxwritetime(" +column.name + ")";
-        }
-
-        @Override
-        public Factory newSelectorFactory(TableMetadata table,
-                                          AbstractType<?> expectedType,
-                                          List<ColumnMetadata> defs,
-                                          VariableSpecifications boundNames)
-        {
-            if (column.isPrimaryKeyColumn())
-                throw new InvalidRequestException(
-                    String.format("Cannot use selection function maxwritetime on PRIMARY KEY part %s",
-                                  column.name));
-
-            return MaxWritetimeSelector.newFactory(column, addAndGetIndex(column, defs));
-        }
-
-        @Override
-        public AbstractType<?> getExactTypeIfKnown(String keyspace) {
-            return LongType.instance;
-        }
-
-        @Override
-        public boolean selectColumns(Predicate<ColumnMetadata> predicate) {
-            return predicate.test(column);
-        }
-
-        public static class Raw implements Selectable.Raw
-        {
-            private final Selectable.RawIdentifier id;
-
-            public Raw(Selectable.RawIdentifier id)
-            {
-                this.id = id;
-            }
-
-            @Override
-            public MaxWritetime prepare(TableMetadata table)
-            {
-                return new MaxWritetime(id.prepare(table));
-            }
-        }
-    }
-
     public static class WritetimeOrTTL implements Selectable
     {
-        public final ColumnMetadata column;
-        public final boolean isWritetime;
+        public enum Kind
+        {
+            WRITE_TIME("writetime", LongType.instance),
+            MAX_WRITE_TIME("maxwritetime", LongType.instance),
+            TTL("ttl", Int32Type.instance);
 
-        public WritetimeOrTTL(ColumnMetadata column, boolean isWritetime)
+            public final String name;
+            public final AbstractType<?> returnType;
+
+            public static Kind fromOrdinal(int ordinal)
+            {
+                return values()[ordinal];
+            }
+
+            Kind(String name, AbstractType<?> returnType)
+            {
+                this.name = name;
+                this.returnType = returnType;
+            }
+        }
+
+        public final ColumnMetadata column;
+        public final Kind kind;
+
+        public WritetimeOrTTL(ColumnMetadata column, Kind kind)
         {
             this.column = column;
-            this.isWritetime = isWritetime;
+            this.kind = kind;
         }
 
         @Override
         public String toString()
         {
-            return (isWritetime ? "writetime" : "ttl") + "(" + column.name + ")";
+            return kind.name + "(" + column.name + ")";
         }
 
         public Selector.Factory newSelectorFactory(TableMetadata table,
@@ -300,18 +266,20 @@ public interface Selectable extends AssignmentTestable
             if (column.isPrimaryKeyColumn())
                 throw new InvalidRequestException(
                         String.format("Cannot use selection function %s on PRIMARY KEY part %s",
-                                      isWritetime ? "writeTime" : "ttl",
+                                      kind.name,
                                       column.name));
-            if (column.type.isCollection())
-                throw new InvalidRequestException(String.format("Cannot use selection function %s on collections",
-                                                                isWritetime ? "writeTime" : "ttl"));
 
-            return WritetimeOrTTLSelector.newFactory(column, addAndGetIndex(column, defs), isWritetime);
+            // maxwritetime is allowed for collection
+            if (kind != Kind.MAX_WRITE_TIME && column.type.isCollection())
+                throw new InvalidRequestException(String.format("Cannot use selection function %s on collections",
+                                                                kind.name));
+
+            return WritetimeOrTTLSelector.newFactory(column, addAndGetIndex(column, defs), kind);
         }
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            return isWritetime ? LongType.instance : Int32Type.instance;
+            return kind.returnType;
         }
 
         @Override
@@ -323,18 +291,18 @@ public interface Selectable extends AssignmentTestable
         public static class Raw implements Selectable.Raw
         {
             private final Selectable.RawIdentifier id;
-            private final boolean isWritetime;
+            private final Kind kind;
 
-            public Raw(Selectable.RawIdentifier id, boolean isWritetime)
+            public Raw(Selectable.RawIdentifier id, Kind kind)
             {
                 this.id = id;
-                this.isWritetime = isWritetime;
+                this.kind = kind;
             }
 
             @Override
             public WritetimeOrTTL prepare(TableMetadata table)
             {
-                return new WritetimeOrTTL(id.prepare(table), isWritetime);
+                return new WritetimeOrTTL(id.prepare(table), kind);
             }
         }
     }
