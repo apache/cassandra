@@ -18,16 +18,13 @@
 
 package org.apache.cassandra.config;
 
-import java.math.BigInteger;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +32,7 @@ import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsConfig;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 
 import static java.lang.String.format;
@@ -700,16 +698,11 @@ public class GuardrailsOptions implements GuardrailsConfig
 
         validateSize(maxDiskSize, false, "data_disk_usage_max_disk_size");
 
-        BigInteger diskSize = DiskUsageMonitor.dataDirectoriesGroupedByFileStore()
-                                              .keys()
-                                              .stream()
-                                              .map(DiskUsageMonitor::totalSpace)
-                                              .map(BigInteger::valueOf)
-                                              .reduce(BigInteger.ZERO, BigInteger::add);
+        long diskSize = DiskUsageMonitor.totalDiskSpace();
 
-        if (diskSize.compareTo(BigInteger.valueOf(maxDiskSize.toBytes())) < 0)
+        if (diskSize < maxDiskSize.toBytes())
             throw new IllegalArgumentException(format("Invalid value for data_disk_usage_max_disk_size: " +
                                                       "%s specified, but only %s are actually available on disk",
-                                                      maxDiskSize, DataStorageSpec.inBytes(diskSize.longValue())));
+                                                      maxDiskSize, FileUtils.stringifyFileSize(diskSize)));
     }
 }

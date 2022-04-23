@@ -30,6 +30,7 @@ import com.google.common.collect.Multimap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -37,6 +38,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
@@ -44,6 +46,8 @@ import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.disk.usage.DiskUsageState;
 import org.apache.cassandra.utils.FBUtilities;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.mockito.Mockito;
 
 import static org.apache.cassandra.service.disk.usage.DiskUsageState.FULL;
@@ -65,6 +69,11 @@ import static org.mockito.Mockito.when;
 /**
  * Tests the guardrails for disk usage, {@link Guardrails#localDataDiskUsage} and {@link Guardrails#replicaDiskUsage}.
  */
+@RunWith(BMUnitRunner.class)
+@BMRule(name = "Always returns a physical disk size of 1000TiB",
+targetClass = "DiskUsageMonitor",
+targetMethod = "totalDiskSpace",
+action = "return " + (1000L * 1024 * 1024 * 1024 * 1024) + "L;") // 1000TiB
 public class GuardrailDiskUsageTest extends GuardrailTester
 {
     private static int defaultDataDiskUsagePercentageWarnThreshold;
@@ -109,7 +118,11 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         assertConfigValid(x -> x.setDataDiskUsageMaxDiskSize("40GiB"));
         assertEquals("40GiB", guardrails().getDataDiskUsageMaxDiskSize());
 
-        assertConfigFails(x -> x.setDataDiskUsageMaxDiskSize(Long.MAX_VALUE + "GiB"), "are actually available on disk");
+        long diskSize = DiskUsageMonitor.totalDiskSpace();
+        String message = String.format("only %s are actually available on disk", FileUtils.stringifyFileSize(diskSize));
+        assertConfigValid(x -> x.setDataDiskUsageMaxDiskSize(diskSize + "B"));
+        assertConfigFails(x -> x.setDataDiskUsageMaxDiskSize(diskSize + 1 + "B"), message);
+        assertConfigFails(x -> x.setDataDiskUsageMaxDiskSize(Long.MAX_VALUE + "GiB"), message);
 
         // warn threshold smaller than lower bound
         assertConfigFails(x -> x.setDataDiskUsagePercentageThreshold(0, 80), "0 is not allowed");
