@@ -18,15 +18,14 @@
 
 package org.apache.cassandra.locator;
 
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Properties;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,11 +41,12 @@ import org.apache.cassandra.net.OutboundTcpConnectionPool;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class EC2SnitchTest
+public class Ec2SnitchTest
 {
-    private static String az;
-
     @BeforeClass
     public static void setup() throws Exception
     {
@@ -58,25 +58,13 @@ public class EC2SnitchTest
         StorageService.instance.initServer(0);
     }
 
-    private class TestEC2Snitch extends Ec2Snitch
-    {
-        public TestEC2Snitch() throws IOException, ConfigurationException
-        {
-            super();
-        }
-
-        @Override
-        String awsApiCall(String url) throws IOException, ConfigurationException
-        {
-            return az;
-        }
-    }
-
     @Test
     public void testRac() throws IOException, ConfigurationException
     {
-        az = "us-east-1d";
-        Ec2Snitch snitch = new TestEC2Snitch();
+        Ec2MetadataServiceConnector connectorMock = mock(Ec2MetadataServiceConnector.class);
+        when(connectorMock.apiCall(anyString())).thenReturn("us-east-1d");
+        Ec2Snitch snitch = new Ec2Snitch(new SnitchProperties(new Properties()), connectorMock);
+
         InetAddress local = InetAddress.getByName("127.0.0.1");
         InetAddress nonlocal = InetAddress.getByName("127.0.0.7");
 
@@ -92,12 +80,13 @@ public class EC2SnitchTest
         assertEquals("us-east", snitch.getDatacenter(local));
         assertEquals("1d", snitch.getRack(local));
     }
-    
+
     @Test
     public void testNewRegions() throws IOException, ConfigurationException
     {
-        az = "us-east-2d";
-        Ec2Snitch snitch = new TestEC2Snitch();
+        Ec2MetadataServiceConnector connectorMock = mock(Ec2MetadataServiceConnector.class);
+        when(connectorMock.apiCall(anyString())).thenReturn( "us-east-2d");
+        Ec2Snitch snitch = new Ec2Snitch(new SnitchProperties(new Properties()), connectorMock);
         InetAddress local = InetAddress.getByName("127.0.0.1");
         assertEquals("us-east-2", snitch.getDatacenter(local));
         assertEquals("2d", snitch.getRack(local));
@@ -110,13 +99,13 @@ public class EC2SnitchTest
         InetAddress com_ip = InetAddress.getByName("127.0.0.3");
 
         OutboundTcpConnectionPool pool = MessagingService.instance().getConnectionPool(me);
-        Assert.assertEquals(me, pool.endPoint());
+        assertEquals(me, pool.endPoint());
         pool.reset(com_ip);
-        Assert.assertEquals(com_ip, pool.endPoint());
+        assertEquals(com_ip, pool.endPoint());
 
         MessagingService.instance().destroyConnectionPool(me);
         pool = MessagingService.instance().getConnectionPool(me);
-        Assert.assertEquals(com_ip, pool.endPoint());
+        assertEquals(com_ip, pool.endPoint());
     }
 
     @AfterClass
