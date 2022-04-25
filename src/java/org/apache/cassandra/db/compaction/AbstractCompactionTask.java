@@ -143,7 +143,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         }
     }
 
-    private Throwable cleanup(Throwable err)
+    public Throwable cleanup(Throwable err)
     {
         final boolean isSuccess = err == null;
         for (CompactionObserver compObserver : compObservers)
@@ -173,7 +173,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     /**
      * Override the NO OP observer, this is normally overridden by the compaction metrics.
      */
-    AbstractCompactionTask setOpObserver(TableOperationObserver opObserver)
+    public AbstractCompactionTask setOpObserver(TableOperationObserver opObserver)
     {
         this.opObserver = opObserver;
         return this;
