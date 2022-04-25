@@ -107,9 +107,9 @@ public class TimestampTest extends CQLTester
                     "m map<int, text>, fm frozen<map<int, text>>," +
                     "t " + myType + ", ft frozen<" + myType + ">)");
         execute("INSERT INTO %s (k, a, l, fl, s, fs, m, fm, t, ft) VALUES " +
-                "(1, 'test', [1], [2], {1}, {2}, {1 : 'a'}, {2 : 'b'}, {a : 1, b : 1 }, {a : 2, b : 2})");
+                "(1, 'test', [1], [2], {1}, {2}, {1 : 'a'}, {2 : 'b'}, {a : 1, b : 1 }, {a : 2, b : 2}) USING TIMESTAMP 1");
         // update the list, so its maxWritetime should be more advanced than other columns
-        execute("UPDATE %s SET l = l + [10] WHERE k = 1");
+        execute("UPDATE %s USING TIMESTAMP 2 SET l = l + [10] WHERE k = 1");
 
         Object[][] res = getRows(execute("SELECT maxwritetime(a), maxwritetime(l), maxwritetime(fl)," +
                                          "maxwritetime(s), maxwritetime(fs), maxwritetime(m), maxwritetime(fm)," +

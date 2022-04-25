@@ -241,6 +241,11 @@ public interface Selectable extends AssignmentTestable
                 this.name = name;
                 this.returnType = returnType;
             }
+
+            public boolean allowedForMultiCell()
+            {
+                return this == MAX_WRITE_TIME;
+            }
         }
 
         public final ColumnMetadata column;
@@ -270,7 +275,7 @@ public interface Selectable extends AssignmentTestable
                                       column.name));
 
             // maxwritetime is allowed for collection
-            if (kind != Kind.MAX_WRITE_TIME && column.type.isCollection())
+            if (column.type.isCollection() && !kind.allowedForMultiCell())
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on collections",
                                                                 kind.name));
 

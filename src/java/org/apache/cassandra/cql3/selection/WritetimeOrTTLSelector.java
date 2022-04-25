@@ -43,7 +43,7 @@ final class WritetimeOrTTLSelector extends Selector
             ByteBuffer columnName = ByteBufferUtil.readWithVIntLength(in);
             ColumnMetadata column = metadata.getColumn(columnName);
             int idx = in.readInt();
-            int ordinal = (int) in.readUnsignedVInt();
+            int ordinal = in.readByte();
             Selectable.WritetimeOrTTL.Kind k = Selectable.WritetimeOrTTL.Kind.fromOrdinal(ordinal);
             return new WritetimeOrTTLSelector(column, idx, k);
         }
@@ -198,6 +198,6 @@ final class WritetimeOrTTLSelector extends Selector
     {
         ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
         out.writeInt(idx);
-        out.writeUnsignedVInt(kind.ordinal());
+        out.writeByte(kind.ordinal());
     }
 }
