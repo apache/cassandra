@@ -476,6 +476,6 @@ public class SchemaCQLHelperTest extends CQLTester
         cfs.getSSTablesForKey("false:true");
 
         execute("insert into %s (t_id, id, ck, nk) VALUES (true, true, false, true)");
-        assertRows(execute("select t_id, id, ck, nk from %s"), row(true, false, false, true), row(true, true, false, true));
+        assertRows(execute("select t_id, id, ck, nk from %s"), row(true, true, false, true), row(true, false, false, true));
     }
 }

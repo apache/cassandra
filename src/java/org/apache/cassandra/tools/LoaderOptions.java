@@ -408,29 +408,6 @@ public class LoaderOptions
                     config.entire_sstable_inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
                 }
 
-
-                if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
-                {
-                    String[] nodes = cmd.getOptionValue(INITIAL_HOST_ADDRESS_OPTION).split(",");
-                    try
-                    {
-                        for (String node : nodes)
-                        {
-                            HostAndPort hap = HostAndPort.fromString(node);
-                            hosts.add(new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPortOrDefault(nativePort)));
-                        }
-                    } catch (UnknownHostException e)
-                    {
-                        errorMsg("Unknown host: " + e.getMessage(), options);
-                    }
-
-                } else
-                {
-                    System.err.println("Initial hosts must be specified (-d)");
-                    printUsage(options);
-                    System.exit(1);
-                }
-
                 if (cmd.hasOption(STORAGE_PORT_OPTION))
                     storagePort = Integer.parseInt(cmd.getOptionValue(STORAGE_PORT_OPTION));
                 else
@@ -466,6 +443,40 @@ public class LoaderOptions
                 serverEncOptions = config.server_encryption_options;
                 serverEncOptions.applyConfig();
 
+                if (cmd.hasOption(NATIVE_PORT_OPTION))
+                {
+                    nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
+                }
+                else
+                {
+                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.getEnabled() || clientEncOptions.getEnabled()))
+                        nativePort = config.native_transport_port_ssl;
+                    else
+                        nativePort = config.native_transport_port;
+                }
+
+                if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
+                {
+                    String[] nodes = cmd.getOptionValue(INITIAL_HOST_ADDRESS_OPTION).split(",");
+                    try
+                    {
+                        for (String node : nodes)
+                        {
+                            HostAndPort hap = HostAndPort.fromString(node);
+                            hosts.add(new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPortOrDefault(nativePort)));
+                        }
+                    } catch (UnknownHostException e)
+                    {
+                        errorMsg("Unknown host: " + e.getMessage(), options);
+                    }
+
+                } else
+                {
+                    System.err.println("Initial hosts must be specified (-d)");
+                    printUsage(options);
+                    System.exit(1);
+                }
+
                 if (cmd.hasOption(THROTTLE_MBITS))
                 {
                     throttle = Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS));
@@ -490,18 +501,6 @@ public class LoaderOptions
                             cmd.hasOption(SSL_KEYSTORE) || cmd.hasOption(SSL_KEYSTORE_PW))
                 {
                     clientEncOptions = clientEncOptions.withEnabled(true);
-                }
-
-                if (cmd.hasOption(NATIVE_PORT_OPTION))
-                {
-                    nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
-                }
-                else
-                {
-                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.isEnabled() || clientEncOptions.isEnabled()))
-                        nativePort = config.native_transport_port_ssl;
-                    else
-                        nativePort = config.native_transport_port;
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE))

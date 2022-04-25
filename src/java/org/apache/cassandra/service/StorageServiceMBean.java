@@ -35,6 +35,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.BreaksJMX;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -328,6 +329,11 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Forces major compaction of specified token range in a single keyspace
      */
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Forces major compactions for the range represented by the partition key
+     */
+    public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Trigger a cleanup of keys on a single keyspace
@@ -830,19 +836,21 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void disableAuditLog();
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
-                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException;
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException;
 
+    @BreaksJMX("This API was exposed as throwing ConfigurationException, removing is binary compatible but not source; see https://docs.oracle.com/javase/specs/jls/se7/html/jls-13.html")
     @Deprecated
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException;
 
+    @BreaksJMX("This API was exposed as throwing ConfigurationException, removing is binary compatible but not source; see https://docs.oracle.com/javase/specs/jls/se7/html/jls-13.html")
     @Deprecated
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException;
 
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
-                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException;
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException;
 
     public boolean isAuditLogEnabled();
     public String getCorruptedTombstoneStrategy();
@@ -917,23 +925,23 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setCompactionTombstoneWarningThreshold(int count);
     public int getCompactionTombstoneWarningThreshold();
 
-    public boolean getTrackWarningsEnabled();
-    public void setTrackWarningsEnabled(boolean value);
+    public boolean getReadThresholdsEnabled();
+    public void setReadThresholdsEnabled(boolean value);
 
-    public long getCoordinatorLargeReadWarnThresholdKB();
-    public void setCoordinatorLargeReadWarnThresholdKB(long threshold);
-    public long getCoordinatorLargeReadAbortThresholdKB();
-    public void setCoordinatorLargeReadAbortThresholdKB(long threshold);
+    public String getCoordinatorLargeReadWarnThreshold();
+    public void setCoordinatorLargeReadWarnThreshold(String threshold);
+    public String getCoordinatorLargeReadAbortThreshold();
+    public void setCoordinatorLargeReadAbortThreshold(String threshold);
 
-    public long getLocalReadTooLargeWarnThresholdKb();
-    public void setLocalReadTooLargeWarnThresholdKb(long value);
-    public long getLocalReadTooLargeAbortThresholdKb();
-    public void setLocalReadTooLargeAbortThresholdKb(long value);
+    public String getLocalReadTooLargeWarnThreshold();
+    public void setLocalReadTooLargeWarnThreshold(String value);
+    public String getLocalReadTooLargeAbortThreshold();
+    public void setLocalReadTooLargeAbortThreshold(String value);
 
-    public int getRowIndexSizeWarnThresholdKb();
-    public void setRowIndexSizeWarnThresholdKb(int value);
-    public int getRowIndexSizeAbortThresholdKb();
-    public void setRowIndexSizeAbortThresholdKb(int value);
+    public String getRowIndexReadSizeWarnThreshold();
+    public void setRowIndexReadSizeWarnThreshold(String value);
+    public String getRowIndexReadSizeAbortThreshold();
+    public void setRowIndexReadSizeAbortThreshold(String value);
 
     public void setDefaultKeyspaceReplicationFactor(int value);
     public int getDefaultKeyspaceReplicationFactor();
@@ -981,4 +989,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void clearPaxosRepairs();
     public void setSkipPaxosRepairCompatibilityCheck(boolean v);
     public boolean getSkipPaxosRepairCompatibilityCheck();
+
+    String getToken(String keyspaceName, String table, String partitionKey);
 }

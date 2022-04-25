@@ -35,7 +35,7 @@ public class Threshold extends Guardrail
 {
     private final ToLongFunction<ClientState> warnThreshold;
     private final ToLongFunction<ClientState> failThreshold;
-    private final ErrorMessageProvider messageProvider;
+    protected final ErrorMessageProvider messageProvider;
 
     /**
      * Creates a new threshold guardrail.
@@ -56,12 +56,17 @@ public class Threshold extends Guardrail
         this.messageProvider = messageProvider;
     }
 
-    private String errMsg(boolean isWarning, String what, long value, long thresholdValue)
+    protected String errMsg(boolean isWarning, String what, long value, long thresholdValue)
     {
         return messageProvider.createMessage(isWarning,
                                              what,
-                                             value,
-                                             thresholdValue);
+                                             Long.toString(value),
+                                             Long.toString(thresholdValue));
+    }
+
+    private String redactedErrMsg(boolean isWarning, long value, long thresholdValue)
+    {
+        return errMsg(isWarning, REDACTED, value, thresholdValue);
     }
 
     private long failValue(ClientState state)
@@ -103,20 +108,29 @@ public class Threshold extends Guardrail
         return enabled(state) && (value > Math.min(failValue(state), warnValue(state)));
     }
 
+    public boolean warnsOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && (value > warnValue(state) && value <= failValue(state));
+    }
+
+    public boolean failsOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && (value > failValue(state));
+    }
+
     /**
      * Apply the guardrail to the provided value, warning or failing if appropriate.
      *
-     * @param value The value to check.
-     * @param what  A string describing what {@code value} is a value of. This is used in the error message if the
-     *              guardrail is triggered. For instance, say the guardrail guards the size of column values, then this
-     *              argument must describe which column of which row is triggering the guardrail for convenience.
-     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
-     *              A {@code null} value means that the check should be done regardless of the query, although it won't
-     *              throw any exception if the failure threshold is exceeded. This is so because checks without an
-     *              associated client come from asynchronous processes such as compaction, and we don't want to
-     *              interrupt such processes.
+     * @param value            The value to check.
+     * @param what             A string describing what {@code value} is a value of. This is used in the error message
+     *                         if the guardrail is triggered. For instance, say the guardrail guards the size of column
+     *                         values, then this argument must describe which column of which row is triggering the
+     *                         guardrail for convenience.
+     * @param containsUserData whether the {@code what} contains user data that should be redacted on external systems.
+     * @param state            The client state, used to skip the check if the query is internal or is done by a superuser.
+     *                         A {@code null} value means that the check should be done regardless of the query.
      */
-    public void guard(long value, String what, @Nullable ClientState state)
+    public void guard(long value, String what, boolean containsUserData, @Nullable ClientState state)
     {
         if (!enabled(state))
             return;
@@ -124,23 +138,25 @@ public class Threshold extends Guardrail
         long failValue = failValue(state);
         if (value > failValue)
         {
-            triggerFail(value, failValue, what, state);
+            triggerFail(value, failValue, what, containsUserData, state);
             return;
         }
 
         long warnValue = warnValue(state);
         if (value > warnValue)
-            triggerWarn(value, warnValue, what);
+            triggerWarn(value, warnValue, what, containsUserData);
     }
 
-    private void triggerFail(long value, long failValue, String what, ClientState state)
+    private void triggerFail(long value, long failValue, String what, boolean containsUserData, ClientState state)
     {
-        fail(errMsg(false, what, value, failValue), state);
+        String fullMessage = errMsg(false, what, value, failValue);
+        fail(fullMessage, containsUserData ? redactedErrMsg(false, value, failValue) : fullMessage, state);
     }
 
-    private void triggerWarn(long value, long warnValue, String what)
+    private void triggerWarn(long value, long warnValue, String what, boolean containsUserData)
     {
-        warn(errMsg(true, what, value, warnValue));
+        String fullMessage = errMsg(true, what, value, warnValue);
+        warn(fullMessage, containsUserData ? redactedErrMsg(true, value, warnValue) : fullMessage);
     }
 
     /**
@@ -157,6 +173,6 @@ public class Threshold extends Guardrail
          * @param value     The value that triggered the guardrail (as a string).
          * @param threshold The threshold that was passed to trigger the guardrail (as a string).
          */
-        String createMessage(boolean isWarning, String what, long value, long threshold);
+        String createMessage(boolean isWarning, String what, String value, String threshold);
     }
 }

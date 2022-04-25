@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.service;
 
+import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -101,7 +103,21 @@ public class StorageProxyTest
         });
     }
 
-    private void shouldHintTest(Consumer<Replica> test) throws Exception
+
+    /**
+     * Ensure that the timer backing the JMX endpoint to transiently enable blocking read repairs both enables
+     * and disables the way we'd expect.
+     */
+    @Test
+    public void testTransientLoggingTimer()
+    {
+        StorageProxy.instance.logBlockingReadRepairAttemptsForNSeconds(2);
+        Assert.assertTrue(StorageProxy.instance.isLoggingReadRepairs());
+        Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
+        Assert.assertFalse(StorageProxy.instance.isLoggingReadRepairs());
+    }
+
+    private void shouldHintTest(Consumer<Replica> test) throws UnknownHostException
     {
         InetAddressAndPort testEp = InetAddressAndPort.getByName("192.168.1.1");
         Replica replica = full(testEp);

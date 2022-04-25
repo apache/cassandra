@@ -48,6 +48,7 @@
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="." includesfile="build/.ratinclude">
                  <!-- Config files with not much creativity -->
+                 <exclude name="**/.asf.yaml"/>
                  <exclude name="**/ide/**/*"/>
                  <exclude name="**/metrics-reporter-config-sample.yaml"/>
                  <exclude name="**/cassandra.yaml"/>
@@ -67,6 +68,10 @@
                  <exclude name="**/test/data/jmxdump/cassandra-3.0-jmx.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-3.11-jmx.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-4.0-jmx.yaml"/>
+                 <exclude name="**/test/data/jmxdump/cassandra-4.1-jmx.yaml"/>
+                 <exclude name="**/test/data/config/version=3.0.0-alpha1.yml"/>
+                 <exclude name="**/test/data/config/version=3.11.0.yml"/>
+                 <exclude name="**/test/data/config/version=4.0-alpha1.yml"/>
                  <exclude name="**/test/resources/data/config/YamlConfigurationLoaderTest/shared_client_error_reporting_exclusions.yaml"/>
                  <exclude name="**/tools/cqlstress-counter-example.yaml"/>
                  <exclude name="**/tools/cqlstress-example.yaml"/>

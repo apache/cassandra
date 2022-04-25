@@ -560,7 +560,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     if (trackWarnings)
                     {
                         MessageParams.remove(ParamType.TOMBSTONE_WARNING);
-                        MessageParams.add(ParamType.TOMBSTONE_ABORT, tombstones);
+                        MessageParams.add(ParamType.TOMBSTONE_FAIL, tombstones);
                     }
                     throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
                 }
@@ -653,19 +653,21 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
-    private boolean shouldTrackSize(long warnThresholdBytes, long abortThresholdBytes)
+    private boolean shouldTrackSize(DataStorageSpec warnThresholdBytes, DataStorageSpec abortThresholdBytes)
     {
         return trackWarnings
                && !SchemaConstants.isSystemKeyspace(metadata().keyspace)
-               && !(warnThresholdBytes == 0 && abortThresholdBytes == 0);
+               && !(warnThresholdBytes == null && abortThresholdBytes == null);
     }
 
     private UnfilteredPartitionIterator withQuerySizeTracking(UnfilteredPartitionIterator iterator)
     {
-        final long warnThresholdBytes = DatabaseDescriptor.getLocalReadSizeWarnThresholdKb() * 1024;
-        final long abortThresholdBytes = DatabaseDescriptor.getLocalReadSizeAbortThresholdKb() * 1024;
-        if (!shouldTrackSize(warnThresholdBytes, abortThresholdBytes))
+        DataStorageSpec warnThreshold = DatabaseDescriptor.getLocalReadSizeWarnThreshold();
+        DataStorageSpec failThreshold = DatabaseDescriptor.getLocalReadSizeFailThreshold();
+        if (!shouldTrackSize(warnThreshold, failThreshold))
             return iterator;
+        final long warnBytes = warnThreshold == null ? -1 : warnThreshold.toBytes();
+        final long failBytes = failThreshold == null ? -1 : failThreshold.toBytes();
         class QuerySizeTracking extends Transformation<UnfilteredRowIterator>
         {
             private long sizeInBytes = 0;
@@ -707,16 +709,16 @@ public abstract class ReadCommand extends AbstractReadQuery
             private void addSize(long size)
             {
                 this.sizeInBytes += size;
-                if (abortThresholdBytes != 0 && this.sizeInBytes >= abortThresholdBytes)
+                if (failBytes != -1 && this.sizeInBytes >= failBytes)
                 {
-                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %d; query aborted  (see track_warnings.local_read_size.abort_threshold_kb)",
-                                               ReadCommand.this.toCQLString(), this.sizeInBytes, abortThresholdBytes);
+                    String msg = String.format("Query %s attempted to read %d bytes but max allowed is %s; query aborted  (see local_read_size_fail_threshold)",
+                                               ReadCommand.this.toCQLString(), this.sizeInBytes, failThreshold);
                     Tracing.trace(msg);
                     MessageParams.remove(ParamType.LOCAL_READ_SIZE_WARN);
-                    MessageParams.add(ParamType.LOCAL_READ_SIZE_ABORT, this.sizeInBytes);
+                    MessageParams.add(ParamType.LOCAL_READ_SIZE_FAIL, this.sizeInBytes);
                     throw new LocalReadSizeTooLargeException(msg);
                 }
-                else if (warnThresholdBytes != 0 && this.sizeInBytes >= warnThresholdBytes)
+                else if (warnBytes != -1 && this.sizeInBytes >= warnBytes)
                 {
                     MessageParams.add(ParamType.LOCAL_READ_SIZE_WARN, this.sizeInBytes);
                 }
@@ -1052,7 +1054,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             int nowInSec = in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
-            DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata.comparator);
+            DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata);
             IndexMetadata index = hasIndex ? deserializeIndexMetadata(in, version, metadata) : null;
 
             return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);

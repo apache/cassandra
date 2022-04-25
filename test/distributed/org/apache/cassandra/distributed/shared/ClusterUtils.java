@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.shared;
 
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
+import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,6 +53,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
 
@@ -273,15 +275,13 @@ public class ClusterUtils
                                                           .collect(Collectors.toList()));
     }
 
-    public static String getLocalToken(IInvokableInstance inst)
+    public static Collection<String> getLocalTokens(IInvokableInstance inst)
     {
         return inst.callOnInstance(() -> {
             List<String> tokens = new ArrayList<>();
             for (Token t : StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddressAndPort()))
                 tokens.add(t.getTokenValue().toString());
-
-            assert tokens.size() == 1 : "getLocalToken assumes a single token, but multiple tokens found";
-            return tokens.get(0);
+            return tokens;
         });
     }
 
@@ -628,6 +628,17 @@ public class ClusterUtils
     }
 
     /**
+     * Get the number of tokens for the instance via config.
+     *
+     * @param instance to get token count from
+     * @return number of tokens
+     */
+    public static int getTokenCount(IInvokableInstance instance)
+    {
+        return instance.config().getInt("num_tokens");
+    }
+
+    /**
      * Get all data directories for the given instance.
      *
      * @param instance to get data directories for
@@ -857,5 +868,27 @@ public class ClusterUtils
         {
             return Arrays.asList(address, rack, status, state, token).toString();
         }
+    }
+
+    public static void preventSystemExit()
+    {
+        System.setSecurityManager(new SecurityManager()
+        {
+            @Override
+            public void checkExit(int status)
+            {
+                throw new SystemExitException(status);
+            }
+
+            @Override
+            public void checkPermission(Permission perm)
+            {
+            }
+
+            @Override
+            public void checkPermission(Permission perm, Object context)
+            {
+            }
+        });
     }
 }

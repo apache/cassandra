@@ -110,11 +110,11 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertTrue(config.drop_compact_storage_enabled);
         assertTrue(config.user_defined_functions_threads_enabled);
         assertEquals(DurationSpec.inMilliseconds(2000), config.permissions_validity);
-        assertEquals(DurationSpec.inMilliseconds(0), config.permissions_update_interval);
+        assertNull(config.permissions_update_interval);
         assertEquals(DurationSpec.inMilliseconds(2000), config.roles_validity);
-        assertEquals(DurationSpec.inMilliseconds(0), config.roles_update_interval);
+        assertNull(config.roles_update_interval);
         assertEquals(DurationSpec.inMilliseconds(2000), config.credentials_validity);
-        assertEquals(DurationSpec.inMilliseconds(0), config.credentials_update_interval);
+        assertNull(config.credentials_update_interval);
         assertEquals(DurationSpec.inMinutes(60), config.index_summary_resize_interval);
 
         //parameters which names have not changed with CASSANDRA-15234
@@ -124,5 +124,6 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(DurationSpec.inSecondsString("0"), config.row_cache_save_period);
         assertEquals(DurationSpec.inSeconds(0), config.row_cache_save_period);
         assertEquals(DurationSpec.inHours(2), config.counter_cache_save_period);
+        assertEquals(DurationSpec.inSeconds(35), config.cache_load_timeout);
     }
 }

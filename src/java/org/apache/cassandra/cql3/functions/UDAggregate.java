@@ -100,6 +100,12 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
                         .orElseThrow(() -> new ConfigurationException(String.format("Unable to find function %s referenced by UDA %s", name, udaName)));
     }
 
+    public boolean isPure()
+    {
+        // Right now, we have no way to check if an UDA is pure. Due to that we consider them as non pure to avoid any risk.
+        return false;
+    }
+
     public boolean hasReferenceTo(Function function)
     {
         return stateFunction == function || finalFunction == function;

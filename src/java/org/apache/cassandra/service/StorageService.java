@@ -63,7 +63,7 @@ import com.google.common.util.concurrent.*;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.concurrent.*;
-import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
@@ -72,9 +72,9 @@ import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.commons.lang3.StringUtils;
@@ -91,10 +91,8 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.batchlog.BatchlogManager;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.*;
@@ -105,22 +103,16 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.fql.FullQueryLogger;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
-import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.VersionAndType;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.*;
-import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.repair.*;
@@ -144,8 +136,6 @@ import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -157,7 +147,6 @@ import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
-import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -167,7 +156,6 @@ import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
-import static org.apache.cassandra.config.Config.PaxosStatePurging.repaired;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -175,7 +163,6 @@ import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.service.ActiveRepairService.*;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.service.ActiveRepairService.*;
 import static org.apache.cassandra.utils.FBUtilities.now;
 
 /**
@@ -825,7 +812,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             public void runMayThrow() throws InterruptedException, ExecutionException, IOException
             {
                 drain(true);
-                LoggingSupportFactory.getLoggingSupport().onShutdown();
+                try
+                {
+                    ExecutorUtils.shutdownNowAndWait(1, MINUTES, ScheduledExecutors.scheduledFastTasks);
+                }
+                catch (Throwable t)
+                {
+                    logger.warn("Unable to terminate fast tasks within 1 minute.", t);
+                }
+                finally
+                {
+                    LoggingSupportFactory.getLoggingSupport().onShutdown();
+                }
             }
         }, "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
@@ -1037,6 +1035,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             gossipSnitchInfo();
             Schema.instance.startSync();
             LoadBroadcaster.instance.startBroadcasting();
+            DiskUsageBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
             snapshotManager.start();
@@ -3915,6 +3914,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         takeMultipleTableSnapshot(tag, false, null, keyspaceName + "." + tableName);
     }
 
+    @Override
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         Collection<Range<Token>> tokenRanges = createRepairRangeFrom(startToken, endToken);
@@ -3922,6 +3922,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
         {
             cfStore.forceCompactionForTokenRange(tokenRanges);
+        }
+    }
+
+    @Override
+    public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        // validate that the key parses before attempting compaction
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
+        {
+            try
+            {
+                getKeyFromPartition(keyspaceName, cfStore.name, partitionKey);
+            }
+            catch (Exception e)
+            {
+                // JMX can not handle exceptions defined outside of java.* and javax.*, so safer to rewrite the exception
+                IllegalArgumentException exception = new IllegalArgumentException(String.format("Unable to parse partition key '%s' for table %s; %s", partitionKey, cfStore.metadata, e.getMessage()));
+                exception.setStackTrace(e.getStackTrace());
+                throw exception;
+            }
+        }
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
+        {
+            cfStore.forceCompactionForKey(getKeyFromPartition(keyspaceName, cfStore.name, partitionKey));
         }
     }
 
@@ -4574,6 +4598,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, String cf, String key)
     {
+        return getNaturalReplicasForToken(keyspaceName, partitionKeyToBytes(keyspaceName, cf, key));
+    }
+
+    public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, ByteBuffer key)
+    {
+        Token token = tokenMetadata.partitioner.getToken(key);
+        return Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicasForToken(token);
+    }
+
+    public DecoratedKey getKeyFromPartition(String keyspaceName, String table, String partitionKey)
+    {
+        return tokenMetadata.partitioner.decorateKey(partitionKeyToBytes(keyspaceName, table, partitionKey));
+    }
+
+    private static ByteBuffer partitionKeyToBytes(String keyspaceName, String cf, String key)
+    {
         KeyspaceMetadata ksMetaData = Schema.instance.getKeyspaceMetadata(keyspaceName);
         if (ksMetaData == null)
             throw new IllegalArgumentException("Unknown keyspace '" + keyspaceName + "'");
@@ -4582,13 +4622,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (metadata == null)
             throw new IllegalArgumentException("Unknown table '" + cf + "' in keyspace '" + keyspaceName + "'");
 
-        return getNaturalReplicasForToken(keyspaceName, metadata.partitionKeyType.fromString(key));
+        return metadata.partitionKeyType.fromString(key);
     }
 
-    public EndpointsForToken getNaturalReplicasForToken(String keyspaceName, ByteBuffer key)
+    @Override
+    public String getToken(String keyspaceName, String table, String key)
     {
-        Token token = tokenMetadata.partitioner.getToken(key);
-        return Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicasForToken(token);
+        return tokenMetadata.partitioner.getToken(partitionKeyToBytes(keyspaceName, table, key)).toString();
     }
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
@@ -5302,12 +5342,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             CommitLog.instance.shutdownBlocking();
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
-            ScheduledExecutors.nonPeriodicTasks.shutdown();
-            if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, MINUTES))
-                logger.warn("Unable to terminate non-periodic tasks within 1 minute.");
-
             ColumnFamilyStore.shutdownPostFlushExecutor();
-            setMode(Mode.DRAINED, !isFinalShutdown);
+
+            try
+            {
+                // we are not shutting down ScheduledExecutors#scheduledFastTasks to be still able to progress time
+                // fast-tasks executor is shut down in StorageService's shutdown hook added to Runtime
+                ExecutorUtils.shutdownNowAndWait(1, MINUTES,
+                                                 ScheduledExecutors.nonPeriodicTasks,
+                                                 ScheduledExecutors.scheduledTasks,
+                                                 ScheduledExecutors.optionalTasks);
+            }
+            finally
+            {
+                setMode(Mode.DRAINED, !isFinalShutdown);
+            }
         }
         catch (Throwable t)
         {
@@ -6120,7 +6169,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
-                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException
     {
         enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
                        maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
@@ -6136,7 +6185,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
-                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException
     {
         final AuditLogOptions options = new AuditLogOptions.Builder(DatabaseDescriptor.getAuditLoggingOptions())
                                         .withEnabled(true)
@@ -6366,112 +6415,100 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public boolean getTrackWarningsEnabled()
+    public boolean getReadThresholdsEnabled()
     {
-        return DatabaseDescriptor.getTrackWarningsEnabled();
+        return DatabaseDescriptor.getReadThresholdsEnabled();
     }
 
     @Override
-    public void setTrackWarningsEnabled(boolean value)
+    public void setReadThresholdsEnabled(boolean value)
     {
-        DatabaseDescriptor.setTrackWarningsEnabled(value);
-        logger.info("updated track_warnings.enabled to {}", value);
+        DatabaseDescriptor.setReadThresholdsEnabled(value);
     }
 
     @Override
-    public long getCoordinatorLargeReadWarnThresholdKB()
+    public String getCoordinatorLargeReadWarnThreshold()
     {
-        return DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();
+        return DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold().toString();
     }
 
     @Override
-    public void setCoordinatorLargeReadWarnThresholdKB(long threshold)
+    public void setCoordinatorLargeReadWarnThreshold(String threshold)
     {
-        if (threshold < 0)
-            throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setCoordinatorReadSizeWarnThresholdKB(threshold);
-        logger.info("updated track_warnings.coordinator_large_read.warn_threshold_kb to {}", threshold);
+        DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
-    public long getCoordinatorLargeReadAbortThresholdKB()
+    public String getCoordinatorLargeReadAbortThreshold()
     {
-        return DatabaseDescriptor.getCoordinatorReadSizeAbortThresholdKB();
+        return DatabaseDescriptor.getCoordinatorReadSizeFailThreshold().toString();
     }
 
     @Override
-    public void setCoordinatorLargeReadAbortThresholdKB(long threshold)
+    public void setCoordinatorLargeReadAbortThreshold(String threshold)
     {
-        if (threshold < 0)
-            throw new IllegalArgumentException("threshold " + threshold + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setCoordinatorReadSizeAbortThresholdKB(threshold);
-        logger.info("updated track_warnings.coordinator_large_read.abort_threshold_kb to {}", threshold);
+        DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
-    public long getLocalReadTooLargeWarnThresholdKb()
+    public String getLocalReadTooLargeWarnThreshold()
     {
-        return DatabaseDescriptor.getLocalReadSizeWarnThresholdKb();
+        return DatabaseDescriptor.getLocalReadSizeWarnThreshold().toString();
     }
 
     @Override
-    public void setLocalReadTooLargeWarnThresholdKb(long value)
+    public void setLocalReadTooLargeWarnThreshold(String threshold)
     {
-        if (value < 0)
-            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setLocalReadSizeWarnThresholdKb(value);
-        logger.info("updated track_warnings.local_read_size.warn_threshold_kb to {}", value);
+        DatabaseDescriptor.setLocalReadSizeWarnThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
-    public long getLocalReadTooLargeAbortThresholdKb()
+    public String getLocalReadTooLargeAbortThreshold()
     {
-        return DatabaseDescriptor.getLocalReadSizeAbortThresholdKb();
+        return DatabaseDescriptor.getLocalReadSizeFailThreshold().toString();
     }
 
     @Override
-    public void setLocalReadTooLargeAbortThresholdKb(long value)
+    public void setLocalReadTooLargeAbortThreshold(String threshold)
     {
-        if (value < 0)
-            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setLocalReadSizeAbortThresholdKb(value);
-        logger.info("updated track_warnings.local_read_size.abort_threshold_kb to {}", value);
+        DatabaseDescriptor.setLocalReadSizeFailThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
-    public int getRowIndexSizeWarnThresholdKb()
+    public String getRowIndexReadSizeWarnThreshold()
     {
-        return DatabaseDescriptor.getRowIndexSizeWarnThresholdKiB();
+        return DatabaseDescriptor.getRowIndexReadSizeWarnThreshold().toString();
     }
 
     @Override
-    public void setRowIndexSizeWarnThresholdKb(int value)
+    public void setRowIndexReadSizeWarnThreshold(String threshold)
     {
-        if (value < 0)
-            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setRowIndexSizeWarnThresholdKiB(value);
-        logger.info("updated track_warnings.row_index_size.warn_threshold_kb to {}", value);
+        DatabaseDescriptor.setRowIndexReadSizeWarnThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override
-    public int getRowIndexSizeAbortThresholdKb()
+    public String getRowIndexReadSizeAbortThreshold()
     {
-        return DatabaseDescriptor.getRowIndexSizeAbortThresholdKiB();
+        return DatabaseDescriptor.getRowIndexReadSizeFailThreshold().toString();
     }
 
     @Override
-    public void setRowIndexSizeAbortThresholdKb(int value)
+    public void setRowIndexReadSizeAbortThreshold(String threshold)
     {
-        if (value < 0)
-            throw new IllegalArgumentException("value " + value + " is less than 0; must be positive or zero");
-        DatabaseDescriptor.setRowIndexSizeAbortThresholdKiB(value);
-        logger.info("updated track_warnings.row_index_size.abort_threshold_kb to {}", value);
+        DatabaseDescriptor.setRowIndexReadSizeFailThreshold(parseDataStorageSpec(threshold));
     }
 
     public void setDefaultKeyspaceReplicationFactor(int value)
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(value);
         logger.info("set default keyspace rf to {}", value);
+    }
+
+    private static DataStorageSpec parseDataStorageSpec(String threshold)
+    {
+        return threshold == null
+               ? null
+               : new DataStorageSpec(threshold);
     }
 
     public int getDefaultKeyspaceReplicationFactor()

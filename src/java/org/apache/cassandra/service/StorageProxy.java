@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
@@ -193,6 +194,8 @@ public class StorageProxy implements StorageProxyMBean
     private static final DenylistMetrics denylistMetrics = new DenylistMetrics();
 
     private static final PartitionDenylist partitionDenylist = new PartitionDenylist();
+
+    private volatile long logBlockingReadRepairAttemptsUntilNanos = Long.MIN_VALUE;
 
     private StorageProxy()
     {
@@ -833,17 +836,6 @@ public class StorageProxy implements StorageProxyMBean
         });
     }
 
-    private static boolean hasLocalMutation(IMutation mutation)
-    {
-        return canDoLocalRequest(StorageService.instance.getNaturalEndpointsWithPort(mutation.getKeyspaceName(),
-                                                                                     mutation.key().getKey()));
-    }
-
-    private static boolean canDoLocalRequest(List<String> endpoints)
-    {
-        return endpoints.contains(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort());
-    }
-
     /**
      * Use this method to have these Mutations applied
      * across all replicas. This method will take care
@@ -869,11 +861,6 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (IMutation mutation : mutations)
             {
-                if (hasLocalMutation(mutation))
-                    writeMetrics.localRequests.mark();
-                else
-                    writeMetrics.remoteRequests.mark();
-
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, queryStartNanoTime));
                 else
@@ -1027,11 +1014,6 @@ public class StorageProxy implements StorageProxyMBean
                 // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
                 for (Mutation mutation : mutations)
                 {
-                    if (hasLocalMutation(mutation))
-                        writeMetrics.localRequests.mark();
-                    else
-                        writeMetrics.remoteRequests.mark();
-
                     String keyspaceName = mutation.getKeyspaceName();
                     Token tk = mutation.key().getToken();
                     AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
@@ -1198,11 +1180,6 @@ public class StorageProxy implements StorageProxyMBean
             // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
             for (Mutation mutation : mutations)
             {
-                if (hasLocalMutation(mutation))
-                    writeMetrics.localRequests.mark();
-                else
-                    writeMetrics.remoteRequests.mark();
-
                 WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
                                                                                consistency_level,
                                                                                batchConsistencyLevel,
@@ -1369,6 +1346,12 @@ public class StorageProxy implements StorageProxyMBean
         Token tk = mutation.key().getToken();
 
         ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+
+        if (replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
+            writeMetrics.localRequests.mark();
+        else
+            writeMetrics.remoteRequests.mark();
+
         AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
         AbstractWriteResponseHandler<IMutation> responseHandler = rs.getWriteResponseHandler(replicaPlan, callback, writeType, mutation.hintOnFailure(), queryStartNanoTime);
 
@@ -1388,6 +1371,12 @@ public class StorageProxy implements StorageProxyMBean
         Token tk = mutation.key().getToken();
 
         ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+
+        if (replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
+            writeMetrics.localRequests.mark();
+        else
+            writeMetrics.remoteRequests.mark();
+
         AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
         AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(replicaPlan, null, writeType, mutation, queryStartNanoTime);
         BatchlogResponseHandler<IMutation> batchHandler = new BatchlogResponseHandler<>(writeHandler, batchConsistencyLevel.blockFor(rs), cleanup, queryStartNanoTime);
@@ -1683,6 +1672,11 @@ public class StorageProxy implements StorageProxyMBean
 
             // we build this ONLY to perform the sufficiency check that happens on construction
             ReplicaPlans.forWrite(keyspace, cm.consistency(), tk, ReplicaPlans.writeAll);
+
+            // This host isn't a replica, so mark the request as being remote. If this host is a 
+            // replica, applyCounterMutationOnCoordinator() in the branch above will call performWrite(), and 
+            // there we'll mark a local request against the metrics.
+            writeMetrics.remoteRequests.mark();
 
             // Forward the actual update to the chosen leader replica
             AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(ReplicaPlans.forForwardingCounterWrite(keyspace, tk, replica),
@@ -2035,11 +2029,10 @@ public class StorageProxy implements StorageProxyMBean
         {
             reads[i] = AbstractReadExecutor.getReadExecutor(commands.get(i), consistencyLevel, queryStartNanoTime);
 
-            if (canDoLocalRequest(reads[i].getContactedReplicas())) {
+            if (reads[i].hasLocalRead())
                 readMetrics.localRequests.mark();
-            } else {
+            else
                 readMetrics.remoteRequests.mark();
-            }
         }
 
         // sends a data request to the closest replica, and a digest request to the others. If we have a speculating
@@ -2058,9 +2051,10 @@ public class StorageProxy implements StorageProxyMBean
 
         // wait for enough responses to meet the consistency level. If there's a digest mismatch, begin the read
         // repair process by sending full data reads to all replicas we received responses from.
+        boolean logBlockingRepairAttempts = instance.isLoggingReadRepairs();
         for (int i=0; i<cmdCount; i++)
         {
-            reads[i].awaitResponses();
+            reads[i].awaitResponses(logBlockingRepairAttempts);
         }
 
         // read repair - if it looks like we may not receive enough full data responses to meet CL, send
@@ -3027,6 +3021,18 @@ public class StorageProxy implements StorageProxyMBean
 
         final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
         return !partitionDenylist.isKeyPermitted(keyspace, table, bytes);
+    }
+
+    @Override
+    public void logBlockingReadRepairAttemptsForNSeconds(int seconds)
+    {
+        logBlockingReadRepairAttemptsUntilNanos = nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+    }
+
+    @Override
+    public boolean isLoggingReadRepairs()
+    {
+        return nanoTime() <= StorageProxy.instance.logBlockingReadRepairAttemptsUntilNanos;
     }
 
     @Override

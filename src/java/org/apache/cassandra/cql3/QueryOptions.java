@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableList;
 
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -228,21 +229,21 @@ public abstract class QueryOptions
     // Mainly for the sake of BatchQueryOptions
     abstract SpecificOptions getSpecificOptions();
 
-    abstract TrackWarnings getTrackWarnings();
+    abstract ReadThresholds getReadThresholds();
 
-    public boolean isTrackWarningsEnabled()
+    public boolean isReadThresholdsEnabled()
     {
-        return getTrackWarnings().isEnabled();
+        return getReadThresholds().isEnabled();
     }
 
-    public long getCoordinatorReadSizeWarnThresholdKB()
+    public long getCoordinatorReadSizeWarnThresholdBytes()
     {
-        return getTrackWarnings().getCoordinatorReadSizeWarnThresholdKB();
+        return getReadThresholds().getCoordinatorReadSizeWarnThresholdBytes();
     }
 
-    public long getCoordinatorReadSizeAbortThresholdKB()
+    public long getCoordinatorReadSizeAbortThresholdBytes()
     {
-        return getTrackWarnings().getCoordinatorReadSizeAbortThresholdKB();
+        return getReadThresholds().getCoordinatorReadSizeFailThresholdBytes();
     }
 
     public QueryOptions prepare(List<ColumnSpecification> specs)
@@ -250,29 +251,24 @@ public abstract class QueryOptions
         return this;
     }
 
-    interface TrackWarnings
+    interface ReadThresholds
     {
         boolean isEnabled();
 
-        long getCoordinatorReadSizeWarnThresholdKB();
+        long getCoordinatorReadSizeWarnThresholdBytes();
 
-        long getCoordinatorReadSizeAbortThresholdKB();
+        long getCoordinatorReadSizeFailThresholdBytes();
 
-        static TrackWarnings create()
+        static ReadThresholds create()
         {
             // if daemon initialization hasn't happened yet (very common in tests) then ignore
-            if (!DatabaseDescriptor.isDaemonInitialized())
-                return DisabledTrackWarnings.INSTANCE;
-            boolean enabled = DatabaseDescriptor.getTrackWarningsEnabled();
-            if (!enabled)
-                return DisabledTrackWarnings.INSTANCE;
-            long warnThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeWarnThresholdKB();
-            long abortThresholdKB = DatabaseDescriptor.getCoordinatorReadSizeAbortThresholdKB();
-            return new DefaultTrackWarnings(warnThresholdKB, abortThresholdKB);
+            if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getReadThresholdsEnabled())
+                return DisabledReadThresholds.INSTANCE;
+            return new DefaultReadThresholds(DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold(), DatabaseDescriptor.getCoordinatorReadSizeFailThreshold());
         }
     }
 
-    private enum DisabledTrackWarnings implements TrackWarnings
+    private enum DisabledReadThresholds implements ReadThresholds
     {
         INSTANCE;
 
@@ -283,27 +279,27 @@ public abstract class QueryOptions
         }
 
         @Override
-        public long getCoordinatorReadSizeWarnThresholdKB()
+        public long getCoordinatorReadSizeWarnThresholdBytes()
         {
-            return 0;
+            return -1;
         }
 
         @Override
-        public long getCoordinatorReadSizeAbortThresholdKB()
+        public long getCoordinatorReadSizeFailThresholdBytes()
         {
-            return 0;
+            return -1;
         }
     }
 
-    private static class DefaultTrackWarnings implements TrackWarnings
+    private static class DefaultReadThresholds implements ReadThresholds
     {
-        private final long warnThresholdKB;
-        private final long abortThresholdKB;
+        private final long warnThresholdBytes;
+        private final long abortThresholdBytes;
 
-        public DefaultTrackWarnings(long warnThresholdKB, long abortThresholdKB)
+        public DefaultReadThresholds(DataStorageSpec warnThreshold, DataStorageSpec abortThreshold)
         {
-            this.warnThresholdKB = warnThresholdKB;
-            this.abortThresholdKB = abortThresholdKB;
+            this.warnThresholdBytes = warnThreshold == null ? -1 : warnThreshold.toBytes();
+            this.abortThresholdBytes = abortThreshold == null ? -1 : abortThreshold.toBytes();
         }
 
         @Override
@@ -313,15 +309,15 @@ public abstract class QueryOptions
         }
 
         @Override
-        public long getCoordinatorReadSizeWarnThresholdKB()
+        public long getCoordinatorReadSizeWarnThresholdBytes()
         {
-            return warnThresholdKB;
+            return warnThresholdBytes;
         }
 
         @Override
-        public long getCoordinatorReadSizeAbortThresholdKB()
+        public long getCoordinatorReadSizeFailThresholdBytes()
         {
-            return abortThresholdKB;
+            return abortThresholdBytes;
         }
     }
 
@@ -334,7 +330,7 @@ public abstract class QueryOptions
         private final SpecificOptions options;
 
         private final transient ProtocolVersion protocolVersion;
-        private final transient TrackWarnings trackWarnings = TrackWarnings.create();
+        private final transient ReadThresholds readThresholds = ReadThresholds.create();
 
         DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options, ProtocolVersion protocolVersion)
         {
@@ -371,9 +367,9 @@ public abstract class QueryOptions
         }
 
         @Override
-        TrackWarnings getTrackWarnings()
+        ReadThresholds getReadThresholds()
         {
-            return trackWarnings;
+            return readThresholds;
         }
     }
 
@@ -412,9 +408,9 @@ public abstract class QueryOptions
         }
 
         @Override
-        TrackWarnings getTrackWarnings()
+        ReadThresholds getReadThresholds()
         {
-            return wrapped.getTrackWarnings();
+            return wrapped.getReadThresholds();
         }
 
         @Override

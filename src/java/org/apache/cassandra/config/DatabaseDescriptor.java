@@ -18,9 +18,22 @@
 package org.apache.cassandra.config;
 
 import java.io.IOException;
-import java.net.*;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.nio.file.FileStore;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -31,18 +44,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
-
-import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.config.Config.PaxosStatePurging;
-
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -51,14 +58,20 @@ import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
+import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
+import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC;
 import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy;
@@ -72,22 +85,14 @@ import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
-import org.apache.cassandra.service.FileSystemOwnershipCheck;
-import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.StringUtils;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
 public class DatabaseDescriptor
@@ -546,14 +551,14 @@ public class DatabaseDescriptor
             conf.hints_directory = storagedirFor("hints");
         }
 
-        if (conf.native_transport_max_concurrent_requests_in_bytes <= 0)
+        if (conf.native_transport_max_request_data_in_flight == null)
         {
-            conf.native_transport_max_concurrent_requests_in_bytes = Runtime.getRuntime().maxMemory() / 10;
+            conf.native_transport_max_request_data_in_flight = DataStorageSpec.inBytes(Runtime.getRuntime().maxMemory() / 10);
         }
 
-        if (conf.native_transport_max_concurrent_requests_in_bytes_per_ip <= 0)
+        if (conf.native_transport_max_request_data_in_flight_per_ip == null)
         {
-            conf.native_transport_max_concurrent_requests_in_bytes_per_ip = Runtime.getRuntime().maxMemory() / 40;
+            conf.native_transport_max_request_data_in_flight_per_ip = DataStorageSpec.inBytes(Runtime.getRuntime().maxMemory() / 40);
         }
         
         if (conf.native_transport_rate_limiting_enabled)
@@ -682,7 +687,7 @@ public class DatabaseDescriptor
 
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
-        applyTrackWarningsValidations(conf);
+        applyReadThresholdsValidations(conf);
 
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
@@ -769,13 +774,8 @@ public class DatabaseDescriptor
             throw new ConfigurationException("index_summary_capacity option was set incorrectly to '"
                                              + conf.index_summary_capacity.toString() + "', it should be a non-negative integer.", false);
 
-        if (conf.user_defined_function_fail_timeout < 0)
-            throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
-        if (conf.user_defined_function_warn_timeout < 0)
-            throw new ConfigurationException("user_defined_function_warn_timeout must not be negative", false);
-
-        if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
-            throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
+        if (conf.user_defined_functions_fail_timeout.toMilliseconds() < conf.user_defined_functions_warn_timeout.toMilliseconds())
+            throw new ConfigurationException("user_defined_functions_warn_timeout must less than user_defined_function_fail_timeout", false);
 
         if (!conf.allow_insecure_udfs && !conf.user_defined_functions_threads_enabled)
             throw new ConfigurationException("To be able to set enable_user_defined_functions_threads: false you need to set allow_insecure_udfs: true - this is an unsafe configuration and is not recommended.");
@@ -906,9 +906,19 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    static void applyTrackWarningsValidations(Config config)
+    static void applyReadThresholdsValidations(Config config)
     {
-        config.track_warnings.validate("track_warnings");
+        validateReadThresholds("coordinator_read_size", config.coordinator_read_size_warn_threshold, config.coordinator_read_size_fail_threshold);
+        validateReadThresholds("local_read_size", config.local_read_size_warn_threshold, config.local_read_size_fail_threshold);
+        validateReadThresholds("row_index_read_size", config.row_index_read_size_warn_threshold, config.row_index_read_size_fail_threshold);
+    }
+
+    private static void validateReadThresholds(String name, DataStorageSpec warn, DataStorageSpec fail)
+    {
+        if (fail != null && warn != null && fail.toBytes() < warn.toBytes())
+            throw new ConfigurationException(String.format("%s (%s) must be greater than or equal to %s (%s)",
+                                                           name + "_fail_threshold", fail,
+                                                           name + "_warn_threshold", warn));
     }
 
     public static GuardrailsOptions getGuardrailsConfig()
@@ -1350,14 +1360,26 @@ public class DatabaseDescriptor
 
     public static int getPermissionsUpdateInterval()
     {
-        return conf.permissions_update_interval.toMilliseconds() == 0
+        return conf.permissions_update_interval == null
              ? conf.permissions_validity.toMillisecondsAsInt()
              : conf.permissions_update_interval.toMillisecondsAsInt();
     }
 
     public static void setPermissionsUpdateInterval(int updateInterval)
     {
-        conf.permissions_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
+        if (updateInterval == -1)
+            conf.permissions_update_interval = null;
+        else
+        {
+            try
+            {
+                conf.permissions_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
+            }
+            catch (ConfigurationException e)
+            {
+                throw new IllegalArgumentException("permissions_update_interval should be >= -1");
+            }
+        }
     }
 
     public static int getPermissionsCacheMaxEntries()
@@ -1392,7 +1414,7 @@ public class DatabaseDescriptor
 
     public static int getRolesUpdateInterval()
     {
-        return conf.roles_update_interval.toMillisecondsAsInt() == 0
+        return conf.roles_update_interval == null
              ? conf.roles_validity.toMillisecondsAsInt()
              : conf.roles_update_interval.toMillisecondsAsInt();
     }
@@ -1409,7 +1431,19 @@ public class DatabaseDescriptor
 
     public static void setRolesUpdateInterval(int interval)
     {
-        conf.roles_update_interval = SmallestDurationMilliseconds.inMilliseconds(interval);
+        if (interval == -1)
+            conf.roles_update_interval = null;
+        else
+        {
+            try
+            {
+                conf.roles_update_interval = SmallestDurationMilliseconds.inMilliseconds(interval);
+            }
+            catch(ConfigurationException e)
+            {
+                throw new IllegalArgumentException("roles_update_interval should be >= -1");
+            }
+        }
     }
 
     public static int getRolesCacheMaxEntries()
@@ -1434,14 +1468,26 @@ public class DatabaseDescriptor
 
     public static int getCredentialsUpdateInterval()
     {
-        return conf.credentials_update_interval.toMillisecondsAsInt() == 0
+        return conf.credentials_update_interval == null
                ? conf.credentials_validity.toMillisecondsAsInt()
                : conf.credentials_update_interval.toMillisecondsAsInt();
     }
 
     public static void setCredentialsUpdateInterval(int updateInterval)
     {
-        conf.credentials_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
+        if (updateInterval == -1)
+            conf.credentials_update_interval = null;
+        else
+        {
+            try
+            {
+                conf.credentials_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
+            }
+            catch (ConfigurationException e)
+            {
+                throw new IllegalArgumentException("credentials_update_interval should be >= -1.");
+            }
+        }
     }
 
     public static int getCredentialsCacheMaxEntries()
@@ -2476,17 +2522,17 @@ public class DatabaseDescriptor
 
     public static int getNativeTransportReceiveQueueCapacityInBytes()
     {
-        return conf.native_transport_receive_queue_capacity_in_bytes;
+        return conf.native_transport_receive_queue_capacity.toBytesAsInt();
     }
 
     public static void setNativeTransportReceiveQueueCapacityInBytes(int queueSize)
     {
-        conf.native_transport_receive_queue_capacity_in_bytes = queueSize;
+        conf.native_transport_receive_queue_capacity = DataStorageSpec.inBytes(queueSize);
     }
 
-    public static long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
+    public static long getNativeTransportMaxRequestDataInFlightPerIpInBytes()
     {
-        return conf.native_transport_max_concurrent_requests_in_bytes_per_ip;
+        return conf.native_transport_max_request_data_in_flight_per_ip.toBytes();
     }
 
     public static Config.PaxosVariant getPaxosVariant()
@@ -2619,19 +2665,40 @@ public class DatabaseDescriptor
         conf.paxos_auto_repair_threshold_mb = threshold;
     }
 
-    public static void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long maxConcurrentRequestsInBytes)
+    public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)
     {
-        conf.native_transport_max_concurrent_requests_in_bytes_per_ip = maxConcurrentRequestsInBytes;
+        if (maxRequestDataInFlightInBytes == -1)
+            maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 40;
+
+        try
+        {
+            conf.native_transport_max_request_data_in_flight_per_ip = DataStorageSpec.inBytes(maxRequestDataInFlightInBytes);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException("native_transport_max_request_data_in_flight_per_ip can be only -1 which gets default value or >= 0");
+        }
+
     }
 
-    public static long getNativeTransportMaxConcurrentRequestsInBytes()
+    public static long getNativeTransportMaxRequestDataInFlightInBytes()
     {
-        return conf.native_transport_max_concurrent_requests_in_bytes;
+        return conf.native_transport_max_request_data_in_flight.toBytes();
     }
 
-    public static void setNativeTransportMaxConcurrentRequestsInBytes(long maxConcurrentRequestsInBytes)
+    public static void setNativeTransportConcurrentRequestDataInFlightInBytes(long maxRequestDataInFlightInBytes)
     {
-        conf.native_transport_max_concurrent_requests_in_bytes = maxConcurrentRequestsInBytes;
+        if (maxRequestDataInFlightInBytes == -1)
+            maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 10;
+
+        try
+        {
+            conf.native_transport_max_request_data_in_flight = DataStorageSpec.inBytes(maxRequestDataInFlightInBytes);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException("native_transport_max_request_data_in_flight can be only -1 which gets default value or >= 0");
+        }
     }
 
     public static int getNativeTransportMaxRequestsPerSecond()
@@ -3317,12 +3384,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionWarnTimeout()
     {
-        return conf.user_defined_function_warn_timeout;
+        return conf.user_defined_functions_warn_timeout.toMilliseconds();
     }
 
     public static void setUserDefinedFunctionWarnTimeout(long userDefinedFunctionWarnTimeout)
     {
-        conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
+        conf.user_defined_functions_warn_timeout = SmallestDurationMilliseconds.inMilliseconds(userDefinedFunctionWarnTimeout);
     }
 
     public static boolean allowInsecureUDFs()
@@ -3378,12 +3445,12 @@ public class DatabaseDescriptor
 
     public static long getUserDefinedFunctionFailTimeout()
     {
-        return conf.user_defined_function_fail_timeout;
+        return conf.user_defined_functions_fail_timeout.toMilliseconds();
     }
 
     public static void setUserDefinedFunctionFailTimeout(long userDefinedFunctionFailTimeout)
     {
-        conf.user_defined_function_fail_timeout = userDefinedFunctionFailTimeout;
+        conf.user_defined_functions_fail_timeout = SmallestDurationMilliseconds.inMilliseconds(userDefinedFunctionFailTimeout);
     }
 
     public static Config.UserFunctionTimeoutPolicy getUserFunctionTimeoutPolicy()
@@ -3651,10 +3718,9 @@ public class DatabaseDescriptor
         long valueInBytes = value.toBytes();
         if (valueInBytes < 0 || valueInBytes > Integer.MAX_VALUE)
         {
-            throw new ConfigurationException(String.format("%s must be positive value < %dB, but was %dB",
+            throw new ConfigurationException(String.format("%s must be positive value <= %dB, but was %dB",
                                                            name,
-                                                           value.getUnit()
-                                                                .convert(Integer.MAX_VALUE, DataStorageSpec.DataStorageUnit.BYTES),
+                                                           Integer.MAX_VALUE,
                                                            valueInBytes),
                                              false);
         }
@@ -3662,8 +3728,7 @@ public class DatabaseDescriptor
 
     public static int getValidationPreviewPurgeHeadStartInSec()
     {
-        int seconds = conf.validation_preview_purge_head_start_in_sec;
-        return Math.max(seconds, 0);
+        return conf.validation_preview_purge_head_start.toSecondsAsInt();
     }
 
     public static boolean checkForDuplicateRowsDuringReads()
@@ -3927,74 +3992,84 @@ public class DatabaseDescriptor
         return conf.internode_error_reporting_exclusions;
     }
 
-    public static boolean getTrackWarningsEnabled()
+    public static boolean getReadThresholdsEnabled()
     {
-        return conf.track_warnings.enabled;
+        return conf.read_thresholds_enabled;
     }
 
-    public static void setTrackWarningsEnabled(boolean value)
+    public static void setReadThresholdsEnabled(boolean value)
     {
-        conf.track_warnings.enabled = value;
+        if (conf.read_thresholds_enabled != value)
+        {
+            conf.read_thresholds_enabled = value;
+            logger.info("updated read_thresholds_enabled to {}", value);
+        }
     }
 
-    public static long getCoordinatorReadSizeWarnThresholdKB()
+    public static DataStorageSpec getCoordinatorReadSizeWarnThreshold()
     {
-        return conf.track_warnings.coordinator_read_size.getWarnThresholdKb();
+        return conf.coordinator_read_size_warn_threshold;
     }
 
-    public static void setCoordinatorReadSizeWarnThresholdKB(long threshold)
+    public static void setCoordinatorReadSizeWarnThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.coordinator_read_size.setWarnThresholdKb(threshold);
+        logger.info("updating  coordinator_read_size_warn_threshold to {}", value);
+        conf.coordinator_read_size_warn_threshold = value;
     }
 
-    public static long getCoordinatorReadSizeAbortThresholdKB()
+    public static DataStorageSpec getCoordinatorReadSizeFailThreshold()
     {
-        return conf.track_warnings.coordinator_read_size.getAbortThresholdKb();
+        return conf.coordinator_read_size_fail_threshold;
     }
 
-    public static void setCoordinatorReadSizeAbortThresholdKB(long threshold)
+    public static void setCoordinatorReadSizeFailThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.coordinator_read_size.setAbortThresholdKb(threshold);
+        logger.info("updating  coordinator_read_size_fail_threshold to {}", value);
+        conf.coordinator_read_size_fail_threshold = value;
     }
 
-    public static long getLocalReadSizeWarnThresholdKb()
+    public static DataStorageSpec getLocalReadSizeWarnThreshold()
     {
-        return conf.track_warnings.local_read_size.getWarnThresholdKb();
+        return conf.local_read_size_warn_threshold;
     }
 
-    public static void setLocalReadSizeWarnThresholdKb(long value)
+    public static void setLocalReadSizeWarnThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.local_read_size.setWarnThresholdKb(value);
+        logger.info("updating  local_read_size_warn_threshold to {}", value);
+        conf.local_read_size_warn_threshold = value;
     }
 
-    public static long getLocalReadSizeAbortThresholdKb()
+    public static DataStorageSpec getLocalReadSizeFailThreshold()
     {
-        return conf.track_warnings.local_read_size.getAbortThresholdKb();
+        return conf.local_read_size_fail_threshold;
     }
 
-    public static void setLocalReadSizeAbortThresholdKb(long value)
+    public static void setLocalReadSizeFailThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.local_read_size.setAbortThresholdKb(value);
+        logger.info("updating  local_read_size_fail_threshold to {}", value);
+        conf.local_read_size_fail_threshold = value;
     }
 
-    public static int getRowIndexSizeWarnThresholdKiB()
+    public static DataStorageSpec getRowIndexReadSizeWarnThreshold()
     {
-        return conf.track_warnings.row_index_size.getWarnThresholdKb();
+        return conf.row_index_read_size_warn_threshold;
     }
 
-    public static void setRowIndexSizeWarnThresholdKiB(int value)
+    public static void setRowIndexReadSizeWarnThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.row_index_size.setWarnThresholdKb(value);
+        logger.info("updating  row_index_size_warn_threshold to {}", value);
+        conf.row_index_read_size_warn_threshold = value;
     }
 
-    public static int getRowIndexSizeAbortThresholdKiB()
+    public static DataStorageSpec getRowIndexReadSizeFailThreshold()
     {
-        return conf.track_warnings.row_index_size.getAbortThresholdKb();
+        return conf.row_index_read_size_fail_threshold;
     }
 
-    public static void setRowIndexSizeAbortThresholdKiB(int value)
+    public static void setRowIndexReadSizeFailThreshold(DataStorageSpec value)
     {
-        conf.track_warnings.row_index_size.setAbortThresholdKb(value);
+        logger.info("updating  row_index_read_size_fail_threshold to {}", value);
+        conf.row_index_read_size_fail_threshold = value;
     }
 
     public static int getDefaultKeyspaceRF() { return conf.default_keyspace_rf; }
@@ -4084,6 +4159,39 @@ public class DatabaseDescriptor
         {
             logger.info("Setting streaming_state_size to {}", duration);
             conf.streaming_state_size = duration;
+        }
+    }
+
+    public static boolean isUUIDSSTableIdentifiersEnabled()
+    {
+        return conf.enable_uuid_sstable_identifiers;
+    }
+
+    public static DurationSpec getRepairStateExpires()
+    {
+        return conf.repair_state_expires;
+    }
+
+    public static void setRepairStateExpires(DurationSpec duration)
+    {
+        if (!conf.repair_state_expires.equals(Objects.requireNonNull(duration, "duration")))
+        {
+            logger.info("Setting repair_state_expires to {}", duration);
+            conf.repair_state_expires = duration;
+        }
+    }
+
+    public static int getRepairStateSize()
+    {
+        return conf.repair_state_size;
+    }
+
+    public static void setRepairStateSize(int size)
+    {
+        if (conf.repair_state_size != size)
+        {
+            logger.info("Setting repair_state_size to {}", size);
+            conf.repair_state_size = size;
         }
     }
 }

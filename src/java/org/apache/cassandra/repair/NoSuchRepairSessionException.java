@@ -24,6 +24,6 @@ public class NoSuchRepairSessionException extends Exception
 {
     public NoSuchRepairSessionException(TimeUUID parentSessionId)
     {
-        super(String.format("Parent repair session with id = %s has failed.", parentSessionId));
+        super(String.format("Parent repair session with id = %s does not exist.", parentSessionId));
     }
 }

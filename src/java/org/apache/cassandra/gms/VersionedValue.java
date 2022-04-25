@@ -172,6 +172,11 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(String.valueOf(load));
         }
 
+        public VersionedValue diskUsage(String state)
+        {
+            return new VersionedValue(state);
+        }
+
         public VersionedValue schema(UUID newVersion)
         {
             return new VersionedValue(newVersion.toString());

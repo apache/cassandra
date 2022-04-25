@@ -612,7 +612,12 @@ public abstract class CQLTester
         String currentTable = currentTable();
         return currentTable == null
              ? null
-             : Keyspace.open(keyspace).getColumnFamilyStore(currentTable);
+             : getColumnFamilyStore(keyspace, currentTable);
+    }
+
+    public ColumnFamilyStore getColumnFamilyStore(String keyspace, String table)
+    {
+        return Keyspace.open(keyspace).getColumnFamilyStore(table);
     }
 
     public void flush(boolean forceFlush)
@@ -1521,7 +1526,19 @@ public abstract class CQLTester
             Assert.assertEquals("Invalid number of (expected) values provided for row", expected.length, meta.size());
             List<ByteBuffer> expectedRow = new ArrayList<>(meta.size());
             for (int j = 0; j < meta.size(); j++)
-                expectedRow.add(makeByteBuffer(expected[j], meta.get(j).type));
+            {
+                try
+                {
+                    expectedRow.add(makeByteBuffer(expected[j], meta.get(j).type));
+                }
+                catch (Exception e)
+                {
+                    ColumnSpecification column = meta.get(j);
+                    AssertionError error = new AssertionError("Error with column '" + column.name + " " + column.type.asCQL3Type() + "'; " + e.getLocalizedMessage());
+                    error.addSuppressed(e);
+                    throw error;
+                }
+            }
             expectedRows.add(expectedRow);
         }
 

@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.service.reads;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +45,7 @@ import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.all;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -210,11 +208,9 @@ public abstract class AbstractReadExecutor
             return new SpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime);
     }
 
-    public List<String> getContactedReplicas() {
-        return replicaPlan().contacts()
-                            .stream()
-                            .map(r -> r.endpoint().getHostAddress(true))
-                            .collect(Collectors.toList());
+    public boolean hasLocalRead()
+    {
+        return replicaPlan().lookup(FBUtilities.getBroadcastAddressAndPort()) != null;
     }
 
     /**
@@ -370,10 +366,15 @@ public abstract class AbstractReadExecutor
         this.result = DuplicateRowChecker.duringRead(result, this.replicaPlan.get().readCandidates().endpointList());
     }
 
+    public void awaitResponses() throws ReadTimeoutException
+    {
+        awaitResponses(false);
+    }
+
     /**
      * Wait for the CL to be satisfied by responses
      */
-    public void awaitResponses() throws ReadTimeoutException
+    public void awaitResponses(boolean logBlockingReadRepairAttempt) throws ReadTimeoutException
     {
         try
         {
@@ -401,6 +402,13 @@ public abstract class AbstractReadExecutor
         {
             Tracing.trace("Digest mismatch: Mismatch for key {}", getKey());
             readRepair.startRepair(digestResolver, this::setResult);
+            if (logBlockingReadRepairAttempt)
+            {
+                logger.info("Blocking Read Repair triggered for query [{}] at CL.{} with endpoints {}",
+                            command.toCQLString(),
+                            replicaPlan().consistencyLevel(),
+                            replicaPlan().contacts());
+            }
         }
     }
 

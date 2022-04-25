@@ -54,7 +54,6 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     {
         cluster = init(Cluster.build(NUM_NODES)
                               .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
-                                                .set("guardrails_enabled", true)
                                                 .set("collection_size_warn_threshold", WARN_THRESHOLD + "B")
                                                 .set("collection_size_fail_threshold", FAIL_THRESHOLD + "B"))
                               .start());

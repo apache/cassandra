@@ -23,6 +23,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.util.*;
 
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -119,7 +120,7 @@ public class CompressedInputStreamTest
 
         // write compressed data file of longs
         File parentDir = new File(tempFolder.newFolder());
-        Descriptor desc = new Descriptor(parentDir, "ks", "cf", 1);
+        Descriptor desc = new Descriptor(parentDir, "ks", "cf", new SequenceBasedSSTableId(1));
         File tmp = new File(desc.filenameFor(Component.DATA));
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         CompressionParams param = CompressionParams.snappy(32, minCompressRatio);

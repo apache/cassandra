@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.junit.Test;
 
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.VersionAndType;
 import org.apache.cassandra.io.util.File;
@@ -100,7 +101,7 @@ public class SSTablesGlobalTrackerTest
                                         tables(),
                                         generations(),
                                         sstableVersionString(),
-                                        (f, k, t, g, v) -> new Descriptor(v, new File(Files.currentFolder()), k, t, g, f));
+                                        (f, k, t, g, v) -> new Descriptor(v, new File(Files.currentFolder()), k, t, new SequenceBasedSSTableId(g), f));
     }
 
     private Gen<List<Descriptor>> descriptorLists(int minSize)

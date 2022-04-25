@@ -194,6 +194,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
                              "UPDATE %s SET v1 = 'A' WHERE k = 0 AND c IN () IF EXISTS");
         assertInvalidMessage("IN on the clustering key columns is not supported with conditional updates",
                              "UPDATE %s SET v1 = 'A' WHERE k = 0 AND c IN (1, 2) IF EXISTS");
+        assertInvalidMessage("Cannot use CONTAINS on non-collection column v1", "UPDATE %s SET v1 = 'B' WHERE k = 0 IF v1 CONTAINS 'A'");
     }
 
     /**

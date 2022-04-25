@@ -89,7 +89,7 @@ streaming throughput and client/server SSL
 
 You can provide a cassandra.yaml file with the -f command line option to
 set up streaming throughput, and client and server encryption options.
-Only stream_throughput_outbound_megabits_per_sec,
+Only stream_throughput_outbound,
 server_encryption_options, and client_encryption_options are read from
 yaml. You can override options read from cassandra.yaml with
 corresponding command line options.

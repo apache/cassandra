@@ -214,6 +214,11 @@ public class Murmur3Partitioner implements IPartitioner
             return new LongToken(token - 1);
         }
 
+        public static ByteBuffer keyForToken(long token)
+        {
+            return keyForToken(new LongToken(token));
+        }
+
         /**
          * Reverses murmur3 to find a possible 16 byte key that generates a given token
          */

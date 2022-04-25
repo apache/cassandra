@@ -25,6 +25,7 @@ import java.util.Collections;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.BytesType;
@@ -47,12 +48,20 @@ public class GuardrailCollectionSizeTest extends ThresholdTester
 
     public GuardrailCollectionSizeTest()
     {
-        super(WARN_THRESHOLD / 1024, // to KiB
-              FAIL_THRESHOLD / 1024, // to KiB
+        super(WARN_THRESHOLD + "B",
+              FAIL_THRESHOLD + "B",
               Guardrails.collectionSize,
-              Guardrails::setCollectionSizeThresholdInKiB,
-              Guardrails::getCollectionSizeWarnThresholdInKiB,
-              Guardrails::getCollectionSizeFailThresholdInKiB);
+              Guardrails::setCollectionSizeThreshold,
+              Guardrails::getCollectionSizeWarnThreshold,
+              Guardrails::getCollectionSizeFailThreshold);
+    }
+
+    @After
+    public void after()
+    {
+        // immediately drop the created table so its async cleanup doesn't interfere with the next tests
+        if (currentTable() != null)
+            dropTable("DROP TABLE %s");
     }
 
     @Test
@@ -204,6 +213,14 @@ public class GuardrailCollectionSizeTest extends ThresholdTester
 
         assertWarns("INSERT INTO %s (k, v) VALUES (6, ?)", map(allocate(FAIL_THRESHOLD / 4), allocate(FAIL_THRESHOLD / 4)));
         assertWarns("UPDATE %s SET v = v + ? WHERE k = 6", map(allocate(FAIL_THRESHOLD / 4 + 1), allocate(FAIL_THRESHOLD / 4)));
+    }
+
+    @Override
+    protected String createTable(String query)
+    {
+        String table = super.createTable(query);
+        disableCompaction();
+        return table;
     }
 
     private void assertValid(String query, ByteBuffer... values) throws Throwable

@@ -39,7 +39,7 @@ jobs:
           echo "***java tests***"
 
           # get all of our unit test filenames
-          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java"  "$HOME/cassandra/test/simulator/test/**/*.java" > /tmp/all_java_unit_tests.txt
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
@@ -83,7 +83,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
+          ant testclasslist   -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -302,6 +302,115 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+  j8_jvm_dtests_vnode:
+    docker:
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
+    resource_class: medium
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    parallelism: 1
+    steps:
+    - attach_workspace:
+        at: /home/cassandra
+    - run:
+        name: Determine distributed Tests to Run
+        command: |
+          # reminder: this code (along with all the steps) is independently executed on every circle container
+          # so the goal here is to get the circleci script to return the tests *this* container will run
+          # which we do via the `circleci` cli tool.
+
+          rm -fr ~/cassandra-dtest/upgrade_tests
+          echo "***java tests***"
+
+          # get all of our unit test filenames
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
+
+          # split up the unit tests into groups based on the number of containers we have
+          set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
+          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | sed "s;^/home/cassandra/cassandra/test/distributed/;;g" | grep "Test\.java$" | grep -v upgrade > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
+          cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+        no_output_timeout: 15m
+    - run:
+        name: Log Environment Information
+        command: |
+          echo '*** id ***'
+          id
+          echo '*** cat /proc/cpuinfo ***'
+          cat /proc/cpuinfo
+          echo '*** free -m ***'
+          free -m
+          echo '*** df -m ***'
+          df -m
+          echo '*** ifconfig -a ***'
+          ifconfig -a
+          echo '*** uname -a ***'
+          uname -a
+          echo '*** mount ***'
+          mount
+          echo '*** env ***'
+          env
+          echo '*** java ***'
+          which java
+          java -version
+    - run:
+        name: Run Unit Tests (testclasslist)
+        command: |
+          set -x
+          export PATH=$JAVA_HOME/bin:$PATH
+          time mv ~/cassandra /tmp
+          cd /tmp/cassandra
+          if [ -d ~/dtest_jars ]; then
+            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+          fi
+          test_timeout=$(grep 'name="test.distributed.timeout"' build.xml | awk -F'"' '{print $4}' || true)
+          if [ -z "$test_timeout" ]; then
+            test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
+          fi
+          ant testclasslist -Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16' -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
+        no_output_timeout: 15m
+    - store_test_results:
+        path: /tmp/cassandra/build/test/output/
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/output
+        destination: junitxml
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/logs
+        destination: logs
+    environment:
+    - ANT_HOME: /usr/share/ant
+    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    - LANG: en_US.UTF-8
+    - KEEP_TEST_DIR: true
+    - DEFAULT_DIR: /home/cassandra/cassandra-dtest
+    - PYTHONIOENCODING: utf-8
+    - PYTHONUNBUFFERED: true
+    - CASS_DRIVER_NO_EXTENSIONS: true
+    - CASS_DRIVER_NO_CYTHON: true
+    - CASSANDRA_SKIP_SYNC: true
+    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
+    - DTEST_BRANCH: trunk
+    - CCM_MAX_HEAP_SIZE: 1024M
+    - CCM_HEAP_NEWSIZE: 256M
+    - REPEATED_UTEST_TARGET: testsome
+    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_METHODS: null
+    - REPEATED_UTEST_COUNT: 100
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
+    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_VNODES: false
+    - REPEATED_DTEST_COUNT: 100
+    - REPEATED_DTEST_STOP_ON_FAILURE: false
+    - REPEATED_UPGRADE_DTEST_NAME: null
+    - REPEATED_UPGRADE_DTEST_COUNT: 100
+    - REPEATED_UPGRADE_DTEST_STOP_ON_FAILURE: false
+    - REPEATED_JVM_UPGRADE_DTEST_CLASS: null
+    - REPEATED_JVM_UPGRADE_DTEST_METHODS: null
+    - REPEATED_JVM_UPGRADE_DTEST_COUNT: 100
+    - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
+    - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_unit_tests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:20210304
@@ -367,7 +476,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+          ant testclasslist   -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -882,6 +991,116 @@ jobs:
     - store_artifacts:
         path: ~/cassandra-dtest/logs
         destination: dtest_j11_with_vnodes_logs
+    environment:
+    - ANT_HOME: /usr/share/ant
+    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    - LANG: en_US.UTF-8
+    - KEEP_TEST_DIR: true
+    - DEFAULT_DIR: /home/cassandra/cassandra-dtest
+    - PYTHONIOENCODING: utf-8
+    - PYTHONUNBUFFERED: true
+    - CASS_DRIVER_NO_EXTENSIONS: true
+    - CASS_DRIVER_NO_CYTHON: true
+    - CASSANDRA_SKIP_SYNC: true
+    - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
+    - DTEST_BRANCH: trunk
+    - CCM_MAX_HEAP_SIZE: 1024M
+    - CCM_HEAP_NEWSIZE: 256M
+    - REPEATED_UTEST_TARGET: testsome
+    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_METHODS: null
+    - REPEATED_UTEST_COUNT: 100
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
+    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_VNODES: false
+    - REPEATED_DTEST_COUNT: 100
+    - REPEATED_DTEST_STOP_ON_FAILURE: false
+    - REPEATED_UPGRADE_DTEST_NAME: null
+    - REPEATED_UPGRADE_DTEST_COUNT: 100
+    - REPEATED_UPGRADE_DTEST_STOP_ON_FAILURE: false
+    - REPEATED_JVM_UPGRADE_DTEST_CLASS: null
+    - REPEATED_JVM_UPGRADE_DTEST_METHODS: null
+    - REPEATED_JVM_UPGRADE_DTEST_COUNT: 100
+    - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
+    - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+    - JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+    - CASSANDRA_USE_JDK11: true
+  j11_jvm_dtests_vnode:
+    docker:
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
+    resource_class: medium
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    parallelism: 1
+    steps:
+    - attach_workspace:
+        at: /home/cassandra
+    - run:
+        name: Determine distributed Tests to Run
+        command: |
+          # reminder: this code (along with all the steps) is independently executed on every circle container
+          # so the goal here is to get the circleci script to return the tests *this* container will run
+          # which we do via the `circleci` cli tool.
+
+          rm -fr ~/cassandra-dtest/upgrade_tests
+          echo "***java tests***"
+
+          # get all of our unit test filenames
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
+
+          # split up the unit tests into groups based on the number of containers we have
+          set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
+          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | sed "s;^/home/cassandra/cassandra/test/distributed/;;g" | grep "Test\.java$" | grep -v upgrade > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+          echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
+          cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
+        no_output_timeout: 15m
+    - run:
+        name: Log Environment Information
+        command: |
+          echo '*** id ***'
+          id
+          echo '*** cat /proc/cpuinfo ***'
+          cat /proc/cpuinfo
+          echo '*** free -m ***'
+          free -m
+          echo '*** df -m ***'
+          df -m
+          echo '*** ifconfig -a ***'
+          ifconfig -a
+          echo '*** uname -a ***'
+          uname -a
+          echo '*** mount ***'
+          mount
+          echo '*** env ***'
+          env
+          echo '*** java ***'
+          which java
+          java -version
+    - run:
+        name: Run Unit Tests (testclasslist)
+        command: |
+          set -x
+          export PATH=$JAVA_HOME/bin:$PATH
+          time mv ~/cassandra /tmp
+          cd /tmp/cassandra
+          if [ -d ~/dtest_jars ]; then
+            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+          fi
+          test_timeout=$(grep 'name="test.distributed.timeout"' build.xml | awk -F'"' '{print $4}' || true)
+          if [ -z "$test_timeout" ]; then
+            test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
+          fi
+          ant testclasslist -Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16' -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
+        no_output_timeout: 15m
+    - store_test_results:
+        path: /tmp/cassandra/build/test/output/
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/output
+        destination: junitxml
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/logs
+        destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
     - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -1658,7 +1877,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+          ant testclasslist   -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -1723,7 +1942,7 @@ jobs:
           echo "***java tests***"
 
           # get all of our unit test filenames
-          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" "$HOME/cassandra/test/simulator/test/**/*.java" > /tmp/all_java_unit_tests.txt
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
@@ -1767,7 +1986,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
+          ant testclasslist   -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -2335,7 +2554,7 @@ jobs:
           echo "***java tests***"
 
           # get all of our unit test filenames
-          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" "$HOME/cassandra/test/simulator/test/**/*.java" > /tmp/all_java_unit_tests.txt
+          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/distributed/**/*.java" > /tmp/all_java_unit_tests.txt
 
           # split up the unit tests into groups based on the number of containers we have
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
@@ -2379,7 +2598,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
+          ant testclasslist   -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -2839,7 +3058,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist-system-keyspace-directory -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+          ant testclasslist-system-keyspace-directory   -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -3164,7 +3383,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist-compression -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+          ant testclasslist-compression   -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -3499,6 +3718,10 @@ workflows:
         requires:
         - start_j8_jvm_dtests
         - j8_build
+    - j8_jvm_dtests_vnode:
+        requires:
+        - start_j8_jvm_dtests
+        - j8_build
     - start_j8_cqlshlib_tests:
         type: approval
     - j8_cqlshlib_tests:
@@ -3664,6 +3887,9 @@ workflows:
     - j8_jvm_dtests:
         requires:
         - j8_build
+    - j8_jvm_dtests_vnode:
+        requires:
+        - j8_build
     - j8_cqlshlib_tests:
         requires:
         - j8_build
@@ -3809,6 +4035,10 @@ workflows:
         requires:
         - start_j11_jvm_dtests
         - j11_build
+    - j11_jvm_dtests_vnode:
+        requires:
+        - start_j11_jvm_dtests
+        - j11_build
     - start_j11_cqlshlib_tests:
         type: approval
     - j11_cqlshlib_tests:
@@ -3866,6 +4096,9 @@ workflows:
         requires:
         - j11_build
     - j11_jvm_dtests:
+        requires:
+        - j11_build
+    - j11_jvm_dtests_vnode:
         requires:
         - j11_build
     - j11_cqlshlib_tests:

@@ -23,7 +23,7 @@ import java.util.Map;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-import static org.apache.cassandra.service.reads.trackwarnings.WarningsSnapshot.tombstoneAbortMessage;
+import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.tombstoneAbortMessage;
 
 public class TombstoneAbortException extends ReadAbortException
 {

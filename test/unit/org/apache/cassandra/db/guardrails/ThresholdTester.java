@@ -18,14 +18,17 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
@@ -45,7 +48,7 @@ public abstract class ThresholdTester extends GuardrailTester
     private final ToLongFunction<Guardrails> warnGetter;
     private final ToLongFunction<Guardrails> failGetter;
     private final long maxValue;
-    private final long disabledValue;
+    private final Long disabledValue;
 
     protected ThresholdTester(int warnThreshold,
                               int failThreshold,
@@ -61,7 +64,7 @@ public abstract class ThresholdTester extends GuardrailTester
         this.warnGetter = g -> (long) warnGetter.applyAsInt(g);
         this.failGetter = g -> (long) failGetter.applyAsInt(g);
         maxValue = Integer.MAX_VALUE;
-        disabledValue = Config.DISABLED_GUARDRAIL;
+        disabledValue = -1L;
     }
 
     protected ThresholdTester(long warnThreshold,
@@ -78,7 +81,24 @@ public abstract class ThresholdTester extends GuardrailTester
         this.warnGetter = warnGetter;
         this.failGetter = failGetter;
         maxValue = Long.MAX_VALUE;
-        disabledValue = Config.DISABLED_SIZE_GUARDRAIL.toBytes();
+        disabledValue = -1L;
+    }
+
+    protected ThresholdTester(String warnThreshold,
+                              String failThreshold,
+                              Threshold threshold,
+                              TriConsumer<Guardrails, String, String> setter,
+                              Function<Guardrails, String> warnGetter,
+                              Function<Guardrails, String> failGetter)
+    {
+        super(threshold);
+        this.warnThreshold = new DataStorageSpec(warnThreshold).toBytes();
+        this.failThreshold = new DataStorageSpec(failThreshold).toBytes();
+        this.setter = (g, w, a) -> setter.accept(g, w == null ? null : DataStorageSpec.inBytes(w).toString(), a == null ? null : DataStorageSpec.inBytes(a).toString());
+        this.warnGetter = g -> new DataStorageSpec(warnGetter.apply(g)).toBytes();
+        this.failGetter = g -> new DataStorageSpec(failGetter.apply(g)).toBytes();
+        maxValue = Long.MAX_VALUE;
+        disabledValue = null;
     }
 
     protected long currentValue()
@@ -125,18 +145,48 @@ public abstract class ThresholdTester extends GuardrailTester
                   .isLessThanOrEqualTo(failGetter.applyAsLong(guardrails()));
     }
 
-    protected void assertThresholdWarns(String query, String... messages) throws Throwable
+    protected void assertThresholdWarns(String query, String message) throws Throwable
     {
-        assertWarns(query, messages);
+        assertThresholdWarns(query, message, message);
+    }
+
+    protected void assertThresholdWarns(String query, String message, String redactedMessage) throws Throwable
+    {
+        assertThresholdWarns(query, Collections.singletonList(message), Collections.singletonList(redactedMessage));
+    }
+
+    protected void assertThresholdWarns(String query, List<String> messages) throws Throwable
+    {
+        assertThresholdWarns(query, messages, messages);
+    }
+
+    protected void assertThresholdWarns(String query, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        assertWarns(query, messages, redactedMessages);
 
         Assertions.assertThat(currentValue())
                   .isGreaterThan(warnGetter.applyAsLong(guardrails()))
                   .isLessThanOrEqualTo(failGetter.applyAsLong(guardrails()));
     }
 
-    protected void assertThresholdFails(String query, String... messages) throws Throwable
+    protected void assertThresholdFails(String query, String message) throws Throwable
     {
-        assertFails(query, messages);
+        assertThresholdFails(query, message, message);
+    }
+
+    protected void assertThresholdFails(String query, String message, String redactedMessage) throws Throwable
+    {
+        assertThresholdFails(query, Collections.singletonList(message), Collections.singletonList(redactedMessage));
+    }
+
+    protected void assertThresholdFails(String query, List<String> messages) throws Throwable
+    {
+        assertThresholdFails(query, messages, messages);
+    }
+
+    protected void assertThresholdFails(String query, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        assertFails(query, messages, redactedMessages);
 
         Assertions.assertThat(currentValue())
                   .isGreaterThanOrEqualTo(warnGetter.applyAsLong(guardrails()))
@@ -193,7 +243,7 @@ public abstract class ThresholdTester extends GuardrailTester
         assertInvalidStrictlyPositiveProperty(setter, Integer.MIN_VALUE, name);
         assertInvalidStrictlyPositiveProperty(setter, -2, name);
         assertValidProperty(setter, disabledValue);
-        assertInvalidStrictlyPositiveProperty(setter, disabledValue == 0 ? -1 : 0, name);
+        assertInvalidStrictlyPositiveProperty(setter, disabledValue == null ? -1 : 0, name);
         assertValidProperty(setter, 1L);
         assertValidProperty(setter, 2L);
         assertValidProperty(setter, maxValue);

@@ -380,7 +380,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             // While this may be a dummy tracker w/out information in the metrics table, we attempt to delete regardless
             // and allow the delete to silently fail if this is an invalid ks + cf combination at time of tidy run.
             if (DatabaseDescriptor.isDaemonInitialized())
-                SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+                SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.id);
 
             synchronized (lock)
             {

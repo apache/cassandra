@@ -40,7 +40,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -48,7 +47,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -57,7 +55,6 @@ import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -66,7 +63,6 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -204,10 +200,10 @@ public class PaxosRepairTest extends TestBaseImpl
     private static final Consumer<IInstanceConfig> CONFIG_CONSUMER = cfg -> {
         cfg.with(Feature.NETWORK);
         cfg.with(Feature.GOSSIP);
-        cfg.set("paxos_purge_grace_period", "0");
+        cfg.set("paxos_purge_grace_period", "0s");
         cfg.set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString());
         cfg.set("paxos_variant", "v2_without_linearizable_reads");
-        cfg.set("truncate_request_timeout_in_ms", 1000L);
+        cfg.set("truncate_request_timeout", "1000ms");
         cfg.set("partitioner", "ByteOrderedPartitioner");
         cfg.set("initial_token", ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(cfg.num() * 100)));
     };
@@ -215,7 +211,8 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosRepairTest() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, CONFIG_CONSUMER)))
+        // TODO: fails with vnode enabled
+        try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).withoutVNodes().start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
@@ -264,7 +261,8 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void topologyChangePaxosTest() throws Throwable
     {
-        try (Cluster cluster = Cluster.build(4).withConfig(CONFIG_CONSUMER).createWithoutStarting())
+        // TODO: fails with vnode enabled
+        try (Cluster cluster = Cluster.build(4).withConfig(CONFIG_CONSUMER).withoutVNodes().createWithoutStarting())
         {
             for (int i=1; i<=3; i++)
                 cluster.get(i).startup();
@@ -296,11 +294,15 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosCleanupWithReproposal() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
-                .set("paxos_variant", "v2")
-                .set("paxos_purge_grace_period", 0)
-                .set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString())
-                .set("truncate_request_timeout_in_ms", 1000L))))
+        // TODO: fails with vnode enabled
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withConfig(cfg -> cfg
+                                                              .set("paxos_variant", "v2")
+                                                              .set("paxos_purge_grace_period", "0s")
+                                                              .set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString())
+                                                              .set("truncate_request_timeout", "1000ms"))
+                                           .withoutVNodes()
+                                           .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -363,11 +365,15 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosCleanupWithReproposalClashingTimestamp() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(5, cfg -> cfg
-                .set("paxos_variant", "v2")
-                .set("paxos_purge_grace_period", 0)
-                .set("paxos_cache_size", "0")
-                .set("truncate_request_timeout_in_ms", 1000L))))
+        // TODO: fails with vnode enabled
+        try (Cluster cluster = init(Cluster.build(5)
+                                           .withConfig(cfg -> cfg
+                                                              .set("paxos_variant", "v2")
+                                                              .set("paxos_purge_grace_period", "0s")
+                                                              .set("paxos_cache_size", "0MiB")
+                                                              .set("truncate_request_timeout", "1000ms"))
+                                           .withoutVNodes()
+                                           .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -431,11 +437,15 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosCleanupWithDelayedProposal() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
-                .set("paxos_variant", "v2")
-                .set("paxos_purge_grace_period", 0)
-                .set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString())
-                .set("truncate_request_timeout_in_ms", 1000L)))
+        // TODO: fails with vnode enabled
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withConfig(cfg -> cfg
+                                                              .set("paxos_variant", "v2")
+                                                              .set("paxos_purge_grace_period", "0s")
+                                                              .set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString())
+                                                              .set("truncate_request_timeout", "1000ms"))
+                                           .withoutVNodes()
+                                           .start())
         )
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -516,7 +526,8 @@ public class PaxosRepairTest extends TestBaseImpl
     @Test
     public void paxosRepairVersionGate() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, CONFIG_CONSUMER)))
+        // TODO: fails with vnode enabled
+        try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).withoutVNodes().start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);

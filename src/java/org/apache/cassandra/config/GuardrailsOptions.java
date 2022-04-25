@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -31,6 +32,8 @@ import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsConfig;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toSet;
@@ -41,9 +44,6 @@ import static java.util.stream.Collectors.toSet;
  * <p>Note that the settings here must only be used to build the {@link GuardrailsConfig} class and not directly by the
  * code checking each guarded constraint. That code should use the higher level abstractions defined in
  * {@link Guardrails}).
- *
- * <p>This contains a main setting, {@code enabled}, controlling if guardrails are globally active or not, and
- * individual settings to control each guardrail.
  *
  * <p>We have 2 variants of guardrails, soft (warn) and hard (fail) limits, each guardrail having either one of the
  * variants or both. Note in particular that hard limits only make sense for guardrails triggering during query
@@ -77,27 +77,11 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.read_consistency_levels_disallowed = validateConsistencyLevels(config.read_consistency_levels_disallowed, "read_consistency_levels_disallowed");
         config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
-        validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, "collection_size");
+        validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
         validateIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
-    }
-
-    @Override
-    public boolean getEnabled()
-    {
-        return config.guardrails_enabled;
-    }
-
-    /**
-     * Enable/disable guardrails.
-     *
-     * @param enabled {@code true} for enabling guardrails, {@code false} for disabling them.
-     */
-    public void setEnabled(boolean enabled)
-    {
-        updatePropertyWithLogging("guardrails_enabled",
-                                  enabled,
-                                  () -> config.guardrails_enabled,
-                                  x -> config.guardrails_enabled = x);
+        validateIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
+        validatePercentageThreshold(config.data_disk_usage_percentage_warn_threshold, config.data_disk_usage_percentage_fail_threshold, "data_disk_usage_percentage");
+        validateDataDiskUsageMaxDiskSize(config.data_disk_usage_max_disk_size);
     }
 
     @Override
@@ -332,6 +316,62 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getGroupByEnabled()
+    {
+        return config.group_by_enabled;
+    }
+
+    public void setGroupByEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("group_by_enabled",
+                                  enabled,
+                                  () -> config.group_by_enabled,
+                                  x -> config.group_by_enabled = x);
+    }
+
+    @Override
+    public boolean getSecondaryIndexesEnabled()
+    {
+        return config.secondary_indexes_enabled;
+    }
+
+    public void setSecondaryIndexesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("secondary_indexes_enabled",
+                                  enabled,
+                                  () -> config.secondary_indexes_enabled,
+                                  x -> config.secondary_indexes_enabled = x);
+    }
+
+    @Override
+    public boolean getUncompressedTablesEnabled()
+    {
+        return config.uncompressed_tables_enabled;
+    }
+
+    public void setUncompressedTablesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("uncompressed_tables_enabled",
+                                  enabled,
+                                  () -> config.uncompressed_tables_enabled,
+                                  x -> config.uncompressed_tables_enabled = x);
+    }
+
+    @Override
+    public boolean getCompactTablesEnabled()
+    {
+        return config.compact_tables_enabled;
+    }
+
+    public void setCompactTablesEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("compact_tables_enabled",
+                                  enabled,
+                                  () -> config.compact_tables_enabled,
+                                  x -> config.compact_tables_enabled = x);
+    }
+
+    @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
         return config.read_before_write_list_operations_enabled;
@@ -425,20 +465,23 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.write_consistency_levels_disallowed = x);
     }
 
+    @Override
+    @Nullable
     public DataStorageSpec getCollectionSizeWarnThreshold()
     {
         return config.collection_size_warn_threshold;
     }
 
     @Override
+    @Nullable
     public DataStorageSpec getCollectionSizeFailThreshold()
     {
         return config.collection_size_fail_threshold;
     }
 
-    public void setCollectionSizeThreshold(DataStorageSpec warn, DataStorageSpec fail)
+    public void setCollectionSizeThreshold(@Nullable DataStorageSpec warn, @Nullable DataStorageSpec fail)
     {
-        validateSizeThreshold(warn, fail, "collection_size");
+        validateSizeThreshold(warn, fail, false, "collection_size");
         updatePropertyWithLogging("collection_size_warn_threshold",
                                   warn,
                                   () -> config.collection_size_warn_threshold,
@@ -474,10 +517,74 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.items_per_collection_fail_threshold = x);
     }
 
+    @Override
+    public int getFieldsPerUDTWarnThreshold()
+    {
+        return config.fields_per_udt_warn_threshold;
+    }
+
+    @Override
+    public int getFieldsPerUDTFailThreshold()
+    {
+        return config.fields_per_udt_fail_threshold;
+    }
+
+    public void setFieldsPerUDTThreshold(int warn, int fail)
+    {
+        validateIntThreshold(warn, fail, "fields_per_udt");
+        updatePropertyWithLogging("fields_per_udt_warn_threshold",
+                                  warn,
+                                  () -> config.fields_per_udt_warn_threshold,
+                                  x -> config.fields_per_udt_warn_threshold = x);
+        updatePropertyWithLogging("fields_per_udt_fail_threshold",
+                                  fail,
+                                  () -> config.fields_per_udt_fail_threshold,
+                                  x -> config.fields_per_udt_fail_threshold = x);
+    }
+
+    public int getDataDiskUsagePercentageWarnThreshold()
+    {
+        return config.data_disk_usage_percentage_warn_threshold;
+    }
+
+    @Override
+    public int getDataDiskUsagePercentageFailThreshold()
+    {
+        return config.data_disk_usage_percentage_fail_threshold;
+    }
+
+    public void setDataDiskUsagePercentageThreshold(int warn, int fail)
+    {
+        validatePercentageThreshold(warn, fail, "data_disk_usage_percentage");
+        updatePropertyWithLogging("data_disk_usage_percentage_warn_threshold",
+                                  warn,
+                                  () -> config.data_disk_usage_percentage_warn_threshold,
+                                  x -> config.data_disk_usage_percentage_warn_threshold = x);
+        updatePropertyWithLogging("data_disk_usage_percentage_fail_threshold",
+                                  fail,
+                                  () -> config.data_disk_usage_percentage_fail_threshold,
+                                  x -> config.data_disk_usage_percentage_fail_threshold = x);
+    }
+
+    @Override
+    public DataStorageSpec getDataDiskUsageMaxDiskSize()
+    {
+        return config.data_disk_usage_max_disk_size;
+    }
+
+    public void setDataDiskUsageMaxDiskSize(@Nullable DataStorageSpec diskSize)
+    {
+        validateDataDiskUsageMaxDiskSize(diskSize);
+        updatePropertyWithLogging("data_disk_usage_max_disk_size",
+                                  diskSize,
+                                  () -> config.data_disk_usage_max_disk_size,
+                                  x -> config.data_disk_usage_max_disk_size = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();
-        if (!newValue.equals(oldValue))
+        if (newValue == null || !newValue.equals(oldValue))
         {
             setter.accept(newValue);
             logger.info("Updated {} from {} to {}", propertyName, oldValue, newValue);
@@ -486,7 +593,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     private static void validatePositiveNumeric(long value, long maxValue, String name)
     {
-        if (value == Config.DISABLED_GUARDRAIL)
+        if (value == -1)
             return;
 
         if (value > maxValue)
@@ -495,14 +602,17 @@ public class GuardrailsOptions implements GuardrailsConfig
 
         if (value == 0)
             throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
-                                                      "if attempting to disable use %d",
-                                                      name, Config.DISABLED_GUARDRAIL));
+                                                      "if attempting to disable use -1", name));
 
         // We allow -1 as a general "disabling" flag. But reject anything lower to avoid mistakes.
         if (value <= 0)
             throw new IllegalArgumentException(format("Invalid value %d for %s: negative values are not allowed, " +
-                                                      "outside of %d which disables the guardrail",
-                                                      value, name, Config.DISABLED_GUARDRAIL));
+                                                      "outside of -1 which disables the guardrail", value, name));
+    }
+
+    private static void validatePercentage(long value, String name)
+    {
+        validatePositiveNumeric(value, 100, name);
     }
 
     private static void validateIntThreshold(int warn, int fail, String name)
@@ -512,9 +622,16 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateWarnLowerThanFail(warn, fail, name);
     }
 
+    private static void validatePercentageThreshold(int warn, int fail, String name)
+    {
+        validatePercentage(warn, name + "_warn_threshold");
+        validatePercentage(fail, name + "_fail_threshold");
+        validateWarnLowerThanFail(warn, fail, name);
+    }
+
     private static void validateWarnLowerThanFail(long warn, long fail, String name)
     {
-        if (warn == Config.DISABLED_GUARDRAIL || fail == Config.DISABLED_GUARDRAIL)
+        if (warn == -1 || fail == -1)
             return;
 
         if (fail < warn)
@@ -522,9 +639,27 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       "than the fail threshold %d", warn, name, fail));
     }
 
-    private static void validateSizeThreshold(DataStorageSpec warn, DataStorageSpec fail, String name)
+    private static void validateSize(DataStorageSpec size, boolean allowZero, String name)
     {
-        if (warn.equals(Config.DISABLED_SIZE_GUARDRAIL) || fail.equals(Config.DISABLED_SIZE_GUARDRAIL))
+        if (size == null)
+            return;
+
+        if (!allowZero && size.toBytes() == 0)
+            throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
+                                                      "if attempting to disable use an empty value",
+                                                      name));
+    }
+
+    private static void validateSizeThreshold(DataStorageSpec warn, DataStorageSpec fail, boolean allowZero, String name)
+    {
+        validateSize(warn, allowZero, name + "_warn_threshold");
+        validateSize(fail, allowZero, name + "_fail_threshold");
+        validateWarnLowerThanFail(warn, fail, name);
+    }
+
+    private static void validateWarnLowerThanFail(DataStorageSpec warn, DataStorageSpec fail, String name)
+    {
+        if (warn == null || fail == null)
             return;
 
         if (fail.toBytes() < warn.toBytes())
@@ -554,5 +689,20 @@ public class GuardrailsOptions implements GuardrailsConfig
             throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));
 
         return consistencyLevels.isEmpty() ? Collections.emptySet() : Sets.immutableEnumSet(consistencyLevels);
+    }
+
+    private static void validateDataDiskUsageMaxDiskSize(DataStorageSpec maxDiskSize)
+    {
+        if (maxDiskSize == null)
+            return;
+
+        validateSize(maxDiskSize, false, "data_disk_usage_max_disk_size");
+
+        long diskSize = DiskUsageMonitor.totalDiskSpace();
+
+        if (diskSize < maxDiskSize.toBytes())
+            throw new IllegalArgumentException(format("Invalid value for data_disk_usage_max_disk_size: " +
+                                                      "%s specified, but only %s are actually available on disk",
+                                                      maxDiskSize, FileUtils.stringifyFileSize(diskSize)));
     }
 }

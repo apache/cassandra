@@ -57,6 +57,10 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.repair.ValidationManager;
+import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.ValidationManager;
 import org.apache.cassandra.repair.Validator;
@@ -215,7 +219,7 @@ public class LeveledCompactionStrategyTest
                                                                  true,
                                                                  PreviewKind.NONE);
         RepairJobDesc desc = new RepairJobDesc(parentRepSession, nextTimeUUID(), KEYSPACE1, CF_STANDARDDLEVELED, Arrays.asList(range));
-        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPort(), gcBefore, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, FBUtilities.getBroadcastAddressAndPort()), gcBefore, PreviewKind.NONE);
 
         ValidationManager.instance.submitValidation(cfs, validator).get();
     }

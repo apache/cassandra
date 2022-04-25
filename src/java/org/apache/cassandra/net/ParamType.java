@@ -58,12 +58,12 @@ public enum ParamType
     @Deprecated
     TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
 
-    TOMBSTONE_ABORT(8, "TSA", Int32Serializer.serializer),
+    TOMBSTONE_FAIL(8, "TSF", Int32Serializer.serializer),
     TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer),
-    LOCAL_READ_SIZE_ABORT(10, "LRSA", Int64Serializer.serializer),
+    LOCAL_READ_SIZE_FAIL(10, "LRSF", Int64Serializer.serializer),
     LOCAL_READ_SIZE_WARN(11, "LRSW", Int64Serializer.serializer),
-    ROW_INDEX_SIZE_ABORT(12, "RISA", Int64Serializer.serializer),
-    ROW_INDEX_SIZE_WARN(13, "RISW", Int64Serializer.serializer);
+    ROW_INDEX_READ_SIZE_FAIL(12, "RIRSF", Int64Serializer.serializer),
+    ROW_INDEX_READ_SIZE_WARN(13, "RIRSW", Int64Serializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string

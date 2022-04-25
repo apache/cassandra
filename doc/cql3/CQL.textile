@@ -1100,7 +1100,7 @@ bc(syntax)..
              | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
 
 <op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY
-<group-by> ::= <identifier> (',' <identifier>)*
+<group-by> ::= (<identifier>,)* (<identifier> | <function>)
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
 <term-tuple> ::= '(' <term> (',' <term>)* ')'
@@ -1201,7 +1201,7 @@ h4(#selectGroupBy). @<group-by>@
 
 The @GROUP BY@ option allows to condense into a single row all selected rows that share the same values for a set of columns.
 
-Using the @GROUP BY@ option, it is only possible to group rows at the partition key level or at a clustering column level. By consequence, the @GROUP BY@ option only accept as arguments primary key column names in the primary key order. If a primary key column is restricted by an equality restriction it is not required to be present in the @GROUP BY@ clause.
+Using the @GROUP BY@ option, it is only possible to group rows at the partition key level or at a clustering column level. By consequence, the @GROUP BY@ option only accept as arguments primary key column names in the primary key order. If a primary key column is restricted by an equality restriction it is not required to be present in the @GROUP BY@ clause. The last argument can be a monotonic function on the primary key column.
 
 Aggregate functions will produce a separate value for each group. If no @GROUP BY@ clause is specified, aggregates functions will produce a single value for all the rows.
 
@@ -2458,9 +2458,6 @@ h3. 3.4.3
 h3. 3.4.2
 
 * Support for selecting elements and slices of a collection ("CASSANDRA-7396":https://issues.apache.org/jira/browse/CASSANDRA-7396).
-
-h3. 3.4.2
-
 * "@INSERT/UPDATE options@":#updateOptions for tables having a default_time_to_live specifying a TTL of 0 will remove the TTL from the inserted or updated values
 * "@ALTER TABLE@":#alterTableStmt @ADD@ and @DROP@ now allow mutiple columns to be added/removed
 * New "@PER PARTITION LIMIT@":#selectLimit option (see "CASSANDRA-7017":https://issues.apache.org/jira/browse/CASSANDRA-7017).

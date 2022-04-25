@@ -20,6 +20,8 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
 
@@ -29,9 +31,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
  * <p>Note that the settings here must only be used by the {@link Guardrails} class and not directly by the code
  * checking each guarded constraint (which, again, should use the higher level abstractions defined in
  * {@link Guardrails}).
- *
- * <p>This contains a main setting, {@code enabled}, controlling if guardrails are globally active or not, and
- * individual settings to control each guardrail.
  *
  * <p>We have 2 variants of guardrails, soft (warn) and hard (fail) limits, each guardrail having either one of the
  * variants or both. Note in particular that hard limits only make sense for guardrails triggering during query
@@ -46,13 +45,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
  */
 public interface GuardrailsConfig
 {
-    /**
-     * Whether guardrails are enabled or not.
-     *
-     * @return {@code true} if guardrails are enabled, {@code false} otherwise
-     */
-    boolean getEnabled();
-
     /**
      * @return The threshold to warn when creating more user keyspaces than threshold.
      */
@@ -94,10 +86,14 @@ public interface GuardrailsConfig
     int getSecondaryIndexesPerTableFailThreshold();
 
     /**
+     * @return Whether creation of secondary indexes is allowed.
+     */
+    boolean getSecondaryIndexesEnabled();
+
+    /**
      * @return The threshold to warn when creating more materialized views per table than threshold.
      */
     int getMaterializedViewsPerTableWarnThreshold();
-
 
     /**
      * @return The threshold to warn when partition keys in select more than threshold.
@@ -135,6 +131,27 @@ public interface GuardrailsConfig
      * @return {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
      */
     boolean getUserTimestampsEnabled();
+
+    /**
+     * Returns whether tables can be uncompressed
+     *
+     * @return {@code true} if user's can disable compression, {@code false} otherwise.
+     */
+    boolean getUncompressedTablesEnabled();
+
+    /**
+     * Returns whether users can create new COMPACT STORAGE tables
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getCompactTablesEnabled();
+
+    /**
+     * Returns whether GROUP BY functionality is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getGroupByEnabled();
 
     /**
      * @return The threshold to warn when page size exceeds given size.
@@ -185,14 +202,16 @@ public interface GuardrailsConfig
      */
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
 
-    /*
+    /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */
+    @Nullable
     DataStorageSpec getCollectionSizeWarnThreshold();
 
     /**
      * @return The threshold to prevent collections with larger data size than threshold.
      */
+    @Nullable
     DataStorageSpec getCollectionSizeFailThreshold();
 
     /**
@@ -204,4 +223,33 @@ public interface GuardrailsConfig
      * @return The threshold to prevent collections with more elements than threshold.
      */
     int getItemsPerCollectionFailThreshold();
+
+    /**
+     * @return The threshold to warn when creating a UDT with more fields than threshold.
+     */
+    int getFieldsPerUDTWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a UDT with more fields than threshold.
+     */
+    int getFieldsPerUDTFailThreshold();
+
+    /**
+     * @return The threshold to warn when local disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageWarnThreshold();
+
+    /**
+     * @return The threshold to fail when local disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageFailThreshold();
+
+    /**
+     * @return The max disk size of the data directories when calculating disk usage thresholds, {@code null} means
+     * disabled.
+     */
+    @Nullable
+    DataStorageSpec getDataDiskUsageMaxDiskSize();
 }

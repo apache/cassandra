@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.impl;
 
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -38,13 +39,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -54,8 +53,10 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,8 +96,10 @@ import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.Shared.Recursive;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
 import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.NameHelper;
 
 import static java.util.stream.Stream.of;
 import static org.apache.cassandra.distributed.impl.IsolatedExecutor.DEFAULT_SHUTDOWN_EXECUTOR;
@@ -105,7 +108,6 @@ import static org.apache.cassandra.utils.Shared.Recursive.ALL;
 import static org.apache.cassandra.utils.Shared.Recursive.NONE;
 import static org.apache.cassandra.utils.Shared.Scope.ANY;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-import static org.reflections.ReflectionUtils.forNames;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -199,6 +201,37 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         {
             this.shutdownExecutor = shutdownExecutor;
             return (B) this;
+        }
+
+        @Override
+        public C createWithoutStarting() throws IOException
+        {
+            // if running as vnode but test sets withoutVNodes(), then skip the test
+            // AbstractCluster.createInstanceConfig has similar logic, but handles the cases where the test
+            // attempts to control tokens via config
+            // when token supplier is defined, use getTokenCount() to see if vnodes is supported or not
+            if (isVnode())
+            {
+                Assume.assumeTrue("vnode is not supported", isVNodeAllowed());
+                // if token count > 1 and isVnode, then good
+                Assume.assumeTrue("no-vnode is requested but not supported", getTokenCount() > 1);
+            }
+            else
+            {
+                Assume.assumeTrue("single-token is not supported", isSingleTokenAllowed());
+                // if token count == 1 and isVnode == false, then goodAbstractClusterTest
+                Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
+            }
+
+            return super.createWithoutStarting();
+        }
+
+        private boolean isVnode()
+        {
+            TokenSupplier ts = getTokenSupplier();
+            return ts == null
+                   ? getTokenCount() > 1 // token supplier wasn't defined yet, so rely on getTokenCount()
+                   : ts.tokens(1).size() > 1; // token supplier is defined... check the first instance to see what tokens are used
         }
     }
 
@@ -515,15 +548,46 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         return createInstanceConfig(size() + 1);
     }
 
-    private InstanceConfig createInstanceConfig(int nodeNum)
+    @VisibleForTesting
+    InstanceConfig createInstanceConfig(int nodeNum)
     {
         INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet);
-        long token = tokenSupplier.token(nodeNum);
+        Collection<String> tokens = tokenSupplier.tokens(nodeNum);
         NetworkTopology topology = buildNetworkTopology(provisionStrategy, nodeIdTopology);
-        InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, Long.toString(token), datadirCount);
+        InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, tokens, datadirCount);
         config.set(Constants.KEY_DTEST_API_CLUSTER_ID, clusterId.toString());
+        // if a test sets num_tokens directly, then respect it and only run if vnode or no-vnode is defined
+        int defaultTokenCount = config.getInt("num_tokens");
+        assert tokens.size() == defaultTokenCount : String.format("num_tokens=%d but tokens are %s; size does not match", defaultTokenCount, tokens);
+        String defaultTokens = config.getString("initial_token");
         if (configUpdater != null)
+        {
             configUpdater.accept(config);
+            int testTokenCount = config.getInt("num_tokens");
+            if (defaultTokenCount != testTokenCount)
+            {
+                if (testTokenCount == 1)
+                {
+                    // test is no-vnode, but running with vnode, so skip
+                    Assume.assumeTrue("vnode is not supported", false);
+                }
+                else
+                {
+                    Assume.assumeTrue("no-vnode is requested but not supported", defaultTokenCount > 1);
+                    // if the test controls initial_token or GOSSIP is enabled, then the test is safe to run
+                    if (defaultTokens.equals(config.getString("initial_token")))
+                    {
+                        // test didn't define initial_token
+                        Assume.assumeTrue("vnode is enabled and num_tokens is defined in test without GOSSIP or setting initial_token", config.has(Feature.GOSSIP));
+                        config.remove("initial_token");
+                    }
+                    else
+                    {
+                        // test defined initial_token; trust it
+                    }
+                }
+            }
+        }
         return config;
     }
 
@@ -1024,12 +1088,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public List<Token> tokens()
     {
         return stream()
-               .map(i ->
+               .flatMap(i ->
                     {
                         try
                         {
                             IPartitioner partitioner = ((IPartitioner)Class.forName(i.config().getString("partitioner")).newInstance());
-                            return partitioner.getTokenFactory().fromString(i.config().getString("initial_token"));
+                            return Stream.of(i.config().getString("initial_token").split(",")).map(partitioner.getTokenFactory()::fromString);
                         }
                         catch (Throwable t)
                         {
@@ -1081,7 +1145,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private static <A extends Annotation> Set<Class<?>> findClassesMarkedWith(Class<A> annotation, Predicate<A> testAnnotation)
     {
         Reflections reflections = new Reflections(ConfigurationBuilder.build("org.apache.cassandra").setExpandSuperTypes(false));
-        return forNames(reflections.getStore().getAll(TypeAnnotationsScanner.class, annotation.getName()),
+        return Utils.INSTANCE.forNames(reflections.get(Scanners.TypesAnnotated.get(annotation.getName())),
                         reflections.getConfiguration().getClassLoaders())
                .stream()
                .filter(testAnnotation(annotation, testAnnotation))
@@ -1246,6 +1310,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 throw new IllegalStateException("This version of Cassandra does not support multiple nodes with the same InetAddress: " + address + " vs " + prev);
         });
         return lookup;
+    }
+
+    // after upgrading a static function became an interface method, so need this class to mimic old behavior
+    private enum Utils implements NameHelper
+    {
+        INSTANCE;
     }
 }
 

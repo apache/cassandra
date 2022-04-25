@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.config;
 
+import java.util.concurrent.TimeUnit;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
 
@@ -158,6 +160,10 @@ public enum CassandraRelevantProperties
 
     GOSSIPER_SKIP_WAITING_TO_SETTLE("cassandra.skip_wait_for_gossip_to_settle", "-1"),
 
+    IGNORED_SCHEMA_CHECK_VERSIONS("cassandra.skip_schema_check_for_versions"),
+
+    IGNORED_SCHEMA_CHECK_ENDPOINTS("cassandra.skip_schema_check_for_endpoints"),
+
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
 
     /**
@@ -240,6 +246,10 @@ public enum CassandraRelevantProperties
     @Deprecated // should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck)
     FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN(FileSystemOwnershipCheck.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN),
 
+    // defaults to false for 4.1 but plan to switch to true in a later release
+    // the thinking is that environments may not work right off the bat so safer to add this feature disabled by default
+    CONFIG_ALLOW_SYSTEM_PROPERTIES("cassandra.config.allow_system_properties", "false"),
+
     // properties for debugging simulator ASM output
     TEST_SIMULATOR_PRINT_ASM("cassandra.test.simulator.print_asm", "none"),
     TEST_SIMULATOR_PRINT_ASM_TYPES("cassandra.test.simulator.print_asm_types", ""),
@@ -260,6 +270,12 @@ public enum CassandraRelevantProperties
     DISABLE_SSTABLE_ACTIVITY_TRACKING("cassandra.sstable_activity_tracking", "true"),
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar", "false"),
     PAXOS_EXECUTE_ON_SELF("cassandra.paxos.use_self_execution", "true"),
+
+    /** property for the rate of the scheduled task that monitors disk usage */
+    DISK_USAGE_MONITOR_INTERVAL_MS("cassandra.disk_usage.monitor_interval_ms", Long.toString(TimeUnit.SECONDS.toMillis(30))),
+
+    /** property for the interval on which the repeated client warnings and diagnostic events about disk usage are ignored */
+    DISK_USAGE_NOTIFY_INTERVAL_MS("cassandra.disk_usage.notify_interval_ms", Long.toString(TimeUnit.MINUTES.toMillis(30))),
 
     // for specific tests
     ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),

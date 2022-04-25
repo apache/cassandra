@@ -162,6 +162,21 @@ public class SetAuthCacheConfigTest extends CQLTester
         assertSetConfig(Roles.cache, RolesCacheMBean.CACHE_NAME);
     }
 
+    @Test
+    public void testSetConfigDisabled()
+    {
+        assertSetConfigDisabled(AuthenticatedUser.permissionsCache, PermissionsCacheMBean.CACHE_NAME);
+
+        PasswordAuthenticator passwordAuthenticator = (PasswordAuthenticator) DatabaseDescriptor.getAuthenticator();
+        assertSetConfigDisabled(passwordAuthenticator.getCredentialsCache(), PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME);
+
+        assertSetConfigDisabled(AuthorizationProxy.jmxPermissionsCache, AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME);
+
+        assertSetConfigDisabled(AuthenticatedUser.networkPermissionsCache, NetworkPermissionsCacheMBean.CACHE_NAME);
+
+        assertSetConfigDisabled(Roles.cache, RolesCacheMBean.CACHE_NAME);
+    }
+
     private void assertSetConfig(AuthCache<?, ?> authCache, String cacheName)
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("setauthcacheconfig",
@@ -178,6 +193,26 @@ public class SetAuthCacheConfigTest extends CQLTester
 
         assertThat(authCache.getValidity()).isEqualTo(1);
         assertThat(authCache.getUpdateInterval()).isEqualTo(2);
+        assertThat(authCache.getMaxEntries()).isEqualTo(3);
+        assertThat(authCache.getActiveUpdate()).isFalse();
+    }
+
+    private void assertSetConfigDisabled(AuthCache<?, ?> authCache, String cacheName)
+    {
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("setauthcacheconfig",
+                                                               "--cache-name", cacheName,
+                                                               "--validity-period", "1",
+                                                               "--update-interval", "-1",
+                                                               "--max-entries", "3",
+                                                               "--disable-active-update");
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEqualTo("Changed Validity Period to 1\n" +
+                                               "Changed Update Interval to -1\n" +
+                                               "Changed Max Entries to 3\n" +
+                                               "Changed Active Update to false\n");
+        // -1 means disabled and means update_interval will be assigned the value of validity_period
+        assertThat(authCache.getValidity()).isEqualTo(1);
+        assertThat(authCache.getUpdateInterval()).isEqualTo(1);
         assertThat(authCache.getMaxEntries()).isEqualTo(3);
         assertThat(authCache.getActiveUpdate()).isFalse();
     }

@@ -1,2 +1,2 @@
-alter_keyspace_statement::= ALTER KEYSPACE keyspace_name
+alter_keyspace_statement::= ALTER KEYSPACE [ IF EXISTS ] keyspace_name
 	WITH options
