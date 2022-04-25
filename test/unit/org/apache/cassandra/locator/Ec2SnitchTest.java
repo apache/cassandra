@@ -18,38 +18,41 @@
 
 package org.apache.cassandra.locator;
 
-
-import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.service.StorageService;
+import org.mockito.stubbing.Answer;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
+import static org.apache.cassandra.locator.Ec2MultiRegionSnitch.PRIVATE_IP_QUERY;
+import static org.apache.cassandra.locator.Ec2MultiRegionSnitch.PUBLIC_IP_QUERY;
 import static org.apache.cassandra.locator.Ec2Snitch.EC2_NAMING_LEGACY;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class EC2SnitchTest
+public class Ec2SnitchTest
 {
-    private static String az;
-
     private final SnitchProperties legacySnitchProps = new SnitchProperties()
     {
         public String get(String propertyName, String defaultValue)
@@ -71,30 +74,179 @@ public class EC2SnitchTest
         StorageService.instance.initServer(0);
     }
 
-    private class TestEC2Snitch extends Ec2Snitch
+
+    @AfterClass
+    public static void tearDown()
     {
-        public TestEC2Snitch() throws IOException, ConfigurationException
-        {
-            super();
-        }
-
-        public TestEC2Snitch(SnitchProperties props) throws IOException, ConfigurationException
-        {
-            super(props);
-        }
-
-        @Override
-        String awsApiCall(String url) throws IOException, ConfigurationException
-        {
-            return az;
-        }
+        StorageService.instance.stopClient();
     }
 
     @Test
-    public void testLegacyRac() throws IOException, ConfigurationException
+    public void testLegacyRac() throws Exception
     {
-        az = "us-east-1d";
-        Ec2Snitch snitch = new TestEC2Snitch(legacySnitchProps);
+        Ec2MetadataServiceConnector connectorMock = mock(Ec2MetadataServiceConnector.class);
+        when(connectorMock.apiCall(anyString())).thenReturn("us-east-1d");
+        Ec2Snitch snitch = new Ec2Snitch(legacySnitchProps, connectorMock);
+        testLegacyRacInternal(snitch);
+    }
+
+    @Test
+    public void testMultiregionLegacyRac() throws Exception
+    {
+        Ec2MetadataServiceConnector multiRegionConnectorMock = mock(Ec2MetadataServiceConnector.class);
+        when(multiRegionConnectorMock.apiCall(anyString())).then((Answer<String>) invocation -> {
+            String query = invocation.getArgument(0);
+            return (PUBLIC_IP_QUERY.equals(query) || PRIVATE_IP_QUERY.equals(query)) ? "127.0.0.1" : "us-east-1d";
+        });
+
+        Ec2Snitch snitch = new Ec2MultiRegionSnitch(legacySnitchProps, multiRegionConnectorMock);
+        testLegacyRacInternal(snitch);
+    }
+
+    @Test
+    public void testLegacyNewRegions() throws Exception
+    {
+        Ec2MetadataServiceConnector connectorMock = mock(Ec2MetadataServiceConnector.class);
+        when(connectorMock.apiCall(anyString())).thenReturn("us-east-2d");
+        testLegacyNewRegionsInternal(new Ec2Snitch(legacySnitchProps, connectorMock));
+    }
+
+    @Test
+    public void testLegacyMultiRegionNewRegions() throws Exception
+    {
+        Ec2MetadataServiceConnector multiRegionConnectorMock = mock(Ec2MetadataServiceConnector.class);
+        when(multiRegionConnectorMock.apiCall(anyString())).then((Answer<String>) invocation -> {
+            String query = invocation.getArgument(0);
+            return (PUBLIC_IP_QUERY.equals(query) || PRIVATE_IP_QUERY.equals(query)) ? "127.0.0.1" : "us-east-2d";
+        });
+
+        testLegacyNewRegionsInternal(new Ec2MultiRegionSnitch(legacySnitchProps, multiRegionConnectorMock));
+    }
+
+
+    @Test
+    public void testFullNamingScheme() throws Exception
+    {
+        Ec2MetadataServiceConnector connectorMock = mock(Ec2MetadataServiceConnector.class);
+        when(connectorMock.apiCall(anyString())).thenReturn("us-east-2d");
+        Ec2Snitch snitch = new Ec2Snitch(new SnitchProperties(new Properties()), connectorMock);
+
+        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
+
+        assertEquals("us-east-2", snitch.getDatacenter(local));
+        assertEquals("us-east-2d", snitch.getRack(local));
+
+        Ec2MetadataServiceConnector multiRegionConnectorMock = mock(Ec2MetadataServiceConnector.class);
+        when(multiRegionConnectorMock.apiCall(anyString())).then((Answer<String>) invocation -> {
+            String query = invocation.getArgument(0);
+            return (PUBLIC_IP_QUERY.equals(query) || PRIVATE_IP_QUERY.equals(query)) ? "127.0.0.1" : "us-east-2d";
+        });
+
+        assertEquals("us-east-2", snitch.getDatacenter(local));
+        assertEquals("us-east-2d", snitch.getRack(local));
+    }
+
+    @Test
+    public void validateDatacenter_RequiresLegacy_CorrectAmazonName()
+    {
+        Set<String> datacenters = new HashSet<>();
+        datacenters.add("us-east-1");
+        assertTrue(Ec2Snitch.validate(datacenters, Collections.emptySet(), true));
+    }
+
+    @Test
+    public void validateDatacenter_RequiresLegacy_LegacyName()
+    {
+        Set<String> datacenters = new HashSet<>();
+        datacenters.add("us-east");
+        assertTrue(Ec2Snitch.validate(datacenters, Collections.emptySet(), true));
+    }
+
+    @Test
+    public void validate_RequiresLegacy_HappyPath()
+    {
+        Set<String> datacenters = new HashSet<>();
+        datacenters.add("us-east");
+        Set<String> racks = new HashSet<>();
+        racks.add("1a");
+        assertTrue(Ec2Snitch.validate(datacenters, racks, true));
+    }
+
+    @Test
+    public void validate_RequiresLegacy_HappyPathWithDCSuffix()
+    {
+        Set<String> datacenters = new HashSet<>();
+        datacenters.add("us-east_CUSTOM_SUFFIX");
+        Set<String> racks = new HashSet<>();
+        racks.add("1a");
+        assertTrue(Ec2Snitch.validate(datacenters, racks, true));
+    }
+
+    @Test
+    public void validateRack_RequiresAmazonName_CorrectAmazonName()
+    {
+        Set<String> racks = new HashSet<>();
+        racks.add("us-east-1a");
+        assertTrue(Ec2Snitch.validate(Collections.emptySet(), racks, false));
+    }
+
+    @Test
+    public void validateRack_RequiresAmazonName_LegacyName()
+    {
+        Set<String> racks = new HashSet<>();
+        racks.add("1a");
+        assertFalse(Ec2Snitch.validate(Collections.emptySet(), racks, false));
+    }
+
+    @Test
+    public void validate_RequiresAmazonName_HappyPath()
+    {
+        Set<String> datacenters = new HashSet<>();
+        datacenters.add("us-east-1");
+        Set<String> racks = new HashSet<>();
+        racks.add("us-east-1a");
+        assertTrue(Ec2Snitch.validate(datacenters, racks, false));
+    }
+
+    @Test
+    public void validate_RequiresAmazonName_HappyPathWithDCSuffix()
+    {
+        Set<String> datacenters = new HashSet<>();
+        datacenters.add("us-east-1_CUSTOM_SUFFIX");
+        Set<String> racks = new HashSet<>();
+        racks.add("us-east-1a");
+        assertTrue(Ec2Snitch.validate(datacenters, racks, false));
+    }
+
+    /**
+     * Validate upgrades in legacy mode for regions that didn't change name between the standard and legacy modes.
+     */
+    @Test
+    public void validate_RequiresLegacy_DCValidStandardAndLegacy()
+    {
+        Set<String> datacenters = new HashSet<>();
+        datacenters.add("us-west-2");
+        Set<String> racks = new HashSet<>();
+        racks.add("2a");
+        racks.add("2b");
+        assertTrue(Ec2Snitch.validate(datacenters, racks, true));
+    }
+
+    /**
+     * Check that racks names are enough to detect a mismatch in naming conventions.
+     */
+    @Test
+    public void validate_RequiresLegacy_RackInvalidForLegacy()
+    {
+        Set<String> datacenters = new HashSet<>();
+        datacenters.add("us-west-2");
+        Set<String> racks = new HashSet<>();
+        racks.add("us-west-2a");
+        assertFalse(Ec2Snitch.validate(datacenters, racks, true));
+    }
+
+    private void testLegacyRacInternal(Ec2Snitch snitch) throws Exception
+    {
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -111,135 +263,10 @@ public class EC2SnitchTest
         assertEquals("1d", snitch.getRack(local));
     }
 
-    @Test
-    public void testLegacyNewRegions() throws IOException, ConfigurationException
+    private void testLegacyNewRegionsInternal(Ec2Snitch snitch) throws Exception
     {
-        az = "us-east-2d";
-        Ec2Snitch snitch = new TestEC2Snitch(legacySnitchProps);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         assertEquals("us-east-2", snitch.getDatacenter(local));
         assertEquals("2d", snitch.getRack(local));
-    }
-
-    @Test
-    public void testFullNamingScheme() throws IOException, ConfigurationException
-    {
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-        az = "us-east-2d";
-        Ec2Snitch snitch = new TestEC2Snitch();
-
-        assertEquals("us-east-2", snitch.getDatacenter(local));
-        assertEquals("us-east-2d", snitch.getRack(local));
-
-        az = "us-west-1a";
-        snitch = new TestEC2Snitch();
-
-        assertEquals("us-west-1", snitch.getDatacenter(local));
-        assertEquals("us-west-1a", snitch.getRack(local));
-    }
-
-    @Test
-    public void validateDatacenter_RequiresLegacy_CorrectAmazonName()
-    {
-        Set<String> datacenters = new HashSet<>();
-        datacenters.add("us-east-1");
-        Assert.assertTrue(Ec2Snitch.validate(datacenters, Collections.emptySet(), true));
-    }
-
-    @Test
-    public void validateDatacenter_RequiresLegacy_LegacyName()
-    {
-        Set<String> datacenters = new HashSet<>();
-        datacenters.add("us-east");
-        Assert.assertTrue(Ec2Snitch.validate(datacenters, Collections.emptySet(), true));
-    }
-
-    @Test
-    public void validate_RequiresLegacy_HappyPath()
-    {
-        Set<String> datacenters = new HashSet<>();
-        datacenters.add("us-east");
-        Set<String> racks = new HashSet<>();
-        racks.add("1a");
-        Assert.assertTrue(Ec2Snitch.validate(datacenters, racks, true));
-    }
-
-    @Test
-    public void validate_RequiresLegacy_HappyPathWithDCSuffix()
-    {
-        Set<String> datacenters = new HashSet<>();
-        datacenters.add("us-east_CUSTOM_SUFFIX");
-        Set<String> racks = new HashSet<>();
-        racks.add("1a");
-        Assert.assertTrue(Ec2Snitch.validate(datacenters, racks, true));
-    }
-
-    @Test
-    public void validateRack_RequiresAmazonName_CorrectAmazonName()
-    {
-        Set<String> racks = new HashSet<>();
-        racks.add("us-east-1a");
-        Assert.assertTrue(Ec2Snitch.validate(Collections.emptySet(), racks, false));
-    }
-
-    @Test
-    public void validateRack_RequiresAmazonName_LegacyName()
-    {
-        Set<String> racks = new HashSet<>();
-        racks.add("1a");
-        Assert.assertFalse(Ec2Snitch.validate(Collections.emptySet(), racks, false));
-    }
-
-    @Test
-    public void validate_RequiresAmazonName_HappyPath()
-    {
-        Set<String> datacenters = new HashSet<>();
-        datacenters.add("us-east-1");
-        Set<String> racks = new HashSet<>();
-        racks.add("us-east-1a");
-        Assert.assertTrue(Ec2Snitch.validate(datacenters, racks, false));
-    }
-
-    @Test
-    public void validate_RequiresAmazonName_HappyPathWithDCSuffix()
-    {
-        Set<String> datacenters = new HashSet<>();
-        datacenters.add("us-east-1_CUSTOM_SUFFIX");
-        Set<String> racks = new HashSet<>();
-        racks.add("us-east-1a");
-        Assert.assertTrue(Ec2Snitch.validate(datacenters, racks, false));
-    }
-
-    /**
-     * Validate upgrades in legacy mode for regions that didn't change name between the standard and legacy modes.
-     */
-    @Test
-    public void validate_RequiresLegacy_DCValidStandardAndLegacy()
-    {
-        Set<String> datacenters = new HashSet<>();
-        datacenters.add("us-west-2");
-        Set<String> racks = new HashSet<>();
-        racks.add("2a");
-        racks.add("2b");
-        Assert.assertTrue(Ec2Snitch.validate(datacenters, racks, true));
-    }
-
-    /**
-     * Check that racks names are enough to detect a mismatch in naming conventions.
-     */
-    @Test
-    public void validate_RequiresLegacy_RackInvalidForLegacy()
-    {
-        Set<String> datacenters = new HashSet<>();
-        datacenters.add("us-west-2");
-        Set<String> racks = new HashSet<>();
-        racks.add("us-west-2a");
-        Assert.assertFalse(Ec2Snitch.validate(datacenters, racks, true));
-    }
-
-    @AfterClass
-    public static void tearDown()
-    {
-        StorageService.instance.stopClient();
     }
 }

@@ -193,6 +193,11 @@ Upgrading
      removed. Any deployments that depend upon the code default to this password value without explicitly specifying
      it in cassandra.yaml will fail on upgrade. Please specify your keystore_password and truststore_password elements in cassandra.yaml with appropriate
      values to prevent this failure.
+   - Please beware that if you use Ec2Snitch or Ec2MultiRegionSnitch, by default it will 
+     communicate with AWS IMDS of version 2. This change is transparent, there does not need 
+     to be done anything upon upgrade. Furthermore, IMDS of version 2 can be configured to be required in AWS EC2 console.
+     Consult cassandra-rackdc.properties for more details. (CASSANDRA-16555)
+
 
 Deprecation
 -----------
