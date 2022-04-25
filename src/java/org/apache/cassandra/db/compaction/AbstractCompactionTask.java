@@ -185,7 +185,13 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     }
 
     @VisibleForTesting
-    LifecycleTransaction transaction()
+    public List<CompactionObserver> getCompObservers()
+    {
+        return compObservers;
+    }
+
+    @VisibleForTesting
+    public LifecycleTransaction transaction()
     {
         return transaction;
     }

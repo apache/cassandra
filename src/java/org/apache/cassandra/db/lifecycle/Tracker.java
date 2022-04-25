@@ -511,7 +511,8 @@ public class Tracker
         return accumulate;
     }
 
-    void notifyAdded(Iterable<SSTableReader> added, OperationType operationType, boolean isInitialSSTables)
+    @VisibleForTesting
+    public void notifyAdded(Iterable<SSTableReader> added, OperationType operationType, boolean isInitialSSTables)
     {
         maybeFail(notifyAdded(added, operationType, isInitialSSTables, null, null));
     }
