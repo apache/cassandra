@@ -1,4 +1,5 @@
 3.0.27
+ * Fix URISyntaxException in nodetool with updated Java (CASSANDRA-17581)
  * Schema mutations may not be completed on drain (CASSANDRA-17524)
  * Fix data corruption in AbstractCompositeType due to static boolean byte buffers (CASSANDRA-14752)
  * Add procps dependency to RPM/Debian packages (CASSANDRA-17516)

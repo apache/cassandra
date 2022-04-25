@@ -96,7 +96,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
  */
 public class NodeProbe implements AutoCloseable
 {
-    private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://[%s]:%d/jmxrmi";
+    private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final int defaultPort = 7199;
     final String host;
@@ -186,6 +186,12 @@ public class NodeProbe implements AutoCloseable
      */
     protected void connect() throws IOException
     {
+        String host = this.host;
+        if (host.contains(":"))
+        {
+            // Use square brackets to surround IPv6 addresses to fix CASSANDRA-7669 and CASSANDRA-17581
+            host = "[" + host + "]";
+        }
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
         Map<String,Object> env = new HashMap<String,Object>();
         if (username != null)
