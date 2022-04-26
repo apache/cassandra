@@ -153,6 +153,7 @@ from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  format_by_type)
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize
+from cqlshlib.util import is_file_secure
 
 
 DEFAULT_HOST = '127.0.0.1'
@@ -2080,21 +2081,6 @@ def should_use_color():
         pass
     return True
 
-
-def is_file_secure(filename):
-    try:
-        st = os.stat(filename)
-    except OSError as e:
-        if e.errno != errno.ENOENT:
-            raise
-        return True  # the file doesn't exists, the security of it is irrelevant
-
-    uid = os.getuid()
-
-    # Skip enforcing the file owner and UID matching for the root user (uid == 0).
-    # This is to allow "sudo cqlsh" to work with user owned credentials file.
-    return (uid == 0 or st.st_uid == uid) and stat.S_IMODE(st.st_mode) & (stat.S_IRGRP | stat.S_IROTH) == 0
-
 def read_options(cmdlineargs, environment):
     configs = configparser.ConfigParser()
     configs.read(CONFIG_FILE)
@@ -2105,7 +2091,7 @@ def read_options(cmdlineargs, environment):
     username_from_cqlshrc = option_with_default(configs.get, 'authentication', 'username')
     password_from_cqlshrc = option_with_default(rawconfigs.get, 'authentication', 'password')
     if username_from_cqlshrc or password_from_cqlshrc:
-        if password_from_cqlshrc and not is_file_secure(CONFIG_FILE):
+        if password_from_cqlshrc and not is_file_secure(os.path.expanduser(CONFIG_FILE)):
             print("\nWarning: Password is found in an insecure cqlshrc file. The file is owned or readable by other users on the system.",
                   end='', file=sys.stderr)
         print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."

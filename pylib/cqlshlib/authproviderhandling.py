@@ -18,8 +18,29 @@ Handles loading of AuthProvider for CQLSH authentication.
 """
 
 import configparser
+import sys
 from importlib import import_module
+from cqlshlib.util import is_file_secure
 
+def _warn_for_plain_text_security(config_file, provider_settings):
+    """
+    Call when using PlainTextAuthProvider
+    check to see if password appears in the basic provider settings
+    as this is a security risk
+
+    Will write errors to stderr
+    """
+    if 'password' in provider_settings:
+        if not is_file_secure(config_file):
+            print("""\nWarning: Password is found in an insecure cqlshrc file.
+                    The file is owned or readable by other users on the system.""",
+                  end='',
+                  file=sys.stderr)
+        print("""\nNotice: Credentials in the cqlshrc file is deprecated and
+                will be ignored in the future.
+                \nPlease use a credentials file to
+                specify the username and password.\n""",
+                file=sys.stderr)
 
 def load_auth_provider(config_file=None, cred_file=None, username=None, password=None):
     """
@@ -41,11 +62,11 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
     in the *auth_provider* section and can be freely named to match
     auth provider's expectation.
 
-    If passed username and password, function will return a PlainTextAuthProvider using the
-    traditional logic.  It will try to use properties specified in [Auth_provider] section if
-    the PlainTextAuthProvider is the specified class.
+    If passed username and password these will be overridden and passed to auth provider
 
-    None is returned if no possible auth provider is found.
+    None is returned if no possible auth provider is found, and no username/password can be
+    returned.  If a username is found, system will assume that PlainTextAuthProvider was
+    specified
 
     EXAMPLE  CQLSHRC:
     # .. inside cqlshrc file
@@ -111,17 +132,16 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
         return result
 
     provider_settings = get_auth_provider_settings(config_file)
+
     module_name = provider_settings.pop('module', None)
     class_name = provider_settings.pop('classname', None)
 
-    # if a legacy username or password is passed to us
-    # regardless of what the module / class is specified, we have been overridden to using
-    # PlainTextAuthProvider
-    if username is not None or password is not None:
+    if module_name is None and class_name is None:
+        # not specified, default to plaintext auth provider
         module_name = 'cassandra.auth'
         class_name = 'PlainTextAuthProvider'
-
-    if module_name is None or class_name is None:
+    elif module_name is None or class_name is None:
+        # then this was PARTIALLY specified.
         return None
 
     credential_settings = get_cred_file_settings(class_name, cred_file)
@@ -132,13 +152,19 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
         # we need to ensure that password property gets "set" in all cases.
         # this is to support the ability to give the user a prompt in other parts
         # of the code.
+        _warn_for_plain_text_security(config_file, provider_settings)
         ctor_args = {'password': None,
                      **provider_settings,
                      **credential_settings,
                      **get_legacy_settings(username, password)}
+        # if no username, we can't create PlainTextAuthProvider
+        if 'username' not in ctor_args:
+            return None
     else:
         # merge credential settings as overrides on top of provider settings.
-        ctor_args = {**provider_settings, **credential_settings}
+        ctor_args = {**provider_settings,
+                     **credential_settings,
+                     **get_legacy_settings(username, password)}
 
     # Load class definitions
     module = import_module(module_name)

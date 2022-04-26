@@ -15,7 +15,9 @@
 #  limitations under the License.
 
 import unittest
+import io
 import os
+import sys
 import pytest
 
 from cassandra.auth import PlainTextAuthProvider
@@ -35,7 +37,7 @@ class NoUserNamePlainTextAuthProvider(PlainTextAuthProvider):
 
 
 class ComplexTextAuthProvider(PlainTextAuthProvider):
-    def __init__(self, username, password, extra_flag):
+    def __init__(self, username, password='default_pass', extra_flag=None):
         super(ComplexTextAuthProvider, self).__init__(username, password)
         self.extra_flag = extra_flag
 
@@ -50,8 +52,31 @@ def _assert_auth_provider_matches(actual, klass, expected_props):
     assert isinstance(actual, klass)
     assert expected_props == vars(actual)
 
-
 class CustomAuthProviderTest(unittest.TestCase):
+
+    def setUp(self):
+        self._captured_std_err = io.StringIO()
+        sys.stderr = self._captured_std_err
+
+    def tearDown(self):
+        self._captured_std_err.close()
+        sys.stdout = sys.__stderr__
+
+    def test_no_warning_insecure_if_no_pass(self):
+        load_auth_provider(construct_config_path('plain_text_partial_example'))
+        err_msg = self._captured_std_err.getvalue()
+        assert err_msg == ''
+
+    def test_insecure_creds(self):
+        load_auth_provider(construct_config_path('full_plain_text_example'))
+        err_msg = self._captured_std_err.getvalue()
+        assert "Notice:" in err_msg
+        assert "Warning:" in err_msg
+
+    def test_creds_not_checked_for_non_plaintext(self):
+        load_auth_provider(construct_config_path('complex_auth_provider_with_pass'))
+        err_msg = self._captured_std_err.getvalue()
+        assert err_msg == ''
 
     def test_partial_property_example(self):
         actual = load_auth_provider(construct_config_path('partial_example'))
@@ -73,6 +98,15 @@ class CustomAuthProviderTest(unittest.TestCase):
         actual = load_auth_provider(construct_config_path('empty_example'))
         assert actual is None
 
+    def test_plaintextauth_when_not_defined(self):
+        creds_file = construct_config_path('plain_text_full_creds')
+        actual = load_auth_provider(cred_file=creds_file)
+        _assert_auth_provider_matches(
+                actual,
+                PlainTextAuthProvider,
+                {"username": 'user2',
+                 "password": 'pass2'})
+
     def test_no_cqlshrc_file(self):
         actual = load_auth_provider()
         assert actual is None
@@ -85,6 +119,18 @@ class CustomAuthProviderTest(unittest.TestCase):
         with pytest.raises(ModuleNotFoundError) as error:
             load_auth_provider(construct_config_path('illegal_example'))
             assert error is not None
+
+    def test_username_password_passed_from_commandline(self):
+        creds_file = construct_config_path('complex_auth_provider_creds')
+        cqlshrc = construct_config_path('complex_auth_provider')
+
+        actual = load_auth_provider(cqlshrc, creds_file, 'user-from-legacy', 'pass-from-legacy')
+        _assert_auth_provider_matches(
+                 actual,
+                 ComplexTextAuthProvider,
+                 {"username": 'user-from-legacy',
+                  "password": 'pass-from-legacy',
+                  "extra_flag": 'flag2'})
 
     def test_creds_example(self):
         creds_file = construct_config_path('complex_auth_provider_creds')
@@ -119,6 +165,18 @@ class CustomAuthProviderTest(unittest.TestCase):
                 PlainTextAuthProvider,
                 {"username": 'user3',
                  "password": 'pass3'})
+
+    def test_shouldnt_pass_no_password_when_alt_auth_provider(self):
+        cqlshrc = construct_config_path('complex_auth_provider')
+        creds_file = None
+
+        actual = load_auth_provider(cqlshrc, creds_file, 'user3')
+        _assert_auth_provider_matches(
+                actual,
+                ComplexTextAuthProvider,
+                {"username": 'user3',
+                 "password": 'default_pass',
+                 "extra_flag": 'flag1'})
 
     def test_legacy_example_no_password(self):
         cqlshrc = construct_config_path('plain_text_partial_example')

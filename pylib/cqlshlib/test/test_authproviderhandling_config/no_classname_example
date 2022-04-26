@@ -2,4 +2,4 @@
 ; this version doesn't have a classname, but has a module name.
 
 [auth_provider]
-module = cqlshlib.test.test_authproviderhandling
+module = cqlshlib.test
