@@ -977,14 +977,14 @@ public class QueryProcessor implements QueryHandler
         }
 
         @Override
-        public void onDropKeyspace(KeyspaceMetadata keyspace)
+        public void onDropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
         {
             logger.trace("Keyspace {} was dropped, invalidating related prepared statements", keyspace.name);
             removeInvalidPreparedStatements(keyspace.name, null);
         }
 
         @Override
-        public void onDropTable(TableMetadata table)
+        public void onDropTable(TableMetadata table, boolean dropData)
         {
             logger.trace("Table {}.{} was dropped, invalidating related prepared statements", table.keyspace, table.name);
             removeInvalidPreparedStatements(table.keyspace, table.name);

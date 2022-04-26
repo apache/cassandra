@@ -1,3 +1,6 @@
+4.1
+ * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
+
 4.0.7
  * Fix StorageService.getNativeaddress handling of IPv6 addresses (CASSANDRA-17945)
  * Mitigate direct buffer memory OOM on replacements (CASSANDRA-17895)
