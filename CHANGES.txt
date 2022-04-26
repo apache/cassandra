@@ -1,3 +1,6 @@
+4.1
+ * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
+
 4.0.5
  * silence benign SslClosedEngineException (CASSANDRA-17565)
 Merged from 3.11:
