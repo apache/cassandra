@@ -549,13 +549,13 @@ public class Server implements CassandraDaemon.Server
         }
 
         @Override
-        public void onDropKeyspace(KeyspaceMetadata keyspace)
+        public void onDropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, keyspace.name));
         }
 
         @Override
-        public void onDropTable(TableMetadata table)
+        public void onDropTable(TableMetadata table, boolean dropData)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, table.keyspace, table.name));
         }

@@ -1,0 +1,21 @@
+--- a/CHANGES.txt
++++ b/CHANGES.txt
+@@ -1,4 +1,6 @@
+-<<<<<<<
++4.1
++ * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
++
+ 4.0.8
+  * Connect to listen address when own broadcast address is requested (CASSANDRA-18200)
+  * Add safeguard so cleanup fails when node has pending ranges (CASSANDRA-16418)
+@@ -29,10 +31,6 @@
+  * Fix incorrect resource name in LIST PERMISSION output (CASSANDRA-17848)
+  * Suppress CVE-2022-41854 and similar (CASSANDRA-18083)
+  * Fix running Ant rat targets without git (CASSANDRA-17974)
+-=======
+-4.1
+- * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
+->>>>>>>
+ 
+ 4.0.7
+  * Remove empty cq4 files in log directory to not fail the startup of BinLog (CASSANDRA-17933)

@@ -179,7 +179,7 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
     }
 
     @Override
-    public void onDropTable(TableMetadata table)
+    public void onDropTable(TableMetadata table, boolean dropData)
     {
         SystemKeyspace.clearEstimates(table.keyspace, table.name);
     }

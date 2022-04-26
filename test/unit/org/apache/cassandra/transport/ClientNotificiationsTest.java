@@ -88,7 +88,7 @@ public class ClientNotificiationsTest extends CQLTester
             notifier.onLeaveCluster(broadcastAddress);
             notifier.onCreateKeyspace(ks);
             notifier.onAlterKeyspace(ks, ks);
-            notifier.onDropKeyspace(ks);
+            notifier.onDropKeyspace(ks, true);
 
             handler.assertNextEvent(Event.StatusChange.nodeUp(nativeAddress));
             handler.assertNextEvent(Event.StatusChange.nodeDown(nativeAddress));

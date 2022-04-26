@@ -1,0 +1,22 @@
+--- a/CHANGES.txt
++++ b/CHANGES.txt
+@@ -1,4 +1,7 @@
+-<<<<<<<
++4.1
++ * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
++
++
+ 4.0.12
+  * Migrate Python optparse to argparse (CASSANDRA-17914)
+ Merged from 3.11:
+@@ -69,10 +72,6 @@
+  * Fix the ordering of sstables when running sstableupgrade tool (CASSANDRA-18143)
+  * Fix default file system error handler for disk_failure_policy die (CASSANDRA-18294)
+ 
+-=======
+-4.1
+- * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
+->>>>>>>
+ 
+ 4.0.8
+  * Log warning message on aggregation queries without key or on multiple keys (CASSANDRA-18219)
