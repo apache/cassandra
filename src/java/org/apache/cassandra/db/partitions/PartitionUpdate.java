@@ -21,10 +21,11 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
@@ -209,6 +210,20 @@ public class PartitionUpdate extends AbstractBTreePartition
         Holder holder = build(iterator, deletionInfo, true, 16);
         return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
     }
+
+
+    public PartitionUpdate withOnlyPresentColumns()
+    {
+        Set<ColumnMetadata> columnSet = new HashSet<>();
+
+        for (Row row : this)
+            for (ColumnData column : row)
+                columnSet.add(column.column());
+
+        RegularAndStaticColumns columns = RegularAndStaticColumns.builder().addAll(columnSet).build();
+        return new PartitionUpdate(this.metadata, this.partitionKey, this.holder.withColumns(columns), this.deletionInfo.mutableCopy(), false);
+    }
+
 
     protected boolean canHaveShadowedData()
     {
