@@ -18,58 +18,63 @@
 package org.apache.cassandra.service.snapshot;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StartupChecks;
+import org.apache.cassandra.utils.DirectorySizeCalculator;
 
 public class TableSnapshot
 {
     private static final Logger logger = LoggerFactory.getLogger(StartupChecks.class);
 
-    private final String keyspace;
-    private final String table;
+    private final String keyspaceName;
+    private final String tableName;
+    private final UUID tableId;
     private final String tag;
 
     private final Instant createdAt;
     private final Instant expiresAt;
 
     private final Set<File> snapshotDirs;
-    private final Function<File, Long> trueDiskSizeComputer;
 
-    public TableSnapshot(String keyspace, String table, String tag, Instant createdAt,
-                         Instant expiresAt, Set<File> snapshotDirs,
-                         Function<File, Long> trueDiskSizeComputer)
+    public TableSnapshot(String keyspaceName, String tableName, UUID tableId,
+                         String tag, Instant createdAt, Instant expiresAt,
+                         Set<File> snapshotDirs)
     {
-        this.keyspace = keyspace;
-        this.table = table;
+        this.keyspaceName = keyspaceName;
+        this.tableName = tableName;
+        this.tableId = tableId;
         this.tag = tag;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
         this.snapshotDirs = snapshotDirs;
-        this.trueDiskSizeComputer = trueDiskSizeComputer;
     }
 
-    public String getKeyspace()
+    public String getKeyspaceName()
     {
-        return keyspace;
+        return keyspaceName;
     }
 
-    public String getTable()
+    public String getTableName()
     {
-        return table;
+        return tableName;
     }
 
     public String getTag()
@@ -122,10 +127,21 @@ public class TableSnapshot
 
     public long computeTrueSizeBytes()
     {
-        // FIXME: move this to outside this class which should be CFS independent
-        if (trueDiskSizeComputer == null)
-            return computeSizeOnDiskBytes();
-        return snapshotDirs.stream().mapToLong(trueDiskSizeComputer::apply).sum();
+        DirectorySizeCalculator visitor = new SnapshotTrueSizeCalculator();
+
+        for (File snapshotDir : snapshotDirs)
+        {
+            try
+            {
+                Files.walkFileTree(snapshotDir.toPath(), visitor);
+            }
+            catch (IOException e)
+            {
+                logger.error("Could not calculate the size of {}. {}", snapshotDir, e);
+            }
+        }
+
+        return visitor.getAllocatedSize();
     }
 
     public Collection<File> getDirectories()
@@ -134,33 +150,32 @@ public class TableSnapshot
     }
 
     @Override
-    public String toString()
-    {
-        return "TableSnapshot{" +
-               "keyspace='" + keyspace + '\'' +
-               ", table='" + table + '\'' +
-               ", tag='" + tag + '\'' +
-               ", createdAt=" + createdAt +
-               ", expiresAt=" + expiresAt +
-               ", snapshotDirs=" + snapshotDirs +
-               '}';
-    }
-
-    @Override
     public boolean equals(Object o)
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TableSnapshot that = (TableSnapshot) o;
-        return Objects.equals(keyspace, that.keyspace) && Objects.equals(table, that.table)
-               && Objects.equals(tag, that.tag) && Objects.equals(createdAt, that.createdAt)
-               && Objects.equals(expiresAt, that.expiresAt) && Objects.equals(snapshotDirs, that.snapshotDirs);
+        TableSnapshot snapshot = (TableSnapshot) o;
+        return Objects.equals(keyspaceName, snapshot.keyspaceName) && Objects.equals(tableName, snapshot.tableName) && Objects.equals(tableId, snapshot.tableId) && Objects.equals(tag, snapshot.tag) && Objects.equals(createdAt, snapshot.createdAt) && Objects.equals(expiresAt, snapshot.expiresAt) && Objects.equals(snapshotDirs, snapshot.snapshotDirs);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(keyspace, table, tag, createdAt, expiresAt, snapshotDirs);
+        return Objects.hash(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "TableSnapshot{" +
+               "keyspaceName='" + keyspaceName + '\'' +
+               ", tableName='" + tableName + '\'' +
+               ", tableId=" + tableId +
+               ", tag='" + tag + '\'' +
+               ", createdAt=" + createdAt +
+               ", expiresAt=" + expiresAt +
+               ", snapshotDirs=" + snapshotDirs +
+               '}';
     }
 
     public static Map<String, TableSnapshot> filter(Map<String, TableSnapshot> snapshots, Map<String, String> options)
@@ -177,8 +192,9 @@ public class TableSnapshot
     }
 
     static class Builder {
-        private final String keyspace;
-        private final String table;
+        private final String keyspaceName;
+        private final String tableName;
+        private final UUID tableId;
         private final String tag;
 
         private Instant createdAt = null;
@@ -186,11 +202,12 @@ public class TableSnapshot
 
         private final Set<File> snapshotDirs = new HashSet<>();
 
-        Builder(String keyspace, String table, String tag)
+        Builder(String keyspaceName, String tableName, UUID tableId, String tag)
         {
-            this.keyspace = keyspace;
-            this.table = table;
+            this.keyspaceName = keyspaceName;
+            this.tableName = tableName;
             this.tag = tag;
+            this.tableId = tableId;
         }
 
         void addSnapshotDir(File snapshotDir)
@@ -219,7 +236,48 @@ public class TableSnapshot
 
         TableSnapshot build()
         {
-            return new TableSnapshot(keyspace, table, tag, createdAt, expiresAt, snapshotDirs, null);
+            return new TableSnapshot(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs);
         }
+    }
+
+    public static Predicate<TableSnapshot> sameTable(UUID tableId) {
+        return t -> t.tableId.equals(tableId);
+    }
+
+    public static class SnapshotTrueSizeCalculator extends DirectorySizeCalculator
+    {
+        /**
+         * Snapshots are composed of hard-linked sstables. The true snapshot size should only include
+         * snapshot files which do not contain a corresponding "live" sstable file.
+         */
+        @Override
+        public boolean isAcceptable(Path snapshotFilePath)
+        {
+            return !getLiveFileFromSnapshotFile(snapshotFilePath).exists();
+        }
+    };
+
+    /**
+     * Returns the corresponding live file for a given snapshot file.
+     *
+     * Example:
+     *  - Base table:
+     *    - Snapshot file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/me-1-big-Data.db
+     *    - Live file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/me-1-big-Data.db
+     *  - Secondary index:
+     *    - Snapshot file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/.tbl_val_idx/me-1-big-Summary.db
+     *    - Live file: ~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/.tbl_val_idx/me-1-big-Summary.db
+     *
+     */
+    static File getLiveFileFromSnapshotFile(Path snapshotFilePath)
+    {
+        // Snapshot directory structure format is {data_dir}/snapshots/{snapshot_name}/{snapshot_file}
+        Path liveDir = snapshotFilePath.getParent().getParent().getParent();
+        if (Directories.isSecondaryIndexFolder(new File(snapshotFilePath.getParent().toFile())))
+        {
+            // Snapshot file structure format is {data_dir}/snapshots/{snapshot_name}/.{index}/{sstable-component}.db
+            liveDir = Paths.get(liveDir.getParent().toString(), snapshotFilePath.getParent().getFileName().toString());
+        }
+        return new File(liveDir.toString(), snapshotFilePath.getFileName().toString());
     }
 }

@@ -33,7 +33,10 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class DescriptorTest
 {
@@ -52,6 +55,38 @@ public class DescriptorTest
     public static void setup()
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+
+    @Test
+    public void testIsFromSameTable() throws Exception
+    {
+        File dir = new File(tempDataDir.absolutePath() + File.pathSeparator() + ksname + File.pathSeparator() + cfname + '-' + cfId);
+        Descriptor desc = new Descriptor(dir, ksname, cfname, new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG);
+        assertThat(desc.isSameTable(ksname, cfname)).isTrue();
+        assertThat(desc.isSameTable(ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + "foobar")).isFalse();
+    }
+
+    @Test
+    public void testIsSecondaryIndexFrom()
+    {
+        String indexName = "foobar";
+
+        // For normal table isSecondaryIndexFrom should always return false
+        File tableDir = new File(tempDataDir.absolutePath() + File.pathSeparator() + ksname + File.pathSeparator() + cfname + '-' + cfId);
+        Descriptor baseSSTable = new Descriptor(tableDir, ksname, cfname, new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG);
+        assertThat(baseSSTable.isSecondaryIndexFrom(ksname, cfname)).isFalse();
+        assertThat(baseSSTable.isSecondaryIndexFrom("other", cfname)).isFalse();
+        assertThat(baseSSTable.isSecondaryIndexFrom(ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + indexName)).isFalse();
+        assertThat(baseSSTable.isSecondaryIndexFrom(ksname, "other" + Directories.SECONDARY_INDEX_NAME_SEPARATOR + indexName)).isFalse();
+
+        // For indexed table isSecondaryIndexFrom should return true when refercngin the base table
+        File indexDir = new File(tempDataDir.absolutePath() + File.pathSeparator() + Directories.SECONDARY_INDEX_NAME_SEPARATOR + indexName);
+        Descriptor indexSSTable = new Descriptor(indexDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + indexName, new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG);
+        assertThat(indexSSTable.isSecondaryIndexFrom(ksname, cfname)).isTrue();
+        assertThat(indexSSTable.isSecondaryIndexFrom("other", cfname)).isFalse();
+        assertThat(indexSSTable.isSecondaryIndexFrom(ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + indexName)).isFalse();
+        assertThat(indexSSTable.isSecondaryIndexFrom(ksname, "other" + Directories.SECONDARY_INDEX_NAME_SEPARATOR + indexName)).isFalse();
     }
 
     @Test

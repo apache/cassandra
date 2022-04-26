@@ -4107,7 +4107,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException
     {
         Set<String> keyspaces = new HashSet<>(Arrays.asList(keyspaceNames));
-        Collection<TableSnapshot> cleared = snapshotManager.clearSnapshots(s -> tag.equals(ALL_SNAPSHOTS_TAG) || s.getTag().equals(tag) && (keyspaces.isEmpty() || keyspaces.contains(s.getKeyspace())));
+        Collection<TableSnapshot> cleared = snapshotManager.clearSnapshots(s -> tag.equals(ALL_SNAPSHOTS_TAG) || s.getTag().equals(tag) && (keyspaces.isEmpty() || keyspaces.contains(s.getKeyspaceName())));
 
         if (logger.isDebugEnabled())
             logger.debug("Cleared snapshots: {}", cleared);
@@ -4134,19 +4134,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public long trueSnapshotsSize()
     {
-        long total = 0;
-        for (Keyspace keyspace : Keyspace.all())
-        {
-            if (SchemaConstants.isLocalSystemKeyspace(keyspace.getName()))
-                continue;
+        return snapshotManager.trueSnapshotSize(Predicates.alwaysTrue());
+    }
 
-            for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
-            {
-                total += cfStore.trueSnapshotsSize();
-            }
-        }
+    public long trueSnapshotsSize(TableId tableId)
+    {
+        return snapshotManager.trueSnapshotSize(TableSnapshot.sameTable(tableId.asUUID()));
+    }
 
-        return total;
+    public Collection<TableSnapshot> getSnapshots(TableId tableId)
+    {
+        return snapshotManager.getSnapshots(TableSnapshot.sameTable(tableId.asUUID()));
     }
 
     public void setSnapshotLinksPerSecond(long throttle)

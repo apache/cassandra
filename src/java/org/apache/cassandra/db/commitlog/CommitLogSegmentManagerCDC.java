@@ -269,6 +269,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     private static class CDCSizeTracker extends DirectorySizeCalculator
     {
         private final RateLimiter rateLimiter = RateLimiter.create(1000.0 / DatabaseDescriptor.getCDCDiskCheckInterval());
+        private final File path;
         private ExecutorService cdcSizeCalculationExecutor;
         private final CommitLogSegmentManagerCDC segmentManager;
         // track the total size between two dictionary size calculations
@@ -276,7 +277,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
         CDCSizeTracker(CommitLogSegmentManagerCDC segmentManager, File path)
         {
-            super(path);
+            this.path = path;
             this.segmentManager = segmentManager;
             this.sizeInProgress = new AtomicLong(0);
         }

@@ -139,7 +139,7 @@ public class SnapshotManager {
     {
         if (cleanupTaskFuture == null)
         {
-            logger.info("Scheduling expired snapshot cleanup with initialDelaySeconds={} and cleanupPeriodSeconds={}");
+            logger.info("Scheduling expired snapshot cleanup with initialDelaySeconds={} and cleanupPeriodSeconds={}", initialDelaySeconds, cleanupPeriodSeconds);
             cleanupTaskFuture = executor.scheduleWithFixedDelay(this::clearExpiredSnapshots, initialDelaySeconds,
                                                                 cleanupPeriodSeconds, TimeUnit.SECONDS);
         }
@@ -200,5 +200,11 @@ public class SnapshotManager {
     {
         logger.info("Current state of snapshots {}", liveSnapshots);
         return liveSnapshots.containsKey(tag);
+    }
+
+    public long trueSnapshotSize(Predicate<TableSnapshot> predicate)
+    {
+        Collection<TableSnapshot> matchingSnapshots = getSnapshots(predicate);
+        return matchingSnapshots.stream().mapToLong(s -> s.computeTrueSizeBytes()).sum();
     }
 }

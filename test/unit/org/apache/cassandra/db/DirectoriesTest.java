@@ -42,6 +42,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -77,6 +78,8 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotFinder;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -148,8 +151,8 @@ public class DirectoriesTest
         createTestFiles();
     }
 
-    @AfterClass
-    public static void afterClass()
+    @After
+    public void after()
     {
         FileUtils.deleteRecursive(tempDataDir);
     }
@@ -199,7 +202,7 @@ public class DirectoriesTest
         {
             Instant createdAt = manifest == null ? null : manifest.createdAt;
             Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-            return new TableSnapshot(table.keyspace, table.name, tag, createdAt, expiresAt, Collections.singleton(snapshotDir), null);
+            return new TableSnapshot(table.keyspace, table.name, table.id.asUUID(), tag, createdAt, expiresAt, Collections.singleton(snapshotDir));
         }
     }
 
@@ -367,7 +370,7 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testSecondaryIndexDirectories()
+    public void testSecondaryIndexDirectories() throws IOException
     {
         TableMetadata.Builder builder =
             TableMetadata.builder(KS, "cf")
@@ -411,17 +414,28 @@ public class DirectoriesTest
         Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
         createFile(indexSnapshot.filenameFor(Component.DATA), 40);
 
-        assertEquals(30, parentDirectories.trueSnapshotsSize());
-        assertEquals(40, indexDirectories.trueSnapshotsSize());
+        SnapshotFinder finder = new SnapshotFinder(tempDataDir.absolutePath());
+        Set<TableSnapshot> all = finder.findAll();
+        for (TableSnapshot snapshot : all)
+        {
+            System.out.println(">> SNAPSHOT " + snapshot);
+            StorageService.instance.addSnapshot(snapshot);
+        }
+        assertEquals(3, all.size());
 
-        // check snapshot details
-        Map<String, TableSnapshot> parentSnapshotDetail = parentDirectories.listSnapshots();
-        assertTrue(parentSnapshotDetail.containsKey("test"));
-        assertEquals(30L, parentSnapshotDetail.get("test").computeTrueSizeBytes());
+        System.out.print(">> PARENT " + PARENT_CFM.id);
+        System.out.print(">> INDEX " + PARENT_CFM.id);
 
-        Map<String, TableSnapshot> indexSnapshotDetail = indexDirectories.listSnapshots();
-        assertTrue(indexSnapshotDetail.containsKey("test"));
-        assertEquals(40L, indexSnapshotDetail.get("test").computeTrueSizeBytes());
+        // check snapshot details - CASSANDRA-17267 parent snapshot details should count index on true size
+        Collection<TableSnapshot> parentSnapshots = StorageService.instance.getSnapshots(PARENT_CFM.id);
+        assertEquals(1, parentSnapshots.size());
+        assertEquals(70L, parentSnapshots.iterator().next().computeTrueSizeBytes());
+
+        // FIXME
+        Collection<TableSnapshot> indexSnapshots = StorageService.instance.getSnapshots(INDEX_CFM.id);
+        assertEquals(1, indexSnapshots.size());
+        TableSnapshot next = indexSnapshots.iterator().next();
+        assertEquals(40L, next.computeTrueSizeBytes());
 
         // check backup directory
         File parentBackupDirectory = Directories.getBackupsDirectory(parentDesc);

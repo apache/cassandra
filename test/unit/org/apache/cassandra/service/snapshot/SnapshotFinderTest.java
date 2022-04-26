@@ -34,10 +34,9 @@ import org.junit.rules.TemporaryFolder;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.util.Lists;
 
+import static org.apache.cassandra.service.snapshot.SnapshotFinder.SNAPSHOT_DIR_PATTERN;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SnapshotFinderTest
@@ -49,13 +48,13 @@ public class SnapshotFinderTest
 
     static String KEYSPACE_1 = "ks1";
     static String TABLE1_NAME = "table_1";
-    static String TABLE1_ID = toString(TimeUUID.Generator.nextTimeAsUUID());
+    static UUID TABLE1_ID = UUID.randomUUID();
     static String TABLE2_NAME = "table2";
-    static String TABLE2_ID = toString(TimeUUID.Generator.nextTimeAsUUID());
+    static UUID TABLE2_ID = UUID.randomUUID();
 
     static String KEYSPACE_2 = "ks2";
     static String TABLE3_NAME = "table_3";
-    static String TABLE3_ID = toString(TimeUUID.Generator.nextTimeAsUUID());
+    static UUID TABLE3_ID = UUID.randomUUID();
 
     static String TAG1 = "tag1";
     static String TAG2 = "tag2";
@@ -68,14 +67,28 @@ public class SnapshotFinderTest
     public static TemporaryFolder tmpDir = new TemporaryFolder();
 
     @Test
+    public void testMatcher()
+    {
+        String INDEX_SNAPSHOT = "/user/.ccm/test/node1/data0/ks/indexed_table-24b241e0c58f11eca526336fc2c671ab/snapshots/test";
+        assertThat(SNAPSHOT_DIR_PATTERN.matcher(INDEX_SNAPSHOT).find()).isTrue();
+
+        String TABLE_SNAPSHOT = "/Users/pmottagomes/.ccm/test/node1/data0/ks/my_table-1a025b40c58f11eca526336fc2c671ab/snapshots/test";
+        assertThat(SNAPSHOT_DIR_PATTERN.matcher(TABLE_SNAPSHOT).find()).isTrue();
+
+        String DROPPED_SNAPSHOT = "/Users/pmottagomes/.ccm/test/node1/data0/ks/my_table-e5c58330c58d11eca526336fc2c671ab/snapshots/dropped-1650997415751-my_table";
+        assertThat(SNAPSHOT_DIR_PATTERN.matcher(DROPPED_SNAPSHOT).find()).isTrue();
+    }
+
+    @Test
     public void testNoSnapshots() throws IOException
     {
         // Create table directories on all data directories without snapshots
         File baseDir  = new File(tmpDir.newFolder());
-        for (String dataDir : DATA_DIRS) {
-            createDir(baseDir, dataDir, KEYSPACE_1, TABLE1_NAME, TABLE1_ID);
-            createDir(baseDir, dataDir, KEYSPACE_1, TABLE2_NAME, TABLE2_ID);
-            createDir(baseDir, dataDir, KEYSPACE_2, TABLE3_NAME, TABLE3_ID);
+        for (String dataDir : DATA_DIRS)
+        {
+            createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE1_NAME, TABLE1_ID));
+            createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE2_NAME, TABLE2_ID));
+            createDir(baseDir, dataDir, KEYSPACE_2, tableDirName(TABLE3_NAME, TABLE3_ID));
         }
 
         // Check no snapshots are found
@@ -99,9 +112,9 @@ public class SnapshotFinderTest
         File baseDir  = new File(tmpDir.newFolder());
         for (String dataDir : DATA_DIRS)
         {
-            tag1Files.add(createDir(baseDir, dataDir, KEYSPACE_1, String.format("%s-%s", TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
-            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, String.format("%s-%s", TABLE2_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
-            tag3Files.add(createDir(baseDir, dataDir, KEYSPACE_2, String.format("%s-%s", TABLE3_NAME, TABLE3_ID), Directories.SNAPSHOT_SUBDIR, TAG3));
+            tag1Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
+            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE2_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
+            tag3Files.add(createDir(baseDir, dataDir, KEYSPACE_2, tableDirName(TABLE3_NAME, TABLE3_ID), Directories.SNAPSHOT_SUBDIR, TAG3));
         }
 
         // Verify all 3 snapshots are found correctly from data directories
@@ -110,9 +123,9 @@ public class SnapshotFinderTest
                                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
         Set<TableSnapshot> found = finder.findAll();
         assertThat(found).hasSize(3);
-        assertThat(found).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TAG1, null, null, tag1Files, null));
-        assertThat(found).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TAG2, null, null, tag2Files, null));
-        assertThat(found).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TAG3, null, null, tag3Files, null));
+        assertThat(found).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files));
+        assertThat(found).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, null, null, tag2Files));
+        assertThat(found).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files));
     }
 
     @Test
@@ -129,9 +142,9 @@ public class SnapshotFinderTest
         File baseDir  = new File(tmpDir.newFolder());
         for (String dataDir : DATA_DIRS)
         {
-            tag1Files.add(createDir(baseDir, dataDir, KEYSPACE_1, String.format("%s-%s", TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
-            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, String.format("%s-%s", TABLE2_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
-            tag3Files.add(createDir(baseDir, dataDir, KEYSPACE_2, String.format("%s-%s", TABLE3_NAME, TABLE3_ID), Directories.SNAPSHOT_SUBDIR, TAG3));
+            tag1Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
+            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE2_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
+            tag3Files.add(createDir(baseDir, dataDir, KEYSPACE_2, tableDirName(TABLE3_NAME, TABLE3_ID), Directories.SNAPSHOT_SUBDIR, TAG3));
         }
 
         // Write manifest for snapshot tag1 on random location
@@ -156,9 +169,9 @@ public class SnapshotFinderTest
                                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
         Set<TableSnapshot> finder = loader.findAll();
         assertThat(finder).hasSize(3);
-        assertThat(finder).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TAG1, tag1Ts, null, tag1Files, null));
-        assertThat(finder).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, null));
-        assertThat(finder).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TAG3, tag3Ts, null, tag3Files, null));
+        assertThat(finder).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, tag1Ts, null, tag1Files));
+        assertThat(finder).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files));
+        assertThat(finder).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, tag3Ts, null, tag3Files));
     }
 
     @Test
@@ -175,8 +188,8 @@ public class SnapshotFinderTest
         File baseDir  = new File(tmpDir.newFolder());
         for (String dataDir : DATA_DIRS)
         {
-            tag1Files.add(createDir(baseDir, dataDir, INVALID_NAME, String.format("%s-%s", TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
-            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, String.format("%s-%s", INVALID_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
+            tag1Files.add(createDir(baseDir, dataDir, INVALID_NAME, tableDirName(TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
+            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(INVALID_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
             tag3Files.add(createDir(baseDir, dataDir, KEYSPACE_2, String.format("%s-%s", TABLE3_NAME, INVALID_ID), Directories.SNAPSHOT_SUBDIR, TAG3));
         }
 
@@ -200,9 +213,14 @@ public class SnapshotFinderTest
         return file;
     }
 
-    static String toString(UUID id)
+    static String tableDirName(String tableName, UUID tableId)
     {
-        return ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(id));
+        return String.format("%s-%s", tableName, removeDashes(tableId));
+    }
+
+    static String removeDashes(UUID id)
+    {
+        return id.toString().replace("-", "");
     }
 
     public static File getManifestFile(File snapshotDir)

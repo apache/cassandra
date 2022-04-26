@@ -55,6 +55,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
@@ -981,8 +982,7 @@ public class Directories
     protected TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs) {
         Instant createdAt = manifest == null ? null : manifest.createdAt;
         Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-        return new TableSnapshot(metadata.keyspace, metadata.name, tag, createdAt, expiresAt, snapshotDirs,
-                                 this::getTrueAllocatedSizeIn);
+        return new TableSnapshot(metadata.keyspace, metadata.name, metadata.id.asUUID(), tag, createdAt, expiresAt, snapshotDirs);
     }
 
     @VisibleForTesting
@@ -1122,19 +1122,13 @@ public class Directories
     }
 
     /**
+     * @deprecated Use {@link StorageService#trueSnapshotsSize()} instead
      * @return total snapshot size in byte for all snapshots.
      */
+    @Deprecated
     public long trueSnapshotsSize()
     {
-        long result = 0L;
-        for (File dir : dataPaths)
-        {
-            File snapshotDir = isSecondaryIndexFolder(dir)
-                               ? new File(dir.parentPath(), SNAPSHOT_SUBDIR)
-                               : new File(dir, SNAPSHOT_SUBDIR);
-            result += getTrueAllocatedSizeIn(snapshotDir);
-        }
-        return result;
+        return StorageService.instance.trueSnapshotsSize(metadata.id);
     }
 
     /**
@@ -1155,14 +1149,14 @@ public class Directories
         if (!snapshotDir.isDirectory())
             return 0;
 
-        SSTableSizeSummer visitor = new SSTableSizeSummer(snapshotDir, sstableLister(OnTxnErr.THROW).listFiles());
+        DirectorySizeCalculator visitor = new DirectorySizeCalculator();
         try
         {
             Files.walkFileTree(snapshotDir.toPath(), visitor);
         }
         catch (IOException e)
         {
-            logger.error("Could not calculate the size of {}. {}", snapshotDir, e.getMessage());
+            logger.error("Could not calculate the size of {}. {}", snapshotDir, e);
         }
 
         return visitor.getAllocatedSize();
@@ -1240,26 +1234,4 @@ public class Directories
     {
         return StringUtils.join(s, File.pathSeparator());
     }
-
-    private class SSTableSizeSummer extends DirectorySizeCalculator
-    {
-        private final Set<String> toSkip;
-        SSTableSizeSummer(File path, List<File> files)
-        {
-            super(path);
-            toSkip = files.stream().map(f -> f.name()).collect(Collectors.toSet());
-        }
-
-        @Override
-        public boolean isAcceptable(Path path)
-        {
-            File file = new File(path);
-            Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-            return desc != null
-                && desc.ksname.equals(metadata.keyspace)
-                && desc.cfname.equals(metadata.name)
-                && !toSkip.contains(file.name());
-        }
-    }
-
 }

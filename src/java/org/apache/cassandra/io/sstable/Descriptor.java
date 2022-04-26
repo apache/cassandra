@@ -171,6 +171,23 @@ public class Descriptor
         return ret;
     }
 
+    /**
+     * Checks whether this descriptor refers to the same table as the one specified
+     */
+    public boolean isSameTable(String keyspace, String table)
+    {
+        return ksname.equals(keyspace) && cfname.equals(table);
+    }
+
+    /**
+     * Checks whether this descriptor refers to a secondary index of the specified table
+     */
+    public boolean isSecondaryIndexFrom(String keyspace, String table)
+    {
+        String[] tableAndIndex = cfname.split(Pattern.quote(Directories.SECONDARY_INDEX_NAME_SEPARATOR));
+        return tableAndIndex.length == 2 && ksname.equals(keyspace) && tableAndIndex[0].equals(table);
+    }
+
     public static boolean isValidFile(File file)
     {
         String filename = file.name();

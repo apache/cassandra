@@ -49,11 +49,16 @@ public class SnapshotFinder extends SimpleFileVisitor<Path>
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotFinder.class);
 
-    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)\\-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>\\w+)$");
+    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)\\-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>[\\w-]+)$");
 
     private final Collection<Path> dataDirectories;
     private final Map<String, TableSnapshot.Builder> snapshots = new HashMap<>();
     private boolean walked = false;
+
+    public SnapshotFinder(String dataDir)
+    {
+        this(new String[]{dataDir});
+    }
 
     public SnapshotFinder(String[] dataDirs)
     {
@@ -81,6 +86,7 @@ public class SnapshotFinder extends SimpleFileVisitor<Path>
     {
         if (subdir.getParent().getFileName().toString().equals(SNAPSHOT_SUBDIR))
         {
+            logger.info("Processing directory " + subdir);
             Matcher snapshotDirMatcher = SNAPSHOT_DIR_PATTERN.matcher(subdir.toString());
             if (snapshotDirMatcher.find())
             {
@@ -102,12 +108,12 @@ public class SnapshotFinder extends SimpleFileVisitor<Path>
 
     private void loadSnapshotFromDir(Matcher snapshotDirMatcher, Path snapshotDir)
     {
-        String keyspace = snapshotDirMatcher.group("keyspace");
+        String keyspaceName = snapshotDirMatcher.group("keyspace");
         String tableName = snapshotDirMatcher.group("tableName");
         UUID tableId = parseUUID(snapshotDirMatcher.group("tableId"));
         String tag = snapshotDirMatcher.group("tag");
-        String snapshotId = String.format("%s:%s:%s:%s", keyspace, tableId, tableId, tag);
-        TableSnapshot.Builder builder = snapshots.computeIfAbsent(snapshotId, k -> new TableSnapshot.Builder(keyspace, tableName, tag));
+        String snapshotId = String.format("%s:%s:%s:%s", keyspaceName, tableName, tableId, tag);
+        TableSnapshot.Builder builder = snapshots.computeIfAbsent(snapshotId, k -> new TableSnapshot.Builder(keyspaceName, tableName, tableId, tag));
         builder.addSnapshotDir(new File(snapshotDir));
     }
 
