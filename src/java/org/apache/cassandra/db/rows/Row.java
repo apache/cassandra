@@ -627,6 +627,14 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
         public SimpleBuilder delete();
 
         /**
+         * Deletes the whole row with a timestamp that is just before the new data's timestamp, to make sure no expired
+         * data remains on the row.
+         *
+         * @return this builder.
+         */
+        public SimpleBuilder deletePrevious();
+
+        /**
          * Removes the value for a given column (creating a tombstone).
          *
          * @param columnName the name of the column to delete.

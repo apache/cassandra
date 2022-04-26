@@ -512,6 +512,7 @@ public final class SchemaKeyspace
     {
         Row.SimpleBuilder rowBuilder = builder.update(Tables)
                                               .row(table.name)
+                                              .deletePrevious()
                                               .add("id", table.id.asUUID())
                                               .add("flags", TableMetadata.Flag.toStringSet(table.flags));
 
@@ -562,8 +563,6 @@ public final class SchemaKeyspace
         // in mixed operation with pre-4.1 versioned node during upgrades.
         if (params.memtable != MemtableParams.DEFAULT)
             builder.add("memtable", params.memtable.configurationKey());
-        else
-            builder.delete("memtable"); // delete any existing value to ensure we can switch a table back to default
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -723,6 +722,7 @@ public final class SchemaKeyspace
         TableMetadata table = view.metadata;
         Row.SimpleBuilder rowBuilder = builder.update(Views)
                                               .row(view.name())
+                                              .deletePrevious()
                                               .add("include_all_columns", view.includeAllColumns)
                                               .add("base_table_id", view.baseTableId.asUUID())
                                               .add("base_table_name", view.baseTableName)
