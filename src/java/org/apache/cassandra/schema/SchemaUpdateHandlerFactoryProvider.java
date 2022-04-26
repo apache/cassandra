@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class SchemaUpdateHandlerFactoryProvider implements Provider<SchemaUpdateHandlerFactory>
 {
-    private static final String SUH_FACTORY_CLASS_PROPERTY = "cassandra.schema.update_handler_factory.class";
+    public static final String SUH_FACTORY_CLASS_PROPERTY = "cassandra.schema.update_handler_factory.class";
 
     public final static SchemaUpdateHandlerFactoryProvider instance = new SchemaUpdateHandlerFactoryProvider();
 

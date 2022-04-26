@@ -30,7 +30,7 @@ import org.apache.cassandra.schema.TableMetadata;
 public class AuthSchemaChangeListener implements SchemaChangeListener
 {
     @Override
-    public void onDropKeyspace(KeyspaceMetadata keyspace)
+    public void onDropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
     {
         DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.keyspace(keyspace.name));
         DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.allTables(keyspace.name));
@@ -38,7 +38,7 @@ public class AuthSchemaChangeListener implements SchemaChangeListener
     }
 
     @Override
-    public void onDropTable(TableMetadata table)
+    public void onDropTable(TableMetadata table, boolean dropData)
     {
         DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.table(table.keyspace, table.name));
     }

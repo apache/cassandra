@@ -56,13 +56,13 @@ public class SchemaChangeNotifier
         keyspace.functions.udas().forEach(this::notifyCreateAggregate);
     }
 
-    public void notifyKeyspaceAltered(KeyspaceMetadata.KeyspaceDiff delta)
+    public void notifyKeyspaceAltered(KeyspaceMetadata.KeyspaceDiff delta, boolean dropData)
     {
         // notify on everything dropped
         delta.udas.dropped.forEach(uda -> notifyDropAggregate((UDAggregate) uda));
         delta.udfs.dropped.forEach(udf -> notifyDropFunction((UDFunction) udf));
-        delta.views.dropped.forEach(this::notifyDropView);
-        delta.tables.dropped.forEach(this::notifyDropTable);
+        delta.views.dropped.forEach(view -> notifyDropView(view, dropData));
+        delta.tables.dropped.forEach(metadata -> notifyDropTable(metadata, dropData));
         delta.types.dropped.forEach(this::notifyDropType);
 
         // notify on everything created
@@ -82,14 +82,14 @@ public class SchemaChangeNotifier
         delta.udas.altered.forEach(diff -> notifyAlterAggregate(diff.before, diff.after));
     }
 
-    public void notifyKeyspaceDropped(KeyspaceMetadata keyspace)
+    public void notifyKeyspaceDropped(KeyspaceMetadata keyspace, boolean dropData)
     {
         keyspace.functions.udas().forEach(this::notifyDropAggregate);
         keyspace.functions.udfs().forEach(this::notifyDropFunction);
-        keyspace.views.forEach(this::notifyDropView);
-        keyspace.tables.forEach(this::notifyDropTable);
+        keyspace.views.forEach(view -> notifyDropView(view, dropData));
+        keyspace.tables.forEach(metadata -> notifyDropTable(metadata, dropData));
         keyspace.types.forEach(this::notifyDropType);
-        notifyDropKeyspace(keyspace);
+        notifyDropKeyspace(keyspace, dropData);
     }
 
     public void notifyPreChanges(SchemaTransformationResult transformationResult)
@@ -175,19 +175,19 @@ public class SchemaChangeNotifier
         changeListeners.forEach(l -> l.onAlterAggregate(before, after));
     }
 
-    private void notifyDropKeyspace(KeyspaceMetadata ksm)
+    private void notifyDropKeyspace(KeyspaceMetadata ksm, boolean dropData)
     {
-        changeListeners.forEach(l -> l.onDropKeyspace(ksm));
+        changeListeners.forEach(l -> l.onDropKeyspace(ksm, dropData));
     }
 
-    private void notifyDropTable(TableMetadata metadata)
+    private void notifyDropTable(TableMetadata metadata, boolean dropData)
     {
-        changeListeners.forEach(l -> l.onDropTable(metadata));
+        changeListeners.forEach(l -> l.onDropTable(metadata, dropData));
     }
 
-    private void notifyDropView(ViewMetadata view)
+    private void notifyDropView(ViewMetadata view, boolean dropData)
     {
-        changeListeners.forEach(l -> l.onDropView(view));
+        changeListeners.forEach(l -> l.onDropView(view, dropData));
     }
 
     private void notifyDropType(UserType ut)

@@ -83,17 +83,17 @@ public interface SchemaChangeListener
     {
     }
 
-    default void onDropKeyspace(KeyspaceMetadata keyspace)
+    default void onDropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
     {
     }
 
-    default void onDropTable(TableMetadata table)
+    default void onDropTable(TableMetadata table, boolean dropData)
     {
     }
 
-    default void onDropView(ViewMetadata view)
+    default void onDropView(ViewMetadata view, boolean dropData)
     {
-        onDropTable(view.metadata);
+        onDropTable(view.metadata, dropData);
     }
 
     default void onDropType(UserType type)

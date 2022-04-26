@@ -672,7 +672,7 @@ public class Schema implements SchemaProvider
             Keyspace.open(delta.after.name, this, true).viewManager.reload(true);
         }
 
-        schemaChangeNotifier.notifyKeyspaceAltered(delta);
+        schemaChangeNotifier.notifyKeyspaceAltered(delta, dropData);
         SchemaDiagnostics.keyspaceAltered(this, delta);
     }
 
@@ -721,7 +721,7 @@ public class Schema implements SchemaProvider
             Keyspace.writeOrder.awaitNewBarrier();
         }
 
-        schemaChangeNotifier.notifyKeyspaceDropped(keyspace);
+        schemaChangeNotifier.notifyKeyspaceDropped(keyspace, dropData);
         SchemaDiagnostics.keyspaceDropped(this, keyspace);
     }
 
