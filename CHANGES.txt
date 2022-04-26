@@ -1,4 +1,5 @@
 4.1
+ * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
  * Add a pluggable memtable API (CEP-11 / CASSANDRA-17034)
  * Save sstable id as string in activity table (CASSANDRA-17585)
  * Implement startup check to prevent Cassandra to potentially spread zombie data (CASSANDRA-17180)
