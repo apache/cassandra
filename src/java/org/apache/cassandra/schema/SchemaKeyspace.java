@@ -550,7 +550,6 @@ public final class SchemaKeyspace
                .add("caching", params.caching.asMap())
                .add("compaction", params.compaction.asMap())
                .add("compression", params.compression.asMap())
-               .add("memtable", params.memtable.configurationKey())
                .add("read_repair", params.readRepair.toString())
                .add("extensions", params.extensions);
 
@@ -558,6 +557,13 @@ public final class SchemaKeyspace
         // node sends table schema to a < 3.8 versioned node with an unknown column.
         if (DatabaseDescriptor.isCDCEnabled())
             builder.add("cdc", params.cdc);
+
+        // As above, only add the memtable column if the table uses a non-default memtable configuration to avoid RTE
+        // in mixed operation with pre-4.1 versioned node during upgrades.
+        if (params.memtable != MemtableParams.DEFAULT)
+            builder.add("memtable", params.memtable.configurationKey());
+        else
+            builder.delete("memtable"); // delete any existing value to ensure we can switch a table back to default
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -955,7 +961,7 @@ public final class SchemaKeyspace
                           .comment(row.getString("comment"))
                           .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
                           .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
-                          .memtable(MemtableParams.get(row.getString("memtable")))
+                          .memtable(MemtableParams.get(row.has("memtable") ? row.getString("memtable") : null)) // memtable column was introduced in 4.1
                           .defaultTimeToLive(row.getInt("default_time_to_live"))
                           .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
                           .gcGraceSeconds(row.getInt("gc_grace_seconds"))

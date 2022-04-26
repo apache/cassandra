@@ -559,12 +559,19 @@ public class AlterTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-        assertSchemaOption("memtable", "default");
+        assertSchemaOption("memtable", null);
 
         testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
+
+        // verify memtable does not change on other ALTER
+        alterTable("ALTER TABLE %s"
+                   + " WITH compression = {'class': 'LZ4Compressor'};");
+        assertSchemaOption("memtable", "test_shortname");
+
         testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
+
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "The 'class_name' option must be specified.",
@@ -618,7 +625,7 @@ public class AlterTest extends CQLTester
                    + " WITH memtable = '" + memtableConfig + "';");
         assertSame(factoryInstance, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         Assert.assertTrue(memtableClass.isInstance(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable()));
-        assertSchemaOption("memtable", memtableConfig);
+        assertSchemaOption("memtable", MemtableParams.DEFAULT.configurationKey().equals(memtableConfig) ? null : memtableConfig);
     }
 
     @Test

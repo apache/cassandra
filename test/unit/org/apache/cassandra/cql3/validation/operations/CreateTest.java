@@ -597,7 +597,7 @@ public class CreateTest extends CQLTester
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
 
-        assertSchemaOption("memtable", "default");
+        assertSchemaOption("memtable", null);
 
         testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("skiplist_remapped", SkipListMemtable.FACTORY, SkipListMemtable.class);
@@ -645,7 +645,7 @@ public class CreateTest extends CQLTester
         assertSame(factoryInstance, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         Assert.assertTrue(memtableClass.isInstance(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable()));
 
-        assertSchemaOption("memtable", memtableConfig);
+        assertSchemaOption("memtable", MemtableParams.DEFAULT.configurationKey().equals(memtableConfig) ? null : memtableConfig);
     }
 
     void assertSchemaOption(String option, Object expected) throws Throwable
