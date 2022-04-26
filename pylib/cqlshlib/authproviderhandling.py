@@ -37,9 +37,9 @@ def _warn_for_plain_text_security(config_file, provider_settings):
                   end='',
                   file=sys.stderr)
         print("""\nNotice: Credentials in the cqlshrc file is deprecated and
-                will be ignored in the future.
-                \nPlease use a credentials file to
-                specify the username and password.\n""",
+        will be ignored in the future.\n
+        Please use a credentials file to
+        specify the username and password.\n""",
                 file=sys.stderr)
 
 def load_auth_provider(config_file=None, cred_file=None, username=None, password=None):
@@ -114,14 +114,14 @@ def load_auth_provider(config_file=None, cred_file=None, username=None, password
         # as these are what passwords, or security tokens may inadvertently fall into
         # we don't want interpolation to mess with them.
         return get_settings_from_config(
-                section_name=classname,
-                conf_file=creds_file,
-                interpolation=None)
+            section_name=classname,
+            conf_file=creds_file,
+            interpolation=None)
 
     def get_auth_provider_settings(conf_file):
         return get_settings_from_config(
-                section_name='auth_provider',
-                conf_file=conf_file)
+            section_name='auth_provider',
+            conf_file=conf_file)
 
     def get_legacy_settings(legacy_username, legacy_password):
         result = {}

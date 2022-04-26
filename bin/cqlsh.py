@@ -112,7 +112,7 @@ if cql_zip:
     sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
 
 # the driver needs dependencies
-third_parties = ('six-','puresasl-')
+third_parties = ('six-', 'puresasl-')
 
 for lib in third_parties:
     lib_zip = find_zip(lib)
@@ -2081,6 +2081,7 @@ def should_use_color():
         pass
     return True
 
+
 def read_options(cmdlineargs, environment):
     configs = configparser.ConfigParser()
     configs.read(CONFIG_FILE)
@@ -2162,19 +2163,12 @@ def read_options(cmdlineargs, environment):
         options.credentials = ''  # ConfigParser.read() will ignore unreadable files
 
     if not options.username:
-        credentials = configparser.ConfigParser()
-        credentials.read(options.credentials)
-
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
         options.username = username_from_cqlshrc
 
     if not options.password:
-        rawcredentials = configparser.RawConfigParser()
-        rawcredentials.read(options.credentials)
-
-        # handling password in the same way as username, priority cli > credentials > cqlshrc
-        options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
         options.password = password_from_cqlshrc
+
     elif not options.insecure_password_without_warning:
         print("\nWarning: Using a password on the command line interface can be insecure."
               "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
