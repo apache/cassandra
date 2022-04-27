@@ -20,12 +20,9 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -64,8 +61,8 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(DEFAULT_RF);
         MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD = 2;
-
     }
+
     @After
     public void cleanupTest() throws Throwable
     {
@@ -95,27 +92,25 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     @Test
     public void testConfigValidation()
     {
-        Long two = 2L;
-        Long one = 1L;
         assertNotNull(guardrail);
         setter.accept(guardrails(), DISABLED_GUARDRAIL, DISABLED_GUARDRAIL);
 
-        assertInvalidPositiveProperty((g,a) ->setter.accept(g,DISABLED_GUARDRAIL,a.intValue()), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT+"_fail_threshold");
-        assertInvalidPositiveProperty((g,a) ->setter.accept(g,DISABLED_GUARDRAIL,a.intValue()),-2, Integer.MAX_VALUE, WHAT+"_fail_threshold");
-        assertValidProperty((g,a) ->setter.accept(g,DISABLED_GUARDRAIL,a.intValue()), DISABLED_GUARDRAIL);
-        assertInvalidPositiveProperty((g,a) ->setter.accept(g,DISABLED_GUARDRAIL,a.intValue()), DISABLED_GUARDRAIL == 0 ? -1 : 0, Integer.MAX_VALUE, WHAT+"_fail_threshold");
-        assertValidProperty((g,a) ->setter.accept(g,DISABLED_GUARDRAIL,a.intValue()), 1L);
-        assertValidProperty((g,a) ->setter.accept(g,DISABLED_GUARDRAIL,a.intValue()), 2L);
+        assertInvalidPositiveProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT + "_fail_threshold");
+        assertInvalidPositiveProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), -2, Integer.MAX_VALUE, WHAT + "_fail_threshold");
+        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), DISABLED_GUARDRAIL);
+        assertInvalidPositiveProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), DISABLED_GUARDRAIL == 0 ? -1 : 0, Integer.MAX_VALUE, WHAT + "_fail_threshold");
+        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), 1L);
+        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), 2L);
 
-        assertInvalidPositiveProperty((g,w) ->setter.accept(g,w.intValue(),DISABLED_GUARDRAIL), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT+"_warn_threshold");
-        assertInvalidPositiveProperty((g,w) ->setter.accept(g,w.intValue(),DISABLED_GUARDRAIL),-2, Integer.MAX_VALUE, WHAT+"_warn_threshold");
+        assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT + "_warn_threshold");
+        assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), -2, Integer.MAX_VALUE, WHAT + "_warn_threshold");
         assertValidProperty((g,w) ->setter.accept(g,w.intValue(),DISABLED_GUARDRAIL), DISABLED_GUARDRAIL);
-        assertInvalidPositiveProperty((g,w) ->setter.accept(g,w.intValue(),DISABLED_GUARDRAIL), DISABLED_GUARDRAIL == 0 ? -1 : 0, Integer.MAX_VALUE, WHAT+"_warn_threshold");
-        assertValidProperty((g,w) ->setter.accept(g,w.intValue(),DISABLED_GUARDRAIL), 1L);
-        assertValidProperty((g,w) ->setter.accept(g,w.intValue(),DISABLED_GUARDRAIL), 2L);
-        Assertions.assertThatThrownBy(() -> setter.accept(guardrails(), one.intValue(), two.intValue() ))
-                  .hasMessageContaining(guardrail.name + "_warn_threshold should be greater than the fail threshold");
+        assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), DISABLED_GUARDRAIL == 0 ? -1 : 0, Integer.MAX_VALUE, WHAT + "_warn_threshold");
+        assertValidProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), 1L);
+        assertValidProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), 2L);
 
+        Assertions.assertThatThrownBy(() -> setter.accept(guardrails(), 1, 2))
+                  .hasMessageContaining(guardrail.name + "_warn_threshold should be greater than the fail threshold");
     }
 
     @Test
@@ -131,19 +126,17 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         assertWarns("CREATE KEYSPACE ks WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': 3}",
-                    format("Keyspaces with %s equal to 3 exceeds warn threshold of %d.",
-                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
+                    format("Keyspaces with %s equal to 3 exceeds warn threshold of %d.", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': 1}",
-                    format("Keyspaces with %s equal to 1 exceeds fail threshold of %d.",
-                           WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD));
+                    format("Keyspaces with %s equal to 1 exceeds fail threshold of %d.", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD));
     }
+
     @Test
     public void testMinKeyspaceRFOnlyWarnAbove() throws Throwable
     {
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, DISABLED_GUARDRAIL);
         assertMinThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 6}");
         assertMinThresholdValid("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 5}");
-
     }
 
     @Test
@@ -151,12 +144,9 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, DISABLED_GUARDRAIL);
         assertWarns("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}",
-                    format("Keyspaces with %s equal to 3 exceeds warn threshold of %d",
-                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
+                    format("Keyspaces with %s equal to 3 exceeds warn threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
         assertWarns("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}",
-                    format("Keyspaces with %s equal to 2 exceeds warn threshold of %d",
-                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
-
+                    format("Keyspaces with %s equal to 2 exceeds warn threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
     }
 
     @Test
@@ -165,7 +155,6 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
         guardrails().setMinimumKeyspaceRFThreshold(DISABLED_GUARDRAIL, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         assertMinThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 4}");
         assertMinThresholdValid("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}");
-
     }
 
     @Test
@@ -191,7 +180,6 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         assertMinThresholdValid("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 6}");
         assertMinThresholdValid("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 5}");
-
     }
 
     @Test
@@ -200,7 +188,6 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         assertWarns("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}",
                     format("Keyspaces with %s equal to 3 exceeds warn threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
-
         assertWarns("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}",
                     format("Keyspaces with %s equal to 2 exceeds warn threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
     }
@@ -237,7 +224,6 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
             if(guardrails().getMinimumKeyspaceRFFailThreshold() > DatabaseDescriptor.getDefaultKeyspaceRF())
                 expectedMessage = format("%s_fail_threshold to be set (%d) cannot be greater than default_keyspace_rf (%d)",
                                          WHAT, guardrails().getMinimumKeyspaceRFFailThreshold(), DatabaseDescriptor.getDefaultKeyspaceRF());
-
             Assertions.assertThat(e.getMessage()).contains(expectedMessage);
         }
 

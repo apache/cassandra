@@ -71,7 +71,7 @@ public class LocalStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    public void maybeWarnOnOptions(ClientState state)
+    public void maybeWarnOnOptions()
     {
     }
 
