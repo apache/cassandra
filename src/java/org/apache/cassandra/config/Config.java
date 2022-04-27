@@ -821,8 +821,8 @@ public class Config
     public volatile int data_disk_usage_percentage_warn_threshold = -1;
     public volatile int data_disk_usage_percentage_fail_threshold = -1;
     public volatile DataStorageSpec data_disk_usage_max_disk_size = null;
-    public volatile int minimum_keyspace_rf_warn_threshold = -1;
-    public volatile int minimum_keyspace_rf_fail_threshold = -1;
+    public volatile int minimum_rf_warn_threshold = -1;
+    public volatile int minimum_rf_fail_threshold = -1;
 
     public volatile DurationSpec streaming_state_expires = DurationSpec.inDays(3);
     public volatile DataStorageSpec streaming_state_size = DataStorageSpec.inMebibytes(40);

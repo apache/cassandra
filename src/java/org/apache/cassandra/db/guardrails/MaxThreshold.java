@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.function.ToLongFunction;
-import javax.annotation.Nullable;
 import org.apache.cassandra.service.ClientState;
 
 /**
@@ -41,8 +40,6 @@ public class MaxThreshold extends Threshold
                         Threshold.ErrorMessageProvider messageProvider)
     {
         super(name, warnThreshold, failThreshold, messageProvider);
-        this.warnThreshold = warnThreshold;
-        this.failThreshold = failThreshold;
     }
 
     protected boolean compare(long value, long threshold)

@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.function.ToLongFunction;
-import javax.annotation.Nullable;
 import org.apache.cassandra.service.ClientState;
 
 /**

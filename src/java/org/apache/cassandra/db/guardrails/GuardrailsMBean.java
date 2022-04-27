@@ -510,21 +510,21 @@ public interface GuardrailsMBean
     void setDataDiskUsageMaxDiskSize(@Nullable String size);
 
     /**
-     * @return The threshold to warn when keyspace replication factor is lesser threshold.
+     * @return The threshold to warn when replication factor is lesser threshold.
      */
-    int getMinimumKeyspaceRFWarnThreshold();
+    int getMinimumRFWarnThreshold();
 
     /**
-     * @return The threshold to fail when keyspace replication factor is lesser threshold.
+     * @return The threshold to fail when replication factor is lesser threshold.
      */
-    int getMinimumKeyspaceRFFailThreshold();
+    int getMinimumRFFailThreshold();
 
     /**
-     * @param warn the threshold to warn when the minimum replication factor for a keyspace is lesser than
+     * @param warn the threshold to warn when the minimum replication factor is lesser than
      *             threshold -1 means disabled.
-     * @param fail the threshold to fail when the minimum replication factor for a keyspace is lesser than
+     * @param fail the threshold to fail when the minimum replication factor is lesser than
      *             threshold -1 means disabled.
      */
-    void setMinimumKeyspaceRFThreshold (int warn, int fail);
+    void setMinimumRFThreshold (int warn, int fail);
 
 }

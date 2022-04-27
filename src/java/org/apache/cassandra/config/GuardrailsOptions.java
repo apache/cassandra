@@ -82,7 +82,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
         validatePercentageThreshold(config.data_disk_usage_percentage_warn_threshold, config.data_disk_usage_percentage_fail_threshold, "data_disk_usage_percentage");
         validateDataDiskUsageMaxDiskSize(config.data_disk_usage_max_disk_size);
-        validateMinRFThreshold(config.minimum_keyspace_rf_warn_threshold, config.minimum_keyspace_rf_fail_threshold, "minimum_keyspace_rf");
+        validateMinRFThreshold(config.minimum_rf_warn_threshold, config.minimum_rf_fail_threshold, "minimum_rf");
     }
 
     @Override
@@ -598,28 +598,28 @@ public class GuardrailsOptions implements GuardrailsConfig
 
 
     @Override
-    public int getMinimumKeyspaceRFWarnThreshold()
+    public int getMinimumRFWarnThreshold()
     {
-        return config.minimum_keyspace_rf_warn_threshold;
+        return config.minimum_rf_warn_threshold;
     }
 
     @Override
-    public int getMinimumKeyspaceRFFailThreshold()
+    public int getMinimumRFFailThreshold()
     {
-        return config.minimum_keyspace_rf_fail_threshold;
+        return config.minimum_rf_fail_threshold;
     }
 
-    public void setMinimumKeyspaceRFThreshold(int warn, int fail)
+    public void setMinimumRFThreshold(int warn, int fail)
     {
-        validateMinRFThreshold(warn, fail, "minimum_keyspace_rf");
-        updatePropertyWithLogging("minimum_keyspace_rf_warn_threshold",
+        validateMinRFThreshold(warn, fail, "minimum_rf");
+        updatePropertyWithLogging("minimum_rf_warn_threshold",
                                   warn,
-                                  () -> config.minimum_keyspace_rf_warn_threshold,
-                                  x -> config.minimum_keyspace_rf_warn_threshold = x);
-        updatePropertyWithLogging("minimum_keyspace_rf_fail_threshold",
+                                  () -> config.minimum_rf_warn_threshold,
+                                  x -> config.minimum_rf_warn_threshold = x);
+        updatePropertyWithLogging("minimum_rf_fail_threshold",
                                   fail,
-                                  () -> config.minimum_keyspace_rf_fail_threshold,
-                                  x -> config.minimum_keyspace_rf_fail_threshold = x);
+                                  () -> config.minimum_rf_fail_threshold,
+                                  x -> config.minimum_rf_fail_threshold = x);
     }
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {

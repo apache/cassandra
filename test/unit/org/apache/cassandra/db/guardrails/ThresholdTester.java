@@ -38,7 +38,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 /**
- * Utility class for testing a {@link MaxThreshold} guardrail.
+ * Utility class for testing a {@link Threshold} guardrail.
  */
 public abstract class ThresholdTester extends GuardrailTester
 {

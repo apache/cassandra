@@ -108,7 +108,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         {
             int nodeCount = StorageService.instance.getHostIdToEndpoint().size();
             // nodeCount==0 on many tests
-            Guardrails.minimumKeyspaceRF.guard(rf.fullReplicas, "minimum_keyspace_rf", false, state);
+            Guardrails.minimumRF.guard(rf.fullReplicas, keyspaceName, false, state);
             if (rf.fullReplicas > nodeCount && nodeCount != 0)
             {
                 String msg = "Your replication factor " + rf.fullReplicas

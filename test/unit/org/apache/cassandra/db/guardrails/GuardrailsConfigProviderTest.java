@@ -39,8 +39,8 @@ public class GuardrailsConfigProviderTest extends GuardrailTester
         MaxThreshold guard = new MaxThreshold("test_guardrail",
                                         state -> provider.getOrCreate(state).getTablesWarnThreshold(),
                                         state -> provider.getOrCreate(state).getTablesFailThreshold(),
-                                              (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
-                                                                       isWarn ? "Warning" : "Aborting", what, v, t));
+                                        (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
+                                                                isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertValid(() -> guard.guard(5, "Z", false, userClientState));
         assertWarns(() -> guard.guard(25, "A", false, userClientState), "Warning: for A, 25 > 10");

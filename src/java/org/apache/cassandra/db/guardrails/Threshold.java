@@ -122,7 +122,6 @@ public abstract class Threshold extends Guardrail
      * @param state            The client state, used to skip the check if the query is internal or is done by a superuser.
      *                         A {@code null} value means that the check should be done regardless of the query.
      */
-
     public void guard(long value, String what, boolean containsUserData, @Nullable ClientState state)
     {
         if (!enabled(state))

@@ -316,16 +316,16 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     /**
-     * Guardrail on the minimum keyspace replication factor.
+     * Guardrail on the minimum replication factor.
      */
-    public static final MinThreshold minimumKeyspaceRF =
-    new MinThreshold("minimum_keyspace_rf",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumKeyspaceRFWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumKeyspaceRFFailThreshold(),
+    public static final MinThreshold minimumRF =
+    new MinThreshold("minimum_rf",
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumRFWarnThreshold(),
+                  state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumRFFailThreshold(),
                   (isWarning, what, value, threshold) ->
-                  isWarning ? format("Keyspaces with %s equal to %s exceeds warn threshold of %s.",
+                  isWarning ? format("The keyspace %s has a replication factor of %s, below the warning threshold of %s.",
                                      what, value, threshold)
-                            : format("Keyspaces with %s equal to %s exceeds fail threshold of %s.",
+                            : format("The keyspace %s has a replication factor of %s, below the failure threshold of %s.",
                                      what, value, threshold));
 
     private Guardrails()
@@ -832,21 +832,21 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public int getMinimumKeyspaceRFWarnThreshold()
+    public int getMinimumRFWarnThreshold()
     {
-        return DEFAULT_CONFIG.getMinimumKeyspaceRFWarnThreshold();
+        return DEFAULT_CONFIG.getMinimumRFWarnThreshold();
     }
 
     @Override
-    public int getMinimumKeyspaceRFFailThreshold()
+    public int getMinimumRFFailThreshold()
     {
-        return DEFAULT_CONFIG.getMinimumKeyspaceRFFailThreshold();
+        return DEFAULT_CONFIG.getMinimumRFFailThreshold();
     }
 
     @Override
-    public void setMinimumKeyspaceRFThreshold(int warn, int fail)
+    public void setMinimumRFThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.setMinimumKeyspaceRFThreshold(warn, fail);
+        DEFAULT_CONFIG.setMinimumRFThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

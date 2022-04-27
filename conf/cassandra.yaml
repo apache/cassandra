@@ -1683,11 +1683,11 @@ drop_compact_storage_enabled: false
 # Valid values are in [1, max available disk size of all data directories].
 # Defaults to null to disable and use the physically available disk size of data directories during calculations.
 # data_disk_usage_max_disk_size:
-# Guardrail to warn or fail when the minimum keyspace replication factor is greater than threshold.
+# Guardrail to warn or fail when the minimum replication factor is greater than threshold.
 # This would also apply to system keyspaces.
 # Suggested value for use in production: 2 or higher
-# minimum_keyspace_rf_warn_threshold: -1
-# minimum_keyspace_rf_fail_threshold: -1
+# minimum_rf_warn_threshold: -1
+# minimum_rf_fail_threshold: -1
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

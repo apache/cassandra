@@ -261,13 +261,13 @@ public interface GuardrailsConfig
     DataStorageSpec getDataDiskUsageMaxDiskSize();
 
     /**
-     * @return The threshold to warn when keyspace replication factor is lesser than threshold.
+     * @return The threshold to warn when replication factor is lesser than threshold.
      */
-    int getMinimumKeyspaceRFWarnThreshold();
+    int getMinimumRFWarnThreshold();
 
     /**
-     * @return The threshold to warn when keyspace replication factor is lesser than threshold.
+     * @return The threshold to fail when replication factor is lesser than threshold.
      */
-    int getMinimumKeyspaceRFFailThreshold();
+    int getMinimumRFFailThreshold();
 
 }
