@@ -73,6 +73,7 @@ public class AsyncWriter
     private static <K, V extends AccordState<K, V>> List<Future<?>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
                                                                                                     AccordStateCache.Instance<K, V> cache,
                                                                                                     Function<V, Mutation> mutationFunction,
+                                                                                                    AccordCommandStore commandStore,
                                                                                                     List<Future<?>> futures)
     {
         for (V item : ctxGroup.items.values())
@@ -83,7 +84,7 @@ public class AsyncWriter
             if (futures == null) futures = new ArrayList<>();
             Mutation mutation = mutationFunction.apply(item);
             Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
-            cache.setSaveFuture(item.key(), future);
+            cache.addSaveFuture(item.key(), future);
             futures.add(future);
         }
 
@@ -93,6 +94,7 @@ public class AsyncWriter
             if (futures == null) futures = new ArrayList<>();
             Mutation mutation = mutationFunction.apply((V) item);
             Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
+            future.addListener(() -> cache.purgeWriteOnly(item.key()), commandStore.executor());
             item.future(future);
             futures.add(future);
         }
@@ -107,11 +109,13 @@ public class AsyncWriter
         futures = dispatchWrites(context.commands,
                                  commandStore.commandCache(),
                                  AccordKeyspace::getCommandMutation,
+                                 commandStore,
                                  futures);
 
         futures = dispatchWrites(context.commandsForKey,
                                  commandStore.commandsForKeyCache(),
                                  AccordKeyspace::getCommandsForKeyMutation,
+                                 commandStore,
                                  futures);
 
         return futures != null ? FutureCombiner.allOf(futures) : null;

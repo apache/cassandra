@@ -18,11 +18,15 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.service.accord.AccordStateCache.Node;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordStateCacheTest
 {
@@ -239,10 +243,236 @@ public class AccordStateCacheTest
         assertCacheState(cache, 0, 4, DEFAULT_NODE_SIZE * 4);
 
         AsyncPromise<Void> saveFuture = new AsyncPromise<>();
-        instance.setSaveFuture(0, saveFuture);
+        instance.addSaveFuture(0, saveFuture);
         cache.setMaxSize(0);
 
         // all should have been evicted except 0
         assertCacheState(cache, 0, 1, DEFAULT_NODE_SIZE);
+    }
+
+    static class SetItem implements AccordStateCache.AccordState<Integer, SetItem>
+    {
+        final Integer key;
+        final Set<Integer> set = new HashSet<>();
+        boolean modified = false;
+
+        static class WriteOnly extends SetItem implements AccordStateCache.WriteOnly<Integer, SetItem>
+        {
+            AsyncPromise<?> promise = null;
+            final Set<Integer> added = new HashSet<>();
+            final Set<Integer> remove = new HashSet<>();
+
+            public WriteOnly(Integer key)
+            {
+                super(key);
+            }
+
+            @Override
+            public void future(Future<?> future)
+            {
+                Assert.assertTrue(future instanceof AsyncPromise);
+                this.promise = (AsyncPromise<?>) future;
+            }
+
+            @Override
+            public Future<?> future()
+            {
+                return promise;
+            }
+
+            @Override
+            public void applyChanges(SetItem instance)
+            {
+                instance.set.addAll(added);
+                instance.set.removeAll(remove);
+            }
+        }
+
+
+        public SetItem(Integer key)
+        {
+            this.key = key;
+        }
+
+        @Override
+        public Node<Integer, SetItem> createNode()
+        {
+            return new Node<>(this)
+            {
+                @Override
+                long sizeInBytes(SetItem value)
+                {
+                    return 0;
+                }
+            };
+        }
+
+        @Override
+        public Integer key()
+        {
+            return key;
+        }
+
+        @Override
+        public boolean hasModifications()
+        {
+            return modified;
+        }
+
+        @Override
+        public void clearModifiedFlag()
+        {
+            this.modified = false;
+        }
+    }
+
+    @Test
+    public void writeOnlyCycle()
+    {
+        AccordStateCache cache = new AccordStateCache(500);
+        AccordStateCache.Instance<Integer, SetItem> instance = cache.instance(Integer.class, SetItem.class, SetItem::new);
+        SetItem onDisk = new SetItem(5);
+        onDisk.set.addAll(Set.of(1, 2, 3));
+        Assert.assertEquals(0, instance.pendingWriteOnlyOperations(5));
+
+        SetItem.WriteOnly writeOnly1 = new SetItem.WriteOnly(5);
+        writeOnly1.added.addAll(Set.of(4, 5));
+        writeOnly1.future(new AsyncPromise<>());
+        instance.addWriteOnly(writeOnly1);
+        Assert.assertEquals(1, instance.pendingWriteOnlyOperations(5));
+
+        SetItem.WriteOnly writeOnly2 = new SetItem.WriteOnly(5);
+        writeOnly2.remove.addAll(Set.of(2, 4));
+        writeOnly2.future(new AsyncPromise<>());
+        instance.addWriteOnly(writeOnly2);
+        Assert.assertEquals(2, instance.pendingWriteOnlyOperations(5));
+
+        Assert.assertNull(instance.getSaveFuture(5));
+        Assert.assertFalse(instance.writeOnlyGroupIsLocked(5));
+
+        instance.lockWriteOnlyGroupIfExists(5);
+        Assert.assertTrue(instance.writeOnlyGroupIsLocked(5));
+        Assert.assertEquals(Set.of(1, 2, 3), onDisk.set);
+        Assert.assertTrue(instance.canEvict(5));
+
+        instance.applyAndRemoveWriteOnlyGroup(onDisk);
+        Assert.assertFalse(instance.writeOnlyGroupIsLocked(5));
+        Assert.assertEquals(Set.of(1, 3, 5), onDisk.set);
+
+        // write only futures should have been merged and promoted to normal save futures, which would
+        // prevent the cached object from being purged until they were completed
+        Future<?> saveFuture = instance.getSaveFuture(5);
+        Assert.assertNotNull(saveFuture);
+        Assert.assertFalse(saveFuture.isDone());
+        Assert.assertFalse(instance.canEvict(5));
+
+        writeOnly1.promise.setSuccess(null);
+        Assert.assertFalse(saveFuture.isDone());
+        Assert.assertFalse(instance.canEvict(5));
+
+        writeOnly2.promise.setSuccess(null);
+        Assert.assertTrue(saveFuture.isDone());
+        Assert.assertTrue(instance.canEvict(5));
+    }
+
+    // write only operations should not be purged out of order
+    @Test
+    public void writeOnlyPurging()
+    {
+        AccordStateCache cache = new AccordStateCache(500);
+        AccordStateCache.Instance<Integer, SetItem> instance = cache.instance(Integer.class, SetItem.class, SetItem::new);
+        SetItem.WriteOnly[] writeOnly = new SetItem.WriteOnly[4];
+        for (int i=0; i<writeOnly.length; i++)
+        {
+            SetItem.WriteOnly item = new SetItem.WriteOnly(5);
+            item.added.add(i);
+            item.future(new AsyncPromise<>());
+            instance.addWriteOnly(item);
+            writeOnly[i] = item;
+        }
+
+        Assert.assertEquals(4, instance.pendingWriteOnlyOperations(5));
+
+        // finishing the first item should cause it to be purged
+        writeOnly[0].promise.setSuccess(null);
+        instance.purgeWriteOnly(5);
+        Assert.assertEquals(3, instance.pendingWriteOnlyOperations(5));
+
+        // finishing the second item should not, since the (now) first item has not completed
+        writeOnly[2].promise.setSuccess(null);
+        instance.purgeWriteOnly(5);
+        Assert.assertEquals(3, instance.pendingWriteOnlyOperations(5));
+
+        // then finishing the first item should cause both items to be purged
+        writeOnly[1].promise.setSuccess(null);
+        instance.purgeWriteOnly(5);
+        Assert.assertEquals(1, instance.pendingWriteOnlyOperations(5));
+    }
+
+    @Test
+    public void writeOnlyPurgedLock()
+    {
+        AccordStateCache cache = new AccordStateCache(500);
+        AccordStateCache.Instance<Integer, SetItem> instance = cache.instance(Integer.class, SetItem.class, SetItem::new);
+
+        SetItem.WriteOnly item = new SetItem.WriteOnly(5);
+        item.added.add(0);
+        item.future(new AsyncPromise<>());
+        instance.addWriteOnly(item);
+
+        instance.lockWriteOnlyGroupIfExists(5);
+
+        // the write only item should not be purged, even though it's complete
+        item.promise.setSuccess(null);
+        instance.purgeWriteOnly(5);
+        Assert.assertEquals(1, instance.pendingWriteOnlyOperations(5));
+    }
+
+    // if a load future exists for the key we're creating a write group for, we need to lock
+    // the group so the loading instance gets changes applied when it finishes loading
+    @Test
+    public void testLoadFutureAutoLocksWriteOnlyInstances()
+    {
+        AccordStateCache cache = new AccordStateCache(500);
+        AccordStateCache.Instance<Integer, SetItem> instance = cache.instance(Integer.class, SetItem.class, SetItem::new);
+
+        AsyncPromise<?> loadfuture = new AsyncPromise<>();
+        instance.setLoadFuture(5, loadfuture);
+
+        Assert.assertFalse(instance.writeOnlyGroupIsLocked(5));
+        Assert.assertEquals(0, instance.pendingWriteOnlyOperations(5));
+
+        // adding a write only object should immediately lock the group, since there's an existing load future
+        SetItem.WriteOnly item = new SetItem.WriteOnly(5);
+        item.added.add(0);
+        item.future(new AsyncPromise<>());
+        instance.addWriteOnly(item);
+
+        Assert.assertTrue(instance.writeOnlyGroupIsLocked(5));
+        Assert.assertEquals(1, instance.pendingWriteOnlyOperations(5));
+    }
+
+    // if a future is added and another one exists for the same key, they should be merged
+    @Test
+    public void testFutureMerging()
+    {
+        AccordStateCache cache = new AccordStateCache(500);
+        AccordStateCache.Instance<Integer, SetItem> instance = cache.instance(Integer.class, SetItem.class, SetItem::new);
+        AsyncPromise<?> promise1 = new AsyncPromise<>();
+        AsyncPromise<?> promise2 = new AsyncPromise<>();
+        instance.addSaveFuture(5, promise1);
+        instance.addSaveFuture(5, promise2);
+
+        Future<?> future = instance.getSaveFuture(5);
+        Assert.assertNotSame(future, promise1);
+        Assert.assertNotSame(future, promise2);
+
+        Assert.assertFalse(future.isDone());
+
+        promise1.setSuccess(null);
+        Assert.assertFalse(future.isDone());
+
+        promise2.setSuccess(null);
+        Assert.assertTrue(future.isDone());
     }
 }

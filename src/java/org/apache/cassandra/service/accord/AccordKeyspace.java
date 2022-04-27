@@ -306,6 +306,22 @@ public class AccordKeyspace
         return deserializeWaitingOn(row.getMap(name, BytesType.instance, BytesType.instance));
     }
 
+    private static NavigableSet<TxnId> deserializeBlocking(Set<ByteBuffer> serialized)
+    {
+        if (serialized == null || serialized.isEmpty())
+            return new TreeSet<>();
+
+        NavigableSet<TxnId> result = new TreeSet<>();
+        for (ByteBuffer bytes : serialized)
+            result.add(deserializeTimestampOrNull(bytes, TxnId::new));
+        return result;
+    }
+
+    private static NavigableSet<TxnId> deserializeBlocking(UntypedResultSet.Row row, String name)
+    {
+        return deserializeBlocking(row.getSet(name, BytesType.instance));
+    }
+
     public static Set<ByteBuffer> serializeListeners(Set<ListenerProxy> listeners)
     {
         Set<ByteBuffer> result = Sets.newHashSetWithExpectedSize(listeners.size());
@@ -471,7 +487,7 @@ public class AccordKeyspace
             ByteBuffer key = CommandsColumns.keyComparator.make(command.commandStore().generation(),
                                                                 command.commandStore().index(),
                                                                 serializeTimestamp(command.txnId())).serializeAsPartitionKey();
-            PartitionUpdate update = PartitionUpdate.singleRowUpdate(Commands, Commands.partitioner.decorateKey(key), builder.build(), Rows.EMPTY_STATIC_ROW);
+            PartitionUpdate update = PartitionUpdate.singleRowUpdate(Commands, key, builder.build());
             return new Mutation(update);
         }
         catch (IOException e)
@@ -600,7 +616,9 @@ public class AccordKeyspace
             if (row.has("result_version"))
                 command.result.load(deserialize(row.getBlob("result"), AccordData.serializer, row.getInt("result_version")));
             command.waitingOnCommit.load(deserializeWaitingOn(row, "waiting_on_commit"));
+            command.blockingCommitOn.load(deserializeBlocking(row, "blocking_commit_on"));
             command.waitingOnApply.load(deserializeWaitingOn(row, "waiting_on_apply"));
+            command.blockingApplyOn.load(deserializeBlocking(row, "blocking_apply_on"));
             command.storedListeners.load(deserializeListeners(commandStore, row, "listeners"));
         }
         catch (IOException e)

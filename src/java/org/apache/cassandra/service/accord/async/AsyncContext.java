@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import accord.txn.TxnId;
@@ -38,6 +39,12 @@ public class AsyncContext
     {
         final Map<K, V> items = new HashMap<>();
         final Map<K, WriteOnly<K, V>> writeOnly = new HashMap<>();
+
+        @VisibleForTesting
+        public void add(V item)
+        {
+            items.put(item.key(), item);
+        }
 
         public V get(K key)
         {

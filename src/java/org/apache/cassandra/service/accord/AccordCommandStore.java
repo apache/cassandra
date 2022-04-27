@@ -114,7 +114,7 @@ public class AccordCommandStore extends CommandStore
         Preconditions.checkState(Thread.currentThread().getId() != threadId);
     }
 
-    public Executor executor()
+    public ExecutorService executor()
     {
         return executor;
     }

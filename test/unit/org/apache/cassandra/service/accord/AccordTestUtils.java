@@ -201,4 +201,20 @@ public class AccordTestUtils
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
         return createAccordCommandStore(node, now, topology);
     }
+
+    public static void execute(AccordCommandStore commandStore, Runnable runnable)
+    {
+        try
+        {
+            commandStore.executor().submit(runnable).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e.getCause());
+        }
+    }
 }

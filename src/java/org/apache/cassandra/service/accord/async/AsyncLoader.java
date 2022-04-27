@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -43,13 +44,14 @@ public class AsyncLoader
     enum State
     {
         INITIALIZED,
-        DISPATCHING,
+        SETUP,
         LOADING,
         FINISHED
     }
 
     private State state = State.INITIALIZED;
     private final AccordCommandStore commandStore;
+
     private final Iterable<TxnId> commandsToLoad;
     private final Iterable<PartitionKey> keyCommandsToLoad;
 
@@ -131,8 +133,11 @@ public class AsyncLoader
         switch (state)
         {
             case INITIALIZED:
-                state = State.DISPATCHING;
-            case DISPATCHING:
+                state = State.SETUP;
+            case SETUP:
+                // notify any pending write only groups we're loading a full instance so the pending changes aren't removed
+                commandsToLoad.forEach(commandStore.commandCache()::lockWriteOnlyGroupIfExists);
+                keyCommandsToLoad.forEach(commandStore.commandsForKeyCache()::lockWriteOnlyGroupIfExists);
                 readFuture = referenceAndDispatchReads(context);
                 state = State.LOADING;
             case LOADING:
@@ -141,6 +146,9 @@ public class AsyncLoader
                     readFuture.addCallback(callback, commandStore.executor());
                     break;
                 }
+                // apply any pending write only changes that may not have made it to disk in time to be loaded
+                context.commands.items.values().forEach(commandStore.commandCache()::applyAndRemoveWriteOnlyGroup);
+                context.commandsForKey.items.values().forEach(commandStore.commandsForKeyCache()::applyAndRemoveWriteOnlyGroup);
                 state = State.FINISHED;
             case FINISHED:
                 break;

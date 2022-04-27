@@ -29,6 +29,7 @@ import accord.api.Update;
 import accord.local.Status;
 import accord.txn.Dependencies;
 import accord.txn.Keys;
+import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import org.apache.cassandra.db.TypeSizes;
@@ -177,7 +178,9 @@ public class CommandSummaries
         public void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException
         {
             out.write(command.status().ordinal());
-            if (command.hasBeen(Status.Committed))
+            boolean hasExecuteAt = command.executeAt() != null;
+            out.writeBoolean(hasExecuteAt);
+            if (hasExecuteAt)
                 CommandSerializers.timestamp.serialize(command.executeAt(), out, version.msg_version);
         }
 
@@ -185,15 +188,16 @@ public class CommandSummaries
         public void deserializeBody(AccordCommand command, DataInputPlus in, Version version) throws IOException
         {
             command.status.load(Status.values()[in.readByte()]);
-            if (command.hasBeen(Status.Committed))
-                command.executeAt.load(CommandSerializers.timestamp.deserialize(in, version.msg_version));
+            Timestamp executeAt = in.readBoolean() ? CommandSerializers.timestamp.deserialize(in, version.msg_version) : null;
+            command.executeAt.load(executeAt);
         }
 
         @Override
         public int serializedBodySize(AccordCommand command, Version version)
         {
             int size = TypeSizes.sizeof((byte) command.status.get().ordinal());
-            if (command.hasBeen(Status.Committed))
+            size += TypeSizes.BOOL_SIZE; // has executeAt
+            if (command.executeAt() != null)
                 size += CommandSerializers.timestamp.serializedSize();
             return size;
         }

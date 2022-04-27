@@ -47,6 +47,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static org.apache.cassandra.service.accord.AccordStateCache.WriteOnly.applyMapChanges;
+import static org.apache.cassandra.service.accord.AccordStateCache.WriteOnly.applySetChanges;
+
 public class AccordCommand extends Command implements AccordStateCache.AccordState<TxnId, AccordCommand>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
@@ -71,6 +74,15 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
         public Future<?> future()
         {
             return future;
+        }
+
+        @Override
+        public void applyChanges(AccordCommand instance)
+        {
+            applyMapChanges(this, instance, cmd -> cmd.waitingOnCommit);
+            applyMapChanges(this, instance, cmd -> cmd.waitingOnApply);
+            applySetChanges(this, instance, cmd -> cmd.blockingCommitOn);
+            applySetChanges(this, instance, cmd -> cmd.blockingApplyOn);
         }
     }
 

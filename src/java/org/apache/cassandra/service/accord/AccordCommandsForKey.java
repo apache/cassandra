@@ -40,6 +40,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static org.apache.cassandra.service.accord.AccordStateCache.WriteOnly.applyMapChanges;
+
 public class AccordCommandsForKey extends CommandsForKey implements AccordStateCache.AccordState<PartitionKey, AccordCommandsForKey>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordCommandsForKey(null, null));
@@ -65,6 +67,14 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
         public Future<?> future()
         {
             return future;
+        }
+
+        @Override
+        public void applyChanges(AccordCommandsForKey instance)
+        {
+            applyMapChanges(this, instance, cfk -> cfk.uncommitted.map);
+            applyMapChanges(this, instance, cfk -> cfk.committedById.map);
+            applyMapChanges(this, instance, cfk -> cfk.committedByExecuteAt.map);
         }
     }
 

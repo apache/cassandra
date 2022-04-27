@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord.async;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -26,6 +28,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.local.Status;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import org.apache.cassandra.SchemaLoader;
@@ -36,12 +39,17 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
+import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
+import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.AccordTestUtils.*;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
+import static org.apache.cassandra.service.accord.AccordTestUtils.execute;
+import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
 public class AsyncLoaderTest
 {
@@ -53,6 +61,21 @@ public class AsyncLoaderTest
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks"));
         StorageService.instance.initServer();
     }
+
+    private static void load(AccordCommandStore commandStore, AsyncContext context, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys)
+    {
+        execute(commandStore, () ->
+        {
+            AsyncLoader loader = new AsyncLoader(commandStore, txnIds, keys);
+            while (!loader.load(context, (o, t) -> Assert.assertNull(t)));
+        });
+    }
+
+    private static void load(AccordCommandStore commandStore, AsyncContext context, TxnId... txnIds)
+    {
+        load(commandStore, context, List.of(txnIds), Collections.emptyList());
+    }
+
     /**
      * Loading a cached resource shoudln't block
      */
@@ -204,5 +227,52 @@ public class AsyncLoaderTest
         // then return immediately after the callback has fired
         result = loader.load(context, (o, t) -> Assert.fail());
         Assert.assertTrue(result);
+    }
+
+    @Test
+    public void pendingWriteOnlyApplied()
+    {
+        AtomicLong clock = new AtomicLong(0);
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId blockApply = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId blockCommit = txnId(1, clock.incrementAndGet(), 0, 1);
+        Txn txn = createTxn(0);
+        AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
+
+        AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
+        command.txn(txn);
+        command.executeAt(txnId);
+        command.status(Status.Committed);
+        AccordKeyspace.getCommandMutation(command).apply();
+        command.clearModifiedFlag();
+
+        execute(commandStore, () -> {
+            AccordStateCache.Instance<TxnId, AccordCommand> cache = commandStore.commandCache();
+            AccordCommand.WriteOnly writeOnly1 = new AccordCommand.WriteOnly(commandStore, txnId);
+            writeOnly1.blockingApplyOn.blindAdd(blockApply);
+            writeOnly1.future(new AsyncPromise<>());
+            cache.addWriteOnly(writeOnly1);
+
+            AccordCommand.WriteOnly writeOnly2 = new AccordCommand.WriteOnly(commandStore, txnId);
+            writeOnly2.blockingCommitOn.blindAdd(blockCommit);
+            writeOnly2.future(new AsyncPromise<>());
+            cache.addWriteOnly(writeOnly2);
+
+            AsyncContext context = new AsyncContext();
+            AsyncLoader loader = new AsyncLoader(commandStore, List.of(txnId), Collections.emptyList());
+            while (true)
+            {
+                if (loader.load(context, (o, t) -> Assert.assertNull(t)))
+                    break;
+            }
+            AccordCommand loaded = context.commands.get(txnId);
+
+            Assert.assertEquals(txnId, loaded.executeAt());
+            Assert.assertEquals(Status.Committed, loaded.status());
+            Assert.assertEquals(blockApply, Iterables.getOnlyElement(loaded.blockingApplyOn.getView()));
+            Assert.assertEquals(blockCommit, Iterables.getOnlyElement(loaded.blockingCommitOn.getView()));
+        });
     }
 }

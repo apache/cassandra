@@ -31,8 +31,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import accord.api.Read;
+import org.apache.cassandra.service.accord.store.StoredNavigableMap;
+import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
@@ -54,6 +57,73 @@ public class AccordStateCache
     {
         void future(Future<?> future);
         Future<?> future();
+
+        /**
+         * Apply the write only changes to the full instance
+         */
+        void applyChanges(V instance);
+
+        static <T, K extends Comparable<?>, V> void applyMapChanges(T from, T to, Function<T, StoredNavigableMap<K, V>> getMap)
+        {
+            StoredNavigableMap<K, V> fromMap = getMap.apply(from);
+
+            if (!fromMap.hasModifications())
+                return;
+
+            StoredNavigableMap<K, V> toMap = getMap.apply(to);
+            fromMap.forEachAddition(toMap::blindPut);
+            fromMap.forEachDeletion(toMap::blindRemove);
+        }
+
+        static <T, V extends Comparable<?>> void applySetChanges(T from, T to, Function<T, StoredSet<V, ?>> getSet)
+        {
+            StoredSet<V, ?> fromSet = getSet.apply(from);
+
+            if (!fromSet.hasModifications())
+                return;
+
+            StoredSet<V, ?> toSet = getSet.apply(to);
+            fromSet.forEachAddition(toSet::blindAdd);
+            fromSet.forEachDeletion(toSet::blindRemove);
+        }
+    }
+
+    public static class WriteOnlyGroup<K, V extends AccordState<K, V>>
+    {
+        private boolean locked = false;
+        private List<WriteOnly<K, V>> items = new ArrayList<>();
+
+        void lock()
+        {
+            locked = true;
+        }
+
+        void add(WriteOnly<K, V> item)
+        {
+            items.add(item);
+        }
+
+        void purge()
+        {
+            if (locked)
+                return;
+
+            while (!items.isEmpty())
+            {
+                WriteOnly<K, V> item = items.get(0);
+
+                // we can't remove items out of order, so if we encounter a write is still pending, we stop
+                if (item.future() == null || !item.future().isDone())
+                    break;
+
+                items.remove(0);
+            }
+        }
+
+        boolean isEmpty()
+        {
+            return items.isEmpty();
+        }
     }
 
     static abstract class Node<K, V extends AccordStateCache.AccordState<K, V>>
@@ -112,7 +182,7 @@ public class AccordStateCache
 
     public final Map<Object, Node<?, ?>> active = new HashMap<>();
     private final Map<Object, Node<?, ?>> cache = new HashMap<>();
-    private final Map<Object, List<WriteOnly<?, ?>>> pendingWriteOnly = new HashMap<>();
+    private final Map<Object, WriteOnlyGroup<?, ?>> pendingWriteOnly = new HashMap<>();
     private final Set<Instance<?, ?>> instances = new HashSet<>();
 
     private final Map<Object, Future<?>> loadFutures = new HashMap<>();
@@ -188,6 +258,14 @@ public class AccordStateCache
         bytesCached += node.sizeDelta();
     }
 
+    // don't evict if there's an outstanding save future. If an item is evicted then reloaded
+    // before it's mutation is applied, out of date info will be loaded
+    private boolean canEvict(Object key)
+    {
+        Future<?> future = getFutureInternal(saveFutures, key);
+        return future == null || future.isDone();
+    }
+
     private void maybeEvict()
     {
         if (bytesCached <= maxSizeInBytes)
@@ -196,16 +274,10 @@ public class AccordStateCache
         Node<?, ?> current = tail;
         while (current != null && bytesCached > maxSizeInBytes)
         {
-            // don't evict if there's an outstanding save future. If an item is evicted then reloaded
-            // before it's mutation is applied, out of date info will be loaded
-            Future<?> future = getFutureInternal(saveFutures, current.key());
-            if (future != null && !future.isDone())
-            {
-                current = current.prev;
-                continue;
-            }
             Node<?, ?> evict = current;
             current = current.prev;
+            if (!canEvict(evict.key()))
+                continue;
 
             unlink(evict);
             cache.remove(evict.key());
@@ -277,57 +349,15 @@ public class AccordStateCache
         maybeEvict();
     }
 
-    private static void purgeWriteOnly(List<WriteOnly<?, ?>> list)
-    {
-        for (int i=0, mi=list.size(); i<mi; )
-        {
-            WriteOnly<?, ?> item = list.get(i);
-            if (item.future() != null && item.future().isDone())
-            {
-                list.remove(i);
-                mi--;
-            }
-            else
-            {
-                i++;
-            }
-        }
-    }
-
     private void purgeWriteOnlyInternal(Object key)
     {
-        List<WriteOnly<?, ?>> items = pendingWriteOnly.get(key);
+        WriteOnlyGroup<?, ?> items = pendingWriteOnly.get(key);
         if (items == null)
             return;
 
-        purgeWriteOnly(items);
+        items.purge();
         if (items.isEmpty())
             pendingWriteOnly.remove(key);
-    }
-
-    private <K, V extends AccordStateCache.AccordState<K, V>> List<WriteOnly<K, V>> getWriteOnlyInternal(K key)
-    {
-        List<WriteOnly<?, ?>> items = pendingWriteOnly.get(key);
-        if (items == null)
-            return null;
-
-        purgeWriteOnly(items);
-        if (items.isEmpty())
-        {
-            pendingWriteOnly.remove(key);
-            return null;
-        }
-
-        List<WriteOnly<K, V>> result = new ArrayList<>(items.size());
-        for (int i=0, mi=items.size(); i<mi; i++)
-            result.add((WriteOnly<K, V>) items.get(i));
-
-        return result;
-    }
-
-    private <K, V extends AccordStateCache.AccordState<K, V>> void addWriteOnlyInternal(K key, WriteOnly<K, V> value)
-    {
-        pendingWriteOnly.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
     }
 
     private static <K, F extends Future<?>> F getFutureInternal(Map<Object, F> futuresMap, K key)
@@ -346,6 +376,15 @@ public class AccordStateCache
     private static <K, F extends Future<?>> void setFutureInternal(Map<Object, F> futuresMap, K key, F future)
     {
         Preconditions.checkState(!futuresMap.containsKey(key));
+        futuresMap.put(key, future);
+    }
+
+    private static <K> void mergeFutureInternal(Map<Object, Future<?>> futuresMap, K key, Future<?> future)
+    {
+        Future<?> existing = futuresMap.get(key);
+        if (existing != null && !existing.isDone())
+            future = FutureCombiner.allOf(List.of(existing, future));
+
         futuresMap.put(key, future);
     }
 
@@ -402,14 +441,63 @@ public class AccordStateCache
             releaseInternal(value);
         }
 
-        public void addWriteOnly(WriteOnly<K, V> writeOnly)
+        @VisibleForTesting
+        boolean canEvict(K key)
         {
-            addWriteOnlyInternal(writeOnly.key(), writeOnly);
+            return AccordStateCache.this.canEvict(key);
         }
 
-        public List<WriteOnly<K, V>> getWriteOnly(K key)
+        @VisibleForTesting
+        boolean writeOnlyGroupIsLocked(K key)
         {
-            return getWriteOnlyInternal(key);
+            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.get(key);
+            return group != null && group.locked;
+        }
+
+        @VisibleForTesting
+        int pendingWriteOnlyOperations(K key)
+        {
+            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.get(key);
+            return group != null ? group.items.size() : 0;
+        }
+
+        public void lockWriteOnlyGroupIfExists(K key)
+        {
+            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.get(key);
+            if (group == null)
+                return;
+
+            group.purge();
+            if (!group.isEmpty())
+                group.lock();
+        }
+
+        public void applyAndRemoveWriteOnlyGroup(V instance)
+        {
+            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.remove(instance.key());
+            if (group == null)
+                return;
+
+            for (WriteOnly<K, V> writeOnly : group.items)
+            {
+                writeOnly.applyChanges(instance);
+                if (!writeOnly.future().isDone())
+                    mergeFutureInternal(saveFutures, instance.key(), writeOnly.future());
+            }
+        }
+
+        public void addWriteOnly(WriteOnly<K, V> writeOnly)
+        {
+            K key = writeOnly.key();
+            Preconditions.checkArgument(writeOnly.future() != null);
+            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.computeIfAbsent(key, k -> new WriteOnlyGroup<>());
+
+            // if a load future exists for the key we're creating a write group for, we need to lock
+            // the group so the loading instance gets changes applied when it finishes loading
+            if (getLoadFuture(key) != null)
+                group.lock();
+
+            group.add(writeOnly);
         }
 
         public void purgeWriteOnly(K key)
@@ -432,9 +520,9 @@ public class AccordStateCache
             return getFutureInternal(saveFutures, key);
         }
 
-        public void setSaveFuture(K key, Future<?> future)
+        public void addSaveFuture(K key, Future<?> future)
         {
-            setFutureInternal(saveFutures, key, future);
+            mergeFutureInternal(saveFutures, key, future);
         }
 
         public Read.ReadFuture getReadFuture(K key)
