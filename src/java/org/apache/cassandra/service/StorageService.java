@@ -125,6 +125,7 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
@@ -4924,13 +4925,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     protected synchronized void drain(boolean isFinalShutdown) throws IOException, InterruptedException, ExecutionException
     {
-        ExecutorService counterMutationStage = Stage.COUNTER_MUTATION.executor();
-        ExecutorService viewMutationStage = Stage.VIEW_MUTATION.executor();
-        ExecutorService mutationStage = Stage.MUTATION.executor();
-
-        if (mutationStage.isTerminated()
-            && counterMutationStage.isTerminated()
-            && viewMutationStage.isTerminated())
+        if (Stage.areMutationExecutorsTerminated())
         {
             if (!isFinalShutdown)
                 logger.warn("Cannot drain node (did it already happen?)");
@@ -4985,14 +4980,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "clearing mutation stage", false);
-            viewMutationStage.shutdown();
-            counterMutationStage.shutdown();
-            mutationStage.shutdown();
-
-            // FIXME? should these *really* take up to one hour?
-            viewMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
-            counterMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
-            mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
+            Stage.shutdownAndAwaitMutatingExecutors(false,
+                                                    DRAIN_EXECUTOR_TIMEOUT_MS.getInt(), TimeUnit.MILLISECONDS);
 
             StorageProxy.instance.verifyNoHintsInProgress();
 
