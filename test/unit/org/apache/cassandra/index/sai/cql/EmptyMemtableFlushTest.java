@@ -37,6 +37,7 @@ public class EmptyMemtableFlushTest extends SAITester
         createTable("CREATE TABLE %s (id int PRIMARY KEY, val1 int, val2 int)");
         IndexContext val1IndexContext = createIndexContext(createIndex("CREATE CUSTOM INDEX ON %s(val1) USING 'StorageAttachedIndex'"), Int32Type.instance);
         IndexContext val2IndexContext = createIndexContext(createIndex("CREATE CUSTOM INDEX ON %s(val2) USING 'StorageAttachedIndex'"), Int32Type.instance);
+        waitForIndexQueryable();
         execute("INSERT INTO %s (id, val1, val2) VALUES (0, 0, 0)");
         execute("INSERT INTO %s (id, val2) VALUES (1, 1)");
         execute("DELETE FROM %s WHERE id = 0");
