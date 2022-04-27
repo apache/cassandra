@@ -44,6 +44,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
 import org.apache.cassandra.locator.ReplicaPlan.ForRead;
+import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -700,6 +701,9 @@ public class Paxos
                     // finish the paxos round w/ the desired updates
                     // TODO "turn null updates into delete?" - what does this TODO even mean?
                     PartitionUpdate updates = request.makeUpdates(current, clientState, begin.ballot);
+
+                    // Update the metrics before triggers potentially add mutations.
+                    ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(updates);
 
                     // Apply triggers to cas updates. A consideration here is that
                     // triggers emit Mutations, and so a given trigger implementation
