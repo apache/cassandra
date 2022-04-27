@@ -26,11 +26,14 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.test.ring.BootstrapTest.count;
+import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
 
-public class AutoBootstrapTest extends BootstrapTest
+public class AutoBootstrapTest extends TestBaseImpl
 {
     // Originally part of BootstrapTest. Broken out into separate test as the in-JVM dtests fail
     // if too many instances are created in the same JVM. Bug in the JVM is suspected.
