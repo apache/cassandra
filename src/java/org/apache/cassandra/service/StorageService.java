@@ -4634,10 +4634,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
         ExecutorService viewMutationStage = StageManager.getStage(Stage.VIEW_MUTATION);
         ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
+        ExecutorService gossipStage = StageManager.getStage(Stage.GOSSIP);
 
         if (mutationStage.isTerminated()
             && counterMutationStage.isTerminated()
-            && viewMutationStage.isTerminated())
+            && viewMutationStage.isTerminated()
+            && gossipStage.isTerminated())
         {
             if (!isFinalShutdown)
                 logger.warn("Cannot drain node (did it already happen?)");
@@ -4684,9 +4686,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             viewMutationStage.shutdown();
             counterMutationStage.shutdown();
             mutationStage.shutdown();
+            gossipStage.shutdown();
             viewMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
             counterMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
             mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
+            gossipStage.awaitTermination(3600, TimeUnit.SECONDS);
 
             StorageProxy.instance.verifyNoHintsInProgress();
 
