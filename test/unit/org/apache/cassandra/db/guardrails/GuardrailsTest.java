@@ -40,13 +40,13 @@ public class GuardrailsTest extends GuardrailTester
     public static final int DISABLED = -1;
 
     @Test
-    public void testDisabledThreshold() throws Throwable
+    public void testDisabledMaxThreshold() throws Throwable
     {
         Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledThreshold(new MaxThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
+        testDisabledMaxThreshold(new MaxThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
     }
 
-    private void testDisabledThreshold(MaxThreshold guard) throws Throwable
+    private void testDisabledMaxThreshold(MaxThreshold guard) throws Throwable
     {
         assertFalse(guard.enabled(userClientState));
 
@@ -61,7 +61,7 @@ public class GuardrailsTest extends GuardrailTester
     }
 
     @Test
-    public void testThreshold() throws Throwable
+    public void testMaxThreshold() throws Throwable
     {
         MaxThreshold guard = new MaxThreshold("x",
                                         state -> 10,
@@ -87,7 +87,7 @@ public class GuardrailsTest extends GuardrailTester
     }
 
     @Test
-    public void testWarnOnlyThreshold() throws Throwable
+    public void testWarnOnlyMaxThreshold() throws Throwable
     {
         MaxThreshold guard = new MaxThreshold("x",
                                         state -> 10,
@@ -105,7 +105,7 @@ public class GuardrailsTest extends GuardrailTester
     }
 
     @Test
-    public void testFailOnlyThreshold() throws Throwable
+    public void testFailOnlyMaxThreshold() throws Throwable
     {
         MaxThreshold guard = new MaxThreshold("x",
                                         state -> DISABLED,
@@ -123,7 +123,7 @@ public class GuardrailsTest extends GuardrailTester
     }
 
     @Test
-    public void testThresholdUsers() throws Throwable
+    public void testMaxThresholdUsers() throws Throwable
     {
         MaxThreshold guard = new MaxThreshold("x",
                                         state -> 10,
@@ -149,6 +149,118 @@ public class GuardrailsTest extends GuardrailTester
         assertFails(() -> guard.guard(101, "z", false, userClientState), "Failure: for z, 101 > 100");
         assertValid(() -> guard.guard(101, "z", false, systemClientState));
         assertValid(() -> guard.guard(101, "z", false, superClientState));
+    }
+
+    @Test
+    public void testDisabledMinThreshold() throws Throwable
+    {
+        Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
+        testDisabledMinThreshold(new MinThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
+    }
+
+    private void testDisabledMinThreshold(MinThreshold guard) throws Throwable
+    {
+        assertFalse(guard.enabled(userClientState));
+
+        for (boolean containsUserData : Arrays.asList(true, false))
+        {
+            assertValid(() -> guard.guard(1, "Z", containsUserData, null));
+            assertValid(() -> guard.guard(9, "A", containsUserData, userClientState));
+            assertValid(() -> guard.guard(10, "B", containsUserData, userClientState));
+            assertValid(() -> guard.guard(25, "X", containsUserData, userClientState));
+            assertValid(() -> guard.guard(200, "Y", containsUserData, userClientState));
+        }
+    }
+
+    @Test
+    public void testMinThreshold() throws Throwable
+    {
+        MinThreshold guard = new MinThreshold("x",
+                                              state -> 100,
+                                              state -> 10,
+                                              (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
+                                                                             isWarn ? "Warning" : "Aborting", what, v, t));
+
+        assertTrue(guard.enabled(userClientState));
+
+        assertValid(() -> guard.guard(200, "Z", false, userClientState));
+        assertWarns(() -> guard.guard(25, "A", false, userClientState), "Warning: for A, 25 < 100");
+        assertWarns(() -> guard.guard(10, "B", false, userClientState), "Warning: for B, 10 < 100");
+        assertFails(() -> guard.guard(9, "X", false, userClientState), "Aborting: for X, 9 < 10");
+        assertFails(() -> guard.guard(1, "Y", false, userClientState), "Aborting: for Y, 1 < 10");
+        assertValid(() -> guard.guard(200, "Z", false, userClientState));
+
+        assertValid(() -> guard.guard(200, "Z", true, userClientState));
+        assertWarns(() -> guard.guard(25, "A", true, userClientState), "Warning: for A, 25 < 100", "Warning: for <redacted>, 25 < 100");
+        assertWarns(() -> guard.guard(10, "B", true, userClientState), "Warning: for B, 10 < 100", "Warning: for <redacted>, 10 < 100");
+        assertFails(() -> guard.guard(9, "X", true, userClientState), "Aborting: for X, 9 < 10", "Aborting: for <redacted>, 9 < 10");
+        assertFails(() -> guard.guard(1, "Y", true, userClientState), "Aborting: for Y, 1 < 10", "Aborting: for <redacted>, 1 < 10");
+        assertValid(() -> guard.guard(200, "Z", true, userClientState));
+    }
+
+    @Test
+    public void testWarnOnlyMinThreshold() throws Throwable
+    {
+        MinThreshold guard = new MinThreshold("x",
+                                              state -> 10,
+                                              state -> DISABLED,
+                                              (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
+                                                                             isWarn ? "Warning" : "Aborting", what, v, t));
+
+        assertTrue(guard.enabled(userClientState));
+
+        assertValid(() -> guard.guard(11, "Z", false, userClientState));
+        assertWarns(() -> guard.guard(5, "A", false, userClientState), "Warning: for A, 5 < 10");
+
+        assertValid(() -> guard.guard(11, "Z", true, userClientState));
+        assertWarns(() -> guard.guard(5, "A", true, userClientState), "Warning: for A, 5 < 10", "Warning: for <redacted>, 5 < 10");
+    }
+
+    @Test
+    public void testFailOnlyMinThreshold() throws Throwable
+    {
+        MinThreshold guard = new MinThreshold("x",
+                                              state -> DISABLED,
+                                              state -> 10,
+                                              (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
+                                                                             isWarn ? "Warning" : "Aborting", what, v, t));
+
+        assertTrue(guard.enabled(userClientState));
+
+        assertValid(() -> guard.guard(11, "Z", false, userClientState));
+        assertFails(() -> guard.guard(5, "A", false, userClientState), "Aborting: for A, 5 < 10");
+
+        assertValid(() -> guard.guard(11, "Z", true, userClientState));
+        assertFails(() -> guard.guard(5, "A", true, userClientState), "Aborting: for A, 5 < 10", "Aborting: for <redacted>, 5 < 10");
+    }
+
+    @Test
+    public void testMinThresholdUsers() throws Throwable
+    {
+        MinThreshold guard = new MinThreshold("x",
+                                              state -> 100,
+                                              state -> 10,
+                                              (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
+                                                                             isWarn ? "Warning" : "Failure", what, v, t));
+
+        // value above both thresholds
+        assertValid(() -> guard.guard(200, "x", false, null));
+        assertValid(() -> guard.guard(200, "x", false, userClientState));
+        assertValid(() -> guard.guard(200, "x", false, systemClientState));
+        assertValid(() -> guard.guard(200, "x", false, superClientState));
+
+        // value under warning threshold
+        assertWarns(() -> guard.guard(10, "y", false, null), "Warning: for y, 10 < 100");
+        assertWarns(() -> guard.guard(10, "y", false, userClientState), "Warning: for y, 10 < 100");
+        assertValid(() -> guard.guard(10, "y", false, systemClientState));
+        assertValid(() -> guard.guard(10, "y", false, superClientState));
+
+        // value under fail threshold. An undefined user means that the check comes from a background process, so we
+        // still emit failure messages and events, but we don't throw an exception to prevent interrupting that process.
+        assertFails(() -> guard.guard(9, "z", false, null), false, "Failure: for z, 9 < 10");
+        assertFails(() -> guard.guard(9, "z", false, userClientState), "Failure: for z, 9 < 10");
+        assertValid(() -> guard.guard(9, "z", false, systemClientState));
+        assertValid(() -> guard.guard(9, "z", false, superClientState));
     }
 
     @Test

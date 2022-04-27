@@ -20,10 +20,16 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.function.ToLongFunction;
 import javax.annotation.Nullable;
-
-import io.airlift.airline.Cli;
 import org.apache.cassandra.service.ClientState;
 
+/**
+ * A guardrail based on numeric threshold(s).
+ *
+ * <p>A {@link Threshold} guardrail defines (up to) 2 thresholds, one at which a warning is issued, and a lower one
+ * at which the operation is aborted with an exception. Only one of those thresholds can be activated if desired.
+ *
+ * <p>This guardrail only handles guarding positive values.
+ */
 public abstract class Threshold extends Guardrail
 {
     protected ToLongFunction<ClientState> warnThreshold;
@@ -89,11 +95,20 @@ public abstract class Threshold extends Guardrail
      * @return {@code true} if {@code value} is above the warning or failure thresholds of this guardrail,
      * {@code false otherwise}.
      */
-    public abstract boolean triggersOn(long value, @Nullable ClientState state);
+    public boolean triggersOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && (compare(value, warnValue(state)) || compare(value, failValue(state)));
+    }
 
-    public abstract boolean warnsOn(long value, @Nullable ClientState state);
+    public boolean warnsOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && compare(value, warnValue(state));
+    }
 
-    public abstract boolean failsOn(long value, @Nullable ClientState state);
+    public boolean failsOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && compare(value, failValue(state));
+    }
 
     /**
      * Apply the guardrail to the provided value, warning or failing if appropriate.

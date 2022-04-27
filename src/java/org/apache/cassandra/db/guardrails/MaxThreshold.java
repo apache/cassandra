@@ -20,20 +20,13 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.function.ToLongFunction;
 import javax.annotation.Nullable;
-
 import org.apache.cassandra.service.ClientState;
 
 /**
- * A guardrail based on numeric threshold(s).
- *
- * <p>A {@link MaxThreshold} guardrail defines (up to) 2 thresholds, one at which a warning is issued, and a higher one
- * at which the operation is aborted with an exception. Only one of those thresholds can be activated if desired.
- *
- * <p>This guardrail only handles guarding positive values.
+ * {@link MaxThreshold} for maximum guardrails, the value is checked to see if it is greater than the warn and fail thresholds.
  */
 public class MaxThreshold extends Threshold
 {
-
     /**
      * Creates a new threshold guardrail.
      *
@@ -67,21 +60,6 @@ public class MaxThreshold extends Threshold
     {
         long warnValue = warnThreshold.applyAsLong(state);
         return warnValue <= 0 ? Long.MAX_VALUE : warnValue;
-    }
-
-    public boolean triggersOn(long value, @Nullable ClientState state)
-    {
-        return enabled(state) && (value > Math.min(failValue(state), warnValue(state)));
-    }
-
-    public boolean warnsOn(long value, @Nullable ClientState state)
-    {
-        return enabled(state) && (value > warnValue(state) && value <= failValue(state));
-    }
-
-    public boolean failsOn(long value, @Nullable ClientState state)
-    {
-        return enabled(state) && (value > failValue(state));
     }
 
 }
