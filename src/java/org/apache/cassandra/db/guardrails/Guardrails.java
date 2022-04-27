@@ -59,7 +59,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("keyspaces",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating keyspace %s, current number of keyspaces %s exceeds warning threshold of %s.",
                                      what, value, threshold)
                             : format("Cannot have more than %s keyspaces, aborting the creation of keyspace %s",
@@ -72,7 +72,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("tables",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getTablesWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getTablesFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating table %s, current number of tables %s exceeds warning threshold of %s.",
                                      what, value, threshold)
                             : format("Cannot have more than %s tables, aborting the creation of table %s",
@@ -85,7 +85,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("columns_per_table",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("The table %s has %s columns, this exceeds the warning threshold of %s.",
                                      what, value, threshold)
                             : format("Tables cannot have more than %s columns, but %s provided for table %s",
@@ -95,7 +95,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("secondary_indexes_per_table",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating secondary index %s, current number of indexes %s exceeds warning threshold of %s.",
                                      what, value, threshold)
                             : format("Tables cannot have more than %s secondary indexes, aborting the creation of secondary index %s",
@@ -116,7 +116,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("materialized_views_per_table",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating materialized view %s, current number of views %s exceeds warning threshold of %s.",
                                      what, value, threshold)
                             : format("Tables cannot have more than %s materialized views, aborting the creation of materialized view %s",
@@ -168,7 +168,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("page_size",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
                                      what, value, threshold)
                             : format("Aborting query for table %s, page size %s exceeds fail threshold of %s.",
@@ -181,7 +181,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("partition_keys_in_select",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("Query with partition keys in IN clause on table %s, with number of " +
                                      "partition keys %s exceeds warning threshold of %s.",
                                      what, value, threshold)
@@ -260,7 +260,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("items_per_collection",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("Detected collection %s with %s items, this exceeds the warning threshold of %s.",
                                      what, value, threshold)
                             : format("Detected collection %s with %s items, this exceeds the failure threshold of %s.",
@@ -273,7 +273,7 @@ public final class Guardrails implements GuardrailsMBean
     new MaxThreshold("fields_per_udt",
                   state -> CONFIG_PROVIDER.getOrCreate(state).getFieldsPerUDTWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getFieldsPerUDTFailThreshold(),
-                     (isWarning, what, value, threshold) ->
+                  (isWarning, what, value, threshold) ->
                   isWarning ? format("The user type %s has %s columns, this exceeds the warning threshold of %s.",
                                      what, value, threshold)
                             : format("User types cannot have more than %s columns, but %s provided for user type %s.",
@@ -323,9 +323,9 @@ public final class Guardrails implements GuardrailsMBean
                   state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumKeyspaceRFWarnThreshold(),
                   state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumKeyspaceRFFailThreshold(),
                   (isWarning, what, value, threshold) ->
-                  isWarning ? format("Keyspaces with %s " + "exceeds warn threshold of %s.",
+                  isWarning ? format("Keyspaces with %s equal to %s exceeds warn threshold of %s.",
                                      what, value, threshold)
-                            : format("Keyspaces with %s " + "exceeds fail threshold of %s.",
+                            : format("Keyspaces with %s equal to %s exceeds fail threshold of %s.",
                                      what, value, threshold));
 
     private Guardrails()
