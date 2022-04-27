@@ -60,6 +60,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
@@ -260,21 +261,30 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         if (options.isReadThresholdsEnabled())
             query.trackWarnings();
+        ResultMessage.Rows rows;
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
-            return execute(query, options, state.getClientState(), selectors, nowInSec, userLimit, null, queryStartNanoTime);
+        {
+            rows = execute(query, options, state.getClientState(), selectors, nowInSec, userLimit, null, queryStartNanoTime);
+        }
+        else
+        {
+            QueryPager pager = getPager(query, options);
 
-        QueryPager pager = getPager(query, options);
+            rows = execute(state,
+                           Pager.forDistributedQuery(pager, cl, state.getClientState()),
+                           options,
+                           selectors,
+                           pageSize,
+                           nowInSec,
+                           userLimit,
+                           aggregationSpec,
+                           queryStartNanoTime);
+        }
+        if (!SchemaConstants.isSystemKeyspace(table.keyspace))
+            ClientRequestSizeMetrics.recordReadResponseMetrics(rows, restrictions, selection);
 
-        return execute(state,
-                       Pager.forDistributedQuery(pager, cl, state.getClientState()),
-                       options,
-                       selectors,
-                       pageSize,
-                       nowInSec,
-                       userLimit,
-                       aggregationSpec,
-                       queryStartNanoTime);
+        return rows;
     }
 
 

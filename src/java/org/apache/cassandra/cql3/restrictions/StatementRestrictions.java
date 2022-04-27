@@ -391,6 +391,54 @@ public final class StatementRestrictions
     }
 
     /**
+     * This method determines whether a specified column is restricted on equality or something equivalent, like IN.
+     * It can be used in conjunction with the columns selected by a query to determine which of those columns is 
+     * already bound by the client (and from its perspective, not retrieved by the database).
+     *
+     * @param column a column from the same table these restrictions are against
+     *
+     * @return <code>true</code> if the given column is restricted on equality
+     */
+    public boolean isEqualityRestricted(ColumnMetadata column)
+    {
+        if (column.kind == ColumnMetadata.Kind.PARTITION_KEY)
+        {
+            if (partitionKeyRestrictions.hasOnlyEqualityRestrictions())
+                for (ColumnMetadata restricted : partitionKeyRestrictions.getColumnDefinitions())
+                    if (restricted.name.equals(column.name))
+                        return true;
+        }
+        else if (column.kind == ColumnMetadata.Kind.CLUSTERING)
+        {
+            if (hasClusteringColumnsRestrictions())
+            {
+                for (SingleRestriction restriction : clusteringColumnsRestrictions.getRestrictionSet())
+                {
+                    if (restriction.isEqualityBased())
+                    {
+                        if (restriction.isMultiColumn())
+                        {
+                            for (ColumnMetadata restricted : restriction.getColumnDefs())
+                                if (restricted.name.equals(column.name))
+                                    return true;
+                        }
+                        else if (restriction.getFirstColumn().name.equals(column.name))
+                            return true;
+                    }
+                }
+            }
+        }
+        else if (hasNonPrimaryKeyRestrictions())
+        {
+            for (SingleRestriction restriction : nonPrimaryKeyRestrictions)
+                if (restriction.getFirstColumn().name.equals(column.name) && restriction.isEqualityBased())
+                    return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Returns the <code>Restrictions</code> for the specified type of columns.
      *
      * @param kind the column type
