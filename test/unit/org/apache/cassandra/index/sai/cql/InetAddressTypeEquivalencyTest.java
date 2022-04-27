@@ -46,6 +46,7 @@ public class InetAddressTypeEquivalencyTest extends SAITester
     public void mixedWorkloadQueryTest() throws Throwable
     {
         createIndex("CREATE CUSTOM INDEX ON %s(ip) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
 
         execute("INSERT INTO %s (pk, ck, ip) VALUES (1, 1, '127.0.0.1')");
         execute("INSERT INTO %s (pk, ck, ip) VALUES (1, 2, '127.0.0.1')");

@@ -63,6 +63,7 @@ public class MixedIndexImplementationsTest extends SAITester
 
         createIndex("CREATE INDEX ON %s(v1)");
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(v2) USING '%s'", StorageAttachedIndex.class.getName()));
+        waitForIndexQueryable();
 
         String insert = "INSERT INTO %s(k, v1, v2) VALUES (?, ?, ?)";
         execute(insert, 0, 0, 0);

@@ -37,6 +37,8 @@ public class DecimalLargeValueTest extends SAITester
 
         createIndex("CREATE CUSTOM INDEX ON %s(dec) USING 'StorageAttachedIndex'");
 
+        waitForIndexQueryable();
+
         disableCompaction();
     }
 

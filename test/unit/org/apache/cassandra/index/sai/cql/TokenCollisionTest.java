@@ -51,6 +51,7 @@ public class TokenCollisionTest extends SAITester
     {
         createTable("CREATE TABLE %s (pk text, value text, PRIMARY KEY (pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
 
         final int numRows = 640; // 5 blocks x 128 postings, so skip table will contain 5 entries
         for (int i = 0; i < numRows; i++)
