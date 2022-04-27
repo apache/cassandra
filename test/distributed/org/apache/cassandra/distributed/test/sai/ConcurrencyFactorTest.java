@@ -106,6 +106,7 @@ public class ConcurrencyFactorTest extends TestBaseImpl
         cluster.schemaChange(String.format("CREATE TABLE %s.%s (pk int, state ascii, gdp bigint, PRIMARY KEY (pk)) WITH compaction = " +
                                            " {'class' : 'SizeTieredCompactionStrategy', 'enabled' : false }", KEYSPACE, SAI_TABLE));
         cluster.schemaChange(String.format("CREATE CUSTOM INDEX ON %s.%s (gdp) USING 'StorageAttachedIndex'", KEYSPACE, SAI_TABLE));
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
 
         insertRows(1_000_000_000L, 16_000_000_000L, 1_000_000_000L);
 

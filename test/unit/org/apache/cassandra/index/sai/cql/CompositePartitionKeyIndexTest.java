@@ -32,6 +32,7 @@ public class CompositePartitionKeyIndexTest extends SAITester
         createTable("CREATE TABLE %s (pk1 int, pk2 text, val int, PRIMARY KEY((pk1, pk2)))");
         createIndex("CREATE CUSTOM INDEX ON %s(pk1) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(pk2) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
 
         disableCompaction();
     }
