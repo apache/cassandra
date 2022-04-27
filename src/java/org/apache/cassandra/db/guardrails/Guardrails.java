@@ -243,8 +243,8 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail on the size of a collection.
      */
-    public static final Threshold collectionSize =
-    new Threshold("collection_size",
+    public static final MaxThreshold collectionSize =
+    new MaxThreshold("collection_size",
                   state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeWarnThreshold()),
                   state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeFailThreshold()),
                   (isWarning, what, value, threshold) ->

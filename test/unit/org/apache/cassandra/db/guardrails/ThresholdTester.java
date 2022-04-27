@@ -144,11 +144,11 @@ public abstract class ThresholdTester extends GuardrailTester
         long failValue = failGetter.applyAsLong(guardrails());
         long current = currentValue();
 
-        if (warnValue != Config.DISABLED_GUARDRAIL)
+        if (warnValue != disabledValue)
             Assertions.assertThat(current)
                       .isLessThanOrEqualTo(warnValue);
 
-        if (failValue != Config.DISABLED_GUARDRAIL)
+        if (failValue != disabledValue)
             Assertions.assertThat(current)
                       .isLessThanOrEqualTo(failValue);
     }
@@ -161,11 +161,11 @@ public abstract class ThresholdTester extends GuardrailTester
         long failValue = failGetter.applyAsLong(guardrails());
         long current = currentValue();
 
-        if (warnValue != Config.DISABLED_GUARDRAIL)
+        if (warnValue != disabledValue)
             Assertions.assertThat(current)
                       .isGreaterThanOrEqualTo(warnValue);
 
-        if (failValue != Config.DISABLED_GUARDRAIL)
+        if (failValue != disabledValue)
             Assertions.assertThat(current)
                       .isGreaterThanOrEqualTo(failValue);
     }

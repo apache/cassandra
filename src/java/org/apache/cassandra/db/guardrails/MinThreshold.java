@@ -35,8 +35,6 @@ import org.apache.cassandra.service.ClientState;
  */
 public class MinThreshold extends Threshold
 {
-    private final ToLongFunction<ClientState> warnThreshold;
-    private final ToLongFunction<ClientState> failThreshold;
 
     /**
      * Creates a new minimum threshold guardrail.
@@ -56,63 +54,36 @@ public class MinThreshold extends Threshold
         this.failThreshold = failThreshold;
     }
 
-    private long failValue(ClientState state)
+    protected boolean compare(long value, long threshold)
+    {
+        return value < threshold;
+    }
+
+    protected long failValue(ClientState state)
     {
         long failValue = failThreshold.applyAsLong(state);
         return failValue <= 0 ? Long.MIN_VALUE : failValue;
     }
 
-    private long warnValue(ClientState state)
+    protected long warnValue(ClientState state)
     {
         long warnValue = warnThreshold.applyAsLong(state);
         return warnValue <= 0 ? Long.MIN_VALUE : warnValue;
     }
 
-    /**
-     * Checks whether the provided value would trigger a warning or failure if passed to {@link #guard}.
-     *
-     * <p>This method is optional (does not have to be called) but can be used in the case where the "what"
-     * argument to {@link #guard} is expensive to build to save doing so in the common case (of the guardrail
-     * not being triggered).
-     *
-     * @param value the value to test.
-     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
-     *              A {@code null} value means that the check should be done regardless of the query.
-     * @return {@code true} if {@code value} is above the warning or failure thresholds of this guardrail,
-     * {@code false otherwise}.
-     */
     public boolean triggersOn(long value, @Nullable ClientState state)
     {
         return enabled(state) && (value < Math.max(failValue(state), warnValue(state)));
     }
 
-    /**
-     * Apply the guardrail to the provided value, warning or failing if appropriate.
-     *
-     * @param value            The value to check.
-     * @param what             A string describing what {@code value} is a value of. This is used in the error message
-     *                         if the guardrail is triggered. For instance, say the guardrail guards the size of column
-     *                         values, then this argument must describe which column of which row is triggering the
-     *                         guardrail for convenience.
-     * @param containsUserData whether the {@code what} contains user data that should be redacted on external systems.
-     * @param state            The client state, used to skip the check if the query is internal or is done by a superuser.
-     *                         A {@code null} value means that the check should be done regardless of the query.
-     */
-    public void guard(long value, String what, boolean containsUserData, @Nullable ClientState state)
+    public boolean warnsOn(long value, @Nullable ClientState state)
     {
-        if (!enabled(state))
-            return;
+        return enabled(state) && (value < warnValue(state) && value >= failValue(state));
+    }
 
-        long failValue = failValue(state);
-        if (value < failValue)
-        {
-            triggerFail(value, failValue, what, containsUserData, state);
-            return;
-        }
-
-        long warnValue = warnValue(state);
-        if (value < warnValue)
-            triggerWarn(value, warnValue, what, containsUserData);
+    public boolean failsOn(long value, @Nullable ClientState state)
+    {
+        return enabled(state) && (value < failValue(state));
     }
 
 }

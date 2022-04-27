@@ -78,8 +78,8 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
-        validateIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
-        validateIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
+        validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
+        validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
         validatePercentageThreshold(config.data_disk_usage_percentage_warn_threshold, config.data_disk_usage_percentage_fail_threshold, "data_disk_usage_percentage");
         validateDataDiskUsageMaxDiskSize(config.data_disk_usage_max_disk_size);
         validateMinRFThreshold(config.minimum_keyspace_rf_warn_threshold, config.minimum_keyspace_rf_fail_threshold, "minimum_keyspace_rf");
@@ -655,17 +655,17 @@ public class GuardrailsOptions implements GuardrailsConfig
         validatePositiveNumeric(value, 100, name);
     }
 
-    private static void validateMaxIntThreshold(int warn, int fail, String name)
-    {
-        validatePositiveNumeric(warn, Integer.MAX_VALUE, name + "_warn_threshold");
-        validatePositiveNumeric(fail, Integer.MAX_VALUE, name + "_fail_threshold");
-        validateWarnLowerThanFail(warn, fail, name);
-    }
-
     private static void validatePercentageThreshold(int warn, int fail, String name)
     {
         validatePercentage(warn, name + "_warn_threshold");
         validatePercentage(fail, name + "_fail_threshold");
+        validateWarnLowerThanFail(warn, fail, name);
+    }
+
+    private static void validateMaxIntThreshold(int warn, int fail, String name)
+    {
+        validatePositiveNumeric(warn, Integer.MAX_VALUE, name + "_warn_threshold");
+        validatePositiveNumeric(fail, Integer.MAX_VALUE, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
@@ -693,7 +693,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     private static void validateWarnGreaterThanFail(long warn, long fail, String name)
     {
-        if (warn == Config.DISABLED_GUARDRAIL || fail == Config.DISABLED_GUARDRAIL)
+        if (warn == -1|| fail == -1)
             return;
 
         if (fail > warn)
@@ -710,7 +710,6 @@ public class GuardrailsOptions implements GuardrailsConfig
         }
     }
 
-    private static void validateSizeThreshold(DataStorageSpec warn, DataStorageSpec fail, String name)
     private static void validateSize(DataStorageSpec size, boolean allowZero, String name)
     {
         if (size == null)

@@ -27,7 +27,7 @@ import org.apache.cassandra.service.ClientState;
  * <p>
  * This works exactly as a {@link Threshold}, but provides slightly more convenient error messages for percentage
  */
-public class PercentageThreshold extends Threshold
+public class PercentageThreshold extends MaxThreshold
 {
     /**
      * Creates a new threshold guardrail.
