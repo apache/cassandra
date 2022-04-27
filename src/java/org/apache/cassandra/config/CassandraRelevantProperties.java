@@ -154,6 +154,11 @@ public enum CassandraRelevantProperties
     BOOTSTRAP_SCHEMA_DELAY_MS("cassandra.schema_delay_ms"),
 
     /**
+     * When draining, how long to wait for mutating executors to shutdown.
+     */
+    DRAIN_EXECUTOR_TIMEOUT_MS("cassandra.drain_executor_timeout_ms", String.valueOf(TimeUnit.MINUTES.toMillis(5))),
+
+    /**
      * Gossip quarantine delay is used while evaluating membership changes and should only be changed with extreme care.
      */
     GOSSIPER_QUARANTINE_DELAY("cassandra.gossip_quarantine_delay_ms"),
