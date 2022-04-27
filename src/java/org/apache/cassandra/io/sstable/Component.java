@@ -72,7 +72,7 @@ public class Component
         // custom component, used by e.g. custom compaction strategy
         CUSTOM(null);
 
-        final String repr;
+        public final String repr;
 
         Type(String repr)
         {
