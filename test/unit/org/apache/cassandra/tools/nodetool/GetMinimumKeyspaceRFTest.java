@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
@@ -30,6 +31,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class GetMinimumKeyspaceRFTest extends CQLTester
 {
+    private static Config conf;
+
     @BeforeClass
     public static void setup() throws Exception
     {
@@ -82,6 +85,6 @@ public class GetMinimumKeyspaceRFTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getminimumrf");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout().trim()).isEqualTo(Integer.toString(DatabaseDescriptor.getMinimumKeyspaceRF()));
+        assertThat(tool.getStdout().trim()).isEqualTo(Integer.toString(conf.minimum_keyspace_rf_fail_threshold));
     }
 }

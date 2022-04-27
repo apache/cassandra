@@ -131,11 +131,11 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         assertWarns("CREATE KEYSPACE ks WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': 3}",
-                    format("Keyspaces with %s exceeds warn threshold of %d.",
-                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD - 1));
+                    format("Keyspaces with %s equal to 3 exceeds warn threshold of %d.",
+                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': 1}",
-                    format("Keyspaces with %s exceeds fail threshold of %d.",
-                           WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD - 1));
+                    format("Keyspaces with %s equal to 1 exceeds fail threshold of %d.",
+                           WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD));
     }
     @Test
     public void testMinKeyspaceRFOnlyWarnAbove() throws Throwable
@@ -151,11 +151,11 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, DISABLED_GUARDRAIL);
         assertWarns("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}",
-                    format("Keyspaces with %s exceeds warn threshold of %d",
-                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD - 1));
+                    format("Keyspaces with %s equal to 3 exceeds warn threshold of %d",
+                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
         assertWarns("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}",
-                    format("Keyspaces with %s exceeds warn threshold of %d",
-                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD - 2));
+                    format("Keyspaces with %s equal to 2 exceeds warn threshold of %d",
+                           WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
 
     }
 
@@ -173,7 +173,7 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumKeyspaceRFThreshold(DISABLED_GUARDRAIL, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         assertFails("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}",
-                    format("Keyspaces with %s exceeds fail threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD - 1));
+                    format("Keyspaces with %s equal to 1 exceeds fail threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD));
     }
 
     @Test
@@ -182,7 +182,7 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
         guardrails().setMinimumKeyspaceRFThreshold(DISABLED_GUARDRAIL, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         execute("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}");
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}",
-                    format("Keyspaces with %s exceeds fail threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD - 1));
+                    format("Keyspaces with %s equal to 1 exceeds fail threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD));
     }
 
     @Test
@@ -199,10 +199,10 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         assertWarns("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}",
-                    format("Keyspaces with %s exceeds warn threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD - 1));
+                    format("Keyspaces with %s equal to 3 exceeds warn threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
 
         assertWarns("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}",
-                    format("Keyspaces with %s exceeds warn threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD - 2));
+                    format("Keyspaces with %s equal to 2 exceeds warn threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_WARN_THRESHOLD));
     }
 
     @Test
@@ -210,7 +210,7 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         assertFails("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}",
-                    format("Keyspaces with %s exceeds fail threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD - 1));
+                    format("Keyspaces with %s equal to 1 exceeds fail threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD));
     }
 
     @Test
@@ -219,7 +219,7 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
         guardrails().setMinimumKeyspaceRFThreshold(MINIMUM_KEYSPACE_RF_WARN_THRESHOLD, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD);
         execute("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 4}");
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}",
-                    format("Keyspaces with %s exceeds fail threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD - 1));
+                    format("Keyspaces with %s equal to 1 exceeds fail threshold of %d", WHAT, MINIMUM_KEYSPACE_RF_FAIL_THRESHOLD));
     }
 
     @Test
