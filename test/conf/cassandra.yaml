@@ -52,3 +52,9 @@ enable_sasi_indexes: true
 enable_materialized_views: true
 enable_drop_compact_storage: true
 file_cache_enabled: true
+read_request_timeout_in_ms: 20000
+range_request_timeout_in_ms: 20000
+write_request_timeout_in_ms: 20000
+counter_write_request_timeout_in_ms: 20000
+cas_contention_timeout_in_ms: 20000
+request_timeout_in_ms: 20000
