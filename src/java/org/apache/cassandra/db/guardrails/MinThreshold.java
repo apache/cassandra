@@ -50,8 +50,6 @@ public class MinThreshold extends Threshold
                         Threshold.ErrorMessageProvider messageProvider)
     {
         super(name, warnThreshold, failThreshold, messageProvider);
-        this.warnThreshold = warnThreshold;
-        this.failThreshold = failThreshold;
     }
 
     protected boolean compare(long value, long threshold)

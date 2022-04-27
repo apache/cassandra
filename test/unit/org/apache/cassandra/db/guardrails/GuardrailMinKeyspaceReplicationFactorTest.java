@@ -226,6 +226,5 @@ public class GuardrailMinKeyspaceReplicationFactorTest extends ThresholdTester
                                          WHAT, guardrails().getMinimumKeyspaceRFFailThreshold(), DatabaseDescriptor.getDefaultKeyspaceRF());
             Assertions.assertThat(e.getMessage()).contains(expectedMessage);
         }
-
     }
 }
