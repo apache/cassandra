@@ -791,7 +791,7 @@ public class SSTableReaderTest
         {
             File f = new File(notLiveDesc.filenameFor(c));
             assertTrue(f.exists());
-            assertTrue(f.toString().contains(String.format("-%s-", id.asString())));
+            assertTrue(f.toString().contains(String.format("-%s-", id)));
             f.deleteOnExit();
             assertFalse(new File(sstable.descriptor.filenameFor(c)).exists());
         }

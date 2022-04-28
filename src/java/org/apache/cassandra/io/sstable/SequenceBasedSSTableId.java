@@ -78,15 +78,9 @@ public class SequenceBasedSSTableId implements SSTableId, Comparable<SequenceBas
     }
 
     @Override
-    public String asString()
-    {
-        return String.valueOf(generation);
-    }
-
-    @Override
     public String toString()
     {
-        return asString();
+        return String.valueOf(generation);
     }
 
     public static class Builder implements SSTableId.Builder<SequenceBasedSSTableId>

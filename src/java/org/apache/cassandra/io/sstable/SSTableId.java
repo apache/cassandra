@@ -51,7 +51,8 @@ public interface SSTableId
      * Must not contain any {@link Descriptor#FILENAME_SEPARATOR} character as it is used in the Descriptor
      * see {@link Descriptor#fromFilenameWithComponent(File)}
      */
-    String asString();
+    @Override
+    String toString();
 
     /**
      * Builder that can create instances of certain implementation of {@link SSTableId}.
@@ -71,7 +72,7 @@ public interface SSTableId
         /**
          * Creates an identifier instance from its string representation
          *
-         * @param str string representation as returned by {@link #asString()}
+         * @param str string representation as returned by {@link SSTableId#toString()}
          * @throws IllegalArgumentException when the provided string is not a valid string representation of the identifier
          */
         T fromString(String str) throws IllegalArgumentException;
