@@ -43,10 +43,10 @@ memtable:
     configurations:
         skiplist:
           class_name: SkipListMemtable
-        trie:
-          class_name: TrieMemtable
+        sharded:
+          class_name: ShardedSkipListMemtable
         default:
-          inherits: trie
+          inherits: sharded
 ```
 
 Note that the database will only validate the memtable class and its parameters when a configuration needs to be
@@ -136,7 +136,6 @@ memtable-controlled options are implemented on the factory:
   retrieves data in the memtable before sending, and applies received data in the memtable instead of directly creating 
   an sstable.
 
-
 ### Instantiation and configuration
 
 The memtables are instantiated by the factory, which is constructed via reflection on creating a `ColumnFamilyStore` or
@@ -159,3 +158,17 @@ objects in Cassandra).
 At this time many of the configuration parameters for memtables are still configured using top-level parameters like
 `memtable_allocation_type` in `cassandra.yaml` and `memtable_flush_period_in_ms` in the table schema.
 
+
+### Sample implementation
+
+The API comes with a proof-of-concept implementation, a sharded skip-list memtable implemented by the 
+`ShardedSkipListMemtable` class. The difference between this and the default memtable is that the sharded version breaks 
+the token space served by the node into roughly equal regions and uses a separate skip-list for each shard. Sharding
+spreads the write concurrency among these independent skip lists, reducing congestion and can lead to significantly
+improved write throughput.
+
+This implementation takes two parameters, `shards` which specifies the number of shards to split into (by default, the
+number of CPU threads available to the process) and `serialize_writes`, which, if set to `true` causes writes to the
+memtable to be synchronized. The latter can be useful to minimize space and time wasted for unsuccesful lockless 
+partition modification where a new copy of the partition would be prepared but not used due to concurrent modification.
+Regardless of the setting, reads can always execute in parallel, including concurrently with writes.

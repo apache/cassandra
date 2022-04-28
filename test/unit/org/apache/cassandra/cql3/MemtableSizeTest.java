@@ -56,7 +56,8 @@ public class MemtableSizeTest extends CQLTester
     @Parameterized.Parameters(name = "{0}")
     public static List<Object> parameters()
     {
-        return ImmutableList.of("skiplist");
+        return ImmutableList.of("skiplist",
+                                "skiplist_sharded");
     }
 
     // must be within 50 bytes per partition of the actual size

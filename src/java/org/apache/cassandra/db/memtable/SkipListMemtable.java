@@ -66,7 +66,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 
     public static final Factory FACTORY = SkipListMemtableFactory.INSTANCE;
 
-    private static final int ROW_OVERHEAD_HEAP_SIZE;
+    static final int ROW_OVERHEAD_HEAP_SIZE;
     static
     {
         int userDefinedOverhead = MEMTABLE_OVERHEAD_SIZE.getInt(-1);
