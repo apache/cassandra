@@ -75,15 +75,15 @@ public class AccordCommandStoreTest
         TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        AccordCommand command = new AccordCommand(commandStore, txnId);
+        AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
         command.txn(createTxn(0));
         command.promised(ballot(1, clock.incrementAndGet(), 0, 1));
         command.accepted(ballot(1, clock.incrementAndGet(), 0, 1));
         command.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
         command.savedDeps(dependencies);
         command.status(Status.Accepted);
-        command.addWaitingOnCommit(new AccordCommand(commandStore, oldTxnId1));
-        command.addWaitingOnApplyIfAbsent(new AccordCommand(commandStore, oldTxnId2));
+        command.addWaitingOnCommit(new AccordCommand(commandStore, oldTxnId1).initialize());
+        command.addWaitingOnApplyIfAbsent(new AccordCommand(commandStore, oldTxnId2).initialize());
         command.storedListeners.clear();
         command.addListener(new AccordCommand(commandStore, oldTxnId1));
         processCommandResult(command);
