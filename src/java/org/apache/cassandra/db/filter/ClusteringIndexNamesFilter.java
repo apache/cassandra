@@ -58,22 +58,6 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         this.clusteringsInQueryOrder = reversed ? clusterings.descendingSet() : clusterings;
     }
 
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-        ClusteringIndexNamesFilter that = (ClusteringIndexNamesFilter) o;
-        return Objects.equals(clusterings, that.clusterings) && Objects.equals(clusteringsInQueryOrder, that.clusteringsInQueryOrder);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(super.hashCode(), clusterings, clusteringsInQueryOrder);
-    }
-
     /**
      * The set of requested rows.
      *

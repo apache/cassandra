@@ -41,6 +41,10 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+/**
+ * Contains a map of objects serialized to byte buffers
+ * @param <T>
+ */
 public abstract class AbstractKeyIndexed<T>
 {
     final NavigableMap<PartitionKey, ByteBuffer> serialized;

@@ -42,6 +42,11 @@ import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 
+/**
+ * To reduce the number of reads we have to do before an operation, command data is duplicated into related commands
+ * and commands per key. This class contains serializers for these summaries, as well as the logic for instantiating
+ * a read only summary or returning a cached instance if available.
+ */
 public class CommandSummaries
 {
     private static class KindOnlyTxn extends Txn

@@ -48,22 +48,6 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         this.slices = slices;
     }
 
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-        ClusteringIndexSliceFilter that = (ClusteringIndexSliceFilter) o;
-        return Objects.equals(slices, that.slices);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(super.hashCode(), slices);
-    }
-
     public Slices requestedSlices()
     {
         return slices;

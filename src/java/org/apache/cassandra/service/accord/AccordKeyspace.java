@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -40,7 +41,6 @@ import accord.local.Status;
 import accord.txn.Ballot;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
-import com.beust.jcommander.internal.Lists;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -64,7 +64,6 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TupleType;
-import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
@@ -72,7 +71,6 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -94,7 +92,6 @@ import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -112,7 +109,6 @@ public class AccordKeyspace
     private static final String TIMESTAMP_TUPLE = "tuple<bigint, bigint, int, bigint>";
     private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance, LongType.instance));
     private static final String KEY_TUPLE = "tuple<uuid, blob>";
-    private static final TupleType KEY_TYPE = new TupleType(Lists.newArrayList(UUIDType.instance, BytesType.instance));
 
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
 
@@ -155,10 +151,6 @@ public class AccordKeyspace
     private static class CommandsColumns
     {
         static final ClusteringComparator keyComparator = Commands.partitionKeyAsClusteringComparator();
-        static final ColumnMetadata store_generation = getColumn(Commands, "store_generation");
-        static final ColumnMetadata store_index = getColumn(Commands, "store_index");
-        static final ColumnMetadata txn_id = getColumn(Commands, "txn_id");
-
         static final ColumnMetadata status = getColumn(Commands, "status");
         static final ColumnMetadata txn_version = getColumn(Commands, "txn_version");
         static final ColumnMetadata txn = getColumn(Commands, "txn");
@@ -196,9 +188,6 @@ public class AccordKeyspace
     {
         static final ClusteringComparator keyComparator = CommandsForKey.partitionKeyAsClusteringComparator();
         static final ColumnFilter allColumns = ColumnFilter.all(CommandsForKey);
-        static final ColumnMetadata store_generation = getColumn(CommandsForKey, "store_generation");
-        static final ColumnMetadata store_index = getColumn(CommandsForKey, "store_index");
-        static final ColumnMetadata key = getColumn(CommandsForKey, "key");
         static final ColumnMetadata max_timestamp = getColumn(CommandsForKey, "max_timestamp");
 
         static final ColumnMetadata series = getColumn(CommandsForKey, "series");
@@ -581,8 +570,8 @@ public class AccordKeyspace
     public static void loadCommand(AccordCommand command)
     {
         TxnId txnId = command.txnId();
-        CommandStore commandStore = command.commandStore();
-        ((AccordCommandStore) commandStore).checkNotInStoreThread();
+        AccordCommandStore commandStore = command.commandStore();
+        commandStore.checkNotInStoreThread();
 
         String cql = "SELECT * FROM %s.%s " +
                      "WHERE store_generation=? " +

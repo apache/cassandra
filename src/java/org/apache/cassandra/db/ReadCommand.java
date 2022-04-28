@@ -157,26 +157,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.trackWarnings = trackWarnings;
     }
 
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ReadCommand that = (ReadCommand) o;
-        return isDigestQuery == that.isDigestQuery
-               && acceptsTransient == that.acceptsTransient
-               && digestVersion == that.digestVersion
-               && trackWarnings == that.trackWarnings
-               && kind == that.kind
-               && Objects.equals(index, that.index);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(kind, isDigestQuery, acceptsTransient, digestVersion, trackWarnings, index);
-    }
-
     public static ReadCommand getCommand()
     {
         return COMMAND.get();

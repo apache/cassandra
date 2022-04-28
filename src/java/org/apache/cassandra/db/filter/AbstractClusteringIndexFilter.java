@@ -38,21 +38,6 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
         this.reversed = reversed;
     }
 
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AbstractClusteringIndexFilter that = (AbstractClusteringIndexFilter) o;
-        return reversed == that.reversed;
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(reversed);
-    }
-
     public boolean isReversed()
     {
         return reversed;

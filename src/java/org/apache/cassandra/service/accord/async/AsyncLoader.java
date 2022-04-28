@@ -51,16 +51,16 @@ public class AsyncLoader
     private State state = State.INITIALIZED;
     private final AccordCommandStore commandStore;
 
-    private final Iterable<TxnId> commandsToLoad;
-    private final Iterable<PartitionKey> keyCommandsToLoad;
+    private final Iterable<TxnId> txnIds;
+    private final Iterable<PartitionKey> keys;
 
     protected Future<?> readFuture;
 
     public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys)
     {
         this.commandStore = commandStore;
-        this.commandsToLoad = txnIds;
-        this.keyCommandsToLoad = keys;
+        this.txnIds = txnIds;
+        this.keys = keys;
     }
 
     private static <K, V extends AccordState<K, V>> Future<?> referenceAndDispatch(K key,
@@ -110,14 +110,14 @@ public class AsyncLoader
     {
         List<Future<?>> futures = null;
 
-        futures = referenceAndDispatchReads(commandsToLoad,
+        futures = referenceAndDispatchReads(txnIds,
                                             commandStore.commandCache(),
                                             context.commands.items,
                                             AccordCommand::isLoaded,
                                             command -> Stage.READ.submit(() -> AccordKeyspace.loadCommand(command)),
                                             futures);
 
-        futures = referenceAndDispatchReads(keyCommandsToLoad,
+        futures = referenceAndDispatchReads(keys,
                                             commandStore.commandsForKeyCache(),
                                             context.commandsForKey.items,
                                             AccordCommandsForKey::isLoaded,
@@ -135,8 +135,8 @@ public class AsyncLoader
                 state = State.SETUP;
             case SETUP:
                 // notify any pending write only groups we're loading a full instance so the pending changes aren't removed
-                commandsToLoad.forEach(commandStore.commandCache()::lockWriteOnlyGroupIfExists);
-                keyCommandsToLoad.forEach(commandStore.commandsForKeyCache()::lockWriteOnlyGroupIfExists);
+                txnIds.forEach(commandStore.commandCache()::lockWriteOnlyGroupIfExists);
+                keys.forEach(commandStore.commandsForKeyCache()::lockWriteOnlyGroupIfExists);
                 readFuture = referenceAndDispatchReads(context);
                 state = State.LOADING;
             case LOADING:

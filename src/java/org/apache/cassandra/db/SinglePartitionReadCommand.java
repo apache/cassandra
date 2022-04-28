@@ -196,23 +196,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       findIndex(metadata, rowFilter));
     }
 
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-        SinglePartitionReadCommand that = (SinglePartitionReadCommand) o;
-        return Objects.equals(partitionKey, that.partitionKey)
-               && Objects.equals(clusteringIndexFilter, that.clusteringIndexFilter);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(super.hashCode(), partitionKey, clusteringIndexFilter);
-    }
-
     /**
      * Creates a new read command on a single partition.
      *

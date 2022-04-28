@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class ListenerProxy implements Listener, Comparable<ListenerProxy>
 {
-    public enum Kind {COMMAND, COMMANDS_FOR_KEY}
+    public enum Kind { COMMAND, COMMANDS_FOR_KEY }
 
     public abstract Kind kind();
     public abstract ByteBuffer identifier();
@@ -57,7 +57,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         return kind().compareTo(that.kind());
     }
 
-    protected abstract boolean subjectIsInContext(AsyncContext context);
+    protected abstract boolean listenerIsInContext(AsyncContext context);
     protected abstract void onChangeInternal(Command command);
     protected abstract TxnOperation scopeForCommand(Command command);
     protected abstract long estimatedSizeOnHeap();
@@ -68,7 +68,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         AccordCommand command = (AccordCommand) c;
         AccordCommandStore commandStore = command.commandStore();
         AsyncContext context = commandStore.getContext();
-        if (subjectIsInContext(context))
+        if (listenerIsInContext(context))
         {
             onChangeInternal(command);
         }
@@ -143,7 +143,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        protected boolean subjectIsInContext(AsyncContext context)
+        protected boolean listenerIsInContext(AsyncContext context)
         {
             return context.commands.get(txnId) != null;
         }
@@ -181,6 +181,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
     }
 
+    // TODO: these should be run before any load attempts, similar to write only instances, otherwise we may use a stale max timestamp for a key
     static class CommandsForKeyListenerProxy extends ListenerProxy
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandsForKeyListenerProxy(null, null));
@@ -241,7 +242,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        protected boolean subjectIsInContext(AsyncContext context)
+        protected boolean listenerIsInContext(AsyncContext context)
         {
             return context.commandsForKey.get(key) != null;
         }
