@@ -20,17 +20,26 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.AbstractEndpointSnitch;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.assertj.core.api.Assertions;
+import org.checkerframework.checker.units.qual.A;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertNotNull;
@@ -87,7 +96,8 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
                : warnings.stream()
                          .filter(w -> !w.contains("keyspace ks is higher than the number of nodes 1 for datacenter") &&
                                       !w.contains("When increasing replication factor you need to run a full (-full) repair to distribute the data") &&
-                                      !w.contains("keyspace ks is higher than the number of nodes 1"))
+                                      !w.contains("keyspace ks is higher than the number of nodes") &&
+                                      !w.contains("Your replication factor 4 for keyspace ks is higher than the number of nodes 2 for datacenter datacenter2"))
                          .collect(Collectors.toList());
     }
 
@@ -134,6 +144,39 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
     }
 
     @Test
+    public void testMultipleDatacenter() throws Throwable
+    {
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
+        {
+            public static final String RACK1 = ServerTestUtils.RACK1;
+
+            @Override
+            public String getRack(InetAddressAndPort endpoint) { return RACK1; }
+
+            @Override
+            public String getDatacenter(InetAddressAndPort endpoint) { return "datacenter2"; }
+
+            @Override
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
+        });
+
+        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.255"));
+        guardrails().setMinimumRFThreshold(MINIMUM_RF_WARN_THRESHOLD, MINIMUM_RF_FAIL_THRESHOLD);
+        assertValid("CREATE KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 4, 'datacenter2' : 4 };");
+        assertWarns("ALTER KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 4, 'datacenter2' : 2 };",
+                    format("The keyspace %s has a replication factor of 2, below the warning threshold of %d.", KS, MINIMUM_RF_WARN_THRESHOLD));
+        assertFails("ALTER KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 4, 'datacenter2' : 1 };",
+                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %d.", KS, MINIMUM_RF_FAIL_THRESHOLD));
+        assertFails("CREATE KEYSPACE ks1 WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 1, 'datacenter2' : 1 };",
+                    format("The keyspace ks1 has a replication factor of 1, below the failure threshold of %d.", MINIMUM_RF_FAIL_THRESHOLD));
+
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+        execute("DROP KEYSPACE IF EXISTS ks1");
+
+    }
+
+    @Test
     public void testMinKeyspaceRFOnlyWarnAbove() throws Throwable
     {
         guardrails().setMinimumRFThreshold(MINIMUM_RF_WARN_THRESHOLD, DISABLED_GUARDRAIL);
@@ -146,9 +189,9 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumRFThreshold(MINIMUM_RF_WARN_THRESHOLD, DISABLED_GUARDRAIL);
         assertWarns("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}",
-                    format("The keyspace %s has a replication factor of 3, below the warning threshold of %s.", DATACENTER1, MINIMUM_RF_WARN_THRESHOLD));
+                    format("The keyspace %s has a replication factor of 3, below the warning threshold of %s.", KS, MINIMUM_RF_WARN_THRESHOLD));
         assertWarns("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}",
-                    format("The keyspace %s has a replication factor of 2, below the warning threshold of %s.", DATACENTER1, MINIMUM_RF_WARN_THRESHOLD));
+                    format("The keyspace %s has a replication factor of 2, below the warning threshold of %s.", KS, MINIMUM_RF_WARN_THRESHOLD));
     }
 
     @Test
@@ -164,7 +207,7 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumRFThreshold(DISABLED_GUARDRAIL, MINIMUM_RF_FAIL_THRESHOLD);
         assertFails("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}",
-                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %s.", DATACENTER1, MINIMUM_RF_FAIL_THRESHOLD));
+                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %s.", KS, MINIMUM_RF_FAIL_THRESHOLD));
     }
 
     @Test
@@ -173,7 +216,7 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
         guardrails().setMinimumRFThreshold(DISABLED_GUARDRAIL, MINIMUM_RF_FAIL_THRESHOLD);
         execute("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}");
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}",
-                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %s.", DATACENTER1, MINIMUM_RF_FAIL_THRESHOLD));
+                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %s.", KS, MINIMUM_RF_FAIL_THRESHOLD));
     }
 
     @Test
@@ -189,9 +232,9 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumRFThreshold(MINIMUM_RF_WARN_THRESHOLD, MINIMUM_RF_FAIL_THRESHOLD);
         assertWarns("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 3}",
-                    format("The keyspace %s has a replication factor of 3, below the warning threshold of %s.", DATACENTER1, MINIMUM_RF_WARN_THRESHOLD));
+                    format("The keyspace %s has a replication factor of 3, below the warning threshold of %s.", KS, MINIMUM_RF_WARN_THRESHOLD));
         assertWarns("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 2}",
-                    format("The keyspace %s has a replication factor of 2, below the warning threshold of %s.", DATACENTER1, MINIMUM_RF_WARN_THRESHOLD));
+                    format("The keyspace %s has a replication factor of 2, below the warning threshold of %s.", KS, MINIMUM_RF_WARN_THRESHOLD));
     }
 
     @Test
@@ -199,7 +242,7 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
     {
         guardrails().setMinimumRFThreshold(MINIMUM_RF_WARN_THRESHOLD, MINIMUM_RF_FAIL_THRESHOLD);
         assertFails("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}",
-                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %s.", DATACENTER1, MINIMUM_RF_FAIL_THRESHOLD));
+                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %s.", KS, MINIMUM_RF_FAIL_THRESHOLD));
     }
 
     @Test
@@ -208,7 +251,7 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
         guardrails().setMinimumRFThreshold(MINIMUM_RF_WARN_THRESHOLD, MINIMUM_RF_FAIL_THRESHOLD);
         execute("CREATE KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 4}");
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class': 'NetworkTopologyStrategy', 'datacenter1': 1}",
-                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %s.", DATACENTER1, MINIMUM_RF_FAIL_THRESHOLD));
+                    format("The keyspace %s has a replication factor of 1, below the failure threshold of %s.", KS, MINIMUM_RF_FAIL_THRESHOLD));
     }
 
     @Test

@@ -679,7 +679,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     private static void validateMinRFThreshold(int warn, int fail, String name)
     {
         validateMinIntThreshold(warn, fail, name);
-        validateMinRFversesDefaultRF(fail, name);
+        validateMinRFVersesDefaultRF(fail, name);
     }
     private static void validateWarnLowerThanFail(long warn, long fail, String name)
     {
@@ -701,7 +701,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       "than the fail threshold %d", warn, name, fail));
     }
 
-    private static void validateMinRFversesDefaultRF(int fail, String name)
+    private static void validateMinRFVersesDefaultRF(int fail, String name)
     {
         if (fail > DatabaseDescriptor.getDefaultKeyspaceRF())
         {

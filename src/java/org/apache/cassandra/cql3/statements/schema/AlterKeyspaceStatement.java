@@ -54,8 +54,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
     private final KeyspaceAttributes attrs;
 
-    private ClientState state;
-
     private final boolean ifExists;
 
     public AlterKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifExists)
@@ -100,15 +98,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     public void authorize(ClientState client)
     {
         client.ensureKeyspacePermission(keyspaceName, Permission.ALTER);
-    }
-
-    @Override
-    public void validate(ClientState state)
-    {
-        super.validate(state);
-
-        // save the query state to use it for guardrails validation in #apply
-        this.state = state;
     }
 
     @Override

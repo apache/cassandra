@@ -65,7 +65,7 @@ public abstract class Threshold extends Guardrail
                                              Long.toString(thresholdValue));
     }
 
-    protected String redactedErrMsg(boolean isWarning, long value, long thresholdValue)
+    private String redactedErrMsg(boolean isWarning, long value, long thresholdValue)
     {
         return errMsg(isWarning, REDACTED, value, thresholdValue);
     }
@@ -139,13 +139,13 @@ public abstract class Threshold extends Guardrail
             triggerWarn(value, warnValue, what, containsUserData);
     }
 
-    protected void triggerFail(long value, long failValue, String what, boolean containsUserData, ClientState state)
+    private void triggerFail(long value, long failValue, String what, boolean containsUserData, ClientState state)
     {
         String fullMessage = errMsg(false, what, value, failValue);
         fail(fullMessage, containsUserData ? redactedErrMsg(false, value, failValue) : fullMessage, state);
     }
 
-    protected void triggerWarn(long value, long warnValue, String what, boolean containsUserData)
+    private void triggerWarn(long value, long warnValue, String what, boolean containsUserData)
     {
         String fullMessage = errMsg(true, what, value, warnValue);
         warn(fullMessage, containsUserData ? redactedErrMsg(true, value, warnValue) : fullMessage);

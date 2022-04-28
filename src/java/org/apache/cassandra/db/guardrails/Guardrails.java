@@ -57,49 +57,49 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final MaxThreshold keyspaces =
     new MaxThreshold("keyspaces",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("Creating keyspace %s, current number of keyspaces %s exceeds warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Cannot have more than %s keyspaces, aborting the creation of keyspace %s",
-                                     threshold, what));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacesFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Creating keyspace %s, current number of keyspaces %s exceeds warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Cannot have more than %s keyspaces, aborting the creation of keyspace %s",
+                                        threshold, what));
 
     /**
      * Guardrail on the total number of tables on user keyspaces.
      */
     public static final MaxThreshold tables =
     new MaxThreshold("tables",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablesWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getTablesFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("Creating table %s, current number of tables %s exceeds warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Cannot have more than %s tables, aborting the creation of table %s",
-                                     threshold, what));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getTablesWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getTablesFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Creating table %s, current number of tables %s exceeds warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Cannot have more than %s tables, aborting the creation of table %s",
+                                        threshold, what));
 
     /**
      * Guardrail on the number of columns per table.
      */
     public static final MaxThreshold columnsPerTable =
     new MaxThreshold("columns_per_table",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("The table %s has %s columns, this exceeds the warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Tables cannot have more than %s columns, but %s provided for table %s",
-                                     threshold, value, what));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getColumnsPerTableFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("The table %s has %s columns, this exceeds the warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Tables cannot have more than %s columns, but %s provided for table %s",
+                                        threshold, value, what));
 
     public static final MaxThreshold secondaryIndexesPerTable =
     new MaxThreshold("secondary_indexes_per_table",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("Creating secondary index %s, current number of indexes %s exceeds warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Tables cannot have more than %s secondary indexes, aborting the creation of secondary index %s",
-                                     threshold, what));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesPerTableFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Creating secondary index %s, current number of indexes %s exceeds warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Tables cannot have more than %s secondary indexes, aborting the creation of secondary index %s",
+                                        threshold, what));
 
     /**
      * Guardrail disabling user's ability to create secondary indexes
@@ -107,15 +107,15 @@ public final class Guardrails implements GuardrailsMBean
     public static final DisableFlag createSecondaryIndexesEnabled =
     new DisableFlag("secondary_indexes",
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesEnabled(),
-                    "User creation of secondary indexes");
+              "User creation of secondary indexes");
 
     /**
      * Guardrail on the number of materialized views per table.
      */
     public static final MaxThreshold materializedViewsPerTable =
     new MaxThreshold("materialized_views_per_table",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableFailThreshold(),
+                    state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
+                    state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableFailThreshold(),
                   (isWarning, what, value, threshold) ->
                   isWarning ? format("Creating materialized view %s, current number of views %s exceeds warning threshold of %s.",
                                      what, value, threshold)

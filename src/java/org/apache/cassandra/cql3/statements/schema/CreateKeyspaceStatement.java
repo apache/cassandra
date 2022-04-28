@@ -53,8 +53,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
     private final HashSet<String> clientWarnings = new HashSet<>();
 
-    private ClientState state;
-
     public CreateKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifNotExists)
     {
         super(keyspaceName);
@@ -120,9 +118,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         // Guardrail on number of keyspaces
         Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, false, state);
-
-        // save the query state to use it for guardrails validation in #apply
-        this.state = state;
     }
 
     @Override
