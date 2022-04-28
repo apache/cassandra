@@ -42,10 +42,12 @@ public final class UUIDBasedSSTableId implements SSTableId, Comparable<UUIDBased
     public final static int BYTES_LEN = 16;
 
     private final TimeUUID uuid;
+    private final String repr;
 
     public UUIDBasedSSTableId(TimeUUID uuid)
     {
         this.uuid = uuid;
+        this.repr = asString();
     }
 
     @Override
@@ -57,8 +59,7 @@ public final class UUIDBasedSSTableId implements SSTableId, Comparable<UUIDBased
                          .putLong(Long.BYTES, uuid.lsb());
     }
 
-    @Override
-    public String asString()
+    private String asString()
     {
         long ts = uuid.uuidTimestamp();
         long nanoPart = ts % 10_000_000;
@@ -76,7 +77,7 @@ public final class UUIDBasedSSTableId implements SSTableId, Comparable<UUIDBased
     @Override
     public String toString()
     {
-        return asString();
+        return repr;
     }
 
     @Override
