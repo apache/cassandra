@@ -36,8 +36,8 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
     public TokenRange(AccordKey start, AccordKey end)
     {
         super(start, end);
-        Preconditions.checkArgument(!(start instanceof AccordKey.PartitionKey));
-        Preconditions.checkArgument(!(end instanceof AccordKey.PartitionKey));
+        Preconditions.checkArgument(start.kind().isRangeCompatible());
+        Preconditions.checkArgument(end.kind().isRangeCompatible());
     }
 
     private static AccordKey toAccordTokenOrSentinel(AccordKey key)
@@ -58,28 +58,27 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
         return new TokenRange(toAccordTokenOrSentinel(start), toAccordTokenOrSentinel(end));
     }
 
-    // FIXME: serialize sentinel keys
     public static final IVersionedSerializer<TokenRange> serializer = new IVersionedSerializer<TokenRange>()
     {
         @Override
         public void serialize(TokenRange range, DataOutputPlus out, int version) throws IOException
         {
-            TokenKey.serializer.serialize((TokenKey) range.start(), out, version);
-            TokenKey.serializer.serialize((TokenKey) range.end(), out, version);
+            AccordKey.serializer.serialize(range.start(), out, version);
+            AccordKey.serializer.serialize(range.end(), out, version);
         }
 
         @Override
         public TokenRange deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new TokenRange(TokenKey.serializer.deserialize(in, version),
-                                  TokenKey.serializer.deserialize(in, version));
+            return new TokenRange(AccordKey.serializer.deserialize(in, version),
+                                  AccordKey.serializer.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(TokenRange range, int version)
         {
-            return TokenKey.serializer.serializedSize((TokenKey) range.start(), version)
-                 + TokenKey.serializer.serializedSize((TokenKey) range.end(), version);
+            return AccordKey.serializer.serializedSize(range.start(), version)
+                 + AccordKey.serializer.serializedSize(range.end(), version);
         }
     };
 }

@@ -45,8 +45,25 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public interface AccordKey extends Key<AccordKey>
 {
+    enum Kind {
+        TOKEN, PARTITION, SENTINEL;
+
+        public boolean isRangeCompatible()
+        {
+            switch (this)
+            {
+                case SENTINEL:
+                case TOKEN:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    };
+
     TableId tableId();
     PartitionPosition partitionKey();
+    Kind kind();
 
     public static AccordKey of(Key key)
     {
@@ -121,6 +138,12 @@ public interface AccordKey extends Key<AccordKey>
             return Objects.hash(tableId, isMin);
         }
 
+        @Override
+        public Kind kind()
+        {
+            return Kind.SENTINEL;
+        }
+
         public static SentinelKey min(TableId tableId)
         {
             return new SentinelKey(tableId, true);
@@ -147,6 +170,30 @@ public interface AccordKey extends Key<AccordKey>
         {
             return isMin ? -1 : 1;
         }
+
+        public static final IVersionedSerializer<SentinelKey> serializer = new IVersionedSerializer<SentinelKey>()
+        {
+            @Override
+            public void serialize(SentinelKey key, DataOutputPlus out, int version) throws IOException
+            {
+                out.writeBoolean(key.isMin);
+                key.tableId().serialize(out);
+            }
+
+            @Override
+            public SentinelKey deserialize(DataInputPlus in, int version) throws IOException
+            {
+                boolean isMin = in.readBoolean();
+                TableId tableId = TableId.deserialize(in);
+                return new SentinelKey(tableId, isMin);
+            }
+
+            @Override
+            public long serializedSize(SentinelKey key, int version)
+            {
+                return TypeSizes.BOOL_SIZE + TableId.serializedSize();
+            }
+        };
     }
 
     static abstract class AbstractKey<T extends PartitionPosition> implements AccordKey
@@ -200,6 +247,12 @@ public interface AccordKey extends Key<AccordKey>
         public PartitionKey(TableId tableId, DecoratedKey key)
         {
             super(tableId, key);
+        }
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.PARTITION;
         }
 
         @Override
@@ -301,6 +354,12 @@ public interface AccordKey extends Key<AccordKey>
         }
 
         @Override
+        public Kind kind()
+        {
+            return Kind.TOKEN;
+        }
+
+        @Override
         public Token.KeyBound partitionKey()
         {
             return (Token.KeyBound) super.partitionKey();
@@ -346,4 +405,66 @@ public interface AccordKey extends Key<AccordKey>
             }
         };
     }
+
+    static final IVersionedSerializer<AccordKey> serializer = new IVersionedSerializer<AccordKey>()
+    {
+        @Override
+        public void serialize(AccordKey key, DataOutputPlus out, int version) throws IOException
+        {
+            out.write(key.kind().ordinal());
+            switch (key.kind())
+            {
+                case TOKEN:
+                    TokenKey.serializer.serialize((TokenKey) key, out, version);
+                    break;
+                case PARTITION:
+                    PartitionKey.serializer.serialize((PartitionKey) key, out, version);
+                    break;
+                case SENTINEL:
+                    SentinelKey.serializer.serialize((SentinelKey) key, out, version);
+                    break;
+                default:
+                    throw new IllegalArgumentException();
+            }
+
+        }
+
+        @Override
+        public AccordKey deserialize(DataInputPlus in, int version) throws IOException
+        {
+            Kind kind = Kind.values()[in.readByte()];
+            switch (kind)
+            {
+                case TOKEN:
+                    return TokenKey.serializer.deserialize(in, version);
+                case PARTITION:
+                    return PartitionKey.serializer.deserialize(in, version);
+                case SENTINEL:
+                    return SentinelKey.serializer.deserialize(in, version);
+                default:
+                    throw new IllegalArgumentException();
+            }
+        }
+
+        @Override
+        public long serializedSize(AccordKey key, int version)
+        {
+            long size = TypeSizes.BYTE_SIZE; // kind ordinal
+            switch (key.kind())
+            {
+                case TOKEN:
+                    size += TokenKey.serializer.serializedSize((TokenKey) key, version);
+                    break;
+                case PARTITION:
+                    size += PartitionKey.serializer.serializedSize((PartitionKey) key, version);
+                    break;
+                case SENTINEL:
+                    size += SentinelKey.serializer.serializedSize((SentinelKey) key, version);
+                    break;
+                default:
+                    throw new IllegalArgumentException();
+            }
+            return size;
+        }
+    };
 }
