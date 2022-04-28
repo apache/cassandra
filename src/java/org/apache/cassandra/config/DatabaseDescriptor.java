@@ -870,7 +870,7 @@ public class DatabaseDescriptor
 
         if (conf.default_keyspace_rf < conf.minimum_replication_factor_fail_threshold)
         {
-            throw new ConfigurationException(String.format("default_keyspace_rf (%d) cannot be less than minimum_rf_fail_threshold (%d)",
+            throw new ConfigurationException(String.format("default_keyspace_rf (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)",
                                                            conf.default_keyspace_rf, conf.minimum_replication_factor_fail_threshold));
         }
 
@@ -4083,7 +4083,7 @@ public class DatabaseDescriptor
 
         if (value < guardrails.getMinimumReplicationFactorFailThreshold())
         {
-            throw new ConfigurationException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_rf_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
+            throw new ConfigurationException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
         }
 
         conf.default_keyspace_rf = value;

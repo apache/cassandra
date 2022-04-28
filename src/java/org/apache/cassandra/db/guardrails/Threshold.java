@@ -20,6 +20,7 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.function.ToLongFunction;
 import javax.annotation.Nullable;
+
 import org.apache.cassandra.service.ClientState;
 
 /**
@@ -168,4 +169,3 @@ public abstract class Threshold extends Guardrail
         String createMessage(boolean isWarning, String what, String value, String threshold);
     }
 }
-

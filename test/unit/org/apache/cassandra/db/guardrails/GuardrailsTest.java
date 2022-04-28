@@ -68,7 +68,7 @@ public class GuardrailsTest extends GuardrailTester
                                         state -> 10,
                                         state -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
-                                                                isWarn ? "Warning" : "Aborting", what, v, t));
+                                                                       isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -94,7 +94,7 @@ public class GuardrailsTest extends GuardrailTester
                                         state -> 10,
                                         state -> DISABLED,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
-                                                                isWarn ? "Warning" : "Aborting", what, v, t));
+                                                                       isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -112,7 +112,7 @@ public class GuardrailsTest extends GuardrailTester
                                         state -> DISABLED,
                                         state -> 10,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
-                                                                isWarn ? "Warning" : "Aborting", what, v, t));
+                                                                       isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -166,7 +166,7 @@ public class GuardrailsTest extends GuardrailTester
                                               state -> 100,
                                               state -> 10,
                                               (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
-                                                                      isWarn ? "Warning" : "Aborting", what, v, t));
+                                                                             isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -192,7 +192,7 @@ public class GuardrailsTest extends GuardrailTester
                                               state -> 10,
                                               state -> DISABLED,
                                               (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
-                                                                      isWarn ? "Warning" : "Aborting", what, v, t));
+                                                                             isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -210,7 +210,7 @@ public class GuardrailsTest extends GuardrailTester
                                               state -> DISABLED,
                                               state -> 10,
                                               (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
-                                                                      isWarn ? "Warning" : "Aborting", what, v, t));
+                                                                             isWarn ? "Warning" : "Aborting", what, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -228,7 +228,7 @@ public class GuardrailsTest extends GuardrailTester
                                               state -> 100,
                                               state -> 10,
                                               (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
-                                                                      isWarn ? "Warning" : "Failure", what, v, t));
+                                                                             isWarn ? "Warning" : "Failure", what, v, t));
 
         // value above both thresholds
         assertValid(() -> guard.guard(200, "x", false, null));
