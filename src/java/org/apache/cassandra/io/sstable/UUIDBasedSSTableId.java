@@ -76,7 +76,7 @@ public final class UUIDBasedSSTableId implements SSTableId, Comparable<UUIDBased
     @Override
     public String toString()
     {
-        return uuid.toString();
+        return asString();
     }
 
     @Override
