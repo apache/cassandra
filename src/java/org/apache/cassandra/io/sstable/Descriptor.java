@@ -155,7 +155,7 @@ public class Descriptor
     private void appendFileName(StringBuilder buff)
     {
         buff.append(version).append(separator);
-        buff.append(id.asString());
+        buff.append(id.toString());
         buff.append(separator).append(formatType.name);
     }
 

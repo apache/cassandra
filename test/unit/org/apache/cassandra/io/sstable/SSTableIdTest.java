@@ -72,7 +72,7 @@ public class SSTableIdTest
         List<SSTableId> deserIds = serIds.stream().map(builder::fromBytes).collect(Collectors.toList());
         assertThat(deserIds).containsExactlyElementsOf(ids);
 
-        List<String> stringifiedIds = ids.stream().map(SSTableId::asString).collect(Collectors.toList());
+        List<String> stringifiedIds = ids.stream().map(SSTableId::toString).collect(Collectors.toList());
         if (!(builder instanceof SequenceBasedSSTableId.Builder))
         {
             // the legacy string representation is not sortable
@@ -110,7 +110,7 @@ public class SSTableIdTest
 
     private void testStringSerialization(UUIDBasedSSTableId id)
     {
-        String s = id.asString();
+        String s = id.toString();
         assertThat(s).hasSize(UUIDBasedSSTableId.STRING_LEN);
         assertThat(s).matches(Pattern.compile("[0-9a-z]{4}_[0-9a-z]{4}_[0-9a-z]{18}"));
         assertThat(UUIDBasedSSTableId.Builder.instance.isUniqueIdentifier(s)).isTrue();

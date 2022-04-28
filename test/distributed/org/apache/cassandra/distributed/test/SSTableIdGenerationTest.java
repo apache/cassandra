@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.commons.io.FileUtils;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -76,14 +77,23 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private int v;
 
+    private static SecurityManager originalSecurityManager;
+
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
         TestBaseImpl.beforeClass();
 
+        originalSecurityManager = System.getSecurityManager();
         // we prevent system exit and convert it to exception becuase this is one of the expected test outcomes,
         // and we want to make an assertion on that
         ClusterUtils.preventSystemExit();
+    }
+
+    @AfterClass
+    public static void afterClass() throws Throwable
+    {
+        System.setSecurityManager(originalSecurityManager);
     }
 
     /**
@@ -462,13 +472,13 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             assertThat(SystemKeyspace.getSSTableReadMeter("ks", "tab", seqGenId)).matches(m -> m.fifteenMinuteRate() == meter.fifteenMinuteRate()
                                                                                                && m.twoHourRate() == meter.twoHourRate());
 
-            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, seqGenId.asBytes(), true);
+            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, seqGenId.toString(), true);
             if (expectLegacyTableIsPopulated)
                 checkSSTableActivityRow(LEGACY_SSTABLE_ACTIVITY, seqGenId.generation, true);
 
             SystemKeyspace.clearSSTableReadMeter("ks", "tab", seqGenId);
 
-            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, seqGenId.asBytes(), false);
+            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, seqGenId.toString(), false);
             if (expectLegacyTableIsPopulated)
                 checkSSTableActivityRow(LEGACY_SSTABLE_ACTIVITY, seqGenId.generation, false);
 
@@ -477,11 +487,11 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             assertThat(SystemKeyspace.getSSTableReadMeter("ks", "tab", uuidGenId)).matches(m -> m.fifteenMinuteRate() == meter.fifteenMinuteRate()
                                                                                                 && m.twoHourRate() == meter.twoHourRate());
 
-            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, uuidGenId.asBytes(), true);
+            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, uuidGenId.toString(), true);
 
             SystemKeyspace.clearSSTableReadMeter("ks", "tab", uuidGenId);
 
-            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, uuidGenId.asBytes(), false);
+            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, uuidGenId.toString(), false);
         });
     }
 

@@ -165,7 +165,7 @@ public class CompactionLogger
     private JsonNode formatSSTable(AbstractCompactionStrategy strategy, SSTableReader sstable)
     {
         ObjectNode node = json.objectNode();
-        node.put("generation", sstable.descriptor.id.asString());
+        node.put("generation", sstable.descriptor.id.toString());
         node.put("version", sstable.descriptor.version.getVersion());
         node.put("size", sstable.onDiskLength());
         JsonNode logResult = strategy.strategyLogger().sstable(sstable);

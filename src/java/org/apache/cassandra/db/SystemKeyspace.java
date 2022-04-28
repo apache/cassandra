@@ -292,7 +292,7 @@ public final class SystemKeyspace
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "table_name text,"
-                + "id blob,"
+                + "id text,"
                 + "rate_120m double,"
                 + "rate_15m double,"
                 + "PRIMARY KEY ((keyspace_name, table_name, id)))")
@@ -1328,7 +1328,7 @@ public final class SystemKeyspace
     public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableId id)
     {
         String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and id=?";
-        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.asBytes());
+        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.toString());
 
         if (results.isEmpty())
             return new RestorableMeter();
@@ -1349,7 +1349,7 @@ public final class SystemKeyspace
         executeInternal(format(cql, SSTABLE_ACTIVITY_V2),
                         keyspace,
                         table,
-                        id.asBytes(),
+                        id.toString(),
                         meter.fifteenMinuteRate(),
                         meter.twoHourRate());
 
@@ -1373,7 +1373,7 @@ public final class SystemKeyspace
     public static void clearSSTableReadMeter(String keyspace, String table, SSTableId id)
     {
         String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND table_name=? and id=?";
-        executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.asBytes());
+        executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.toString());
         if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && id instanceof SequenceBasedSSTableId)
         {
             // we do this in order to make it possible to downgrade until we switch in cassandra.yaml to UUID based ids

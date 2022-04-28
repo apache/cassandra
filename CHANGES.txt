@@ -1,5 +1,7 @@
 4.1
  * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
+ * Save sstable id as string in activity table (CASSANDRA-17585)
+ * Add support for UUID based sstable generation identifiers (CASSANDRA-17048)
  * Fix a race condition where a keyspace can be oopened while it is being removed (CASSANDRA-17658)
 
 
