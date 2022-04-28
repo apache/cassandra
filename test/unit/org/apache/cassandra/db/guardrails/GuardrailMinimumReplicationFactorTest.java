@@ -106,19 +106,19 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
         assertNotNull(guardrail);
         setter.accept(guardrails(), DISABLED_GUARDRAIL, DISABLED_GUARDRAIL);
 
-        assertInvalidPositiveProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT + "_fail_threshold");
-        assertInvalidPositiveProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), -2, Integer.MAX_VALUE, WHAT + "_fail_threshold");
-        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), DISABLED_GUARDRAIL);
-        assertInvalidPositiveProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), 0, Integer.MAX_VALUE, WHAT + "_fail_threshold");
-        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), 1L);
-        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a.intValue()), 2L);
+        assertInvalidPositiveIntProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT + "_fail_threshold");
+        assertInvalidPositiveIntProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a), -2, Integer.MAX_VALUE, WHAT + "_fail_threshold");
+        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a), DISABLED_GUARDRAIL);
+        assertInvalidPositiveIntProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a), 0, Integer.MAX_VALUE, WHAT + "_fail_threshold");
+        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a), 1);
+        assertValidProperty((g, a) -> setter.accept(g, DISABLED_GUARDRAIL, a), 2);
 
-        assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT + "_warn_threshold");
-        assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), -2, Integer.MAX_VALUE, WHAT + "_warn_threshold");
-        assertValidProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), DISABLED_GUARDRAIL);
-        assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), 0, Integer.MAX_VALUE, WHAT + "_warn_threshold");
-        assertValidProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), 1L);
-        assertValidProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), 2L);
+        assertInvalidPositiveIntProperty((g, w) -> setter.accept(g, w, DISABLED_GUARDRAIL), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT + "_warn_threshold");
+        assertInvalidPositiveIntProperty((g, w) -> setter.accept(g, w, DISABLED_GUARDRAIL), -2, Integer.MAX_VALUE, WHAT + "_warn_threshold");
+        assertValidProperty((g, w) -> setter.accept(g, w, DISABLED_GUARDRAIL), DISABLED_GUARDRAIL);
+        assertInvalidPositiveIntProperty((g, w) -> setter.accept(g, w, DISABLED_GUARDRAIL), 0, Integer.MAX_VALUE, WHAT + "_warn_threshold");
+        assertValidProperty((g, w) -> setter.accept(g, w, DISABLED_GUARDRAIL), 1);
+        assertValidProperty((g, w) -> setter.accept(g, w, DISABLED_GUARDRAIL), 2);
 
         Assertions.assertThatThrownBy(() -> setter.accept(guardrails(), 1, 2))
                   .hasMessageContaining(guardrail.name + "_warn_threshold should be greater than the fail threshold");

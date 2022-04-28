@@ -264,6 +264,13 @@ public abstract class ThresholdTester extends GuardrailTester
         assertInvalidPositiveProperty(setter, value, maxValue, name);
     }
 
+    protected void assertInvalidPositiveIntProperty (BiConsumer<Guardrails, Integer> setter, int value,
+                                                     int maxValue,
+                                                     String name)
+    {
+        assertInvalidPositiveProperty((g, l) -> setter.accept(g, l.intValue()), (long) value, maxValue, name);
+    }
+
     protected void testValidationOfStrictlyPositiveProperty(BiConsumer<Guardrails, Long> setter, String name)
     {
         assertInvalidStrictlyPositiveProperty(setter, Integer.MIN_VALUE, name);

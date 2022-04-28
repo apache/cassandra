@@ -34,7 +34,6 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsConfig;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
-import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toSet;
