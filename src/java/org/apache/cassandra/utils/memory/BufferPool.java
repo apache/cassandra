@@ -1510,7 +1510,7 @@ public class BufferPool
         @Override
         public String toString()
         {
-            return String.format("[slab %s, slots bitmap %s, capacity %d, free %d]", slab, Long.toBinaryString(freeSlots), capacity(), free());
+            return String.format("[slab %s, slots bitmap %s, capacity %d, free %d, owner %s, recycler %s]", slab, Long.toBinaryString(freeSlots), capacity(), free(), owner, recycler);
         }
 
         @VisibleForTesting
