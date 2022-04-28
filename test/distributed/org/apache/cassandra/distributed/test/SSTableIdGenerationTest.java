@@ -470,13 +470,13 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             assertThat(SystemKeyspace.getSSTableReadMeter("ks", "tab", seqGenId)).matches(m -> m.fifteenMinuteRate() == meter.fifteenMinuteRate()
                                                                                                && m.twoHourRate() == meter.twoHourRate());
 
-            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, seqGenId.asString(), true);
+            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, seqGenId.toString(), true);
             if (expectLegacyTableIsPopulated)
                 checkSSTableActivityRow(LEGACY_SSTABLE_ACTIVITY, seqGenId.generation, true);
 
             SystemKeyspace.clearSSTableReadMeter("ks", "tab", seqGenId);
 
-            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, seqGenId.asString(), false);
+            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, seqGenId.toString(), false);
             if (expectLegacyTableIsPopulated)
                 checkSSTableActivityRow(LEGACY_SSTABLE_ACTIVITY, seqGenId.generation, false);
 
@@ -485,11 +485,11 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             assertThat(SystemKeyspace.getSSTableReadMeter("ks", "tab", uuidGenId)).matches(m -> m.fifteenMinuteRate() == meter.fifteenMinuteRate()
                                                                                                 && m.twoHourRate() == meter.twoHourRate());
 
-            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, uuidGenId.asString(), true);
+            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, uuidGenId.toString(), true);
 
             SystemKeyspace.clearSSTableReadMeter("ks", "tab", uuidGenId);
 
-            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, uuidGenId.asString(), false);
+            checkSSTableActivityRow(SSTABLE_ACTIVITY_V2, uuidGenId.toString(), false);
         });
     }
 

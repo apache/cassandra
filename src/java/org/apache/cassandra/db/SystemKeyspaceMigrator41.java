@@ -154,7 +154,7 @@ public class SystemKeyspaceMigrator41
                      row ->
                      Collections.singletonList(new Object[]{ row.getString("keyspace_name"),
                                                              row.getString("columnfamily_name"),
-                                                             new SequenceBasedSSTableId(row.getInt("generation")).asString(),
+                                                             new SequenceBasedSSTableId(row.getInt("generation")).toString(),
                                                              row.has("rate_120m") ? row.getDouble("rate_120m") : null,
                                                              row.has("rate_15m") ? row.getDouble("rate_15m") : null
                      })
