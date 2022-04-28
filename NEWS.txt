@@ -88,7 +88,7 @@ New features
         - Whether querying with ALLOW FILTERING is allowed.
     - Add support for the use of pure monotonic functions on the last attribute of the GROUP BY clause.
     - Add floor functions that can be use to group by time range.
-    - Support for native transport rate limiting via native_transport_rate_limiting_enabled and 
+    - Support for native transport rate limiting via native_transport_rate_limiting_enabled and
       native_transport_max_requests_per_second in cassandra.yaml.
     - Support for pre hashing passwords on CQL DCL commands
     - Expose all client options via system_views.clients and nodetool clientstats.
@@ -152,6 +152,8 @@ New features
       table.
     - Added ability to invalidate auth caches through corresponding `nodetool` commands and virtual tables.
     - DCL statements in audit logs will now obscure only the password if they don't fail to parse.
+    - Added API for alternative memtable implementations. For details, see
+      src/java/org/apache/cassandra/db/memtable/Memtable_API.md
     - Starting from 4.1 sstables support UUID based generation identifiers. They are globally unique and thus they let
       the node to create sstables without any prior knowledge about the existing sstables in the data directory.
       The feature is disabled by default in cassandra.yaml because once enabled, there is no easy way to downgrade.

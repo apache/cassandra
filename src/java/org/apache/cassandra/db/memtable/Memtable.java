@@ -50,6 +50,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * - flush functionality, preparing the set of partitions to flush for given ranges
  * - lifecycle management, i.e. operations that prepare and execute switch to a different memtable, together
  *   with ways of tracking the affected commit log spans
+ *
+ * See Memtable_API.md for details on implementing and using alternative memtable implementations.
  */
 public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 {

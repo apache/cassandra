@@ -36,50 +36,14 @@ import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
- * Memtable types and options are specified with these parameters. Memtable classes must either contain a static FACTORY
- * field (if they take no arguments other than class), or implement a factory(Map<String, String>) method.
+ * Memtable types and options are specified with these parameters. Memtable classes must either contain a static
+ * {@code FACTORY} field (if they take no arguments other than class), or implement a
+ * {@code factory(Map<String, String>)} method.
  *
- * The latter should consume any further options (using map.remove).
+ * The latter should consume any further options (using {@code map.remove}).
  *
- * The memtable configurations are defined in cassandra.yaml, using the following format:
- * {@code
- * memtable:
- *   configurations:
- *     〈configuration name〉:
- *       class_name: 〈class〉
- *       inherits: 〈configuration name〉
- *       parameters:
- *         〈parameters〉
- * }
- * and specifed in the CQL table definition using {@code memtable = 〈configuration name〉}.
- *
- * Configurations can copy the properties from others, including being full copies of another, which can be useful for
- * easily remapping one name to another configuration.
- *
- * The default memtable configuration is named 'default'. It can be overridden if the yaml specifies it (including
- * using inheritance to copy another configuration), and it can be inherited, even if it is not explicitly defined in
- * the yaml (e.g. to change some parameter but not the memtable class).
- *
- * Examples:
- *
- * {@code
- * memtable:
- *   configurations:
- *     more_shards:
- *       inherits: default
- *       parameters:
- *          shards: 32
- *
- * memtable:
- *   configurations:
- *     skiplist:
- *       class_name: SkipListMemtable
- *     trie:
- *       class_name: TrieMemtable
- *     default:
- *       inherits: trie
- * }
- */
+ * See Memtable_API.md for further details on the configuration and usage of memtable implementations.
+  */
 public final class MemtableParams
 {
     private final Memtable.Factory factory;
