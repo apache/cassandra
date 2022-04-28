@@ -107,7 +107,7 @@ public final class Guardrails implements GuardrailsMBean
     public static final DisableFlag createSecondaryIndexesEnabled =
     new DisableFlag("secondary_indexes",
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesEnabled(),
-              "User creation of secondary indexes");
+                    "User creation of secondary indexes");
 
     /**
      * Guardrail on the number of materialized views per table.
@@ -318,10 +318,10 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail on the minimum replication factor.
      */
-    public static final MinThreshold minimumRF =
-    new MinThreshold("minimum_rf",
-                     state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumRFWarnThreshold(),
-                     state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumRFFailThreshold(),
+    public static final MinThreshold minimumReplicationFactor =
+    new MinThreshold("minimum_replication_factor",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumReplicationFactorWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumReplicationFactorFailThreshold(),
                      (isWarning, what, value, threshold) ->
                      isWarning ? format("The keyspace %s has a replication factor of %s, below the warning threshold of %s.",
                                         what, value, threshold)
@@ -832,21 +832,21 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public int getMinimumRFWarnThreshold()
+    public int getMinimumReplicationFactorWarnThreshold()
     {
-        return DEFAULT_CONFIG.getMinimumRFWarnThreshold();
+        return DEFAULT_CONFIG.getMinimumReplicationFactorWarnThreshold();
     }
 
     @Override
-    public int getMinimumRFFailThreshold()
+    public int getMinimumReplicationFactorFailThreshold()
     {
-        return DEFAULT_CONFIG.getMinimumRFFailThreshold();
+        return DEFAULT_CONFIG.getMinimumReplicationFactorFailThreshold();
     }
 
     @Override
-    public void setMinimumRFThreshold(int warn, int fail)
+    public void setMinimumReplicationFactorThreshold(int warn, int fail)
     {
-        DEFAULT_CONFIG.setMinimumRFThreshold(warn, fail);
+        DEFAULT_CONFIG.setMinimumReplicationFactorThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

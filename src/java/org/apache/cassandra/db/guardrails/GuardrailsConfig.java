@@ -263,11 +263,11 @@ public interface GuardrailsConfig
     /**
      * @return The threshold to warn when replication factor is lesser than threshold.
      */
-    int getMinimumRFWarnThreshold();
+    int getMinimumReplicationFactorWarnThreshold();
 
     /**
      * @return The threshold to fail when replication factor is lesser than threshold.
      */
-    int getMinimumRFFailThreshold();
+    int getMinimumReplicationFactorFailThreshold();
 
 }

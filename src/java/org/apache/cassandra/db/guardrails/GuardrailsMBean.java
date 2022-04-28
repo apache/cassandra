@@ -512,12 +512,12 @@ public interface GuardrailsMBean
     /**
      * @return The threshold to warn when replication factor is lesser threshold.
      */
-    int getMinimumRFWarnThreshold();
+    int getMinimumReplicationFactorWarnThreshold();
 
     /**
      * @return The threshold to fail when replication factor is lesser threshold.
      */
-    int getMinimumRFFailThreshold();
+    int getMinimumReplicationFactorFailThreshold();
 
     /**
      * @param warn the threshold to warn when the minimum replication factor is lesser than
@@ -525,6 +525,6 @@ public interface GuardrailsMBean
      * @param fail the threshold to fail when the minimum replication factor is lesser than
      *             threshold -1 means disabled.
      */
-    void setMinimumRFThreshold (int warn, int fail);
+    void setMinimumReplicationFactorThreshold (int warn, int fail);
 
 }

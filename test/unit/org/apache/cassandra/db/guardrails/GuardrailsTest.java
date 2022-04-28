@@ -39,14 +39,8 @@ public class GuardrailsTest extends GuardrailTester
 {
     public static final int DISABLED = -1;
 
-    @Test
-    public void testDisabledMaxThreshold() throws Throwable
-    {
-        Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledMaxThreshold(new MaxThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
-    }
 
-    private void testDisabledMaxThreshold(MaxThreshold guard) throws Throwable
+    private void testDisabledThreshold(Threshold guard) throws Throwable
     {
         assertFalse(guard.enabled(userClientState));
 
@@ -58,6 +52,13 @@ public class GuardrailsTest extends GuardrailTester
             assertValid(() -> guard.guard(101, "X", containsUserData, userClientState));
             assertValid(() -> guard.guard(200, "Y", containsUserData, userClientState));
         }
+    }
+
+    @Test
+    public void testDisabledMaxThreshold() throws Throwable
+    {
+        Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
+        testDisabledThreshold(new MaxThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
     }
 
     @Test
@@ -155,21 +156,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisabledMinThreshold() throws Throwable
     {
         Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledMinThreshold(new MinThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
-    }
-
-    private void testDisabledMinThreshold(MinThreshold guard) throws Throwable
-    {
-        assertFalse(guard.enabled(userClientState));
-
-        for (boolean containsUserData : Arrays.asList(true, false))
-        {
-            assertValid(() -> guard.guard(1, "Z", containsUserData, null));
-            assertValid(() -> guard.guard(9, "A", containsUserData, userClientState));
-            assertValid(() -> guard.guard(10, "B", containsUserData, userClientState));
-            assertValid(() -> guard.guard(25, "X", containsUserData, userClientState));
-            assertValid(() -> guard.guard(200, "Y", containsUserData, userClientState));
-        }
+        testDisabledThreshold(new MinThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
     }
 
     @Test

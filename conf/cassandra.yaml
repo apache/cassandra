@@ -1686,8 +1686,8 @@ drop_compact_storage_enabled: false
 # Guardrail to warn or fail when the minimum replication factor is lesser than threshold.
 # This would also apply to system keyspaces.
 # Suggested value for use in production: 2 or higher
-# minimum_rf_warn_threshold: -1
-# minimum_rf_fail_threshold: -1
+# minimum_replication_factor_warn_threshold: -1
+# minimum_replication_factor_fail_threshold: -1
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

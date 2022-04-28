@@ -868,10 +868,10 @@ public class DatabaseDescriptor
 
         validateMaxConcurrentAutoUpgradeTasksConf(conf.max_concurrent_automatic_sstable_upgrades);
 
-        if (conf.default_keyspace_rf < conf.minimum_rf_fail_threshold)
+        if (conf.default_keyspace_rf < conf.minimum_replication_factor_fail_threshold)
         {
             throw new ConfigurationException(String.format("default_keyspace_rf (%d) cannot be less than minimum_rf_fail_threshold (%d)",
-                                                           conf.default_keyspace_rf, conf.minimum_rf_fail_threshold));
+                                                           conf.default_keyspace_rf, conf.minimum_replication_factor_fail_threshold));
         }
 
         if (conf.paxos_repair_parallelism <= 0)
@@ -4081,9 +4081,9 @@ public class DatabaseDescriptor
             throw new ConfigurationException("default_keyspace_rf cannot be less than 1");
         }
 
-        if (value < guardrails.getMinimumRFFailThreshold())
+        if (value < guardrails.getMinimumReplicationFactorFailThreshold())
         {
-            throw new ConfigurationException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_rf_fail_threshold (%d)", value, guardrails.getMinimumRFFailThreshold()));
+            throw new ConfigurationException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_rf_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
         }
 
         conf.default_keyspace_rf = value;

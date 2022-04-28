@@ -42,17 +42,20 @@ public class MinThreshold extends Threshold
         super(name, warnThreshold, failThreshold, messageProvider);
     }
 
+    @Override
     protected boolean compare(long value, long threshold)
     {
         return value < threshold;
     }
 
+    @Override
     protected long failValue(ClientState state)
     {
         long failValue = failThreshold.applyAsLong(state);
         return failValue <= 0 ? Long.MIN_VALUE : failValue;
     }
 
+    @Override
     protected long warnValue(ClientState state)
     {
         long warnValue = warnThreshold.applyAsLong(state);
