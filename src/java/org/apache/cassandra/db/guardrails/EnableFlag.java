@@ -26,29 +26,29 @@ import org.apache.cassandra.service.ClientState;
 /**
  * A guardrail that enables the use of a particular feature.
  *
- * <p>Note that this guardrail only enables operations (if the feature is enables) so is only meant for
+ * <p>Note that this guardrail only aborts operations (if the feature is not enabled) so is only meant for
  * query-based guardrails (we're happy to reject queries deemed dangerous, but we don't want to create a guardrail
  * that breaks compaction for instance).
  */
 public class EnableFlag extends Guardrail
 {
     private final Predicate<ClientState> enabled;
-    private final String what;
+    private final String featureName;
 
     /**
      * Creates a new {@link EnableFlag} guardrail.
      *
-     * @param name     the identifying name of the guardrail
+     * @param name The identifying name of the guardrail
      * @param enabled a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
-     *                 guardrail is enabled.
-     * @param what     The feature that is guarded by this guardrail (for reporting in error messages),
-     *                 {@link EnableFlag#ensureEnabled(String, ClientState)} can specify a different {@code what}.
+     *                guardrail is enabled.
+     * @param featureName The feature that is guarded by this guardrail (for reporting in error messages),
+     *                    {@link EnableFlag#ensureEnabled(String, ClientState)} can specify a different {@code featureName}.
      */
-    public EnableFlag(String name, Predicate<ClientState> enabled, String what)
+    public EnableFlag(String name, Predicate<ClientState> enabled, String featureName)
     {
         super(name);
         this.enabled = enabled;
-        this.what = what;
+        this.featureName = featureName;
     }
 
     /**
@@ -62,7 +62,7 @@ public class EnableFlag extends Guardrail
      */
     public void ensureEnabled(@Nullable ClientState state)
     {
-        ensureEnabled(what, state);
+        ensureEnabled(featureName, state);
     }
 
     /**
@@ -71,16 +71,16 @@ public class EnableFlag extends Guardrail
      * <p>This must be called when the feature guarded by this guardrail is used to ensure such use is in fact
      * allowed.
      *
-     * @param what  The feature that is guarded by this guardrail (for reporting in error messages).
+     * @param featureName  The feature that is guarded by this guardrail (for reporting in error messages).
      * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
      *              A {@code null} value means that the check should be done regardless of the query, although it won't
      *              throw any exception if the failure threshold is exceeded. This is so because checks without an
      *              associated client come from asynchronous processes such as compaction, and we don't want to
      *              interrupt such processes.
      */
-    public void ensureEnabled(String what, @Nullable ClientState state)
+    public void ensureEnabled(String featureName, @Nullable ClientState state)
     {
         if (enabled(state) && !enabled.test(state))
-            fail(what + " is not allowed", state);
+            fail(featureName + " is not allowed", state);
     }
 }
