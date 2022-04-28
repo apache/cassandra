@@ -152,6 +152,7 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+ * Optimise BTree build,update and transform operations (CASSANDRA-15510)
  * Clean up schema migration coordinator and tests (CASSANDRA-17533)
  * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)
  * Generate valid KEYSPACE / MATERIALIZED VIEW for CQL for views (CASSANDRA-17266)
@@ -209,6 +210,10 @@ Merged from 4.0:
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.11:
+ * Upgrade jackson-databind to 2.13.2.2 (CASSANDRA-17556)
+ * Upgrade slf4j to 1.7.25 (CASSANDRA-17474)
+ * Upgrade jackson to 2.13.2 (CASSANDRA-17492)
+ * emit warning on keyspace creation when replication factor is bigger than the number of nodes (CASSANDRA-16747)
  * Fix snapshot true size calculation (CASSANDRA-17267)
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
  * Validate existence of DCs when repairing (CASSANDRA-17407)
