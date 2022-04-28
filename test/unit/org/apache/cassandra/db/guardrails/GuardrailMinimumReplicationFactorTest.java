@@ -115,7 +115,7 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
 
         assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), Integer.MIN_VALUE, Integer.MAX_VALUE, WHAT + "_warn_threshold");
         assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), -2, Integer.MAX_VALUE, WHAT + "_warn_threshold");
-        assertValidProperty((g,w) ->setter.accept(g,w.intValue(),DISABLED_GUARDRAIL), DISABLED_GUARDRAIL);
+        assertValidProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), DISABLED_GUARDRAIL);
         assertInvalidPositiveProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), 0, Integer.MAX_VALUE, WHAT + "_warn_threshold");
         assertValidProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), 1L);
         assertValidProperty((g, w) -> setter.accept(g, w.intValue(), DISABLED_GUARDRAIL), 2L);
