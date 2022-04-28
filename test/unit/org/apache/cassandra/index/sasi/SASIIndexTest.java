@@ -101,6 +101,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.*;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.db.ColumnFamilyStoreTest.getSnapshotManifestAndSchemaFileSizes;
 
 public class SASIIndexTest
 {
@@ -211,7 +212,8 @@ public class SASIIndexTest
             TableSnapshot details = store.listSnapshots().get(snapshotName);
 
             // check that SASI components are included in the computation of snapshot size
-            Assert.assertEquals(tableSize + indexSize, details.computeTrueSizeBytes());
+            long snapshotSize = tableSize + indexSize + getSnapshotManifestAndSchemaFileSizes(details);
+            Assert.assertEquals(snapshotSize, details.computeTrueSizeBytes());
         }
         finally
         {

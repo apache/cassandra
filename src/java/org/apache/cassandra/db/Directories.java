@@ -556,7 +556,7 @@ public class Directories
         return getSnapshotManifestFile(snapshotDir);
     }
 
-    protected static File getSnapshotManifestFile(File snapshotDir)
+    public static File getSnapshotManifestFile(File snapshotDir)
     {
         return new File(snapshotDir, "manifest.json");
     }
@@ -564,6 +564,11 @@ public class Directories
     public File getSnapshotSchemaFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
+        return getSnapshotSchemaFile(snapshotDir);
+    }
+
+    public static File getSnapshotSchemaFile(File snapshotDir)
+    {
         return new File(snapshotDir, "schema.cql");
     }
 
@@ -981,8 +986,8 @@ public class Directories
     protected TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs) {
         Instant createdAt = manifest == null ? null : manifest.createdAt;
         Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-        return new TableSnapshot(metadata.keyspace, metadata.name, tag, createdAt, expiresAt, snapshotDirs,
-                                 this::getTrueAllocatedSizeIn);
+        return new TableSnapshot(metadata.keyspace, metadata.name, metadata.id.asUUID(), tag, createdAt, expiresAt,
+                                 snapshotDirs);
     }
 
     @VisibleForTesting
@@ -1155,7 +1160,7 @@ public class Directories
         if (!snapshotDir.isDirectory())
             return 0;
 
-        SSTableSizeSummer visitor = new SSTableSizeSummer(snapshotDir, sstableLister(OnTxnErr.THROW).listFiles());
+        SSTableSizeSummer visitor = new SSTableSizeSummer(sstableLister(OnTxnErr.THROW).listFiles());
         try
         {
             Files.walkFileTree(snapshotDir.toPath(), visitor);
@@ -1244,10 +1249,9 @@ public class Directories
     private class SSTableSizeSummer extends DirectorySizeCalculator
     {
         private final Set<String> toSkip;
-        SSTableSizeSummer(File path, List<File> files)
+        SSTableSizeSummer(List<File> files)
         {
-            super(path);
-            toSkip = files.stream().map(f -> f.name()).collect(Collectors.toSet());
+            toSkip = files.stream().map(File::name).collect(Collectors.toSet());
         }
 
         @Override

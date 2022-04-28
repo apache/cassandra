@@ -66,7 +66,7 @@ public class DirectorySizerBench
 
         // Test w/25,600 files, 100x the load of a full default CommitLog (8192) divided by size (32 per)
         populateRandomFiles(tempDir, 25600);
-        sizer = new DirectorySizeCalculator(tempDir);
+        sizer = new DirectorySizeCalculator();
     }
 
     @TearDown

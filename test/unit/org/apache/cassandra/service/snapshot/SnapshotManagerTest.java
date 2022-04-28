@@ -21,6 +21,7 @@ package org.apache.cassandra.service.snapshot;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.BeforeClass;
@@ -52,13 +53,13 @@ public class SnapshotManagerTest
 
     private TableSnapshot generateSnapshotDetails(String tag, Instant expiration) throws Exception {
         return new TableSnapshot(
-            "ks",
-            "tbl",
-            tag,
-            Instant.EPOCH,
-            expiration,
-            createFolders(temporaryFolder),
-            (file) -> 0L
+        "ks",
+        "tbl",
+        UUID.randomUUID(),
+        tag,
+        Instant.EPOCH,
+        expiration,
+        createFolders(temporaryFolder)
         );
     }
 

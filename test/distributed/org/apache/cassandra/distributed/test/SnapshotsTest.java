@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -50,6 +51,14 @@ public class SnapshotsTest extends TestBaseImpl
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS, SNAPSHOT_CLEANUP_PERIOD_SECONDS);
         properties.set(CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS, FIVE_SECONDS);
         cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.GOSSIP)).start());
+    }
+
+
+    @After
+    public void clearAllSnapshots()
+    {
+        cluster.schemaChange("DROP KEYSPACE IF EXISTS default;");
+        cluster.get(1).nodetoolResult("clearsnapshot", "--all").asserts().success();
     }
 
     @AfterClass
@@ -180,6 +189,37 @@ public class SnapshotsTest extends TestBaseImpl
 
         listSnapshotsResult = cluster.get(1).nodetoolResult("listsnapshots").asserts().success();
         listSnapshotsResult.stdoutNotContains("first");
+    }
+
+    @Test
+    public void testListSnapshotOfDroppedTable()
+    {
+        IInvokableInstance instance = cluster.get(1);
+
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
+        cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
+
+        populate(cluster);
+
+        instance.nodetoolResult("snapshot",
+                                      "-t", "tag1",
+                                      "-kt", "default.tbl").asserts().success();
+
+        // Check snapshot is listed when table is not dropped
+        instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains("tag1");
+
+        // Drop Table
+        cluster.schemaChange("DROP TABLE default.tbl;");
+
+        // Check snapshot is listed after table is dropped
+        instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains("tag1");
+
+        // Restart node
+        stopUnchecked(instance);
+        instance.startup();
+
+        // Check snapshot of dropped table still exists after restart
+        instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains("tag1");
     }
 
     @Test
