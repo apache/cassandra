@@ -78,7 +78,7 @@ public class SnapshotDetailsTabularData
             String createdAt = safeToString(details.getCreatedAt());
             String expiresAt = safeToString(details.getExpiresAt());
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
-                    new Object[]{ details.getTag(), details.getKeyspace(), details.getTable(), liveSize, totalSize, createdAt, expiresAt }));
+                    new Object[]{ details.getTag(), details.getKeyspaceName(), details.getTableName(), liveSize, totalSize, createdAt, expiresAt }));
         }
         catch (OpenDataException e)
         {

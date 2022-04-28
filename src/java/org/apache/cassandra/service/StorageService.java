@@ -73,6 +73,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
+import org.apache.cassandra.service.snapshot.SnapshotLoader;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -4135,24 +4136,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
-        Map<String, TabularData> snapshotMap = new HashMap<>();
-        for (Keyspace keyspace : Keyspace.all())
-        {
-            for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
-            {
-                for (Map.Entry<String, TableSnapshot> snapshotDetail : TableSnapshot.filter(cfStore.listSnapshots(), options).entrySet())
-                {
-                    TabularDataSupport data = (TabularDataSupport) snapshotMap.get(snapshotDetail.getKey());
-                    if (data == null)
-                    {
-                        data = new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE);
-                        snapshotMap.put(snapshotDetail.getKey(), data);
-                    }
+        boolean skipExpiring = options != null && Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
 
-                    SnapshotDetailsTabularData.from(snapshotDetail.getValue(), data);
-                }
+        SnapshotLoader loader = new SnapshotLoader();
+        Map<String, TabularData> snapshotMap = new HashMap<>();
+
+        for (TableSnapshot snapshot : loader.loadSnapshots())
+        {
+            if (skipExpiring && snapshot.isExpiring())
+                continue;
+
+            TabularDataSupport data = (TabularDataSupport) snapshotMap.get(snapshot.getTag());
+            if (data == null)
+            {
+                data = new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE);
+                snapshotMap.put(snapshot.getTag(), data);
             }
+
+            SnapshotDetailsTabularData.from(snapshot, data);
         }
+
         return snapshotMap;
     }
 

@@ -199,7 +199,7 @@ public class DirectoriesTest
         {
             Instant createdAt = manifest == null ? null : manifest.createdAt;
             Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-            return new TableSnapshot(table.keyspace, table.name, tag, createdAt, expiresAt, Collections.singleton(snapshotDir), null);
+            return new TableSnapshot(table.keyspace, table.name, table.id.asUUID(), tag, createdAt, expiresAt, Collections.singleton(snapshotDir));
         }
     }
 
@@ -417,11 +417,8 @@ public class DirectoriesTest
         // check snapshot details
         Map<String, TableSnapshot> parentSnapshotDetail = parentDirectories.listSnapshots();
         assertTrue(parentSnapshotDetail.containsKey("test"));
-        assertEquals(30L, parentSnapshotDetail.get("test").computeTrueSizeBytes());
-
-        Map<String, TableSnapshot> indexSnapshotDetail = indexDirectories.listSnapshots();
-        assertTrue(indexSnapshotDetail.containsKey("test"));
-        assertEquals(40L, indexSnapshotDetail.get("test").computeTrueSizeBytes());
+        // CASSANDRA-17357: include indexes when computing true size of parent table
+        assertEquals(70L, parentSnapshotDetail.get("test").computeTrueSizeBytes());
 
         // check backup directory
         File parentBackupDirectory = Directories.getBackupsDirectory(parentDesc);
