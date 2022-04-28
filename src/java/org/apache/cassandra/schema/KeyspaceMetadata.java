@@ -308,7 +308,7 @@ public final class KeyspaceMetadata implements SchemaElement
                                                     name));
         }
 
-        params.validate(name);
+        params.validate(name, null);
 
         tablesAndViews().forEach(TableMetadata::validate);
 

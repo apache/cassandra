@@ -36,7 +36,7 @@ public class GuardrailsConfigProviderTest extends GuardrailTester
     {
         String name = getClass().getCanonicalName() + '$' + CustomProvider.class.getSimpleName();
         GuardrailsConfigProvider provider = GuardrailsConfigProvider.build(name);
-        Threshold guard = new Threshold("test_guardrail",
+        MaxThreshold guard = new MaxThreshold("test_guardrail",
                                         state -> provider.getOrCreate(state).getTablesWarnThreshold(),
                                         state -> provider.getOrCreate(state).getTablesFailThreshold(),
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",

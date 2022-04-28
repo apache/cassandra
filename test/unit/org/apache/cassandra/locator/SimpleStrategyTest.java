@@ -349,7 +349,7 @@ public class SimpleStrategyTest
         StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
         
         ClientWarn.instance.captureWarnings();
-        strategy.maybeWarnOnOptions();
+        strategy.maybeWarnOnOptions(null);
         assertTrue(ClientWarn.instance.getWarnings().stream().anyMatch(s -> s.contains("Your replication factor")));
     }
 

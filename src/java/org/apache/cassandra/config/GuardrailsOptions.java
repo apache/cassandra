@@ -61,27 +61,27 @@ public class GuardrailsOptions implements GuardrailsConfig
     public GuardrailsOptions(Config config)
     {
         this.config = config;
-        validateIntThreshold(config.keyspaces_warn_threshold, config.keyspaces_fail_threshold, "keyspaces");
-        validateIntThreshold(config.tables_warn_threshold, config.tables_fail_threshold, "tables");
-        validateIntThreshold(config.columns_per_table_warn_threshold, config.columns_per_table_fail_threshold, "columns_per_table");
-        validateIntThreshold(config.secondary_indexes_per_table_warn_threshold, config.secondary_indexes_per_table_fail_threshold, "secondary_indexes_per_table");
-        validateIntThreshold(config.materialized_views_per_table_warn_threshold, config.materialized_views_per_table_fail_threshold, "materialized_views_per_table");
+        validateMaxIntThreshold(config.keyspaces_warn_threshold, config.keyspaces_fail_threshold, "keyspaces");
+        validateMaxIntThreshold(config.tables_warn_threshold, config.tables_fail_threshold, "tables");
+        validateMaxIntThreshold(config.columns_per_table_warn_threshold, config.columns_per_table_fail_threshold, "columns_per_table");
+        validateMaxIntThreshold(config.secondary_indexes_per_table_warn_threshold, config.secondary_indexes_per_table_fail_threshold, "secondary_indexes_per_table");
+        validateMaxIntThreshold(config.materialized_views_per_table_warn_threshold, config.materialized_views_per_table_fail_threshold, "materialized_views_per_table");
         config.table_properties_warned = validateTableProperties(config.table_properties_warned, "table_properties_warned");
         config.table_properties_ignored = validateTableProperties(config.table_properties_ignored, "table_properties_ignored");
         config.table_properties_disallowed = validateTableProperties(config.table_properties_disallowed, "table_properties_disallowed");
-        validateIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
-        validateIntThreshold(config.partition_keys_in_select_warn_threshold,
-                             config.partition_keys_in_select_fail_threshold, "partition_keys_in_select");
-        validateIntThreshold(config.in_select_cartesian_product_warn_threshold, config.in_select_cartesian_product_fail_threshold, "in_select_cartesian_product");
+        validateMaxIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
+        validateMaxIntThreshold(config.partition_keys_in_select_warn_threshold, config.partition_keys_in_select_fail_threshold, "partition_keys_in_select");
+        validateMaxIntThreshold(config.in_select_cartesian_product_warn_threshold, config.in_select_cartesian_product_fail_threshold, "in_select_cartesian_product");
         config.read_consistency_levels_warned = validateConsistencyLevels(config.read_consistency_levels_warned, "read_consistency_levels_warned");
         config.read_consistency_levels_disallowed = validateConsistencyLevels(config.read_consistency_levels_disallowed, "read_consistency_levels_disallowed");
         config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
-        validateIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
-        validateIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
+        validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
+        validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
         validatePercentageThreshold(config.data_disk_usage_percentage_warn_threshold, config.data_disk_usage_percentage_fail_threshold, "data_disk_usage_percentage");
         validateDataDiskUsageMaxDiskSize(config.data_disk_usage_max_disk_size);
+        validateMinRFThreshold(config.minimum_replication_factor_warn_threshold, config.minimum_replication_factor_fail_threshold, "minimum_replication_factor");
     }
 
     @Override
@@ -98,7 +98,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setKeyspacesThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "keyspaces");
+        validateMaxIntThreshold(warn, fail, "keyspaces");
         updatePropertyWithLogging("keyspaces_warn_threshold",
                                   warn,
                                   () -> config.keyspaces_warn_threshold,
@@ -123,7 +123,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setTablesThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "tables");
+        validateMaxIntThreshold(warn, fail, "tables");
         updatePropertyWithLogging("tables_warn_threshold",
                                   warn,
                                   () -> config.tables_warn_threshold,
@@ -148,7 +148,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setColumnsPerTableThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "columns_per_table");
+        validateMaxIntThreshold(warn, fail, "columns_per_table");
         updatePropertyWithLogging("columns_per_table_warn_threshold",
                                   warn,
                                   () -> config.columns_per_table_warn_threshold,
@@ -173,7 +173,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setSecondaryIndexesPerTableThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "secondary_indexes_per_table");
+        validateMaxIntThreshold(warn, fail, "secondary_indexes_per_table");
         updatePropertyWithLogging("secondary_indexes_per_table_warn_threshold",
                                   warn,
                                   () -> config.secondary_indexes_per_table_warn_threshold,
@@ -204,7 +204,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setPartitionKeysInSelectThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "partition_keys_in_select");
+        validateMaxIntThreshold(warn, fail, "partition_keys_in_select");
         updatePropertyWithLogging("partition_keys_in_select_warn_threshold",
                                   warn,
                                   () -> config.partition_keys_in_select_warn_threshold,
@@ -223,7 +223,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setMaterializedViewsPerTableThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "materialized_views_per_table");
+        validateMaxIntThreshold(warn, fail, "materialized_views_per_table");
         updatePropertyWithLogging("materialized_views_per_table_warn_threshold",
                                   warn,
                                   () -> config.materialized_views_per_table_warn_threshold,
@@ -248,7 +248,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setPageSizeThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "page_size");
+        validateMaxIntThreshold(warn, fail, "page_size");
         updatePropertyWithLogging("page_size_warn_threshold",
                                   warn,
                                   () -> config.page_size_warn_threshold,
@@ -427,7 +427,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setInSelectCartesianProductThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "in_select_cartesian_product");
+        validateMaxIntThreshold(warn, fail, "in_select_cartesian_product");
         updatePropertyWithLogging("in_select_cartesian_product_warn_threshold",
                                   warn,
                                   () -> config.in_select_cartesian_product_warn_threshold,
@@ -534,7 +534,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setItemsPerCollectionThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "items_per_collection");
+        validateMaxIntThreshold(warn, fail, "items_per_collection");
         updatePropertyWithLogging("items_per_collection_warn_threshold",
                                   warn,
                                   () -> config.items_per_collection_warn_threshold,
@@ -559,7 +559,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setFieldsPerUDTThreshold(int warn, int fail)
     {
-        validateIntThreshold(warn, fail, "fields_per_udt");
+        validateMaxIntThreshold(warn, fail, "fields_per_udt");
         updatePropertyWithLogging("fields_per_udt_warn_threshold",
                                   warn,
                                   () -> config.fields_per_udt_warn_threshold,
@@ -609,6 +609,31 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.data_disk_usage_max_disk_size = x);
     }
 
+    @Override
+    public int getMinimumReplicationFactorWarnThreshold()
+    {
+        return config.minimum_replication_factor_warn_threshold;
+    }
+
+    @Override
+    public int getMinimumReplicationFactorFailThreshold()
+    {
+        return config.minimum_replication_factor_fail_threshold;
+    }
+
+    public void setMinimumReplicationFactorThreshold(int warn, int fail)
+    {
+        validateMinRFThreshold(warn, fail, "minimum_replication_factor");
+        updatePropertyWithLogging("minimum_replication_factor_warn_threshold",
+                                  warn,
+                                  () -> config.minimum_replication_factor_warn_threshold,
+                                  x -> config.minimum_replication_factor_warn_threshold = x);
+        updatePropertyWithLogging("minimum_replication_factor_fail_threshold",
+                                  fail,
+                                  () -> config.minimum_replication_factor_fail_threshold,
+                                  x -> config.minimum_replication_factor_fail_threshold = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();
@@ -643,18 +668,31 @@ public class GuardrailsOptions implements GuardrailsConfig
         validatePositiveNumeric(value, 100, name);
     }
 
-    private static void validateIntThreshold(int warn, int fail, String name)
+    private static void validatePercentageThreshold(int warn, int fail, String name)
+    {
+        validatePercentage(warn, name + "_warn_threshold");
+        validatePercentage(fail, name + "_fail_threshold");
+        validateWarnLowerThanFail(warn, fail, name);
+    }
+
+    private static void validateMaxIntThreshold(int warn, int fail, String name)
     {
         validatePositiveNumeric(warn, Integer.MAX_VALUE, name + "_warn_threshold");
         validatePositiveNumeric(fail, Integer.MAX_VALUE, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
-    private static void validatePercentageThreshold(int warn, int fail, String name)
+    private static void validateMinIntThreshold(int warn, int fail, String name)
     {
-        validatePercentage(warn, name + "_warn_threshold");
-        validatePercentage(fail, name + "_fail_threshold");
-        validateWarnLowerThanFail(warn, fail, name);
+        validatePositiveNumeric(warn, Integer.MAX_VALUE, name + "_warn_threshold");
+        validatePositiveNumeric(fail, Integer.MAX_VALUE, name + "_fail_threshold");
+        validateWarnGreaterThanFail(warn, fail, name);
+    }
+
+    private static void validateMinRFThreshold(int warn, int fail, String name)
+    {
+        validateMinIntThreshold(warn, fail, name);
+        validateMinRFVersusDefaultRF(fail, name);
     }
 
     private static void validateWarnLowerThanFail(long warn, long fail, String name)
@@ -665,6 +703,25 @@ public class GuardrailsOptions implements GuardrailsConfig
         if (fail < warn)
             throw new IllegalArgumentException(format("The warn threshold %d for %s_warn_threshold should be lower " +
                                                       "than the fail threshold %d", warn, name, fail));
+    }
+
+    private static void validateWarnGreaterThanFail(long warn, long fail, String name)
+    {
+        if (warn == -1 || fail == -1)
+            return;
+
+        if (fail > warn)
+            throw new IllegalArgumentException(format("The warn threshold %d for %s_warn_threshold should be greater " +
+                                                      "than the fail threshold %d", warn, name, fail));
+    }
+
+    private static void validateMinRFVersusDefaultRF(int fail, String name) throws IllegalArgumentException
+    {
+        if (fail > DatabaseDescriptor.getDefaultKeyspaceRF())
+        {
+            throw new IllegalArgumentException(String.format("%s_fail_threshold to be set (%d) cannot be greater than default_keyspace_rf (%d)",
+                                                           name, fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
+        }
     }
 
     private static void validateSize(DataStorageSpec size, boolean allowZero, String name)

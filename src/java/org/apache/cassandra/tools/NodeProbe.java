@@ -2038,16 +2038,6 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.getDefaultKeyspaceReplicationFactor();
     }
-
-    public void setMinimumKeyspaceReplicationFactor(int value)
-    {
-        ssProxy.setMinimumKeyspaceReplicationFactor(value);
-    }
-
-    public int getMinimumKeyspaceReplicationFactor()
-    {
-        return ssProxy.getMinimumKeyspaceReplicationFactor();
-    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

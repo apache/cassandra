@@ -266,4 +266,15 @@ public interface GuardrailsConfig
      */
     @Nullable
     DataStorageSpec getDataDiskUsageMaxDiskSize();
+
+    /**
+     * @return The threshold to warn when replication factor is lesser than threshold.
+     */
+    int getMinimumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is lesser than threshold.
+     */
+    int getMinimumReplicationFactorFailThreshold();
+
 }

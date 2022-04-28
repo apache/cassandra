@@ -79,6 +79,7 @@ New features
         - Allowed write consistency levels.
         - Collections size.
         - Query page size.
+        - Minimum replication factor.
         - Data disk usage, defined either as a percentage or as an absolute size.
         - Whether user-defined timestamps are allowed.
         - Whether GROUP BY queries are allowed.

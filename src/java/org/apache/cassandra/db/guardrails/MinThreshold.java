@@ -19,38 +19,47 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.function.ToLongFunction;
-
 import org.apache.cassandra.service.ClientState;
 
 /**
- * A {@link Threshold} guardrail whose values represent a percentage
- * <p>
- * This works exactly as a {@link Threshold}, but provides slightly more convenient error messages for percentage
+ * {@link MinThreshold} for minimum guardrails, the value is checked to see if it is lesser than the warn and fail thresholds.
  */
-public class PercentageThreshold extends MaxThreshold
+public class MinThreshold extends Threshold
 {
     /**
-     * Creates a new threshold guardrail.
+     * Creates a new minimum threshold guardrail.
      *
      * @param name            the identifying name of the guardrail
      * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
      * @param failThreshold   a {@link ClientState}-based provider of the value above which the operation should be aborted.
      * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
      */
-    public PercentageThreshold(String name,
-                               ToLongFunction<ClientState> warnThreshold,
-                               ToLongFunction<ClientState> failThreshold,
-                               ErrorMessageProvider messageProvider)
+    public MinThreshold(String name,
+                        ToLongFunction<ClientState> warnThreshold,
+                        ToLongFunction<ClientState> failThreshold,
+                        Threshold.ErrorMessageProvider messageProvider)
     {
         super(name, warnThreshold, failThreshold, messageProvider);
     }
 
     @Override
-    protected String errMsg(boolean isWarning, String what, long value, long thresholdValue)
+    protected boolean compare(long value, long threshold)
     {
-        return messageProvider.createMessage(isWarning,
-                                             what,
-                                             String.format("%d%%", value),
-                                             String.format("%d%%", thresholdValue));
+        return value < threshold;
     }
+
+    @Override
+    protected long failValue(ClientState state)
+    {
+        long failValue = failThreshold.applyAsLong(state);
+        return failValue <= 0 ? Long.MIN_VALUE : failValue;
+    }
+
+    @Override
+    protected long warnValue(ClientState state)
+    {
+        long warnValue = warnThreshold.applyAsLong(state);
+        return warnValue <= 0 ? Long.MIN_VALUE : warnValue;
+    }
+
 }

@@ -6505,17 +6505,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getDefaultKeyspaceRF();
     }
 
-    public void setMinimumKeyspaceReplicationFactor(int value)
-    {
-        DatabaseDescriptor.setMinimumKeyspaceRF(value);
-        logger.info("set minimum keyspace rf to {}", value);
-    }
-
-    public int getMinimumKeyspaceReplicationFactor()
-    {
-        return DatabaseDescriptor.getMinimumKeyspaceRF();
-    }
-
     public boolean getSkipPaxosRepairOnTopologyChange()
     {
         return DatabaseDescriptor.skipPaxosRepairOnTopologyChange();
