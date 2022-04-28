@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
@@ -75,7 +75,8 @@ public class LongBufferPoolTest
     {
         static class DebugChunk
         {
-            volatile long lastRecycled;
+            volatile long lastAcquired = 0; // the number of last round when the chunk was acquired from the global pool
+            volatile long lastRecycled = 0; // the number of last round when the chunk was recycled back to the global pool
             static DebugChunk get(BufferPool.Chunk chunk)
             {
                 if (chunk.debugAttachment == null)
@@ -83,7 +84,7 @@ public class LongBufferPoolTest
                 return (DebugChunk) chunk.debugAttachment;
             }
         }
-        long recycleRound = 1;
+        AtomicLong recycleRound = new AtomicLong(1);
         final List<BufferPool.Chunk> normalChunks = new ArrayList<>();
 
         public synchronized void registerNormal(BufferPool.Chunk chunk)
@@ -91,20 +92,39 @@ public class LongBufferPoolTest
             chunk.debugAttachment = new DebugChunk();
             normalChunks.add(chunk);
         }
+
+        @Override
+        public void acquire(BufferPool.Chunk chunk)
+        {
+            DebugChunk.get(chunk).lastAcquired = recycleRound.get();
+        }
+
+        @Override
         public void recycleNormal(BufferPool.Chunk oldVersion, BufferPool.Chunk newVersion)
         {
             newVersion.debugAttachment = oldVersion.debugAttachment;
-            DebugChunk.get(oldVersion).lastRecycled = recycleRound;
+            DebugChunk.get(oldVersion).lastRecycled = recycleRound.get();
         }
+
+        @Override
         public void recyclePartial(BufferPool.Chunk chunk)
         {
-            DebugChunk.get(chunk).lastRecycled = recycleRound;
+            DebugChunk.get(chunk).lastRecycled = recycleRound.get();
         }
+
         public synchronized void check()
         {
+            long lastRecycledMax = 0;
+            long currentRound = recycleRound.get();
             for (BufferPool.Chunk chunk : normalChunks)
-                assert DebugChunk.get(chunk).lastRecycled == recycleRound;
-            recycleRound++;
+            {
+                DebugChunk dc = DebugChunk.get(chunk);
+                assert dc.lastRecycled >= dc.lastAcquired: "Last recycled " + dc.lastRecycled + " < last acquired " + dc.lastAcquired;
+                lastRecycledMax = Math.max(lastRecycledMax, dc.lastRecycled);
+            }
+            assert lastRecycledMax == currentRound : "No chunk recycled in round " + currentRound + ". " +
+                                                     "Last chunk recycled in round " + lastRecycledMax + '.';
+            recycleRound.incrementAndGet();
         }
     }
 
@@ -122,18 +142,18 @@ public class LongBufferPoolTest
     }
 
     @Test
-    public void testPoolAllocateWithRecyclePartially() throws InterruptedException, ExecutionException
+    public void testPoolAllocateWithRecyclePartially() throws InterruptedException, ExecutionException, BrokenBarrierException, TimeoutException
     {
         testPoolAllocate(true);
     }
 
     @Test
-    public void testPoolAllocateWithoutRecyclePartially() throws InterruptedException, ExecutionException
+    public void testPoolAllocateWithoutRecyclePartially() throws InterruptedException, ExecutionException, BrokenBarrierException, TimeoutException
     {
         testPoolAllocate(false);
     }
 
-    private void testPoolAllocate(boolean recyclePartially) throws InterruptedException, ExecutionException
+    private void testPoolAllocate(boolean recyclePartially) throws InterruptedException, ExecutionException, BrokenBarrierException, TimeoutException
     {
         BufferPool pool = new BufferPool("test_pool", 16 << 20, recyclePartially);
         testAllocate(pool, Runtime.getRuntime().availableProcessors() * 2, TimeUnit.MINUTES.toNanos(2L));
@@ -174,9 +194,13 @@ public class LongBufferPoolTest
         final long until;
         final CountDownLatch latch;
         final SPSCQueue<BufferCheck>[] sharedRecycle;
-        final AtomicBoolean[] makingProgress;
-        final AtomicBoolean burnFreed;
-        final AtomicBoolean[] freedAllMemory;
+
+        volatile boolean shouldFreeMemoryAndSuspend = false;
+
+        final CyclicBarrier stopAllocationsBarrier;
+        final CyclicBarrier freedAllMemoryBarrier;
+        final CyclicBarrier resumeAllocationsBarrier;
+
         final ExecutorService executorService;
         final List<Future<Boolean>> threadResultFuture;
         final int targetSizeQuanta;
@@ -189,17 +213,18 @@ public class LongBufferPoolTest
             until = System.nanoTime() + duration;
             latch = new CountDownLatch(threadCount);
             sharedRecycle = new SPSCQueue[threadCount];
-            makingProgress = new AtomicBoolean[threadCount];
-            burnFreed = new AtomicBoolean(false);
-            freedAllMemory = new AtomicBoolean[threadCount];
+
+            // N worker threads + burner thread + main thread:
+            stopAllocationsBarrier = new CyclicBarrier(threadCount + 2);
+            freedAllMemoryBarrier = new CyclicBarrier(threadCount + 2);
+            resumeAllocationsBarrier = new CyclicBarrier(threadCount + 2);
+
             executorService = Executors.newFixedThreadPool(threadCount + 2, new NamedThreadFactory("test"));
             threadResultFuture = new ArrayList<>(threadCount);
 
             for (int i = 0; i < sharedRecycle.length; i++)
             {
                 sharedRecycle[i] = new SPSCQueue<>();
-                makingProgress[i] = new AtomicBoolean(false);
-                freedAllMemory[i] = new AtomicBoolean(false);
             }
 
             // Divide the poolSize across our threads, deliberately over-subscribing it.  Threads
@@ -217,17 +242,6 @@ public class LongBufferPoolTest
             threadResultFuture.add(future);
         }
 
-        int countStalledThreads()
-        {
-            int stalledThreads = 0;
-
-            for (AtomicBoolean progress : makingProgress)
-            {
-                if (!progress.getAndSet(false))
-                    stalledThreads++;
-            }
-            return stalledThreads;
-        }
 
         int countDoneThreads()
         {
@@ -259,7 +273,7 @@ public class LongBufferPoolTest
         }
     }
 
-    public void testAllocate(BufferPool bufferPool, int threadCount, long duration) throws InterruptedException, ExecutionException
+    public void testAllocate(BufferPool bufferPool, int threadCount, long duration) throws InterruptedException, ExecutionException, BrokenBarrierException, TimeoutException
     {
         logger.info("{} - testing {} threads for {}m", DATE_FORMAT.format(new Date()), threadCount, TimeUnit.NANOSECONDS.toMinutes(duration));
         logger.info("Testing BufferPool with memoryUsageThreshold={} and enabling BufferPool.DEBUG", bufferPool.memoryUsageThreshold());
@@ -273,21 +287,31 @@ public class LongBufferPoolTest
         for (int threadIdx = 0; threadIdx < threadCount; threadIdx++)
             testEnv.addCheckedFuture(startWorkerThread(bufferPool, testEnv, threadIdx));
 
-        while (!testEnv.latch.await(10L, TimeUnit.SECONDS))
+        while (!testEnv.latch.await(1L, TimeUnit.SECONDS))
         {
-            int stalledThreads = testEnv.countStalledThreads();
-            int doneThreads = testEnv.countDoneThreads();
-
-            if (doneThreads == 0) // If any threads have completed, they will stop making progress/recycling buffers.
-            {                     // Assertions failures on the threads will be caught below.
-                assert stalledThreads == 0;
-                boolean allFreed = testEnv.burnFreed.getAndSet(false);
-                for (AtomicBoolean freedMemory : testEnv.freedAllMemory)
-                    allFreed = allFreed && freedMemory.getAndSet(false);
-                if (allFreed)
-                    debug.check();
-                else
-                    logger.info("All threads did not free all memory in this time slot - skipping buffer recycle check");
+            try
+            {
+                // request all threads to release all buffers to the bufferPool
+                testEnv.shouldFreeMemoryAndSuspend = true;
+                // wait until allocations stop
+                testEnv.stopAllocationsBarrier.await(10, TimeUnit.SECONDS);
+                // wait until all memory released
+                testEnv.freedAllMemoryBarrier.await(10, TimeUnit.SECONDS);
+                // now all buffers should be back in the pool, and no more allocations happening
+                assert bufferPool.usedSizeInBytes() == 0 : "Some buffers haven't been freed. Memory in use = "
+                                                           + bufferPool.usedSizeInBytes() + " (expected 0)";
+                debug.check();
+                // resume threads only after debug.cycleRound has been increased
+                testEnv.shouldFreeMemoryAndSuspend = false;
+                testEnv.resumeAllocationsBarrier.await(10, TimeUnit.SECONDS);
+            }
+            catch (TimeoutException e)
+            {
+                if (testEnv.countDoneThreads() == 0)
+                {
+                    logger.error("Some threads have stalled and didn't reach the barrier", e);
+                    return;
+                }
             }
         }
 
@@ -319,23 +343,29 @@ public class LongBufferPoolTest
             final SPSCQueue<BufferCheck> shareFrom = testEnv.sharedRecycle[threadIdx];
             final DynamicList<BufferCheck> checks = new DynamicList<>((int) Math.max(1, targetSize / (1 << 10)));
             final SPSCQueue<BufferCheck> shareTo = testEnv.sharedRecycle[(threadIdx + 1) % testEnv.threadCount];
+            final Future<Boolean> neighbourResultFuture = testEnv.threadResultFuture.get((threadIdx + 1) % testEnv.threadCount);
             final ThreadLocalRandom rand = ThreadLocalRandom.current();
             int totalSize = 0;
             int freeingSize = 0;
             int size = 0;
 
-            void checkpoint()
-            {
-                if (!testEnv.makingProgress[threadIdx].get())
-                    testEnv.makingProgress[threadIdx].set(true);
-            }
-
             void testOne() throws Exception
             {
-                long currentTargetSize = (rand.nextInt(testEnv.poolSize / 1024) == 0 || !testEnv.freedAllMemory[threadIdx].get()) ? 0 : targetSize;
+                if (testEnv.shouldFreeMemoryAndSuspend)
+                    freeAllAndSuspend();
+
+                long currentTargetSize = rand.nextInt(testEnv.poolSize / 1024) == 0 ? 0 : targetSize;
                 int spinCount = 0;
                 while (totalSize > currentTargetSize - freeingSize)
                 {
+                    // Don't get stuck in this loop if other threads might be suspended:
+                    if (testEnv.shouldFreeMemoryAndSuspend)
+                        return;
+
+                    // Don't get stuck in this loop if the neighbour thread exited:
+                    if (neighbourResultFuture.isDone())
+                        return;
+
                     // free buffers until we're below our target size
                     if (checks.size() == 0)
                     {
@@ -381,9 +411,6 @@ public class LongBufferPoolTest
                     }
                 }
 
-                if (currentTargetSize == 0)
-                    testEnv.freedAllMemory[threadIdx].compareAndSet(false, true);
-
                 // allocate a new buffer
                 size = (int) Math.max(1, AVG_BUFFER_SIZE + (STDEV_BUFFER_SIZE * rand.nextGaussian()));
                 if (size <= BufferPool.NORMAL_CHUNK_SIZE)
@@ -414,6 +441,31 @@ public class LongBufferPoolTest
 
                 // free all of our neighbour's remaining shared buffers
                 while (recycleFromNeighbour());
+            }
+
+            void freeAllAndSuspend() throws BrokenBarrierException, InterruptedException
+            {
+                testEnv.stopAllocationsBarrier.await();   // make sure other threads don't allocate any more buffers
+
+                while (checks.size() > 0)
+                {
+                    BufferCheck check = sample();
+                    checks.remove(check.listnode);
+                    check.validate();
+                    bufferPool.put(check.buffer);
+                }
+
+                BufferCheck check;
+                while ((check = shareFrom.poll()) != null)
+                {
+                    check.validate();
+                    bufferPool.put(check.buffer);
+                }
+
+                bufferPool.releaseLocal();
+
+                testEnv.freedAllMemoryBarrier.await();    // notify others we freed everything
+                testEnv.resumeAllocationsBarrier.await(); // wait until the main thread is done with all the checks
             }
 
             void cleanup()
@@ -487,6 +539,8 @@ public class LongBufferPoolTest
     private void startBurnerThreads(BufferPool bufferPool, TestEnvironment testEnv)
     {
         // setup some high churn allocate/deallocate, without any checking
+
+        final AtomicLong pendingBuffersCount = new AtomicLong(0);
         final SPSCQueue<ByteBuffer> burn = new SPSCQueue<>();
         final CountDownLatch doneAdd = new CountDownLatch(1);
         testEnv.addCheckedFuture(testEnv.executorService.submit(new TestUntil(bufferPool, testEnv.until)
@@ -497,10 +551,16 @@ public class LongBufferPoolTest
             {
                 if (count * BufferPool.NORMAL_CHUNK_SIZE >= testEnv.poolSize / 10)
                 {
-                    if (burn.exhausted)
+                    if (pendingBuffersCount.get() == 0)
                     {
                         count = 0;
-                        testEnv.burnFreed.compareAndSet(false, true);
+                        if (testEnv.shouldFreeMemoryAndSuspend)
+                        {
+                            testEnv.stopAllocationsBarrier.await();
+                            bufferPool.releaseLocal();
+                            testEnv.freedAllMemoryBarrier.await();
+                            testEnv.resumeAllocationsBarrier.await();
+                        }
                     } else
                     {
                         Thread.yield();
@@ -522,8 +582,10 @@ public class LongBufferPoolTest
                 if (rand.nextBoolean())
                     bufferPool.put(buffer);
                 else
+                {
+                    pendingBuffersCount.incrementAndGet();
                     burn.add(buffer);
-
+                }
                 count++;
             }
             void cleanup()
@@ -542,6 +604,7 @@ public class LongBufferPoolTest
                     return;
                 }
                 bufferPool.put(buffer);
+                pendingBuffersCount.decrementAndGet();
             }
             void cleanup()
             {

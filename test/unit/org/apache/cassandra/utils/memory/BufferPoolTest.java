@@ -987,6 +987,37 @@ public class BufferPoolTest
             bufferPool.put(buffer);
     }
 
+    @Test
+    public void testReleaseLocal()
+    {
+        final int size = BufferPool.TINY_ALLOCATION_UNIT;
+        final int allocationPerChunk = 64;
+
+        // occupy 3 tiny chunks
+        List<ByteBuffer> buffers0 = new ArrayList<>();
+        BufferPool.Chunk chunk0 = allocate(allocationPerChunk, size, buffers0);
+        List<ByteBuffer> buffers1 = new ArrayList<>();
+        BufferPool.Chunk chunk1 = allocate(allocationPerChunk, size, buffers1);
+        List<ByteBuffer> buffers2 = new ArrayList<>();
+        BufferPool.Chunk chunk2 = allocate(allocationPerChunk, size, buffers2);
+
+        // release them from the pool
+        bufferPool.releaseLocal();
+
+        assertNull(chunk0.owner());
+        assertNull(chunk1.owner());
+        assertNull(chunk2.owner());
+        assertEquals(BufferPool.Chunk.Status.EVICTED, chunk0.status());
+        assertEquals(BufferPool.Chunk.Status.EVICTED, chunk1.status());
+        assertEquals(BufferPool.Chunk.Status.EVICTED, chunk2.status());
+
+        // cleanup allocated buffers, that should still work fine even though we released them from the localPool
+        for (ByteBuffer buffer : Iterables.concat(buffers0, buffers1, buffers2))
+            bufferPool.put(buffer);
+
+        assertEquals(0, bufferPool.usedSizeInBytes());
+    }
+
     private BufferPool.Chunk allocate(int num, int bufferSize, List<ByteBuffer> buffers)
     {
         for (int i = 0; i < num; i++)
