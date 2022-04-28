@@ -114,13 +114,13 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final MaxThreshold materializedViewsPerTable =
     new MaxThreshold("materialized_views_per_table",
-                    state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
-                    state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("Creating materialized view %s, current number of views %s exceeds warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Tables cannot have more than %s materialized views, aborting the creation of materialized view %s",
-                                     threshold, what));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMaterializedViewsPerTableFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Creating materialized view %s, current number of views %s exceeds warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Tables cannot have more than %s materialized views, aborting the creation of materialized view %s",
+                                        threshold, what));
 
     /**
      * Guardrail warning about, ignoring or rejecting the usage of certain table properties.
@@ -166,28 +166,28 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final MaxThreshold pageSize =
     new MaxThreshold("page_size",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Aborting query for table %s, page size %s exceeds fail threshold of %s.",
-                                     what, value, threshold));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getPageSizeFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Aborting query for table %s, page size %s exceeds fail threshold of %s.",
+                                        what, value, threshold));
 
     /**
      * Guardrail on the number of partition keys in the IN clause.
      */
     public static final MaxThreshold partitionKeysInSelect =
     new MaxThreshold("partition_keys_in_select",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("Query with partition keys in IN clause on table %s, with number of " +
-                                     "partition keys %s exceeds warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Aborting query with partition keys in IN clause on table %s, " +
-                                     "number of partition keys %s exceeds fail threshold of %s.",
-                                     what, value, threshold));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionKeysInSelectFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Query with partition keys in IN clause on table %s, with number of " +
+                                        "partition keys %s exceeds warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Aborting query with partition keys in IN clause on table %s, " +
+                                        "number of partition keys %s exceeds fail threshold of %s.",
+                                        what, value, threshold));
 
     /**
      * Guardrail disabling operations on lists that require read before write.
@@ -210,15 +210,15 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final MaxThreshold inSelectCartesianProduct =
     new MaxThreshold("in_select_cartesian_product",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("The cartesian product of the IN restrictions on %s produces %s values, " +
-                                     "this exceeds warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Aborting query because the cartesian product of the IN restrictions on %s " +
-                                     "produces %s values, this exceeds fail threshold of %s.",
-                                     what, value, threshold));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getInSelectCartesianProductFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("The cartesian product of the IN restrictions on %s produces %s values, " +
+                                        "this exceeds warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Aborting query because the cartesian product of the IN restrictions on %s " +
+                                        "produces %s values, this exceeds fail threshold of %s.",
+                                        what, value, threshold));
 
     /**
      * Guardrail on read consistency levels.
@@ -245,39 +245,39 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final MaxThreshold collectionSize =
     new MaxThreshold("collection_size",
-                  state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeWarnThreshold()),
-                  state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeFailThreshold()),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("Detected collection %s of size %s, this exceeds the warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Detected collection %s of size %s, this exceeds the failure threshold of %s.",
-                                     what, value, threshold));
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Detected collection %s of size %s, this exceeds the warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Detected collection %s of size %s, this exceeds the failure threshold of %s.",
+                                        what, value, threshold));
 
     /**
      * Guardrail on the number of items of a collection.
      */
     public static final MaxThreshold itemsPerCollection =
     new MaxThreshold("items_per_collection",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("Detected collection %s with %s items, this exceeds the warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("Detected collection %s with %s items, this exceeds the failure threshold of %s.",
-                                     what, value, threshold));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Detected collection %s with %s items, this exceeds the warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("Detected collection %s with %s items, this exceeds the failure threshold of %s.",
+                                        what, value, threshold));
 
     /**
      * Guardrail on the number of fields on each UDT.
      */
     public static final MaxThreshold fieldsPerUDT =
     new MaxThreshold("fields_per_udt",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getFieldsPerUDTWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getFieldsPerUDTFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("The user type %s has %s columns, this exceeds the warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("User types cannot have more than %s columns, but %s provided for user type %s.",
-                                     threshold, value, what));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getFieldsPerUDTWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getFieldsPerUDTFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("The user type %s has %s columns, this exceeds the warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("User types cannot have more than %s columns, but %s provided for user type %s.",
+                                        threshold, value, what));
 
     /**
      * Guardrail on the data disk usage on the local node, used by a periodic task to calculate and propagate that status.
@@ -320,13 +320,13 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final MinThreshold minimumRF =
     new MinThreshold("minimum_rf",
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumRFWarnThreshold(),
-                  state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumRFFailThreshold(),
-                  (isWarning, what, value, threshold) ->
-                  isWarning ? format("The keyspace %s has a replication factor of %s, below the warning threshold of %s.",
-                                     what, value, threshold)
-                            : format("The keyspace %s has a replication factor of %s, below the failure threshold of %s.",
-                                     what, value, threshold));
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumRFWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumRFFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("The keyspace %s has a replication factor of %s, below the warning threshold of %s.",
+                                        what, value, threshold)
+                               : format("The keyspace %s has a replication factor of %s, below the failure threshold of %s.",
+                                        what, value, threshold));
 
     private Guardrails()
     {

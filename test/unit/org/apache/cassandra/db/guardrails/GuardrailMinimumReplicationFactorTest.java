@@ -37,9 +37,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.NoSpamLogger;
 import org.assertj.core.api.Assertions;
-import org.checkerframework.checker.units.qual.A;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertNotNull;
@@ -173,7 +171,6 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
 
         DatabaseDescriptor.setEndpointSnitch(snitch);
         execute("DROP KEYSPACE IF EXISTS ks1");
-
     }
 
     @Test
