@@ -1,4 +1,5 @@
 4.1
+ * Migrate threshold for minimum keyspace replication factor to guardrails (CASSANDRA-17212)
  * Add guardrail to disallow TRUNCATE and DROP TABLE commands (CASSANDRA-17558)
  * Add plugin support for CQLSH (CASSANDRA-16456)
  * Add guardrail to disallow querying with ALLOW FILTERING (CASSANDRA-17370)

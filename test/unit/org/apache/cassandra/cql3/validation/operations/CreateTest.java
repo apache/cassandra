@@ -738,26 +738,4 @@ public class CreateTest extends CQLTester
         }
     }
 
-    @Test
-    public void testMinimumRF()
-    {
-        try
-        {
-            DatabaseDescriptor.setDefaultKeyspaceRF(3);
-            DatabaseDescriptor.setMinimumKeyspaceRF(2);
-
-            assertThrowsConfigurationException(
-            String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", DatabaseDescriptor.getMinimumKeyspaceRF(), "1"),
-            "CREATE KEYSPACE ks1 WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
-
-            assertThrowsConfigurationException(
-            String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", DatabaseDescriptor.getMinimumKeyspaceRF(), "1"),
-            "CREATE KEYSPACE ks2 WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1 }");
-        }
-        finally
-        {
-            DatabaseDescriptor.setMinimumKeyspaceRF(0);
-            DatabaseDescriptor.setDefaultKeyspaceRF(1);
-        }
-    }
 }

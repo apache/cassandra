@@ -26,15 +26,15 @@ import org.apache.cassandra.service.ClientState;
 /**
  * A guardrail based on numeric threshold(s).
  *
- * <p>A {@link Threshold} guardrail defines (up to) 2 thresholds, one at which a warning is issued, and a higher one
+ * <p>A {@link Threshold} guardrail defines (up to) 2 thresholds, one at which a warning is issued, and a lower one
  * at which the operation is aborted with an exception. Only one of those thresholds can be activated if desired.
  *
  * <p>This guardrail only handles guarding positive values.
  */
-public class Threshold extends Guardrail
+public abstract class Threshold extends Guardrail
 {
-    private final ToLongFunction<ClientState> warnThreshold;
-    private final ToLongFunction<ClientState> failThreshold;
+    protected ToLongFunction<ClientState> warnThreshold;
+    protected ToLongFunction<ClientState> failThreshold;
     protected final ErrorMessageProvider messageProvider;
 
     /**
@@ -56,6 +56,8 @@ public class Threshold extends Guardrail
         this.messageProvider = messageProvider;
     }
 
+    protected abstract boolean compare(long value, long threshold);
+
     protected String errMsg(boolean isWarning, String what, long value, long thresholdValue)
     {
         return messageProvider.createMessage(isWarning,
@@ -69,19 +71,10 @@ public class Threshold extends Guardrail
         return errMsg(isWarning, REDACTED, value, thresholdValue);
     }
 
-    private long failValue(ClientState state)
-    {
-        long failValue = failThreshold.applyAsLong(state);
-        return failValue <= 0 ? Long.MAX_VALUE : failValue;
-    }
+    protected abstract long failValue(ClientState state);
 
-    private long warnValue(ClientState state)
-    {
-        long warnValue = warnThreshold.applyAsLong(state);
-        return warnValue <= 0 ? Long.MAX_VALUE : warnValue;
-    }
+    protected abstract long warnValue(ClientState state);
 
-    @Override
     public boolean enabled(@Nullable ClientState state)
     {
         if (!super.enabled(state))
@@ -105,17 +98,17 @@ public class Threshold extends Guardrail
      */
     public boolean triggersOn(long value, @Nullable ClientState state)
     {
-        return enabled(state) && (value > Math.min(failValue(state), warnValue(state)));
+        return enabled(state) && (compare(value, warnValue(state)) || compare(value, failValue(state)));
     }
 
     public boolean warnsOn(long value, @Nullable ClientState state)
     {
-        return enabled(state) && (value > warnValue(state) && value <= failValue(state));
+        return enabled(state) && compare(value, warnValue(state));
     }
 
     public boolean failsOn(long value, @Nullable ClientState state)
     {
-        return enabled(state) && (value > failValue(state));
+        return enabled(state) && compare(value, failValue(state));
     }
 
     /**
@@ -136,14 +129,14 @@ public class Threshold extends Guardrail
             return;
 
         long failValue = failValue(state);
-        if (value > failValue)
+        if (compare(value, failValue))
         {
             triggerFail(value, failValue, what, containsUserData, state);
             return;
         }
 
         long warnValue = warnValue(state);
-        if (value > warnValue)
+        if (compare(value, warnValue))
             triggerWarn(value, warnValue, what, containsUserData);
     }
 

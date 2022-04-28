@@ -83,7 +83,7 @@ public class GuardrailTablesTest extends ThresholdTester
     private String assertCreateTableValid() throws Throwable
     {
         String tableName = createTableName();
-        assertThresholdValid(createTableQuery(tableName));
+        assertMaxThresholdValid(createTableQuery(tableName));
         return tableName;
     }
 

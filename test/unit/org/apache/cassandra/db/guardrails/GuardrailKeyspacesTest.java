@@ -82,7 +82,7 @@ public class GuardrailKeyspacesTest extends ThresholdTester
     private String assertCreateKeyspaceValid() throws Throwable
     {
         String keyspaceName = createKeyspaceName();
-        assertThresholdValid(createKeyspaceQuery(keyspaceName));
+        assertMaxThresholdValid(createKeyspaceQuery(keyspaceName));
         return keyspaceName;
     }
 

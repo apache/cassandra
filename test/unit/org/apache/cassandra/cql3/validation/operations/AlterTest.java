@@ -435,30 +435,6 @@ public class AlterTest extends CQLTester
         execute(String.format("DROP KEYSPACE IF EXISTS %s", ks6));
     }
 
-    @Test
-    public void testMinimumRF() throws Throwable
-    {
-        DatabaseDescriptor.setDefaultKeyspaceRF(3);
-        DatabaseDescriptor.setMinimumKeyspaceRF(2);
-
-        String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy' }");
-        String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", DatabaseDescriptor.getMinimumKeyspaceRF(), "1"),
-                                        String.format("ALTER KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", ks1));
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", DatabaseDescriptor.getMinimumKeyspaceRF(), "1"),
-                                        String.format("ALTER KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : '1' }", ks2));
-
-        //clean up config change
-        DatabaseDescriptor.setMinimumKeyspaceRF(0);
-        DatabaseDescriptor.setDefaultKeyspaceRF(1);
-
-        //clean up keyspaces
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks1));
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks2));
-    }
 
     /**
      * Test {@link ConfigurationException} thrown when altering a keyspace to invalid DC option in replication configuration.

@@ -1449,11 +1449,6 @@ compaction_tombstone_warning_threshold: 100000
 # Suggested value for use in production: 3
 # default_keyspace_rf: 1
 
-# The minimum allowable replication factor. Creating a keyspace with a replication factor less than this value will be rejected.
-# This would also apply to system keyspaces.
-# Suggested value for use in production: 2 or higher
-# minimum_keyspace_rf: 0
-
 # Track a metric per keyspace indicating whether replication achieved the ideal consistency
 # level for writes without timing out. This is different from the consistency level requested by
 # each write which may be lower in order to facilitate availability.
@@ -1690,6 +1685,11 @@ drop_compact_storage_enabled: false
 # Valid values are in [1, max available disk size of all data directories].
 # Defaults to null to disable and use the physically available disk size of data directories during calculations.
 # data_disk_usage_max_disk_size:
+# Guardrail to warn or fail when the minimum replication factor is lesser than threshold.
+# This would also apply to system keyspaces.
+# Suggested value for use in production: 2 or higher
+# minimum_replication_factor_warn_threshold: -1
+# minimum_replication_factor_fail_threshold: -1
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

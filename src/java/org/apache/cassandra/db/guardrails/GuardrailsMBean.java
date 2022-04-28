@@ -520,4 +520,23 @@ public interface GuardrailsMBean
      *             A {@code null} value means disabled.
      */
     void setDataDiskUsageMaxDiskSize(@Nullable String size);
+
+    /**
+     * @return The threshold to warn when replication factor is lesser threshold.
+     */
+    int getMinimumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is lesser threshold.
+     */
+    int getMinimumReplicationFactorFailThreshold();
+
+    /**
+     * @param warn the threshold to warn when the minimum replication factor is lesser than
+     *             threshold -1 means disabled.
+     * @param fail the threshold to fail when the minimum replication factor is lesser than
+     *             threshold -1 means disabled.
+     */
+    void setMinimumReplicationFactorThreshold (int warn, int fail);
+
 }

@@ -945,8 +945,6 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setDefaultKeyspaceReplicationFactor(int value);
     public int getDefaultKeyspaceReplicationFactor();
-    public void setMinimumKeyspaceReplicationFactor(int value);
-    public int getMinimumKeyspaceReplicationFactor();
 
     boolean getSkipPaxosRepairOnTopologyChange();
     void setSkipPaxosRepairOnTopologyChange(boolean v);

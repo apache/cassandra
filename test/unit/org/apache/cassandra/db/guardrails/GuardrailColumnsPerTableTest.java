@@ -140,7 +140,7 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
 
     private void assertCreateTableValid(String query) throws Throwable
     {
-        assertThresholdValid(format(query, keyspace() + '.' + createTableName()));
+        assertMaxThresholdValid(format(query, keyspace() + '.' + createTableName()));
     }
 
     private void assertDropColumnValid(String query) throws Throwable

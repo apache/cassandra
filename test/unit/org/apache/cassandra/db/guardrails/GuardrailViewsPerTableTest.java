@@ -101,7 +101,7 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
     private String assertCreateViewSucceeds() throws Throwable
     {
         String viewName = createViewName();
-        assertThresholdValid(format(CREATE_VIEW, viewName));
+        assertMaxThresholdValid(format(CREATE_VIEW, viewName));
         return viewName;
     }
 

@@ -756,24 +756,4 @@ public class DatabaseDescriptorTest
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(0);
     }
-
-    @Test (expected = ConfigurationException.class)
-    public void testInvalidSub0MinimumRFs() throws ConfigurationException
-    {
-        DatabaseDescriptor.setMinimumKeyspaceRF(-1);
-    }
-
-    @Test (expected = ConfigurationException.class)
-    public void testDefaultRfLessThanMinRF()
-    {
-        DatabaseDescriptor.setMinimumKeyspaceRF(2);
-        DatabaseDescriptor.setDefaultKeyspaceRF(1);
-    }
-
-    @Test (expected = ConfigurationException.class)
-    public void testMinimumRfGreaterThanDefaultRF()
-    {
-        DatabaseDescriptor.setDefaultKeyspaceRF(1);
-        DatabaseDescriptor.setMinimumKeyspaceRF(2);
-    }
 }

@@ -23,6 +23,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.service.ClientState;
+
 /**
  * An immutable class representing keyspace parameters (durability and replication).
  */
@@ -89,9 +91,9 @@ public final class KeyspaceParams
         return new KeyspaceParams(true, ReplicationParams.nts(args));
     }
 
-    public void validate(String name)
+    public void validate(String name, ClientState state)
     {
-        replication.validate(name);
+        replication.validate(name, state);
     }
 
     @Override

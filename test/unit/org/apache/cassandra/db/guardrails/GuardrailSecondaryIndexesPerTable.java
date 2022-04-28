@@ -92,7 +92,7 @@ public class GuardrailSecondaryIndexesPerTable extends ThresholdTester
 
     private void assertCreateIndexSucceeds(String column, String indexName) throws Throwable
     {
-        assertThresholdValid(format("CREATE INDEX %s ON %s.%s(%s)", indexName, keyspace(), currentTable(), column));
+        assertMaxThresholdValid(format("CREATE INDEX %s ON %s.%s(%s)", indexName, keyspace(), currentTable(), column));
     }
 
     private void assertCreateIndexWarns(String column, String indexName) throws Throwable
