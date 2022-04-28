@@ -23,8 +23,8 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Token;
 
 /**
@@ -77,7 +77,7 @@ public class ShardBoundaries
     /**
      * Computes the shard to use for the provided key.
      */
-    public int getShardForKey(DecoratedKey key)
+    public int getShardForKey(PartitionPosition key)
     {
         // Boundaries are missing if the node is not sufficiently initialized yet
         if (boundaries.length == 0)

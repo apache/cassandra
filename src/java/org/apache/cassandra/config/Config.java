@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -176,7 +177,7 @@ public class Config
 
     public static class MemtableOptions
     {
-        public Map<String, InheritingClass> configurations;
+        public LinkedHashMap<String, InheritingClass> configurations; // order must be preserved
 
         public MemtableOptions()
         {

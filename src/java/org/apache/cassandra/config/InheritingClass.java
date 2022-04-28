@@ -67,4 +67,12 @@ public class InheritingClass extends ParameterizedClass
         String resolvedClass = this.class_name == null ? parent.class_name : this.class_name;
         return new ParameterizedClass(resolvedClass, resolvedParameters);
     }
+
+    @Override
+    public String toString()
+    {
+        return (inherits != null ? (inherits + "+") : "") +
+               (class_name != null ? class_name : "") +
+               (parameters != null ? parameters.toString() : "");
+    }
 }
