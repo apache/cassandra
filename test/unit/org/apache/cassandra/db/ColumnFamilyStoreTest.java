@@ -28,8 +28,10 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import org.junit.Assert;
 import org.junit.Before;
@@ -261,7 +263,7 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
-    public void testSnapshotSize()
+    public void testSnapshotSize() throws IOException
     {
         // cleanup any previous test gargbage
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
@@ -286,7 +288,7 @@ public class ColumnFamilyStoreTest
         // check that sizeOnDisk > trueSize = 0
         TableSnapshot details = snapshotDetails.get("basic");
         assertThat(details.computeSizeOnDiskBytes()).isGreaterThan(details.computeTrueSizeBytes());
-        assertThat(details.computeTrueSizeBytes()).isZero();
+        assertThat(details.computeTrueSizeBytes()).isEqualTo(getSnapshotManifestAndSchemaFileSizes(details));
 
         // compact base table to make trueSize > 0
         cfs.forceMajorCompaction();
@@ -296,8 +298,7 @@ public class ColumnFamilyStoreTest
         // Check that truesize now is > 0
         snapshotDetails = cfs.listSnapshots();
         details = snapshotDetails.get("basic");
-        assertThat(details.computeSizeOnDiskBytes()).isGreaterThan(details.computeTrueSizeBytes());
-        assertThat(details.computeTrueSizeBytes()).isPositive();
+        assertThat(details.computeSizeOnDiskBytes()).isEqualTo(details.computeTrueSizeBytes());
     }
 
     @Test
@@ -608,5 +609,19 @@ public class ColumnFamilyStoreTest
         assertNotNull(ssTableFiles);
         assertEquals(0, ssTableFiles.size());
         cfs.clearUnsafe();
+    }
+
+    @VisibleForTesting
+    public static long getSnapshotManifestAndSchemaFileSizes(TableSnapshot snapshot) throws IOException
+    {
+        Optional<File> schemaFile = snapshot.getSchemaFile();
+        Optional<File> manifestFile = snapshot.getManifestFile();
+
+        long schemaAndManifestFileSizes = 0;
+
+        schemaAndManifestFileSizes += schemaFile.isPresent() ? schemaFile.get().length() : 0;
+        schemaAndManifestFileSizes += manifestFile.isPresent() ? manifestFile.get().length() : 0;
+
+        return schemaAndManifestFileSizes;
     }
 }

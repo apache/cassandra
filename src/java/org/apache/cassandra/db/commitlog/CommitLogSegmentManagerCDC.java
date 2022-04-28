@@ -274,9 +274,12 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         // track the total size between two dictionary size calculations
         private final AtomicLong sizeInProgress;
 
+        private final File path;
+
         CDCSizeTracker(CommitLogSegmentManagerCDC segmentManager, File path)
         {
-            super(path);
+            super();
+            this.path = path;
             this.segmentManager = segmentManager;
             this.sizeInProgress = new AtomicLong(0);
         }

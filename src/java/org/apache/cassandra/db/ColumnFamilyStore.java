@@ -2060,8 +2060,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             snapshotDirs.add(ephemeralSnapshotMarker.parent().toAbsolute()); // marker may create empty snapshot dir
         }
 
-        TableSnapshot snapshot = new TableSnapshot(metadata.keyspace, metadata.name, tag, manifest.createdAt,
-                                                   manifest.expiresAt, snapshotDirs, directories::getTrueAllocatedSizeIn);
+        TableSnapshot snapshot = new TableSnapshot(metadata.keyspace, metadata.name, metadata.id.asUUID(), tag,
+                                                   manifest.createdAt, manifest.expiresAt, snapshotDirs);
 
         StorageService.instance.addSnapshot(snapshot);
         return snapshot;
@@ -3106,6 +3106,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public long trueSnapshotsSize()
     {
+
         return getDirectories().trueSnapshotsSize();
     }
 
