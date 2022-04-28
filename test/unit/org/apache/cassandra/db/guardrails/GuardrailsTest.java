@@ -130,7 +130,7 @@ public class GuardrailsTest extends GuardrailTester
                                         state -> 10,
                                         state -> 100,
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
-                                                                isWarn ? "Warning" : "Failure", what, v, t));
+                                                                       isWarn ? "Warning" : "Failure", what, v, t));
 
         // value under both thresholds
         assertValid(() -> guard.guard(5, "x", false, null));

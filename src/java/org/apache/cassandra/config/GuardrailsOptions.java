@@ -596,7 +596,6 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.data_disk_usage_max_disk_size = x);
     }
 
-
     @Override
     public int getMinimumReplicationFactorWarnThreshold()
     {
