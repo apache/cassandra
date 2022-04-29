@@ -74,8 +74,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     /**
      * Inspect the classpath to find storage configuration file
      */
-    @VisibleForTesting
-    protected static URL getStorageConfigURL() throws ConfigurationException
+    private static URL getStorageConfigURL() throws ConfigurationException
     {
         String configUrl = System.getProperty("cassandra.config");
         if (configUrl == null)
@@ -174,7 +173,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    private static void verifyReplacements(Map<Class<?>, Map<String, Replacement>> replacements, Map<String, Object> rawConfig)
+    private static void verifyReplacements(Map<Class<?>, Map<String, Replacement>> replacements, Map<String, ?> rawConfig)
     {
         List<String> duplicates = new ArrayList<>();
         for (Map.Entry<Class<?>, Map<String, Replacement>> outerEntry : replacements.entrySet())
@@ -282,7 +281,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return value;
     }
 
-    public static <T> T updateFromMap(Map<String, ? extends Object> map, boolean shouldCheck, T obj)
+    public static <T> T updateFromMap(Map<String, ?> map, boolean shouldCheck, T obj)
     {
         Class<T> klass = (Class<T>) obj.getClass();
         Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader())
@@ -296,6 +295,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             }
         };
         Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
+        verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
