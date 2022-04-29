@@ -94,11 +94,12 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     public class Series implements CommandTimeseries
     {
         public final SeriesKind kind;
-        public final StoredNavigableMap<Timestamp, ByteBuffer> map = new StoredNavigableMap<>();
+        public final StoredNavigableMap<Timestamp, ByteBuffer> map;
 
-        public Series(SeriesKind kind)
+        public Series(AccordState.Kind stateKind, SeriesKind kind)
         {
             this.kind = kind;
+            map = new StoredNavigableMap<>(stateKind);
         }
 
         @Override
@@ -160,15 +161,19 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
 
     private final AccordCommandStore commandStore;
     private final PartitionKey key;
-    public final StoredValue<Timestamp> maxTimestamp = new StoredValue<>();
-    public final Series uncommitted = new Series(SeriesKind.UNCOMMITTED);
-    public final Series committedById = new Series(SeriesKind.COMMITTED_BY_ID);
-    public final Series committedByExecuteAt = new Series(SeriesKind.COMMITTED_BY_EXECUTE_AT);
+    public final StoredValue<Timestamp> maxTimestamp;
+    public final Series uncommitted;
+    public final Series committedById;
+    public final Series committedByExecuteAt;
 
     public AccordCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
     {
         this.commandStore = commandStore;
         this.key = key;
+        maxTimestamp = new StoredValue<>(kind());
+        uncommitted = new Series(kind(), SeriesKind.UNCOMMITTED);
+        committedById = new Series(kind(), SeriesKind.COMMITTED_BY_ID);
+        committedByExecuteAt = new Series(kind(), SeriesKind.COMMITTED_BY_EXECUTE_AT);
     }
 
     public AccordCommandsForKey initialize()

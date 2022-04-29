@@ -30,6 +30,7 @@ import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
@@ -37,11 +38,16 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStoredField
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new StoredNavigableMap<>());
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new StoredNavigableMap<>(AccordState.Kind.FULL));
     private NavigableMap<K, V> map = null;
     private NavigableMap<K, V> view = null;
     private NavigableMap<K, V> additions = null;
     private NavigableSet<K> deletions = null;
+
+    public StoredNavigableMap(AccordState.Kind kind)
+    {
+        super(kind);
+    }
 
     @Override
     public boolean equals(Object o)

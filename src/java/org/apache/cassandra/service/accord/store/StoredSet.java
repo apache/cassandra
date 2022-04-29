@@ -29,6 +29,7 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import accord.utils.DeterministicIdentitySet;
+import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
@@ -42,6 +43,11 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
     abstract S createMetaSet();
     abstract S createView(S data);
     abstract long emptySize();
+
+    public StoredSet(AccordState.Kind kind)
+    {
+        super(kind);
+    }
 
     @Override
     public boolean equals(Object o)
@@ -176,7 +182,9 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
 
     public static class Navigable<T extends Comparable<?>> extends StoredSet<T, NavigableSet<T>>
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new Navigable<>());
+        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new Navigable<>(AccordState.Kind.FULL));
+
+        public Navigable(AccordState.Kind kind) { super(kind); }
 
         @Override
         NavigableSet<T> createDataSet()
@@ -205,7 +213,9 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
 
     public static class DeterministicIdentity<T> extends StoredSet<T, Set<T>>
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new DeterministicIdentitySet<>());
+        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new DeterministicIdentity<>(AccordState.Kind.FULL));
+
+        public DeterministicIdentity(AccordState.Kind kind) { super(kind); }
 
         @Override
         Set<T> createDataSet()

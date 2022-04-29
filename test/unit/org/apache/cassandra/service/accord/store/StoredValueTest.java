@@ -21,6 +21,8 @@ package org.apache.cassandra.service.accord.store;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.service.accord.AccordState;
+
 public class StoredValueTest
 {
     static void assertISE(Runnable runnable)
@@ -39,7 +41,7 @@ public class StoredValueTest
     @Test
     public void storedValueTest()
     {
-        StoredValue<Integer> value = new StoredValue<>();
+        StoredValue<Integer> value = new StoredValue<>(AccordState.Kind.FULL);
         // value is unloaded, read should fail
         assertISE(value::get);
 
@@ -66,7 +68,7 @@ public class StoredValueTest
     @Test
     public void historyPreservingTest()
     {
-        StoredValue.HistoryPreserving<Integer> value = new StoredValue.HistoryPreserving<>();
+        StoredValue.HistoryPreserving<Integer> value = new StoredValue.HistoryPreserving<>(AccordState.Kind.FULL);
         value.load(5);
 
         Assert.assertEquals(Integer.valueOf(5), value.get());

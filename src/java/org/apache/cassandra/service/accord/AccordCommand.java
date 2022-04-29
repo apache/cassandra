@@ -88,29 +88,43 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private final AccordCommandStore commandStore;
     private final TxnId txnId;
-    public final StoredValue<Txn> txn = new StoredValue<>();
-    public final StoredValue<Ballot> promised = new StoredValue<>();
-    public final StoredValue<Ballot> accepted = new StoredValue<>();
-    public final StoredValue<Timestamp> executeAt = new StoredValue<>();
-    public final StoredValue<Dependencies> deps = new StoredValue<>();
-    public final StoredValue<Writes> writes = new StoredValue<>();
-    public final StoredValue<Result> result = new StoredValue<>();
+    public final StoredValue<Txn> txn;
+    public final StoredValue<Ballot> promised;
+    public final StoredValue<Ballot> accepted;
+    public final StoredValue<Timestamp> executeAt;
+    public final StoredValue<Dependencies> deps;
+    public final StoredValue<Writes> writes;
+    public final StoredValue<Result> result;
 
-    public final StoredValue.HistoryPreserving<Status> status = new StoredValue.HistoryPreserving<>();
+    public final StoredValue.HistoryPreserving<Status> status;
 
-    public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnCommit = new StoredNavigableMap<>();
-    public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnApply = new StoredNavigableMap<>();
+    public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnCommit;
+    public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnApply;
 
-    public final StoredSet.DeterministicIdentity<ListenerProxy> storedListeners = new StoredSet.DeterministicIdentity<>();
-    private final Listeners transientListeners = new Listeners();
+    public final StoredSet.DeterministicIdentity<ListenerProxy> storedListeners;
+    private final Listeners transientListeners;
 
-    public final StoredSet.Navigable<TxnId> blockingCommitOn = new StoredSet.Navigable<>();
-    public final StoredSet.Navigable<TxnId> blockingApplyOn = new StoredSet.Navigable<>();
+    public final StoredSet.Navigable<TxnId> blockingCommitOn;
+    public final StoredSet.Navigable<TxnId> blockingApplyOn;
 
     public AccordCommand(AccordCommandStore commandStore, TxnId txnId)
     {
         this.commandStore = commandStore;
         this.txnId = txnId;
+        txn = new StoredValue<>(kind());
+        promised = new StoredValue<>(kind());
+        accepted = new StoredValue<>(kind());
+        executeAt = new StoredValue<>(kind());
+        deps = new StoredValue<>(kind());
+        writes = new StoredValue<>(kind());
+        result = new StoredValue<>(kind());
+        status = new StoredValue.HistoryPreserving<>(kind());
+        waitingOnCommit = new StoredNavigableMap<>(kind());
+        waitingOnApply = new StoredNavigableMap<>(kind());
+        storedListeners = new StoredSet.DeterministicIdentity<>(kind());
+        transientListeners = new Listeners();
+        blockingCommitOn = new StoredSet.Navigable<>(kind());
+        blockingApplyOn = new StoredSet.Navigable<>(kind());
     }
 
     public AccordCommand initialize()

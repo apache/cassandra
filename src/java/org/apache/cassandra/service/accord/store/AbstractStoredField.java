@@ -18,13 +18,26 @@
 
 package org.apache.cassandra.service.accord.store;
 
+import org.apache.cassandra.service.accord.AccordState;
+
 public class AbstractStoredField
 {
     private static final int LOADED_FLAG = 0x01;
-    private static final int CHANGED_FLAG = 0x02;
-    private static final int CLEARED_FLAG = 0x04;
+    private static final int CHANGED_FLAG = 0x01 << 1;
+    private static final int CLEARED_FLAG = 0x01 << 2;
+    private static final int WRITE_ONLY_FLAG = 0x01 << 3;
+    private static final int READ_ONLY_FLAG = 0x01 << 4;
 
     private byte flag;
+
+    public AbstractStoredField(AccordState.Kind kind)
+    {
+        this.flag = 0;
+        if (kind == AccordState.Kind.WRITE_ONLY)
+            set(WRITE_ONLY_FLAG);
+        if (kind == AccordState.Kind.READ_ONLY)
+            set(READ_ONLY_FLAG);
+    }
 
     private void clear(int v)
     {
@@ -44,6 +57,18 @@ public class AbstractStoredField
     public boolean isLoaded()
     {
         return check(LOADED_FLAG);
+    }
+
+    void checkWritesAllowed()
+    {
+        if (check(READ_ONLY_FLAG))
+            throw new IllegalStateException("Cannot write to read only state");
+    }
+
+    void checkReadsAllowed()
+    {
+        if (check(WRITE_ONLY_FLAG))
+            throw new IllegalStateException("Cannot read from write only state");
     }
 
     void preUnload()

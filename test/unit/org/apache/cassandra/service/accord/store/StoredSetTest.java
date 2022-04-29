@@ -27,6 +27,8 @@ import java.util.TreeSet;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.service.accord.AccordState;
+
 import static org.apache.cassandra.service.accord.store.StoredValueTest.assertISE;
 
 public class StoredSetTest
@@ -52,7 +54,7 @@ public class StoredSetTest
         expected.add(1);
         expected.add(5);
 
-        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>();
+        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>(AccordState.Kind.FULL);
 
         // no values loaded, getView should fail
         assertISE(map::getView);
@@ -104,7 +106,7 @@ public class StoredSetTest
     @Test
     public void unloadedAddsAndRemoves()
     {
-        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>();
+        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>(AccordState.Kind.FULL);
         assertISE(map::getView);
 
         // check additions
@@ -141,7 +143,7 @@ public class StoredSetTest
         NavigableSet<Integer> expectedAdditions = new TreeSet<>();
         Set<Integer> expectedDeletions = new HashSet<>();
 
-        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>();
+        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>(AccordState.Kind.FULL);
         map.load(new TreeSet<>());
         Assert.assertEquals(expectedData, map.getView());
 
@@ -177,7 +179,7 @@ public class StoredSetTest
         NavigableSet<Integer> expectedAdditions = new TreeSet<>();
 
         expectedData.add(1);
-        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>();
+        StoredSet.Navigable<Integer> map = new StoredSet.Navigable<>(AccordState.Kind.FULL);
         map.load(new TreeSet<>(expectedData));
         Assert.assertEquals(expectedData, map.getView());
 

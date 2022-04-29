@@ -21,12 +21,18 @@ package org.apache.cassandra.service.accord.store;
 import java.util.Objects;
 import java.util.function.ToLongFunction;
 
+import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class StoredValue<T> extends AbstractStoredField
 {
-    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredValue<>());
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredValue<>(AccordState.Kind.FULL));
     protected T value;
+
+    public StoredValue(AccordState.Kind kind)
+    {
+        super(kind);
+    }
 
     @Override
     public boolean equals(Object o)
@@ -80,6 +86,11 @@ public class StoredValue<T> extends AbstractStoredField
     public static class HistoryPreserving<T> extends StoredValue<T>
     {
         T previous;
+
+        public HistoryPreserving(AccordState.Kind kind)
+        {
+            super(kind);
+        }
 
         public T previous()
         {

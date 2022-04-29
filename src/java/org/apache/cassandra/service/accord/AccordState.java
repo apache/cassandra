@@ -26,6 +26,8 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public interface AccordState<K>
 {
+    public enum Kind { FULL, WRITE_ONLY, READ_ONLY }
+
     K key();
 
     boolean hasModifications();
@@ -34,8 +36,19 @@ public interface AccordState<K>
 
     long estimatedSizeOnHeap();
 
+    default Kind kind()
+    {
+        return Kind.FULL;
+    }
+
     interface WriteOnly<K, V extends AccordState<K>> extends AccordState<K>
     {
+        @Override
+        default Kind kind()
+        {
+            return Kind.WRITE_ONLY;
+        }
+
         void future(Future<?> future);
 
         Future<?> future();
@@ -67,6 +80,15 @@ public interface AccordState<K>
             StoredSet<V, ?> toSet = getSet.apply(to);
             fromSet.forEachAddition(toSet::blindAdd);
             fromSet.forEachDeletion(toSet::blindRemove);
+        }
+    }
+
+    interface ReadOnly<K, V extends AccordState<K>> extends AccordState<K>
+    {
+        @Override
+        default Kind kind()
+        {
+            return Kind.READ_ONLY;
         }
     }
 }
