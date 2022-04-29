@@ -70,9 +70,15 @@ public class AsyncWriter
         this.cfkCache = commandStore.commandsForKeyCache();
     }
 
+    private interface StateMutationFunction<K, V extends AccordState<K>>
+    {
+        Mutation apply(V state, long timestamp);
+    }
+
     private static <K, V extends AccordState<K>> List<Future<?>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
                                                                                 AccordStateCache.Instance<K, V> cache,
-                                                                                Function<V, Mutation> mutationFunction,
+                                                                                StateMutationFunction<K, V> mutationFunction,
+                                                                                long timestamp,
                                                                                 AccordCommandStore commandStore,
                                                                                 List<Future<?>> futures)
     {
@@ -82,7 +88,7 @@ public class AsyncWriter
                 continue;
 
             if (futures == null) futures = new ArrayList<>();
-            Mutation mutation = mutationFunction.apply(item);
+            Mutation mutation = mutationFunction.apply(item, timestamp);
             Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
             cache.addSaveFuture(item.key(), future);
             futures.add(future);
@@ -92,7 +98,7 @@ public class AsyncWriter
         {
             Preconditions.checkState(item.hasModifications());
             if (futures == null) futures = new ArrayList<>();
-            Mutation mutation = mutationFunction.apply((V) item);
+            Mutation mutation = mutationFunction.apply((V) item, timestamp);
             Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
             future.addListener(() -> cache.purgeWriteOnly(item.key()), commandStore.executor());
             item.future(future);
@@ -106,15 +112,18 @@ public class AsyncWriter
     {
         List<Future<?>> futures = null;
 
+        long timestamp = commandStore.nextSystemTimestampMicros();
         futures = dispatchWrites(context.commands,
                                  commandStore.commandCache(),
                                  AccordKeyspace::getCommandMutation,
+                                 timestamp,
                                  commandStore,
                                  futures);
 
         futures = dispatchWrites(context.commandsForKey,
                                  commandStore.commandsForKeyCache(),
                                  AccordKeyspace::getCommandsForKeyMutation,
+                                 timestamp,
                                  commandStore,
                                  futures);
 

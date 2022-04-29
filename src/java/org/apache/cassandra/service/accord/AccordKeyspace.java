@@ -387,7 +387,7 @@ public class AccordKeyspace
             map.forEachDeletion(k -> builder.addCell(tombstone(column, timestamp, nowInSec, CellPath.create(serialize.apply(k)))));
     }
 
-    public static Mutation getCommandMutation(AccordCommand command)
+    public static Mutation getCommandMutation(AccordCommand command, long timestampMicros)
     {
         try
         {
@@ -398,7 +398,6 @@ public class AccordKeyspace
 
             Row.Builder builder = BTreeRow.unsortedBuilder();
             builder.newRow(Clustering.EMPTY);
-            long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
             int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
             int version = MessagingService.current_version;
             ByteBuffer versionBytes = accessor.valueOf(version);
@@ -649,11 +648,10 @@ public class AccordKeyspace
         return CommandsForKey.partitioner.decorateKey(key);
     }
 
-    public static Mutation getCommandsForKeyMutation(AccordCommandsForKey cfk)
+    public static Mutation getCommandsForKeyMutation(AccordCommandsForKey cfk, long timestampMicros)
     {
         Preconditions.checkArgument(cfk.hasModifications());
 
-        long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
         int expectedRows = (CommandsForKeyColumns.hasStaticChanges(cfk) ? 1 : 0)

@@ -19,8 +19,8 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -74,6 +74,7 @@ public class AccordCommandStore extends CommandStore
     private final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
     private final AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> commandsForKeyCache;
     private AsyncContext currentCtx = null;
+    private long lastSystemTimestampMicros = Long.MIN_VALUE;
 
     public AccordCommandStore(int generation,
                               int index,
@@ -145,6 +146,12 @@ public class AccordCommandStore extends CommandStore
     {
         Preconditions.checkState(currentCtx == context);
         currentCtx = null;
+    }
+
+    public long nextSystemTimestampMicros()
+    {
+        lastSystemTimestampMicros = Math.max(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), lastSystemTimestampMicros + 1);
+        return lastSystemTimestampMicros;
     }
 
     @Override

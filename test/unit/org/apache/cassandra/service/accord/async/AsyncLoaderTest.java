@@ -125,9 +125,9 @@ public class AsyncLoaderTest
         // create / persist
         AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
         command.txn(txn);
-        AccordKeyspace.getCommandMutation(command).apply();
+        AccordKeyspace.getCommandMutation(command, commandStore.nextSystemTimestampMicros()).apply();
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
-        AccordKeyspace.getCommandsForKeyMutation(cfk).apply();
+        AccordKeyspace.getCommandsForKeyMutation(cfk, commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
         AsyncContext context = new AsyncContext();
@@ -165,7 +165,7 @@ public class AsyncLoaderTest
         command.txn(txn);
         commandCache.release(command);
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
-        AccordKeyspace.getCommandsForKeyMutation(cfk).apply();
+        AccordKeyspace.getCommandsForKeyMutation(cfk, commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
         AsyncContext context = new AsyncContext();
@@ -245,7 +245,7 @@ public class AsyncLoaderTest
         command.txn(txn);
         command.executeAt(txnId);
         command.status(Status.Committed);
-        AccordKeyspace.getCommandMutation(command).apply();
+        AccordKeyspace.getCommandMutation(command, commandStore.nextSystemTimestampMicros()).apply();
         command.clearModifiedFlag();
 
         execute(commandStore, () -> {

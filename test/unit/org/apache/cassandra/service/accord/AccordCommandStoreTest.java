@@ -88,7 +88,7 @@ public class AccordCommandStoreTest
         command.addListener(new AccordCommand(commandStore, oldTxnId1));
         processCommandResult(command);
 
-        AccordKeyspace.getCommandMutation(command).apply();
+        AccordKeyspace.getCommandMutation(command, commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", command);
         Command actual = AccordKeyspace.loadCommand(commandStore, txnId);
         logger.info("A: {}", actual);
@@ -120,7 +120,7 @@ public class AccordCommandStoreTest
         cfk.register(command1);
         cfk.register(command2);
 
-        AccordKeyspace.getCommandsForKeyMutation(cfk).apply();
+        AccordKeyspace.getCommandsForKeyMutation(cfk, commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", cfk);
         AccordCommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore, key);
         logger.info("A: {}", actual);

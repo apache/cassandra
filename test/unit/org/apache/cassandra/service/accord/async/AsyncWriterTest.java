@@ -86,14 +86,14 @@ public class AsyncWriterTest
         blocking.txn(txn);
         blocking.executeAt(blockingId);
         blocking.status(Status.Committed);
-        AccordKeyspace.getCommandMutation(blocking).apply();
+        AccordKeyspace.getCommandMutation(blocking, commandStore.nextSystemTimestampMicros()).apply();
         blocking.clearModifiedFlag();
 
         AccordCommand waiting = new AccordCommand(commandStore, waitingId).initialize();
         waiting.txn(txn);
         waiting.executeAt(waitingId);
         waiting.status(Status.Committed);
-        AccordKeyspace.getCommandMutation(waiting).apply();
+        AccordKeyspace.getCommandMutation(waiting, commandStore.nextSystemTimestampMicros()).apply();
         waiting.clearModifiedFlag();
 
         AsyncContext context = new AsyncContext();
@@ -138,7 +138,7 @@ public class AsyncWriterTest
         AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
 
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
-        AccordKeyspace.getCommandsForKeyMutation(cfk).apply();
+        AccordKeyspace.getCommandsForKeyMutation(cfk, commandStore.nextSystemTimestampMicros()).apply();
         Assert.assertTrue(cfk.uncommitted.isEmpty());
         Assert.assertTrue(cfk.committedByExecuteAt.isEmpty());
         Assert.assertTrue(cfk.committedById.isEmpty());
