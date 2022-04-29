@@ -72,7 +72,7 @@ public class AccordStateCacheTest
         @Override
         public long estimatedSizeOnHeap()
         {
-            return size;
+            return size + KEY_SIZE;
         }
     }
 

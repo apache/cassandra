@@ -204,7 +204,7 @@ public class AccordStateCache
     // before it's mutation is applied, out of date info will be loaded
     private boolean canEvict(Object key)
     {
-        Future<?> future = getFutureInternal(saveFutures, key);
+        Future<?> future = getFuture(saveFutures, key);
         return future == null || future.isDone();
     }
 
@@ -227,82 +227,7 @@ public class AccordStateCache
         }
     }
 
-    private <K, V extends AccordState<K>> V getOrCreateInternal(K key, Function<K, V> factory, Stats instanceStats)
-    {
-        stats.queries++;
-        instanceStats.queries++;
-
-        Node<K, V> node = (Node<K, V>) active.get(key);
-        if (node != null)
-        {
-            stats.hits++;
-            instanceStats.hits++;
-            node.references++;
-            return node.value;
-        }
-
-        node = (Node<K, V>) cache.remove(key);
-
-        if (node == null)
-        {
-            stats.misses++;
-            instanceStats.misses++;
-            if (factory == null)
-                return null;
-            V value = factory.apply(key);
-            node = new Node<>(value);
-            updateSize(node);
-        }
-        else
-        {
-            stats.hits++;
-            instanceStats.hits++;
-            unlink(node);
-        }
-
-        Preconditions.checkState(node.references == 0);
-        maybeEvict();
-
-        node.references++;
-        active.put(key, node);
-
-        return node.value;
-    }
-
-    private <K, V extends AccordState<K>> void releaseInternal(V value)
-    {
-        K key = value.key();
-        maybeClearFuture(key);
-        Node<K, V> node = (Node<K, V>) active.get(key);
-        Preconditions.checkState(node != null && node.references > 0);
-        Preconditions.checkState(node.value == value);
-        if (--node.references == 0)
-        {
-            active.remove(key);
-            cache.put(key, node);
-            push(node);
-        }
-
-        if (value.hasModifications())
-        {
-            value.clearModifiedFlag();
-            updateSize(node);
-        }
-        maybeEvict();
-    }
-
-    private void purgeWriteOnlyInternal(Object key)
-    {
-        WriteOnlyGroup<?, ?> items = pendingWriteOnly.get(key);
-        if (items == null)
-            return;
-
-        items.purge();
-        if (items.isEmpty())
-            pendingWriteOnly.remove(key);
-    }
-
-    private static <K, F extends Future<?>> F getFutureInternal(Map<Object, F> futuresMap, K key)
+    private static <K, F extends Future<?>> F getFuture(Map<Object, F> futuresMap, K key)
     {
         F r = futuresMap.get(key);
         if (r == null)
@@ -315,13 +240,13 @@ public class AccordStateCache
         return null;
     }
 
-    private static <K, F extends Future<?>> void setFutureInternal(Map<Object, F> futuresMap, K key, F future)
+    private static <K, F extends Future<?>> void setFuture(Map<Object, F> futuresMap, K key, F future)
     {
         Preconditions.checkState(!futuresMap.containsKey(key));
         futuresMap.put(key, future);
     }
 
-    private static <K> void mergeFutureInternal(Map<Object, Future<?>> futuresMap, K key, Future<?> future)
+    private static <K> void mergeFuture(Map<Object, Future<?>> futuresMap, K key, Future<?> future)
     {
         Future<?> existing = futuresMap.get(key);
         if (existing != null && !existing.isDone())
@@ -333,10 +258,10 @@ public class AccordStateCache
     private <K> void maybeClearFuture(K key)
     {
         // will clear if it's done
-        getFutureInternal(loadFutures, key);
-        getFutureInternal(saveFutures, key);
-        getFutureInternal(readFutures, key);
-        getFutureInternal(writeFutures, key);
+        getFuture(loadFutures, key);
+        getFuture(saveFutures, key);
+        getFuture(readFutures, key);
+        getFuture(writeFutures, key);
     }
 
     public class Instance<K, V extends AccordState<K>>
@@ -368,19 +293,78 @@ public class AccordStateCache
             return Objects.hash(keyClass, valClass);
         }
 
+        private V getOrCreate(K key, boolean createIfAbsent)
+        {
+            stats.queries++;
+            AccordStateCache.this.stats.queries++;
+
+            Node<K, V> node = (Node<K, V>) active.get(key);
+            if (node != null)
+            {
+                stats.hits++;
+                AccordStateCache.this.stats.hits++;
+                node.references++;
+                return node.value;
+            }
+
+            node = (Node<K, V>) cache.remove(key);
+
+            if (node == null)
+            {
+                stats.misses++;
+                AccordStateCache.this.stats.misses++;
+                if (!createIfAbsent)
+                    return null;
+                V value = factory.apply(key);
+                node = new Node<>(value);
+                updateSize(node);
+            }
+            else
+            {
+                stats.hits++;
+                AccordStateCache.this.stats.hits++;
+                unlink(node);
+            }
+
+            Preconditions.checkState(node.references == 0);
+            maybeEvict();
+
+            node.references++;
+            active.put(key, node);
+
+            return node.value;
+        }
+
         public V getOrCreate(K key)
         {
-            return getOrCreateInternal(key, factory, stats);
+            return getOrCreate(key, true);
         }
 
         public V getOrNull(K key)
         {
-            return getOrCreateInternal(key, null, stats);
+            return getOrCreate(key, false);
         }
 
         public void release(V value)
         {
-            releaseInternal(value);
+            K key = value.key();
+            maybeClearFuture(key);
+            Node<K, V> node = (Node<K, V>) active.get(key);
+            Preconditions.checkState(node != null && node.references > 0);
+            Preconditions.checkState(node.value == value);
+            if (--node.references == 0)
+            {
+                active.remove(key);
+                cache.put(key, node);
+                push(node);
+            }
+
+            if (value.hasModifications())
+            {
+                value.clearModifiedFlag();
+                updateSize(node);
+            }
+            maybeEvict();
         }
 
         @VisibleForTesting
@@ -424,7 +408,7 @@ public class AccordStateCache
             {
                 writeOnly.applyChanges(instance);
                 if (!writeOnly.future().isDone())
-                    mergeFutureInternal(saveFutures, instance.key(), writeOnly.future());
+                    mergeFuture(saveFutures, instance.key(), writeOnly.future());
             }
         }
 
@@ -444,47 +428,53 @@ public class AccordStateCache
 
         public void purgeWriteOnly(K key)
         {
-            purgeWriteOnlyInternal(key);
+            WriteOnlyGroup<?, ?> items = pendingWriteOnly.get(key);
+            if (items == null)
+                return;
+
+            items.purge();
+            if (items.isEmpty())
+                pendingWriteOnly.remove(key);
         }
 
         public Future<?> getLoadFuture(K key)
         {
-            return getFutureInternal(loadFutures, key);
+            return getFuture(loadFutures, key);
         }
 
         public void setLoadFuture(K key, Future<?> future)
         {
-            setFutureInternal(loadFutures, key, future);
+            setFuture(loadFutures, key, future);
         }
 
         public Future<?> getSaveFuture(K key)
         {
-            return getFutureInternal(saveFutures, key);
+            return getFuture(saveFutures, key);
         }
 
         public void addSaveFuture(K key, Future<?> future)
         {
-            mergeFutureInternal(saveFutures, key, future);
+            mergeFuture(saveFutures, key, future);
         }
 
         public Read.ReadFuture getReadFuture(K key)
         {
-            return getFutureInternal(readFutures, key);
+            return getFuture(readFutures, key);
         }
 
         public void setReadFuture(K key, Read.ReadFuture future)
         {
-            setFutureInternal(readFutures, key, future);
+            setFuture(readFutures, key, future);
         }
 
         public Future<?> getWriteFuture(K key)
         {
-            return getFutureInternal(writeFutures, key);
+            return getFuture(writeFutures, key);
         }
 
         public void setWriteFuture(K key, Future<?> future)
         {
-            setFutureInternal(writeFutures, key, future);
+            setFuture(writeFutures, key, future);
         }
 
         public void clearWriteFuture(K key)
