@@ -63,11 +63,11 @@ public class AsyncLoader
         this.keys = keys;
     }
 
-    private static <K, V extends AccordState<K, V>> Future<?> referenceAndDispatch(K key,
-                                                                                   AccordStateCache.Instance<K, V> cache,
-                                                                                   Map<K, V> context,
-                                                                                   Predicate<V> isLoaded,
-                                                                                   Function<V, Future<?>> readFunction)
+    private static <K, V extends AccordState<K>> Future<?> referenceAndDispatch(K key,
+                                                                                AccordStateCache.Instance<K, V> cache,
+                                                                                Map<K, V> context,
+                                                                                Predicate<V> isLoaded,
+                                                                                Function<V, Future<?>> readFunction)
     {
         Future<?> future = cache.getLoadFuture(key);
         if (future != null)
@@ -84,12 +84,12 @@ public class AsyncLoader
     }
 
 
-    private static <K, V extends AccordState<K, V>> List<Future<?>> referenceAndDispatchReads(Iterable<K> keys,
-                                                                                              AccordStateCache.Instance<K, V> cache,
-                                                                                              Map<K, V> context,
-                                                                                              Predicate<V> isLoaded,
-                                                                                              Function<V, Future<?>> readFunction,
-                                                                                              List<Future<?>> futures)
+    private static <K, V extends AccordState<K>> List<Future<?>> referenceAndDispatchReads(Iterable<K> keys,
+                                                                                           AccordStateCache.Instance<K, V> cache,
+                                                                                           Map<K, V> context,
+                                                                                           Predicate<V> isLoaded,
+                                                                                           Function<V, Future<?>> readFunction,
+                                                                                           List<Future<?>> futures)
     {
         for (K key : keys)
         {

@@ -43,7 +43,7 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
  */
 public class AccordStateCache
 {
-    private static class WriteOnlyGroup<K, V extends AccordState<K, V>>
+    private static class WriteOnlyGroup<K, V extends AccordState<K>>
     {
         private boolean locked = false;
         private List<AccordState.WriteOnly<K, V>> items = new ArrayList<>();
@@ -81,7 +81,7 @@ public class AccordStateCache
         }
     }
 
-    static class Node<K, V extends AccordState<K, V>>
+    static class Node<K, V extends AccordState<K>>
     {
         static final long EMPTY_SIZE = ObjectSizes.measure(new AccordStateCache.Node<>(null));
 
@@ -227,7 +227,7 @@ public class AccordStateCache
         }
     }
 
-    private <K, V extends AccordState<K, V>> V getOrCreateInternal(K key, Function<K, V> factory, Stats instanceStats)
+    private <K, V extends AccordState<K>> V getOrCreateInternal(K key, Function<K, V> factory, Stats instanceStats)
     {
         stats.queries++;
         instanceStats.queries++;
@@ -269,7 +269,7 @@ public class AccordStateCache
         return node.value;
     }
 
-    private <K, V extends AccordState<K, V>> void releaseInternal(V value)
+    private <K, V extends AccordState<K>> void releaseInternal(V value)
     {
         K key = value.key();
         maybeClearFuture(key);
@@ -339,7 +339,7 @@ public class AccordStateCache
         getFutureInternal(writeFutures, key);
     }
 
-    public class Instance<K, V extends AccordState<K, V>>
+    public class Instance<K, V extends AccordState<K>>
     {
         private final Class<K> keyClass;
         private final Class<V> valClass;
@@ -509,7 +509,7 @@ public class AccordStateCache
         }
     }
 
-    public <K, V extends AccordState<K, V>> Instance<K, V> instance(Class<K> keyClass, Class<V> valClass, Function<K, V> factory)
+    public <K, V extends AccordState<K>> Instance<K, V> instance(Class<K> keyClass, Class<V> valClass, Function<K, V> factory)
     {
         Instance<K, V> instance = new Instance<>(keyClass, valClass, factory);
         if (!instances.add(instance))

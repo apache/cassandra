@@ -70,11 +70,11 @@ public class AsyncWriter
         this.cfkCache = commandStore.commandsForKeyCache();
     }
 
-    private static <K, V extends AccordState<K, V>> List<Future<?>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
-                                                                                                    AccordStateCache.Instance<K, V> cache,
-                                                                                                    Function<V, Mutation> mutationFunction,
-                                                                                                    AccordCommandStore commandStore,
-                                                                                                    List<Future<?>> futures)
+    private static <K, V extends AccordState<K>> List<Future<?>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
+                                                                                AccordStateCache.Instance<K, V> cache,
+                                                                                Function<V, Mutation> mutationFunction,
+                                                                                AccordCommandStore commandStore,
+                                                                                List<Future<?>> futures)
     {
         for (V item : ctxGroup.items.values())
         {
@@ -152,13 +152,13 @@ public class AsyncWriter
         });
     }
 
-    private static <K, V extends AccordState<K, V>>
-            AccordState<K, V> getForDenormalization(K key,
-                                                    AccordCommandStore commandStore,
-                                                    AsyncContext.Group<K, V> ctxGroup,
-                                                    AccordStateCache.Instance<K, V> cache,
-                                                    BiFunction<AccordCommandStore, K, AccordState.WriteOnly<K, V>> factory,
-                                                    Map<K, V> addToCtx)
+    private static <K, V extends AccordState<K>>
+            AccordState<K> getForDenormalization(K key,
+                                                 AccordCommandStore commandStore,
+                                                 AsyncContext.Group<K, V> ctxGroup,
+                                                 AccordStateCache.Instance<K, V> cache,
+                                                 BiFunction<AccordCommandStore, K, AccordState.WriteOnly<K, V>> factory,
+                                                 Map<K, V> addToCtx)
     {
         V item = ctxGroup.get(key);
         if (item != null)

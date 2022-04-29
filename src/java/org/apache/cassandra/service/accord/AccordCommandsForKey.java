@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 
-public class AccordCommandsForKey extends CommandsForKey implements AccordState<PartitionKey, AccordCommandsForKey>
+public class AccordCommandsForKey extends CommandsForKey implements AccordState<PartitionKey>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordCommandsForKey(null, null));
 

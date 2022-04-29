@@ -33,7 +33,7 @@ public class AccordStateCacheTest
     private static final long KEY_SIZE = 4;
     private static final long DEFAULT_NODE_SIZE = nodeSize(DEFAULT_ITEM_SIZE);
 
-    private static class Item implements AccordState<Integer, Item>
+    private static class Item implements AccordState<Integer>
     {
         long size = DEFAULT_ITEM_SIZE;
 
@@ -242,7 +242,7 @@ public class AccordStateCacheTest
         assertCacheState(cache, 0, 1, DEFAULT_NODE_SIZE);
     }
 
-    static class SetItem implements AccordState<Integer, SetItem>
+    static class SetItem implements AccordState<Integer>
     {
         final Integer key;
         final Set<Integer> set = new HashSet<>();

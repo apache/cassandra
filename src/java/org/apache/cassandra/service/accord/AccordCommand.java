@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySetChanges;
 
-public class AccordCommand extends Command implements AccordState<TxnId, AccordCommand>
+public class AccordCommand extends Command implements AccordState<TxnId>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
 

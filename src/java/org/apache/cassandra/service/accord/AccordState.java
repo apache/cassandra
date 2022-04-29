@@ -24,7 +24,7 @@ import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.utils.concurrent.Future;
 
-public interface AccordState<K, V extends AccordState<K, V>>
+public interface AccordState<K>
 {
     K key();
 
@@ -34,7 +34,7 @@ public interface AccordState<K, V extends AccordState<K, V>>
 
     long estimatedSizeOnHeap();
 
-    interface WriteOnly<K, V extends AccordState<K, V>> extends AccordState<K, V>
+    interface WriteOnly<K, V extends AccordState<K>> extends AccordState<K>
     {
         void future(Future<?> future);
 

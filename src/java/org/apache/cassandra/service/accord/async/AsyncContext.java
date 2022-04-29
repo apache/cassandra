@@ -36,7 +36,7 @@ import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 
 public class AsyncContext
 {
-    public static class Group<K, V extends AccordState<K, V>>
+    public static class Group<K, V extends AccordState<K>>
     {
         final Map<K, V> items = new HashMap<>();
         final Map<K, WriteOnly<K, V>> writeOnly = new HashMap<>();
@@ -72,7 +72,7 @@ public class AsyncContext
         }
     }
 
-    public static class SummaryGroup<K, V extends AccordState<K, V>> extends Group<K, V>
+    public static class SummaryGroup<K, V extends AccordState<K>> extends Group<K, V>
     {
         final Map<K, V> summaries = new HashMap<>();
 
