@@ -47,11 +47,20 @@ public class CompactionOutOfSpaceTest extends CQLTester
     @BeforeClass
     public static void setupClass()
     {
-        CQLTester.setUpClass();
-        CQLTester.requireNetwork();
         CassandraDaemon d = new CassandraDaemon();
         d.activate();
-        StorageService.instance.registerDaemon(d);
+
+        // these were moved after CassandraDaemon::activate to avoid
+        // race condition between compaction (triggered by setUpClass)
+        // and checkSSTablesFormat StartupCheck (and possible others that
+        // traverse the filesystem). See STAR-1294 for more info.
+        // If it turns out that CQLTester initialization must be run
+        // before activate() then perhaps we should try disabling
+        // compactions as the first step and enabling them only after activate();
+        // To disable compactions one may use ColumnFamilyStore::disableAutoCompaction
+        // (see also how compactions are being temporarily disabled in CassandraDaemon::setup
+        CQLTester.setUpClass();
+        CQLTester.requireNetwork();
     }
 
     @AfterClass
