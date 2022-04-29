@@ -86,6 +86,14 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         }
     }
 
+    public static class ReadOnly extends AccordCommand implements AccordState.ReadOnly<TxnId, AccordCommand>
+    {
+        public ReadOnly(AccordCommandStore commandStore, TxnId txnId)
+        {
+            super(commandStore, txnId);
+        }
+    }
+
     private final AccordCommandStore commandStore;
     private final TxnId txnId;
     public final StoredValue<Txn> txn;

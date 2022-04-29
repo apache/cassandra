@@ -72,16 +72,16 @@ public class AsyncContext
         }
     }
 
-    public static class SummaryGroup<K, V extends AccordState<K>> extends Group<K, V>
+    public static class SummaryGroup<K, V extends AccordState<K>, R extends AccordState.ReadOnly<K, V>> extends Group<K, V>
     {
-        final Map<K, V> summaries = new HashMap<>();
+        final Map<K, R> summaries = new HashMap<>();
 
-        public V summary(K key)
+        public R summary(K key)
         {
             return summaries.get(key);
         }
 
-        public void addSummary(V summary)
+        public void addSummary(R summary)
         {
             summaries.put(summary.key(), summary);
         }
@@ -94,7 +94,7 @@ public class AsyncContext
         }
     }
 
-    public final SummaryGroup<TxnId, AccordCommand> commands = new SummaryGroup<>();
+    public final SummaryGroup<TxnId, AccordCommand, AccordCommand.ReadOnly> commands = new SummaryGroup<>();
     public final Group<PartitionKey, AccordCommandsForKey> commandsForKey = new Group<>();
 
     void releaseResources(AccordCommandStore commandStore)

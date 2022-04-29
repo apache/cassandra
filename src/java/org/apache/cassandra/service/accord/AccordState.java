@@ -41,6 +41,21 @@ public interface AccordState<K>
         return Kind.FULL;
     }
 
+    default boolean isFullInstance()
+    {
+        return kind() == Kind.FULL;
+    }
+
+    default boolean isWriteOnlyInstance()
+    {
+        return kind() == Kind.WRITE_ONLY;
+    }
+
+    default boolean isReadOnlyInstance()
+    {
+        return kind() == Kind.READ_ONLY;
+    }
+
     interface WriteOnly<K, V extends AccordState<K>> extends AccordState<K>
     {
         @Override

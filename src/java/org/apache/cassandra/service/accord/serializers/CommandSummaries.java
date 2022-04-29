@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.TreeMap;
 
+import com.google.common.base.Preconditions;
+
 import accord.api.Query;
 import accord.api.Read;
 import accord.api.Update;
@@ -134,17 +136,16 @@ public class CommandSummaries
             if (command != null)
                 return command;
 
-            command = context.commands.summary(txnId);
-            if (command == null)
-                command = new AccordCommand(commandStore, txnId);
+            AccordCommand.ReadOnly summary = context.commands.summary(txnId);
+            if (summary == null)
+                summary = new AccordCommand.ReadOnly(commandStore, txnId);
 
-            context.commands.addSummary(command);
-            if (command.isLoaded())
-                return command;
+            Preconditions.checkState(summary.isReadOnlyInstance());
+            context.commands.addSummary(summary);
 
-            deserializeBody(command, in, version);
+            deserializeBody(summary, in, version);
 
-            return command;
+            return summary;
         }
 
         public AccordCommand deserialize(AccordCommandStore commandStore, ByteBuffer bytes)
@@ -168,7 +169,7 @@ public class CommandSummaries
         }
 
         public abstract void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException;
-        public abstract void deserializeBody(AccordCommand command, DataInputPlus in, Version version) throws IOException;
+        public abstract void deserializeBody(AccordCommand.ReadOnly command, DataInputPlus in, Version version) throws IOException;
         public abstract int serializedBodySize(AccordCommand command, Version version);
 
         /**
@@ -190,7 +191,7 @@ public class CommandSummaries
         }
 
         @Override
-        public void deserializeBody(AccordCommand command, DataInputPlus in, Version version) throws IOException
+        public void deserializeBody(AccordCommand.ReadOnly command, DataInputPlus in, Version version) throws IOException
         {
             command.status.load(Status.values()[in.readByte()]);
             Timestamp executeAt = in.readBoolean() ? CommandSerializers.timestamp.deserialize(in, version.msg_version) : null;
@@ -231,7 +232,7 @@ public class CommandSummaries
         }
 
         @Override
-        public void deserializeBody(AccordCommand command, DataInputPlus in, Version version) throws IOException
+        public void deserializeBody(AccordCommand.ReadOnly command, DataInputPlus in, Version version) throws IOException
         {
             statusExecute.deserializeBody(command, in, version);
             command.txn.load(new KindOnlyTxn(Txn.Kind.values()[in.readByte()]));
