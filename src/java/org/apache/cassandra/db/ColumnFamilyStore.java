@@ -2184,7 +2184,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      */
     public TableSnapshot snapshot(String snapshotName)
     {
-        return snapshot(snapshotName, false, null, null, now());
+        return snapshot(snapshotName, null);
+    }
+
+    public TableSnapshot snapshot(String snapshotName, DurationSpec ttl)
+    {
+        return snapshot(snapshotName, false, ttl, null, now());
     }
 
     /**
@@ -2627,7 +2632,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 data.notifyTruncated(truncatedAt);
 
             if (!noSnapshot && DatabaseDescriptor.isAutoSnapshot())
-                snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX));
+                snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
 
             discardSSTables(truncatedAt);
 
@@ -3189,7 +3194,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
 
         if (DatabaseDescriptor.isAutoSnapshot())
-            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
+            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
 
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 

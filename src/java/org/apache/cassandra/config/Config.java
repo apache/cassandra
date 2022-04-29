@@ -292,6 +292,14 @@ public class Config
 
     public boolean snapshot_before_compaction = false;
     public boolean auto_snapshot = true;
+
+    /**
+     * When auto_snapshot is true and this property
+     * is set, snapshots created by truncation or
+     * drop use this TTL.
+     */
+    public String auto_snapshot_ttl;
+
     public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */

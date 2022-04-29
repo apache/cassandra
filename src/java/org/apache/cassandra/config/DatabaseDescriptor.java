@@ -160,6 +160,7 @@ public class DatabaseDescriptor
     private static boolean daemonInitialized;
 
     private static final int searchConcurrencyFactor = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "search_concurrency_factor", "1"));
+    private static DurationSpec autoSnapshoTtl;
 
     private static volatile boolean disableSTCSInL0 = Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_stcs_in_l0");
     private static final boolean unsafeSystem = Boolean.getBoolean(Config.PROPERTY_PREFIX + "unsafesystem");
@@ -393,6 +394,18 @@ public class DatabaseDescriptor
         //Doing this first before all other things in case other pieces of config want to construct
         //InetAddressAndPort and get the right defaults
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
+
+        if (conf.auto_snapshot_ttl != null)
+        {
+            try
+            {
+                autoSnapshoTtl = new DurationSpec(conf.auto_snapshot_ttl);
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new ConfigurationException("Invalid value of auto_snapshot_ttl: " + conf.auto_snapshot_ttl, false);
+            }
+        }
 
         if (conf.commitlog_sync == null)
         {
@@ -2803,6 +2816,17 @@ public class DatabaseDescriptor
     public static boolean isAutoSnapshot()
     {
         return conf.auto_snapshot;
+    }
+
+    public static DurationSpec getAutoSnapshotTtl()
+    {
+        return autoSnapshoTtl;
+    }
+
+    @VisibleForTesting
+    public static void setAutoSnapshotTtl(DurationSpec newTtl)
+    {
+        autoSnapshoTtl = newTtl;
     }
 
     @VisibleForTesting
