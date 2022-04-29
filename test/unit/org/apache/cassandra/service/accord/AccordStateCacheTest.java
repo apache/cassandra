@@ -64,6 +64,12 @@ public class AccordStateCacheTest
         }
 
         @Override
+        public boolean isLoaded()
+        {
+            return true;
+        }
+
+        @Override
         public long estimatedSizeOnHeap()
         {
             return size;
@@ -302,6 +308,12 @@ public class AccordStateCacheTest
         public void clearModifiedFlag()
         {
             this.modified = false;
+        }
+
+        @Override
+        public boolean isLoaded()
+        {
+            return true;
         }
 
         @Override

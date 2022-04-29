@@ -153,7 +153,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         return this;
     }
 
-    // FIXME: should be able to get rid of this with segregated command classes
+    @Override
     public boolean isLoaded()
     {
         return txn.isLoaded()

@@ -34,6 +34,8 @@ public interface AccordState<K>
 
     void clearModifiedFlag();
 
+    boolean isLoaded();
+
     long estimatedSizeOnHeap();
 
     default Kind kind()

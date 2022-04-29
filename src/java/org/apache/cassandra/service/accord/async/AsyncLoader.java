@@ -66,7 +66,6 @@ public class AsyncLoader
     private static <K, V extends AccordState<K>> Future<?> referenceAndDispatch(K key,
                                                                                 AccordStateCache.Instance<K, V> cache,
                                                                                 Map<K, V> context,
-                                                                                Predicate<V> isLoaded,
                                                                                 Function<V, Future<?>> readFunction)
     {
         Future<?> future = cache.getLoadFuture(key);
@@ -75,7 +74,7 @@ public class AsyncLoader
 
         V item = cache.getOrCreate(key);
         context.put(key, item);
-        if (isLoaded.test(item))
+        if (item.isLoaded())
             return null;
 
         future = readFunction.apply(item);
@@ -87,13 +86,12 @@ public class AsyncLoader
     private static <K, V extends AccordState<K>> List<Future<?>> referenceAndDispatchReads(Iterable<K> keys,
                                                                                            AccordStateCache.Instance<K, V> cache,
                                                                                            Map<K, V> context,
-                                                                                           Predicate<V> isLoaded,
                                                                                            Function<V, Future<?>> readFunction,
                                                                                            List<Future<?>> futures)
     {
         for (K key : keys)
         {
-            Future<?> future = referenceAndDispatch(key, cache, context, isLoaded, readFunction);
+            Future<?> future = referenceAndDispatch(key, cache, context, readFunction);
             if (future == null)
                 continue;
 
@@ -113,14 +111,12 @@ public class AsyncLoader
         futures = referenceAndDispatchReads(txnIds,
                                             commandStore.commandCache(),
                                             context.commands.items,
-                                            AccordCommand::isLoaded,
                                             command -> Stage.READ.submit(() -> AccordKeyspace.loadCommand(command)),
                                             futures);
 
         futures = referenceAndDispatchReads(keys,
                                             commandStore.commandsForKeyCache(),
                                             context.commandsForKey.items,
-                                            AccordCommandsForKey::isLoaded,
                                             cfk -> Stage.READ.submit(() -> AccordKeyspace.loadCommandsForKey(cfk)),
                                             futures);
 
