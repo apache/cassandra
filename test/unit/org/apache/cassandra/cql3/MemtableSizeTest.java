@@ -50,18 +50,21 @@ public class MemtableSizeTest extends CQLTester
     static final int deletedPartitions = 10_000;
     static final int deletedRows = 5_000;
 
-    @Parameterized.Parameter()
+    @Parameterized.Parameter(0)
     public String memtableClass;
 
+    @Parameterized.Parameter(1)
+    public int differencePerPartition;
+
     @Parameterized.Parameters(name = "{0}")
-    public static List<Object> parameters()
+    public static List<Object[]> parameters()
     {
-        return ImmutableList.of("skiplist",
-                                "skiplist_sharded");
+        return ImmutableList.of(new Object[]{"skiplist", 50},
+                                new Object[]{"skiplist_sharded", 60});
     }
 
     // must be within 50 bytes per partition of the actual size
-    final int MAX_DIFFERENCE = (partitions + deletedPartitions + deletedRows) * 50;
+    final long MAX_DIFFERENCE_PARTITIONS = (partitions + deletedPartitions + deletedRows);
 
     @BeforeClass
     public static void setUp()
@@ -73,12 +76,12 @@ public class MemtableSizeTest extends CQLTester
     }
 
     @Test
-    public void testTruncationReleasesLogSpace()
+    public void testSize()
     {
-        Util.flakyTest(this::testSize, 2, "Fails occasionally, see CASSANDRA-16684");
+        Util.flakyTest(this::testSizeFlaky, 2, "Fails occasionally, see CASSANDRA-16684");
     }
 
-    private void testSize()
+    private void testSizeFlaky()
     {
         try
         {
@@ -143,7 +146,7 @@ public class MemtableSizeTest extends CQLTester
                                            FBUtilities.prettyPrintMemory(expectedHeap),
                                            FBUtilities.prettyPrintMemory(actualHeap));
             logger.info(message);
-            Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= MAX_DIFFERENCE);
+            Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= MAX_DIFFERENCE_PARTITIONS * differencePerPartition);
         }
         catch (Throwable throwable)
         {
