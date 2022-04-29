@@ -29,13 +29,14 @@ import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
+import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.AccordStateCache.WriteOnly;
+import org.apache.cassandra.service.accord.AccordState.WriteOnly;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 
 public class AsyncContext
 {
-    public static class Group<K, V extends AccordStateCache.AccordState<K, V>>
+    public static class Group<K, V extends AccordState<K, V>>
     {
         final Map<K, V> items = new HashMap<>();
         final Map<K, WriteOnly<K, V>> writeOnly = new HashMap<>();
@@ -71,7 +72,7 @@ public class AsyncContext
         }
     }
 
-    public static class SummaryGroup<K, V extends AccordStateCache.AccordState<K, V>> extends Group<K, V>
+    public static class SummaryGroup<K, V extends AccordState<K, V>> extends Group<K, V>
     {
         final Map<K, V> summaries = new HashMap<>();
 

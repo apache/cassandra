@@ -40,13 +40,13 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.service.accord.AccordStateCache.WriteOnly.applyMapChanges;
+import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 
-public class AccordCommandsForKey extends CommandsForKey implements AccordStateCache.AccordState<PartitionKey, AccordCommandsForKey>
+public class AccordCommandsForKey extends CommandsForKey implements AccordState<PartitionKey, AccordCommandsForKey>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordCommandsForKey(null, null));
 
-    public static class WriteOnly extends AccordCommandsForKey implements AccordStateCache.WriteOnly<PartitionKey, AccordCommandsForKey>
+    public static class WriteOnly extends AccordCommandsForKey implements AccordState.WriteOnly<PartitionKey, AccordCommandsForKey>
     {
         private Future<?> future = null;
 
@@ -212,25 +212,13 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordStateC
     }
 
     @Override
-    public AccordStateCache.Node<PartitionKey, AccordCommandsForKey> createNode()
-    {
-        return new AccordStateCache.Node<>(this)
-        {
-            @Override
-            long sizeInBytes(AccordCommandsForKey value)
-            {
-                return estimatedSizeOnHeap();
-            }
-        };
-    }
-
-    @Override
     public PartitionKey key()
     {
         return key;
     }
 
-    private long estimatedSizeOnHeap()
+    @Override
+    public long estimatedSizeOnHeap()
     {
         long size = EMPTY_SIZE;
         size += maxTimestamp.estimatedSizeOnHeap(AccordObjectSizes::timestamp);

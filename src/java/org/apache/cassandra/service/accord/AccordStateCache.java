@@ -31,8 +31,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import accord.api.Read;
-import org.apache.cassandra.service.accord.store.StoredNavigableMap;
-import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -45,60 +43,17 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
  */
 public class AccordStateCache
 {
-    public interface AccordState<K, V extends AccordState<K, V>>
-    {
-        Node<K, V> createNode();
-        K key();
-        boolean hasModifications();
-        void clearModifiedFlag();
-    }
-
-    public interface WriteOnly<K, V extends AccordState<K, V>> extends AccordState<K, V>
-    {
-        void future(Future<?> future);
-        Future<?> future();
-
-        /**
-         * Apply the write only changes to the full instance
-         */
-        void applyChanges(V instance);
-
-        static <T, K extends Comparable<?>, V> void applyMapChanges(T from, T to, Function<T, StoredNavigableMap<K, V>> getMap)
-        {
-            StoredNavigableMap<K, V> fromMap = getMap.apply(from);
-
-            if (!fromMap.hasModifications())
-                return;
-
-            StoredNavigableMap<K, V> toMap = getMap.apply(to);
-            fromMap.forEachAddition(toMap::blindPut);
-            fromMap.forEachDeletion(toMap::blindRemove);
-        }
-
-        static <T, V extends Comparable<?>> void applySetChanges(T from, T to, Function<T, StoredSet<V, ?>> getSet)
-        {
-            StoredSet<V, ?> fromSet = getSet.apply(from);
-
-            if (!fromSet.hasModifications())
-                return;
-
-            StoredSet<V, ?> toSet = getSet.apply(to);
-            fromSet.forEachAddition(toSet::blindAdd);
-            fromSet.forEachDeletion(toSet::blindRemove);
-        }
-    }
-
-    public static class WriteOnlyGroup<K, V extends AccordState<K, V>>
+    private static class WriteOnlyGroup<K, V extends AccordState<K, V>>
     {
         private boolean locked = false;
-        private List<WriteOnly<K, V>> items = new ArrayList<>();
+        private List<AccordState.WriteOnly<K, V>> items = new ArrayList<>();
 
         void lock()
         {
             locked = true;
         }
 
-        void add(WriteOnly<K, V> item)
+        void add(AccordState.WriteOnly<K, V> item)
         {
             items.add(item);
         }
@@ -110,7 +65,7 @@ public class AccordStateCache
 
             while (!items.isEmpty())
             {
-                WriteOnly<K, V> item = items.get(0);
+                AccordState.WriteOnly<K, V> item = items.get(0);
 
                 // we can't remove items out of order, so if we encounter a write is still pending, we stop
                 if (item.future() == null || !item.future().isDone())
@@ -126,20 +81,9 @@ public class AccordStateCache
         }
     }
 
-    static abstract class Node<K, V extends AccordStateCache.AccordState<K, V>>
+    static class Node<K, V extends AccordState<K, V>>
     {
-        // just for measuring empty size on heap
-        private static class MeasurableState implements AccordState<Object, MeasurableState>
-        {
-            @Override
-            public Node<Object, MeasurableState> createNode()
-            {
-                return new Node<>(this) { @Override long sizeInBytes(MeasurableState value) { return 0; } };
-            }
-            @Override public Object key() { return null; }
-            @Override public boolean hasModifications() { return false; }
-            @Override public void clearModifiedFlag() { } }
-        static final long EMPTY_SIZE = ObjectSizes.measure(new MeasurableState().createNode());
+        static final long EMPTY_SIZE = ObjectSizes.measure(new AccordStateCache.Node<>(null));
 
         final V value;
         private Node<?, ?> prev;
@@ -152,11 +96,9 @@ public class AccordStateCache
             this.value = value;
         }
 
-        abstract long sizeInBytes(V value);
-
         long size()
         {
-            long result = EMPTY_SIZE + sizeInBytes(value);
+            long result = EMPTY_SIZE + value.estimatedSizeOnHeap();
             lastQueriedSize = result;
             return result;
         }
@@ -285,7 +227,7 @@ public class AccordStateCache
         }
     }
 
-    private <K, V extends AccordStateCache.AccordState<K, V>> V getOrCreateInternal(K key, Function<K, V> factory, Stats instanceStats)
+    private <K, V extends AccordState<K, V>> V getOrCreateInternal(K key, Function<K, V> factory, Stats instanceStats)
     {
         stats.queries++;
         instanceStats.queries++;
@@ -308,7 +250,7 @@ public class AccordStateCache
             if (factory == null)
                 return null;
             V value = factory.apply(key);
-            node = value.createNode();
+            node = new Node<>(value);
             updateSize(node);
         }
         else
@@ -327,7 +269,7 @@ public class AccordStateCache
         return node.value;
     }
 
-    private <K, V extends AccordStateCache.AccordState<K, V>> void releaseInternal(V value)
+    private <K, V extends AccordState<K, V>> void releaseInternal(V value)
     {
         K key = value.key();
         maybeClearFuture(key);
@@ -397,7 +339,7 @@ public class AccordStateCache
         getFutureInternal(writeFutures, key);
     }
 
-    public class Instance<K, V extends AccordStateCache.AccordState<K, V>>
+    public class Instance<K, V extends AccordState<K, V>>
     {
         private final Class<K> keyClass;
         private final Class<V> valClass;
@@ -478,7 +420,7 @@ public class AccordStateCache
             if (group == null)
                 return;
 
-            for (WriteOnly<K, V> writeOnly : group.items)
+            for (AccordState.WriteOnly<K, V> writeOnly : group.items)
             {
                 writeOnly.applyChanges(instance);
                 if (!writeOnly.future().isDone())
@@ -486,7 +428,7 @@ public class AccordStateCache
             }
         }
 
-        public void addWriteOnly(WriteOnly<K, V> writeOnly)
+        public void addWriteOnly(AccordState.WriteOnly<K, V> writeOnly)
         {
             K key = writeOnly.key();
             Preconditions.checkArgument(writeOnly.future() != null);
@@ -567,9 +509,7 @@ public class AccordStateCache
         }
     }
 
-    public <K, V extends AccordStateCache.AccordState<K, V>> Instance<K, V> instance(Class<K> keyClass,
-                                                                                     Class<V> valClass,
-                                                                                     Function<K, V> factory)
+    public <K, V extends AccordState<K, V>> Instance<K, V> instance(Class<K> keyClass, Class<V> valClass, Function<K, V> factory)
     {
         Instance<K, V> instance = new Instance<>(keyClass, valClass, factory);
         if (!instances.add(instance))

@@ -24,7 +24,6 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.service.accord.AccordStateCache.Node;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -34,7 +33,7 @@ public class AccordStateCacheTest
     private static final long KEY_SIZE = 4;
     private static final long DEFAULT_NODE_SIZE = nodeSize(DEFAULT_ITEM_SIZE);
 
-    private static class Item implements AccordStateCache.AccordState<Integer, Item>
+    private static class Item implements AccordState<Integer, Item>
     {
         long size = DEFAULT_ITEM_SIZE;
 
@@ -44,19 +43,6 @@ public class AccordStateCacheTest
         public Item(Integer key)
         {
             this.key = key;
-        }
-
-        @Override
-        public Node<Integer, Item> createNode()
-        {
-            return new Node<>(this)
-            {
-                @Override
-                long sizeInBytes(Item value)
-                {
-                    return size + KEY_SIZE;
-                }
-            };
         }
 
         @Override
@@ -76,11 +62,17 @@ public class AccordStateCacheTest
         {
             modified = false;
         }
+
+        @Override
+        public long estimatedSizeOnHeap()
+        {
+            return size;
+        }
     }
 
     private static long nodeSize(long itemSize)
     {
-        return itemSize + KEY_SIZE + Node.EMPTY_SIZE;
+        return itemSize + KEY_SIZE + AccordStateCache.Node.EMPTY_SIZE;
     }
 
     private static void assertCacheState(AccordStateCache cache, int active, int cached, long bytes)
@@ -250,13 +242,13 @@ public class AccordStateCacheTest
         assertCacheState(cache, 0, 1, DEFAULT_NODE_SIZE);
     }
 
-    static class SetItem implements AccordStateCache.AccordState<Integer, SetItem>
+    static class SetItem implements AccordState<Integer, SetItem>
     {
         final Integer key;
         final Set<Integer> set = new HashSet<>();
         boolean modified = false;
 
-        static class WriteOnly extends SetItem implements AccordStateCache.WriteOnly<Integer, SetItem>
+        static class WriteOnly extends SetItem implements AccordState.WriteOnly<Integer, SetItem>
         {
             AsyncPromise<?> promise = null;
             final Set<Integer> added = new HashSet<>();
@@ -295,19 +287,6 @@ public class AccordStateCacheTest
         }
 
         @Override
-        public Node<Integer, SetItem> createNode()
-        {
-            return new Node<>(this)
-            {
-                @Override
-                long sizeInBytes(SetItem value)
-                {
-                    return 0;
-                }
-            };
-        }
-
-        @Override
         public Integer key()
         {
             return key;
@@ -323,6 +302,12 @@ public class AccordStateCacheTest
         public void clearModifiedFlag()
         {
             this.modified = false;
+        }
+
+        @Override
+        public long estimatedSizeOnHeap()
+        {
+            return set.size() * 100L;
         }
     }
 

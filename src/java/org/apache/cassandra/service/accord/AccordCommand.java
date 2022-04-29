@@ -47,14 +47,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.service.accord.AccordStateCache.WriteOnly.applyMapChanges;
-import static org.apache.cassandra.service.accord.AccordStateCache.WriteOnly.applySetChanges;
+import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
+import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySetChanges;
 
-public class AccordCommand extends Command implements AccordStateCache.AccordState<TxnId, AccordCommand>
+public class AccordCommand extends Command implements AccordState<TxnId, AccordCommand>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
 
-    public static class WriteOnly extends AccordCommand implements AccordStateCache.WriteOnly<TxnId, AccordCommand>
+    public static class WriteOnly extends AccordCommand implements AccordState.WriteOnly<TxnId, AccordCommand>
     {
         private Future<?> future = null;
 
@@ -236,25 +236,13 @@ public class AccordCommand extends Command implements AccordStateCache.AccordSta
     }
 
     @Override
-    public AccordStateCache.Node<TxnId, AccordCommand> createNode()
-    {
-        return new AccordStateCache.Node<>(this)
-        {
-            @Override
-            long sizeInBytes(AccordCommand value)
-            {
-                return value.estimatedSizeOnHeap();
-            }
-        };
-    }
-
-    @Override
     public TxnId key()
     {
         return txnId;
     }
 
-    private long estimatedSizeOnHeap()
+    @Override
+    public long estimatedSizeOnHeap()
     {
         long size = EMPTY_SIZE;
         size += AccordObjectSizes.timestamp(txnId);

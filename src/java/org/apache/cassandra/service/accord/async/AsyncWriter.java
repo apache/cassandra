@@ -39,7 +39,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.AccordStateCache.AccordState;
+import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
@@ -88,7 +88,7 @@ public class AsyncWriter
             futures.add(future);
         }
 
-        for (AccordStateCache.WriteOnly<K, V> item : ctxGroup.writeOnly.values())
+        for (AccordState.WriteOnly<K, V> item : ctxGroup.writeOnly.values())
         {
             Preconditions.checkState(item.hasModifications());
             if (futures == null) futures = new ArrayList<>();
@@ -157,7 +157,7 @@ public class AsyncWriter
                                                     AccordCommandStore commandStore,
                                                     AsyncContext.Group<K, V> ctxGroup,
                                                     AccordStateCache.Instance<K, V> cache,
-                                                    BiFunction<AccordCommandStore, K, AccordStateCache.WriteOnly<K, V>> factory,
+                                                    BiFunction<AccordCommandStore, K, AccordState.WriteOnly<K, V>> factory,
                                                     Map<K, V> addToCtx)
     {
         V item = ctxGroup.get(key);
