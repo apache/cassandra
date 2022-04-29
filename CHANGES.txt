@@ -1,4 +1,5 @@
 4.1
+ * Add auto_snapshot_ttl configuration (CASSANDRA-16790)
  * List snapshots of dropped tables (CASSANDRA-16843)
  * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
  * Add a pluggable memtable API (CEP-11 / CASSANDRA-17034)
