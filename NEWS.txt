@@ -56,6 +56,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added API for alternative memtable implementations. For details, see
+      src/java/org/apache/cassandra/db/memtable/Memtable_API.md
     - Added a new guardrails framework allowing to define soft/hard limits for different user actions, such as limiting
       the number of tables, columns per table or the size of collections. These guardrails are only applied to regular
       user queries, and superusers and internal queries are excluded. Reaching the soft limit raises a client warning,
@@ -152,8 +154,6 @@ New features
       table.
     - Added ability to invalidate auth caches through corresponding `nodetool` commands and virtual tables.
     - DCL statements in audit logs will now obscure only the password if they don't fail to parse.
-    - Added API for alternative memtable implementations. For details, see
-      src/java/org/apache/cassandra/db/memtable/Memtable_API.md
     - Starting from 4.1 sstables support UUID based generation identifiers. They are globally unique and thus they let
       the node to create sstables without any prior knowledge about the existing sstables in the data directory.
       The feature is disabled by default in cassandra.yaml because once enabled, there is no easy way to downgrade.

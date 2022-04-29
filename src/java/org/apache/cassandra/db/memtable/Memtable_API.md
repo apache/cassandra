@@ -145,7 +145,7 @@ Memtable classes must either contain a static `FACTORY` field (if they take no a
 a `factory(Map<String, String>)` method, which is called using the configuration `parameters`. For validation, the
 latter should consume any further options (using `map.remove`).
 
-The `MemtableParams` class will looks for the specified class name (prefixed with `org.apache.cassandra.db.memtable.`
+The `MemtableParams` class will look for the specified class name (prefixed with `org.apache.cassandra.db.memtable.`
 if only a short name was given), then look for a `factory` method. If it finds one, it will call it with a copy of the 
 supplied parameters; if it does not, it will look for the `FACTORY` field and use its value if found. It will error out
 if the class was not found, if neither the method or field was found, or if the user supplied parameters that did not 
@@ -172,3 +172,6 @@ number of CPU threads available to the process) and `serialize_writes`, which, i
 memtable to be synchronized. The latter can be useful to minimize space and time wasted for unsuccesful lockless 
 partition modification where a new copy of the partition would be prepared but not used due to concurrent modification.
 Regardless of the setting, reads can always execute in parallel, including concurrently with writes.
+
+Please note that sharding cannot be used with non-hashing partitioners (i.e. `ByteOrderPartitioner` or 
+`OrderPreservingPartitioner`).
