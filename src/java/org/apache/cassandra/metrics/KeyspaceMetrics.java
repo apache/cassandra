@@ -64,7 +64,6 @@ public class KeyspaceMetrics
     /** Total disk space used by SSTables belonging to this CF, including obsolete ones waiting to be GC'd */
     public final Gauge<Long> totalDiskSpaceUsed;
     /** Disk space used by bloom filter */
-
     public final Gauge<Long> bloomFilterDiskSpaceUsed;
     /** Off heap memory used by bloom filter */
     public final Gauge<Long> bloomFilterOffHeapMemoryUsed;

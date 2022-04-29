@@ -59,6 +59,18 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.github.jamm.Unmetered;
 
+/**
+ * A proof-of-concept sharded memtable implementation. This implementation splits the partition skip-list into several
+ * independent skip-lists each covering a roughly equal part of the token space served by this node. This reduces
+ * congestion of the skip-list from concurrent writes and can lead to improved write throughput.
+ *
+ * The implementation takes two parameters:
+ * - shards: the number of shards to split into.
+ * - serialize_writes: if false, each shard may serve multiple writes in parallel; if true, writes to each shard are
+ *   synchronized.
+ *
+ * Also see Memtable_API.md.
+ */
 public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
 {
     private static final Logger logger = LoggerFactory.getLogger(ShardedSkipListMemtable.class);
@@ -68,8 +80,8 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
 
     // The boundaries for the keyspace as they were calculated when the memtable is created.
     // The boundaries will be NONE for system keyspaces or if StorageService is not yet initialized.
-    // The fact this is fixed for the duration of the memtable lifetime, guarantees we'll always pick the same core
-    // for the a given key, even if we race with the StorageService initialization or with topology changes.
+    // The fact this is fixed for the duration of the memtable lifetime, guarantees we'll always pick the same shard
+    // for a given key, even if we race with the StorageService initialization or with topology changes.
     @Unmetered
     final ShardBoundaries boundaries;
 
@@ -82,8 +94,8 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
     @VisibleForTesting
     public static final String SHARD_COUNT_PROPERTY = "cassandra.memtable.shard.count";
 
-    // default shard count, used when a specific number of shards is not specified in the options
-    private static volatile int SHARD_COUNT = Integer.getInteger(SHARD_COUNT_PROPERTY, FBUtilities.getAvailableProcessors());
+    // default shard count, used when a specific number of shards is not specified in the parameters
+    private static final int SHARD_COUNT = Integer.getInteger(SHARD_COUNT_PROPERTY, FBUtilities.getAvailableProcessors());
 
     private final Factory factory;
 
@@ -323,12 +335,12 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
         // is guaranteed to see the changes to the values.
 
         // The smallest timestamp for all partitions stored in this shard
-        private AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
-        private AtomicInteger minLocalDeletionTime = new AtomicInteger(Integer.MAX_VALUE);
+        private final AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
+        private final AtomicInteger minLocalDeletionTime = new AtomicInteger(Integer.MAX_VALUE);
 
-        private AtomicLong liveDataSize = new AtomicLong(0);
+        private final AtomicLong liveDataSize = new AtomicLong(0);
 
-        private AtomicLong currentOperations = new AtomicLong(0);
+        private final AtomicLong currentOperations = new AtomicLong(0);
 
         // We index the memtable by PartitionPosition only for the purpose of being able
         // to select key range using Token.KeyBound. However put() ensures that we
