@@ -1251,7 +1251,7 @@ public class Directories
         private final Set<String> toSkip;
         SSTableSizeSummer(List<File> files)
         {
-            toSkip = files.stream().map(f -> f.name()).collect(Collectors.toSet());
+            toSkip = files.stream().map(File::name).collect(Collectors.toSet());
         }
 
         @Override

@@ -3106,7 +3106,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public long trueSnapshotsSize()
     {
-
         return getDirectories().trueSnapshotsSize();
     }
 

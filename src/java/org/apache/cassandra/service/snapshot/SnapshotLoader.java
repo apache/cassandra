@@ -57,16 +57,15 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
 
     private final Collection<Path> dataDirectories;
     private final Map<String, TableSnapshot.Builder> snapshots = new HashMap<>();
-    private boolean walked = false;
 
     public SnapshotLoader()
     {
         this(DatabaseDescriptor.getAllDataFileLocations());
     }
 
-    public SnapshotLoader(String[] dataDirs)
+    public SnapshotLoader(String[] dataDirectories)
     {
-        this.dataDirectories = Arrays.asList(dataDirs).stream().map(d -> Paths.get(d)).collect(Collectors.toList());
+        this.dataDirectories = Arrays.stream(dataDirectories).map(Paths::get).collect(Collectors.toList());
     }
 
     public SnapshotLoader(Collection<Path> dataDirs)
@@ -76,21 +75,18 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
 
     public Set<TableSnapshot> loadSnapshots()
     {
-        if (!walked) {
-            for (Path dataDir : dataDirectories)
+        for (Path dataDir : dataDirectories)
+        {
+            try
             {
-                try
-                {
-                    Files.walkFileTree(dataDir, Collections.EMPTY_SET, 5, this);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(String.format("Error while loading snapshots from %s", dataDir));
-                }
+                Files.walkFileTree(dataDir, Collections.EMPTY_SET, 5, this);
             }
-            walked = true;
+            catch (IOException e)
+            {
+                throw new RuntimeException(String.format("Error while loading snapshots from %s", dataDir));
+            }
         }
-        return snapshots.values().stream().map(s -> s.build()).collect(Collectors.toSet());
+        return snapshots.values().stream().map(TableSnapshot.Builder::build).collect(Collectors.toSet());
     }
 
     public FileVisitResult preVisitDirectory(Path subdir, BasicFileAttributes attrs)
@@ -106,13 +102,13 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
                     loadSnapshotFromDir(snapshotDirMatcher, subdir);
                 } catch (Throwable e)
                 {
-                    logger.warn("Could not load snapshot from %s.", subdir, e);
+                    logger.warn("Could not load snapshot from {}.", subdir, e);
                 }
             }
             return FileVisitResult.SKIP_SUBTREE;
         }
 
-        return subdir.equals(Directories.BACKUPS_SUBDIR)
+        return subdir.getFileName().equals(Directories.BACKUPS_SUBDIR)
                ? FileVisitResult.SKIP_SUBTREE
                : FileVisitResult.CONTINUE;
     }

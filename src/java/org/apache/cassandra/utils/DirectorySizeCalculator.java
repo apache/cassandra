@@ -45,9 +45,7 @@ public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
     {
         if (isAcceptable(file))
-        {
             size += attrs.size();
-        }
         return FileVisitResult.CONTINUE;
     }
 

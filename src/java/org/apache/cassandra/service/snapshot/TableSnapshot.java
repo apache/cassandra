@@ -24,14 +24,11 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
-import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,7 +146,7 @@ public class TableSnapshot
             }
             catch (IOException e)
             {
-                logger.error("Could not calculate the size of {}. {}", snapshotDir, e);
+                logger.error("Could not calculate the size of {}.", snapshotDir, e);
             }
         }
 
@@ -193,7 +190,10 @@ public class TableSnapshot
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TableSnapshot snapshot = (TableSnapshot) o;
-        return Objects.equals(keyspaceName, snapshot.keyspaceName) && Objects.equals(tableName, snapshot.tableName) && Objects.equals(tableId, snapshot.tableId) && Objects.equals(tag, snapshot.tag) && Objects.equals(createdAt, snapshot.createdAt) && Objects.equals(expiresAt, snapshot.expiresAt) && Objects.equals(snapshotDirs, snapshot.snapshotDirs);
+        return Objects.equals(keyspaceName, snapshot.keyspaceName) && Objects.equals(tableName, snapshot.tableName) &&
+               Objects.equals(tableId, snapshot.tableId) && Objects.equals(tag, snapshot.tag) &&
+               Objects.equals(createdAt, snapshot.createdAt) && Objects.equals(expiresAt, snapshot.expiresAt) &&
+               Objects.equals(snapshotDirs, snapshot.snapshotDirs);
     }
 
     @Override

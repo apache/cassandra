@@ -278,7 +278,6 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
         CDCSizeTracker(CommitLogSegmentManagerCDC segmentManager, File path)
         {
-            super();
             this.path = path;
             this.segmentManager = segmentManager;
             this.sizeInProgress = new AtomicLong(0);
