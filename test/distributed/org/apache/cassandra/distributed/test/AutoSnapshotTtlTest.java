@@ -27,12 +27,16 @@ import org.junit.Test;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.WithProperties;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.db.ColumnFamilyStore.SNAPSHOT_DROP_PREFIX;
+import static org.apache.cassandra.db.ColumnFamilyStore.SNAPSHOT_TRUNCATE_PREFIX;
 import static org.apache.cassandra.distributed.Cluster.build;
-import static org.apache.cassandra.distributed.test.SnapshotsTest.populate;
+import static org.awaitility.Awaitility.await;
 
 public class AutoSnapshotTtlTest extends TestBaseImpl
 {
@@ -41,8 +45,9 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     private static WithProperties properties = new WithProperties();
 
     @BeforeClass
-    public static void before() throws IOException
+    public static void beforeClass() throws Throwable
     {
+        TestBaseImpl.beforeClass();
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS, 0);
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS, SNAPSHOT_CLEANUP_PERIOD_SECONDS);
         properties.set(CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS, FIVE_SECONDS);
@@ -58,29 +63,29 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
      * Check that when auto_snapshot_ttl=5s, snapshots created from TRUNCATE are expired after 10s
      */
     @Test
-    public void testAutoSnapshotTTlOnTruncate() throws IOException, InterruptedException
+    public void testAutoSnapshotTTlOnTruncate() throws IOException
     {
-        try (Cluster cluster = build().withNodes(1)
+        try (Cluster cluster = init(build().withNodes(1)
                                       .withConfig(c -> c.with(Feature.GOSSIP)
                                                         .set("auto_snapshot_ttl", String.format("%ds", FIVE_SECONDS)))
-                                      .start())
+                                      .start()))
         {
             IInvokableInstance instance = cluster.get(1);
 
-            cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
-            cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
 
             populate(cluster);
 
             // Truncate Table
-            cluster.schemaChange("TRUNCATE default.tbl;");
+            cluster.schemaChange(withKeyspace("TRUNCATE %s.tbl;"));
 
             // Check snapshot is listed after table is truncated
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(ColumnFamilyStore.SNAPSHOT_TRUNCATE_PREFIX);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_TRUNCATE_PREFIX);
 
             // Check snapshot is removed after 10s
-            Thread.sleep(2 * FIVE_SECONDS * 1000L);
-            cluster.get(1).nodetoolResult("listsnapshots").asserts().success().stdoutNotContains(ColumnFamilyStore.SNAPSHOT_TRUNCATE_PREFIX);
+            await().timeout(10, SECONDS)
+                   .pollInterval(1, SECONDS)
+                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
         }
     }
 
@@ -88,29 +93,29 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
      * Check that when auto_snapshot_ttl=5s, snapshots created from TRUNCATE are expired after 10s
      */
     @Test
-    public void testAutoSnapshotTTlOnDrop() throws IOException, InterruptedException
+    public void testAutoSnapshotTTlOnDrop() throws IOException
     {
-        try (Cluster cluster = build().withNodes(1)
+        try (Cluster cluster = init(build().withNodes(1)
                                       .withConfig(c -> c.with(Feature.GOSSIP)
                                                                   .set("auto_snapshot_ttl", String.format("%ds", FIVE_SECONDS)))
-                                      .start())
+                                      .start()))
         {
             IInvokableInstance instance = cluster.get(1);
 
-            cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
-            cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
 
             populate(cluster);
 
             // Drop Table
-            cluster.schemaChange("DROP TABLE default.tbl;");
+            cluster.schemaChange(withKeyspace("DROP TABLE %s.tbl;"));
 
             // Check snapshot is listed after table is dropped
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(ColumnFamilyStore.SNAPSHOT_DROP_PREFIX);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_DROP_PREFIX);
 
             // Check snapshot is removed after 10s
-            Thread.sleep(2 * FIVE_SECONDS * 1000L);
-            cluster.get(1).nodetoolResult("listsnapshots").asserts().success().stdoutNotContains(ColumnFamilyStore.SNAPSHOT_DROP_PREFIX);
+            await().timeout(10, SECONDS)
+                   .pollInterval(1, SECONDS)
+                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
         }
     }
 
@@ -120,31 +125,36 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     @Test
     public void testAutoSnapshotTtlDisabled() throws IOException, InterruptedException
     {
-        try (Cluster cluster = build().withNodes(1)
+        try (Cluster cluster = init(build().withNodes(1)
                                       .withConfig(c -> c.with(Feature.GOSSIP))
-                                      .start())
+                                      .start()))
         {
             IInvokableInstance instance = cluster.get(1);
 
-            cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
-            cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
 
             populate(cluster);
 
             // Truncate Table
-            cluster.schemaChange("TRUNCATE default.tbl;");
+            cluster.schemaChange(withKeyspace("TRUNCATE %s.tbl;"));
 
             // Drop Table
-            cluster.schemaChange("DROP TABLE default.tbl;");
+            cluster.schemaChange(withKeyspace("DROP TABLE %s.tbl;"));
 
-            // Check snapshot is listed after table is truncated and dropped
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(ColumnFamilyStore.SNAPSHOT_TRUNCATE_PREFIX);
-            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(ColumnFamilyStore.SNAPSHOT_DROP_PREFIX);
+            // Check snapshots are created after table is truncated and dropped
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_TRUNCATE_PREFIX);
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_DROP_PREFIX);
 
             // Check snapshot are *NOT* expired after 10s
             Thread.sleep(2 * FIVE_SECONDS * 1000L);
             instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(ColumnFamilyStore.SNAPSHOT_TRUNCATE_PREFIX);
             instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(ColumnFamilyStore.SNAPSHOT_DROP_PREFIX);
         }
+    }
+
+    protected static void populate(Cluster cluster)
+    {
+        for (int i = 0; i < 100; i++)
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (key, value) VALUES (?, 'txt')"), ConsistencyLevel.ONE, i);
     }
 }

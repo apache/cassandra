@@ -2824,9 +2824,9 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    public static void setAutoSnapshotTtl(DurationSpec autoSnapshotTtl)
+    public static void setAutoSnapshotTtl(DurationSpec newTtl)
     {
-        autoSnapshoTtl = autoSnapshotTtl;
+        autoSnapshoTtl = newTtl;
     }
 
     @VisibleForTesting

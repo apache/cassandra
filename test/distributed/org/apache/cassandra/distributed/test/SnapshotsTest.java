@@ -238,7 +238,7 @@ public class SnapshotsTest extends TestBaseImpl
         Assert.assertEquals(1, distinctTimestamps);
     }
 
-    protected static void populate(Cluster cluster)
+    private void populate(Cluster cluster)
     {
         for (int i = 0; i < 100; i++)
             cluster.coordinator(1).execute("INSERT INTO default.tbl (key, value) VALUES (?, 'txt')", ConsistencyLevel.ONE, i);
