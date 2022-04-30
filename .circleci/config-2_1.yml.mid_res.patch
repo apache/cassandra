@@ -10,13 +10,7 @@
 ---
 >     exec_resource_class: large
 >   parallelism: 10
-122,123c122,135
-<     #exec_resource_class: xlarge
-<   parallelism: 1
----
->     exec_resource_class: large
->   parallelism: 4
-> 
+118a119,130
 > j8_large_par_executor: &j8_large_par_executor
 >   executor:
 >     name: java8-executor
@@ -28,6 +22,13 @@
 >     name: java8-executor
 >     exec_resource_class: xlarge
 >   parallelism: 100
+> 
+122,123c134,135
+<     #exec_resource_class: xlarge
+<   parallelism: 1
+---
+>     exec_resource_class: large
+>   parallelism: 4
 128c140
 <     #exec_resource_class: xlarge
 ---
@@ -42,7 +43,7 @@
 <     #exec_resource_class: xlarge
 <   parallelism: 1
 ---
->     #exec_resource_class: large
+>     exec_resource_class: large
 >   parallelism: 10
 148a161,166
 > j11_large_par_executor: &j11_large_par_executor
@@ -81,57 +82,55 @@
 ---
 >     exec_resource_class: large
 >   parallelism: 25
-833c857
+875c899
 <     <<: *j8_par_executor
 ---
 >     <<: *j8_large_par_executor
-847c871
+889c913
 <     <<: *j11_par_executor
 ---
 >     <<: *j11_large_par_executor
-862c886
+904c928
 <     <<: *j8_par_executor
 ---
 >     <<: *j8_large_par_executor
-876c900
+918c942
 <     <<: *j11_par_executor
 ---
 >     <<: *j11_large_par_executor
-891c915
+933c957
 <     <<: *j8_par_executor
 ---
 >     <<: *j8_very_large_par_executor
-905c929
+947c971
 <     <<: *j8_par_executor
 ---
 >     <<: *j8_large_par_executor
-920c944
+962c986
 <     <<: *j8_par_executor
 ---
 >     <<: *j8_large_par_executor
-938c962
+980c1004
 <     <<: *j8_par_executor
 ---
 >     <<: *j8_large_par_executor
-953c977
+995c1019
 <     <<: *j8_par_executor
 ---
 >     <<: *j8_large_par_executor
-971c995
+1013c1037
 <     <<: *j11_par_executor
 ---
 >     <<: *j11_large_par_executor
-986c1010
+1028c1052
 <     <<: *j11_par_executor
 ---
 >     <<: *j11_large_par_executor
-1004c1028
+1046c1070
 <     <<: *j11_par_executor
 ---
 >     <<: *j11_large_par_executor
-1019c1043
+1061c1085
 <     <<: *j11_par_executor
 ---
 >     <<: *j11_large_par_executor
-1660a1685
-> 
