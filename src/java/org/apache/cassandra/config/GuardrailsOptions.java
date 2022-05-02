@@ -330,17 +330,17 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public boolean getTruncateDropEnabled()
+    public boolean getDropTruncateTableEnabled()
     {
-        return config.truncate_drop_enabled;
+        return config.drop_truncate_table_enabled;
     }
 
-    public void setTruncateDropEnabled(boolean enabled)
+    public void setDropTruncateTableEnabled(boolean enabled)
     {
-        updatePropertyWithLogging("truncate_drop_enabled",
+        updatePropertyWithLogging("drop_truncate_table_enabled",
                                   enabled,
-                                  () -> config.truncate_drop_enabled,
-                                  x -> config.truncate_drop_enabled = x);
+                                  () -> config.drop_truncate_table_enabled,
+                                  x -> config.drop_truncate_table_enabled = x);
     }
 
     @Override
