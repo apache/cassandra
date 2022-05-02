@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.common.base.Preconditions;
+
 import accord.api.Key;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -57,31 +59,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         return kind().compareTo(that.kind());
     }
 
-    protected abstract boolean listenerIsInContext(AsyncContext context);
-    protected abstract void onChangeInternal(Command command);
-    protected abstract TxnOperation scopeForCommand(Command command);
     protected abstract long estimatedSizeOnHeap();
-
-    @Override
-    public void onChange(Command c)
-    {
-        AccordCommand command = (AccordCommand) c;
-        AccordCommandStore commandStore = command.commandStore();
-        AsyncContext context = commandStore.getContext();
-        if (listenerIsInContext(context))
-        {
-            onChangeInternal(command);
-        }
-        else
-        {
-            TxnId callingTxnId = command.txnId();
-            commandStore.process(scopeForCommand(command), instance -> {
-                Command caller = instance.command(callingTxnId);
-                onChangeInternal(caller);
-            });
-
-        }
-    }
 
     static class CommandListenerProxy extends ListenerProxy
     {
@@ -143,19 +121,27 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        protected boolean listenerIsInContext(AsyncContext context)
+        public void onChange(Command c)
         {
-            return context.commands.get(txnId) != null;
+            AccordCommand command = (AccordCommand) c;
+            AccordCommandStore commandStore = command.commandStore();
+            AsyncContext context = commandStore.getContext();
+            if (context.commands.get(txnId) != null)
+            {
+                commandStore.command(txnId).onChange(c);
+            }
+            else
+            {
+                TxnId callingTxnId = command.txnId();
+                commandStore.process(scopeForCommand(command), instance -> {
+                    Command caller = instance.command(callingTxnId);
+                    commandStore.command(txnId).onChange(caller);
+                });
+
+            }
         }
 
-        @Override
-        protected void onChangeInternal(Command command)
-        {
-            commandStore.command(txnId).onChange(command);
-        }
-
-        @Override
-        protected TxnOperation scopeForCommand(Command command)
+        private TxnOperation scopeForCommand(Command command)
         {
             Iterable<TxnId> txnIds = List.of(command.txnId(), txnId);
             return new TxnOperation()
@@ -181,7 +167,10 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
     }
 
-    // TODO: these should be run before any load attempts, similar to write only instances, otherwise we may use a stale max timestamp for a key
+    /**
+     * These always need to be run in either the same task as the notifying command, or immediately afterwards, otherwise we
+     * may use stale max timestamps for preaccept
+     */
     static class CommandsForKeyListenerProxy extends ListenerProxy
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandsForKeyListenerProxy(null, null));
@@ -242,36 +231,15 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        protected boolean listenerIsInContext(AsyncContext context)
+        public void onChange(Command c)
         {
-            return context.commandsForKey.get(key) != null;
-        }
+            AccordCommand command = (AccordCommand) c;
+            AccordCommandStore commandStore = command.commandStore();
+            AsyncContext context = commandStore.getContext();
+            AccordCommandsForKey cfk = context.commandsForKey.get(key);
 
-        @Override
-        protected void onChangeInternal(Command command)
-        {
-            commandStore.commandsForKey(key).onChange(command);
-        }
-
-        @Override
-        protected TxnOperation scopeForCommand(Command command)
-        {
-            Iterable<TxnId> txnIds = Collections.singleton(command.txnId());
-            Iterable<Key> keys = Collections.singleton(key);
-            return new TxnOperation()
-            {
-                @Override
-                public Iterable<TxnId> txnIds()
-                {
-                    return txnIds;
-                }
-
-                @Override
-                public Iterable<Key> keys()
-                {
-                    return keys;
-                }
-            };
+            Preconditions.checkState(cfk != null, "Related commands for key always need to be in context");
+            cfk.onChange(command);
         }
 
         @Override
