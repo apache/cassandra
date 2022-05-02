@@ -145,9 +145,9 @@ public final class Guardrails implements GuardrailsMBean
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
                     "GROUP BY functionality");
 
-    public static final DisableFlag truncateDropEnabled =
-    new DisableFlag("truncate_drop",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getTruncateDropEnabled(),
+    public static final DisableFlag truncateDropTableEnabled =
+    new DisableFlag("truncate_drop_table",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getTruncateDropTableEnabled(),
                     "TRUNCATE and DROP TABLE functionality");
 
     /**
@@ -590,13 +590,13 @@ public final class Guardrails implements GuardrailsMBean
     @Override
     public boolean getTruncateDropEnabled()
     {
-        return DEFAULT_CONFIG.getTruncateDropEnabled();
+        return DEFAULT_CONFIG.getTruncateDropTableEnabled();
     }
 
     @Override
     public void setTruncateDropEnabled(boolean enabled)
     {
-        DEFAULT_CONFIG.setTruncateDropEnabled(enabled);
+        DEFAULT_CONFIG.setTruncateDropTableEnabled(enabled);
     }
 
     @Override

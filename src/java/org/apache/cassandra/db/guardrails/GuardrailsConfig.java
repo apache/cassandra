@@ -158,7 +158,7 @@ public interface GuardrailsConfig
      *
      * @return {@code true} if allowed, {@code false} otherwise.
      */
-    boolean getTruncateDropEnabled();
+    boolean getTruncateDropTableEnabled();
 
     /**
      * @return The threshold to warn when page size exceeds given size.

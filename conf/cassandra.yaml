@@ -1629,8 +1629,8 @@ drop_compact_storage_enabled: false
 # user_timestamps_enabled: true
 # Guardrail to allow/disallow GROUP BY functionality.
 # group_by_enabled: true
-# Guardrail to allow/disallow TRUNCATE and DROP statements
-# truncate_drop_enabled: true
+# Guardrail to allow/disallow TRUNCATE and DROP TABLE statements
+# truncate_drop_table_enabled: true
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1
