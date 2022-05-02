@@ -184,6 +184,12 @@ public class NodeProbe implements AutoCloseable
      */
     private void connect() throws IOException
     {
+        String host = this.host;
+        if (host.contains(":"))
+        {
+            // Use square brackets to surround IPv6 addresses to fix CASSANDRA-7669 and CASSANDRA-17581
+            host = "[" + host + "]";
+        }
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
         Map<String,Object> env = new HashMap<String,Object>();
         if (username != null)
