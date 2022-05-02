@@ -44,6 +44,10 @@ import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
+
 /**
  * To reduce the number of reads we have to do before an operation, command data is duplicated into related commands
  * and commands per key. This class contains serializers for these summaries, as well as the logic for instantiating
@@ -223,34 +227,27 @@ public class CommandSummaries
         public void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException
         {
             statusExecute.serializeBody(command, out, version);
-            out.write(command.txn().kind().ordinal());
-            // deps are used by BeginRecovery
-            Dependencies deps = command.savedDeps();
-            out.writeInt(deps.size());
-            for (Map.Entry<TxnId, Txn> entry : deps)
-                CommandSerializers.txnId.serialize(entry.getKey(), out, version.msg_version);
+            // TODO: switch to KindOnlyTxn once we don't need to transmit txns everywhere
+            serializeNullable(command.txn(), out, version.msg_version, CommandSerializers.txn);
+
+            // TODO: switch to txnId -> DUMMY_TXN once we don't need to transmit txns everywhere
+            serializeNullable(command.savedDeps(), out, version.msg_version, CommandSerializers.deps);
         }
 
         @Override
         public void deserializeBody(AccordCommand.ReadOnly command, DataInputPlus in, Version version) throws IOException
         {
             statusExecute.deserializeBody(command, in, version);
-            command.txn.load(new KindOnlyTxn(Txn.Kind.values()[in.readByte()]));
-            TreeMap<TxnId, Txn> depsMap = new TreeMap<>();
-            int numDeps = in.readInt();
-            for (int i=0; i<numDeps; i++)
-                depsMap.put(CommandSerializers.txnId.deserialize(in, version.msg_version), DUMMY_TXN);
-            command.deps.load(new Dependencies(depsMap));
+            command.txn.load(deserializeNullable(in, version.msg_version, CommandSerializers.txn));
+            command.deps.load(deserializeNullable(in, version.msg_version, CommandSerializers.deps));
         }
 
         @Override
         public int serializedBodySize(AccordCommand command, Version version)
         {
             int size = statusExecute.serializedBodySize(command, version);
-            size += TypeSizes.sizeof((byte) command.txn().kind().ordinal());
-            int numDeps = command.deps.get().size();
-            size += TypeSizes.sizeof(numDeps);
-            size += numDeps * CommandSerializers.txnId.serializedSize();
+            size += serializedSizeNullable(command.txn(), version.msg_version, CommandSerializers.txn);
+            size += serializedSizeNullable(command.savedDeps(), version.msg_version, CommandSerializers.deps);
             return size;
         }
 
