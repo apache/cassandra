@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.Iterables;
@@ -126,6 +127,35 @@ public class AccordCommandStoreTest
         logger.info("A: {}", actual);
 
         Assert.assertEquals(cfk, actual);
+    }
+
+    @Test
+    public void commandsForKeyBlindWitnessed()
+    {
+        AtomicLong clock = new AtomicLong(0);
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+        Txn txn = createTxn(1);
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
+
+        AccordCommandsForKey.WriteOnly writeOnlyCfk = new AccordCommandsForKey.WriteOnly(commandStore, key);
+        Timestamp maxTimestamp = null;
+        TreeSet<Timestamp> expected = new TreeSet<>();
+
+        for (int i=0; i<4; i++)
+        {
+            maxTimestamp = timestamp(1, clock.incrementAndGet(), 0, 1);
+            expected.add(maxTimestamp);
+            writeOnlyCfk.updateMax(maxTimestamp);
+        }
+
+        AccordKeyspace.getCommandsForKeyMutation(writeOnlyCfk, commandStore.nextSystemTimestampMicros()).apply();
+        AccordCommandsForKey fullCfk = AccordKeyspace.loadCommandsForKey(commandStore, key);
+
+        Assert.assertEquals(expected, fullCfk.blindWitnessed.getView());
+
+        fullCfk.applyBlindWitnessedTimestamps();
+        Assert.assertEquals(maxTimestamp, fullCfk.max());
+        Assert.assertTrue(fullCfk.blindWitnessed.getView().isEmpty());
 
     }
 }

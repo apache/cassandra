@@ -72,6 +72,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.transform.FilteredPartitions;
@@ -181,6 +182,7 @@ public class AccordKeyspace
               + "store_index int,"
               + format("key %s,", KEY_TUPLE)
               + format("max_timestamp %s static,", TIMESTAMP_TUPLE)
+              + format("blind_witnessed set<%s> static, ", TIMESTAMP_TUPLE)
               + "series int,"
               + format("timestamp %s,", TIMESTAMP_TUPLE)
               + "data blob, "
@@ -192,12 +194,13 @@ public class AccordKeyspace
         static final ClusteringComparator keyComparator = CommandsForKey.partitionKeyAsClusteringComparator();
         static final ColumnFilter allColumns = ColumnFilter.all(CommandsForKey);
         static final ColumnMetadata max_timestamp = getColumn(CommandsForKey, "max_timestamp");
+        static final ColumnMetadata blind_witnessed = getColumn(CommandsForKey, "blind_witnessed");
 
         static final ColumnMetadata series = getColumn(CommandsForKey, "series");
         static final ColumnMetadata timestamp = getColumn(CommandsForKey, "timestamp");
         static final ColumnMetadata data = getColumn(CommandsForKey, "data");
 
-        static final Columns statics = Columns.of(max_timestamp);
+        static final Columns statics = Columns.from(Lists.newArrayList(max_timestamp, blind_witnessed));
         static final Columns regulars = Columns.from(Lists.newArrayList(series, timestamp, data));
         private static final RegularAndStaticColumns all = new RegularAndStaticColumns(statics, regulars);
         private static final RegularAndStaticColumns justStatic = new RegularAndStaticColumns(statics, Columns.NONE);
@@ -205,7 +208,7 @@ public class AccordKeyspace
 
         static boolean hasStaticChanges(AccordCommandsForKey commandsForKey)
         {
-            return commandsForKey.maxTimestamp.hasModifications();
+            return commandsForKey.maxTimestamp.hasModifications() || commandsForKey.blindWitnessed.hasModifications();
         }
 
         static RegularAndStaticColumns columnsFor(AccordCommandsForKey commandsForKey)
@@ -298,20 +301,21 @@ public class AccordKeyspace
         return deserializeWaitingOn(row.getMap(name, BytesType.instance, BytesType.instance));
     }
 
-    private static NavigableSet<TxnId> deserializeBlocking(Set<ByteBuffer> serialized)
+    private static <T extends Timestamp, S extends Set<T>> S deserializeTimestampSet(Set<ByteBuffer> serialized, Supplier<S> setFactory, TimestampFactory<T> timestampFactory)
     {
+        S result = setFactory.get();
         if (serialized == null || serialized.isEmpty())
-            return new TreeSet<>();
+            return result;
 
-        NavigableSet<TxnId> result = new TreeSet<>();
         for (ByteBuffer bytes : serialized)
-            result.add(deserializeTimestampOrNull(bytes, TxnId::new));
+            result.add(deserializeTimestampOrNull(bytes, timestampFactory));
+
         return result;
     }
 
     private static NavigableSet<TxnId> deserializeBlocking(UntypedResultSet.Row row, String name)
     {
-        return deserializeBlocking(row.getSet(name, BytesType.instance));
+        return deserializeTimestampSet(row.getSet(name, BytesType.instance), TreeSet::new, TxnId::new);
     }
 
     public static Set<ByteBuffer> serializeListeners(Set<ListenerProxy> listeners)
@@ -674,12 +678,20 @@ public class AccordKeyspace
                                                                                expectedRows);
 
         Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
-        if (cfk.maxTimestamp.hasModifications())
-        {
+        boolean updateStaticRow = cfk.maxTimestamp.hasModifications() || cfk.blindWitnessed.hasModifications();
+        if (updateStaticRow)
             rowBuilder.newRow(Clustering.STATIC_CLUSTERING);
+
+        if (cfk.maxTimestamp.hasModifications())
             rowBuilder.addCell(live(CommandsForKeyColumns.max_timestamp, timestampMicros, serializeTimestamp(cfk.maxTimestamp.get())));
+
+        if (cfk.blindWitnessed.hasModifications())
+            addStoredSetChanges(rowBuilder, CommandsForKeyColumns.blind_witnessed,
+                                timestampMicros, nowInSeconds, cfk.blindWitnessed,
+                                AccordKeyspace::serializeTimestamp);
+
+        if (updateStaticRow)
             partitionBuilder.add(rowBuilder.build());
-        }
 
         addSeriesMutations(cfk.uncommitted, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
         addSeriesMutations(cfk.committedById, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
@@ -749,6 +761,12 @@ public class AccordKeyspace
                         cfk.maxTimestamp.load(Timestamp.NONE);
                     else
                         cfk.maxTimestamp.load(deserializeTimestampOrNull(cellValue(cell), Timestamp::new));
+
+                    TreeSet<Timestamp> blindWitnessed = new TreeSet<>();
+                    ComplexColumnData cmplx = staticRow.getComplexColumnData(CommandsForKeyColumns.blind_witnessed);
+                    if (cmplx != null)
+                        cmplx.forEach(c -> blindWitnessed.add(deserializeTimestampOrNull(c.path().get(0), Timestamp::new)));
+                    cfk.blindWitnessed.load(blindWitnessed);
                 }
 
                 while (partition.hasNext())

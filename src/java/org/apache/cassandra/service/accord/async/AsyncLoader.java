@@ -144,6 +144,8 @@ public class AsyncLoader
                 // apply any pending write only changes that may not have made it to disk in time to be loaded
                 context.commands.items.values().forEach(commandStore.commandCache()::applyAndRemoveWriteOnlyGroup);
                 context.commandsForKey.items.values().forEach(commandStore.commandsForKeyCache()::applyAndRemoveWriteOnlyGroup);
+                // apply blindly reported timestamps
+                context.commandsForKey.items.values().forEach(AccordCommandsForKey::applyBlindWitnessedTimestamps);
                 state = State.FINISHED;
             case FINISHED:
                 break;

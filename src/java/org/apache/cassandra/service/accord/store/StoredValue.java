@@ -51,6 +51,12 @@ public class StoredValue<T> extends AbstractStoredField
         return Objects.hash(value);
     }
 
+    @Override
+    public String toString()
+    {
+        return value.toString();
+    }
+
     public long estimatedSizeOnHeap(ToLongFunction<T> measure)
     {
         if (!isLoaded() || value == null)
