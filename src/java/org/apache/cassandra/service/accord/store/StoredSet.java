@@ -35,13 +35,13 @@ import org.apache.cassandra.utils.ObjectSizes;
 public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
 {
     private S set = null;
-    private S view = null;
-    private S additions = null;
-    private S deletions = null;
+    private Set<T> view = null;
+    private Set<T> additions = null;
+    private Set<T> deletions = null;
 
     abstract S createDataSet();
-    abstract S createMetaSet();
-    abstract S createView(S data);
+    abstract Set<T> createMetaSet();
+    abstract Set<T> createView(S data);
     abstract long emptySize();
 
     public StoredSet(AccordState.Kind kind)
@@ -96,7 +96,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         setInternal(set);
     }
 
-    public S getView()
+    public Set<T> getView()
     {
         preGet();
         return view;
@@ -211,14 +211,14 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         }
     }
 
-    public static class DeterministicIdentity<T> extends StoredSet<T, Set<T>>
+    public static class DeterministicIdentity<T> extends StoredSet<T, DeterministicIdentitySet<T>>
     {
         private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new DeterministicIdentity<>(AccordState.Kind.FULL));
 
         public DeterministicIdentity(AccordState.Kind kind) { super(kind); }
 
         @Override
-        Set<T> createDataSet()
+        DeterministicIdentitySet<T> createDataSet()
         {
             return new DeterministicIdentitySet<>();
         }
@@ -230,7 +230,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         }
 
         @Override
-        Set<T> createView(Set<T> data)
+        Set<T> createView(DeterministicIdentitySet<T> data)
         {
             return Collections.unmodifiableSet(data);
         }

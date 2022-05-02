@@ -38,6 +38,7 @@ import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
+import accord.utils.DeterministicIdentitySet;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
@@ -149,7 +150,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         blockingCommitOn.load(new TreeSet<>());
         waitingOnApply.load(new TreeMap<>());
         blockingApplyOn.load(new TreeSet<>());
-        storedListeners.load(new TreeSet<>());
+        storedListeners.load(new DeterministicIdentitySet<>());
         return this;
     }
 
@@ -348,7 +349,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public void executeAt(Timestamp timestamp)
     {
-        Preconditions.checkState(!status().hasBeen(Status.Committed));
+        Preconditions.checkState(!status().hasBeen(Status.Committed) || executeAt().equals(timestamp));
         this.executeAt.set(timestamp);
     }
 

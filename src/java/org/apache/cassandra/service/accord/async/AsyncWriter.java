@@ -249,8 +249,7 @@ public class AsyncWriter
                 case SETUP:
                     confirmNoSummaryChanges(context);
                     denormalize(context);
-                    if (writeFuture == null)
-                        writeFuture = maybeDispatchWrites(context);
+                    writeFuture = maybeDispatchWrites(context);
 
                     state = State.SAVING;
                 case SAVING:

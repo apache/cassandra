@@ -29,6 +29,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -39,8 +40,10 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Status;
 import accord.txn.Ballot;
+import accord.txn.Dependencies;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
+import accord.utils.DeterministicIdentitySet;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -321,11 +324,11 @@ public class AccordKeyspace
         return result;
     }
 
-    private static NavigableSet<ListenerProxy> deserializeListeners(CommandStore commandStore, Set<ByteBuffer> serialized) throws IOException
+    private static DeterministicIdentitySet<ListenerProxy> deserializeListeners(CommandStore commandStore, Set<ByteBuffer> serialized) throws IOException
     {
         if (serialized == null || serialized.isEmpty())
-            return new TreeSet<>();
-        NavigableSet<ListenerProxy> result = new TreeSet<>();
+            return new DeterministicIdentitySet<>();
+        DeterministicIdentitySet<ListenerProxy> result = new DeterministicIdentitySet<>();
         for (ByteBuffer bytes : serialized)
         {
             result.add(ListenerProxy.deserialize(commandStore, bytes, ByteBufferAccessor.instance, 0));
@@ -333,7 +336,7 @@ public class AccordKeyspace
         return result;
     }
 
-    private static NavigableSet<ListenerProxy> deserializeListeners(CommandStore commandStore, UntypedResultSet.Row row, String name) throws IOException
+    private static DeterministicIdentitySet<ListenerProxy> deserializeListeners(CommandStore commandStore, UntypedResultSet.Row row, String name) throws IOException
     {
         return deserializeListeners(commandStore, row.getSet(name, BytesType.instance));
     }
@@ -566,8 +569,17 @@ public class AccordKeyspace
         return command;
     }
 
+    private static <T> T deserializeWithVersionOr(UntypedResultSet.Row row, String dataColumn, String versionColumn, IVersionedSerializer<T> serializer, Supplier<T> defaultSupplier) throws IOException
+    {
+        if (!row.has(versionColumn))
+            return defaultSupplier.get();
+
+        return deserialize(row.getBlob(dataColumn), serializer, row.getInt(versionColumn));
+    }
+
     public static void loadCommand(AccordCommand command)
     {
+        Preconditions.checkArgument(!command.isLoaded());
         TxnId txnId = command.txnId();
         AccordCommandStore commandStore = command.commandStore();
         commandStore.checkNotInStoreThread();
@@ -597,12 +609,9 @@ public class AccordKeyspace
             command.executeAt.load(deserializeTimestampOrNull(row, "execute_at", Timestamp::new));
             command.promised.load(deserializeTimestampOrNull(row, "promised_ballot", Ballot::new));
             command.accepted.load(deserializeTimestampOrNull(row, "accepted_ballot", Ballot::new));
-            if (row.has("dependencies_version"))
-                command.deps.load(deserialize(row.getBlob("dependencies"), CommandSerializers.deps, row.getInt("dependencies_version")));
-            if (row.has("writes_version"))
-                command.writes.load(deserialize(row.getBlob("writes"), CommandSerializers.writes, row.getInt("writes_version")));
-            if (row.has("result_version"))
-                command.result.load(deserialize(row.getBlob("result"), AccordData.serializer, row.getInt("result_version")));
+            command.deps.load(deserializeWithVersionOr(row, "dependencies", "dependencies_version", CommandSerializers.deps, Dependencies::new));
+            command.writes.load(deserializeWithVersionOr(row, "writes", "writes_version", CommandSerializers.writes, () -> null));
+            command.result.load(deserializeWithVersionOr(row, "result", "result_version", AccordData.serializer, () -> null));
             command.waitingOnCommit.load(deserializeWaitingOn(row, "waiting_on_commit"));
             command.blockingCommitOn.load(deserializeBlocking(row, "blocking_commit_on"));
             command.waitingOnApply.load(deserializeWaitingOn(row, "waiting_on_apply"));
@@ -705,6 +714,7 @@ public class AccordKeyspace
 
     public static void loadCommandsForKey(AccordCommandsForKey cfk)
     {
+        Preconditions.checkArgument(!cfk.isLoaded());
         ((AccordCommandStore) cfk.commandStore()).checkNotInStoreThread();
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
