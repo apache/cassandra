@@ -49,7 +49,7 @@ public final class DropTableStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
-        Guardrails.truncateDropTableEnabled.ensureEnabled(state);
+        Guardrails.dropTruncateTableEnabled.ensureEnabled(state);
 
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 

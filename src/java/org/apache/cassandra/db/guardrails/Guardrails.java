@@ -145,10 +145,10 @@ public final class Guardrails implements GuardrailsMBean
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
                     "GROUP BY functionality");
 
-    public static final DisableFlag truncateDropTableEnabled =
-    new DisableFlag("truncate_drop_table",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getTruncateDropTableEnabled(),
-                    "TRUNCATE and DROP TABLE functionality");
+    public static final DisableFlag dropTruncateTableEnabled =
+    new DisableFlag("drop_truncate_table_enabled",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getDropTruncateTableEnabled(),
+                    "DROP and TRUNCATE TABLE functionality");
 
     /**
      * Guardrail disabling user's ability to turn off compression
@@ -588,15 +588,15 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public boolean getTruncateDropEnabled()
+    public boolean getDropTruncateTableEnabled()
     {
-        return DEFAULT_CONFIG.getTruncateDropTableEnabled();
+        return DEFAULT_CONFIG.getDropTruncateTableEnabled();
     }
 
     @Override
-    public void setTruncateDropEnabled(boolean enabled)
+    public void setDropTruncateTableEnabled(boolean enabled)
     {
-        DEFAULT_CONFIG.setTruncateDropTableEnabled(enabled);
+        DEFAULT_CONFIG.setDropTruncateTableEnabled(enabled);
     }
 
     @Override
