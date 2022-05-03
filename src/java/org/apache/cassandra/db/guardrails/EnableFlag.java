@@ -38,9 +38,9 @@ public class EnableFlag extends Guardrail
     /**
      * Creates a new {@link EnableFlag} guardrail.
      *
-     * @param name The identifying name of the guardrail
-     * @param enabled a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
-     *                guardrail is enabled.
+     * @param name     the identifying name of the guardrail
+     * @param enabled  a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
+     *                 guardrail is enabled.
      * @param featureName The feature that is guarded by this guardrail (for reporting in error messages),
      *                    {@link EnableFlag#ensureEnabled(String, ClientState)} can specify a different {@code featureName}.
      */
@@ -71,7 +71,7 @@ public class EnableFlag extends Guardrail
      * <p>This must be called when the feature guarded by this guardrail is used to ensure such use is in fact
      * allowed.
      *
-     * @param featureName  The feature that is guarded by this guardrail (for reporting in error messages).
+     * @param featureName The feature that is guarded by this guardrail (for reporting in error messages).
      * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
      *              A {@code null} value means that the check should be done regardless of the query, although it won't
      *              throw any exception if the failure threshold is exceeded. This is so because checks without an

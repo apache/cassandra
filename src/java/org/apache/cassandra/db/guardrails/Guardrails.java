@@ -106,8 +106,8 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final EnableFlag createSecondaryIndexesEnabled =
     new EnableFlag("secondary_indexes",
-                    state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesEnabled(),
-                    "User creation of secondary indexes");
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesEnabled(),
+                   "User creation of secondary indexes");
 
     /**
      * Guardrail on the number of materialized views per table.
@@ -137,13 +137,13 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final EnableFlag userTimestampsEnabled =
     new EnableFlag("user_timestamps",
-                    state -> CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
-                    "User provided timestamps (USING TIMESTAMP)");
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
+                   "User provided timestamps (USING TIMESTAMP)");
 
     public static final EnableFlag groupByEnabled =
     new EnableFlag("group_by",
-                    state -> CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
-                    "GROUP BY functionality");
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
+                   "GROUP BY functionality");
 
     public static final DisableFlag truncateDropEnabled =
     new DisableFlag("truncate_drop",
@@ -155,16 +155,16 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final EnableFlag uncompressedTablesEnabled =
     new EnableFlag("uncompressed_tables_enabled",
-                    state -> CONFIG_PROVIDER.getOrCreate(state).getUncompressedTablesEnabled(),
-                    "Uncompressed table");
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getUncompressedTablesEnabled(),
+                   "Uncompressed table");
 
     /**
      * Guardrail disabling the creation of new COMPACT STORAGE tables
      */
     public static final EnableFlag compactTablesEnabled =
     new EnableFlag("compact_tables",
-                    state -> CONFIG_PROVIDER.getOrCreate(state).getCompactTablesEnabled(),
-                    "Creation of new COMPACT STORAGE tables");
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getCompactTablesEnabled(),
+                   "Creation of new COMPACT STORAGE tables");
 
     /**
      * Guardrail on the number of elements returned within page.
@@ -199,8 +199,8 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final EnableFlag readBeforeWriteListOperationsEnabled =
     new EnableFlag("read_before_write_list_operations",
-                    state -> CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
-                    "List operation requiring read before write");
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
+                   "List operation requiring read before write");
 
     /**
      * Guardrail disabling ALLOW FILTERING statement within a query
