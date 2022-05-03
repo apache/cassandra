@@ -39,12 +39,6 @@ public class GuardrailsTest extends GuardrailTester
 {
     public static final int DISABLED = -1;
 
-    @Test
-    public void testDisabledThreshold() throws Throwable
-    {
-        Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, featureName, v, t) -> "Should never trigger";
-        testDisabledThreshold(new Threshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
-    }
 
     private void testDisabledThreshold(Threshold guard) throws Throwable
     {

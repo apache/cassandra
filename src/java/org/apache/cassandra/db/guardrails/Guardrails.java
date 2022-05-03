@@ -145,10 +145,10 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
                    "GROUP BY functionality");
 
-    public static final DisableFlag truncateDropEnabled =
-    new DisableFlag("truncate_drop",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getTruncateDropEnabled(),
-                    "TRUNCATE and DROP TABLE functionality");
+    public static final EnableFlag truncateDropEnabled =
+    new EnableFlag("truncate_drop",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getTruncateDropEnabled(),
+                   "TRUNCATE and DROP TABLE functionality");
 
     /**
      * Guardrail disabling user's ability to turn off compression
@@ -205,10 +205,10 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail disabling ALLOW FILTERING statement within a query
      */
-    public static final DisableFlag allowFilteringEnabled =
-    new DisableFlag("allow_filtering",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getAllowFilteringEnabled(),
-                    "Querying with ALLOW FILTERING");
+    public static final EnableFlag allowFilteringEnabled =
+    new EnableFlag("allow_filtering",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getAllowFilteringEnabled(),
+                   "Querying with ALLOW FILTERING");
 
     /**
      * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
