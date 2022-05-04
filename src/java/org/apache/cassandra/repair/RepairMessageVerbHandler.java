@@ -124,6 +124,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case VALIDATION_REQ:
+                    // notify initiator that the message has been received, allowing this method to take as long as it needs to
+                    MessagingService.instance().send(message.emptyResponse(), message.from());
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
                     // trigger read-only compaction
@@ -143,6 +145,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case SYNC_REQ:
+                    // notify initiator that the message has been received, allowing this method to take as long as it needs to
+                    MessagingService.instance().send(message.emptyResponse(), message.from());
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
                     logger.debug("Syncing {}", request);
