@@ -59,12 +59,12 @@ public class CASTest extends CASCommonTestCases
     /**
      * The {@code cas_contention_timeout} used during the tests
      */
-    private static final String CONTENTION_TIMEOUT = "2000ms";
+    private static final String CONTENTION_TIMEOUT = "10000ms";
 
     /**
      * The {@code write_request_timeout} used during the tests
      */
-    private static final String REQUEST_TIMEOUT = "2000ms";
+    private static final String REQUEST_TIMEOUT = "10000ms";
 
     private static Cluster THREE_NODES;
     private static Cluster FOUR_NODES;
