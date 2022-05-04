@@ -1,4 +1,6 @@
 4.2
+Merged from 4.1:
+ * nodetool enablefullquerylog can NPE when directory has no files (CASSANDRA-17595)
 Merged from 4.0:
 Merged from 3.11:
 Merged from 3.0:
