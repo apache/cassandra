@@ -25,6 +25,7 @@ import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -216,6 +217,26 @@ public class RangeTombstoneTest
         partition = Util.getOnlyPartitionUnfiltered(SinglePartitionReadCommand.create(cfs.metadata(), FBUtilities.nowInSeconds(), Util.dk(key), sb.build()));
         rt = rangeTombstones(partition);
         assertEquals(2, rt.size());
+    }
+
+    @Test
+    public void rangeTombstoneNoEndTest() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
+        PartitionUpdate.SimpleBuilder simpleBuilder = PartitionUpdate.simpleBuilder(cfs.metadata.get(), "1");
+        simpleBuilder.addRangeTombstone().start(1);
+        simpleBuilder.build();
+    }
+
+    @Test
+    public void rangeTombstoneNoStartTest() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
+        PartitionUpdate.SimpleBuilder simpleBuilder = PartitionUpdate.simpleBuilder(cfs.metadata.get(), "1");
+        simpleBuilder.addRangeTombstone().end(1);
+        simpleBuilder.build();
     }
 
     private Collection<RangeTombstone> rangeTombstones(ImmutableBTreePartition partition)
