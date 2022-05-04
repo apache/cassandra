@@ -486,9 +486,11 @@ public class BinLog implements Runnable
     {
         if (fileOrDirectory.isDirectory())
         {
-            for (File f : fileOrDirectory.tryList())
+            File[] files = fileOrDirectory.tryList();
+            if (files != null)
             {
-                accumulate = FileUtils.deleteWithConfirm(f, accumulate);
+                for (File f : files)
+                    accumulate = FileUtils.deleteWithConfirm(f, accumulate);
             }
         }
         return FileUtils.deleteWithConfirm(fileOrDirectory, accumulate);
