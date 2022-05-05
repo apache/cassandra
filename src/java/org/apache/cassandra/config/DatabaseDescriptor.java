@@ -98,7 +98,7 @@ public class DatabaseDescriptor
      */
     private static final int MAX_NUM_TOKENS = 1536;
 
-    private static Config conf;
+    private volatile static Config conf;
 
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
@@ -339,7 +339,8 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void setConfig(Config config)
+    @VisibleForTesting
+    public static void setConfig(Config config)
     {
         conf = config;
     }
