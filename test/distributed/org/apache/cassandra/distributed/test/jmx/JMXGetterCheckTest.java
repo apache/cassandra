@@ -27,6 +27,7 @@ import java.util.TreeSet;
 import javax.management.JMRuntimeException;
 import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanInfo;
+import javax.management.MBeanOperationInfo;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
@@ -34,6 +35,7 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 
+import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -53,6 +55,14 @@ public class JMXGetterCheckTest extends TestBaseImpl
                                                                       "org.apache.cassandra.net",
                                                                       "org.apache.cassandra.request",
                                                                       "org.apache.cassandra.service");
+
+    private static final Set<String> IGNORE_ATTRIBUTES = ImmutableSet.of(
+    "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost"
+    );
+    private static final Set<String> IGNORE_OPERATIONS = ImmutableSet.of(
+    "org.apache.cassandra.db:type=StorageService:stopDaemon",
+    "org.apache.cassandra.db:type=StorageService:reloadLocalSchema" //TODO why does this cause the instance to hang on commit log?
+    );
 
     @Test
     public void test() throws Exception
@@ -83,15 +93,33 @@ public class JMXGetterCheckTest extends TestBaseImpl
                             MBeanInfo info = mbsc.getMBeanInfo(name);
                             for (MBeanAttributeInfo a : info.getAttributes())
                             {
-                                if (!a.isReadable())
+                                String fqn = String.format("%s:%s", name, a.getName());
+                                if (!a.isReadable() || IGNORE_ATTRIBUTES.contains(fqn))
                                     continue;
+                                System.out.println(String.format("Checking Attribute %s", fqn));
                                 try
                                 {
                                     mbsc.getAttribute(name, a.getName());
                                 }
                                 catch (JMRuntimeException e)
                                 {
-                                    errors.add(new Named(String.format("Attribute %s:%s", name, a.getName()), e.getCause()));
+                                    errors.add(new Named(String.format("Attribute %s", fqn), e.getCause()));
+                                }
+                            }
+
+                            for (MBeanOperationInfo o : info.getOperations())
+                            {
+                                String fqn = String.format("%s:%s", name, o.getName());
+                                if (o.getSignature().length != 0 || IGNORE_OPERATIONS.contains(fqn))
+                                    continue;
+                                System.out.println(String.format("Checking Operation %s", fqn));
+                                try
+                                {
+                                    mbsc.invoke(name, o.getName(), new Object[0], new String[0]);
+                                }
+                                catch (JMRuntimeException e)
+                                {
+                                    errors.add(new Named(String.format("Operation %s", fqn), e.getCause()));
                                 }
                             }
                         }
@@ -111,7 +139,7 @@ public class JMXGetterCheckTest extends TestBaseImpl
     {
         public Named(String msg, Throwable cause)
         {
-            super(msg + "\nCaused by: " + cause.getMessage());
+            super(msg + "\nCaused by: " + cause.getClass().getCanonicalName() + ": " + cause.getMessage());
             StackTraceElement[] stack = cause.getStackTrace();
             List<StackTraceElement> copy = new ArrayList<>();
             for (StackTraceElement s : stack)
