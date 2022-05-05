@@ -3424,4 +3424,18 @@ public class DatabaseDescriptor
             conf.force_new_prepared_statement_behaviour = value;
         }
     }
+
+    public static boolean getAllRegularAndQueriedColumnFilterEnabled()
+    {
+        return conf.all_regular_and_queried_column_filter_enabled;
+    }
+
+    public static void setAllRegularAndQueriedColumnFilterEnabled(boolean value)
+    {
+        if (value != conf.all_regular_and_queried_column_filter_enabled)
+        {
+            logger.info("Setting all_regular_and_queried_column_filter_enabled to {}", value);
+            conf.all_regular_and_queried_column_filter_enabled = value;
+        }
+    }
 }

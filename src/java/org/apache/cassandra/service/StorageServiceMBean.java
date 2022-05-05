@@ -856,4 +856,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     void setTableCountWarnThreshold(int value);
     int getKeyspaceCountWarnThreshold();
     void setKeyspaceCountWarnThreshold(int value);
+
+    // See CASSANDRA-17601
+    public boolean getAllRegularAndQueriedColumnFilterEnabled();
+    public void setAllRegularAndQueriedColumnFilterEnabled(boolean value);
 }

@@ -6041,4 +6041,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Changing keyspace count warn threshold from {} to {}", getKeyspaceCountWarnThreshold(), value);
         DatabaseDescriptor.setKeyspaceCountWarnThreshold(value);
     }
+
+    public boolean getAllRegularAndQueriedColumnFilterEnabled()
+    {
+        return DatabaseDescriptor.getAllRegularAndQueriedColumnFilterEnabled();
+    }
+
+    public void setAllRegularAndQueriedColumnFilterEnabled(boolean value)
+    {
+        DatabaseDescriptor.setAllRegularAndQueriedColumnFilterEnabled(value);
+    }
 }

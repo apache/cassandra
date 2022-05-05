@@ -28,16 +28,15 @@ import com.google.common.collect.TreeMultimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.CellPath;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.CassandraVersion;
 
 /**
  * Represents which (non-PK) columns (and optionally which sub-part of a column for complex columns) are selected
@@ -183,67 +182,6 @@ public abstract class ColumnFilter
     }
 
     /**
-     * Returns {@code true} if there are pre-4.0-rc2 nodes in the cluster, {@code false} otherwise.
-     *
-     * <p>ColumnFilters from 4.0 releases before RC2 wrongly assumed that fetching all regular columns and not
-     * the static columns was enough. That was not the case for queries that needed to return rows for empty partitions.
-     * See CASSANDRA-16686 for more details.</p>
-     */
-    private static boolean isUpgradingFromVersionLowerThan40RC2()
-    {
-        if (Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0_RC2))
-        {
-            logger.trace("ColumnFilter conversion has been applied so that static columns will not be fetched because there are pre 4.0-rc2 nodes in the cluster");
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Returns {@code true} if there are pre-4.0 nodes in the cluster, {@code false} otherwise.
-     *
-     * <p>If there pre-4.0 nodes in the cluster all static columns should be fetched along with all regular columns.
-     * This is due to the fact that this nodes have a different understanding of the fetchAll serialization flag.
-     * Pre-4.0 the fetchAll flag meant that all the columns regular AND STATIC should be fetched whereas for 4.0
-     * nodes it meant that only the regular columns and the queried static columns should be fetched.</p>
-     */
-    private static boolean isUpgradingFromVersionLowerThan40()
-    {
-        if (Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0))
-        {
-            logger.trace("ColumnFilter conversion has been applied so that all static columns will be fetched because there are pre 4.0 nodes in the cluster");
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Returns {@code true} if there are pre-3.4 nodes in the cluster, {@code false} otherwise.
-     *
-     * When fetchAll is enabled on pre CASSANDRA-10657 (3.4-), queried columns are not considered at all, and it
-     * is assumed that all columns are queried. CASSANDRA-10657 (3.4+) brings back skipping values of columns
-     * which are not in queried set when fetchAll is enabled. That makes exactly the same filter being
-     * interpreted in a different way on 3.4- and 3.4+.
-     *
-     * Moreover, there is no way to convert the filter with fetchAll and queried != null so that it is
-     * interpreted the same way on 3.4- because that Cassandra version does not support such filtering.
-     *
-     * In order to avoid inconsistencies in data read by 3.4- and 3.4+ we need to avoid creation of incompatible
-     * filters when the cluster contains 3.4- nodes. We need to do that by using a wildcard query.
-     *
-     * see CASSANDRA-10657, CASSANDRA-15833, CASSANDRA-16415
-     */
-    private static boolean isUpgradingFromVersionLowerThan34()
-    {
-        if (Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_3_4))
-        {
-            logger.trace("ColumnFilter conversion has been applied so that all columns will be queried because there are pre 3.4 nodes in the cluster");
-            return true;
-        }
-        return false;
-    }
-
-    /**
      * A filter that includes all columns for the provided table.
      */
     public static ColumnFilter all(TableMetadata metadata)
@@ -271,22 +209,7 @@ public abstract class ColumnFilter
                                          RegularAndStaticColumns queried,
                                          boolean returnStaticContentOnPartitionWithNoRows)
     {
-        // pre CASSANDRA-10657 (3.4-), when fetchAll is enabled, queried columns are not considered at all, and it
-        // is assumed that all columns are queried.
-        if (isUpgradingFromVersionLowerThan34())
-        {
-            return new WildCardColumnFilter(metadata.regularAndStaticColumns());
-        }
-
-        // pre CASSANDRA-12768 (4.0-) all static columns should be fetched along with all regular columns.
-        if (isUpgradingFromVersionLowerThan40())
-        {
-            return SelectionColumnFilter.newInstance(FetchingStrategy.ALL_COLUMNS, metadata, queried, null);
-        }
-
-        // pre CASSANDRA-16686 (4.0-RC2-) static columns were not fetched unless queried which led to some wrong
-        // results for some queries
-        if (!returnStaticContentOnPartitionWithNoRows || isUpgradingFromVersionLowerThan40RC2())
+        if (!returnStaticContentOnPartitionWithNoRows && DatabaseDescriptor.getAllRegularAndQueriedColumnFilterEnabled())
         {
             return SelectionColumnFilter.newInstance(FetchingStrategy.ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS, metadata, queried, null);
         }
@@ -559,32 +482,12 @@ public abstract class ColumnFilter
 
             if (isFetchAll)
             {
-                // When fetchAll is enabled on pre CASSANDRA-10657 (3.4-), queried columns are not considered at all, and it
-                // is assumed that all columns are queried. CASSANDRA-10657 (3.4+) brings back skipping values of columns
-                // which are not in queried set when fetchAll is enabled. That makes exactly the same filter being
-                // interpreted in a different way on 3.4- and 3.4+.
-                //
-                // Moreover, there is no way to convert the filter with fetchAll and queried != null so that it is
-                // interpreted the same way on 3.4- because that Cassandra version does not support such filtering.
-                //
-                // In order to avoid inconsitencies in data read by 3.4- and 3.4+ we need to avoid creation of incompatible
-                // filters when the cluster contains 3.4- nodes. We do that by forcibly setting queried to null.
-                //
-                // see CASSANDRA-10657, CASSANDRA-15833, CASSANDRA-16415
-                if (queried == null || isUpgradingFromVersionLowerThan34())
+                if (queried == null)
                 {
                     return new WildCardColumnFilter(metadata.regularAndStaticColumns());
                 }
 
-                // pre CASSANDRA-12768 (4.0-) all static columns should be fetched along with all regular columns.
-                if (isUpgradingFromVersionLowerThan40())
-                {
-                    return SelectionColumnFilter.newInstance(FetchingStrategy.ALL_COLUMNS, metadata, queried, s);
-                }
-
-                // pre CASSANDRA-16686 (4.0-RC2-) static columns where not fetched unless queried witch lead to some wrong results
-                // for some queries
-                if (!returnStaticContentOnPartitionWithNoRows || isUpgradingFromVersionLowerThan40RC2())
+                if (!returnStaticContentOnPartitionWithNoRows && DatabaseDescriptor.getAllRegularAndQueriedColumnFilterEnabled())
                 {
                     return SelectionColumnFilter.newInstance(FetchingStrategy.ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS, metadata, queried, s);
                 }
@@ -1039,22 +942,12 @@ public abstract class ColumnFilter
 
             if (isFetchAll)
             {
-                // pre CASSANDRA-10657 (3.4-), when fetchAll is enabled, queried columns are not considered at all, and it
-                // is assumed that all columns are queried.
-                if (!hasQueried || isUpgradingFromVersionLowerThan34())
+                if (!hasQueried || version < MessagingService.VERSION_40)
                 {
                     return new WildCardColumnFilter(fetched);
                 }
 
-                // pre CASSANDRA-12768 (4.0-) all static columns should be fetched along with all regular columns.
-                if (isUpgradingFromVersionLowerThan40())
-                {
-                    return new SelectionColumnFilter(FetchingStrategy.ALL_COLUMNS, queried, fetched, subSelections);
-                }
-
-                // pre CASSANDRA-16686 (4.0-RC2-) static columns where not fetched unless queried witch lead to some wrong results
-                // for some queries
-                if (!isFetchAllStatics || isUpgradingFromVersionLowerThan40RC2())
+                if (!isFetchAllStatics)
                 {
                     return new SelectionColumnFilter(FetchingStrategy.ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS, queried, fetched, subSelections);
                 }
