@@ -1371,10 +1371,15 @@ public final class SchemaKeyspace
      */
     public static synchronized void reloadSchemaAndAnnounceVersion()
     {
+        reloadSchema();
+        Schema.instance.updateVersionAndAnnounce();
+    }
+
+    public static synchronized void reloadSchema()
+    {
         Keyspaces before = Schema.instance.getReplicatedKeyspaces();
         Keyspaces after = fetchNonSystemKeyspaces();
         mergeSchema(before, after);
-        Schema.instance.updateVersionAndAnnounce();
     }
 
     /**
