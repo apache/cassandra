@@ -90,12 +90,20 @@ public final class SchemaConstants
     }
 
     /**
+     * @return whether or not the keyspace is the schema keyspace
+     */
+    public static boolean isSchemaKeyspace(String keyspaceName)
+    {
+        return keyspaceName.toLowerCase().equals(SCHEMA_KEYSPACE_NAME);
+    }
+
+    /**
      * Checks if the keyspace is a virtual system keyspace.
      * @return {@code true} if the keyspace is a virtual system keyspace, {@code false} otherwise.
      */
     public static boolean isVirtualSystemKeyspace(String keyspaceName)
     {
-        return VIRTUAL_SCHEMA.equals(keyspaceName.toLowerCase()) || VIRTUAL_VIEWS.equals(keyspaceName.toLowerCase());
+        return VIRTUAL_SCHEMA.equalsIgnoreCase(keyspaceName) || VIRTUAL_VIEWS.equalsIgnoreCase(keyspaceName);
     }
 
     /**
