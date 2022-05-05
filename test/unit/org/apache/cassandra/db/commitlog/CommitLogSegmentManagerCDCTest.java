@@ -157,11 +157,25 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         Assert.assertTrue("Index file not written: " + cdcIndexFile, cdcIndexFile.exists());
 
         // Read index value and confirm it's == end from last sync
-        BufferedReader in = new BufferedReader(new FileReader(cdcIndexFile));
-        String input = in.readLine();
-        Integer offset = Integer.parseInt(input);
-        Assert.assertEquals(syncOffset, (long)offset);
-        in.close();
+        String input = null;
+        // There could be a race between index file update (truncate & write) and read. See CASSANDRA-17416
+        // It is possible to read an empty line. In this case, re-try at most 5 times.
+        for (int i = 0; input == null && i < 5; i++)
+        {
+            try (BufferedReader in = new BufferedReader(new FileReader(cdcIndexFile)))
+            {
+                input = in.readLine();
+            }
+        }
+
+        if (input == null)
+        {
+            Assert.fail("Unable to read the CDC index file after several attempts");
+        }
+
+        int indexOffset = Integer.parseInt(input);
+        Assert.assertTrue("The offset read from CDC index file should be equal or larger than the offset after sync. See CASSANDRA-17416",
+                          syncOffset <= indexOffset);
     }
 
     @Test
