@@ -19,7 +19,6 @@ package org.apache.cassandra.distributed.test.jmx;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -48,85 +47,71 @@ import static org.apache.cassandra.cql3.CQLTester.getAutomaticallyAllocatedPort;
 
 public class JMXGetterCheckTest extends TestBaseImpl
 {
-    private static final List<String> METRIC_PACKAGES = Arrays.asList("org.apache.cassandra.metrics",
-                                                                      "org.apache.cassandra.db",
-                                                                      "org.apache.cassandra.hints",
-                                                                      "org.apache.cassandra.internal",
-                                                                      "org.apache.cassandra.net",
-                                                                      "org.apache.cassandra.request",
-                                                                      "org.apache.cassandra.service");
-
     private static final Set<String> IGNORE_ATTRIBUTES = ImmutableSet.of(
-    "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost"
+    "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost" // throws unsupported saying the feature was removed... this feels like a regression...
     );
     private static final Set<String> IGNORE_OPERATIONS = ImmutableSet.of(
-    "org.apache.cassandra.db:type=StorageService:stopDaemon",
-    "org.apache.cassandra.db:type=StorageService:reloadLocalSchema" //TODO why does this cause the instance to hang on commit log?
+    "org.apache.cassandra.db:type=StorageService:stopDaemon", // halts the instance, which then causes the JVM to exit
+    "org.apache.cassandra.db:type=StorageService:drain", // don't drain, it stops things which can cause other APIs to be unstable as we are in a stopped state
+    "org.apache.cassandra.db:type=StorageService:stopGossiping" // if we stop gossip this can causes other issues, so avoid
     );
 
     @Test
     public void test() throws Exception
     {
+        // start JMX server, which the instance will register with
         InetAddress loopback = InetAddress.getLoopbackAddress();
         String jmxHost = loopback.getHostAddress();
         int jmxPort = getAutomaticallyAllocatedPort(loopback);
         JMXConnectorServer jmxServer = JMXServerUtils.createJMXServer(jmxPort, true);
         jmxServer.start();
-        
+        String url = "service:jmx:rmi:///jndi/rmi://" + jmxHost + ":" + jmxPort + "/jmxrmi";
 
         IS_DISABLED_MBEAN_REGISTRATION.setBoolean(false);
         try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.values())).start())
         {
-            String url = "service:jmx:rmi:///jndi/rmi://" + jmxHost + ":" + jmxPort + "/jmxrmi";
-            
             List<Named> errors = new ArrayList<>();
             try (JMXConnector jmxc = JMXConnectorFactory.connect(new JMXServiceURL(url), null))
             {
                 MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-                for (String pkg : new TreeSet<>(METRIC_PACKAGES))
+                Set<ObjectName> metricNames = new TreeSet<>(mbsc.queryNames(null, null));
+                for (ObjectName name : metricNames)
                 {
-                    Set<ObjectName> metricNames = new TreeSet<>(mbsc.queryNames(new ObjectName(pkg + ":*"), null));
-                    for (ObjectName name : metricNames)
+                    if (!name.getDomain().startsWith("org.apache.cassandra"))
+                        continue;
+                    MBeanInfo info = mbsc.getMBeanInfo(name);
+                    for (MBeanAttributeInfo a : info.getAttributes())
                     {
-                        if (mbsc.isRegistered(name))
+                        String fqn = String.format("%s:%s", name, a.getName());
+                        if (!a.isReadable() || IGNORE_ATTRIBUTES.contains(fqn))
+                            continue;
+                        try
                         {
-                            MBeanInfo info = mbsc.getMBeanInfo(name);
-                            for (MBeanAttributeInfo a : info.getAttributes())
-                            {
-                                String fqn = String.format("%s:%s", name, a.getName());
-                                if (!a.isReadable() || IGNORE_ATTRIBUTES.contains(fqn))
-                                    continue;
-                                System.out.println(String.format("Checking Attribute %s", fqn));
-                                try
-                                {
-                                    mbsc.getAttribute(name, a.getName());
-                                }
-                                catch (JMRuntimeException e)
-                                {
-                                    errors.add(new Named(String.format("Attribute %s", fqn), e.getCause()));
-                                }
-                            }
+                            mbsc.getAttribute(name, a.getName());
+                        }
+                        catch (JMRuntimeException e)
+                        {
+                            errors.add(new Named(String.format("Attribute %s", fqn), e.getCause()));
+                        }
+                    }
 
-                            for (MBeanOperationInfo o : info.getOperations())
-                            {
-                                String fqn = String.format("%s:%s", name, o.getName());
-                                if (o.getSignature().length != 0 || IGNORE_OPERATIONS.contains(fqn))
-                                    continue;
-                                System.out.println(String.format("Checking Operation %s", fqn));
-                                try
-                                {
-                                    mbsc.invoke(name, o.getName(), new Object[0], new String[0]);
-                                }
-                                catch (JMRuntimeException e)
-                                {
-                                    errors.add(new Named(String.format("Operation %s", fqn), e.getCause()));
-                                }
-                            }
+                    for (MBeanOperationInfo o : info.getOperations())
+                    {
+                        String fqn = String.format("%s:%s", name, o.getName());
+                        if (o.getSignature().length != 0 || IGNORE_OPERATIONS.contains(fqn))
+                            continue;
+                        try
+                        {
+                            mbsc.invoke(name, o.getName(), new Object[0], new String[0]);
+                        }
+                        catch (JMRuntimeException e)
+                        {
+                            errors.add(new Named(String.format("Operation %s", fqn), e.getCause()));
                         }
                     }
                 }
             }
-            if (errors != null)
+            if (!errors.isEmpty())
             {
                 AssertionError root = new AssertionError();
                 errors.forEach(root::addSuppressed);
@@ -135,11 +120,14 @@ public class JMXGetterCheckTest extends TestBaseImpl
         }
     }
 
+    /**
+     * This class is meant to make new errors easier to read, by adding the JMX endpoint, and cleaning up the unneded JMX/Reflection logic cluttering the stacktrace
+     */
     private static class Named extends RuntimeException
     {
         public Named(String msg, Throwable cause)
         {
-            super(msg + "\nCaused by: " + cause.getClass().getCanonicalName() + ": " + cause.getMessage());
+            super(msg + "\nCaused by: " + cause.getClass().getCanonicalName() + ": " + cause.getMessage(), cause.getCause());
             StackTraceElement[] stack = cause.getStackTrace();
             List<StackTraceElement> copy = new ArrayList<>();
             for (StackTraceElement s : stack)
