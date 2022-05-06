@@ -64,6 +64,26 @@ public class BufferPoolTest
         assertEquals(0, bufferPool.usedSizeInBytes());
     }
 
+    @Test
+    public void testTryGet()
+    {
+        final int size = RandomAccessReader.DEFAULT_BUFFER_SIZE;
+
+        ByteBuffer buffer = bufferPool.tryGet(size);
+        assertNotNull(buffer);
+        assertEquals(size, buffer.capacity());
+        assertEquals(true, buffer.isDirect());
+        assertEquals(size, bufferPool.usedSizeInBytes());
+
+        BufferPool.Chunk chunk = bufferPool.unsafeCurrentChunk();
+        assertNotNull(chunk);
+        assertEquals(BufferPool.GlobalPool.MACRO_CHUNK_SIZE, bufferPool.sizeInBytes());
+
+        bufferPool.put(buffer);
+        assertEquals(null, bufferPool.unsafeCurrentChunk());
+        assertEquals(BufferPool.GlobalPool.MACRO_CHUNK_SIZE, bufferPool.sizeInBytes());
+        assertEquals(0, bufferPool.usedSizeInBytes());
+    }
 
     @Test
     public void testPageAligned()
@@ -99,10 +119,12 @@ public class BufferPoolTest
         ByteBuffer buffer1 = bufferPool.get(size1, BufferType.OFF_HEAP);
         assertNotNull(buffer1);
         assertEquals(size1, buffer1.capacity());
+        assertEquals(size1, bufferPool.usedSizeInBytes());
 
         ByteBuffer buffer2 = bufferPool.get(size2, BufferType.OFF_HEAP);
         assertNotNull(buffer2);
         assertEquals(size2, buffer2.capacity());
+        assertEquals(size1 + size2, bufferPool.usedSizeInBytes());
 
         BufferPool.Chunk chunk = bufferPool.unsafeCurrentChunk();
         assertNotNull(chunk);
@@ -113,6 +135,7 @@ public class BufferPoolTest
 
         assertEquals(null, bufferPool.unsafeCurrentChunk());
         assertEquals(BufferPool.GlobalPool.MACRO_CHUNK_SIZE, bufferPool.sizeInBytes());
+        assertEquals(0, bufferPool.usedSizeInBytes());
     }
 
     @Test
