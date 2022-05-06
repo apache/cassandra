@@ -85,9 +85,9 @@ public class BTreeRemoval
                 index -= (1 + BTree.getSizeMap(node)[i - 1]);
             Object[] nextNode = (Object[]) node[keyEnd + i];
             boolean nextNodeNeedsCopy = true;
-            if (BTree.getKeyEnd(nextNode) > BTree.MINIMAL_NODE_SIZE)
+            if (BTree.getKeyEnd(nextNode) > BTree.MIN_KEYS)
                 node = copyIfNeeded(node, needsCopy);
-            else if (i > 0 && BTree.getKeyEnd((Object[]) node[keyEnd + i - 1]) > BTree.MINIMAL_NODE_SIZE)
+            else if (i > 0 && BTree.getKeyEnd((Object[]) node[keyEnd + i - 1]) > BTree.MIN_KEYS)
             {
                 node = copyIfNeeded(node, needsCopy);
                 final Object[] leftNeighbour = (Object[]) node[keyEnd + i - 1];
@@ -96,7 +96,7 @@ public class BTreeRemoval
                     index += BTree.size((Object[])leftNeighbour[BTree.getChildEnd(leftNeighbour) - 1]);
                 nextNode = rotateLeft(node, i);
             }
-            else if (i < keyEnd && BTree.getKeyEnd((Object[]) node[keyEnd + i + 1]) > BTree.MINIMAL_NODE_SIZE)
+            else if (i < keyEnd && BTree.getKeyEnd((Object[]) node[keyEnd + i + 1]) > BTree.MIN_KEYS)
             {
                 node = copyIfNeeded(node, needsCopy);
                 nextNode = rotateRight(node, i);
@@ -256,12 +256,12 @@ public class BTreeRemoval
 
     private static <V> Object[] merge(final Object[] left, final Object[] right, final V nodeKey)
     {
-        assert BTree.getKeyEnd(left) == BTree.MINIMAL_NODE_SIZE;
-        assert BTree.getKeyEnd(right) == BTree.MINIMAL_NODE_SIZE;
+        assert BTree.getKeyEnd(left) == BTree.MIN_KEYS;
+        assert BTree.getKeyEnd(right) == BTree.MIN_KEYS;
         final boolean leaves = BTree.isLeaf(left);
         final Object[] result;
         if (leaves)
-            result = new Object[BTree.MINIMAL_NODE_SIZE * 2 + 1];
+            result = new Object[BTree.MIN_KEYS * 2 + 1];
         else
             result = new Object[left.length + right.length];
         int offset = 0;
