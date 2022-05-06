@@ -1527,7 +1527,7 @@
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
-    <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
+    <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}" filter="${test.name}">
       <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
       <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
