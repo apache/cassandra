@@ -848,11 +848,7 @@ public class BufferPool
         {
             ByteBuffer ret = tryGet(size, sizeIsLowerBound);
             if (ret != null)
-            {
-                metrics.hits.mark();
-                memoryInUse.add(ret.capacity());
                 return ret;
-            }
 
             if (size > NORMAL_CHUNK_SIZE)
             {
@@ -867,7 +863,6 @@ public class BufferPool
                     logger.trace("Requested buffer size {} has been allocated directly due to lack of capacity", prettyPrintMemory(size));
             }
 
-            metrics.misses.mark();
             return allocate(size, BufferType.OFF_HEAP);
         }
 
@@ -887,10 +882,21 @@ public class BufferPool
             }
             else if (size > NORMAL_CHUNK_SIZE)
             {
+                metrics.misses.mark();
                 return null;
             }
 
-            return pool.tryGetInternal(size, sizeIsLowerBound);
+            ByteBuffer ret = pool.tryGetInternal(size, sizeIsLowerBound);
+            if (ret != null)
+            {
+                metrics.hits.mark();
+                memoryInUse.add(ret.capacity());
+            }
+            else
+            {
+                metrics.misses.mark();
+            }
+            return ret;
         }
 
         @Inline
