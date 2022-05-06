@@ -23,6 +23,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.Inet6Address;
@@ -39,6 +40,17 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.management.Attribute;
+import javax.management.AttributeList;
+import javax.management.AttributeNotFoundException;
+import javax.management.InstanceNotFoundException;
+import javax.management.InvalidAttributeValueException;
+import javax.management.MBeanException;
+import javax.management.MBeanServer;
+import javax.management.MBeanServerFactory;
+import javax.management.ObjectName;
+import javax.management.ReflectionException;
+import javax.management.RuntimeMBeanException;
 import javax.management.remote.*;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
@@ -52,7 +64,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.sun.jmx.mbeanserver.JmxMBeanServer;
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_ACCESS_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE;
@@ -130,8 +144,12 @@ public class JMXServerUtils
                                                          (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
                                                          (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
                                                          env);
+
         JMXServiceURL serviceURL = new JMXServiceURL("rmi", hostname, rmiPort);
-        RMIConnectorServer jmxServer = new RMIConnectorServer(serviceURL, env, server, ManagementFactory.getPlatformMBeanServer());
+        RMIConnectorServer jmxServer = new RMIConnectorServer(serviceURL, env, server, DatabaseDescriptor.getJmxHideNonJavaExceptions()
+                                                                                       ? fixExceptions(ManagementFactory.getPlatformMBeanServer())
+                                                                                       : ManagementFactory.getPlatformMBeanServer());
+
 
         // If a custom authz proxy was created, attach it to the server now.
         if (authzProxy != null)
@@ -141,6 +159,148 @@ public class JMXServerUtils
         ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
         logJmxServiceUrl(serverAddress, port);
         return jmxServer;
+    }
+
+    public static void hackPatchGlobalMBeanServerToFixExceptions()
+    {
+        if (!DatabaseDescriptor.getJmxHideNonJavaExceptions())
+            return;
+        try
+        {
+            Field field = JmxMBeanServer.class.getDeclaredField("interceptorsEnabled");
+            field.setAccessible(true);
+            for (MBeanServer m : MBeanServerFactory.findMBeanServer(null))
+            {
+                if (m instanceof JmxMBeanServer)
+                {
+                    JmxMBeanServer server = (JmxMBeanServer) m;
+                    try
+                    {
+                        field.set(server, true);
+                        server.setMBeanServerInterceptor(JMXServerUtils.fixExceptions(server.getMBeanServerInterceptor()));
+                    }
+                    catch (Throwable t)
+                    {
+                        logger.warn("Unable to intersept JMX", t);
+                    }
+                }
+            }
+        }
+        catch (Throwable t)
+        {
+            logger.warn("Unable to intersept JMX", t);
+        }
+    }
+
+    public static MBeanServer fixExceptions(MBeanServer mbeanServer)
+    {
+        return new ForwardingMBeanServer(mbeanServer)
+        {
+            @Override
+            public Object getAttribute(ObjectName name, String attribute) throws MBeanException, AttributeNotFoundException, InstanceNotFoundException, ReflectionException
+            {
+                try
+                {
+                    return super.getAttribute(name, attribute);
+                }
+                catch (RuntimeMBeanException t)
+                {
+                    throw fixException(t);
+                }
+            }
+
+            @Override
+            public AttributeList getAttributes(ObjectName name, String[] attributes) throws InstanceNotFoundException, ReflectionException
+            {
+                try
+                {
+                    return super.getAttributes(name, attributes);
+                }
+                catch (RuntimeMBeanException t)
+                {
+                    throw fixException(t);
+                }
+            }
+
+            @Override
+            public void setAttribute(ObjectName name, Attribute attribute) throws InstanceNotFoundException, AttributeNotFoundException, InvalidAttributeValueException, MBeanException, ReflectionException
+            {
+                try
+                {
+                    super.setAttribute(name, attribute);
+                }
+                catch (RuntimeMBeanException t)
+                {
+                    throw fixException(t);
+                }
+            }
+
+            @Override
+            public AttributeList setAttributes(ObjectName name, AttributeList attributes) throws InstanceNotFoundException, ReflectionException
+            {
+                try
+                {
+                    return super.setAttributes(name, attributes);
+                }
+                catch (RuntimeMBeanException t)
+                {
+                    throw fixException(t);
+                }
+            }
+
+            @Override
+            public Object invoke(ObjectName name, String operationName, Object[] params, String[] signature) throws InstanceNotFoundException, MBeanException, ReflectionException
+            {
+                try
+                {
+                    return super.invoke(name, operationName, params, signature);
+                }
+                catch (RuntimeMBeanException t)
+                {
+                    throw fixException(t);
+                }
+            }
+        };
+    }
+
+    private static RuntimeMBeanException fixException(RuntimeMBeanException t)
+    {
+        if (isAllowed(t))
+            return t;
+        // there exists a non-java exception... somewhere... rebuild everything
+        return new RuntimeMBeanException((RuntimeException) removeNonJava(t.getTargetException()));
+    }
+
+    private static Throwable removeNonJava(Throwable t)
+    {
+        if (isAllowed(t))
+            return t;
+        // this type, cause, or suprression needs to be rewritten... so this type must be rewritten
+        RuntimeException rewrite = new RuntimeException(t.getMessage(), removeNonJava(t.getCause()));
+        rewrite.setStackTrace(t.getStackTrace());
+        for (Throwable s : t.getSuppressed())
+            rewrite.addSuppressed(removeNonJava(s));
+        return rewrite;
+    }
+
+    public static boolean isAllowed(Throwable e)
+    {
+        for (Throwable t = e; t != null; t = t.getCause())
+        {
+            if (!isTypeAllowed(t))
+                return false;
+            for (Throwable s : t.getSuppressed())
+                if (!isAllowed(s))
+                    return false;
+        }
+        return true;
+    }
+
+    private static boolean isTypeAllowed(Throwable t)
+    {
+        Class<? extends Throwable> klass = t.getClass();
+        Package pack = klass.getPackage();
+        return pack != null && pack.getName().startsWith("java");
     }
 
     @SuppressWarnings("resource")

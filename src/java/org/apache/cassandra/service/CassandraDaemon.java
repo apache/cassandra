@@ -147,6 +147,8 @@ public class CassandraDaemon
         {
             logger.warn("JMX settings in cassandra-env.sh have been bypassed as the JMX connector server is " +
                         "already initialized. Please refer to cassandra-env.(sh|ps1) for JMX configuration info");
+
+            JMXServerUtils.hackPatchGlobalMBeanServerToFixExceptions();
             return;
         }
 

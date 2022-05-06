@@ -4254,4 +4254,9 @@ public class DatabaseDescriptor
     {
         conf.min_tracked_partition_tombstone_count = value;
     }
+
+    public static boolean getJmxHideNonJavaExceptions()
+    {
+        return conf.jmx_hide_non_java_exceptions;
+    }
 }
