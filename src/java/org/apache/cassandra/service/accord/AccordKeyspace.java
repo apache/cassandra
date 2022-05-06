@@ -96,6 +96,7 @@ import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -178,13 +179,15 @@ public class AccordKeyspace
         parse(COMMANDS_FOR_KEY,
               "accord commands per key",
               "CREATE TABLE %s ("
-              + "store_generation int,"
-              + "store_index int,"
-              + format("key %s,", KEY_TUPLE)
-              + format("max_timestamp %s static,", TIMESTAMP_TUPLE)
+              + "store_generation int, "
+              + "store_index int, "
+              + format("key %s, ", KEY_TUPLE)
+              + format("max_timestamp %s static, ", TIMESTAMP_TUPLE)
+              + format("last_executed_timestamp %s static, ", TIMESTAMP_TUPLE)
+              + format("last_executed_micros bigint static, ")
               + format("blind_witnessed set<%s> static, ", TIMESTAMP_TUPLE)
-              + "series int,"
-              + format("timestamp %s,", TIMESTAMP_TUPLE)
+              + "series int, "
+              + format("timestamp %s, ", TIMESTAMP_TUPLE)
               + "data blob, "
               + "PRIMARY KEY((store_generation, store_index, key), series, timestamp)"
               + ')');
@@ -194,13 +197,15 @@ public class AccordKeyspace
         static final ClusteringComparator keyComparator = CommandsForKey.partitionKeyAsClusteringComparator();
         static final ColumnFilter allColumns = ColumnFilter.all(CommandsForKey);
         static final ColumnMetadata max_timestamp = getColumn(CommandsForKey, "max_timestamp");
+        static final ColumnMetadata last_executed_timestamp = getColumn(CommandsForKey, "last_executed_timestamp");
+        static final ColumnMetadata last_executed_micros = getColumn(CommandsForKey, "last_executed_micros");
         static final ColumnMetadata blind_witnessed = getColumn(CommandsForKey, "blind_witnessed");
 
         static final ColumnMetadata series = getColumn(CommandsForKey, "series");
         static final ColumnMetadata timestamp = getColumn(CommandsForKey, "timestamp");
         static final ColumnMetadata data = getColumn(CommandsForKey, "data");
 
-        static final Columns statics = Columns.from(Lists.newArrayList(max_timestamp, blind_witnessed));
+        static final Columns statics = Columns.from(Lists.newArrayList(max_timestamp, last_executed_timestamp, last_executed_micros, blind_witnessed));
         static final Columns regulars = Columns.from(Lists.newArrayList(series, timestamp, data));
         private static final RegularAndStaticColumns all = new RegularAndStaticColumns(statics, regulars);
         private static final RegularAndStaticColumns justStatic = new RegularAndStaticColumns(statics, Columns.NONE);
@@ -678,12 +683,21 @@ public class AccordKeyspace
                                                                                expectedRows);
 
         Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
-        boolean updateStaticRow = cfk.maxTimestamp.hasModifications() || cfk.blindWitnessed.hasModifications();
+        boolean updateStaticRow = cfk.maxTimestamp.hasModifications()
+                                  || cfk.lastExecutedTimestamp.hasModifications()
+                                  || cfk.lastExecutedMicros.hasModifications()
+                                  || cfk.blindWitnessed.hasModifications();
         if (updateStaticRow)
             rowBuilder.newRow(Clustering.STATIC_CLUSTERING);
 
         if (cfk.maxTimestamp.hasModifications())
             rowBuilder.addCell(live(CommandsForKeyColumns.max_timestamp, timestampMicros, serializeTimestamp(cfk.maxTimestamp.get())));
+
+        if (cfk.lastExecutedTimestamp.hasModifications())
+            rowBuilder.addCell(live(CommandsForKeyColumns.last_executed_timestamp, timestampMicros, serializeTimestamp(cfk.lastExecutedTimestamp.get())));
+
+        if (cfk.lastExecutedMicros.hasModifications())
+            rowBuilder.addCell(live(CommandsForKeyColumns.last_executed_micros, timestampMicros, ByteBufferUtil.bytes(cfk.lastExecutedMicros.get())));
 
         if (cfk.blindWitnessed.hasModifications())
             addStoredSetChanges(rowBuilder, CommandsForKeyColumns.blind_witnessed,
@@ -757,10 +771,14 @@ public class AccordKeyspace
                 if (!staticRow.isEmpty())
                 {
                     Cell<?> cell = staticRow.getCell(CommandsForKeyColumns.max_timestamp);
-                    if (cell == null || cell.isTombstone())
-                        cfk.maxTimestamp.load(Timestamp.NONE);
-                    else
-                        cfk.maxTimestamp.load(deserializeTimestampOrNull(cellValue(cell), Timestamp::new));
+                    cfk.maxTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new) : Timestamp.NONE);
+
+                    cell = staticRow.getCell(CommandsForKeyColumns.last_executed_timestamp);
+                    cfk.lastExecutedTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new) : Timestamp.NONE);
+
+                    cell = staticRow.getCell(CommandsForKeyColumns.last_executed_micros);
+                    ByteBuffer microsBytes = cell != null && !cell.isTombstone() ? cellValue(cell) : null;
+                    cfk.lastExecutedMicros.load(microsBytes != null ? microsBytes.getLong(microsBytes.position()) : 0);
 
                     TreeSet<Timestamp> blindWitnessed = new TreeSet<>();
                     ComplexColumnData cmplx = staticRow.getComplexColumnData(CommandsForKeyColumns.blind_witnessed);

@@ -33,6 +33,7 @@ import accord.api.Data;
 import accord.api.Key;
 import accord.api.Read;
 import accord.api.Store;
+import accord.local.CommandStore;
 import accord.txn.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -45,7 +46,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.AccordTimestamps;
+import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -103,15 +104,16 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     }
 
     @Override
-    public Future<Data> read(Key key, Timestamp executeAt, Store store)
+    public Future<Data> read(Key key, CommandStore commandStore, Timestamp executeAt, Store store)
     {
         SinglePartitionReadCommand command = getDeserialized((PartitionKey) key);
         if (command == null)
             return ImmediateFuture.success(new AccordData());
 
+        AccordCommandsForKey cfk = (AccordCommandsForKey) commandStore.commandsForKey(key);
+        int nowInSeconds = cfk.nowInSecondsFor(executeAt);
         AsyncPromise<Data> future = new AsyncPromise<>();
         Stage.READ.execute(() -> {
-            int nowInSeconds = AccordTimestamps.timestampToSeconds(executeAt);
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
             try (ReadExecutionController controller = read.executionController();
                  UnfilteredPartitionIterator partition = read.executeLocally(controller))

@@ -40,6 +40,11 @@ public class AccordService
     private final AccordScheduler scheduler;
     private final AccordVerbHandler verbHandler;
 
+    public static long uniqueNow()
+    {
+        return TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
+    }
+
     private AccordService()
     {
         Node.Id localId = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
@@ -49,7 +54,7 @@ public class AccordService
         this.node = new Node(localId,
                              messageSink,
                              configService,
-                             AccordTimestamps::uniqueNow,
+                             AccordService::uniqueNow,
                              () -> null,
                              new AccordAgent(),
                              scheduler,

@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableList;
 import accord.api.Key;
 import accord.api.Store;
 import accord.api.Write;
+import accord.local.CommandStore;
 import accord.txn.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
@@ -36,7 +37,7 @@ import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.AccordTimestamps;
+import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -84,13 +85,16 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
     }
 
     @Override
-    public Future<?> apply(Key key, Timestamp executeAt, Store store)
+    public Future<?> apply(Key key, CommandStore commandStore, Timestamp executeAt, Store store)
     {
         PartitionUpdate update = getDeserialized((PartitionKey) key);
         if (update == null)
             return SUCCESS;
-        long timestamp = AccordTimestamps.timestampToMicros(executeAt);
-        Mutation mutation = new Mutation(new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build());
+        AccordCommandsForKey cfk = (AccordCommandsForKey) commandStore.commandsForKey(key);
+        long timestamp = cfk.timestampMicrosFor(executeAt);
+        int nowInSeconds = cfk.nowInSecondsFor(executeAt);
+        update = new PartitionUpdate.Builder(update, 0).updateAllTimestampAndLocalDeletionTime(timestamp, nowInSeconds).build();
+        Mutation mutation = new Mutation(update);
         return Stage.MUTATION.submit((Runnable) mutation::apply);
     }
 

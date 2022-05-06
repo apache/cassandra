@@ -955,6 +955,14 @@ public class PartitionUpdate extends AbstractBTreePartition
             return this;
         }
 
+        public Builder updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+        {
+            deletionInfo.updateAllTimestampAndLocalDeletionTime(newTimestamp - 1, newLocalDeletionTime);
+            tree = BTree.<Row>transformAndFilter(tree, (x) -> x.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime));
+            staticRow = this.staticRow.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime);
+            return this;
+        }
+
         @Override
         public String toString()
         {

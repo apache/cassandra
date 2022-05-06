@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -35,6 +36,7 @@ import accord.local.Status;
 import accord.txn.Timestamp;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
+import org.apache.cassandra.service.accord.store.StoredLong;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
@@ -166,6 +168,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     private final AccordCommandStore commandStore;
     private final PartitionKey key;
     public final StoredValue<Timestamp> maxTimestamp;
+    public final StoredValue<Timestamp> lastExecutedTimestamp;
+    public final StoredLong lastExecutedMicros;
     public final StoredSet.Navigable<Timestamp> blindWitnessed;
     public final Series uncommitted;
     public final Series committedById;
@@ -176,6 +180,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         this.commandStore = commandStore;
         this.key = key;
         maxTimestamp = new StoredValue<>(kind());
+        lastExecutedTimestamp = new StoredValue<>(kind());
+        lastExecutedMicros = new StoredLong(kind());
         blindWitnessed = new StoredSet.Navigable<>(kind());
         uncommitted = new Series(kind(), SeriesKind.UNCOMMITTED);
         committedById = new Series(kind(), SeriesKind.COMMITTED_BY_ID);
@@ -185,6 +191,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     public AccordCommandsForKey initialize()
     {
         maxTimestamp.set(Timestamp.NONE);
+        lastExecutedTimestamp.load(Timestamp.NONE);
+        lastExecutedMicros.load(0);
         blindWitnessed.load(new TreeSet<>());
         uncommitted.map.load(new TreeMap<>());
         committedById.map.load(new TreeMap<>());
@@ -196,6 +204,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     public boolean hasModifications()
     {
         return maxTimestamp.hasModifications()
+               || lastExecutedTimestamp.hasModifications()
+               || lastExecutedMicros.hasModifications()
                || blindWitnessed.hasModifications()
                || uncommitted.map.hasModifications()
                || committedById.map.hasModifications()
@@ -206,6 +216,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     public void clearModifiedFlag()
     {
         maxTimestamp.clearModifiedFlag();
+        lastExecutedTimestamp.clearModifiedFlag();
+        lastExecutedMicros.clearModifiedFlag();
         blindWitnessed.clearModifiedFlag();
         uncommitted.map.clearModifiedFlag();
         committedById.map.clearModifiedFlag();
@@ -216,6 +228,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     public boolean isLoaded()
     {
         return maxTimestamp.isLoaded()
+               && lastExecutedTimestamp.isLoaded()
+               && lastExecutedMicros.isLoaded()
                && blindWitnessed.isLoaded()
                && uncommitted.map.isLoaded()
                && committedById.map.isLoaded()
@@ -238,6 +252,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     {
         long size = EMPTY_SIZE;
         size += maxTimestamp.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
+        size += lastExecutedTimestamp.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
+        size += lastExecutedMicros.estimatedSizeOnHeap();
         size += blindWitnessed.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += uncommitted.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
         size += committedById.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
@@ -310,6 +326,40 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         }
     }
 
+    private static long getTimestampMicros(Timestamp timestamp)
+    {
+        return timestamp.real + timestamp.logical;
+    }
+
+    private void maybeUpdatelastTimestamp(Timestamp executeAt)
+    {
+        Timestamp lastExecuted = lastExecutedTimestamp.get();
+        int cmp = executeAt.compareTo(lastExecuted);
+        if (cmp == 0)
+            return;
+        if (cmp < 0)
+            throw new IllegalArgumentException(String.format("%s is less than the most recently executed timestamp %s", executeAt, lastExecuted));
+        long micros = getTimestampMicros(executeAt);
+        long lastMicros = lastExecutedMicros.get();
+        lastExecutedTimestamp.set(executeAt);
+        lastExecutedMicros.set(Math.max(micros, lastMicros + 1));
+    }
+
+    public int nowInSecondsFor(Timestamp executeAt)
+    {
+        maybeUpdatelastTimestamp(executeAt);
+        // we use the executeAt time instead of the monotonic database timestamp to prevent uneven
+        // ttl expiration in extreme cases, ie 1M+ writes/second to a key causing timestamps to overflow
+        // into the next second on some keys and not others.
+        return (int) TimeUnit.MICROSECONDS.toSeconds(getTimestampMicros(executeAt));
+    }
+
+    public long timestampMicrosFor(Timestamp executeAt)
+    {
+        maybeUpdatelastTimestamp(executeAt);
+        return lastExecutedMicros.get();
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -319,6 +369,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         return commandStore == that.commandStore
                && key.equals(that.key)
                && maxTimestamp.equals(that.maxTimestamp)
+               && lastExecutedTimestamp.equals(that.lastExecutedTimestamp)
+               && lastExecutedMicros.equals(that.lastExecutedMicros)
                && blindWitnessed.equals(that.blindWitnessed)
                && uncommitted.map.equals(that.uncommitted.map)
                && committedById.map.equals(that.committedById.map)
@@ -328,7 +380,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     @Override
     public int hashCode()
     {
-        return Objects.hash(commandStore, key, blindWitnessed, maxTimestamp, uncommitted, committedById, committedByExecuteAt);
+        return Objects.hash(commandStore, key, blindWitnessed, maxTimestamp, lastExecutedTimestamp, lastExecutedMicros, uncommitted, committedById, committedByExecuteAt);
     }
 
     @Override
@@ -337,6 +389,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         return "AccordCommandsForKey{" +
                "key=" + key +
                ", maxTs=" + max() +
+               ", lastExecutedTimestamp=" + lastExecutedTimestamp +
+               ", lastExecutedMicros=" + lastExecutedMicros +
                ", blindWitnessed=" + blindWitnessed +
                ", uncommitted=" + uncommitted.map +
                ", committedById=" + committedById.map +
