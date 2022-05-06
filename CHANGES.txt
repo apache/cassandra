@@ -1,3 +1,9 @@
+4.0.5
+Merged from 3.11.13:
+Merged from 3.0:
+ * fsync TOC and digest files (CASSANDRA-10709)
+
+
 4.0.4
  * Optimise BTree build,update and transform operations (CASSANDRA-15510)
  * Clean up schema migration coordinator and tests (CASSANDRA-17533)
@@ -26,7 +32,6 @@ Merged from 3.11.13:
  * Validate existence of DCs when repairing (CASSANDRA-17407)
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
 Merged from 3.0:
- * fsync TOC and digest files (CASSANDRA-10709)
  * Fix URISyntaxException in nodetool with updated Java (CASSANDRA-17581)
  * Schema mutations may not be completed on drain (CASSANDRA-17524)
  * Fix data corruption in AbstractCompositeType due to static boolean byte buffers (CASSANDRA-14752)
