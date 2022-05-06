@@ -40,7 +40,6 @@ import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.BTreeRemoval;
-import org.apache.cassandra.utils.btree.UpdateFunction;
 
 /**
  * An immutable and sorted list of (non-PK) columns for a given table.
@@ -264,8 +263,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         if (this == NONE)
             return other;
 
-        Object[] tree = BTree.<ColumnMetadata>merge(this.columns, other.columns, Comparator.naturalOrder(),
-                                                    UpdateFunction.noOp());
+        Object[] tree = BTree.update(this.columns, other.columns, Comparator.naturalOrder());
         if (tree == this.columns)
             return this;
         if (tree == other.columns)
