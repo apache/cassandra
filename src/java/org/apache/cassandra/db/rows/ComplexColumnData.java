@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 import com.google.common.base.Function;
 
@@ -35,6 +36,7 @@ import org.apache.cassandra.schema.DroppedColumn;
 import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.LongAccumulator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 
 /**
@@ -96,6 +98,11 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     public Iterator<Cell<?>> iterator()
     {
         return BTree.iterator(cells);
+    }
+
+    public SearchIterator<CellPath, Cell> searchIterator()
+    {
+        return BTree.slice(cells, column().asymmetricCellPathComparator(), BTree.Dir.ASC);
     }
 
     public Iterator<Cell<?>> reverseIterator()
@@ -208,17 +215,25 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         return transformAndFilter(newDeletion, (cell) -> cell.purgeDataOlderThan(timestamp));
     }
 
-    private ComplexColumnData transformAndFilter(DeletionTime newDeletion, Function<? super Cell<?>, ? extends Cell<?>> function)
+    private ComplexColumnData update(DeletionTime newDeletion, Object[] newCells)
     {
-        Object[] transformed = BTree.transformAndFilter(cells, function);
-
-        if (cells == transformed && newDeletion == complexDeletion)
+        if (cells == newCells && newDeletion == complexDeletion)
             return this;
 
-        if (newDeletion == DeletionTime.LIVE && BTree.isEmpty(transformed))
+        if (newDeletion == DeletionTime.LIVE && BTree.isEmpty(newCells))
             return null;
 
-        return new ComplexColumnData(column, transformed, newDeletion);
+        return new ComplexColumnData(column, newCells, newDeletion);
+    }
+
+    public ComplexColumnData transformAndFilter(DeletionTime newDeletion, Function<? super Cell, ? extends Cell> function)
+    {
+        return update(newDeletion, BTree.transformAndFilter(cells, function));
+    }
+
+    public <V> ComplexColumnData transformAndFilter(BiFunction<? super Cell, ? super V, ? extends Cell> function, V param)
+    {
+        return update(complexDeletion, BTree.transformAndFilter(cells, function, param));
     }
 
     public ComplexColumnData updateAllTimestamp(long newTimestamp)

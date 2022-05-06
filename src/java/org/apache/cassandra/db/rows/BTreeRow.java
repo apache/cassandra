@@ -745,7 +745,7 @@ public class BTreeRow extends AbstractRow
                     }
                 }
 
-                Object[] btree = BTree.build(buildFrom, UpdateFunction.noOp());
+                Object[] btree = BTree.build(buildFrom);
                 return new ComplexColumnData(column, btree, deletion);
             }
         }
