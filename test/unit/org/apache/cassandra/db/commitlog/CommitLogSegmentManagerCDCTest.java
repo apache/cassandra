@@ -24,7 +24,9 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
+import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
 import org.junit.Assert;
@@ -162,6 +164,9 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         // It is possible to read an empty line. In this case, re-try at most 5 times.
         for (int i = 0; input == null && i < 5; i++)
         {
+            if (i != 0) // add a little pause between each attempt
+                Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+
             try (BufferedReader in = new BufferedReader(new FileReader(cdcIndexFile)))
             {
                 input = in.readLine();
