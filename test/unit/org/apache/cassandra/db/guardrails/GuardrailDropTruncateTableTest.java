@@ -23,13 +23,13 @@ import org.junit.Test;
 
 import static java.lang.String.format;
 
-public class GuardrailTruncateDropTest extends GuardrailTester
+public class GuardrailDropTruncateTableTest extends GuardrailTester
 {
     private String tableQuery = "CREATE TABLE %s(pk int, ck int, v int, PRIMARY KEY(pk, ck))";
 
     private void setGuardrail(boolean enabled)
     {
-        Guardrails.instance.setTruncateDropEnabled(enabled);
+        Guardrails.instance.setDropTruncateTableEnabled(enabled);
     }
 
     @After
@@ -51,7 +51,7 @@ public class GuardrailTruncateDropTest extends GuardrailTester
     {
         setGuardrail(false);
         createTable(tableQuery);
-        assertFails("DROP TABLE %s", "TRUNCATE and DROP TABLE functionality is not allowed");
+        assertFails("DROP TABLE %s", "DROP and TRUNCATE TABLE functionality is not allowed");
     }
 
     @Test
@@ -59,7 +59,7 @@ public class GuardrailTruncateDropTest extends GuardrailTester
     {
         setGuardrail(false);
         createTable(tableQuery);
-        assertFails("DROP TABLE IF EXISTS %s", "TRUNCATE and DROP TABLE functionality is not allowed");
+        assertFails("DROP TABLE IF EXISTS %s", "DROP and TRUNCATE TABLE functionality is not allowed");
     }
 
     @Test
@@ -75,7 +75,7 @@ public class GuardrailTruncateDropTest extends GuardrailTester
     {
         setGuardrail(false);
         createTable(tableQuery);
-        assertFails("TRUNCATE TABLE %s", "TRUNCATE and DROP TABLE functionality is not allowed");
+        assertFails("TRUNCATE TABLE %s", "DROP and TRUNCATE TABLE functionality is not allowed");
     }
 
     @Test
