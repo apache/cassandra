@@ -55,6 +55,21 @@ public class SimulatedActionTask extends SimulatedAction implements Runnable
         task.onCancel(this);
     }
 
+    private SimulatedActionTask(Object description, Modifiers self, Modifiers children, SimulatedSystems simulated, IInvokableInstance on, InterceptedExecution task)
+    {
+        super(description, self, children, null, simulated);
+        this.task = task;
+        task.onCancel(this);
+    }
+
+    /**
+     * To be used to create actions on runnable that are not serializable but are anyway safe to invoke
+     */
+    public static SimulatedActionTask unsafeTask(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, IInvokableInstance on, Runnable run)
+    {
+        return new SimulatedActionTask(description, self, transitive, simulated, on, unsafeAsTask(on, run, simulated.failures));
+    }
+
     protected static Runnable asSafeRunnable(IInvokableInstance on, SerializableRunnable run)
     {
         return () -> on.unsafeRunOnThisThread(run);
@@ -97,9 +112,13 @@ public class SimulatedActionTask extends SimulatedAction implements Runnable
     {
         try
         {
-            task.onCancel(null);
-            task.cancel();
-            task = null;
+            if (task != null)
+            {
+                task.onCancel(null);
+                task.cancel();
+                task = null;
+            }
+
             return super.safeInvalidate(isCancellation);
         }
         catch (Throwable t)
@@ -111,7 +130,7 @@ public class SimulatedActionTask extends SimulatedAction implements Runnable
     @Override
     public void run()
     {
-        // cancellation invoked by the task
+        // cancellation invoked on the task by the application
         task = null;
         super.cancel();
     }

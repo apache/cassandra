@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
@@ -217,7 +218,7 @@ public abstract class Sets
                 Set<?> s = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
                 SortedSet<ByteBuffer> elements = new TreeSet<>(type.getElementsType());
                 for (Object element : s)
-                    elements.add(type.getElementsType().decompose(element));
+                    elements.add(type.getElementsType().decomposeUntyped(element));
                 return new Value(elements);
             }
             catch (MarshalException e)
@@ -348,26 +349,43 @@ public abstract class Sets
 
         static void doAdd(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
+            if (value == null)
+            {
+                // for frozen sets, we're overwriting the whole cell
+                if (!column.type.isMultiCell())
+                    params.addTombstone(column);
+
+                return;
+            }
+
+            SortedSet<ByteBuffer> elements = ((Value) value).elements;
+
             if (column.type.isMultiCell())
             {
-                if (value == null)
+                if (elements.size() == 0)
                     return;
 
-                for (ByteBuffer bb : ((Value) value).elements)
+                // Guardrails about collection size are only checked for the added elements without considering
+                // already existent elements. This is done so to avoid read-before-write, having additional checks
+                // during SSTable write.
+                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
+
+                int dataSize = 0;
+                for (ByteBuffer bb : elements)
                 {
                     if (bb == ByteBufferUtil.UNSET_BYTE_BUFFER)
                         continue;
 
-                    params.addCell(column, CellPath.create(bb), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                    Cell<?> cell = params.addCell(column, CellPath.create(bb), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                    dataSize += cell.dataSize();
                 }
+                Guardrails.collectionSize.guard(dataSize, column.name.toString(), false, params.clientState);
             }
             else
             {
-                // for frozen sets, we're overwriting the whole cell
-                if (value == null)
-                    params.addTombstone(column);
-                else
-                    params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
+                Cell<?> cell = params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
             }
         }
     }

@@ -39,6 +39,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class SecondaryIndexTest extends TestBaseImpl
 {
@@ -91,7 +92,7 @@ public class SecondaryIndexTest extends TestBaseImpl
 
         for (int i = 0 ; i < 33; ++i)
         {
-            UUID trace = UUID.randomUUID();
+            UUID trace = TimeUUID.Generator.nextTimeUUID().asUUID();
             Object[][] result = cluster.coordinator(1).executeWithTracing(trace, String.format("SELECT * FROM %s WHERE v = ?", tableName), ConsistencyLevel.ALL, i);
             Assert.assertEquals("Failed on iteration " + i, 3, result.length);
 

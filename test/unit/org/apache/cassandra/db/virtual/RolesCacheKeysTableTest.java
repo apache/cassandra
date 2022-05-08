@@ -69,12 +69,13 @@ public class RolesCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         Roles.cache.invalidate();
+        disablePreparedReuseForTest();
     }
 
     @AfterClass
     public static void tearDownClass()
     {
-        DatabaseDescriptor.setRolesValidity(DatabaseDescriptor.getRawConfig().roles_validity_in_ms);
+        DatabaseDescriptor.setRolesValidity(DatabaseDescriptor.getRawConfig().roles_validity.toMillisecondsAsInt());
     }
 
     @Test

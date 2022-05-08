@@ -18,10 +18,12 @@
 import cProfile
 import codecs
 import pstats
-
+import os
+import errno
+import stat
 
 from datetime import timedelta, tzinfo
-from six import StringIO
+from io import StringIO
 
 try:
     from line_profiler import LineProfiler
@@ -110,6 +112,21 @@ def trim_if_present(s, prefix):
     if s.startswith(prefix):
         return s[len(prefix):]
     return s
+
+
+def is_file_secure(filename):
+    try:
+        st = os.stat(filename)
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise
+        # the file doesn't exist, the security of it is irrelevant
+        return True
+    uid = os.getuid()
+
+    # Skip enforcing the file owner and UID matching for the root user (uid == 0).
+    # This is to allow "sudo cqlsh" to work with user owned credentials file.
+    return (uid == 0 or st.st_uid == uid) and stat.S_IMODE(st.st_mode) & (stat.S_IRGRP | stat.S_IROTH) == 0
 
 
 def get_file_encoding_bomsize(filename):

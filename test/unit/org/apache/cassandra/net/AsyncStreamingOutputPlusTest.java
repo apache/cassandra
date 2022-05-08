@@ -19,7 +19,6 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -122,8 +121,8 @@ public class AsyncStreamingOutputPlusTest
     public void testWriteFileToChannelEntireSSTableNoThrottling() throws IOException
     {
         // Disable throttling by setting entire SSTable throughput and entire SSTable inter-DC throughput to 0
-        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMegabitsPerSec(0);
-        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(0);
+        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMebibytesPerSec(0);
+        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(0);
         StreamManager.StreamRateLimiter.updateEntireSSTableThroughput();
         StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
 
@@ -134,8 +133,8 @@ public class AsyncStreamingOutputPlusTest
     public void testWriteFileToChannelEntireSSTable() throws IOException
     {
         // Enable entire SSTable throttling by setting it to 200 Mbps
-        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMegabitsPerSec(200);
-        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec(200);
+        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMebibytesPerSec(200);
+        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(200);
         StreamManager.StreamRateLimiter.updateEntireSSTableThroughput();
         StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
 
@@ -157,8 +156,7 @@ public class AsyncStreamingOutputPlusTest
         StreamManager.StreamRateLimiter limiter = zeroCopy ? StreamManager.getEntireSSTableRateLimiter(FBUtilities.getBroadcastAddressAndPort())
                                                            : StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort());
 
-        try (RandomAccessFile raf = new RandomAccessFile(file.path(), "r");
-             FileChannel fileChannel = raf.getChannel();
+        try (FileChannel fileChannel = file.newReadChannel();
              AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
         {
             assertTrue(fileChannel.isOpen());

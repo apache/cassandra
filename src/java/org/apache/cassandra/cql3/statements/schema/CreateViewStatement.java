@@ -111,7 +111,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
-        if (!DatabaseDescriptor.getEnableMaterializedViews())
+        if (!DatabaseDescriptor.getMaterializedViewsEnabled())
             throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
 
         /*
@@ -157,6 +157,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
         Iterable<ViewMetadata> tableViews = keyspace.views.forTable(table.id);
         Guardrails.materializedViewsPerTable.guard(Iterables.size(tableViews) + 1,
                                                    String.format("%s on table %s", viewName, table.name),
+                                                   false,
                                                    state);
 
         if (table.params.gcGraceSeconds == 0)
@@ -303,7 +304,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
         attrs.validate();
 
-        if (attrs.hasOption(TableParams.Option.DEFAULT_TIME_TO_LIVE))
+        if (attrs.hasOption(TableParams.Option.DEFAULT_TIME_TO_LIVE)
+            && attrs.getInt(TableParams.Option.DEFAULT_TIME_TO_LIVE.toString(), 0) != 0)
         {
             throw ire("Cannot set default_time_to_live for a materialized view. " +
                       "Data in a materialized view always expire at the same time than " +

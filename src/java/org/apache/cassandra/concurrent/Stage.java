@@ -42,27 +42,36 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 
 public enum Stage
 {
-    READ              ("ReadStage",             "request",  DatabaseDescriptor::getConcurrentReaders,        DatabaseDescriptor::setConcurrentReaders,        Stage::multiThreadedLowSignalStage),
-    MUTATION          ("MutationStage",         "request",  DatabaseDescriptor::getConcurrentWriters,        DatabaseDescriptor::setConcurrentWriters,        Stage::multiThreadedLowSignalStage),
-    COUNTER_MUTATION  ("CounterMutationStage",  "request",  DatabaseDescriptor::getConcurrentCounterWriters, DatabaseDescriptor::setConcurrentCounterWriters, Stage::multiThreadedLowSignalStage),
-    VIEW_MUTATION     ("ViewMutationStage",     "request",  DatabaseDescriptor::getConcurrentViewWriters,    DatabaseDescriptor::setConcurrentViewWriters,    Stage::multiThreadedLowSignalStage),
-    GOSSIP            ("GossipStage",           "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
-    REQUEST_RESPONSE  ("RequestResponseStage",  "request",  FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedLowSignalStage),
-    ANTI_ENTROPY      ("AntiEntropyStage",      "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
-    MIGRATION         ("MigrationStage",        "internal", () -> 1,                                         null,                                            Stage::migrationStage),
-    MISC              ("MiscStage",             "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
-    TRACING           ("TracingStage",          "internal", () -> 1,                                         null,                                            Stage::tracingStage),
-    INTERNAL_RESPONSE ("InternalResponseStage", "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
-    IMMEDIATE         ("ImmediateStage",        "internal", () -> 0,                                         null,                                            Stage::immediateExecutor);
+    READ              (false, "ReadStage",             "request",  DatabaseDescriptor::getConcurrentReaders,        DatabaseDescriptor::setConcurrentReaders,        Stage::multiThreadedLowSignalStage),
+    MUTATION          (true,  "MutationStage",         "request",  DatabaseDescriptor::getConcurrentWriters,        DatabaseDescriptor::setConcurrentWriters,        Stage::multiThreadedLowSignalStage),
+    COUNTER_MUTATION  (true,  "CounterMutationStage",  "request",  DatabaseDescriptor::getConcurrentCounterWriters, DatabaseDescriptor::setConcurrentCounterWriters, Stage::multiThreadedLowSignalStage),
+    VIEW_MUTATION     (true,  "ViewMutationStage",     "request",  DatabaseDescriptor::getConcurrentViewWriters,    DatabaseDescriptor::setConcurrentViewWriters,    Stage::multiThreadedLowSignalStage),
+    GOSSIP            (true,  "GossipStage",           "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
+    REQUEST_RESPONSE  (false, "RequestResponseStage",  "request",  FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedLowSignalStage),
+    ANTI_ENTROPY      (false, "AntiEntropyStage",      "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
+    MIGRATION         (false, "MigrationStage",        "internal", () -> 1,                                         null,                                            Stage::migrationStage),
+    MISC              (false, "MiscStage",             "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
+    TRACING           (false, "TracingStage",          "internal", () -> 1,                                         null,                                            Stage::tracingStage),
+    INTERNAL_RESPONSE (false, "InternalResponseStage", "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
+    IMMEDIATE         (false, "ImmediateStage",        "internal", () -> 0,                                         null,                                            Stage::immediateExecutor),
+    PAXOS_REPAIR      (false, "PaxosRepairStage",      "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
+    ;
 
     public final String jmxName;
-    private final Supplier<ExecutorPlus> initialiser;
-    private volatile ExecutorPlus executor = null;
+    private final Supplier<ExecutorPlus> executorSupplier;
+    private volatile ExecutorPlus executor;
+    /** Set true if this executor should be gracefully shutdown before stopping
+     * the commitlog allocator. Tasks on executors that issue mutations may
+     * block indefinitely waiting for a new commitlog segment, preventing a
+     * clean drain/shutdown.
+     */
+    public final boolean shutdownBeforeCommitlog;
 
-    Stage(String jmxName, String jmxType, IntSupplier numThreads, LocalAwareExecutorPlus.MaximumPoolSizeListener onSetMaximumPoolSize, ExecutorServiceInitialiser initialiser)
+    Stage(boolean shutdownBeforeCommitlog, String jmxName, String jmxType, IntSupplier numThreads, LocalAwareExecutorPlus.MaximumPoolSizeListener onSetMaximumPoolSize, ExecutorServiceInitialiser executorSupplier)
     {
+        this.shutdownBeforeCommitlog = shutdownBeforeCommitlog;
         this.jmxName = jmxName;
-        this.initialiser = () -> initialiser.init(jmxName, jmxType, numThreads.getAsInt(), onSetMaximumPoolSize);
+        this.executorSupplier = () -> executorSupplier.init(jmxName, jmxType, numThreads.getAsInt(), onSetMaximumPoolSize);
     }
 
     private static String normalizeName(String stageName)
@@ -128,7 +137,7 @@ public enum Stage
             {
                 if (executor == null)
                 {
-                    executor = initialiser.get();
+                    executor = executorSupplier.get();
                 }
             }
         }
@@ -142,12 +151,32 @@ public enum Stage
                      .collect(Collectors.toList());
     }
 
+    private static List<ExecutorPlus> mutatingExecutors()
+    {
+        return Stream.of(Stage.values())
+                     .filter(stage -> stage.shutdownBeforeCommitlog)
+                     .map(Stage::executor)
+                     .collect(Collectors.toList());
+    }
+
     /**
      * This method shuts down all registered stages.
      */
     public static void shutdownNow()
     {
         ExecutorUtils.shutdownNow(executors());
+    }
+
+    public static void shutdownAndAwaitMutatingExecutors(boolean interrupt, long timeout, TimeUnit units) throws InterruptedException, TimeoutException
+    {
+        List<ExecutorPlus> executors = mutatingExecutors();
+        ExecutorUtils.shutdown(interrupt, executors);
+        ExecutorUtils.awaitTermination(timeout, units, executors);
+    }
+
+    public static boolean areMutationExecutorsTerminated()
+    {
+        return mutatingExecutors().stream().allMatch(ExecutorPlus::isTerminated);
     }
 
     @VisibleForTesting

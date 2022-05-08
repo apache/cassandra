@@ -34,7 +34,7 @@ import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -139,7 +139,7 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  *
  * TODO: fill in details about Tracker and lifecycle interactions for tools, and for compaction strategies
  */
-public abstract class SSTableReader extends SSTable implements SelfRefCounted<SSTableReader>
+public abstract class SSTableReader extends SSTable implements UnfilteredSource, SelfRefCounted<SSTableReader>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -170,7 +170,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public static final Comparator<SSTableReader> sstableComparator = (o1, o2) -> o1.first.compareTo(o2.first);
 
-    public static final Comparator<SSTableReader> generationReverseComparator = (o1, o2) -> -Integer.compare(o1.descriptor.generation, o2.descriptor.generation);
+    public static final Comparator<SSTableReader> idComparator = Comparator.comparing(t -> t.descriptor.id, SSTableIdFactory.COMPARATOR);
+    public static final Comparator<SSTableReader> idReverseComparator = idComparator.reversed();
 
     public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
 
@@ -1419,13 +1420,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                                  boolean permitMatchPastLast,
                                                  SSTableReadsListener listener);
 
-    public abstract UnfilteredRowIterator iterator(DecoratedKey key,
-                                                   Slices slices,
-                                                   ColumnFilter selectedColumns,
-                                                   boolean reversed,
-                                                   SSTableReadsListener listener);
-
-    public abstract UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
+    public abstract UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
 
     public abstract UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, boolean tombstoneOnly);
 
@@ -1586,14 +1581,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public abstract ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator);
 
-    /**
-     * @param columns the columns to return.
-     * @param dataRange filter to use when reading the columns
-     * @param listener a listener used to handle internal read events
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public abstract ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener);
-
     public FileDataInput getFileDataInput(long position)
     {
         return dfile.createReader(position);
@@ -1669,7 +1656,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.pendingRepair != ActiveRepairService.NO_PENDING_REPAIR;
     }
 
-    public UUID getPendingRepair()
+    public TimeUUID getPendingRepair()
     {
         return sstableMetadata.pendingRepair;
     }
@@ -1862,7 +1849,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     /**
      * Mutate sstable repair metadata with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
      */
-    public void mutateRepairedAndReload(long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
+    public void mutateRepairedAndReload(long newRepairedAt, TimeUUID newPendingRepair, boolean isTransient) throws IOException
     {
         synchronized (tidy.global)
         {
@@ -2003,6 +1990,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     }
 
+    public boolean maybePresent(DecoratedKey key)
+    {
+        // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
+        // we check index file instead.
+        return bf instanceof AlwaysPresentFilter && getPosition(key, Operator.EQ, false) != null || bf.isPresent(key);
+    }
+
     /**
      * One instance per SSTableReader we create.
      *
@@ -2102,7 +2096,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 @Override
                 public String toString()
                 {
-                    return "Tidy " + descriptor.ksname + '.' + descriptor.cfname + '-' + descriptor.generation;
+                    return "Tidy " + descriptor.ksname + '.' + descriptor.cfname + '-' + descriptor.id;
                 }
             });
         }
@@ -2164,7 +2158,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 return;
             }
 
-            readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+            readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.id);
             // sync the average read rate to system.sstable_activity every five minutes, starting one minute from now
             readMeterSyncFuture = new WeakReference<>(syncExecutor.scheduleAtFixedRate(new Runnable()
             {
@@ -2173,7 +2167,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     if (obsoletion == null)
                     {
                         meterSyncThrottle.acquire();
-                        SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
+                        SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.id, readMeter);
                     }
                 }
             }, 1, 5, TimeUnit.MINUTES));

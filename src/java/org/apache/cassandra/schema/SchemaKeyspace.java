@@ -64,7 +64,8 @@ import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
 /**
  * system_schema.* tables and methods for manipulating them.
  * 
- * Please notice this class is _not_ thread safe. It should be accessed through {@link org.apache.cassandra.schema.Schema}. See CASSANDRA-16856/16996
+ * Please notice this class is _not_ thread safe and all methods which reads or updates the data in schema keyspace
+ * should be accessed only from the implementation of {@link SchemaUpdateHandler} in synchronized blocks.
  */
 @NotThreadSafe
 public final class SchemaKeyspace
@@ -104,6 +105,7 @@ public final class SchemaKeyspace
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+              + "memtable text,"
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
@@ -171,6 +173,7 @@ public final class SchemaKeyspace
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+              + "memtable text,"
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
@@ -250,7 +253,7 @@ public final class SchemaKeyspace
                                    .build();
     }
 
-    static KeyspaceMetadata metadata()
+    public static KeyspaceMetadata metadata()
     {
         return KeyspaceMetadata.create(SchemaConstants.SCHEMA_KEYSPACE_NAME, KeyspaceParams.local(), org.apache.cassandra.schema.Tables.of(ALL_TABLE_METADATA));
     }
@@ -259,32 +262,32 @@ public final class SchemaKeyspace
     {
         Map<String, Mutation> mutations = new HashMap<>();
 
-        diff.created.forEach(k -> mutations.put(k.name, makeCreateKeyspaceMutation(k, timestamp).build()));
         diff.dropped.forEach(k -> mutations.put(k.name, makeDropKeyspaceMutation(k, timestamp).build()));
+        diff.created.forEach(k -> mutations.put(k.name, makeCreateKeyspaceMutation(k, timestamp).build()));
         diff.altered.forEach(kd ->
         {
             KeyspaceMetadata ks = kd.after;
 
             Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(ks.name, ks.params, timestamp);
 
-            kd.types.created.forEach(t -> addTypeToSchemaMutation(t, builder));
             kd.types.dropped.forEach(t -> addDropTypeToSchemaMutation(t, builder));
+            kd.types.created.forEach(t -> addTypeToSchemaMutation(t, builder));
             kd.types.altered(Difference.SHALLOW).forEach(td -> addTypeToSchemaMutation(td.after, builder));
 
-            kd.tables.created.forEach(t -> addTableToSchemaMutation(t, true, builder));
             kd.tables.dropped.forEach(t -> addDropTableToSchemaMutation(t, builder));
+            kd.tables.created.forEach(t -> addTableToSchemaMutation(t, true, builder));
             kd.tables.altered(Difference.SHALLOW).forEach(td -> addAlterTableToSchemaMutation(td.before, td.after, builder));
 
-            kd.views.created.forEach(v -> addViewToSchemaMutation(v, true, builder));
             kd.views.dropped.forEach(v -> addDropViewToSchemaMutation(v, builder));
+            kd.views.created.forEach(v -> addViewToSchemaMutation(v, true, builder));
             kd.views.altered(Difference.SHALLOW).forEach(vd -> addAlterViewToSchemaMutation(vd.before, vd.after, builder));
 
-            kd.udfs.created.forEach(f -> addFunctionToSchemaMutation((UDFunction) f, builder));
             kd.udfs.dropped.forEach(f -> addDropFunctionToSchemaMutation((UDFunction) f, builder));
+            kd.udfs.created.forEach(f -> addFunctionToSchemaMutation((UDFunction) f, builder));
             kd.udfs.altered(Difference.SHALLOW).forEach(fd -> addFunctionToSchemaMutation(fd.after, builder));
 
-            kd.udas.created.forEach(a -> addAggregateToSchemaMutation((UDAggregate) a, builder));
             kd.udas.dropped.forEach(a -> addDropAggregateToSchemaMutation((UDAggregate) a, builder));
+            kd.udas.created.forEach(a -> addAggregateToSchemaMutation((UDAggregate) a, builder));
             kd.udas.altered(Difference.SHALLOW).forEach(ad -> addAggregateToSchemaMutation(ad.after, builder));
 
             mutations.put(ks.name, builder.build());
@@ -319,20 +322,21 @@ public final class SchemaKeyspace
 
     static void truncate()
     {
+        logger.debug("Truncating schema tables...");
         ALL.reverse().forEach(table -> getSchemaCFS(table).truncateBlocking());
     }
 
     private static void flush()
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
-            ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush()));
+            ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED)));
     }
 
     /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
      */
-    static UUID calculateSchemaDigest()
+    public static UUID calculateSchemaDigest()
     {
         Digest digest = Digest.forSchema();
         for (String table : ALL)
@@ -398,7 +402,7 @@ public final class SchemaKeyspace
 
                     DecoratedKey key = partition.partitionKey();
                     Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
-                    puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()));
+                    puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()).withOnlyPresentColumns());
                 }
             }
         }
@@ -441,10 +445,10 @@ public final class SchemaKeyspace
     @SuppressWarnings("unchecked")
     private static DecoratedKey decorate(TableMetadata metadata, Object value)
     {
-        return metadata.partitioner.decorateKey(((AbstractType) metadata.partitionKeyType).decompose(value));
+        return metadata.partitioner.decorateKey(metadata.partitionKeyType.decomposeUntyped(value));
     }
 
-    static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
+    private static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
     {
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(Keyspaces.keyspace, decorate(Keyspaces, name))
                                                  .timestamp(timestamp);
@@ -457,6 +461,7 @@ public final class SchemaKeyspace
         return builder;
     }
 
+    @VisibleForTesting
     static Mutation.SimpleBuilder makeCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
@@ -470,7 +475,7 @@ public final class SchemaKeyspace
         return builder;
     }
 
-    static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
+    private static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
                                                  .timestamp(timestamp);
@@ -494,6 +499,7 @@ public final class SchemaKeyspace
         builder.update(Types).row(type.name).delete();
     }
 
+    @VisibleForTesting
     static Mutation.SimpleBuilder makeCreateTableMutation(KeyspaceMetadata keyspace, TableMetadata table, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
@@ -502,10 +508,11 @@ public final class SchemaKeyspace
         return builder;
     }
 
-    static void addTableToSchemaMutation(TableMetadata table, boolean withColumnsAndTriggers, Mutation.SimpleBuilder builder)
+    private static void addTableToSchemaMutation(TableMetadata table, boolean withColumnsAndTriggers, Mutation.SimpleBuilder builder)
     {
         Row.SimpleBuilder rowBuilder = builder.update(Tables)
                                               .row(table.name)
+                                              .deletePrevious()
                                               .add("id", table.id.asUUID())
                                               .add("flags", TableMetadata.Flag.toStringSet(table.flags));
 
@@ -551,6 +558,11 @@ public final class SchemaKeyspace
         // node sends table schema to a < 3.8 versioned node with an unknown column.
         if (DatabaseDescriptor.isCDCEnabled())
             builder.add("cdc", params.cdc);
+
+        // As above, only add the memtable column if the table uses a non-default memtable configuration to avoid RTE
+        // in mixed operation with pre-4.1 versioned node during upgrades.
+        if (params.memtable != MemtableParams.DEFAULT)
+            builder.add("memtable", params.memtable.configurationKey());
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -608,6 +620,7 @@ public final class SchemaKeyspace
             addUpdatedIndexToSchemaMutation(newTable, diff.rightValue(), builder);
     }
 
+    @VisibleForTesting
     static Mutation.SimpleBuilder makeUpdateTableMutation(KeyspaceMetadata keyspace,
                                                           TableMetadata oldTable,
                                                           TableMetadata newTable,
@@ -638,14 +651,6 @@ public final class SchemaKeyspace
         after.forEach(t -> afterMap.put(t.name, t));
 
         return Maps.difference(beforeMap, afterMap);
-    }
-
-    static Mutation.SimpleBuilder makeDropTableMutation(KeyspaceMetadata keyspace, TableMetadata table, long timestamp)
-    {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-        addDropTableToSchemaMutation(table, builder);
-        return builder;
     }
 
     private static void addDropTableToSchemaMutation(TableMetadata table, Mutation.SimpleBuilder builder)
@@ -717,6 +722,7 @@ public final class SchemaKeyspace
         TableMetadata table = view.metadata;
         Row.SimpleBuilder rowBuilder = builder.update(Views)
                                               .row(view.name())
+                                              .deletePrevious()
                                               .add("include_all_columns", view.includeAllColumns)
                                               .add("base_table_id", view.baseTableId.asUUID())
                                               .add("base_table_name", view.baseTableName)
@@ -833,8 +839,7 @@ public final class SchemaKeyspace
     /*
      * Fetching schema
      */
-
-    static Keyspaces fetchNonSystemKeyspaces()
+    public static Keyspaces fetchNonSystemKeyspaces()
     {
         return fetchKeyspacesWithout(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
     }
@@ -946,6 +951,7 @@ public final class SchemaKeyspace
                             .build();
     }
 
+    @VisibleForTesting
     static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
         return TableParams.builder()
@@ -954,6 +960,7 @@ public final class SchemaKeyspace
                           .comment(row.getString("comment"))
                           .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
                           .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
+                          .memtable(MemtableParams.get(row.has("memtable") ? row.getString("memtable") : null)) // memtable column was introduced in 4.1
                           .defaultTimeToLive(row.getInt("default_time_to_live"))
                           .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
                           .gcGraceSeconds(row.getInt("gc_grace_seconds"))
@@ -986,6 +993,7 @@ public final class SchemaKeyspace
         return columns;
     }
 
+    @VisibleForTesting
     static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
     {
         String keyspace = row.getString("keyspace_name");
@@ -1032,7 +1040,7 @@ public final class SchemaKeyspace
                                  ? ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase())
                                  : ColumnMetadata.Kind.REGULAR;
         assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
-            : "Unexpected dropped column kind: " + kind.toString();
+            : "Unexpected dropped column kind: " + kind;
 
         ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind);
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
@@ -1147,9 +1155,9 @@ public final class SchemaKeyspace
 
         List<AbstractType<?>> argTypes = new ArrayList<>();
         for (String type : row.getFrozenList("argument_types", UTF8Type.instance))
-            argTypes.add(CQLTypeParser.parse(ksName, type, types));
+            argTypes.add(CQLTypeParser.parse(ksName, type, types).udfType());
 
-        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types);
+        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types).udfType();
 
         String language = row.getString("language");
         String body = row.getString("body");
@@ -1209,10 +1217,10 @@ public final class SchemaKeyspace
         List<AbstractType<?>> argTypes =
             row.getFrozenList("argument_types", UTF8Type.instance)
                .stream()
-               .map(t -> CQLTypeParser.parse(ksName, t, types))
+               .map(t -> CQLTypeParser.parse(ksName, t, types).udfType())
                .collect(toList());
 
-        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types);
+        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types).udfType();
 
         FunctionName stateFunc = new FunctionName(ksName, (row.getString("state_func")));
 

@@ -75,10 +75,10 @@ public final class FileUtils
 
     private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
 
-    public static final long ONE_KB = 1024;
-    public static final long ONE_MB = 1024 * ONE_KB;
-    public static final long ONE_GB = 1024 * ONE_MB;
-    public static final long ONE_TB = 1024 * ONE_GB;
+    public static final long ONE_KIB = 1024;
+    public static final long ONE_MIB = 1024 * ONE_KIB;
+    public static final long ONE_GIB = 1024 * ONE_MIB;
+    public static final long ONE_TIB = 1024 * ONE_GIB;
 
     private static final DecimalFormat df = new DecimalFormat("#.##");
     private static final AtomicReference<Optional<FSErrorHandler>> fsErrorHandler = new AtomicReference<>(Optional.empty());
@@ -390,22 +390,22 @@ public final class FileUtils
         }
         if (value.endsWith(" TiB"))
         {
-            result = Math.round(Double.valueOf(value.replace(" TiB", "")) * ONE_TB);
+            result = Math.round(Double.valueOf(value.replace(" TiB", "")) * ONE_TIB);
             return result;
         }
         else if (value.endsWith(" GiB"))
         {
-            result = Math.round(Double.valueOf(value.replace(" GiB", "")) * ONE_GB);
+            result = Math.round(Double.valueOf(value.replace(" GiB", "")) * ONE_GIB);
             return result;
         }
         else if (value.endsWith(" KiB"))
         {
-            result = Math.round(Double.valueOf(value.replace(" KiB", "")) * ONE_KB);
+            result = Math.round(Double.valueOf(value.replace(" KiB", "")) * ONE_KIB);
             return result;
         }
         else if (value.endsWith(" MiB"))
         {
-            result = Math.round(Double.valueOf(value.replace(" MiB", "")) * ONE_MB);
+            result = Math.round(Double.valueOf(value.replace(" MiB", "")) * ONE_MIB);
             return result;
         }
         else if (value.endsWith(" bytes"))
@@ -422,27 +422,27 @@ public final class FileUtils
     public static String stringifyFileSize(double value)
     {
         double d;
-        if ( value >= ONE_TB )
+        if (value >= ONE_TIB)
         {
-            d = value / ONE_TB;
+            d = value / ONE_TIB;
             String val = df.format(d);
             return val + " TiB";
         }
-        else if ( value >= ONE_GB )
+        else if (value >= ONE_GIB)
         {
-            d = value / ONE_GB;
+            d = value / ONE_GIB;
             String val = df.format(d);
             return val + " GiB";
         }
-        else if ( value >= ONE_MB )
+        else if (value >= ONE_MIB)
         {
-            d = value / ONE_MB;
+            d = value / ONE_MIB;
             String val = df.format(d);
             return val + " MiB";
         }
-        else if ( value >= ONE_KB )
+        else if (value >= ONE_KIB)
         {
-            d = value / ONE_KB;
+            d = value / ONE_KIB;
             String val = df.format(d);
             return val + " KiB";
         }
@@ -461,6 +461,11 @@ public final class FileUtils
     public static void handleFSError(FSError e)
     {
         fsErrorHandler.get().ifPresent(handler -> handler.handleFSError(e));
+    }
+
+    public static void handleStartupFSError(Throwable t)
+    {
+        fsErrorHandler.get().ifPresent(handler -> handler.handleStartupFSError(t));
     }
 
     /**

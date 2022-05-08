@@ -22,6 +22,7 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
 
 import static org.junit.Assert.assertEquals;
@@ -77,8 +78,8 @@ public class ViewComplexLivenessLimitTest extends ViewAbstractParameterizedTest
 
         if (flush)
         {
-            ks.getColumnFamilyStore(mv1).forceBlockingFlush();
-            ks.getColumnFamilyStore(mv2).forceBlockingFlush();
+            Util.flushTable(ks, mv1);
+            Util.flushTable(ks, mv2);
         }
 
         for (String view : Arrays.asList(mv1, mv2))

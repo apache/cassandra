@@ -82,12 +82,12 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     {
         executor = executorFactory().scheduled(false, "IndexSummaryManager", Thread.MIN_PRIORITY);
 
-        long indexSummarySizeInMB = DatabaseDescriptor.getIndexSummaryCapacityInMB();
+        long indexSummarySizeInMB = DatabaseDescriptor.getIndexSummaryCapacityInMiB();
         int interval = DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes();
         logger.info("Initializing index summary manager with a memory pool size of {} MB and a resize interval of {} minutes",
                     indexSummarySizeInMB, interval);
 
-        setMemoryPoolCapacityInMB(DatabaseDescriptor.getIndexSummaryCapacityInMB());
+        setMemoryPoolCapacityInMB(DatabaseDescriptor.getIndexSummaryCapacityInMiB());
         setResizeIntervalInMinutes(DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
     }
 
@@ -281,6 +281,11 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     @VisibleForTesting
     public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownNowAndWait(timeout, unit, executor);
+        if (future != null)
+        {
+            future.cancel(false);
+            future = null;
+        }
+        ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 }

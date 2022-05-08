@@ -30,14 +30,14 @@ public abstract class Generator<T>
 {
 
     public final String name;
-    public final AbstractType<T> type;
+    public final AbstractType<?> type;
     public final Class<?> clazz;
     final long salt;
     final Distribution identityDistribution;
     final Distribution sizeDistribution;
     public final Distribution clusteringDistribution;
 
-    public Generator(AbstractType<T> type, GeneratorConfig config, String name, Class<?> clazz)
+    public Generator(AbstractType<?> type, GeneratorConfig config, String name, Class<?> clazz)
     {
         this.type = type;
         this.name = name;

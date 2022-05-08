@@ -233,7 +233,7 @@ public class CommitLog implements CommitLogMBean
     /**
      * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
      */
-    public void forceRecycleAllSegments(Iterable<TableId> droppedTables)
+    public void forceRecycleAllSegments(Collection<TableId> droppedTables)
     {
         segmentManager.forceRecycleAll(droppedTables);
     }
@@ -505,7 +505,7 @@ public class CommitLog implements CommitLogMBean
         CommitLogSegment.resetReplayLimit();
         if (DatabaseDescriptor.isCDCEnabled() && deleteSegments)
             for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
-                FileUtils.deleteWithConfirm(f);
+                f.delete();
     }
 
     /**

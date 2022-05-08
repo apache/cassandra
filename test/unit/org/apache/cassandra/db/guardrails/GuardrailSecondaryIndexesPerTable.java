@@ -21,8 +21,6 @@ package org.apache.cassandra.db.guardrails;
 import com.google.common.base.Strings;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 import static java.lang.String.format;
 
 /**
@@ -31,16 +29,16 @@ import static java.lang.String.format;
 public class GuardrailSecondaryIndexesPerTable extends ThresholdTester
 {
     private static final int INDEXES_PER_TABLE_WARN_THRESHOLD = 1;
-    private static final int INDEXES_PER_TABLE_ABORT_THRESHOLD = 3;
+    private static final int INDEXES_PER_TABLE_FAIL_THRESHOLD = 3;
 
     public GuardrailSecondaryIndexesPerTable()
     {
         super(INDEXES_PER_TABLE_WARN_THRESHOLD,
-              INDEXES_PER_TABLE_ABORT_THRESHOLD,
-              DatabaseDescriptor.getGuardrailsConfig().getSecondaryIndexesPerTable(),
+              INDEXES_PER_TABLE_FAIL_THRESHOLD,
+              Guardrails.secondaryIndexesPerTable,
               Guardrails::setSecondaryIndexesPerTableThreshold,
               Guardrails::getSecondaryIndexesPerTableWarnThreshold,
-              Guardrails::getSecondaryIndexesPerTableAbortThreshold);
+              Guardrails::getSecondaryIndexesPerTableFailThreshold);
     }
 
     @Override
@@ -58,19 +56,19 @@ public class GuardrailSecondaryIndexesPerTable extends ThresholdTester
 
         assertCreateIndexWarns("v2", "");
         assertCreateIndexWarns("v3", "v3_idx");
-        assertCreateIndexAborts("v4", "");
-        assertCreateIndexAborts("v2", "v2_idx");
+        assertCreateIndexFails("v4", "");
+        assertCreateIndexFails("v2", "v2_idx");
         assertCurrentValue(3);
 
         // 2i guardrail will also affect custom indexes
-        assertCreateCustomIndexAborts("v2");
+        assertCreateCustomIndexFails("v2");
 
         // drop the two first indexes, we should be able to create new indexes again
         dropIndex(format("DROP INDEX %s.%s", keyspace(), "v3_idx"));
         assertCurrentValue(2);
 
         assertCreateIndexWarns("v3", "");
-        assertCreateCustomIndexAborts("v4");
+        assertCreateCustomIndexFails("v4");
         assertCurrentValue(3);
 
         // previous guardrail should not apply to another base table
@@ -78,7 +76,7 @@ public class GuardrailSecondaryIndexesPerTable extends ThresholdTester
         assertCreateIndexSucceeds("v4", "");
         assertCreateIndexWarns("v3", "");
         assertCreateIndexWarns("v2", "");
-        assertCreateIndexAborts("v1", "");
+        assertCreateIndexFails("v1", "");
         assertCurrentValue(3);
     }
 
@@ -94,29 +92,32 @@ public class GuardrailSecondaryIndexesPerTable extends ThresholdTester
 
     private void assertCreateIndexSucceeds(String column, String indexName) throws Throwable
     {
-        assertThresholdValid(format("CREATE INDEX %s ON %s.%s(%s)", indexName, keyspace(), currentTable(), column));
+        assertMaxThresholdValid(format("CREATE INDEX %s ON %s.%s(%s)", indexName, keyspace(), currentTable(), column));
     }
 
     private void assertCreateIndexWarns(String column, String indexName) throws Throwable
     {
-        assertThresholdWarns(format("Creating secondary index %son table %s, current number of indexes %s exceeds warning threshold of %s.",
+        assertThresholdWarns(format("CREATE INDEX %s ON %%s(%s)", indexName, column),
+                             format("Creating secondary index %son table %s, current number of indexes %s exceeds warning threshold of %s.",
                                     (Strings.isNullOrEmpty(indexName) ? "" : indexName + " "),
                                     currentTable(),
                                     currentValue() + 1,
-                                    guardrails().getSecondaryIndexesPerTableWarnThreshold()),
-                             format("CREATE INDEX %s ON %%s(%s)", indexName, column));
+                                    guardrails().getSecondaryIndexesPerTableWarnThreshold())
+        );
     }
 
-    private void assertCreateIndexAborts(String column, String indexName) throws Throwable
+    private void assertCreateIndexFails(String column, String indexName) throws Throwable
     {
-        assertThresholdAborts(format("aborting the creation of secondary index %son table %s",
-                                    Strings.isNullOrEmpty(indexName) ? "" : indexName + " ", currentTable()),
-                              format("CREATE INDEX %s ON %%s(%s)", indexName, column));
+        assertThresholdFails(format("CREATE INDEX %s ON %%s(%s)", indexName, column),
+                             format("aborting the creation of secondary index %son table %s",
+                                    Strings.isNullOrEmpty(indexName) ? "" : indexName + " ", currentTable())
+        );
     }
 
-    private void assertCreateCustomIndexAborts(String column) throws Throwable
+    private void assertCreateCustomIndexFails(String column) throws Throwable
     {
-        assertThresholdAborts(format("aborting the creation of secondary index on table %s", currentTable()),
-                              format("CREATE CUSTOM INDEX ON %%s (%s) USING 'org.apache.cassandra.index.sasi.SASIIndex'", column));
+        assertThresholdFails(format("CREATE CUSTOM INDEX ON %%s (%s) USING 'org.apache.cassandra.index.sasi.SASIIndex'", column),
+                             format("aborting the creation of secondary index on table %s", currentTable())
+        );
     }
 }

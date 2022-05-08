@@ -22,51 +22,85 @@ package org.apache.cassandra;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOError;
+import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.AbstractReadCommandBuilder;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Directories.DataDirectory;
+import org.apache.cassandra.db.DisallowedDirectories;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaCollection;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.Directories.DataDirectory;
-import org.apache.cassandra.db.compaction.AbstractCompactionTask;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Cells;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.view.TableViews;
 import org.apache.cassandra.dht.IPartitioner;
-
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -74,23 +108,41 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
+import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 
 public class Util
 {
@@ -201,7 +253,7 @@ public class Util
             rm.applyUnsafe();
 
         ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(tableId);
-        store.forceBlockingFlush();
+        Util.flush(store);
         return store;
     }
 
@@ -788,7 +840,9 @@ public class Util
     {
         LifecycleTransaction.waitForDeletions();
         assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
-        Set<Integer> liveGenerations = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        Set<SSTableId> liveIdentifiers = cfs.getLiveSSTables().stream()
+                                            .map(sstable -> sstable.descriptor.id)
+                                            .collect(Collectors.toSet());
         int fileCount = 0;
         for (File f : cfs.getDirectories().getCFDirectories())
         {
@@ -797,7 +851,7 @@ public class Util
                 if (sst.name().contains("Data"))
                 {
                     Descriptor d = Descriptor.fromFilename(sst.absolutePath());
-                    assertTrue(liveGenerations.contains(d.generation));
+                    assertTrue(liveIdentifiers.contains(d.id));
                     fileCount++;
                 }
             }
@@ -849,5 +903,143 @@ public class Util
             throw new RuntimeException(e);
         }
         Gossiper.instance.expireUpgradeFromVersion();
+    }
+
+    /**
+     * Sets the length of the file to given size. File will be created if not exist.
+     *
+     * @param file file for which length needs to be set
+     * @param size new szie
+     * @throws IOException on any I/O error.
+     */
+    public static void setFileLength(File file, long size) throws IOException
+    {
+        try (FileChannel fileChannel = file.newReadWriteChannel())
+        {
+            if (file.length() >= size)
+            {
+                fileChannel.truncate(size);
+            }
+            else
+            {
+                fileChannel.position(size - 1);
+                fileChannel.write(ByteBuffer.wrap(new byte[1]));
+            }
+        }
+    }
+
+    public static Supplier<SequenceBasedSSTableId> newSeqGen(int ... existing)
+    {
+        return SequenceBasedSSTableId.Builder.instance.generator(IntStream.of(existing).mapToObj(SequenceBasedSSTableId::new));
+    }
+
+    public static Supplier<UUIDBasedSSTableId> newUUIDGen()
+    {
+        return UUIDBasedSSTableId.Builder.instance.generator(Stream.empty());
+    }
+
+    public static Set<Descriptor> getSSTables(String ks, String tableName)
+    {
+        return Keyspace.open(ks)
+                       .getColumnFamilyStore(tableName)
+                       .getLiveSSTables()
+                       .stream()
+                       .map(sstr -> sstr.descriptor)
+                       .collect(Collectors.toSet());
+    }
+
+    public static Set<Descriptor> getSnapshots(String ks, String tableName, String snapshotTag)
+    {
+        try
+        {
+            return Keyspace.open(ks)
+                           .getColumnFamilyStore(tableName)
+                           .getSnapshotSSTableReaders(snapshotTag)
+                           .stream()
+                           .map(sstr -> sstr.descriptor)
+                           .collect(Collectors.toSet());
+        }
+        catch (IOException e)
+        {
+            throw Throwables.unchecked(e);
+        }
+    }
+
+    public static Set<Descriptor> getBackups(String ks, String tableName)
+    {
+        return Keyspace.open(ks)
+                       .getColumnFamilyStore(tableName)
+                       .getDirectories()
+                       .sstableLister(Directories.OnTxnErr.THROW)
+                       .onlyBackups(true)
+                       .list()
+                       .keySet();
+    }
+
+    public static StreamState bulkLoadSSTables(File dir, String targetKeyspace)
+    {
+        SSTableLoader.Client client = new SSTableLoader.Client()
+        {
+            private String keyspace;
+
+            public void init(String keyspace)
+            {
+                this.keyspace = keyspace;
+                for (Replica replica : StorageService.instance.getLocalReplicas(keyspace))
+                    addRangeForEndpoint(replica.range(), FBUtilities.getBroadcastAddressAndPort());
+            }
+
+            public TableMetadataRef getTableMetadata(String tableName)
+            {
+                return Schema.instance.getTableMetadataRef(keyspace, tableName);
+            }
+        };
+
+        SSTableLoader loader = new SSTableLoader(dir, client, new OutputHandler.LogOutput(), 1, targetKeyspace);
+        StreamResultFuture result = loader.stream();
+        return FBUtilities.waitOnFuture(result);
+    }
+
+    public static File relativizePath(File targetBasePath, File path, int components)
+    {
+        Preconditions.checkArgument(components > 0);
+        Preconditions.checkArgument(path.toPath().getNameCount() >= components);
+        Path relative = path.toPath().subpath(path.toPath().getNameCount() - components, path.toPath().getNameCount());
+        return new File(targetBasePath.toPath().resolve(relative));
+    }
+
+    public static void flush(ColumnFamilyStore cfs)
+    {
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+    }
+
+    public static void flushTable(Keyspace keyspace, String table)
+    {
+        flush(keyspace.getColumnFamilyStore(table));
+    }
+
+    public static void flushTable(Keyspace keyspace, TableId table)
+    {
+        flush(keyspace.getColumnFamilyStore(table));
+    }
+
+    public static void flushTable(String keyspace, String table)
+    {
+        flushTable(Keyspace.open(keyspace), table);
+    }
+
+    public static void flush(Keyspace keyspace)
+    {
+        FBUtilities.waitOnFutures(keyspace.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+    }
+
+    public static void flushKeyspace(String keyspaceName)
+    {
+        flush(Keyspace.open(keyspaceName));
+    }
+
+    public static void flush(TableViews view)
+    {
+        view.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 }

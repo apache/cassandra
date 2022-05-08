@@ -160,6 +160,11 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "java/util/zip/",
     };
 
+    private static final String[] disallowedPatternsSyncUDF =
+    {
+    "java/lang/System.class"
+    };
+
     static boolean secureResource(String resource)
     {
         while (resource.startsWith("/"))
@@ -168,14 +173,26 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         for (String allowed : allowedPatterns)
             if (resource.startsWith(allowed))
             {
-
                 // resource is in allowedPatterns, let's see if it is not explicitly disallowed
                 for (String disallowed : disallowedPatterns)
+                {
                     if (resource.startsWith(disallowed))
                     {
                         logger.trace("access denied: resource {}", resource);
                         return false;
                     }
+                }
+                if (!DatabaseDescriptor.enableUserDefinedFunctionsThreads() && !DatabaseDescriptor.allowExtraInsecureUDFs())
+                {
+                    for (String disallowed : disallowedPatternsSyncUDF)
+                    {
+                        if (resource.startsWith(disallowed))
+                        {
+                            logger.trace("access denied: resource {}", resource);
+                            return false;
+                        }
+                    }
+                }
 
                 return true;
             }
@@ -351,6 +368,12 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return builder.toString();
     }
 
+    public boolean isPure()
+    {
+        // Right now, we have no way to check if an UDF is pure. Due to that we consider them as non pure to avoid any risk.
+        return false;
+    }
+
     public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
     {
         assertUdfsEnabled(language);
@@ -425,9 +448,9 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public static void assertUdfsEnabled(String language)
     {
         if (!DatabaseDescriptor.enableUserDefinedFunctions())
-            throw new InvalidRequestException("User-defined functions are disabled in cassandra.yaml - set enable_user_defined_functions=true to enable");
+            throw new InvalidRequestException("User-defined functions are disabled in cassandra.yaml - set user_defined_functions_enabled=true to enable");
         if (!"java".equalsIgnoreCase(language) && !DatabaseDescriptor.enableScriptedUserDefinedFunctions())
-            throw new InvalidRequestException("Scripted user-defined functions are disabled in cassandra.yaml - set enable_scripted_user_defined_functions=true to enable if you are aware of the security risks");
+            throw new InvalidRequestException("Scripted user-defined functions are disabled in cassandra.yaml - set scripted_user_defined_functions_enabled=true to enable if you are aware of the security risks");
     }
 
     static void initializeThread()

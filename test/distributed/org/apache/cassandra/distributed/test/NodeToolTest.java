@@ -73,7 +73,7 @@ public class NodeToolTest extends TestBaseImpl
     public void testNodetoolSystemExit()
     {
         // Verify currently calls System.exit, this test uses that knowlege to test System.exit behavior in jvm-dtest
-        NODE.nodetoolResult("verify", "--check-tokens")
+        NODE.nodetoolResult("verify", "--check-tokens", "--force")
             .asserts()
             .failure()
             .stdoutContains("Token verification requires --extended-verify");
@@ -110,7 +110,7 @@ public class NodeToolTest extends TestBaseImpl
     @Test
     public void testSetCacheCapacityWhenDisabled() throws Throwable
     {
-        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0")).start()))
+        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size", "0MiB")).start()))
         {
             NodeToolResult ringResult = cluster.get(1).nodetoolResult("setcachecapacity", "1", "1", "1");
             ringResult.asserts().stderrContains("is not permitted as this cache is disabled");

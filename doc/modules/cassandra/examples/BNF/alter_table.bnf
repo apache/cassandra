@@ -1,0 +1,5 @@
+alter_table_statement::= ALTER TABLE [ IF EXISTS ] table_name alter_table_instruction
+alter_table_instruction::= ADD [ IF NOT EXISTS ] column_name cql_type ( ',' column_name cql_type )*
+	| DROP [ IF EXISTS ] column_name ( column_name )*
+	| RENAME [ IF EXISTS ] column_name to column_name (AND column_name to column_name)*
+	| WITH options

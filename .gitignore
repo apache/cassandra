@@ -6,12 +6,15 @@ src/gen-java/
 src/resources/org/apache/cassandra/config/
 logs/
 data/
+!test/data
 conf/hotspot_compiler
 doc/cql3/CQL.html
 doc/build/
 lib/
 pylib/src/
+**/cqlshlib.xml
 !lib/cassandra-driver-internal-only-*.zip
+!lib/puresasl-*.zip
 
 # C* debs
 build-stamp
@@ -64,13 +67,15 @@ target/
 *.tmp
 .DS_Store
 Thumbs.db
+.ccm/
 
-/.ant-targets-build.xml
+**/.ant-targets-build.xml
 .ant_targets
 
 # Generated files from the documentation
-doc/source/configuration/cassandra_config_file.rst
-doc/source/tools/nodetool
+doc/modules/cassandra/pages/configuration/cass_yaml_file.adoc
+doc/modules/cassandra/pages/tools/nodetool/
+doc/modules/cassandra/examples/TEXT/NODETOOL/
 
 # Python virtual environment
 venv/

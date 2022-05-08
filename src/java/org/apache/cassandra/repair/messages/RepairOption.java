@@ -20,17 +20,16 @@ package org.apache.cassandra.repair.messages;
 import java.util.*;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Repair options.
@@ -52,6 +51,8 @@ public class RepairOption
     public static final String PREVIEW = "previewKind";
     public static final String OPTIMISE_STREAMS_KEY = "optimiseStreams";
     public static final String IGNORE_UNREPLICATED_KS = "ignoreUnreplicatedKeyspaces";
+    public static final String REPAIR_PAXOS_KEY = "repairPaxos";
+    public static final String PAXOS_ONLY_KEY = "paxosOnly";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -181,6 +182,14 @@ public class RepairOption
         boolean force = Boolean.parseBoolean(options.get(FORCE_REPAIR_KEY));
         boolean pullRepair = Boolean.parseBoolean(options.get(PULL_REPAIR_KEY));
         boolean ignoreUnreplicatedKeyspaces = Boolean.parseBoolean(options.get(IGNORE_UNREPLICATED_KS));
+        boolean repairPaxos = Boolean.parseBoolean(options.get(REPAIR_PAXOS_KEY));
+        boolean paxosOnly = Boolean.parseBoolean(options.get(PAXOS_ONLY_KEY));
+
+        if (previewKind != PreviewKind.NONE)
+        {
+            Preconditions.checkArgument(!repairPaxos, "repairPaxos must be set to false for preview repairs");
+            Preconditions.checkArgument(!paxosOnly, "paxosOnly must be set to false for preview repairs");
+        }
 
         int jobThreads = 1;
         if (options.containsKey(JOB_THREADS_KEY))
@@ -197,7 +206,7 @@ public class RepairOption
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -277,24 +286,18 @@ public class RepairOption
     private final PreviewKind previewKind;
     private final boolean optimiseStreams;
     private final boolean ignoreUnreplicatedKeyspaces;
+    private final boolean repairPaxos;
+    private final boolean paxosOnly;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairPaxos, boolean paxosOnly)
     {
-        if (FBUtilities.isWindows &&
-            (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
-            parallelism == RepairParallelism.SEQUENTIAL)
-        {
-            logger.warn("Sequential repair disabled when memory-mapped I/O is configured on Windows. Reverting to parallel.");
-            this.parallelism = RepairParallelism.PARALLEL;
-        }
-        else
-            this.parallelism = parallelism;
 
+        this.parallelism = parallelism;
         this.primaryRange = primaryRange;
         this.incremental = incremental;
         this.trace = trace;
@@ -306,6 +309,8 @@ public class RepairOption
         this.previewKind = previewKind;
         this.optimiseStreams = optimiseStreams;
         this.ignoreUnreplicatedKeyspaces = ignoreUnreplicatedKeyspaces;
+        this.repairPaxos = repairPaxos;
+        this.paxosOnly = paxosOnly;
     }
 
     public RepairParallelism getParallelism()
@@ -413,6 +418,16 @@ public class RepairOption
         return ignoreUnreplicatedKeyspaces;
     }
 
+    public boolean repairPaxos()
+    {
+        return repairPaxos;
+    }
+
+    public boolean paxosOnly()
+    {
+        return paxosOnly;
+    }
+
     @Override
     public String toString()
     {
@@ -430,6 +445,8 @@ public class RepairOption
                ", force repair: " + forceRepair +
                ", optimise streams: "+ optimiseStreams() +
                ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
+               ", repairPaxos: " + repairPaxos +
+               ", paxosOnly: " + paxosOnly +
                ')';
     }
 
@@ -450,6 +467,8 @@ public class RepairOption
         options.put(FORCE_REPAIR_KEY, Boolean.toString(forceRepair));
         options.put(PREVIEW, previewKind.toString());
         options.put(OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
+        options.put(REPAIR_PAXOS_KEY, Boolean.toString(repairPaxos));
+        options.put(PAXOS_ONLY_KEY, Boolean.toString(paxosOnly));
         return options;
     }
 }

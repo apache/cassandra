@@ -144,7 +144,7 @@ public class Murmur3Partitioner implements IPartitioner
     {
         static final long serialVersionUID = -5833580143318243006L;
 
-        final long token;
+        public final long token;
 
         public LongToken(long token)
         {
@@ -204,9 +204,19 @@ public class Murmur3Partitioner implements IPartitioner
         }
 
         @Override
-        public Token increaseSlightly()
+        public LongToken increaseSlightly()
         {
             return new LongToken(token + 1);
+        }
+
+        public LongToken decreaseSlightly()
+        {
+            return new LongToken(token - 1);
+        }
+
+        public static ByteBuffer keyForToken(long token)
+        {
+            return keyForToken(new LongToken(token));
         }
 
         /**
@@ -216,7 +226,7 @@ public class Murmur3Partitioner implements IPartitioner
         public static ByteBuffer keyForToken(LongToken token)
         {
             ByteBuffer result = ByteBuffer.allocate(16);
-            long[] inv = MurmurHash.inv_hash3_x64_128(new long[] {token.token, 0L});
+            long[] inv = MurmurHash.inv_hash3_x64_128(new long[]{ token.token, 0L });
             result.putLong(inv[0]).putLong(inv[1]).position(0);
             return result;
         }

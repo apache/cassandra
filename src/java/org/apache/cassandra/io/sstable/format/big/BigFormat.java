@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.util.Collection;
-import java.util.UUID;
 
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;
@@ -30,6 +29,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Legacy bigtable format
@@ -79,10 +79,19 @@ public class BigFormat implements SSTableFormat
     static class WriterFactory extends SSTableWriter.Factory
     {
         @Override
+        public long estimateSize(SSTableWriter.SSTableSizeParameters parameters)
+        {
+            return (long) ((parameters.partitionKeysSize() // index entries
+                            + parameters.partitionKeysSize() // keys in data file
+                            + parameters.dataSize()) // data
+                           * 1.2); // bloom filter and row index overhead
+        }
+
+        @Override
         public SSTableWriter open(Descriptor descriptor,
                                   long keyCount,
                                   long repairedAt,
-                                  UUID pendingRepair,
+                                  TimeUUID pendingRepair,
                                   boolean isTransient,
                                   TableMetadataRef metadata,
                                   MetadataCollector metadataCollector,

@@ -14,10 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
-
 import re
-import six
 
 LIGHT = 0o10
 
@@ -65,6 +62,7 @@ for colordef in color_defs:
     for c in nameset:
         colors_by_name[c] = colorcode
 
+
 class ColoredChar(object):
     def __init__(self, c, colorcode):
         self.c = c
@@ -104,9 +102,10 @@ class ColoredChar(object):
     def colortag(self):
         return lookup_letter_from_code(self._colorcode)
 
+
 class ColoredText(object):
     def __init__(self, source=''):
-        if isinstance(source, six.text_type):
+        if isinstance(source, str):
             plain, colors = self.parse_ansi_colors(source)
             self.chars = list(map(ColoredChar, plain, colors))
         else:
@@ -152,7 +151,6 @@ class ColoredText(object):
 
     @staticmethod
     def parse_sgr_param(curclr, paramstr):
-        oldclr = curclr
         args = list(map(int, paramstr.split(';')))
         for a in args:
             if a == 0:
@@ -179,14 +177,18 @@ class ColoredText(object):
     def colortags(self):
         return ''.join([c.colortag() for c in self.chars])
 
+
 def lookup_colorcode(name):
     return colors_by_name[name]
+
 
 def lookup_colorname(code):
     return colors_by_num.get(code, 'Unknown-color-0%o' % code)
 
+
 def lookup_colorletter(letter):
     return colors_by_letter[letter]
+
 
 def lookup_letter_from_code(code):
     letr = letters_by_num.get(code, ' ')

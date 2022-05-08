@@ -46,18 +46,19 @@ import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
     private static PartitionerSwitcher partitionerSwitcher;
-    private static UUID RANDOM_UUID;
+    private static TimeUUID RANDOM_UUID;
     private static Range<Token> FULL_RANGE;
     private static RepairJobDesc DESC;
 
@@ -68,7 +69,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         DatabaseDescriptor.daemonInitialization();
         partitionerSwitcher = Util.switchPartitioner(RandomPartitioner.instance);
-        RANDOM_UUID = UUID.fromString("b5c3d033-75aa-4c2f-a819-947aac7a0c54");
+        RANDOM_UUID = TimeUUID.fromString("743325d0-4c4b-11ec-8a88-2d67081686db");
         FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());
         DESC = new RepairJobDesc(RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", Arrays.asList(FULL_RANGE));
     }
@@ -119,7 +120,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         // empty validation
         mts.addMerkleTree((int) Math.pow(2, 15), FULL_RANGE);
-        Validator v0 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
+        Validator v0 = new Validator(new ValidationState(DESC, FBUtilities.getBroadcastAddressAndPort()), -1, PreviewKind.NONE);
         ValidationResponse c0 = new ValidationResponse(DESC, mts);
 
         // validation with a tree
@@ -127,7 +128,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         mts.addMerkleTree(Integer.MAX_VALUE, FULL_RANGE);
         for (int i = 0; i < 10; i++)
             mts.split(p.getRandomToken());
-        Validator v1 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
+        Validator v1 = new Validator(new ValidationState(DESC, FBUtilities.getBroadcastAddressAndPort()), -1, PreviewKind.NONE);
         ValidationResponse c1 = new ValidationResponse(DESC, mts);
 
         // validation failed
@@ -206,8 +207,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         // sync success
         List<SessionSummary> summaries = new ArrayList<>();
         summaries.add(new SessionSummary(src, dest,
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 5, 100)),
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 500, 10))
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 5, 100)),
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 500, 10))
         ));
         SyncResponse success = new SyncResponse(DESC, src, dest, true, summaries);
         // sync fail

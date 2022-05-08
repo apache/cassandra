@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.ResultSet;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -144,7 +145,7 @@ public class ViewTest extends ViewAbstractTest
         for (int i = 0; i < 100; i++)
             updateView("INSERT into %s (k,c,val)VALUES(?,?,?)", 0, i % 2, "baz");
 
-        Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
+        Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         Assert.assertEquals(2, execute("select * from %s").size());
         Assert.assertEquals(2, executeView("select * from %s").size());
@@ -323,7 +324,7 @@ public class ViewTest extends ViewAbstractTest
         assertRows(executeView("SELECT a, b, c from %s WHERE b = ?", 1), row(0, 1, null));
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentView());
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         Assert.assertEquals(1, cfs.getLiveSSTables().size());
     }
 
@@ -436,22 +437,22 @@ public class ViewTest extends ViewAbstractTest
         for (int i = 0; i < 1024; i++)
             execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, String.valueOf(i));
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         for (int i = 0; i < 1024; i++)
             execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, String.valueOf(i));
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         for (int i = 0; i < 1024; i++)
             execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, String.valueOf(i));
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         for (int i = 0; i < 1024; i++)
             execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, String.valueOf(i));
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         String mv1 = createViewAsync("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
                                      "WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
@@ -508,10 +509,10 @@ public class ViewTest extends ViewAbstractTest
 
         executeNet("USE " + keyspace());
 
-        boolean enableMaterializedViews = DatabaseDescriptor.getEnableMaterializedViews();
+        boolean enableMaterializedViews = DatabaseDescriptor.getMaterializedViewsEnabled();
         try
         {
-            DatabaseDescriptor.setEnableMaterializedViews(false);
+            DatabaseDescriptor.setMaterializedViewsEnabled(false);
             createView("CREATE MATERIALIZED VIEW %s AS SELECT v FROM %s WHERE k IS NOT NULL AND v IS NOT NULL PRIMARY KEY (v, k)");
             Assert.fail("Should not be able to create a materialized view if they are disabled");
         }
@@ -523,7 +524,7 @@ public class ViewTest extends ViewAbstractTest
         }
         finally
         {
-            DatabaseDescriptor.setEnableMaterializedViews(enableMaterializedViews);
+            DatabaseDescriptor.setMaterializedViewsEnabled(enableMaterializedViews);
         }
     }
 

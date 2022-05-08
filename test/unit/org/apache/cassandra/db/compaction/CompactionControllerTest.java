@@ -90,7 +90,7 @@ public class CompactionControllerTest extends SchemaLoader
         {
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp1); //memtable only
 
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
             assertTrue(controller.getPurgeEvaluator(key).test(Long.MAX_VALUE)); //no memtables and no sstables
         }
 
@@ -98,7 +98,7 @@ public class CompactionControllerTest extends SchemaLoader
 
         // create another sstable
         applyMutation(cfs.metadata(), key, timestamp2);
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         // check max purgeable timestamp when compacting the first sstable with and without a memtable
         try (CompactionController controller = new CompactionController(cfs, compacting, 0))
@@ -111,7 +111,7 @@ public class CompactionControllerTest extends SchemaLoader
         }
 
         // check max purgeable timestamp again without any sstables but with different insertion orders on the memtable
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         //newest to oldest
         try (CompactionController controller = new CompactionController(cfs, null, 0))
@@ -123,7 +123,7 @@ public class CompactionControllerTest extends SchemaLoader
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3); //memtable only
         }
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         //oldest to newest
         try (CompactionController controller = new CompactionController(cfs, null, 0))
@@ -151,14 +151,14 @@ public class CompactionControllerTest extends SchemaLoader
 
         // create sstable with tombstone that should be expired in no older timestamps
         applyDeleteMutation(cfs.metadata(), key, timestamp2);
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         // first sstable with tombstone is compacting
         Set<SSTableReader> compacting = Sets.newHashSet(cfs.getLiveSSTables());
 
         // create another sstable with more recent timestamp
         applyMutation(cfs.metadata(), key, timestamp1);
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         // second sstable is overlapping
         Set<SSTableReader> overlapping = Sets.difference(Sets.newHashSet(cfs.getLiveSSTables()), compacting);

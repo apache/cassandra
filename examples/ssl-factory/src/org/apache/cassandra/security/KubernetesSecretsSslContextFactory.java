@@ -186,8 +186,8 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
     }
 
     /**
-     * Checks environment variables for {@code K8_SECRET_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR} and {@code K8_SECRET_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR}
-     * and compares the values for those variables with the current timestamps. In case the environment variables are
+     * Checks mounted paths for {@code KEYSTORE_UPDATED_TIMESTAMP_PATH} and {@code TRUSTSTORE_UPDATED_TIMESTAMP_PATH}
+     * and compares the values for those variables with the current timestamps. In case the mounted paths are
      * not valid (either they are not initialized yet, got removed or got corrupted in-flight), this method considers
      * that nothing has changed.
      * @return {@code true} if either of the timestamps (keystore or truststore) got updated;{@code false} otherwise

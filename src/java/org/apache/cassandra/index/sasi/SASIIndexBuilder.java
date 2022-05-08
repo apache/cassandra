@@ -42,12 +42,14 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 class SASIIndexBuilder extends SecondaryIndexBuilder
 {
     private final ColumnFamilyStore cfs;
-    private final UUID compactionId = UUIDGen.getTimeUUID();
+    private final TimeUUID compactionId = nextTimeUUID();
 
     private final SortedMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> sstables;
 

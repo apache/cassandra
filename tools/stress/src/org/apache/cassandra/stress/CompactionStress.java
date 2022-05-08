@@ -216,7 +216,6 @@ public abstract class CompactionStress implements Runnable
         public void run()
         {
             //Setup
-            SystemKeyspace.finishStartup(); //needed for early-open
             CompactionManager.instance.setMaximumCompactorThreads(threads);
             CompactionManager.instance.setCoreCompactorThreads(threads);
             CompactionManager.instance.setRate(0);
@@ -273,10 +272,10 @@ public abstract class CompactionStress implements Runnable
     @Command(name = "write", description = "write data directly to disk")
     public static class DataWriter extends CompactionStress
     {
-        private static double BYTES_IN_GB = 1024 * 1014 * 1024;
+        private static double BYTES_IN_GIB = 1024 * 1014 * 1024;
 
         @Option(name = { "-g", "--gbsize"}, description = "Total GB size on disk you wish to write", required = true)
-        Integer totalSizeGb;
+        Integer totalSizeGiB;
 
         @Option(name = { "-t", "--threads" }, description = "Number of sstable writer threads (default 2)")
         Integer threads = 2;
@@ -284,7 +283,7 @@ public abstract class CompactionStress implements Runnable
         @Option(name = { "-c", "--partition-count"}, description = "Number of partitions to loop over (default 1000000)")
         Integer partitions = 1000000;
 
-        @Option(name = { "-b", "--buffer-size-mb"}, description = "Buffer in MB writes before writing new sstable (default 128)")
+        @Option(name = { "-b", "--buffer-size-mb"}, description = "Buffer in MiB writes before writing new sstable (default 128)")
         Integer bufferSize = 128;
 
         @Option(name = { "-r", "--range-aware"}, description = "Splits the local ranges in number of data directories and makes sure we never write the same token in two different directories (default true)")
@@ -326,13 +325,13 @@ public abstract class CompactionStress implements Runnable
                 });
             }
 
-            double currentSizeGB;
-            while ((currentSizeGB = directories.getRawDiretoriesSize() / BYTES_IN_GB) < totalSizeGb)
+            double currentSizeGiB;
+            while ((currentSizeGiB = directories.getRawDiretoriesSize() / BYTES_IN_GIB) < totalSizeGiB)
             {
                 if (finished.getCount() == 0)
                     break;
 
-                System.out.println(String.format("Written %.2fGB of %dGB", currentSizeGB, totalSizeGb));
+                System.out.println(String.format("Written %.2fGB of %dGB", currentSizeGiB, totalSizeGiB));
 
                 Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
             }
@@ -340,8 +339,8 @@ public abstract class CompactionStress implements Runnable
             workManager.stop();
             Uninterruptibles.awaitUninterruptibly(finished);
 
-            currentSizeGB = directories.getRawDiretoriesSize() / BYTES_IN_GB;
-            System.out.println(String.format("Finished writing %.2fGB", currentSizeGB));
+            currentSizeGiB = directories.getRawDiretoriesSize() / BYTES_IN_GIB;
+            System.out.println(String.format("Finished writing %.2fGB", currentSizeGiB));
         }
     }
 

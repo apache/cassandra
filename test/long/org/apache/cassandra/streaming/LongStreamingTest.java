@@ -59,8 +59,8 @@ public class LongStreamingTest
         StorageService.instance.initServer();
 
         StorageService.instance.setCompactionThroughputMbPerSec(0);
-        StorageService.instance.setStreamThroughputMbPerSec(0);
-        StorageService.instance.setInterDCStreamThroughputMbPerSec(0);
+        StorageService.instance.setStreamThroughputMbitPerSec(0);
+        StorageService.instance.setInterDCStreamThroughputMbitPerSec(0);
     }
 
     @Test
@@ -109,11 +109,11 @@ public class LongStreamingTest
         System.err.println(String.format("Writer finished after %d seconds....", TimeUnit.NANOSECONDS.toSeconds(nanoTime() - start)));
 
         File[] dataFiles = dataDir.tryList((dir, name) -> name.endsWith("-Data.db"));
-        long dataSize = 0l;
+        long dataSizeInBytes = 0l;
         for (File file : dataFiles)
         {
             System.err.println("File : "+file.absolutePath());
-            dataSize += file.length();
+            dataSizeInBytes += file.length();
         }
 
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
@@ -137,9 +137,9 @@ public class LongStreamingTest
         loader.stream().get();
 
         long millis = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
-        System.err.println(String.format("Finished Streaming in %.2f seconds: %.2f Mb/sec",
+        System.err.println(String.format("Finished Streaming in %.2f seconds: %.2f MiBsec",
                                          millis/1000d,
-                                         (dataSize / (1 << 20) / (millis / 1000d)) * 8));
+                                         (dataSizeInBytes / (1 << 20) / (millis / 1000d)) * 8));
 
 
         //Stream again
@@ -164,9 +164,9 @@ public class LongStreamingTest
         loader.stream().get();
 
         millis = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
-        System.err.println(String.format("Finished Streaming in %.2f seconds: %.2f Mb/sec",
+        System.err.println(String.format("Finished Streaming in %.2f seconds: %.2f MiBsec",
                                          millis/1000d,
-                                         (dataSize / (1 << 20) / (millis / 1000d)) * 8));
+                                         (dataSizeInBytes / (1 << 20) / (millis / 1000d)) * 8));
 
 
         //Compact them both
@@ -174,9 +174,9 @@ public class LongStreamingTest
         Keyspace.open(KS).getColumnFamilyStore(TABLE).forceMajorCompaction();
         millis = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
 
-        System.err.println(String.format("Finished Compacting in %.2f seconds: %.2f Mb/sec",
+        System.err.println(String.format("Finished Compacting in %.2f seconds: %.2f MiBsec",
                                          millis / 1000d,
-                                         (dataSize * 2 / (1 << 20) / (millis / 1000d)) * 8));
+                                         (dataSizeInBytes * 2 / (1 << 20) / (millis / 1000d)) * 8));
 
         UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + KS + '.'  + TABLE + " limit 100;");
         assertEquals(100, rs.size());

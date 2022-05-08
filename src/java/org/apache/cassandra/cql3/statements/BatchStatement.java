@@ -31,6 +31,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -282,7 +283,7 @@ public class BatchStatement implements CQLStatement
             ModificationStatement stmt = statements.get(i);
             if (metadata != null && !stmt.metadata.id.equals(metadata.id))
                 metadata = null;
-            List<ByteBuffer> stmtPartitionKeys = stmt.buildPartitionKeyNames(options.forStatement(i));
+            List<ByteBuffer> stmtPartitionKeys = stmt.buildPartitionKeyNames(options.forStatement(i), state);
             partitionKeys.add(stmtPartitionKeys);
             HashMultiset<ByteBuffer> perKeyCountsForTable = partitionCounts.computeIfAbsent(stmt.metadata.id, k -> HashMultiset.create());
             for (int stmtIdx = 0, stmtSize = stmtPartitionKeys.size(); stmtIdx < stmtSize; stmtIdx++)
@@ -350,9 +351,9 @@ public class BatchStatement implements CQLStatement
             if (size > failThreshold)
             {
                 Tracing.trace(format, tableNames, FBUtilities.prettyPrintMemory(size), FBUtilities.prettyPrintMemory(failThreshold),
-                              FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold_in_kb)");
+                              FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold)");
                 logger.error(format, tableNames, FBUtilities.prettyPrintMemory(size), FBUtilities.prettyPrintMemory(failThreshold),
-                             FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold_in_kb)");
+                             FBUtilities.prettyPrintMemory(size - failThreshold), " (see batch_size_fail_threshold)");
                 throw new InvalidRequestException("Batch too large");
             }
             else if (logger.isWarnEnabled())
@@ -410,13 +411,20 @@ public class BatchStatement implements CQLStatement
         if (options.getSerialConsistency() == null)
             throw new InvalidRequestException("Invalid empty serial consistency level");
 
+        ClientState clientState = queryState.getClientState();
+        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
+                                                clientState);
+
+        for (int i = 0; i < statements.size(); i++ )
+            statements.get(i).validateDiskUsage(options.forStatement(i), clientState);
+
         if (hasConditions)
             return executeWithConditions(options, queryState, queryStartNanoTime);
 
         if (updatesVirtualTables)
             executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
         else    
-            executeWithoutConditions(getMutations(queryState.getClientState(), options, false, timestamp, nowInSeconds, queryStartNanoTime),
+            executeWithoutConditions(getMutations(clientState, options, false, timestamp, nowInSeconds, queryStartNanoTime),
                                      options.getConsistency(), queryStartNanoTime);
 
         return new ResultMessage.Void();
@@ -489,7 +497,7 @@ public class BatchStatement implements CQLStatement
             ModificationStatement statement = statements.get(i);
             QueryOptions statementOptions = options.forStatement(i);
             long timestamp = attrs.getTimestamp(batchTimestamp, statementOptions);
-            List<ByteBuffer> pks = statement.buildPartitionKeyNames(statementOptions);
+            List<ByteBuffer> pks = statement.buildPartitionKeyNames(statementOptions, state.getClientState());
             if (statement.getRestrictions().keyIsInRelation())
                 throw new IllegalArgumentException("Batch with conditions cannot span multiple partitions (you cannot use IN on the partition key)");
             if (key == null)
@@ -524,7 +532,7 @@ public class BatchStatement implements CQLStatement
             }
             else
             {
-                Clustering<?> clustering = Iterables.getOnlyElement(statement.createClustering(statementOptions));
+                Clustering<?> clustering = Iterables.getOnlyElement(statement.createClustering(statementOptions, state.getClientState()));
                 if (statement.hasConditions())
                 {
                     statement.addConditions(clustering, casRequest, statementOptions);
@@ -612,11 +620,28 @@ public class BatchStatement implements CQLStatement
             this.parsedStatements = parsedStatements;
         }
 
+        // Not doing this in the constructor since we only need this for prepared statements
+        @Override
+        public boolean isFullyQualified()
+        {
+            for (ModificationStatement.Parsed statement : parsedStatements)
+                if (!statement.isFullyQualified())
+                    return false;
+
+            return true;
+        }
+
         @Override
         public void setKeyspace(ClientState state) throws InvalidRequestException
         {
             for (ModificationStatement.Parsed statement : parsedStatements)
                 statement.setKeyspace(state);
+        }
+
+        @Override
+        public String keyspace()
+        {
+            return null;
         }
 
         public BatchStatement prepare(ClientState state)

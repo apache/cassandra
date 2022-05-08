@@ -1,0 +1,10 @@
+; Config for a custom auth provider that uses all possible fields
+; This example loads the PlainTextAuthProvider and passes username and password to constructor
+; dynamically.  
+; used by unit testing
+
+[auth_provider]
+module = cassandra.auth
+classname = PlainTextAuthProvider
+username = user1
+password = pass1

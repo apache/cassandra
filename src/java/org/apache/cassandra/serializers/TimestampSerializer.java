@@ -55,9 +55,10 @@ public class TimestampSerializer extends TypeSerializer<Date>
         final String[] offsetFormats = new String[]
                                          {
                                          " z",
-                                         "X",
                                          " zzzz",
-                                         "XXX"
+                                         " X",
+                                         "X",
+                                         "XXX",
                                          };
 
         for (String dateTimeFormat: dateTimeFormats)

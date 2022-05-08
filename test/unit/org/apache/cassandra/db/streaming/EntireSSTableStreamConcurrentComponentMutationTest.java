@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -46,6 +45,7 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -68,7 +68,7 @@ import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
@@ -88,6 +88,7 @@ import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(BMUnitRunner.class)
@@ -128,7 +129,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
             .build()
             .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        Util.flush(store);
         CompactionManager.instance.performMaximal(store, false);
 
         Token start = ByteOrderedPartitioner.instance.getTokenFactory().fromString(Long.toHexString(0));
@@ -160,7 +161,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
     }
 
     @Test
-    public void testStream() throws Exception
+    public void testStream() throws Throwable
     {
         testStreamWithConcurrentComponentMutation(NO_OP, NO_OP);
     }
@@ -170,12 +171,12 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
      * update causes the actual transfered file size to be different from the one in {@link ComponentManifest}
      */
     @Test
-    public void testStreamWithStatsMutation() throws Exception
+    public void testStreamWithStatsMutation() throws Throwable
     {
         testStreamWithConcurrentComponentMutation(() -> {
 
             Descriptor desc = sstable.descriptor;
-            desc.getMetadataSerializer().mutate(desc, "testing", stats -> stats.mutateRepairedMetadata(0, UUID.randomUUID(), false));
+            desc.getMetadataSerializer().mutate(desc, "testing", stats -> stats.mutateRepairedMetadata(0, nextTimeUUID(), false));
 
             return null;
         }, NO_OP);
@@ -188,7 +189,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
             targetLocation = "AFTER INVOKE serialize",
             condition = "$descriptor.cfname.contains(\"Standard1\")",
             action = "org.apache.cassandra.db.streaming.EntireSSTableStreamConcurrentComponentMutationTest.countDown();Thread.sleep(5000);")
-    public void testStreamWithIndexSummaryRedistributionDelaySavingSummary() throws Exception
+    public void testStreamWithIndexSummaryRedistributionDelaySavingSummary() throws Throwable
     {
         testStreamWithConcurrentComponentMutation(() -> {
             // wait until new index summary is partially written
@@ -203,7 +204,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         latch.countDown();
     }
 
-    private void testStreamWithConcurrentComponentMutation(Callable<?> runBeforeStreaming, Callable<?> runConcurrentWithStreaming) throws Exception
+    private void testStreamWithConcurrentComponentMutation(Callable<?> runBeforeStreaming, Callable<?> runConcurrentWithStreaming) throws Throwable
     {
         ByteBuf serializedFile = Unpooled.buffer(8192);
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
@@ -247,7 +248,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
 
         // rewrite index summary file with new min/max index interval
         TableMetadata origin = store.metadata();
-        MigrationManager.announceTableUpdate(origin.unbuild().minIndexInterval(1).maxIndexInterval(2).build(), true);
+        SchemaTestUtil.announceTableUpdate(origin.unbuild().minIndexInterval(1).maxIndexInterval(2).build());
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstable, OperationType.INDEX_SUMMARY))
         {
@@ -257,7 +258,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         }
 
         // reset min/max index interval
-        MigrationManager.announceTableUpdate(origin, true);
+        SchemaTestUtil.announceTableUpdate(origin);
         return true;
     }
 
@@ -320,7 +321,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
     private StreamSession setupStreamingSessionForTest()
     {
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new NettyStreamingConnectionFactory(), false, false, null, PreviewKind.NONE);
-        StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.emptyList(), streamCoordinator);
+        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.BOOTSTRAP, Collections.emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED));

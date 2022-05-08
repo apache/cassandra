@@ -19,30 +19,32 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.UUID;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.SkipListMemtable;
+import org.apache.cassandra.db.memtable.TestMemtable;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -286,6 +288,14 @@ public class AlterTest extends CQLTester
                                         row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER_REMOTE, "3")));
 
+        schemaChange("ALTER KEYSPACE " + ks1 + " WITH replication = { 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER_REMOTE + "': 3 }");
+
+        // Removal is a two-step process as the "0" filter has been removed from NTS.prepareOptions
+        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                        row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER_REMOTE, "3")));
+
         // The auto-expansion should not change existing replication counts; do not let the user shoot themselves in the foot
         schemaChange("ALTER KEYSPACE " + ks1 + " WITH replication = { 'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1 } AND durable_writes=True");
 
@@ -431,30 +441,6 @@ public class AlterTest extends CQLTester
         execute(String.format("DROP KEYSPACE IF EXISTS %s", ks6));
     }
 
-    @Test
-    public void testMinimumRF() throws Throwable
-    {
-        DatabaseDescriptor.setDefaultKeyspaceRF(3);
-        DatabaseDescriptor.setMinimumKeyspaceRF(2);
-
-        String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy' }");
-        String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", DatabaseDescriptor.getMinimumKeyspaceRF(), "1"),
-                                        String.format("ALTER KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", ks1));
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", DatabaseDescriptor.getMinimumKeyspaceRF(), "1"),
-                                        String.format("ALTER KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : '1' }", ks2));
-
-        //clean up config change
-        DatabaseDescriptor.setMinimumKeyspaceRF(0);
-        DatabaseDescriptor.setDefaultKeyspaceRF(1);
-
-        //clean up keyspaces
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks1));
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks2));
-    }
 
     /**
      * Test {@link ConfigurationException} thrown when altering a keyspace to invalid DC option in replication configuration.
@@ -569,71 +555,103 @@ public class AlterTest extends CQLTester
     }
 
     @Test
+    public void testAlterTableWithMemtable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
+        assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
+        assertSchemaOption("memtable", null);
+
+        testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
+
+        // verify memtable does not change on other ALTER
+        alterTable("ALTER TABLE %s"
+                   + " WITH compression = {'class': 'LZ4Compressor'};");
+        assertSchemaOption("memtable", "test_shortname");
+
+        testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
+
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "The 'class_name' option must be specified.",
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'test_empty_class';");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Memtable class org.apache.cassandra.db.memtable.SkipListMemtable does not accept any futher parameters, but {invalid=throw} were given.",
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'test_invalid_param';");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Could not create memtable factory for class NotExisting",
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'test_unknown_class';");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Memtable class org.apache.cassandra.db.memtable.TestMemtable does not accept any futher parameters, but {invalid=throw} were given.",
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'test_invalid_extra_param';");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Could not create memtable factory for class " + CreateTest.InvalidMemtableFactoryMethod.class.getName(),
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'test_invalid_factory_method';");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Could not create memtable factory for class " + CreateTest.InvalidMemtableFactoryField.class.getName(),
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'test_invalid_factory_field';");
+
+        assertAlterTableThrowsException(ConfigurationException.class,
+                                        "Memtable configuration \"unknown\" not found.",
+                                        "ALTER TABLE %s"
+                                           + " WITH memtable = 'unknown';");
+    }
+
+    void assertSchemaOption(String option, Object expected) throws Throwable
+    {
+        assertRows(execute(format("SELECT " + option + " FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(expected));
+    }
+
+    private void testMemtableConfig(String memtableConfig, Memtable.Factory factoryInstance, Class<? extends Memtable> memtableClass) throws Throwable
+    {
+        alterTable("ALTER TABLE %s"
+                   + " WITH memtable = '" + memtableConfig + "';");
+        assertSame(factoryInstance, getCurrentColumnFamilyStore().metadata().params.memtable.factory());
+        Assert.assertTrue(memtableClass.isInstance(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable()));
+        assertSchemaOption("memtable", MemtableParams.DEFAULT.configurationKey().equals(memtableConfig) ? null : memtableConfig);
+    }
+
+    @Test
     public void testAlterTableWithCompression() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'chunk_length_in_kb' : 64 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 2 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "2.0")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "2.0"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 1 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "1.0")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "1.0"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 0 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
+        assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
         alterTable("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspaceTables.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("enabled", "false")));
+        assertSchemaOption("compression", map("enabled", "false"));
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "Missing sub-option 'class' for the 'compression' option.",
@@ -668,7 +686,7 @@ public class AlterTest extends CQLTester
     {
         assertThrowsException(clazz, msg, () -> {alterKeyspaceMayThrow(stmt);});
     }
-    
+
     private void assertAlterTableThrowsException(Class<? extends Throwable> clazz, String msg, String stmt)
     {
         assertThrowsException(clazz, msg, () -> {alterTableMayThrow(stmt);});
@@ -779,5 +797,112 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
         assertInvalidMessage("Cannot add new column to a COMPACT STORAGE table",
                              "ALTER TABLE %s ADD column1 text");
+    }
+
+    @Test
+    public void testAlterTableWithoutCreateTableOrIfExistsClause()
+    {
+        String tbl1 = KEYSPACE + "." + createTableName();
+        assertAlterTableThrowsException(InvalidRequestException.class, String.format("Table '%s' doesn't exist", tbl1),
+                                        "ALTER TABLE %s ADD myCollection list<text>;");
+    }
+
+    @Test
+    public void testAlterTableWithoutCreateTableWithIfExists() throws Throwable
+    {
+        String tbl1 = KEYSPACE + "." + createTableName();
+        assertNull(execute(String.format("ALTER TABLE IF EXISTS %s ADD myCollection list<text>;", tbl1)));
+    }
+
+    @Test
+    public void testAlterTableWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE IF EXISTS %s ADD myCollection list<text>;");
+        execute("INSERT INTO %s (a, b, myCollection) VALUES (1, 2, ['first element']);");
+
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2, list("first element")));
+    }
+
+    @Test
+    public void testAlterTableAddColWithIfNotExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s ADD IF NOT EXISTS a int;");
+        execute("INSERT INTO %s (a, b) VALUES (1, 2);");
+
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2));
+    }
+
+    @Test
+    public void testAlterTableAddExistingColumnWithoutIfExists()
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
+        assertAlterTableThrowsException(InvalidRequestException.class,
+                                        String.format("Column with name '%s' already exists", "a"),
+                                        "ALTER TABLE IF EXISTS %s ADD a int");
+    }
+
+    @Test
+    public void testAlterTableDropNotExistingColWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s DROP IF EXISTS myCollection");
+        execute("INSERT INTO %s (a, b) VALUES (1, 2);");
+
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2));
+    }
+
+    @Test
+    public void testAlterTableDropExistingColWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, myCollection list<text>, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s DROP IF EXISTS myCollection");
+        execute("INSERT INTO %s (a, b) VALUES (1, 2);");
+
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2));
+    }
+
+    @Test
+    public void testAlterTableRenameExistingColWithIfExists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, myCollection list<text>, PRIMARY KEY (a, b)); ");
+        alterTable("ALTER TABLE %s RENAME IF EXISTS a TO y AND b to z");
+        execute("INSERT INTO %s (y, z, myCollection) VALUES (1, 2, ['first element']);");
+        assertRows(execute("SELECT * FROM %s;"), row(1, 2, list("first element")));
+    }
+
+    @Test
+    public void testAlterTypeWithIfExists() throws Throwable
+    {
+        // frozen UDT used directly in a partition key
+        String type1 = createType("CREATE TYPE %s (v1 int)");
+        String table1 = createTable("CREATE TABLE %s (pk frozen<" + type1 + ">, val int, PRIMARY KEY(pk));");
+
+        // frozen UDT used in a frozen UDT used in a partition key
+        String type2 = createType("CREATE TYPE %s (v1 frozen<" + type1 + ">, v2 frozen<" + type1 + ">)");
+        String table2 = createTable("CREATE TABLE %s (pk frozen<" + type2 + ">, val int, PRIMARY KEY(pk));");
+
+        // frozen UDT used in a frozen collection used in a partition key
+        String table3 = createTable("CREATE TABLE %s (pk frozen<list<frozen<" + type1 + ">>>, val int, PRIMARY KEY(pk));");
+
+        // assert that ALTER fails and that the error message contains all the names of the table referencing it
+        assertInvalidMessage(table1, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+        assertInvalidMessage(table2, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+        assertInvalidMessage(table3, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+    }
+
+    @Test
+    public void testAlterKeyspaceWithIfExists() throws Throwable
+    {
+        String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        execute("ALTER KEYSPACE IF EXISTS " + ks1 + " WITH durable_writes=true");
+
+        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                        row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(ks1, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
+
+        assertInvalidThrow(InvalidRequestException.class, "ALTER KEYSPACE ks1 WITH replication= { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
     }
 }

@@ -21,30 +21,40 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.commons.lang3.StringUtils;
-
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.config.Duration;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.schema.Indexes;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.SchemaKeyspaceTables;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Directories.DataDirectories;
 import org.apache.cassandra.db.Directories.DataDirectory;
@@ -53,22 +63,35 @@ import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.apache.cassandra.schema.MockSchema.sstableId;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.FBUtilities.now;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+@RunWith(Parameterized.class)
 public class DirectoriesTest
 {
     public static final String TABLE_NAME = "FakeTable";
@@ -82,6 +105,19 @@ public class DirectoriesTest
     private static Set<TableMetadata> CFM;
     private static Map<String, List<File>> sstablesByTableName;
 
+    @Parameterized.Parameter(0)
+    public SSTableId.Builder<? extends SSTableId> idBuilder;
+
+    @Parameterized.Parameter(1)
+    public Supplier<? extends SSTableId> idGenerator;
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> idBuilders()
+    {
+        return Arrays.asList(new Object[]{ SequenceBasedSSTableId.Builder.instance, Util.newSeqGen() },
+                             new Object[]{ UUIDBasedSSTableId.Builder.instance, Util.newUUIDGen() });
+    }
+
     @BeforeClass
     public static void beforeClass()
     {
@@ -92,6 +128,9 @@ public class DirectoriesTest
     @Before
     public void beforeTest() throws IOException
     {
+        MockSchema.sstableIds.clear();
+        MockSchema.sstableIdGenerator = idGenerator;
+
         TABLES = new String[] { "cf1", "ks" };
         CFM = new HashSet<>(TABLES.length);
         sstablesByTableName = new HashMap<>();
@@ -120,7 +159,7 @@ public class DirectoriesTest
         return new DataDirectory[] { new DataDirectory(location) };
     }
 
-    private static void createTestFiles() throws IOException
+    private void createTestFiles() throws IOException
     {
         for (TableMetadata cfm : CFM)
         {
@@ -160,7 +199,7 @@ public class DirectoriesTest
         {
             Instant createdAt = manifest == null ? null : manifest.createdAt;
             Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-            return new TableSnapshot(table.keyspace, table.name, tag, createdAt, expiresAt, Collections.singleton(snapshotDir), null);
+            return new TableSnapshot(table.keyspace, table.name, table.id.asUUID(), tag, createdAt, expiresAt, Collections.singleton(snapshotDir));
         }
     }
 
@@ -179,27 +218,27 @@ public class DirectoriesTest
         File snapshotDir = new File(tableDir, Directories.SNAPSHOT_SUBDIR + File.pathSeparator() + tag);
         snapshotDir.tryCreateDirectories();
 
-        Descriptor sstableDesc = new Descriptor(snapshotDir, KS, table.name, 1, SSTableFormat.Type.BIG);
+        Descriptor sstableDesc = new Descriptor(snapshotDir, KS, table.name, sstableId(1), SSTableFormat.Type.BIG);
         createFakeSSTable(sstableDesc);
 
         SnapshotManifest manifest = null;
         if (createManifest)
         {
             File manifestFile = Directories.getSnapshotManifestFile(snapshotDir);
-            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new Duration("1m"), Instant.now());
+            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new DurationSpec("1m"), now());
             manifest.serializeToJsonFile(manifestFile);
         }
 
         return new FakeSnapshot(table, tag, snapshotDir, manifest);
     }
 
-    private static List<File> createFakeSSTable(File dir, String cf, int gen) throws IOException
+    private List<File> createFakeSSTable(File dir, String cf, int gen)
     {
-        Descriptor desc = new Descriptor(dir, KS, cf, gen, SSTableFormat.Type.BIG);
+        Descriptor desc = new Descriptor(dir, KS, cf, sstableId(gen), SSTableFormat.Type.BIG);
         return createFakeSSTable(desc);
     }
 
-    private static List<File> createFakeSSTable(Descriptor desc) throws IOException
+    private List<File> createFakeSSTable(Descriptor desc)
     {
         List<File> components = new ArrayList<>(3);
         for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER })
@@ -237,12 +276,15 @@ public class DirectoriesTest
             Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
             assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
 
-            Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, 1, SSTableFormat.Type.BIG);
+            Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
             File snapshotDir = new File(cfDir(cfm), File.pathSeparator() + Directories.SNAPSHOT_SUBDIR + File.pathSeparator() + LEGACY_SNAPSHOT_NAME);
             assertEquals(snapshotDir.toCanonical(), Directories.getSnapshotDirectory(desc, LEGACY_SNAPSHOT_NAME));
 
             File backupsDir = new File(cfDir(cfm), File.pathSeparator() + Directories.BACKUPS_SUBDIR);
             assertEquals(backupsDir.toCanonical(), Directories.getBackupsDirectory(desc));
+
+            Supplier<? extends SSTableId> uidGen = directories.getUIDGenerator(idBuilder);
+            assertThat(Stream.generate(uidGen).limit(100).filter(MockSchema.sstableIds::containsValue).collect(Collectors.toList())).isEmpty();
         }
     }
 
@@ -303,7 +345,7 @@ public class DirectoriesTest
         {
             String tag = "test";
             Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
-            Descriptor parentDesc = new Descriptor(directories.getDirectoryForNewSSTables(), KS, cfm.name, 0, SSTableFormat.Type.BIG);
+            Descriptor parentDesc = new Descriptor(directories.getDirectoryForNewSSTables(), KS, cfm.name, sstableId(0), SSTableFormat.Type.BIG);
             File parentSnapshotDirectory = Directories.getSnapshotDirectory(parentDesc, tag);
 
             List<String> files = new LinkedList<>();
@@ -311,7 +353,7 @@ public class DirectoriesTest
 
             File manifestFile = directories.getSnapshotManifestFile(tag);
 
-            SnapshotManifest manifest = new SnapshotManifest(files, new Duration("1m"), Instant.now());
+            SnapshotManifest manifest = new SnapshotManifest(files, new DurationSpec("1m"), now());
             manifest.serializeToJsonFile(manifestFile);
 
             Set<File> dirs = new HashSet<>();
@@ -350,8 +392,8 @@ public class DirectoriesTest
         {
             assertEquals(cfDir(INDEX_CFM), dir);
         }
-        Descriptor parentDesc = new Descriptor(parentDirectories.getDirectoryForNewSSTables(), KS, PARENT_CFM.name, 0, SSTableFormat.Type.BIG);
-        Descriptor indexDesc = new Descriptor(indexDirectories.getDirectoryForNewSSTables(), KS, INDEX_CFM.name, 0, SSTableFormat.Type.BIG);
+        Descriptor parentDesc = new Descriptor(parentDirectories.getDirectoryForNewSSTables(), KS, PARENT_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
+        Descriptor indexDesc = new Descriptor(indexDirectories.getDirectoryForNewSSTables(), KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
 
         // snapshot dir should be created under its parent's
         File parentSnapshotDirectory = Directories.getSnapshotDirectory(parentDesc, "test");
@@ -364,9 +406,9 @@ public class DirectoriesTest
         assertTrue(indexDirectories.snapshotExists("test"));
 
         // check true snapshot size
-        Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.name, 0, SSTableFormat.Type.BIG);
+        Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
         createFile(parentSnapshot.filenameFor(Component.DATA), 30);
-        Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.name, 0, SSTableFormat.Type.BIG);
+        Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
         createFile(indexSnapshot.filenameFor(Component.DATA), 40);
 
         assertEquals(30, parentDirectories.trueSnapshotsSize());
@@ -375,11 +417,8 @@ public class DirectoriesTest
         // check snapshot details
         Map<String, TableSnapshot> parentSnapshotDetail = parentDirectories.listSnapshots();
         assertTrue(parentSnapshotDetail.containsKey("test"));
-        assertEquals(30L, parentSnapshotDetail.get("test").computeTrueSizeBytes());
-
-        Map<String, TableSnapshot> indexSnapshotDetail = indexDirectories.listSnapshots();
-        assertTrue(indexSnapshotDetail.containsKey("test"));
-        assertEquals(40L, indexSnapshotDetail.get("test").computeTrueSizeBytes());
+        // CASSANDRA-17357: include indexes when computing true size of parent table
+        assertEquals(70L, parentSnapshotDetail.get("test").computeTrueSizeBytes());
 
         // check backup directory
         File parentBackupDirectory = Directories.getBackupsDirectory(parentDesc);
@@ -515,7 +554,7 @@ public class DirectoriesTest
             final String n = Long.toString(nanoTime());
             Callable<File> directoryGetter = new Callable<File>() {
                 public File call() throws Exception {
-                    Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, 1, SSTableFormat.Type.BIG);
+                    Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
                     return Directories.getSnapshotDirectory(desc, n);
                 }
             };

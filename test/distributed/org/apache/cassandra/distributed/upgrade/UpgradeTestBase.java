@@ -32,6 +32,9 @@ import com.vdurmont.semver4j.Semver.SemverType;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.UpgradeableCluster;
@@ -46,10 +49,10 @@ import org.apache.cassandra.utils.Pair;
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
 
-
-
 public class UpgradeTestBase extends DistributedTestBase
 {
+    private static final Logger logger = LoggerFactory.getLogger(UpgradeTestBase.class);
+
     @After
     public void afterEach()
     {
@@ -79,19 +82,23 @@ public class UpgradeTestBase extends DistributedTestBase
         public void run(UpgradeableCluster cluster, int node) throws Throwable;
     }
 
-    public static final Semver v22 = new Semver("2.2.0-beta1", SemverType.LOOSE);
     public static final Semver v30 = new Semver("3.0.0-alpha1", SemverType.LOOSE);
     public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
     public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
+    public static final Semver v42 = new Semver("4.2-alpha1", SemverType.LOOSE);
 
     protected static final List<Pair<Semver,Semver>> SUPPORTED_UPGRADE_PATHS = ImmutableList.of(
-        Pair.create(v22, v30),
-        Pair.create(v22, v3X),
         Pair.create(v30, v3X),
         Pair.create(v30, v40),
+        Pair.create(v30, v41),
+        Pair.create(v30, v42),
         Pair.create(v3X, v40),
-        Pair.create(v40, v41));
+        Pair.create(v3X, v41),
+        Pair.create(v3X, v42),
+        Pair.create(v40, v41),
+        Pair.create(v40, v42),
+        Pair.create(v41, v42));
 
     // the last is always the current
     public static final Semver CURRENT = SUPPORTED_UPGRADE_PATHS.get(SUPPORTED_UPGRADE_PATHS.size() - 1).right;
@@ -157,9 +164,9 @@ public class UpgradeTestBase extends DistributedTestBase
         }
 
         /** Will test this specific upgrade path **/
-        public TestCase singleUpgrade(Semver from, Semver to)
+        public TestCase singleUpgrade(Semver from)
         {
-            this.upgrade.add(new TestVersions(versions.getLatest(from), versions.getLatest(to)));
+            this.upgrade.add(new TestVersions(versions.getLatest(from), versions.getLatest(CURRENT)));
             return this;
         }
 
@@ -219,7 +226,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
             for (TestVersions upgrade : this.upgrade)
             {
-                System.out.printf("testing upgrade from %s to %s%n", upgrade.initial.version, upgrade.upgrade.version);
+                logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.upgrade.version);
                 try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
                 {
                     setup.run(cluster);
@@ -261,7 +268,7 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgradesFrom(v22)
+                             .upgradesFrom(v30)
                              .nodesToUpgrade(toUpgrade);
     }
 

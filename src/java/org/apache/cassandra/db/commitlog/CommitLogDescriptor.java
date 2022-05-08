@@ -191,15 +191,27 @@ public class CommitLogDescriptor
 
     public static CommitLogDescriptor fromFileName(String name)
     {
-        Matcher matcher;
-        if (!(matcher = COMMIT_LOG_FILE_PATTERN.matcher(name)).matches())
+        Matcher matcher = extactFromFileName(name);
+        long id = Long.parseLong(matcher.group(3).split(SEPARATOR)[1]);
+        return new CommitLogDescriptor(Integer.parseInt(matcher.group(2)), id, null, new EncryptionContext());
+    }
+
+    public static long idFromFileName(String name)
+    {
+        Matcher matcher = extactFromFileName(name);
+        return Long.parseLong(matcher.group(3).split(SEPARATOR)[1]);
+    }
+
+    private static Matcher extactFromFileName(String name)
+    {
+        Matcher matcher = COMMIT_LOG_FILE_PATTERN.matcher(name);
+        if (!matcher.matches())
             throw new RuntimeException("Cannot parse the version of the file: " + name);
 
         if (matcher.group(3) == null)
             throw new UnsupportedOperationException("Commitlog segment is too old to open; upgrade to 1.2.5+ first");
 
-        long id = Long.parseLong(matcher.group(3).split(SEPARATOR)[1]);
-        return new CommitLogDescriptor(Integer.parseInt(matcher.group(2)), id, null, new EncryptionContext());
+        return matcher;
     }
 
     public int getMessagingVersion()

@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.*;
 
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -27,6 +28,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -101,12 +103,16 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         return false;
     }
 
-    public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options, ClientState state) throws InvalidRequestException
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
         for (SingleRestriction r : restrictions)
         {
             r.appendTo(builder, options);
+
+            if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(state))
+                Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "clustering key", false, state);
+
             if (builder.hasMissingElements())
                 break;
         }

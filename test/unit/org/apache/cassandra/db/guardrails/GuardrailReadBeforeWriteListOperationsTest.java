@@ -42,6 +42,11 @@ public class GuardrailReadBeforeWriteListOperationsTest extends GuardrailTester
         return Arrays.asList(false, true);
     }
 
+    public GuardrailReadBeforeWriteListOperationsTest()
+    {
+        super(Guardrails.readBeforeWriteListOperationsEnabled);
+    }
+
     @Before
     public void before()
     {
@@ -166,7 +171,7 @@ public class GuardrailReadBeforeWriteListOperationsTest extends GuardrailTester
         }
         else
         {
-            assertAborts(expectedMessage, query);
+            assertFails(query, expectedMessage);
         }
     }
 

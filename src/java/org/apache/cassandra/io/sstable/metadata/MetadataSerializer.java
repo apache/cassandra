@@ -36,7 +36,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -237,7 +237,7 @@ public class MetadataSerializer implements IMetadataSerializer
     }
 
     @Override
-    public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
+    public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, TimeUUID newPendingRepair, boolean isTransient) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
@@ -268,10 +268,6 @@ public class MetadataSerializer implements IMetadataSerializer
             Throwables.throwIfInstanceOf(e, FileNotFoundException.class);
             throw new FSWriteError(e, filePath);
         }
-        // we cant move a file on top of another file in windows:
-        if (FBUtilities.isWindows)
-            FileUtils.delete(descriptor.filenameFor(Component.STATS));
         FileUtils.renameWithConfirm(filePath, descriptor.filenameFor(Component.STATS));
-
     }
 }

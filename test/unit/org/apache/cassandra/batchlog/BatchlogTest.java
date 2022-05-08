@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -40,9 +39,10 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 
 public class BatchlogTest
@@ -66,7 +66,7 @@ public class BatchlogTest
 
         long now = FBUtilities.timestampMicros();
         int version = MessagingService.current_version;
-        UUID uuid = UUIDGen.getTimeUUID();
+        TimeUUID uuid = nextTimeUUID();
 
         List<Mutation> mutations = new ArrayList<>(10);
         for (int i = 0; i < 10; i++)

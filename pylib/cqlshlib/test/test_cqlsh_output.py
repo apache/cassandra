@@ -17,18 +17,12 @@
 # to configure behavior, define $CQL_TEST_HOST to the destination address
 # and $CQL_TEST_PORT to the associated port.
 
-from __future__ import unicode_literals, with_statement
-
 import locale
 import os
 import re
-import subprocess
-import sys
-import six
-import unittest
 
 from .basecase import (BaseTestCase, TEST_HOST, TEST_PORT,
-                       at_a_time, cqlsh, cqlshlog, dedent)
+                       at_a_time, cqlshlog, dedent)
 from .cassconnect import (cassandra_cursor, create_db, get_keyspace,
                           quote_name, remove_db, split_cql_commands,
                           testcall_cqlsh, testrun_cqlsh)
@@ -124,8 +118,7 @@ class TestCqlshOutput(BaseTestCase):
         for termname in ('', 'dumb', 'vt100'):
             cqlshlog.debug('TERM=%r' % termname)
             env['TERM'] = termname
-            with testrun_cqlsh(tty=True, env=env,
-                               win_force_colors=False) as c:
+            with testrun_cqlsh(tty=True, env=env) as c:
                 c.send('select * from has_all_types;\n')
                 self.assertNoHasColors(c.read_to_next_prompt())
                 c.send('select count(*) from has_all_types;\n')
@@ -588,7 +581,7 @@ class TestCqlshOutput(BaseTestCase):
             outputlines = c.read_to_next_prompt().splitlines()
 
             start_index = 0
-            if c.realtty:
+            if c.tty:
                 self.assertEqual(outputlines[start_index], 'use NONEXISTENTKEYSPACE;')
                 start_index = 1
 
@@ -665,6 +658,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND comment = ''
                 AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
                 AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+                AND memtable = 'default'
                 AND crc_check_chance = 1.0
                 AND default_time_to_live = 0
                 AND extensions = {}
@@ -768,37 +762,19 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertIn('VIRTUAL KEYSPACE system_virtual_schema', output)
                 self.assertIn("\nCREATE KEYSPACE system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;\n",
                               output)
-                self.assertRegex(output, '.*\s*$')
+                self.assertRegex(output, r'.*\s*$')
 
     def test_show_output(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             output = c.cmd_and_response('show version;')
             self.assertRegex(output,
-                    '^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Native protocol \S+\]$')
+                    r'^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Native protocol \S+\]$')
 
             output = c.cmd_and_response('show host;')
             self.assertHasColors(output)
             self.assertRegex(output, '^Connected to .* at %s:%d$'
                                              % (re.escape(TEST_HOST), TEST_PORT))
 
-    @unittest.skipIf(six.PY3, 'Will not emit warning when running Python 3')
-    def test_warn_py2(self):
-        # has the warning
-        with testrun_cqlsh(tty=True, env=self.default_env) as c:
-            self.assertIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
-
-        # can suppress
-        env = self.default_env.copy()
-        env['CQLSH_NO_WARN_PY2'] = '1'
-        with testrun_cqlsh(tty=True, env=env) as c:
-            self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
-
-    @unittest.skipIf(six.PY2, 'Warning will be emitted when running Python 2.7')
-    def test_no_warn_py3(self):
-        with testrun_cqlsh(tty=True, env=self.default_env) as c:
-            self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
-
-    @unittest.skipIf(sys.platform == "win32", 'EOF signaling not supported on Windows')
     def test_eof_prints_newline(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             c.send(CONTROL_D)
@@ -813,9 +789,8 @@ class TestCqlshOutput(BaseTestCase):
             with testrun_cqlsh(tty=True, env=self.default_env) as c:
                 cmd = 'exit%s\n' % semicolon
                 c.send(cmd)
-                if c.realtty:
-                    out = c.read_lines(1)[0].replace('\r', '')
-                    self.assertEqual(out, cmd)
+                out = c.read_lines(1)[0].replace('\r', '')
+                self.assertEqual(out, cmd)
                 with self.assertRaises(BaseException) as cm:
                     c.read_lines(1)
                 self.assertIn(type(cm.exception), (EOFError, OSError))

@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.config;
 
+import java.util.concurrent.TimeUnit;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.FileSystemOwnershipCheck;
 
 /** A class that extracts system properties for the cassandra node it runs within. */
 public enum CassandraRelevantProperties
@@ -93,8 +96,9 @@ public enum CassandraRelevantProperties
      */
     COM_SUN_MANAGEMENT_JMXREMOTE_RMI_PORT ("com.sun.management.jmxremote.rmi.port", "0"),
 
-    /** Cassandra jmx remote port */
+    /** Cassandra jmx remote and local port */
     CASSANDRA_JMX_REMOTE_PORT("cassandra.jmx.remote.port"),
+    CASSANDRA_JMX_LOCAL_PORT("cassandra.jmx.local.port"),
 
     /** This property  indicates whether SSL is enabled for monitoring remotely. Default is set to false. */
     COM_SUN_MANAGEMENT_JMXREMOTE_SSL ("com.sun.management.jmxremote.ssl"),
@@ -150,11 +154,20 @@ public enum CassandraRelevantProperties
     BOOTSTRAP_SCHEMA_DELAY_MS("cassandra.schema_delay_ms"),
 
     /**
+     * When draining, how long to wait for mutating executors to shutdown.
+     */
+    DRAIN_EXECUTOR_TIMEOUT_MS("cassandra.drain_executor_timeout_ms", String.valueOf(TimeUnit.MINUTES.toMillis(5))),
+
+    /**
      * Gossip quarantine delay is used while evaluating membership changes and should only be changed with extreme care.
      */
     GOSSIPER_QUARANTINE_DELAY("cassandra.gossip_quarantine_delay_ms"),
 
     GOSSIPER_SKIP_WAITING_TO_SETTLE("cassandra.skip_wait_for_gossip_to_settle", "-1"),
+
+    IGNORED_SCHEMA_CHECK_VERSIONS("cassandra.skip_schema_check_for_versions"),
+
+    IGNORED_SCHEMA_CHECK_ENDPOINTS("cassandra.skip_schema_check_for_endpoints"),
 
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
 
@@ -225,11 +238,37 @@ public enum CassandraRelevantProperties
 
     PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS("cassandra.paxos_repair_retry_timeout_millis", "60000"),
 
+    /** If we should allow having duplicate keys in the config file, default to true for legacy reasons */
+    ALLOW_DUPLICATE_CONFIG_KEYS("cassandra.allow_duplicate_config_keys", "true"),
+    /** If we should allow having both new (post CASSANDRA-15234) and old config keys for the same config item in the yaml */
+    ALLOW_NEW_OLD_CONFIG_KEYS("cassandra.allow_new_old_config_keys", "false"),
+
+    // startup checks properties
+    LIBJEMALLOC("cassandra.libjemalloc"),
+    @Deprecated // should be removed in favor of enable flag of relevant startup check (checkDatacenter)
+    IGNORE_DC("cassandra.ignore_dc"),
+    @Deprecated // should be removed in favor of enable flag of relevant startup check (checkRack)
+    IGNORE_RACK("cassandra.ignore_rack"),
+    @Deprecated // should be removed in favor of enable flag of relevant startup check (FileSystemOwnershipCheck)
+    FILE_SYSTEM_CHECK_ENABLE("cassandra.enable_fs_ownership_check"),
+    @Deprecated // should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck)
+    FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME("cassandra.fs_ownership_filename", FileSystemOwnershipCheck.DEFAULT_FS_OWNERSHIP_FILENAME),
+    @Deprecated // should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck)
+    FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN(FileSystemOwnershipCheck.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN),
+    // default heartbeating period is 1 minute
+    CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD("check_data_resurrection_heartbeat_period_milli", "60000"),
+
+    // defaults to false for 4.1 but plan to switch to true in a later release
+    // the thinking is that environments may not work right off the bat so safer to add this feature disabled by default
+    CONFIG_ALLOW_SYSTEM_PROPERTIES("cassandra.config.allow_system_properties", "false"),
+
     // properties for debugging simulator ASM output
     TEST_SIMULATOR_PRINT_ASM("cassandra.test.simulator.print_asm", "none"),
     TEST_SIMULATOR_PRINT_ASM_TYPES("cassandra.test.simulator.print_asm_types", ""),
     TEST_SIMULATOR_LIVENESS_CHECK("cassandra.test.simulator.livenesscheck", "true"),
-    TEST_SIMULATOR_DEBUG("cassandra.test.simulator.debug", "true"),
+    TEST_SIMULATOR_DEBUG("cassandra.test.simulator.debug", "false"),
+    TEST_SIMULATOR_DETERMINISM_CHECK("cassandra.test.simulator.determinismcheck", "none"),
+    TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl", "false"),
 
     // determinism properties for testing
     DETERMINISM_SSTABLE_COMPRESSION_DEFAULT("cassandra.sstable_compression_default", "true"),
@@ -243,6 +282,12 @@ public enum CassandraRelevantProperties
     DISABLE_SSTABLE_ACTIVITY_TRACKING("cassandra.sstable_activity_tracking", "true"),
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar", "false"),
     PAXOS_EXECUTE_ON_SELF("cassandra.paxos.use_self_execution", "true"),
+
+    /** property for the rate of the scheduled task that monitors disk usage */
+    DISK_USAGE_MONITOR_INTERVAL_MS("cassandra.disk_usage.monitor_interval_ms", Long.toString(TimeUnit.SECONDS.toMillis(30))),
+
+    /** property for the interval on which the repeated client warnings and diagnostic events about disk usage are ignored */
+    DISK_USAGE_NOTIFY_INTERVAL_MS("cassandra.disk_usage.notify_interval_ms", Long.toString(TimeUnit.MINUTES.toMillis(30))),
 
     // for specific tests
     ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),
@@ -283,6 +328,16 @@ public enum CassandraRelevantProperties
     }
 
     /**
+     * Returns default value.
+     *
+     * @return default value, if any, otherwise null.
+     */
+    public String getDefaultValue()
+    {
+        return defaultVal;
+    }
+
+    /**
      * Gets the value of a system property as a String.
      * @return system property String value if it exists, overrideDefaultValue otherwise.
      */
@@ -293,6 +348,15 @@ public enum CassandraRelevantProperties
             return overrideDefaultValue;
 
         return STRING_CONVERTER.convert(value);
+    }
+
+    public <T> T convert(PropertyConverter<T> converter)
+    {
+        String value = System.getProperty(key);
+        if (value == null)
+            value = defaultVal;
+
+        return converter.convert(value);
     }
 
     /**
@@ -390,7 +454,7 @@ public enum CassandraRelevantProperties
         System.setProperty(key, Long.toString(value));
     }
 
-    private interface PropertyConverter<T>
+    public interface PropertyConverter<T>
     {
         T convert(String value);
     }

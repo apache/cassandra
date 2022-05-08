@@ -202,7 +202,7 @@ public abstract class AbstractCommitLogSegmentManager
                 if (flushingSize + unused >= 0)
                     break;
             }
-            flushDataFrom(segmentsToRecycle, false);
+            flushDataFrom(segmentsToRecycle, Collections.emptyList(), false);
         }
     }
 
@@ -294,7 +294,7 @@ public abstract class AbstractCommitLogSegmentManager
      * This is necessary to avoid resurrecting data during replay if a user creates a new table with
      * the same name and ID. See CASSANDRA-16986 for more details.
      */
-    void forceRecycleAll(Iterable<TableId> droppedTables)
+    void forceRecycleAll(Collection<TableId> droppedTables)
     {
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
         CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
@@ -308,7 +308,7 @@ public abstract class AbstractCommitLogSegmentManager
         Keyspace.writeOrder.awaitNewBarrier();
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
-        Future<?> future = flushDataFrom(segmentsToRecycle, true);
+        Future<?> future = flushDataFrom(segmentsToRecycle, droppedTables, true);
         try
         {
             future.get();
@@ -383,7 +383,7 @@ public abstract class AbstractCommitLogSegmentManager
 
     private long unusedCapacity()
     {
-        long total = DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
+        long total = DatabaseDescriptor.getTotalCommitlogSpaceInMiB() * 1024 * 1024;
         long currentSize = size.get();
         logger.trace("Total active commitlog segment space used is {} out of {}", currentSize, total);
         return total - currentSize;
@@ -394,7 +394,7 @@ public abstract class AbstractCommitLogSegmentManager
      *
      * @return a Future that will finish when all the flushes are complete.
      */
-    private Future<?> flushDataFrom(List<CommitLogSegment> segments, boolean force)
+    private Future<?> flushDataFrom(List<CommitLogSegment> segments, Collection<TableId> droppedTables, boolean force)
     {
         if (segments.isEmpty())
             return ImmediateFuture.success(null);
@@ -407,7 +407,9 @@ public abstract class AbstractCommitLogSegmentManager
         {
             for (TableId dirtyTableId : segment.getDirtyTableIds())
             {
-                TableMetadata metadata = Schema.instance.getTableMetadata(dirtyTableId);
+                TableMetadata metadata = droppedTables.contains(dirtyTableId)
+                                         ? null
+                                         : Schema.instance.getTableMetadata(dirtyTableId);
                 if (metadata == null)
                 {
                     // even though we remove the schema entry before a final flush when dropping a CF,
@@ -418,9 +420,20 @@ public abstract class AbstractCommitLogSegmentManager
                 else if (!flushes.containsKey(dirtyTableId))
                 {
                     final ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(dirtyTableId);
-                    // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
-                    // no deadlock possibility since switchLock removal
-                    flushes.put(dirtyTableId, force ? cfs.forceFlush() : cfs.forceFlush(maxCommitLogPosition));
+
+                    if (cfs.memtableWritesAreDurable())
+                    {
+                        // The memtable does not need this data to be preserved (we only wrote it for PITR and CDC)
+                        segment.markClean(dirtyTableId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
+                    }
+                    else
+                    {
+                        // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
+                        // no deadlock possibility since switchLock removal
+                        flushes.put(dirtyTableId, force
+                                                  ? cfs.forceFlush(ColumnFamilyStore.FlushReason.COMMITLOG_DIRTY)
+                                                  : cfs.forceFlush(maxCommitLogPosition));
+                    }
                 }
             }
         }

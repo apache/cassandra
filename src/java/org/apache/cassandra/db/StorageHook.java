@@ -84,7 +84,7 @@ public interface StorageHook
                                                          boolean reversed,
                                                          SSTableReadsListener listener)
             {
-                return sstable.iterator(key, slices, selectedColumns, reversed, listener);
+                return sstable.rowIterator(key, slices, selectedColumns, reversed, listener);
             }
         };
     }

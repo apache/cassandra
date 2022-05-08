@@ -35,12 +35,14 @@ public final class AlterViewStatement extends AlterSchemaStatement
     private final String viewName;
     private final TableAttributes attrs;
     private ClientState state;
+    private final boolean ifExists;
 
-    public AlterViewStatement(String keyspaceName, String viewName, TableAttributes attrs)
+    public AlterViewStatement(String keyspaceName, String viewName, TableAttributes attrs, boolean ifExists)
     {
         super(keyspaceName);
         this.viewName = viewName;
         this.attrs = attrs;
+        this.ifExists = ifExists;
     }
 
     @Override
@@ -61,7 +63,10 @@ public final class AlterViewStatement extends AlterSchemaStatement
                           : keyspace.views.getNullable(viewName);
 
         if (null == view)
+        {
+            if (ifExists) return schema;
             throw ire("Materialized view '%s.%s' doesn't exist", keyspaceName, viewName);
+        }
 
         attrs.validate();
 
@@ -116,17 +121,19 @@ public final class AlterViewStatement extends AlterSchemaStatement
     {
         private final QualifiedName name;
         private final TableAttributes attrs;
+        private final boolean ifExists;
 
-        public Raw(QualifiedName name, TableAttributes attrs)
+        public Raw(QualifiedName name, TableAttributes attrs, boolean ifExists)
         {
             this.name = name;
             this.attrs = attrs;
+            this.ifExists = ifExists;
         }
 
         public AlterViewStatement prepare(ClientState state)
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
-            return new AlterViewStatement(keyspaceName, name.getName(), attrs);
+            return new AlterViewStatement(keyspaceName, name.getName(), attrs, ifExists);
         }
     }
 }

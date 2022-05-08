@@ -20,6 +20,8 @@ package org.apache.cassandra.db.guardrails;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
@@ -34,17 +36,25 @@ public class GuardrailsConfigProviderTest extends GuardrailTester
     {
         String name = getClass().getCanonicalName() + '$' + CustomProvider.class.getSimpleName();
         GuardrailsConfigProvider provider = GuardrailsConfigProvider.build(name);
-        Threshold guard = new Threshold(state -> provider.getOrCreate(state).getTables().getWarnThreshold(),
-                                        state -> provider.getOrCreate(state).getTables().getAbortThreshold(),
+        MaxThreshold guard = new MaxThreshold("test_guardrail",
+                                        state -> provider.getOrCreate(state).getTablesWarnThreshold(),
+                                        state -> provider.getOrCreate(state).getTablesFailThreshold(),
                                         (isWarn, what, v, t) -> format("%s: for %s, %s > %s",
                                                                        isWarn ? "Warning" : "Aborting", what, v, t));
 
-        assertValid(() -> guard.guard(5, "Z", userClientState));
-        assertWarns(() -> guard.guard(25, "A", userClientState), "Warning: for A, 25 > 10");
-        assertWarns(() -> guard.guard(100, "B", userClientState), "Warning: for B, 100 > 10");
-        assertAborts(() -> guard.guard(101, "X", userClientState), "Aborting: for X, 101 > 100");
-        assertAborts(() -> guard.guard(200, "Y", userClientState), "Aborting: for Y, 200 > 100");
-        assertValid(() -> guard.guard(5, "Z", userClientState));
+        assertValid(() -> guard.guard(5, "Z", false, userClientState));
+        assertWarns(() -> guard.guard(25, "A", false, userClientState), "Warning: for A, 25 > 10");
+        assertWarns(() -> guard.guard(100, "B", false, userClientState), "Warning: for B, 100 > 10");
+        assertFails(() -> guard.guard(101, "X", false, userClientState), "Aborting: for X, 101 > 100");
+        assertFails(() -> guard.guard(200, "Y", false, userClientState), "Aborting: for Y, 200 > 100");
+        assertValid(() -> guard.guard(5, "Z", false, userClientState));
+
+        assertValid(() -> guard.guard(5, "Z", true, userClientState));
+        assertWarns(() -> guard.guard(25, "A", true, userClientState), "Warning: for A, 25 > 10", "Warning: for <redacted>, 25 > 10");
+        assertWarns(() -> guard.guard(100, "B", true, userClientState), "Warning: for B, 100 > 10", "Warning: for <redacted>, 100 > 10");
+        assertFails(() -> guard.guard(101, "X", true, userClientState), "Aborting: for X, 101 > 100", "Aborting: for <redacted>, 101 > 100");
+        assertFails(() -> guard.guard(200, "Y", true, userClientState), "Aborting: for Y, 200 > 100", "Aborting: for <redacted>, 200 > 100");
+        assertValid(() -> guard.guard(5, "Z", true, userClientState));
 
         Assertions.assertThatThrownBy(() -> GuardrailsConfigProvider.build("unexistent_class"))
                   .isInstanceOf(ConfigurationException.class)
@@ -58,23 +68,27 @@ public class GuardrailsConfigProviderTest extends GuardrailTester
     {
         public GuardrailsConfig getOrCreate(ClientState state)
         {
-            return new CustomConfig();
+            return new CustomConfig(DatabaseDescriptor.getRawConfig());
         }
     }
 
     public static class CustomConfig extends GuardrailsOptions
     {
-        private final IntThreshold tables = new IntThreshold();
-
-        public CustomConfig()
+        public CustomConfig(Config config)
         {
-            tables.setThresholds(10, 100);
+            super(config);
         }
 
         @Override
-        public IntThreshold getTables()
+        public int getTablesWarnThreshold()
         {
-            return tables;
+            return 10;
+        }
+
+        @Override
+        public int getTablesFailThreshold()
+        {
+            return 100;
         }
     }
 }

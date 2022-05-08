@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.SocketException;
+import java.util.Arrays;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -30,6 +31,10 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.assertj.core.api.Assertions;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.service.StorageService;
 
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
@@ -54,43 +59,62 @@ public class JVMStabilityInspectorTest
 
         Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
         Config.CommitFailurePolicy oldCommitPolicy = DatabaseDescriptor.getCommitFailurePolicy();
+        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
         try
         {
-            killerForTests.reset();
-            JVMStabilityInspector.inspectThrowable(new IOException());
-            assertFalse(killerForTests.wasKilled());
+            CassandraDaemon daemon = new CassandraDaemon();
+            daemon.completeSetup();
+            for (boolean daemonSetupCompleted : Arrays.asList(false, true))
+            {
+                // disk policy acts differently depending on if setup is complete or not; which is defined by
+                // the daemon thread not being null
+                StorageService.instance.registerDaemon(daemonSetupCompleted ? daemon : null);
 
-            DatabaseDescriptor.setDiskFailurePolicy(Config.DiskFailurePolicy.die);
-            killerForTests.reset();
-            JVMStabilityInspector.inspectThrowable(new FSReadError(new IOException(), "blah"));
-            assertTrue(killerForTests.wasKilled());
+                try
+                {
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new IOException());
+                    assertFalse(killerForTests.wasKilled());
 
-            killerForTests.reset();
-            JVMStabilityInspector.inspectThrowable(new FSWriteError(new IOException(), "blah"));
-            assertTrue(killerForTests.wasKilled());
+                    DatabaseDescriptor.setDiskFailurePolicy(Config.DiskFailurePolicy.die);
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new FSReadError(new IOException(), "blah"));
+                    assertTrue(killerForTests.wasKilled());
 
-            killerForTests.reset();
-            JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(new IOException(), "blah"));
-            assertTrue(killerForTests.wasKilled());
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new FSWriteError(new IOException(), "blah"));
+                    assertTrue(killerForTests.wasKilled());
 
-            killerForTests.reset();
-            JVMStabilityInspector.inspectThrowable(new RuntimeException(new CorruptSSTableException(new IOException(), "blah")));
-            assertTrue(killerForTests.wasKilled());
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(new IOException(), "blah"));
+                    assertTrue(killerForTests.wasKilled());
 
-            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);
-            killerForTests.reset();
-            JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
-            assertTrue(killerForTests.wasKilled());
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new RuntimeException(new CorruptSSTableException(new IOException(), "blah")));
+                    assertTrue(killerForTests.wasKilled());
 
-            killerForTests.reset();
-            JVMStabilityInspector.inspectThrowable(new Exception(new IOException()));
-            assertFalse(killerForTests.wasKilled());
+                    DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
+                    assertTrue(killerForTests.wasKilled());
+
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new Exception(new IOException()));
+                    assertFalse(killerForTests.wasKilled());
+                }
+                catch (Exception | Error e)
+                {
+                    throw new AssertionError("Failure when daemonSetupCompleted=" + daemonSetupCompleted, e);
+                }
+            }
         }
         finally
         {
             JVMStabilityInspector.replaceKiller(originalKiller);
             DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
             DatabaseDescriptor.setCommitFailurePolicy(oldCommitPolicy);
+            StorageService.instance.registerDaemon(null);
+            FileUtils.setFSErrorHandler(null);
         }
     }
 

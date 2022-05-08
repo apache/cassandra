@@ -47,13 +47,12 @@
 package org.apache.cassandra.utils.vint;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * Borrows idea from
@@ -173,26 +172,31 @@ public class VIntCoding
         return Integer.numberOfLeadingZeros(~firstByte) - 24;
     }
 
-    protected static final FastThreadLocal<byte[]> encodingBuffer = new FastThreadLocal<byte[]>()
-    {
-        @Override
-        public byte[] initialValue()
-        {
-            return new byte[9];
-        }
-    };
-
     @Inline
-    public static void writeUnsignedVInt(long value, DataOutput output) throws IOException
+    public static void writeUnsignedVInt(long value, DataOutputPlus output) throws IOException
     {
         int size = VIntCoding.computeUnsignedVIntSize(value);
         if (size == 1)
         {
-            output.write((int)value);
-            return;
+            output.writeByte((int) value);
         }
-
-        output.write(VIntCoding.encodeUnsignedVInt(value, size), 0, size);
+        else if (size < 9)
+        {
+            int shift = (8 - size) << 3;
+            int extraBytes = size - 1;
+            long mask = (long)VIntCoding.encodeExtraBytesToRead(extraBytes) << 56;
+            long register = (value << shift) | mask;
+            output.writeBytes(register, size);
+        }
+        else if (size == 9)
+        {
+            output.write((byte) 0xFF);
+            output.writeLong(value);
+        }
+        else
+        {
+            throw new AssertionError();
+        }
     }
 
     @Inline
@@ -201,39 +205,41 @@ public class VIntCoding
         int size = VIntCoding.computeUnsignedVIntSize(value);
         if (size == 1)
         {
-            output.put((byte) value);
-            return;
+            output.put((byte) (value));
         }
-
-        output.put(VIntCoding.encodeUnsignedVInt(value, size), 0, size);
-    }
-
-    /**
-     * @return a TEMPORARY THREAD LOCAL BUFFER containing the encoded bytes of the value
-     * This byte[] must be discarded by the caller immediately, and synchronously
-     */
-    @Inline
-    private static byte[] encodeUnsignedVInt(long value, int size)
-    {
-        byte[] encodingSpace = encodingBuffer.get();
-        encodeUnsignedVInt(value, size, encodingSpace);
-        return encodingSpace;
-    }
-
-    @Inline
-    private static void encodeUnsignedVInt(long value, int size, byte[] encodeInto)
-    {
-        int extraBytes = size - 1;
-        for (int i = extraBytes ; i >= 0; --i)
+        else if (size < 9)
         {
-            encodeInto[i] = (byte) value;
-            value >>= 8;
+            int limit = output.limit();
+            int pos = output.position();
+            if (limit - pos >= size)
+            {
+                int shift = (8 - size) << 3;
+                int extraBytes = size - 1;
+                long mask = (long)VIntCoding.encodeExtraBytesToRead(extraBytes) << 56;
+                long register = (value << shift) | mask;
+                output.putLong(pos, register);
+                output.position(pos + size);
+            }
         }
-        encodeInto[0] |= VIntCoding.encodeExtraBytesToRead(extraBytes);
+        else if (size == 9)
+        {
+            output.put((byte) 0xFF);
+            output.putLong(value);
+        }
+        else
+        {
+            throw new AssertionError();
+        }
     }
 
     @Inline
-    public static void writeVInt(long value, DataOutput output) throws IOException
+    public static void writeVInt(long value, DataOutputPlus output) throws IOException
+    {
+        writeUnsignedVInt(encodeZigZag64(value), output);
+    }
+
+    @Inline
+    public static void writeVInt(long value, ByteBuffer output) throws IOException
     {
         writeUnsignedVInt(encodeZigZag64(value), output);
     }
@@ -279,6 +285,7 @@ public class VIntCoding
     public static int computeUnsignedVIntSize(final long value)
     {
         int magnitude = Long.numberOfLeadingZeros(value | 1); // | with 1 to ensure magntiude <= 63, so (63 - 1) / 7 <= 8
-        return 9 - ((magnitude - 1) / 7);
+        // the formula below is hand-picked to match the original 9 - ((magnitude - 1) / 7)
+        return (639 - magnitude * 9) >> 6;
     }
 }

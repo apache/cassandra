@@ -1,0 +1,1 @@
+alter_user_statement ::= ALTER USER [ IF EXISTS ] role_name [ WITH [ HASHED ] PASSWORD string] [ user_option]

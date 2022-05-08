@@ -31,6 +31,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +46,11 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.utils.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -82,28 +87,29 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
+import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 
 public class FBUtilities
 {
+    private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
+
     static
     {
         preventIllegalAccessWarnings();
+        jsonMapper.registerModule(new JavaTimeModule());
+        jsonMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
-
-    private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
-
     public static final String UNKNOWN_RELEASE_VERSION = "Unknown";
 
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
     private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
-    public static final boolean isWindows = OPERATING_SYSTEM.contains("windows");
     public static final boolean isLinux = OPERATING_SYSTEM.contains("linux");
 
     private static volatile InetAddress localInetAddress;
@@ -455,6 +461,12 @@ public class FBUtilities
         return (int) (currentTimeMillis() / 1000);
     }
 
+    public static Instant now()
+    {
+        long epochMilli = currentTimeMillis();
+        return Instant.ofEpochMilli(epochMilli);
+    }
+
     public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)
     {
         return waitOnFutures(futures, -1, null);
@@ -506,7 +518,7 @@ public class FBUtilities
         }
         catch (ExecutionException ee)
         {
-            throw new RuntimeException(ee);
+            throw Throwables.cleaned(ee);
         }
         catch (InterruptedException ie)
         {
@@ -831,6 +843,22 @@ public class FBUtilities
         }
     }
 
+    public static void serializeToJsonFile(Object object, File outputFile) throws IOException
+    {
+        try (FileOutputStreamPlus out = outputFile.newOutputStream(OVERWRITE))
+        {
+            jsonMapper.writeValue((OutputStream) out, object);
+        }
+    }
+
+    public static <T> T deserializeFromJsonFile(Class<T> tClass, File file) throws IOException
+    {
+        try (FileInputStreamPlus in = file.newInputStream())
+        {
+            return jsonMapper.readValue((InputStream) in, tClass);
+        }
+    }
+
     public static String prettyPrintMemory(long size)
     {
         return prettyPrintMemory(size, false);
@@ -1092,5 +1120,25 @@ public class FBUtilities
         {
             // ignore
         }
+    }
+
+    public static String camelToSnake(String camel)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (char c : camel.toCharArray())
+        {
+            if (Character.isUpperCase(c))
+            {
+                // if first char is uppercase, then avoid adding the _ prefix
+                if (sb.length() > 0)
+                    sb.append('_');
+                sb.append(Character.toLowerCase(c));
+            }
+            else
+            {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 }

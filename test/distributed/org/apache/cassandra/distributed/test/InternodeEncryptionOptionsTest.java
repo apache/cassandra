@@ -55,7 +55,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
                   ImmutableMap.builder().putAll(validKeystore)
                   .put("internode_encryption", "none")
                   .put("optional", false)
-                  .put("enable_legacy_ssl_storage_port", "true")
+                  .put("legacy_ssl_storage_port_enabled", "true")
                   .build());
         }).createWithoutStarting())
         {
@@ -113,7 +113,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("internode_encryption", "none")
                               .put("optional", true)
-                              .put("enable_legacy_ssl_storage_port", "true")
+                              .put("legacy_ssl_storage_port_enabled", "true")
                               .build());
         }).createWithoutStarting())
         {
@@ -148,7 +148,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("internode_encryption", "none")
                               .put("optional", true)
-                              .put("enable_legacy_ssl_storage_port", "true")
+                              .put("legacy_ssl_storage_port_enabled", "true")
                               .build());
         }).createWithoutStarting())
         {

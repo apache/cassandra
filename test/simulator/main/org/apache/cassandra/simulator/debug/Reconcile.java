@@ -20,17 +20,13 @@ package org.apache.cassandra.simulator.debug;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -40,12 +36,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
+import org.apache.cassandra.simulator.systems.InterceptedWait;
+import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
+import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
 
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.NONE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.VALUE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.WITH_CALLSITES;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 public class Reconcile
@@ -66,12 +70,13 @@ public class Reconcile
         final List<String> strings = new ArrayList<>();
         final boolean inputHasCallSites;
         final boolean reconcileCallSites;
+        int line;
 
-        public AbstractReconciler(DataInputPlus in, boolean inputHasCallSites, boolean reconcileCallSites)
+        public AbstractReconciler(DataInputPlus in, boolean inputHasCallSites, RecordOption reconcile)
         {
             this.in = in;
             this.inputHasCallSites = inputHasCallSites;
-            this.reconcileCallSites = reconcileCallSites;
+            this.reconcileCallSites = reconcile == WITH_CALLSITES;
         }
 
         String readInterned() throws IOException
@@ -88,6 +93,8 @@ public class Reconcile
                 return "";
 
             String trace = in.readUTF();
+            for (int i = trace.indexOf('\n') ; i >= 0 ; i = trace.indexOf('\n', i + 1))
+                ++line;
             return reconcileCallSites ? trace : "";
         }
 
@@ -99,7 +106,9 @@ public class Reconcile
             StackTraceElement[] ste = Thread.currentThread().getStackTrace();
             return Arrays.stream(ste, 4, ste.length)
                          .filter(st -> !st.getClassName().equals("org.apache.cassandra.simulator.debug.Reconcile")
-                                       && !st.getClassName().equals("org.apache.cassandra.simulator.SimulationRunner$Reconcile"))
+                                       && !st.getClassName().equals("org.apache.cassandra.simulator.SimulationRunner$Reconcile")
+                                       && !st.getClassName().equals("sun.reflect.NativeMethodAccessorImpl") // depends on async compile thread
+                                       && !st.getClassName().startsWith("sun.reflect.GeneratedMethodAccessor")) // depends on async compile thread
                          .collect(new Threads.StackTraceCombiner(true, "", "\n", ""));
         }
 
@@ -118,6 +127,45 @@ public class Reconcile
         }
     }
 
+    public static class TimeReconciler extends AbstractReconciler implements SimulatedTime.Listener, Closeable
+    {
+        boolean disabled;
+
+        public TimeReconciler(DataInputPlus in, boolean inputHasCallSites, RecordOption reconcile)
+        {
+            super(in, inputHasCallSites, reconcile);
+        }
+
+        @Override
+        public void close()
+        {
+            disabled = true;
+        }
+
+        @Override
+        public synchronized void accept(String kind, long value)
+        {
+            if (disabled)
+                return;
+
+            try
+            {
+                String testKind = readInterned();
+                long testValue = in.readUnsignedVInt();
+                checkThread();
+                if (!kind.equals(testKind) || value != testValue)
+                {
+                    logger.error("({},{}) != ({},{})", kind, value, testKind, testValue);
+                    throw failWithOOM();
+                }
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     public static class RandomSourceReconciler extends RandomSource.Abstract implements Supplier<RandomSource>, Closeable
     {
         private static final Logger logger = LoggerFactory.getLogger(RandomSourceReconciler.class);
@@ -129,11 +177,11 @@ public class Reconcile
         volatile Thread locked;
         volatile boolean disabled;
 
-        public RandomSourceReconciler(DataInputPlus in, RandomSource wrapped, boolean inputHasCallSites, boolean reconcileCallSites)
+        public RandomSourceReconciler(DataInputPlus in, RandomSource wrapped, boolean inputHasCallSites, RecordOption reconcile)
         {
             this.in = in;
             this.wrapped = wrapped;
-            this.threads = new AbstractReconciler(in, inputHasCallSites, reconcileCallSites);
+            this.threads = new AbstractReconciler(in, inputHasCallSites, reconcile);
         }
 
         private void enter()
@@ -152,6 +200,35 @@ public class Reconcile
         private void exit()
         {
             locked = null;
+        }
+
+        public void onDeterminismCheck(long value)
+        {
+            if (disabled)
+                return;
+
+            enter();
+            try
+            {
+                byte type = in.readByte();
+                int c = (int) in.readVInt();
+                long v = in.readLong();
+                threads.checkThread();
+                if (type != 7 || c != count || value != v)
+                {
+                    logger.error(String.format("(%d,%d,%d) != (%d,%d,%d)", 7, count, value, type, c, v));
+                    throw failWithOOM();
+                }
+                ++count;
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            finally
+            {
+                exit();
+            }
         }
 
         public int uniform(int min, int max)
@@ -350,18 +427,17 @@ public class Reconcile
         }
     }
 
-    public static void reconcileWith(String loadFromDir, long seed, boolean withRng, boolean withRngCallSites, ClusterSimulation.Builder<?> builder)
+    public static void reconcileWith(String loadFromDir, long seed, RecordOption withRng, RecordOption withTime, ClusterSimulation.Builder<?> builder)
     {
-        if (withRngCallSites && !withRng)
-            throw new IllegalStateException();
-
         File eventFile = new File(new File(loadFromDir), Long.toHexString(seed) + ".gz");
         File rngFile = new File(new File(loadFromDir), Long.toHexString(seed) + ".rng.gz");
+        File timeFile = new File(new File(loadFromDir), Long.toHexString(seed) + ".time.gz");
 
-        try (BufferedReader eventIn = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(eventFile))));
-             DataInputPlus.DataInputStreamPlus rngIn = new DataInputPlus.DataInputStreamPlus(rngFile.exists() ? new GZIPInputStream(new FileInputStream(rngFile)) : new ByteArrayInputStream(new byte[0])))
+        try (BufferedReader eventIn = new BufferedReader(new InputStreamReader(new GZIPInputStream(eventFile.newInputStream())));
+             DataInputPlus.DataInputStreamPlus rngIn = new DataInputPlus.DataInputStreamPlus(rngFile.exists() && withRng != NONE ? new GZIPInputStream(rngFile.newInputStream()) : new ByteArrayInputStream(new byte[0]));
+             DataInputPlus.DataInputStreamPlus timeIn = new DataInputPlus.DataInputStreamPlus(timeFile.exists() && withTime != NONE ? new GZIPInputStream(timeFile.newInputStream()) : new ByteArrayInputStream(new byte[0])))
         {
-            boolean inputHasWaitSites, inputHasWakeSites, inputHasRngCallSites;
+            boolean inputHasWaitSites, inputHasWakeSites, inputHasRngCallSites, inputHasTimeCallSites;
             {
                 String modifiers = eventIn.readLine();
                 if (!modifiers.startsWith("modifiers:"))
@@ -372,18 +448,29 @@ public class Reconcile
                     builder.capture().wakeSites & (inputHasWakeSites = modifiers.contains("wakeSites")),
                     builder.capture().nowSites)
                 );
-                withRng &= modifiers.contains("rng");
-                withRngCallSites &= inputHasRngCallSites = modifiers.contains("rngCallSites");
+                inputHasRngCallSites = modifiers.contains("rngCallSites");
+                if (!modifiers.contains("rng")) withRng = NONE;
+                if (withRng == WITH_CALLSITES && !inputHasRngCallSites) withRng = VALUE;
+
+                inputHasTimeCallSites = modifiers.contains("timeCallSites");
+                if (!modifiers.contains("time")) withTime = NONE;
+                if (withTime == WITH_CALLSITES && !inputHasTimeCallSites) withTime = VALUE;
             }
-            if (withRng && !rngFile.exists())
+            if (withRng != NONE && !rngFile.exists())
+                throw new IllegalStateException();
+            if (withTime != NONE && !timeFile.exists())
                 throw new IllegalStateException();
 
             {
                 Set<String> modifiers = new LinkedHashSet<>();
-                if (withRngCallSites)
+                if (withRng == WITH_CALLSITES)
                     modifiers.add("rngCallSites");
-                else if (withRng)
+                else if (withRng == VALUE)
                     modifiers.add("rng");
+                if (withTime == WITH_CALLSITES)
+                    modifiers.add("timeCallSites");
+                else if (withTime == VALUE)
+                    modifiers.add("time");
                 if (builder.capture().waitSites)
                     modifiers.add("WaitSites");
                 if (builder.capture().wakeSites)
@@ -392,12 +479,18 @@ public class Reconcile
             }
 
             RandomSourceReconciler random = null;
-            if (withRng)
-                builder.random(random = new RandomSourceReconciler(rngIn, new RandomSource.Default(), inputHasRngCallSites, withRngCallSites));
+            TimeReconciler time = null;
+            if (withRng != NONE)
+            {
+                builder.random(random = new RandomSourceReconciler(rngIn, new RandomSource.Default(), inputHasRngCallSites, withRng));
+                builder.onThreadLocalRandomCheck(random::onDeterminismCheck);
+            }
+            if (withTime != NONE)
+                builder.timeListener(time = new TimeReconciler(timeIn, inputHasTimeCallSites, withTime));
 
             class Line { int line = 1; } Line line = new Line(); // box for heap dump analysis
             try (ClusterSimulation<?> cluster = builder.create(seed);
-                 CloseableIterator<?> iter = cluster.simulation.iterator();)
+                 CloseableIterator<?> iter = cluster.simulation.iterator())
             {
                 try
                 {
@@ -416,6 +509,8 @@ public class Reconcile
                     }
                     if (random != null)
                         random.close();
+                    if (time != null)
+                        time.close();
                 }
                 catch (Throwable t)
                 {

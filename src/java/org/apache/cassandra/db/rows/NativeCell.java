@@ -177,5 +177,4 @@ public class NativeCell extends AbstractCell<ByteBuffer>
     {
         return EMPTY_SIZE;
     }
-
 }

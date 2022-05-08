@@ -16,31 +16,21 @@
 
 # NOTE: this testing tool is *nix specific
 
-from __future__ import unicode_literals
-
 import os
 import sys
 import re
 import contextlib
 import subprocess
 import signal
-import math
 from time import time
 from . import basecase
-from os.path import join, normpath
+from os.path import join
 
 
-def is_win():
-    return sys.platform in ("cygwin", "win32")
+import pty
+DEFAULT_PREFIX = os.linesep
 
-if is_win():
-    from .winpty import WinPty
-    DEFAULT_PREFIX = ''
-else:
-    import pty
-    DEFAULT_PREFIX = os.linesep
-
-DEFAULT_CQLSH_PROMPT = DEFAULT_PREFIX + '(\S+@)?cqlsh(:\S+)?> '
+DEFAULT_CQLSH_PROMPT = DEFAULT_PREFIX + r'(\S+@)?cqlsh(:\S+)?> '
 DEFAULT_CQLSH_TERM = 'xterm'
 
 try:
@@ -49,6 +39,7 @@ except AttributeError:
     # Python 3.7+
     Pattern = re.Pattern
 
+
 def get_smm_sequence(term='xterm'):
     """
     Return the set meta mode (smm) sequence, if any.
@@ -56,18 +47,19 @@ def get_smm_sequence(term='xterm'):
     before each prompt.
     """
     result = ''
-    if not is_win():
-        tput_proc = subprocess.Popen(['tput', '-T{}'.format(term), 'smm'], stdout=subprocess.PIPE)
-        tput_stdout = tput_proc.communicate()[0]
-        if (tput_stdout and (tput_stdout != b'')):
-            result = tput_stdout
-            if isinstance(result, bytes):
-                result = result.decode("utf-8")
+    tput_proc = subprocess.Popen(['tput', '-T{}'.format(term), 'smm'], stdout=subprocess.PIPE)
+    tput_stdout = tput_proc.communicate()[0]
+    if (tput_stdout and (tput_stdout != b'')):
+        result = tput_stdout
+        if isinstance(result, bytes):
+            result = result.decode("utf-8")
     return result
+
 
 DEFAULT_SMM_SEQUENCE = get_smm_sequence()
 
 cqlshlog = basecase.cqlshlog
+
 
 def set_controlling_pty(master, slave):
     os.setsid()
@@ -77,6 +69,7 @@ def set_controlling_pty(master, slave):
     if slave > 2:
         os.close(slave)
     os.close(os.open(os.ttyname(1), os.O_RDWR))
+
 
 @contextlib.contextmanager
 def raising_signal(signum, exc):
@@ -93,11 +86,13 @@ def raising_signal(signum, exc):
     finally:
         signal.signal(signum, oldhandlr)
 
+
 class TimeoutError(Exception):
     pass
 
+
 @contextlib.contextmanager
-def timing_out_itimer(seconds):
+def timing_out(seconds):
     if seconds is None:
         yield
         return
@@ -111,46 +106,16 @@ def timing_out_itimer(seconds):
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)
 
-@contextlib.contextmanager
-def timing_out_alarm(seconds):
-    if seconds is None:
-        yield
-        return
-    with raising_signal(signal.SIGALRM, TimeoutError):
-        oldval = signal.alarm(int(math.ceil(seconds)))
-        if oldval != 0:
-            signal.alarm(oldval)
-            raise RuntimeError("SIGALRM already in use")
-        try:
-            yield
-        finally:
-            signal.alarm(0)
-
-if is_win():
-    try:
-        import eventlet
-    except ImportError as e:
-        sys.exit("evenlet library required to run cqlshlib tests on Windows")
-
-    def timing_out(seconds):
-        return eventlet.Timeout(seconds, TimeoutError)
-else:
-    # setitimer is new in 2.6, but it's still worth supporting, for potentially
-    # faster tests because of sub-second resolution on timeouts.
-    if hasattr(signal, 'setitimer'):
-        timing_out = timing_out_itimer
-    else:
-        timing_out = timing_out_alarm
 
 def noop(*a):
     pass
+
 
 class ProcRunner:
     def __init__(self, path, tty=True, env=None, args=()):
         self.exe_path = path
         self.args = args
-        self.tty = bool(tty)
-        self.realtty = self.tty and not is_win()
+        self.tty = tty
         if env is None:
             env = {}
         self.env = env
@@ -163,7 +128,7 @@ class ProcRunner:
         stdin = stdout = stderr = None
         cqlshlog.info("Spawning %r subprocess with args: %r and env: %r"
                       % (self.exe_path, self.args, self.env))
-        if self.realtty:
+        if self.tty:
             masterfd, slavefd = pty.openpty()
             preexec = (lambda: set_controlling_pty(masterfd, slavefd))
             self.proc = subprocess.Popen((self.exe_path,) + tuple(self.args),
@@ -181,15 +146,11 @@ class ProcRunner:
                                          env=self.env, stdin=stdin, stdout=stdout,
                                          stderr=stderr, bufsize=0, close_fds=False)
             self.send = self.send_pipe
-            if self.tty:
-                self.winpty = WinPty(self.proc.stdout)
-                self.read = self.read_winpty
-            else:
-                self.read = self.read_pipe
+            self.read = self.read_pipe
 
     def close(self):
         cqlshlog.info("Closing %r subprocess." % (self.exe_path,))
-        if self.realtty:
+        if self.tty:
             os.close(self.childpty)
         else:
             self.proc.stdin.close()
@@ -212,12 +173,6 @@ class ProcRunner:
 
     def read_pipe(self, blksize, timeout=None):
         buf = self.proc.stdout.read(blksize)
-        if isinstance(buf, bytes):
-            buf = buf.decode("utf-8")
-        return buf
-
-    def read_winpty(self, blksize, timeout=None):
-        buf = self.winpty.read(blksize, timeout)
         if isinstance(buf, bytes):
             buf = buf.decode("utf-8")
         return buf
@@ -271,10 +226,10 @@ class ProcRunner:
             curtime = time()
         return got
 
+
 class CqlshRunner(ProcRunner):
     def __init__(self, path=None, host=None, port=None, keyspace=None, cqlver=None,
-                 args=(), prompt=DEFAULT_CQLSH_PROMPT, env=None,
-                 win_force_colors=True, tty=True, **kwargs):
+                 args=(), prompt=DEFAULT_CQLSH_PROMPT, env=None, tty=True, **kwargs):
         if path is None:
             path = join(basecase.cqlsh_dir, 'cqlsh')
         if host is None:
@@ -283,9 +238,6 @@ class CqlshRunner(ProcRunner):
             port = basecase.TEST_PORT
         if env is None:
             env = {}
-        if is_win():
-            env['PYTHONUNBUFFERED'] = '1'
-            env.update(os.environ.copy())
         env.setdefault('TERM', 'xterm')
         env.setdefault('CQLSH_NO_BUNDLED', os.environ.get('CQLSH_NO_BUNDLED', ''))
         env.setdefault('PYTHONPATH', os.environ.get('PYTHONPATH', ''))
@@ -297,11 +249,6 @@ class CqlshRunner(ProcRunner):
             args += ('--cqlversion', str(cqlver))
         if keyspace is not None:
             args += ('--keyspace', keyspace.lower())
-        if tty and is_win():
-            args += ('--tty',)
-            args += ('--encoding', 'utf-8')
-            if win_force_colors:
-                args += ('--color',)
         if coverage:
             args += ('--coverage',)
         self.keyspace = keyspace
@@ -314,7 +261,7 @@ class CqlshRunner(ProcRunner):
             self.output_header = self.read_to_next_prompt()
 
     def read_to_next_prompt(self, timeout=10.0):
-        return self.read_until(self.prompt, timeout=timeout, ptty_timeout=3, replace=[DEFAULT_SMM_SEQUENCE,])
+        return self.read_until(self.prompt, timeout=timeout, ptty_timeout=3, replace=[DEFAULT_SMM_SEQUENCE])
 
     def read_up_to_timeout(self, timeout, blksize=4096):
         output = ProcRunner.read_up_to_timeout(self, timeout, blksize=blksize)
@@ -330,7 +277,7 @@ class CqlshRunner(ProcRunner):
         output = output.replace(' \r', '')
         output = output.replace('\r', '')
         output = output.replace(' \b', '')
-        if self.realtty:
+        if self.tty:
             echo, output = output.split('\n', 1)
             assert echo == cmd, "unexpected echo %r instead of %r" % (echo, cmd)
         try:
@@ -339,11 +286,13 @@ class CqlshRunner(ProcRunner):
             promptline = output
             output = ''
         assert re.match(self.prompt, DEFAULT_PREFIX + promptline), \
-                'last line of output %r does not match %r?' % (promptline, self.prompt)
+            'last line of output %r does not match %r?' % (promptline, self.prompt)
         return output + '\n'
+
 
 def run_cqlsh(**kwargs):
     return contextlib.closing(CqlshRunner(**kwargs))
+
 
 def call_cqlsh(**kwargs):
     kwargs.setdefault('prompt', None)

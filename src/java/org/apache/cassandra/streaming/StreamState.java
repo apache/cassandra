@@ -20,22 +20,22 @@ package org.apache.cassandra.streaming;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Current snapshot of streaming progress.
  */
 public class StreamState implements Serializable
 {
-    public final UUID planId;
+    public final TimeUUID planId;
     public final StreamOperation streamOperation;
     public final Set<SessionInfo> sessions;
 
-    public StreamState(UUID planId, StreamOperation streamOperation, Set<SessionInfo> sessions)
+    public StreamState(TimeUUID planId, StreamOperation streamOperation, Set<SessionInfo> sessions)
     {
         this.planId = planId;
         this.sessions = sessions;
@@ -44,13 +44,12 @@ public class StreamState implements Serializable
 
     public boolean hasFailedSession()
     {
-        return Iterables.any(sessions, new Predicate<SessionInfo>()
-        {
-            public boolean apply(SessionInfo session)
-            {
-                return session.isFailed();
-            }
-        });
+        return Iterables.any(sessions, SessionInfo::isFailed);
+    }
+
+    public boolean hasAbortedSession()
+    {
+        return Iterables.any(sessions, SessionInfo::isAborted);
     }
 
     public List<SessionSummary> createSummaries()

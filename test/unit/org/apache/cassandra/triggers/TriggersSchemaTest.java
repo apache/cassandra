@@ -22,15 +22,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.schema.Triggers;
-import org.apache.cassandra.schema.MigrationManager;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
@@ -58,7 +58,7 @@ public class TriggersSchemaTest
                                 .build();
 
         KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(tm));
-        MigrationManager.announceNewKeyspace(ksm);
+        SchemaTestUtil.announceNewKeyspace(ksm);
 
         TableMetadata tm2 = Schema.instance.getTableMetadata(ksName, cfName);
         assertFalse(tm2.triggers.isEmpty());
@@ -70,14 +70,14 @@ public class TriggersSchemaTest
     public void addNewCfWithTriggerToKs() throws Exception
     {
         KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1));
-        MigrationManager.announceNewKeyspace(ksm);
+        SchemaTestUtil.announceNewKeyspace(ksm);
 
         TableMetadata metadata =
             CreateTableStatement.parse(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName)
                                 .triggers(Triggers.of(TriggerMetadata.create(triggerName, triggerClass)))
                                 .build();
 
-        MigrationManager.announceNewTable(metadata);
+        SchemaTestUtil.announceNewTable(metadata);
 
         metadata = Schema.instance.getTableMetadata(ksName, cfName);
         assertFalse(metadata.triggers.isEmpty());
@@ -92,7 +92,7 @@ public class TriggersSchemaTest
             CreateTableStatement.parse(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName)
                                 .build();
         KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(tm1));
-        MigrationManager.announceNewKeyspace(ksm);
+        SchemaTestUtil.announceNewKeyspace(ksm);
 
         TriggerMetadata td = TriggerMetadata.create(triggerName, triggerClass);
         TableMetadata tm2 =
@@ -101,7 +101,7 @@ public class TriggersSchemaTest
                   .unbuild()
                   .triggers(Triggers.of(td))
                   .build();
-        MigrationManager.announceTableUpdate(tm2);
+        SchemaTestUtil.announceTableUpdate(tm2);
 
         TableMetadata tm3 = Schema.instance.getTableMetadata(ksName, cfName);
         assertFalse(tm3.triggers.isEmpty());
@@ -118,14 +118,14 @@ public class TriggersSchemaTest
                                 .triggers(Triggers.of(td))
                                 .build();
         KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(tm));
-        MigrationManager.announceNewKeyspace(ksm);
+        SchemaTestUtil.announceNewKeyspace(ksm);
 
         TableMetadata tm1 = Schema.instance.getTableMetadata(ksName, cfName);
         TableMetadata tm2 =
             tm1.unbuild()
                .triggers(tm1.triggers.without(triggerName))
                .build();
-        MigrationManager.announceTableUpdate(tm2);
+        SchemaTestUtil.announceTableUpdate(tm2);
 
         TableMetadata tm3 = Schema.instance.getTableMetadata(ksName, cfName);
         assertTrue(tm3.triggers.isEmpty());

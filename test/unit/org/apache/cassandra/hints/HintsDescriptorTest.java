@@ -33,9 +33,9 @@ import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotSame;
-import static junit.framework.Assert.fail;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.fail;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class HintsDescriptorTest
@@ -110,7 +110,7 @@ public class HintsDescriptorTest
             try (HintsWriter ignored = HintsWriter.create(directory, expected))
             {
             }
-            HintsDescriptor actual = HintsDescriptor.readFromFile(new File(directory, expected.fileName()));
+            HintsDescriptor actual = HintsDescriptor.readFromFile(expected.file(directory));
             assertEquals(expected, actual);
         }
         finally

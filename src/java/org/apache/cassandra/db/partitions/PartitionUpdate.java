@@ -17,13 +17,17 @@
  */
 package org.apache.cassandra.db.partitions;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +42,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
+import org.apache.cassandra.utils.vint.VIntCoding;
+
+import static org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer.IS_EMPTY;
 
 /**
  * Stores updates made on a partition.
@@ -204,6 +211,20 @@ public class PartitionUpdate extends AbstractBTreePartition
         return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
     }
 
+
+    public PartitionUpdate withOnlyPresentColumns()
+    {
+        Set<ColumnMetadata> columnSet = new HashSet<>();
+
+        for (Row row : this)
+            for (ColumnData column : row)
+                columnSet.add(column.column());
+
+        RegularAndStaticColumns columns = RegularAndStaticColumns.builder().addAll(columnSet).build();
+        return new PartitionUpdate(this.metadata, this.partitionKey, this.holder.withColumns(columns), this.deletionInfo.mutableCopy(), false);
+    }
+
+
     protected boolean canHaveShadowedData()
     {
         return canHaveShadowedData;
@@ -322,23 +343,19 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public int dataSize()
     {
-        int size = 0;
+        return Ints.saturatedCast(BTree.<Row>accumulate(holder.tree, (row, value) -> row.dataSize() + value, 0L)
+                + holder.staticRow.dataSize() + holder.deletionInfo.dataSize());
+    }
 
-        if (holder.staticRow != null)
-        {
-            for (ColumnData cd : holder.staticRow.columnData())
-            {
-                size += cd.dataSize();
-            }
-        }
-
-        for (Row row : this)
-        {
-            size += row.clustering().dataSize();
-            for (ColumnData cd : row)
-                size += cd.dataSize();
-        }
-        return size;
+    /**
+     * The size of the data contained in this update.
+     *
+     * @return the size of the data contained in this update.
+     */
+    public long unsharedHeapSize()
+    {
+        return BTree.<Row>accumulate(holder.tree, (row, value) -> row.unsharedHeapSize() + value, 0L)
+                + holder.staticRow.unsharedHeapSize() + holder.deletionInfo.unsharedHeapSize();
     }
 
     public TableMetadata metadata()
@@ -667,6 +684,21 @@ public class PartitionUpdate extends AbstractBTreePartition
                                        false);
         }
 
+        public static boolean isEmpty(ByteBuffer in, DeserializationHelper.Flag flag, DecoratedKey key) throws IOException
+        {
+            int position = in.position();
+            position += 16; // CFMetaData.serializer.deserialize(in, version);
+            if (position >= in.limit())
+                throw new EOFException();
+            // DecoratedKey key = metadata.decorateKey(ByteBufferUtil.readWithVIntLength(in));
+            int keyLength = (int) VIntCoding.getUnsignedVInt(in, position);
+            position += keyLength + VIntCoding.computeUnsignedVIntSize(keyLength);
+            if (position >= in.limit())
+                throw new EOFException();
+            int flags = in.get(position) & 0xff;
+            return (flags & IS_EMPTY) != 0;
+        }
+
         public long serializedSize(PartitionUpdate update, int version)
         {
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
@@ -858,8 +890,8 @@ public class PartitionUpdate extends AbstractBTreePartition
             // assert that we are not calling build() several times
             assert !isBuilt : "A PartitionUpdate.Builder should only get built once";
             Object[] add = rowBuilder.build();
-            Object[] merged = BTree.<Row>merge(tree, add, metadata.comparator,
-                                               UpdateFunction.Simple.of(Rows::merge));
+            Object[] merged = BTree.<Row, Row, Row>update(tree, add, metadata.comparator,
+                                                          UpdateFunction.Simple.of(Rows::merge));
 
             EncodingStats newStats = EncodingStats.Collector.collect(staticRow, BTree.iterator(merged), deletionInfo);
 
@@ -907,7 +939,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         public Builder updateAllTimestamp(long newTimestamp)
         {
             deletionInfo.updateAllTimestamp(newTimestamp - 1);
-            tree = BTree.<Row>transformAndFilter(tree, (x) -> x.updateAllTimestamp(newTimestamp));
+            tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateAllTimestamp(newTimestamp));
             staticRow = this.staticRow.updateAllTimestamp(newTimestamp);
             return this;
         }

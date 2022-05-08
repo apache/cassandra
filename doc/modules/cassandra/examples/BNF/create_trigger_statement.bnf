@@ -1,0 +1,3 @@
+create_trigger_statement ::= CREATE TRIGGER [ IF NOT EXISTS ] trigger_name
+	ON table_name
+	USING string

@@ -24,11 +24,12 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * {@link StreamPlan} is a helper class that builds StreamOperation of given configuration.
@@ -38,7 +39,7 @@ import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.str
 public class StreamPlan
 {
     private static final String[] EMPTY_COLUMN_FAMILIES = new String[0];
-    private final UUID planId = UUIDGen.getTimeUUID();
+    private final TimeUUID planId = nextTimeUUID();
     private final StreamOperation streamOperation;
     private final List<StreamEventHandler> handlers = new ArrayList<>();
     private final StreamCoordinator coordinator;
@@ -61,7 +62,7 @@ public class StreamPlan
     }
 
     public StreamPlan(StreamOperation streamOperation, int connectionsPerHost,
-                      boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
+                      boolean connectSequentially, TimeUUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
         this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, streamingFactory(),
@@ -193,7 +194,7 @@ public class StreamPlan
         return this;
     }
 
-    public UUID getPendingRepair()
+    public TimeUUID getPendingRepair()
     {
         return coordinator.getPendingRepair();
     }

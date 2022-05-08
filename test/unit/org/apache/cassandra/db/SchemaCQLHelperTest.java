@@ -167,7 +167,7 @@ public class SchemaCQLHelperTest extends CQLTester
                           "    reg2 varint,\n" +
                           "    st1 varint static,\n" +
                           "    PRIMARY KEY (pk1, ck1)\n) WITH ID =";
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata());
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata());
 
         assertThat(actual,
                    allOf(startsWith(expected),
@@ -208,7 +208,7 @@ public class SchemaCQLHelperTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         // when re-adding, column is present as both column and as dropped column record.
-        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata());
+        String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata());
         String expected = "CREATE TABLE IF NOT EXISTS cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 varint,\n" +
@@ -247,7 +247,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata()),
+        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata()),
                    startsWith(
                    "CREATE TABLE IF NOT EXISTS cql_test_keyspace_create_table.test_table_create_table (\n" +
                    "    pk1 varint,\n" +
@@ -294,7 +294,7 @@ public class SchemaCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata()),
+        assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata()),
                    containsString("CLUSTERING ORDER BY (cl1 ASC)\n" +
                             "    AND additional_write_policy = 'ALWAYS'\n" +
                             "    AND bloom_filter_fp_chance = 1.0\n" +
@@ -303,6 +303,7 @@ public class SchemaCQLHelperTest extends CQLTester
                             "    AND comment = 'comment'\n" +
                             "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4', 'sstable_size_in_mb': '1'}\n" +
                             "    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor', 'min_compress_ratio': '2.0'}\n" +
+                            "    AND memtable = 'default'\n" +
                             "    AND crc_check_chance = 0.3\n" +
                             "    AND default_time_to_live = 4\n" +
                             "    AND extensions = {'ext1': 0x76616c31}\n" +
@@ -476,6 +477,6 @@ public class SchemaCQLHelperTest extends CQLTester
         cfs.getSSTablesForKey("false:true");
 
         execute("insert into %s (t_id, id, ck, nk) VALUES (true, true, false, true)");
-        assertRows(execute("select t_id, id, ck, nk from %s"), row(true, false, false, true), row(true, true, false, true));
+        assertRows(execute("select t_id, id, ck, nk from %s"), row(true, true, false, true), row(true, false, false, true));
     }
 }

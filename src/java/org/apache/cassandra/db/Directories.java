@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -30,9 +31,8 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.BiPredicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -58,7 +58,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
@@ -557,7 +556,7 @@ public class Directories
         return getSnapshotManifestFile(snapshotDir);
     }
 
-    protected static File getSnapshotManifestFile(File snapshotDir)
+    public static File getSnapshotManifestFile(File snapshotDir)
     {
         return new File(snapshotDir, "manifest.json");
     }
@@ -565,6 +564,11 @@ public class Directories
     public File getSnapshotSchemaFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
+        return getSnapshotSchemaFile(snapshotDir);
+    }
+
+    public static File getSnapshotSchemaFile(File snapshotDir)
+    {
         return new File(snapshotDir, "schema.cql");
     }
 
@@ -639,6 +643,11 @@ public class Directories
         {
             long availableSpace = PathUtils.tryGetSpace(location.toPath(), FileStore::getUsableSpace) - DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
             return availableSpace > 0 ? availableSpace : 0;
+        }
+
+        public long getRawSize()
+        {
+            return FileUtils.folderSize(location);
         }
 
         @Override
@@ -977,8 +986,8 @@ public class Directories
     protected TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs) {
         Instant createdAt = manifest == null ? null : manifest.createdAt;
         Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-        return new TableSnapshot(metadata.keyspace, metadata.name, tag, createdAt, expiresAt, snapshotDirs,
-                                 this::getTrueAllocatedSizeIn);
+        return new TableSnapshot(metadata.keyspace, metadata.name, metadata.id.asUUID(), tag, createdAt, expiresAt,
+                                 snapshotDirs);
     }
 
     @VisibleForTesting
@@ -1112,10 +1121,7 @@ public class Directories
             }
             catch (FSWriteError e)
             {
-                if (FBUtilities.isWindows)
-                    SnapshotDeletingTask.addFailedSnapshot(snapshotDir);
-                else
-                    throw e;
+                throw e;
             }
         }
     }
@@ -1154,7 +1160,7 @@ public class Directories
         if (!snapshotDir.isDirectory())
             return 0;
 
-        SSTableSizeSummer visitor = new SSTableSizeSummer(snapshotDir, sstableLister(OnTxnErr.THROW).listFiles());
+        SSTableSizeSummer visitor = new SSTableSizeSummer(sstableLister(OnTxnErr.THROW).listFiles());
         try
         {
             Files.walkFileTree(snapshotDir.toPath(), visitor);
@@ -1202,6 +1208,24 @@ public class Directories
         return result;
     }
 
+    /**
+     * Initializes the sstable unique identifier generator using a provided builder for this instance of directories.
+     * If the id builder needs that, sstables in these directories are listed to provide the existing identifiers to
+     * the builder. The listing is done lazily so if the builder does not require that, listing is skipped.
+     */
+    public <T extends SSTableId> Supplier<T> getUIDGenerator(SSTableId.Builder<T> builder)
+    {
+        // this stream is evaluated lazily - if the generator does not need the existing ids, we do not even call #sstableLister
+        Stream<SSTableId> curIds = StreamSupport.stream(() -> sstableLister(Directories.OnTxnErr.IGNORE)
+                                                              .includeBackups(true)
+                                                              .list()
+                                                              .keySet()
+                                                              .spliterator(), Spliterator.DISTINCT, false)
+                                                .map(d -> d.id);
+
+        return builder.generator(curIds);
+    }
+
     private static File getOrCreate(File base, String... subdirs)
     {
         File dir = subdirs == null || subdirs.length == 0 ? base : new File(base, join(subdirs));
@@ -1224,11 +1248,10 @@ public class Directories
 
     private class SSTableSizeSummer extends DirectorySizeCalculator
     {
-        private final HashSet<File> toSkip;
-        SSTableSizeSummer(File path, List<File> files)
+        private final Set<String> toSkip;
+        SSTableSizeSummer(List<File> files)
         {
-            super(path);
-            toSkip = new HashSet<>(files);
+            toSkip = files.stream().map(File::name).collect(Collectors.toSet());
         }
 
         @Override
@@ -1239,7 +1262,7 @@ public class Directories
             return desc != null
                 && desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
-                && !toSkip.contains(file);
+                && !toSkip.contains(file.name());
         }
     }
 

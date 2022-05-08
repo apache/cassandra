@@ -56,6 +56,8 @@
         <resolver:remoterepos id="all">
             <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
             <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
+            <!-- Snapshots are not allowed, but for feature branches they may be needed, so uncomment the below to allow snapshots to work -->
+            <!-- <remoterepo id="resolver-apache-snapshot" url="https://repository.apache.org/content/repositories/snapshots" releases="false" snapshots="true" updates="always" checksums="fail" /> -->
         </resolver:remoterepos>
 
         <macrodef name="resolve">
@@ -223,9 +225,6 @@
             <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
             <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-linux.so"/>
             <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-solaris.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-amd64-winnt.dll"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-x86-winnt.dll"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-x86-winnt.lib"/>
         </get>
         
         <copy todir="${build.lib}" quiet="true">
@@ -254,9 +253,6 @@
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-6.so"/>
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-linux.so"/>
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-solaris.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/sigar-amd64-winnt.dll"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/sigar-x86-winnt.dll"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/sigar-x86-winnt.lib"/>
         </copy>
     </target>
 </project>

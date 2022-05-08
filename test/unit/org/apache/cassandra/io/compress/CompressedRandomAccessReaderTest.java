@@ -20,7 +20,7 @@ package org.apache.cassandra.io.compress;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.RandomAccessFile; //checkstyle: permit this import
 import java.util.Arrays;
 import java.util.Random;
 

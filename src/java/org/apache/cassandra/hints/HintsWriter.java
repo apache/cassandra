@@ -67,7 +67,7 @@ class HintsWriter implements AutoCloseable
     @SuppressWarnings("resource") // HintsWriter owns channel
     static HintsWriter create(File directory, HintsDescriptor descriptor) throws IOException
     {
-        File file = new File(directory, descriptor.fileName());
+        File file = descriptor.file(directory);
 
         FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         int fd = NativeLibrary.getfd(channel);
@@ -102,7 +102,7 @@ class HintsWriter implements AutoCloseable
 
     private void writeChecksum()
     {
-        File checksumFile = new File(directory, descriptor.checksumFileName());
+        File checksumFile = descriptor.checksumFile(directory);
         try (OutputStream out = Files.newOutputStream(checksumFile.toPath()))
         {
             out.write(Integer.toHexString((int) globalCRC.getValue()).getBytes(StandardCharsets.UTF_8));
@@ -284,7 +284,7 @@ class HintsWriter implements AutoCloseable
 
         private void maybeFsync()
         {
-            if (position() >= lastSyncPosition + DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024L)
+            if (position() >= lastSyncPosition + DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024L)
                 fsync();
         }
 
@@ -294,7 +294,7 @@ class HintsWriter implements AutoCloseable
 
             // don't skip page cache for tiny files, on the assumption that if they are tiny, the target node is probably
             // alive, and if so, the file will be closed and dispatched shortly (within a minute), and the file will be dropped.
-            if (position >= DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024L)
+            if (position >= DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024L)
                 NativeLibrary.trySkipCache(fd, 0, position - (position % PAGE_SIZE), file.path());
         }
     }

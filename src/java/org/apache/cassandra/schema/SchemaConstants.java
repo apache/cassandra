@@ -25,6 +25,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.Digest;
 
@@ -50,14 +51,18 @@ public final class SchemaConstants
     public static final Set<String> LOCAL_SYSTEM_KEYSPACE_NAMES =
         ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME);
 
+    /* virtual table system keyspace names */
+    public static final Set<String> VIRTUAL_SYSTEM_KEYSPACE_NAMES =
+        ImmutableSet.of(VIRTUAL_VIEWS, VIRTUAL_SCHEMA);
+
     /* replicate system keyspace names (the ones with a "true" replication strategy) */
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =
         ImmutableSet.of(TRACE_KEYSPACE_NAME, AUTH_KEYSPACE_NAME, DISTRIBUTED_KEYSPACE_NAME);
     /**
-     * longest permissible KS or CF name.  Our main concern is that filename not be more than 255 characters;
-     * the filename will contain both the KS and CF names. Since non-schema-name components only take up
-     * ~64 characters, we could allow longer names than this, but on Windows, the entire path should be not greater than
-     * 255 characters, so a lower limit here helps avoid problems.  See CASSANDRA-4110.
+     * The longest permissible KS or CF name.
+     *
+     * Before CASSANDRA-16956, we used to care about not having the entire path longer than 255 characters because of
+     * Windows support but this limit is by implementing CASSANDRA-16956 not in effect anymore.
      */
     public static final int NAME_LENGTH = 48;
 
@@ -81,7 +86,7 @@ public final class SchemaConstants
      */
     public static boolean isLocalSystemKeyspace(String keyspaceName)
     {
-        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
+        return LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase()) || isVirtualSystemKeyspace(keyspaceName);
     }
 
     /**
@@ -98,7 +103,7 @@ public final class SchemaConstants
      */
     public static boolean isVirtualSystemKeyspace(String keyspaceName)
     {
-        return VIRTUAL_SCHEMA.equals(keyspaceName.toLowerCase()) || VIRTUAL_VIEWS.equals(keyspaceName.toLowerCase());
+        return VIRTUAL_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
     }
 
     /**
@@ -107,8 +112,16 @@ public final class SchemaConstants
      */
     public static boolean isSystemKeyspace(String keyspaceName)
     {
-        return isLocalSystemKeyspace(keyspaceName)
-                || isReplicatedSystemKeyspace(keyspaceName)
-                || isVirtualSystemKeyspace(keyspaceName);
+        return isLocalSystemKeyspace(keyspaceName) // this includes vtables
+                || isReplicatedSystemKeyspace(keyspaceName);
+    }
+
+    /**
+     * Returns the set of all system keyspaces
+     * @return all system keyspaces
+     */
+    public static Set<String> getSystemKeyspaces()
+    {
+        return Sets.union(Sets.union(LOCAL_SYSTEM_KEYSPACE_NAMES, REPLICATED_SYSTEM_KEYSPACE_NAMES), VIRTUAL_SYSTEM_KEYSPACE_NAMES);
     }
 }

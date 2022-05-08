@@ -23,11 +23,17 @@ import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +57,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MD5Digest;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -89,6 +96,7 @@ public class ClientState
     // Current user for the session
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
+    private volatile boolean issuedPreparedStatementsUseWarning;
 
     private static final QueryHandler cqlQueryHandler;
     static
@@ -121,12 +129,23 @@ public class ClientState
     // Driver String for the client
     private volatile String driverName;
     private volatile String driverVersion;
+    
+    // Options provided by the client
+    private volatile Map<String,String> clientOptions;
 
     // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to ensure that the
     // timestamp assigned are strictly monotonic on a node, which is likely what user expect intuitively (more likely,
     // most new user will intuitively expect timestamp to be strictly monotonic cluster-wise, but while that last part
     // is unrealistic expectation, doing it node-wise is easy).
     private static final AtomicLong lastTimestampMicros = new AtomicLong(0);
+
+    @VisibleForTesting
+    public static void resetLastTimestamp(long nowMillis)
+    {
+        long nowMicros = TimeUnit.MILLISECONDS.toMicros(nowMillis);
+        if (lastTimestampMicros.get() > nowMicros)
+            lastTimestampMicros.set(nowMicros);
+    }
 
     /**
      * Construct a new, empty ClientState for internal calls.
@@ -153,6 +172,7 @@ public class ClientState
         this.keyspace = source.keyspace;
         this.driverName = source.driverName;
         this.driverVersion = source.driverVersion;
+        this.clientOptions = source.clientOptions;
     }
 
     /**
@@ -243,7 +263,7 @@ public class ClientState
      * with a clock in the future compared to the local one), we use the last proposal timestamp plus 1, ensuring
      * progress.
      *
-     * @param minTimestampToUse the max timestamp of the last proposal accepted by replica having responded
+     * @param minUnixMicros the max timestamp of the last proposal accepted by replica having responded
      * to the prepare phase of the paxos round this is for. In practice, that's the minimum timestamp this method
      * may return.
      * @return a timestamp suitable for a Paxos proposal (using the reasoning described above). Note that
@@ -252,18 +272,18 @@ public class ClientState
      * it may be returned multiple times). Note that we still ensure Paxos "ballot" are unique (for different
      * proposal) by (securely) randomizing the non-timestamp part of the UUID.
      */
-    public static long getTimestampForPaxos(long minTimestampToUse)
+    public static long getTimestampForPaxos(long minUnixMicros)
     {
         while (true)
         {
-            long current = Math.max(currentTimeMillis() * 1000, minTimestampToUse);
+            long current = Math.max(currentTimeMillis() * 1000, minUnixMicros);
             long last = lastTimestampMicros.get();
             long tstamp = last >= current ? last + 1 : current;
             // Note that if we ended up picking minTimestampMicrosToUse (it was "in the future"), we don't
             // want to change the local clock, otherwise a single node in the future could corrupt the clock
             // of all nodes and for all inserts (since non-paxos inserts also use lastTimestampMicros).
             // See CASSANDRA-11991
-            if (tstamp == minTimestampToUse || lastTimestampMicros.compareAndSet(last, tstamp))
+            if (tstamp == minUnixMicros || lastTimestampMicros.compareAndSet(last, tstamp))
                 return tstamp;
         }
     }
@@ -283,6 +303,11 @@ public class ClientState
         return Optional.ofNullable(driverVersion);
     }
 
+    public Optional<Map<String,String>> getClientOptions()
+    {
+        return Optional.ofNullable(clientOptions);
+    }
+
     public void setDriverName(String driverName)
     {
         this.driverName = driverName;
@@ -291,6 +316,11 @@ public class ClientState
     public void setDriverVersion(String driverVersion)
     {
         this.driverVersion = driverVersion;
+    }
+    
+    public void setClientOptions(Map<String,String> clientOptions)
+    {
+        this.clientOptions = ImmutableMap.copyOf(clientOptions);
     }
 
     public static QueryHandler getCQLQueryHandler()
@@ -525,6 +555,18 @@ public class ClientState
             throw new UnauthorizedException(message);
     }
 
+    public void warnAboutUseWithPreparedStatements(MD5Digest statementId, String preparedKeyspace)
+    {
+        if (!issuedPreparedStatementsUseWarning)
+        {
+            ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements is considered to be an anti-pattern due to ambiguity in non-qualified table names. " +
+                                                   "Please consider removing instances of `Session#setKeyspace(<keyspace>)`, `Session#execute(\"USE <keyspace>\")` and `cluster.newSession(<keyspace>)` from your code, and " +
+                                                   "always use fully qualified table names (e.g. <keyspace>.<table>). " +
+                                                   "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
+            issuedPreparedStatementsUseWarning = true;
+        }
+    }
+
     private static void validateKeyspace(String keyspace)
     {
         if (keyspace == null)
@@ -540,4 +582,5 @@ public class ClientState
     {
         return user.getPermissions(resource);
     }
+
 }

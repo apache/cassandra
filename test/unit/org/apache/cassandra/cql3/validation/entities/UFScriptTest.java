@@ -38,7 +38,9 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class UFScriptTest extends CQLTester
 {
@@ -323,7 +325,7 @@ public class UFScriptTest extends CQLTester
     public void testScriptParamReturnTypes() throws Throwable
     {
         UUID ruuid = UUID.randomUUID();
-        UUID tuuid = UUIDGen.getTimeUUID();
+        TimeUUID tuuid = nextTimeUUID();
 
         createTable("CREATE TABLE %s (key int primary key, " +
                     "tival tinyint, sival smallint, ival int, lval bigint, fval float, dval double, vval varint, ddval decimal, " +

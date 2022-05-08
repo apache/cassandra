@@ -43,6 +43,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
@@ -52,6 +53,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.String.format;
 
@@ -168,7 +170,7 @@ public final class SystemDistributedKeyspace
         return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable));
     }
 
-    public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
+    public static void startParentRepair(TimeUUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
     {
         Collection<Range<Token>> ranges = options.getRanges();
         String query = "INSERT INTO %s.%s (parent_id, keyspace_name, columnfamily_names, requested_ranges, started_at,          options)"+
@@ -202,7 +204,7 @@ public final class SystemDistributedKeyspace
         return map.toString();
     }
 
-    public static void failParentRepair(UUID parent_id, Throwable t)
+    public static void failParentRepair(TimeUUID parent_id, Throwable t)
     {
         String query = "UPDATE %s.%s SET finished_at = toTimestamp(now()), exception_message=?, exception_stacktrace=? WHERE parent_id=%s";
 
@@ -214,14 +216,14 @@ public final class SystemDistributedKeyspace
         processSilent(fmtQuery, message != null ? message : "", sw.toString());
     }
 
-    public static void successfulParentRepair(UUID parent_id, Collection<Range<Token>> successfulRanges)
+    public static void successfulParentRepair(TimeUUID parent_id, Collection<Range<Token>> successfulRanges)
     {
         String query = "UPDATE %s.%s SET finished_at = toTimestamp(now()), successful_ranges = {'%s'} WHERE parent_id=%s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARENT_REPAIR_HISTORY, Joiner.on("','").join(successfulRanges), parent_id.toString());
         processSilent(fmtQuery);
     }
 
-    public static void startRepairs(UUID id, UUID parent_id, String keyspaceName, String[] cfnames, CommonRange commonRange)
+    public static void startRepairs(TimeUUID id, TimeUUID parent_id, String keyspaceName, String[] cfnames, CommonRange commonRange)
     {
         // Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
         // due to schema differences
@@ -282,13 +284,13 @@ public final class SystemDistributedKeyspace
         }
     }
 
-    public static void failRepairs(UUID id, String keyspaceName, String[] cfnames, Throwable t)
+    public static void failRepairs(TimeUUID id, String keyspaceName, String[] cfnames, Throwable t)
     {
         for (String cfname : cfnames)
             failedRepairJob(id, keyspaceName, cfname, t);
     }
 
-    public static void successfulRepairJob(UUID id, String keyspaceName, String cfname)
+    public static void successfulRepairJob(TimeUUID id, String keyspaceName, String cfname)
     {
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()) WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
@@ -299,7 +301,7 @@ public final class SystemDistributedKeyspace
         processSilent(fmtQuery);
     }
 
-    public static void failedRepairJob(UUID id, String keyspaceName, String cfname, Throwable t)
+    public static void failedRepairJob(TimeUUID id, String keyspaceName, String cfname, Throwable t)
     {
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()), exception_message=?, exception_stacktrace=? WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         StringWriter sw = new StringWriter();
@@ -367,7 +369,7 @@ public final class SystemDistributedKeyspace
     {
         String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
         QueryProcessor.executeInternal(format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
-        forceBlockingFlush(VIEW_BUILD_STATUS);
+        forceBlockingFlush(VIEW_BUILD_STATUS, ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
     }
 
     private static void processSilent(String fmtQry, String... values)
@@ -379,7 +381,7 @@ public final class SystemDistributedKeyspace
             {
                 valueList.add(bytes(v));
             }
-            QueryProcessor.process(fmtQry, ConsistencyLevel.ONE, valueList);
+            QueryProcessor.process(fmtQry, ConsistencyLevel.ANY, valueList);
         }
         catch (Throwable t)
         {
@@ -387,10 +389,12 @@ public final class SystemDistributedKeyspace
         }
     }
 
-    public static void forceBlockingFlush(String table)
+    public static void forceBlockingFlush(String table, ColumnFamilyStore.FlushReason reason)
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
-            FBUtilities.waitOnFuture(Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(table).forceFlush());
+            FBUtilities.waitOnFuture(Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
+                                             .getColumnFamilyStore(table)
+                                             .forceFlush(reason));
     }
 
     private enum RepairState

@@ -20,7 +20,6 @@ package org.apache.cassandra.db.repair;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -29,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -46,6 +46,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 
 @Ignore
 public abstract class AbstractPendingAntiCompactionTest
@@ -109,14 +110,14 @@ public abstract class AbstractPendingAntiCompactionTest
             int val = i * rowsPerSSTable;  // multiplied to prevent ranges from overlapping
             for (int j = 0; j < rowsPerSSTable; j++)
                 QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (?, ?)", ks, cfs.getTableName()), val + j, val + j);
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
         Assert.assertEquals(num, cfs.getLiveSSTables().size());
     }
 
-    UUID prepareSession()
+    TimeUUID prepareSession()
     {
-        UUID sessionID = AbstractRepairTest.registerSession(cfs, true, true);
+        TimeUUID sessionID = AbstractRepairTest.registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(sessionID, AbstractRepairTest.COORDINATOR, Sets.newHashSet(AbstractRepairTest.COORDINATOR));
         return sessionID;
     }

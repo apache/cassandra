@@ -32,6 +32,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.Tables;
 
 import static org.apache.cassandra.cql3.QueryProcessor.process;
@@ -69,9 +70,9 @@ public class PartitionDenylistTest
                                        + "value text, "
                                        + "PRIMARY KEY((keyone, keytwo), keythree) ) ", ks_cql).build()
         ));
-        Schema.instance.load(schema);
-        DatabaseDescriptor.setEnablePartitionDenylist(true);
-        DatabaseDescriptor.setEnableDenylistRangeReads(true);
+        SchemaTestUtil.addOrUpdateKeyspace(schema, false);
+        DatabaseDescriptor.setPartitionDenylistEnabled(true);
+        DatabaseDescriptor.setDenylistRangeReadsEnabled(true);
         DatabaseDescriptor.setDenylistConsistencyLevel(ConsistencyLevel.ONE);
         DatabaseDescriptor.setDenylistRefreshSeconds(1);
         StorageService.instance.initServer(0);
@@ -80,7 +81,7 @@ public class PartitionDenylistTest
     @Before
     public void setup()
     {
-        DatabaseDescriptor.setEnablePartitionDenylist(true);
+        DatabaseDescriptor.setPartitionDenylistEnabled(true);
         resetDenylist();
 
         process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('aaa', 'bbb', 'ccc', 'ddd', 'v')", ConsistencyLevel.ONE);
@@ -282,7 +283,7 @@ public class PartitionDenylistTest
         process(String.format("TRUNCATE TABLE %s.table2", ks_cql), ConsistencyLevel.ONE);
         process(String.format("TRUNCATE TABLE %s.table3", ks_cql), ConsistencyLevel.ONE);
         denyAllKeys();
-        DatabaseDescriptor.setEnablePartitionDenylist(false);
+        DatabaseDescriptor.setPartitionDenylistEnabled(false);
         process("INSERT INTO " + ks_cql + ".table1 (keyone, keytwo, qux, quz, foo) VALUES ('bbb', 'ccc', 'eee', 'fff', 'w')", ConsistencyLevel.ONE);
         process("SELECT * FROM " + ks_cql + ".table1 WHERE keyone='bbb' and keytwo='ccc'", ConsistencyLevel.ONE);
         process("SELECT * FROM " + ks_cql + ".table1", ConsistencyLevel.ONE);

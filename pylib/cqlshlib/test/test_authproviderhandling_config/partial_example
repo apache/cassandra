@@ -1,0 +1,8 @@
+; Config for a custom auth provider that uses only the auth_provider field
+; NoUserNamePlainTextAuthProvider is a PlainTextAuthProvider in the driver which 
+; doesn't take a username or password.
+; used by unit testing
+
+[auth_provider]
+module = cqlshlib.test.test_authproviderhandling
+classname = NoUserNamePlainTextAuthProvider

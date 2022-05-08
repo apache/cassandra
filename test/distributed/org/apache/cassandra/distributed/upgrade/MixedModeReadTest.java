@@ -40,8 +40,8 @@ public class MixedModeReadTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(1)
         // all upgrades from v30 up, excluding v30->v3X and from v40
-        .singleUpgrade(v30, v40)
-	      .singleUpgrade(v3X, v40)
+        .singleUpgrade(v30)
+        .singleUpgrade(v3X)
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
             insertData(cluster.coordinator(1));

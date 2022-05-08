@@ -87,7 +87,7 @@ public class StandaloneScrubber
         try
         {
             // load keyspace descriptions.
-            Schema.instance.loadFromDisk(false);
+            Schema.instance.loadFromDisk();
 
             if (Schema.instance.getKeyspaceMetadata(options.keyspaceName) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace %s", options.keyspaceName));
@@ -262,7 +262,7 @@ public class StandaloneScrubber
     {
         if (strategyManager.getCompactionParams().klass().equals(LeveledCompactionStrategy.class))
         {
-            int maxSizeInMB = (int)((cfs.getCompactionStrategyManager().getMaxSSTableBytes()) / (1024L * 1024L));
+            int maxSizeInMiB = (int)((cfs.getCompactionStrategyManager().getMaxSSTableBytes()) / (1024L * 1024L));
             int fanOut = cfs.getCompactionStrategyManager().getLevelFanoutSize();
             for (AbstractStrategyHolder.GroupedSSTableContainer sstableGroup : strategyManager.groupSSTables(sstables))
             {
@@ -270,7 +270,7 @@ public class StandaloneScrubber
                 {
                     List<SSTableReader> groupSSTables = new ArrayList<>(sstableGroup.getGroup(i));
                     // creating the manifest makes sure the leveling is sane:
-                    LeveledManifest.create(cfs, maxSizeInMB, fanOut, groupSSTables);
+                    LeveledManifest.create(cfs, maxSizeInMiB, fanOut, groupSSTables);
                 }
             }
         }

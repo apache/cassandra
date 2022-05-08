@@ -24,21 +24,13 @@
 ################################
 
 WORKSPACE=$1
-PYTHON_VERSION=$2
 
 if [ "${WORKSPACE}" = "" ]; then
     echo "Specify Cassandra source directory"
     exit
 fi
 
-if [ "${PYTHON_VERSION}" = "" ]; then
-    PYTHON_VERSION=python3
-fi
-
-if [ "${PYTHON_VERSION}" != "python3" -a "${PYTHON_VERSION}" != "python2" ]; then
-    echo "Specify Python version python3 or python2"
-    exit
-fi
+PYTHON_VERSION=python3
 
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
@@ -101,8 +93,8 @@ fi
 
 ccm remove test || true # in case an old ccm cluster is left behind
 ccm create test -n 1 --install-dir=${CASSANDRA_DIR}
-ccm updateconf "enable_user_defined_functions: true"
-ccm updateconf "enable_scripted_user_defined_functions: true"
+ccm updateconf "user_defined_functions_enabled: true"
+ccm updateconf "scripted_user_defined_functions_enabled: true"
 
 version_from_build=$(ccm node1 versionfrombuild)
 export pre_or_post_cdc=$(python -c """from distutils.version import LooseVersion
@@ -126,14 +118,13 @@ ccm start --wait-for-binary-proto
 cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
-nosetests
+pytest --junitxml=${WORKSPACE}/cqlshlib.xml
 RETURN="$?"
 
+sed -i "s/testsuite errors=\(\".*\"\) failures=\(\".*\"\) hostname=\(\".*\"\) name=\"pytest\"/testsuite errors=\1 failures=\2 hostname=\3 name=\"${TESTSUITE_NAME}\"/g" ${WORKSPACE}/cqlshlib.xml
+sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" ${WORKSPACE}/cqlshlib.xml
+
 ccm remove
-# hack around --xunit-prefix-with-testsuite-name not being available in nose 1.3.7
-sed -i "s/testsuite name=\"nosetests\"/testsuite name=\"${TESTSUITE_NAME}\"/g" nosetests.xml
-sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" nosetests.xml
-mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
 
 ################################
 #

@@ -28,6 +28,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -51,16 +54,19 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.service.paxos.BallotGenerator;
+import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
+import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /*
@@ -275,6 +281,25 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             Guardrails.userTimestampsEnabled.ensureEnabled(state);
     }
 
+    public void validateDiskUsage(QueryOptions options, ClientState state)
+    {
+        // reject writes if any replica exceeds disk usage failure limit or warn if it exceeds warn limit
+        if (Guardrails.replicaDiskUsage.enabled(state) && DiskUsageBroadcaster.instance.hasStuffedOrFullNode())
+        {
+            Keyspace keyspace = Keyspace.open(keyspace());
+
+            for (ByteBuffer key : buildPartitionKeyNames(options, state))
+            {
+                Token token = metadata().partitioner.getToken(key);
+
+                for (Replica replica : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token).all())
+                {
+                    Guardrails.replicaDiskUsage.guard(replica.endpoint(), state);
+                }
+            }
+        }
+    }
+
     public RegularAndStaticColumns updatedColumns()
     {
         return updatedColumns;
@@ -330,23 +355,23 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return conditions.isIfExists();
     }
 
-    public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options)
+    public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options, ClientState state)
     throws InvalidRequestException
     {
-        List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options);
+        List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options, state);
         for (ByteBuffer key : partitionKeys)
             QueryProcessor.validateKey(key);
 
         return partitionKeys;
     }
 
-    public NavigableSet<Clustering<?>> createClustering(QueryOptions options)
+    public NavigableSet<Clustering<?>> createClustering(QueryOptions options, ClientState state)
     throws InvalidRequestException
     {
         if (appliesOnlyToStaticColumns() && !restrictions.hasClusteringColumnsRestrictions())
             return FBUtilities.singleton(CBuilder.STATIC_BUILDER.build(), metadata().comparator);
 
-        return restrictions.getClusteringColumns(options);
+        return restrictions.getClusteringColumns(options, state);
     }
 
     /**
@@ -410,7 +435,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            metadata().partitioner.decorateKey(key),
                                                            filter));
 
-        SinglePartitionReadCommand.Group group = new SinglePartitionReadCommand.Group(commands, DataLimits.NONE);
+        SinglePartitionReadCommand.Group group = SinglePartitionReadCommand.Group.create(commands, DataLimits.NONE);
 
         if (local)
         {
@@ -458,6 +483,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
+        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
+                                                queryState.getClientState());
+
         return hasConditions()
              ? executeWithCondition(queryState, options, queryStartNanoTime)
              : executeWithoutCondition(queryState, options, queryStartNanoTime);
@@ -474,6 +502,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             cl.validateCounterForWrite(metadata());
         else
             cl.validateForWrite();
+
+        validateDiskUsage(options, queryState.getClientState());
 
         List<? extends IMutation> mutations =
             getMutations(queryState.getClientState(),
@@ -508,7 +538,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private CQL3CasRequest makeCasRequest(QueryState queryState, QueryOptions options)
     {
-        List<ByteBuffer> keys = buildPartitionKeyNames(options);
+        ClientState clientState = queryState.getClientState();
+        List<ByteBuffer> keys = buildPartitionKeyNames(options, clientState);
         // We don't support IN for CAS operation so far
         checkFalse(restrictions.keyIsInRelation(),
                    "IN on the partition key is not supported with conditional %s",
@@ -522,7 +553,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                    "IN on the clustering key columns is not supported with conditional %s",
                     type.isUpdate()? "updates" : "deletions");
 
-        Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options));
+        Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options, clientState));
         CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow());
 
         addConditions(clustering, request, options);
@@ -657,7 +688,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     static RowIterator casInternal(ClientState state, CQL3CasRequest request, long timestamp, int nowInSeconds)
     {
-        UUID ballot = UUIDGen.getTimeUUIDFromMicros(timestamp);
+        Ballot ballot = BallotGenerator.Global.atUnixMicros(timestamp, NONE);
 
         SinglePartitionReadQuery readCommand = request.readCommand(nowInSeconds);
         FilteredPartition current;
@@ -670,10 +701,10 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (!request.appliesTo(current))
             return current.rowIterator();
 
-        PartitionUpdate updates = request.makeUpdates(current, state);
+        PartitionUpdate updates = request.makeUpdates(current, state, ballot);
         updates = TriggerExecutor.instance.execute(updates);
 
-        Commit proposal = Commit.newProposal(ballot, updates);
+        Proposal proposal = Proposal.of(ballot, updates);
         proposal.makeMutation().apply();
         return null;
     }
@@ -695,7 +726,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    int nowInSeconds,
                                                    long queryStartNanoTime)
     {
-        List<ByteBuffer> keys = buildPartitionKeyNames(options);
+        List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
         HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
         SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
         addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, queryStartNanoTime);
@@ -741,7 +772,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
         else
         {
-            NavigableSet<Clustering<?>> clusterings = createClustering(options);
+            NavigableSet<Clustering<?>> clusterings = createClustering(options, state);
 
             // If some of the restrictions were unspecified (e.g. empty IN restrictions) we do not need to do anything.
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
@@ -784,7 +815,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
     }
 
-    Slices createSlices(QueryOptions options)
+    public Slices createSlices(QueryOptions options)
     {
         SortedSet<ClusteringBound<?>> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
         SortedSet<ClusteringBound<?>> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
@@ -855,9 +886,19 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private Slices toSlices(SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
     {
+        return toSlices(metadata, startBounds, endBounds);
+    }
+
+    public static Slices toSlices(TableMetadata metadata, SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
+    {
+        return toSlices(metadata.comparator, startBounds, endBounds);
+    }
+
+    public static Slices toSlices(ClusteringComparator comparator, SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
+    {
         assert startBounds.size() == endBounds.size();
 
-        Slices.Builder builder = new Slices.Builder(metadata().comparator);
+        Slices.Builder builder = new Slices.Builder(comparator);
 
         Iterator<ClusteringBound<?>> starts = startBounds.iterator();
         Iterator<ClusteringBound<?>> ends = endBounds.iterator();
@@ -865,7 +906,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         while (starts.hasNext())
         {
             Slice slice = Slice.make(starts.next(), ends.next());
-            if (!slice.isEmpty(metadata().comparator))
+            if (!slice.isEmpty(comparator))
             {
                 builder.add(slice);
             }

@@ -18,25 +18,35 @@
 
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.ReplicaCollection;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class StorageServiceTest
@@ -93,6 +103,7 @@ public class StorageServiceTest
         };
 
         DatabaseDescriptor.setEndpointSnitch(snitch);
+        CommitLog.instance.start();
     }
 
     private AbstractReplicationStrategy simpleStrategy(TokenMetadata tmd)
@@ -155,5 +166,28 @@ public class StorageServiceTest
         expectedResult.put(new Replica(aAddress, eRange, true), new Replica(cAddress, eRange, false));
         expectedResult.put(new Replica(aAddress, dRange, false), new Replica(bAddress, dRange, false));
         assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
+    }
+
+    @Test
+    public void testScheduledExecutorsShutdownOnDrain() throws Throwable
+    {
+        final AtomicInteger numberOfRuns = new AtomicInteger(0);
+
+        ScheduledFuture<?> f = ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(numberOfRuns::incrementAndGet,
+                                                                                     0, 1, SECONDS);
+
+        // Prove the task was scheduled more than once before checking cancelled.
+        await("first run").atMost(1, MINUTES).until(() -> numberOfRuns.get() > 1);
+
+        assertFalse(f.isCancelled());
+        StorageService.instance.drain();
+        assertTrue(f.isCancelled());
+
+        assertTrue(ScheduledExecutors.scheduledTasks.isTerminated());
+        assertTrue(ScheduledExecutors.nonPeriodicTasks.isTerminated());
+        assertTrue(ScheduledExecutors.optionalTasks.isTerminated());
+
+        // fast tasks are shut down as part of the Runtime shutdown hook.
+        assertFalse(ScheduledExecutors.scheduledFastTasks.isTerminated());
     }
 }

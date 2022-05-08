@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.buffer.ByteBuf;
@@ -79,8 +78,10 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
 /**
- * Please ensure that this benchmark is run with entire_sstable_stream_throughput_outbound_megabits_per_sec
+ * Please ensure that this benchmark is run with entire_sstable_stream_throughput_outbound
  * set to a really high value otherwise, throttling will kick in and the results will not be meaningful.
  */
 @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
@@ -202,7 +203,7 @@ public class ZeroCopyStreamingBenchmark
                 .build()
                 .applyUnsafe();
             }
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
             CompactionManager.instance.performMaximal(store, false);
         }
 
@@ -217,7 +218,7 @@ public class ZeroCopyStreamingBenchmark
         private StreamSession setupStreamingSessionForTest()
         {
             StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new NettyStreamingConnectionFactory(), false, false, null, PreviewKind.NONE);
-            StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
+            StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
             InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
             streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED));
@@ -241,7 +242,7 @@ public class ZeroCopyStreamingBenchmark
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
-    public void blockStreamReader(BenchmarkState state) throws Exception
+    public void blockStreamReader(BenchmarkState state) throws Throwable
     {
         EmbeddedChannel channel = createMockNettyChannel();
         AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);
@@ -265,7 +266,7 @@ public class ZeroCopyStreamingBenchmark
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
-    public void partialStreamReader(BenchmarkState state) throws Exception
+    public void partialStreamReader(BenchmarkState state) throws Throwable
     {
         EmbeddedChannel channel = createMockNettyChannel();
         AsyncStreamingInputPlus in = new AsyncStreamingInputPlus(channel);

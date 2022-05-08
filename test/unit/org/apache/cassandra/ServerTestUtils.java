@@ -131,11 +131,10 @@ public final class ServerTestUtils
     }
 
     /**
-     * Cleanup the directories used by the server, creating them if they do not exists.
+     * Cleanup the directories used by the server, creating them if they do not exist.
      */
     public static void cleanupAndLeaveDirs() throws IOException
     {
-        // We need to stop and unmap all CLS instances prior to cleanup() or we'll get failures on Windows.
         CommitLog.instance.stopUnsafe(true);
         mkdirs(); // Creates the directories if they does not exists
         cleanup(); // Ensure that the directories are all empty
@@ -173,7 +172,8 @@ public final class ServerTestUtils
 
     private static void cleanupDirectory(String dirName)
     {
-        cleanupDirectory(new File(dirName));
+        if (dirName != null)
+            cleanupDirectory(new File(dirName));
     }
 
     /**

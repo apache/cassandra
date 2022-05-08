@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.collect.*;
 
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.*;
@@ -35,7 +36,10 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -177,7 +181,7 @@ public class CQL3CasRequest implements CASRequest
         return new RegularAndStaticColumns(statics, regulars);
     }
 
-    public SinglePartitionReadQuery readCommand(int nowInSec)
+    public SinglePartitionReadCommand readCommand(int nowInSec)
     {
         assert staticConditions != null || !conditions.isEmpty();
 
@@ -187,7 +191,7 @@ public class CQL3CasRequest implements CASRequest
         // With only a static condition, we still want to make the distinction between a non-existing partition and one
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.
         if (conditions.isEmpty())
-            return SinglePartitionReadQuery.create(metadata,
+            return SinglePartitionReadCommand.create(metadata,
                                                    nowInSec,
                                                    columnFilter,
                                                    RowFilter.NONE,
@@ -196,7 +200,7 @@ public class CQL3CasRequest implements CASRequest
                                                    new ClusteringIndexSliceFilter(Slices.ALL, false));
 
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(conditions.navigableKeySet(), false);
-        return SinglePartitionReadQuery.create(metadata, nowInSec, key, columnFilter, filter);
+        return SinglePartitionReadCommand.create(metadata, nowInSec, key, columnFilter, filter);
     }
 
     /**
@@ -229,18 +233,37 @@ public class CQL3CasRequest implements CASRequest
         return builder.build();
     }
 
-    public PartitionUpdate makeUpdates(FilteredPartition current, ClientState state) throws InvalidRequestException
+    public PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException
     {
         PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(metadata, key, updatedColumns(), conditions.size());
+        long timeUuidNanos = 0;
         for (RowUpdate upd : updates)
-            upd.applyUpdates(current, updateBuilder, state);
+            timeUuidNanos = upd.applyUpdates(current, updateBuilder, clientState, ballot.msb(), timeUuidNanos);
         for (RangeDeletion upd : rangeDeletions)
-            upd.applyUpdates(current, updateBuilder, state);
+            upd.applyUpdates(current, updateBuilder, clientState);
 
         PartitionUpdate partitionUpdate = updateBuilder.build();
         IndexRegistry.obtain(metadata).validate(partitionUpdate);
 
         return partitionUpdate;
+    }
+
+    private static class CASUpdateParameters extends UpdateParameters
+    {
+        final long timeUuidMsb;
+        long timeUuidNanos;
+
+        public CASUpdateParameters(TableMetadata metadata, RegularAndStaticColumns updatedColumns, ClientState state, QueryOptions options, long timestamp, int nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
+        {
+            super(metadata, updatedColumns, state, options, timestamp, nowInSec, ttl, prefetchedRows);
+            this.timeUuidMsb = timeUuidMsb;
+            this.timeUuidNanos = timeUuidNanos;
+        }
+
+        public byte[] nextTimeUUIDAsBytes()
+        {
+            return TimeUUID.toBytes(timeUuidMsb, TimeUUIDType.signedBytesToNativeLong(timeUuidNanos++));
+        }
     }
 
     /**
@@ -266,19 +289,14 @@ public class CQL3CasRequest implements CASRequest
             this.nowInSeconds = nowInSeconds;
         }
 
-        void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder, ClientState state)
+        long applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder, ClientState state, long timeUuidMsb, long timeUuidNanos)
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
-            UpdateParameters params =
-                new UpdateParameters(metadata,
-                                     updateBuilder.columns(),
-                                     state,
-                                     options,
-                                     timestamp,
-                                     nowInSeconds,
-                                     stmt.getTimeToLive(options),
-                                     map);
+            CASUpdateParameters params =
+                new CASUpdateParameters(metadata, updateBuilder.columns(), state, options, timestamp, nowInSeconds,
+                                     stmt.getTimeToLive(options), map, timeUuidMsb, timeUuidNanos);
             stmt.addUpdateForKey(updateBuilder, clustering, params);
+            return params.timeUuidNanos;
         }
     }
 

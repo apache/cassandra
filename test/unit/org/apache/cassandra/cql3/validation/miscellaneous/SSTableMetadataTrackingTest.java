@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.validation.miscellaneous;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -40,7 +41,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c text, PRIMARY KEY (a, b))");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("INSERT INTO %s (a,b,c) VALUES (1,1,'1') using timestamp 9999");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime);
@@ -57,7 +58,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("INSERT INTO %s (a,b,c) VALUES (1,1,'1') using timestamp 10000");
         execute("DELETE FROM %s USING TIMESTAMP 9999 WHERE a = 1 and b = 1");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(10000, metadata.maxTimestamp);
@@ -76,7 +77,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("INSERT INTO %s (a,b,c) VALUES (1,1,'1') using timestamp 10000");
         execute("DELETE FROM %s USING TIMESTAMP 9999 WHERE a = 1");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(10000, metadata.maxTimestamp);
@@ -95,7 +96,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c text, PRIMARY KEY (a, b)) WITH gc_grace_seconds = 10000");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("DELETE FROM %s USING TIMESTAMP 9999 WHERE a = 1 and b = 1");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
@@ -115,7 +116,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("DELETE FROM %s USING TIMESTAMP 9999 WHERE a = 1");
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
@@ -135,7 +136,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("INSERT INTO %s (a) VALUES (1) USING TIMESTAMP 9999");
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
@@ -154,7 +155,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         createTable("CREATE TABLE %s (a int, PRIMARY KEY (a))");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         execute("DELETE FROM %s USING TIMESTAMP 9999 WHERE a=1");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);

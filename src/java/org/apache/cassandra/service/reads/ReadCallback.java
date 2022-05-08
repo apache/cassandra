@@ -42,9 +42,9 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
-import org.apache.cassandra.service.reads.trackwarnings.WarningContext;
-import org.apache.cassandra.service.reads.trackwarnings.WarningsSnapshot;
+import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
+import org.apache.cassandra.service.reads.thresholds.WarningContext;
+import org.apache.cassandra.service.reads.thresholds.WarningsSnapshot;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -55,7 +55,7 @@ import static org.apache.cassandra.tracing.Tracing.isTracing;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements RequestCallback<ReadResponse>
+public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<ReadResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger(ReadCallback.class);
 
@@ -81,7 +81,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         this.resolver = resolver;
         this.queryStartNanoTime = queryStartNanoTime;
         this.replicaPlan = replicaPlan;
-        this.blockFor = replicaPlan.get().blockFor();
+        this.blockFor = replicaPlan.get().readQuorum();
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
         assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan().contacts().size();

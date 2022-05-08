@@ -16,10 +16,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import division, unicode_literals, print_function
-
 import cmd
 import codecs
+import configparser
 import csv
 import errno
 import getpass
@@ -28,26 +27,27 @@ import os
 import platform
 import re
 import stat
+import subprocess
 import sys
 import traceback
 import warnings
 import webbrowser
 from contextlib import contextmanager
 from glob import glob
+from io import StringIO
 from uuid import UUID
 
-if sys.version_info < (3, 6) and sys.version_info[0:2] != (2, 7):
-    sys.exit("\ncqlsh requires Python 3.6+ or Python 2.7 (deprecated)\n")
+if sys.version_info < (3, 6):
+    sys.exit("\ncqlsh requires Python 3.6+\n")
 
 # see CASSANDRA-10428
 if platform.python_implementation().startswith('Jython'):
     sys.exit("\nCQL Shell does not run on Jython\n")
 
 UTF8 = 'utf-8'
-CP65001 = 'cp65001'  # Win utf-8 variant
 
 description = "CQL Shell for Apache Cassandra"
-version = "6.0.0"
+version = "6.1.0"
 
 readline = None
 try:
@@ -92,14 +92,8 @@ if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ
 # use bundled lib for python-cql if available. if there
 # is a ../lib dir, use bundled libs there preferentially.
 ZIPLIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
-myplatform = platform.system()
-is_win = myplatform == 'Windows'
 
-# Workaround for supporting CP65001 encoding on python < 3.3 (https://bugs.python.org/issue13216)
-if is_win and sys.version_info < (3, 3):
-    codecs.register(lambda name: codecs.lookup(UTF8) if name == CP65001 else None)
-
-if myplatform == 'Linux':
+if platform.system() == 'Linux':
     ZIPLIB_DIRS.append('/usr/share/cassandra/lib')
 
 if os.environ.get('CQLSH_NO_BUNDLED', ''):
@@ -118,19 +112,13 @@ if cql_zip:
     ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
     sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
 
-third_parties = ('futures-', 'six-', 'geomet-')
+# the driver needs dependencies
+third_parties = ('six-', 'puresasl-')
 
 for lib in third_parties:
     lib_zip = find_zip(lib)
     if lib_zip:
         sys.path.insert(0, lib_zip)
-
-# We cannot import six until we add its location to sys.path so the Python
-# interpreter can find it. Do not move this to the top.
-import six
-
-from six.moves import configparser, input
-from six import StringIO, ensure_text, ensure_str
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
@@ -146,8 +134,7 @@ from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from cassandra.cqltypes import cql_typename
 from cassandra.marshal import int64_unpack
-from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata,
-                                TableMetadata, protect_name, protect_names)
+from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata, TableMetadata)
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.query import SimpleStatement, ordered_dict_factory, TraceUnavailable
 from cassandra.util import datetime_from_timestamp
@@ -158,15 +145,17 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cql3handling, cqlhandling, pylexotron, sslhandling, cqlshhandling
+from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling, authproviderhandling
 from cqlshlib.copyutil import ExportTask, ImportTask
 from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
                                  RED, WHITE, FormattedValue, colorme)
 from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  DEFAULT_TIMESTAMP_FORMAT, CqlType, DateTimeFormat,
-                                 format_by_type, formatter_for)
+                                 format_by_type)
 from cqlshlib.tracing import print_trace, print_trace_session
-from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
+from cqlshlib.util import get_file_encoding_bomsize
+from cqlshlib.util import is_file_secure
+
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
@@ -211,7 +200,7 @@ parser.add_option('--debug', action='store_true',
 parser.add_option('--coverage', action='store_true',
                   help='Collect coverage data')
 parser.add_option("--encoding", help="Specify a non-default encoding for output."
-                  " (Default: %s)" % (UTF8,))
+                  + " (Default: %s)" % (UTF8,))
 parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
 parser.add_option("--credentials", help="Specify an alternative credentials file location.")
 parser.add_option('--cqlversion', default=None,
@@ -228,6 +217,7 @@ parser.add_option("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, 
                   help='Specify the default request timeout in seconds (default: %default seconds).')
 parser.add_option("-t", "--tty", action='store_true', dest='tty',
                   help='Force tty mode (command prompt).')
+parser.add_option('-v', action="version", help='Print the current version of cqlsh.')
 
 # This is a hidden option to suppress the warning when the -p/--password command line option is used.
 # Power users may use this option if they know no other people has access to the system where cqlsh is run or don't care about security.
@@ -236,41 +226,49 @@ parser.add_option("-t", "--tty", action='store_true', dest='tty',
 parser.add_option("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
                   help=optparse.SUPPRESS_HELP)
 
-optvalues = optparse.Values()
-(options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
+opt_values = optparse.Values()
+(options, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
 
 # BEGIN history/config definition
-HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
+
+
+def mkdirp(path):
+    """Creates all parent directories up to path parameter or fails when path exists, but it is not a directory."""
+
+    try:
+        os.makedirs(path)
+    except OSError:
+        if not os.path.isdir(path):
+            raise
+
+
+def resolve_cql_history_file():
+    default_cql_history = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlsh_history'))
+    if 'CQL_HISTORY' in os.environ:
+        return os.environ['CQL_HISTORY']
+    else:
+        return default_cql_history
+
+
+HISTORY = resolve_cql_history_file()
+HISTORY_DIR = os.path.dirname(HISTORY)
+
+try:
+    mkdirp(HISTORY_DIR)
+except OSError:
+    print('\nWarning: Cannot create directory at `%s`. Command history will not be saved. Please check what was the environment property CQL_HISTORY set to.\n' % HISTORY_DIR)
+
+DEFAULT_CQLSHRC = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlshrc'))
 
 if hasattr(options, 'cqlshrc'):
-    CONFIG_FILE = options.cqlshrc
+    CONFIG_FILE = os.path.expanduser(options.cqlshrc)
     if not os.path.exists(CONFIG_FILE):
-        print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, HISTORY_DIR))
-        CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
+        print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, DEFAULT_CQLSHRC))
+        CONFIG_FILE = DEFAULT_CQLSHRC
 else:
-    CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
+    CONFIG_FILE = DEFAULT_CQLSHRC
 
-HISTORY = os.path.join(HISTORY_DIR, 'cqlsh_history')
-if not os.path.exists(HISTORY_DIR):
-    try:
-        os.mkdir(HISTORY_DIR)
-    except OSError:
-        print('\nWarning: Cannot create directory at `%s`. Command history will not be saved.\n' % HISTORY_DIR)
-
-OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
-if os.path.exists(OLD_CONFIG_FILE):
-    if os.path.exists(CONFIG_FILE):
-        print('\nWarning: cqlshrc config files were found at both the old location ({0})'
-              ' and the new location ({1}), the old config file will not be migrated to the new'
-              ' location, and the new location will be used for now.  You should manually'
-              ' consolidate the config files at the new location and remove the old file.'
-              .format(OLD_CONFIG_FILE, CONFIG_FILE))
-    else:
-        os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
-OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
-if os.path.exists(OLD_HISTORY):
-    os.rename(OLD_HISTORY, HISTORY)
-# END history/config definition
+CQL_DIR = os.path.dirname(CONFIG_FILE)
 
 CQL_ERRORS = (
     cassandra.AlreadyExists, cassandra.AuthenticationFailed, cassandra.CoordinationFailure,
@@ -346,7 +344,7 @@ class DecodeError(Exception):
 
 
 def maybe_ensure_text(val):
-    return ensure_text(val) if val else val
+    return str(val) if val else val
 
 
 class FormatError(DecodeError):
@@ -411,7 +409,7 @@ def insert_driver_hooks():
 
 
 class Shell(cmd.Cmd):
-    custom_prompt = ensure_text(os.getenv('CQLSH_PROMPT', ''))
+    custom_prompt = os.getenv('CQLSH_PROMPT', '')
     if custom_prompt != '':
         custom_prompt += "\n"
     default_prompt = custom_prompt + "cqlsh> "
@@ -430,7 +428,7 @@ class Shell(cmd.Cmd):
     default_page_size = 100
 
     def __init__(self, hostname, port, color=False,
-                 username=None, password=None, encoding=None, stdin=None, tty=True,
+                 username=None, encoding=None, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
@@ -446,16 +444,21 @@ class Shell(cmd.Cmd):
                  request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  protocol_version=None,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS,
-                 is_subshell=False):
+                 is_subshell=False,
+                 auth_provider=None):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
-        self.auth_provider = None
-        if username:
-            if not password:
-                password = getpass.getpass()
-            self.auth_provider = PlainTextAuthProvider(username=username, password=password)
+        self.auth_provider = auth_provider
         self.username = username
+
+        if isinstance(auth_provider, PlainTextAuthProvider):
+            self.username = auth_provider.username
+            if not auth_provider.password:
+                # if no password is provided, we need to query the user to get one.
+                password = getpass.getpass()
+                self.auth_provider = PlainTextAuthProvider(username=auth_provider.username, password=password)
+
         self.keyspace = keyspace
         self.ssl = ssl
         self.tracing_enabled = tracing_enabled
@@ -508,7 +511,6 @@ class Shell(cmd.Cmd):
 
         self.tty = tty
         self.encoding = encoding
-        self.check_windows_encoding()
 
         self.output_codec = codecs.lookup(encoding)
 
@@ -522,7 +524,6 @@ class Shell(cmd.Cmd):
 
         if tty:
             self.reset_prompt()
-            self.maybe_warn_py2()
             self.report_connection()
             print('Use HELP for help.')
         else:
@@ -540,19 +541,6 @@ class Shell(cmd.Cmd):
     @property
     def batch_mode(self):
         return not self.tty
-
-    @property
-    def is_using_utf8(self):
-        # utf8 encodings from https://docs.python.org/{2,3}/library/codecs.html
-        return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8', CP65001]
-
-    def check_windows_encoding(self):
-        if is_win and os.name == 'nt' and self.tty and \
-           self.is_using_utf8 and sys.stdout.encoding != CP65001:
-            self.printerr("\nWARNING: console codepage must be set to cp65001 "
-                          "to support {} encoding on Windows platforms.\n"
-                          "If you experience encoding problems, change your console"
-                          " codepage with 'chcp 65001' before starting cqlsh.\n".format(self.encoding))
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
@@ -608,12 +596,6 @@ class Shell(cmd.Cmd):
         # set_cql_version.
         vers['cql'] = self.cql_version
         print("[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers)
-
-    def maybe_warn_py2(self):
-        py2_suppress_warn = 'CQLSH_NO_WARN_PY2'
-        if sys.version_info[0:2] == (2, 7) and not os.environ.get(py2_suppress_warn):
-            print("Python 2.7 support is deprecated. "
-                  "Install Python 3.6+ or set %s to suppress this message.\n" % (py2_suppress_warn,))
 
     def show_session(self, sessionid, partial_session=False):
         print_trace_session(self, self.session, sessionid, partial_session)
@@ -778,13 +760,6 @@ class Shell(cmd.Cmd):
 
         raise ObjectNotFound("'{}' not found in keyspace '{}'".format(name, ks))
 
-    def get_usertypes_meta(self):
-        data = self.session.execute("select * from system.schema_usertypes")
-        if not data:
-            return cql3handling.UserTypesMeta({})
-
-        return cql3handling.UserTypesMeta.from_layout(data)
-
     def get_trigger_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
@@ -824,8 +799,6 @@ class Shell(cmd.Cmd):
             try:
                 import readline
             except ImportError:
-                if is_win:
-                    print("WARNING: pyreadline dependency missing.  Install to enable tab completion.")
                 pass
             else:
                 old_completer = readline.get_completer()
@@ -839,9 +812,9 @@ class Shell(cmd.Cmd):
         # start coverage collection if requested, unless in subshell
         if self.coverage and not self.is_subshell:
             # check for coveragerc file, write it if missing
-            if os.path.exists(HISTORY_DIR):
-                self.coveragerc_path = os.path.join(HISTORY_DIR, '.coveragerc')
-                covdata_path = os.path.join(HISTORY_DIR, '.coverage')
+            if os.path.exists(CQL_DIR):
+                self.coveragerc_path = os.path.join(CQL_DIR, '.coveragerc')
+                covdata_path = os.path.join(CQL_DIR, '.coverage')
                 if not os.path.isfile(self.coveragerc_path):
                     with open(self.coveragerc_path, 'w') as f:
                         f.writelines(["[run]\n",
@@ -863,15 +836,14 @@ class Shell(cmd.Cmd):
 
     def get_input_line(self, prompt=''):
         if self.tty:
-            self.lastcmd = input(ensure_str(prompt))
-            line = ensure_text(self.lastcmd) + '\n'
+            self.lastcmd = input(str(prompt))
+            line = self.lastcmd + '\n'
         else:
-            self.lastcmd = ensure_text(self.stdin.readline())
+            self.lastcmd = self.stdin.readline()
             line = self.lastcmd
             if not len(line):
                 raise EOFError
         self.lineno += 1
-        line = ensure_text(line)
         return line
 
     def use_stdin_reader(self, until='', prompt=''):
@@ -885,7 +857,7 @@ class Shell(cmd.Cmd):
                 return
             yield newline
 
-    def cmdloop(self):
+    def cmdloop(self, intro=None):
         """
         Adapted from cmd.Cmd's version, because there is literally no way with
         cmd.Cmd.cmdloop() to tell the difference between "EOF" showing up in
@@ -932,7 +904,6 @@ class Shell(cmd.Cmd):
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
         """
-        statementtext = ensure_text(statementtext)
         statementtext = self.strip_comment_blocks(statementtext)
         try:
             statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
@@ -978,7 +949,7 @@ class Shell(cmd.Cmd):
         if readline is not None:
             nl_count = srcstr.count("\n")
 
-            new_hist = ensure_str(srcstr.replace("\n", " ").rstrip())
+            new_hist = srcstr.replace("\n", " ").rstrip()
 
             if nl_count > 1 and self.last_hist != new_hist:
                 readline.add_history(new_hist)
@@ -1029,7 +1000,6 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement):
-        statement = ensure_text(statement)
 
         stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.page_size if self.use_paging else None)
         success, future = self.perform_simple_statement(stmt)
@@ -1085,7 +1055,7 @@ class Shell(cmd.Cmd):
         try:
             result = future.result()
         except CQL_ERRORS as err:
-            err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
+            err_msg = err.message if hasattr(err, 'message') else str(err)
             self.printerr(str(err.__class__.__name__) + ": " + err_msg)
         except Exception:
             import traceback
@@ -1124,11 +1094,11 @@ class Shell(cmd.Cmd):
         def print_all(result, table_meta, tty):
             # Return the number of rows in total
             num_rows = 0
-            isFirst = True
+            is_first = True
             while True:
                 # Always print for the first page even it is empty
-                if result.current_rows or isFirst:
-                    with_header = isFirst or tty
+                if result.current_rows or is_first:
+                    with_header = is_first or tty
                     self.print_static_result(result, table_meta, with_header, tty, num_rows)
                     num_rows += len(result.current_rows)
                 if result.has_more_pages:
@@ -1140,7 +1110,7 @@ class Shell(cmd.Cmd):
                     if not tty:
                         self.writeresult("")
                     break
-                isFirst = False
+                is_first = False
             return num_rows
 
         num_rows = print_all(result, table_meta, self.tty)
@@ -1400,7 +1370,7 @@ class Shell(cmd.Cmd):
                     self.describe_element(result)
 
             except CQL_ERRORS as err:
-                err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
+                err_msg = err.message if hasattr(err, 'message') else str(err)
                 self.printerr(err_msg.partition("message=")[2].strip('"'))
             except Exception:
                 import traceback
@@ -1416,7 +1386,7 @@ class Shell(cmd.Cmd):
         """
         Print the output for a DESCRIBE KEYSPACES query
         """
-        names = [ensure_str(r['name']) for r in rows]
+        names = [r['name'] for r in rows]
 
         print('')
         cmd.Cmd.columnize(self, names)
@@ -1436,7 +1406,7 @@ class Shell(cmd.Cmd):
                 keyspace = row['keyspace_name']
                 names = list()
 
-            names.append(ensure_str(row['name']))
+            names.append(str(row['name']))
 
         if keyspace is not None:
             self.print_keyspace_element_names(keyspace, names)
@@ -1574,7 +1544,7 @@ class Shell(cmd.Cmd):
         if fname is not None:
             fname = self.cql_unprotect_value(fname)
 
-        copyoptnames = list(map(six.text_type.lower, parsed.get_binding('optnames', ())))
+        copyoptnames = list(map(str.lower, parsed.get_binding('optnames', ())))
         copyoptvals = list(map(self.cql_unprotect_value, parsed.get_binding('optvals', ())))
         opts = dict(list(zip(copyoptnames, copyoptvals)))
 
@@ -1650,10 +1620,8 @@ class Shell(cmd.Cmd):
         except IOError as e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
-        username = self.auth_provider.username if self.auth_provider else None
-        password = self.auth_provider.password if self.auth_provider else None
         subshell = Shell(self.hostname, self.port, color=self.color,
-                         username=username, password=password,
+                         username=self.username,
                          encoding=self.encoding, stdin=f, tty=False, use_conn=self.conn,
                          cqlver=self.cql_version, keyspace=self.current_keyspace,
                          tracing_enabled=self.tracing_enabled,
@@ -1666,7 +1634,8 @@ class Shell(cmd.Cmd):
                          max_trace_wait=self.max_trace_wait, ssl=self.ssl,
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
-                         is_subshell=True)
+                         is_subshell=True,
+                         auth_provider=self.auth_provider)
         # duplicate coverage related settings in subshell
         if self.coverage:
             subshell.coverage = True
@@ -1893,8 +1862,7 @@ class Shell(cmd.Cmd):
 
         Clears the console.
         """
-        import subprocess
-        subprocess.call(['clear', 'cls'][is_win], shell=True)
+        subprocess.call('clear', shell=True)
     do_cls = do_clear
 
     def do_debug(self, parsed):
@@ -1996,11 +1964,10 @@ class Shell(cmd.Cmd):
             out = self.query_out
 
         # convert Exceptions, etc to text
-        if not isinstance(text, six.text_type):
-            text = "{}".format(text)
+        if not isinstance(text, str):
+            text = str(text)
 
         to_write = self.applycolor(text, color) + ('\n' if newline else '')
-        to_write = ensure_str(to_write)
         out.write(to_write)
 
     def flush_output(self):
@@ -2078,7 +2045,7 @@ class SwitchCommandWithValue(SwitchCommand):
             binary_switch_value = True
         except (ValueError, TypeError):
             value = None
-        return (binary_switch_value, value)
+        return binary_switch_value, value
 
 
 def option_with_default(cparser_getter, section, option, default=None):
@@ -2105,7 +2072,6 @@ def should_use_color():
     if os.environ.get('TERM', '') in ('dumb', ''):
         return False
     try:
-        import subprocess
         p = subprocess.Popen(['tput', 'colors'], stdout=subprocess.PIPE)
         stdout, _ = p.communicate()
         if int(stdout.strip()) < 8:
@@ -2117,28 +2083,8 @@ def should_use_color():
     return True
 
 
-def is_file_secure(filename):
-    if is_win:
-        # We simply cannot tell whether the file is seucre on Windows,
-        # because os.stat().st_uid is always 0 and os.stat().st_mode is meaningless
-        return True
-
-    try:
-        st = os.stat(filename)
-    except OSError as e:
-        if e.errno != errno.ENOENT:
-            raise
-        return True  # the file doesn't exists, the security of it is irrelevant
-
-    uid = os.getuid()
-
-    # Skip enforcing the file owner and UID matching for the root user (uid == 0).
-    # This is to allow "sudo cqlsh" to work with user owned credentials file.
-    return (uid == 0 or st.st_uid == uid) and stat.S_IMODE(st.st_mode) & (stat.S_IRGRP | stat.S_IROTH) == 0
-
-
 def read_options(cmdlineargs, environment):
-    configs = configparser.SafeConfigParser() if sys.version_info < (3, 2) else configparser.ConfigParser()
+    configs = configparser.ConfigParser()
     configs.read(CONFIG_FILE)
 
     rawconfigs = configparser.RawConfigParser()
@@ -2147,17 +2093,18 @@ def read_options(cmdlineargs, environment):
     username_from_cqlshrc = option_with_default(configs.get, 'authentication', 'username')
     password_from_cqlshrc = option_with_default(rawconfigs.get, 'authentication', 'password')
     if username_from_cqlshrc or password_from_cqlshrc:
-        if password_from_cqlshrc and not is_file_secure(CONFIG_FILE):
+        if password_from_cqlshrc and not is_file_secure(os.path.expanduser(CONFIG_FILE)):
             print("\nWarning: Password is found in an insecure cqlshrc file. The file is owned or readable by other users on the system.",
                   end='', file=sys.stderr)
         print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."
               "\nPlease use a credentials file to specify the username and password.\n", file=sys.stderr)
 
     optvalues = optparse.Values()
+
     optvalues.username = None
     optvalues.password = None
     optvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
-                                                                   os.path.join(HISTORY_DIR, 'credentials')))
+                                                                   os.path.join(CQL_DIR, 'credentials')))
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     optvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
@@ -2198,6 +2145,13 @@ def read_options(cmdlineargs, environment):
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
 
+    # Credentials from cqlshrc will be expanded,
+    # credentials from the command line are also expanded if there is a space...
+    # we need the following so that these two scenarios will work
+    #   cqlsh --credentials=~/.cassandra/creds
+    #   cqlsh --credentials ~/.cassandra/creds
+    options.credentials = os.path.expanduser(options.credentials)
+
     if not is_file_secure(options.credentials):
         print("\nWarning: Credentials file '{0}' exists but is not used, because:"
               "\n  a. the file owner is not the current user; or"
@@ -2210,11 +2164,11 @@ def read_options(cmdlineargs, environment):
         options.credentials = ''  # ConfigParser.read() will ignore unreadable files
 
     if not options.username:
-        credentials = configparser.SafeConfigParser() if sys.version_info < (3, 2) else configparser.ConfigParser()
+        credentials = configparser.ConfigParser()
         credentials.read(options.credentials)
 
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
-        options.username = option_with_default(credentials.get, 'plain_text_auth', 'username', username_from_cqlshrc)
+        options.username = username_from_cqlshrc
 
     if not options.password:
         rawcredentials = configparser.RawConfigParser()
@@ -2222,6 +2176,7 @@ def read_options(cmdlineargs, environment):
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
         options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
+        options.password = password_from_cqlshrc
     elif not options.insecure_password_without_warning:
         print("\nWarning: Using a password on the command line interface can be insecure."
               "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
@@ -2366,16 +2321,15 @@ def main(options, hostname, port):
             # does contain a TZ part) was specified
             if options.time_format != DEFAULT_TIMESTAMP_FORMAT:
                 sys.stderr.write("Warning: custom timestamp format specified in cqlshrc, "
-                                 "but local timezone could not be detected.\n"
-                                 "Either install Python 'tzlocal' module for auto-detection "
-                                 "or specify client timezone in your cqlshrc.\n\n")
+                                 + "but local timezone could not be detected.\n"
+                                 + "Either install Python 'tzlocal' module for auto-detection "
+                                 + "or specify client timezone in your cqlshrc.\n\n")
 
     try:
         shell = Shell(hostname,
                       port,
                       color=options.color,
                       username=options.username,
-                      password=options.password,
                       stdin=stdin,
                       tty=options.tty,
                       completekey=options.completekey,
@@ -2394,7 +2348,12 @@ def main(options, hostname, port):
                       single_statement=options.execute,
                       request_timeout=options.request_timeout,
                       connect_timeout=options.connect_timeout,
-                      encoding=options.encoding)
+                      encoding=options.encoding,
+                      auth_provider=authproviderhandling.load_auth_provider(
+                          config_file=CONFIG_FILE,
+                          cred_file=options.credentials,
+                          username=options.username,
+                          password=options.password))
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS as e:
@@ -2421,7 +2380,7 @@ def main(options, hostname, port):
 
 
 # always call this regardless of module name: when a sub-process is spawned
-# on Windows then the module name is not __main__, see CASSANDRA-9304
+# on Windows then the module name is not __main__, see CASSANDRA-9304 (Windows support was dropped in CASSANDRA-16956)
 insert_driver_hooks()
 
 if __name__ == '__main__':

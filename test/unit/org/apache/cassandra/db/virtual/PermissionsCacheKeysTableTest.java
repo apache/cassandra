@@ -84,12 +84,13 @@ public class PermissionsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         AuthenticatedUser.permissionsCache.invalidate();
+        disablePreparedReuseForTest();
     }
 
     @AfterClass
     public static void tearDownClass()
     {
-        DatabaseDescriptor.setPermissionsValidity(DatabaseDescriptor.getRawConfig().permissions_validity_in_ms);
+        DatabaseDescriptor.setPermissionsValidity(DatabaseDescriptor.getRawConfig().permissions_validity.toMillisecondsAsInt());
     }
 
     @Test

@@ -1,0 +1,88 @@
+= sstableverify
+
+Check sstable(s) for errors or corruption, for the provided table.
+
+ref: https://issues.apache.org/jira/browse/CASSANDRA-5791
+
+Cassandra must be stopped before this tool is executed, or unexpected
+results will occur. Note: the script does not verify that Cassandra is
+stopped.
+
+== WARNING
+See CASSANDRA-9947 and CASSANDRA-17017 for discussion around risks with this tool. Specifically: "We mark sstables that fail verification as unrepaired, but that's not going to do what you think.  What it means is that the local node will use that sstable in the next repair, but other nodes will not. So all we'll end up doing is streaming whatever data we can read from it, to the other replicas.  If we could magically mark whatever sstables correspond on the remote nodes, to the data in the local sstable, that would work, but we can't."
+
+This tool requires the use of a -f or --force flag to indicate that the user understands the risks and would like to attempt its usage anyway.
+
+== Usage
+
+sstableverify <options> <keyspace> <table>
+
+[cols=",",]
+|===
+|--debug |display stack traces
+|-e, --extended |extended verification
+|-h, --help |display this help message
+|-v, --verbose |verbose output
+|-f, --force |allow use of tool (see CASSANDRA-17017 for risks)
+|===
+
+== Basic Verification
+
+This is the basic verification. It is not a very quick process, and uses
+memory. You might need to increase your memory settings if you have many
+sstables.
+
+Example:
+
+....
+sstableverify keyspace eventlog
+Verifying BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-32-big-Data.db') (7.353MiB)
+Deserializing sstable metadata for BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-32-big-Data.db')
+Checking computed hash of BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-32-big-Data.db')
+Verifying BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-37-big-Data.db') (3.775MiB)
+Deserializing sstable metadata for BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-37-big-Data.db')
+Checking computed hash of BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-37-big-Data.db')
+....
+
+== Extended Verification
+
+During an extended verification, the individual values will be validated
+for errors or corruption. This of course takes more time.
+
+Example:
+
+....
+root@DC1C1:/# sstableverify -e keyspace eventlog
+WARN  14:08:06,255 Only 33.096GiB free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots
+Verifying BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-32-big-Data.db') (7.353MiB)
+Deserializing sstable metadata for BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-32-big-Data.db')
+Checking computed hash of BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-32-big-Data.db')
+Extended Verify requested, proceeding to inspect values
+Verify of BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-32-big-Data.db') succeeded. All 33211 rows read successfully
+Verifying BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-37-big-Data.db') (3.775MiB)
+Deserializing sstable metadata for BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-37-big-Data.db')
+Checking computed hash of BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-37-big-Data.db')
+Extended Verify requested, proceeding to inspect values
+Verify of BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-37-big-Data.db') succeeded. All 17068 rows read successfully
+....
+
+== Corrupted File
+
+Corrupted files are listed if they are detected by the script.
+
+Example:
+
+....
+sstableverify keyspace eventlog
+Verifying BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-40-big-Data.db') (7.416MiB)
+Deserializing sstable metadata for BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-40-big-Data.db')
+Checking computed hash of BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-40-big-Data.db')
+Error verifying BigTableReader(path='/var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-40-big-Data.db'): Corrupted: /var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-40-big-Data.db
+....
+
+A similar (but less verbose) tool will show the suggested actions:
+
+....
+nodetool verify keyspace eventlog
+error: Invalid SSTable /var/lib/cassandra/data/keyspace/eventlog-6365332094dd11e88f324f9c503e4753/mc-40-big-Data.db, please force repair
+....

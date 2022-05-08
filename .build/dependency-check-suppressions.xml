@@ -26,6 +26,7 @@
         <cve>CVE-2018-8016</cve>
         <cve>CVE-2020-13946</cve>
         <cve>CVE-2020-17516</cve>
+        <cve>CVE-2021-44521</cve>
     </suppress>
     <suppress>
         <!-- dependency checker identified this as a completely different package (wire) -->
@@ -43,5 +44,8 @@
         <cve>CVE-2021-21290</cve>
         <cve>CVE-2021-21295</cve>
         <cve>CVE-2021-21409</cve>
+        <cve>CVE-2021-37136</cve>
+        <cve>CVE-2021-37137</cve>
+        <cve>CVE-2021-43797</cve>
     </suppress>
 </suppressions>

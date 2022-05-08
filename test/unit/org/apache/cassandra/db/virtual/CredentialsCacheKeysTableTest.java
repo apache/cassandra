@@ -68,12 +68,13 @@ public class CredentialsCacheKeysTableTest extends CQLTester
 
         // ensure nothing keeps cached between tests
         passwordAuthenticator.getCredentialsCache().invalidate();
+        disablePreparedReuseForTest();
     }
 
     @AfterClass
     public static void tearDownClass()
     {
-        DatabaseDescriptor.setCredentialsValidity(DatabaseDescriptor.getRawConfig().credentials_validity_in_ms);
+        DatabaseDescriptor.setCredentialsValidity(DatabaseDescriptor.getRawConfig().credentials_validity.toMillisecondsAsInt());
     }
 
     @Test

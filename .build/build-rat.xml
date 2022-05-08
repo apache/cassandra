@@ -48,27 +48,38 @@
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="." includesfile="build/.ratinclude">
                  <!-- Config files with not much creativity -->
+                 <exclude name="**/.asf.yaml"/>
                  <exclude name="**/ide/**/*"/>
                  <exclude name="**/metrics-reporter-config-sample.yaml"/>
                  <exclude name="**/cassandra.yaml"/>
                  <exclude name="**/cassandra-murmur.yaml"/>
                  <exclude name="**/cassandra-seeds.yaml"/>
+                 <exclude name="**/harry-generic.yaml"/>
+                 <exclude NAME="**/doc/antora.yml"/>
                  <exclude name="**/test/conf/cassandra.yaml"/>
-                 <exclude name="**/test/conf/cassandra_deprecated_parameters_names.yaml"/>
+                 <exclude name="**/test/conf/cassandra-old.yaml"/>
                  <exclude name="**/test/conf/cassandra_encryption.yaml"/>
                  <exclude name="**/test/conf/cdc.yaml"/>
                  <exclude name="**/test/conf/commitlog_compression_LZ4.yaml"/>
                  <exclude name="**/test/conf/commitlog_compression_Zstd.yaml"/>
                  <exclude name="**/test/conf/system_keyspaces_directory.yaml"/>
+                 <exclude name="**/test/conf/sstableloader_with_encryption.yaml"/>
                  <exclude name="**/test/conf/unit-test-conf/test-native-port.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-3.0-jmx.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-3.11-jmx.yaml"/>
                  <exclude name="**/test/data/jmxdump/cassandra-4.0-jmx.yaml"/>
+                 <exclude name="**/test/data/jmxdump/cassandra-4.1-jmx.yaml"/>
+                 <exclude name="**/test/data/config/version=3.0.0-alpha1.yml"/>
+                 <exclude name="**/test/data/config/version=3.11.0.yml"/>
+                 <exclude name="**/test/data/config/version=4.0-alpha1.yml"/>
                  <exclude name="**/test/resources/data/config/YamlConfigurationLoaderTest/shared_client_error_reporting_exclusions.yaml"/>
                  <exclude name="**/tools/cqlstress-counter-example.yaml"/>
                  <exclude name="**/tools/cqlstress-example.yaml"/>
                  <exclude name="**/tools/cqlstress-insanity-example.yaml"/>
                  <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
+                 <!-- Documentation files -->
+                 <exclude NAME="**/doc/modules/**/*"/>
+                 <exclude NAME="**/src/java/**/*.md"/>
                  <!-- NOTICE files -->
                  <exclude NAME="**/NOTICE.md"/>
                  <!-- LICENSE files -->

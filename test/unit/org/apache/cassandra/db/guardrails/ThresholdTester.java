@@ -18,18 +18,23 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.GuardrailsOptions;
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 /**
@@ -37,46 +42,69 @@ import static org.junit.Assert.fail;
  */
 public abstract class ThresholdTester extends GuardrailTester
 {
-    private final String name;
     private final long warnThreshold;
-    private final long abortThreshold;
-    private final GuardrailsOptions.Threshold config;
+    private final long failThreshold;
     private final TriConsumer<Guardrails, Long, Long> setter;
     private final ToLongFunction<Guardrails> warnGetter;
-    private final ToLongFunction<Guardrails> abortGetter;
-
-    protected ThresholdTester(long warnThreshold,
-                              long abortThreshold,
-                              GuardrailsOptions.Threshold config,
-                              TriConsumer<Guardrails, Long, Long> setter,
-                              ToLongFunction<Guardrails> warnGetter,
-                              ToLongFunction<Guardrails> abortGetter)
-    {
-        this.name = config.getName();
-        this.warnThreshold = warnThreshold;
-        this.abortThreshold = abortThreshold;
-        this.config = config;
-        this.setter = setter;
-        this.warnGetter = warnGetter;
-        this.abortGetter = abortGetter;
-    }
+    private final ToLongFunction<Guardrails> failGetter;
+    private final long maxValue;
+    private final Long disabledValue;
 
     protected ThresholdTester(int warnThreshold,
-                              int abortThreshold,
-                              GuardrailsOptions.IntThreshold config,
+                              int failThreshold,
+                              Threshold threshold,
                               TriConsumer<Guardrails, Integer, Integer> setter,
                               ToIntFunction<Guardrails> warnGetter,
-                              ToIntFunction<Guardrails> abortGetter)
+                              ToIntFunction<Guardrails> failGetter)
     {
-        this(warnThreshold,
-             abortThreshold,
-             (GuardrailsOptions.Threshold) config,
-             (g, w, a) -> setter.accept(g, w.intValue(), a.intValue()),
-             g -> (long) warnGetter.applyAsInt(g),
-             g -> (long) abortGetter.applyAsInt(g));
+        super(threshold);
+        this.warnThreshold = warnThreshold;
+        this.failThreshold = failThreshold;
+        this.setter = (g, w, a) -> setter.accept(g, w.intValue(), a.intValue());
+        this.warnGetter = g -> (long) warnGetter.applyAsInt(g);
+        this.failGetter = g -> (long) failGetter.applyAsInt(g);
+        maxValue = Integer.MAX_VALUE;
+        disabledValue = -1L;
     }
 
-    protected abstract long currentValue();
+    protected ThresholdTester(long warnThreshold,
+                              long failThreshold,
+                              Threshold threshold,
+                              TriConsumer<Guardrails, Long, Long> setter,
+                              ToLongFunction<Guardrails> warnGetter,
+                              ToLongFunction<Guardrails> failGetter)
+    {
+        super(threshold);
+        this.warnThreshold = warnThreshold;
+        this.failThreshold = failThreshold;
+        this.setter = setter;
+        this.warnGetter = warnGetter;
+        this.failGetter = failGetter;
+        maxValue = Long.MAX_VALUE;
+        disabledValue = -1L;
+    }
+
+    protected ThresholdTester(String warnThreshold,
+                              String failThreshold,
+                              Threshold threshold,
+                              TriConsumer<Guardrails, String, String> setter,
+                              Function<Guardrails, String> warnGetter,
+                              Function<Guardrails, String> failGetter)
+    {
+        super(threshold);
+        this.warnThreshold = new DataStorageSpec(warnThreshold).toBytes();
+        this.failThreshold = new DataStorageSpec(failThreshold).toBytes();
+        this.setter = (g, w, a) -> setter.accept(g, w == null ? null : DataStorageSpec.inBytes(w).toString(), a == null ? null : DataStorageSpec.inBytes(a).toString());
+        this.warnGetter = g -> new DataStorageSpec(warnGetter.apply(g)).toBytes();
+        this.failGetter = g -> new DataStorageSpec(failGetter.apply(g)).toBytes();
+        maxValue = Long.MAX_VALUE;
+        disabledValue = null;
+    }
+
+    protected long currentValue()
+    {
+        throw new UnsupportedOperationException();
+    }
 
     protected void assertCurrentValue(int count)
     {
@@ -86,65 +114,129 @@ public abstract class ThresholdTester extends GuardrailTester
     @Before
     public void before()
     {
-        setter.accept(guardrails(), warnThreshold, abortThreshold);
+        setter.accept(guardrails(), warnThreshold, failThreshold);
     }
 
     @Test
     public void testConfigValidation()
     {
-        testValidationOfThresholdProperties(name + ".warn_threshold", name + ".abort_threshold");
+        assertNotNull(guardrail);
+        testValidationOfThresholdProperties(guardrail.name + "_warn_threshold", guardrail.name + "_fail_threshold");
     }
 
-    protected void testValidationOfThresholdProperties(String warnName, String abortName)
+    protected void testValidationOfThresholdProperties(String warnName, String failName)
     {
-        setter.accept(guardrails(), -1L, -1L);
+        setter.accept(guardrails(), disabledValue, disabledValue);
 
-        testValidationOfStrictlyPositiveProperty((g, a) -> setter.accept(g, -1L, a), abortName);
-        testValidationOfStrictlyPositiveProperty((g, w) -> setter.accept(g, w, -1L), warnName);
+        testValidationOfStrictlyPositiveProperty((g, a) -> setter.accept(g, disabledValue, a), failName);
+        testValidationOfStrictlyPositiveProperty((g, w) -> setter.accept(g, w, disabledValue), warnName);
 
-        setter.accept(guardrails(), -1L, -1L);
+        setter.accept(guardrails(), disabledValue, disabledValue);
         Assertions.assertThatThrownBy(() -> setter.accept(guardrails(), 2L, 1L))
-                  .hasMessageContaining(format("The warn threshold 2 for %s should be lower than the abort threshold 1",
-                                               name));
+                  .hasMessageContaining(guardrail.name + "_warn_threshold should be lower than the fail threshold");
     }
 
-    protected void assertThresholdValid(String query) throws Throwable
+    protected void assertMaxThresholdValid(String query) throws Throwable
     {
         assertValid(query);
 
-        Assertions.assertThat(currentValue())
-                  .isLessThanOrEqualTo(warnGetter.applyAsLong(guardrails()))
-                  .isLessThanOrEqualTo(abortGetter.applyAsLong(guardrails()));
+        long warnValue = warnGetter.applyAsLong(guardrails());
+        long failValue = failGetter.applyAsLong(guardrails());
+        long current = currentValue();
+
+        if (warnValue != disabledValue)
+            Assertions.assertThat(current)
+                      .isLessThanOrEqualTo(warnValue);
+
+        if (failValue != disabledValue)
+            Assertions.assertThat(current)
+                      .isLessThanOrEqualTo(failValue);
     }
 
-    protected void assertThresholdWarns(String message, String query) throws Throwable
+    protected void assertMinThresholdValid(String query) throws Throwable
     {
-        assertWarns(message, query);
+        assertValid(query);
+
+        long warnValue = warnGetter.applyAsLong(guardrails());
+        long failValue = failGetter.applyAsLong(guardrails());
+        long current = currentValue();
+
+        if (warnValue != disabledValue)
+            Assertions.assertThat(current)
+                      .isGreaterThanOrEqualTo(warnValue);
+
+        if (failValue != disabledValue)
+            Assertions.assertThat(current)
+                      .isGreaterThanOrEqualTo(failValue);
+    }
+
+
+    protected void assertThresholdWarns(String query, String message) throws Throwable
+    {
+        assertThresholdWarns(query, message, message);
+    }
+
+    protected void assertThresholdWarns(String query, String message, String redactedMessage) throws Throwable
+    {
+        assertThresholdWarns(query, Collections.singletonList(message), Collections.singletonList(redactedMessage));
+    }
+
+    protected void assertThresholdWarns(String query, List<String> messages) throws Throwable
+    {
+        assertThresholdWarns(query, messages, messages);
+    }
+
+    protected void assertThresholdWarns(String query, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        assertWarns(query, messages, redactedMessages);
 
         Assertions.assertThat(currentValue())
                   .isGreaterThan(warnGetter.applyAsLong(guardrails()))
-                  .isLessThanOrEqualTo(abortGetter.applyAsLong(guardrails()));
+                  .isLessThanOrEqualTo(failGetter.applyAsLong(guardrails()));
     }
 
-    protected void assertThresholdAborts(String message, String query) throws Throwable
+    protected void assertThresholdFails(String query, String message) throws Throwable
     {
-        assertAborts(message, query);
+        assertThresholdFails(query, message, message);
+    }
+
+    protected void assertThresholdFails(String query, String message, String redactedMessage) throws Throwable
+    {
+        assertThresholdFails(query, Collections.singletonList(message), Collections.singletonList(redactedMessage));
+    }
+
+    protected void assertThresholdFails(String query, List<String> messages) throws Throwable
+    {
+        assertThresholdFails(query, messages, messages);
+    }
+
+    protected void assertThresholdFails(String query, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        assertFails(query, messages, redactedMessages);
 
         Assertions.assertThat(currentValue())
                   .isGreaterThanOrEqualTo(warnGetter.applyAsLong(guardrails()))
-                  .isEqualTo(abortGetter.applyAsLong(guardrails()));
+                  .isEqualTo(failGetter.applyAsLong(guardrails()));
     }
 
-    private void assertInvalidPositiveProperty(BiConsumer<Guardrails, Long> setter,
+    protected void assertInvalidPositiveProperty(BiConsumer<Guardrails, Long> setter,
                                                long value,
                                                long maxValue,
-                                               boolean allowZero,
                                                String name)
     {
         try
         {
             assertValidProperty(setter, value);
             fail(format("Expected exception for guardrails.%s value: %d", name, value));
+        }
+        catch (ConfigurationException e)
+        {
+            String expectedMessage = null;
+
+            if (value < 0)
+                expectedMessage = "Invalid data storage: value must be positive";
+
+            Assertions.assertThat(e.getMessage()).contains(expectedMessage);
         }
         catch (IllegalArgumentException e)
         {
@@ -153,14 +245,14 @@ public abstract class ThresholdTester extends GuardrailTester
             if (value > maxValue)
                 expectedMessage = format("Invalid value %d for %s: maximum allowed value is %d",
                                          value, name, maxValue);
-            if (value == 0 && !allowZero)
+            if (value == 0 && value != disabledValue)
                 expectedMessage = format("Invalid value for %s: 0 is not allowed; if attempting to disable use %s",
-                                         name, GuardrailsOptions.Threshold.DISABLED);
+                                         name, disabledValue);
 
-            if (value < GuardrailsOptions.Threshold.DISABLED)
+            if (value < 0 && value != disabledValue)
                 expectedMessage = format("Invalid value %d for %s: negative values are not "
                                          + "allowed, outside of %s which disables the guardrail",
-                                         value, name, GuardrailsOptions.Threshold.DISABLED);
+                                         value, name, disabledValue);
 
             assertEquals(format("Exception message '%s' does not contain '%s'", e.getMessage(), expectedMessage),
                          expectedMessage, e.getMessage());
@@ -169,18 +261,25 @@ public abstract class ThresholdTester extends GuardrailTester
 
     private void assertInvalidStrictlyPositiveProperty(BiConsumer<Guardrails, Long> setter, long value, String name)
     {
-        assertInvalidPositiveProperty(setter, value, config.maxValue(), config.allowZero(), name);
+        assertInvalidPositiveProperty(setter, value, maxValue, name);
+    }
+
+    protected void assertInvalidPositiveIntProperty (BiConsumer<Guardrails, Integer> setter, int value,
+                                                     int maxValue,
+                                                     String name)
+    {
+        assertInvalidPositiveProperty((g, l) -> setter.accept(g, l.intValue()), (long) value, maxValue, name);
     }
 
     protected void testValidationOfStrictlyPositiveProperty(BiConsumer<Guardrails, Long> setter, String name)
     {
         assertInvalidStrictlyPositiveProperty(setter, Integer.MIN_VALUE, name);
         assertInvalidStrictlyPositiveProperty(setter, -2, name);
-        assertValidProperty(setter, GuardrailsOptions.Threshold.DISABLED); // disabled
-        assertInvalidStrictlyPositiveProperty(setter, 0, name);
+        assertValidProperty(setter, disabledValue);
+        assertInvalidStrictlyPositiveProperty(setter, disabledValue == null ? -1 : 0, name);
         assertValidProperty(setter, 1L);
         assertValidProperty(setter, 2L);
-        assertValidProperty(setter, config.maxValue());
+        assertValidProperty(setter, maxValue);
     }
 
     @FunctionalInterface

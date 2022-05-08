@@ -97,6 +97,12 @@ public class Repair extends NodeToolCmd
     @Option(title = "optimise_streams", name = {"-os", "--optimise-streams"}, description = "Use --optimise-streams to try to reduce the number of streams we do (EXPERIMENTAL, see CASSANDRA-3200).")
     private boolean optimiseStreams = false;
 
+    @Option(title = "skip-paxos", name = {"-skip-paxos", "--skip-paxos"}, description = "If the --skip-paxos flag is included, the paxos repair step is skipped. Paxos repair is also skipped for preview repairs.")
+    private boolean skipPaxos = false;
+
+    @Option(title = "paxos-only", name = {"-paxos-only", "--paxos-only"}, description = "If the --paxos-only flag is included, no table data is repaired, only paxos operations..")
+    private boolean paxosOnly = false;
+
     @Option(title = "ignore_unreplicated_keyspaces", name = {"-iuk","--ignore-unreplicated-keyspaces"}, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
     private boolean ignoreUnreplicatedKeyspaces = false;
 
@@ -152,6 +158,8 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.PREVIEW, getPreviewKind().toString());
             options.put(RepairOption.OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
             options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
+            options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(!skipPaxos && getPreviewKind() == PreviewKind.NONE));
+            options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(paxosOnly && getPreviewKind() == PreviewKind.NONE));
 
             if (!startToken.isEmpty() || !endToken.isEmpty())
             {

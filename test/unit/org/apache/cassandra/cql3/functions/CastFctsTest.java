@@ -28,7 +28,7 @@ import java.util.Date;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
 import org.junit.Test;
 
@@ -211,7 +211,7 @@ public class CastFctsTest extends CQLTester
         long timeInMillis = dateTime.toInstant().toEpochMilli();
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, '" + yearMonthDay + " 11:03:02+00', '2015-05-21', '11:03:02')",
-                UUIDGen.getTimeUUID(timeInMillis));
+                TimeUUID.Generator.atUnixMillis(timeInMillis));
 
         assertRows(execute("SELECT CAST(a AS timestamp), " +
                            "CAST(b AS timestamp), " +

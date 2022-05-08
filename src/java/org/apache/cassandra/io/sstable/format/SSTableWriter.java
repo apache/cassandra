@@ -25,10 +25,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
@@ -40,9 +46,13 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 /**
@@ -54,7 +64,7 @@ import org.apache.cassandra.utils.concurrent.Transactional;
 public abstract class SSTableWriter extends SSTable implements Transactional
 {
     protected long repairedAt;
-    protected UUID pendingRepair;
+    protected TimeUUID pendingRepair;
     protected boolean isTransient;
     protected long maxDataAge = -1;
     protected final long keyCount;
@@ -77,7 +87,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected SSTableWriter(Descriptor descriptor,
                             long keyCount,
                             long repairedAt,
-                            UUID pendingRepair,
+                            TimeUUID pendingRepair,
                             boolean isTransient,
                             TableMetadataRef metadata,
                             MetadataCollector metadataCollector,
@@ -98,7 +108,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public static SSTableWriter create(Descriptor descriptor,
                                        Long keyCount,
                                        Long repairedAt,
-                                       UUID pendingRepair,
+                                       TimeUUID pendingRepair,
                                        boolean isTransient,
                                        TableMetadataRef metadata,
                                        MetadataCollector metadataCollector,
@@ -113,7 +123,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public static SSTableWriter create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
-                                       UUID pendingRepair,
+                                       TimeUUID pendingRepair,
                                        boolean isTransient,
                                        int sstableLevel,
                                        SerializationHeader header,
@@ -128,7 +138,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
-                                       UUID pendingRepair,
+                                       TimeUUID pendingRepair,
                                        boolean isTransient,
                                        int sstableLevel,
                                        SerializationHeader header,
@@ -143,7 +153,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public static SSTableWriter create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
-                                       UUID pendingRepair,
+                                       TimeUUID pendingRepair,
                                        boolean isTransient,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
@@ -372,17 +382,69 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         FileUtils.createHardLinkWithoutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
     }
 
+    /**
+     * Parameters for calculating the expected size of an sstable. Exposed on memtable flush sets (i.e. collected
+     * subsets of a memtable that will be written to sstables).
+     */
+    public interface SSTableSizeParameters
+    {
+        long partitionCount();
+        long partitionKeysSize();
+        long dataSize();
+    }
+
     public static abstract class Factory
     {
+        public abstract long estimateSize(SSTableSizeParameters parameters);
+
         public abstract SSTableWriter open(Descriptor descriptor,
                                            long keyCount,
                                            long repairedAt,
-                                           UUID pendingRepair,
+                                           TimeUUID pendingRepair,
                                            boolean isTransient,
                                            TableMetadataRef metadata,
                                            MetadataCollector metadataCollector,
                                            SerializationHeader header,
                                            Collection<SSTableFlushObserver> observers,
                                            LifecycleNewTracker lifecycleNewTracker);
+    }
+
+    public static void guardCollectionSize(TableMetadata metadata, DecoratedKey partitionKey, Unfiltered unfiltered)
+    {
+        if (!Guardrails.collectionSize.enabled() && !Guardrails.itemsPerCollection.enabled())
+            return;
+
+        if (!unfiltered.isRow() || SchemaConstants.isSystemKeyspace(metadata.keyspace))
+            return;
+
+        Row row = (Row) unfiltered;
+        for (ColumnMetadata column : row.columns())
+        {
+            if (!column.type.isCollection() || !column.type.isMultiCell())
+                continue;
+
+            ComplexColumnData cells = row.getComplexColumnData(column);
+            if (cells == null)
+                continue;
+
+            ComplexColumnData liveCells = cells.purge(DeletionPurger.PURGE_ALL, FBUtilities.nowInSeconds());
+            if (liveCells == null)
+                continue;
+
+            int cellsSize = liveCells.dataSize();
+            int cellsCount = liveCells.cellsCount();
+
+            if (!Guardrails.collectionSize.triggersOn(cellsSize, null) &&
+                !Guardrails.itemsPerCollection.triggersOn(cellsCount, null))
+                continue;
+
+            String keyString = metadata.primaryKeyAsCQLLiteral(partitionKey.getKey(), row.clustering());
+            String msg = String.format("%s in row %s in table %s",
+                                       column.name.toString(),
+                                       keyString,
+                                       metadata);
+            Guardrails.collectionSize.guard(cellsSize, msg, true, null);
+            Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
+        }
     }
 }

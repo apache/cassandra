@@ -36,7 +36,8 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 
 public abstract class SimpleBuilders
 {
@@ -391,7 +392,7 @@ public abstract class SimpleBuilders
                     ListType lt = (ListType)column.type;
                     assert value instanceof List;
                     for (Object elt : (List)value)
-                        builder.addCell(cell(column, toByteBuffer(elt, lt.getElementsType()), CellPath.create(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()))));
+                        builder.addCell(cell(column, toByteBuffer(elt, lt.getElementsType()), CellPath.create(ByteBuffer.wrap(nextTimeUUIDAsBytes()))));
                     break;
                 case SET:
                     SetType st = (SetType)column.type;
@@ -417,6 +418,12 @@ public abstract class SimpleBuilders
         {
             assert !initiated : "If called, delete() should be called before any other column value addition";
             builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(timestamp, nowInSec)));
+            return this;
+        }
+
+        public Row.SimpleBuilder deletePrevious()
+        {
+            builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(timestamp - 1, nowInSec)));
             return this;
         }
 

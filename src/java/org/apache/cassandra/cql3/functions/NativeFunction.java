@@ -31,8 +31,16 @@ public abstract class NativeFunction extends AbstractFunction
         super(FunctionName.nativeFunction(name), Arrays.asList(argTypes), returnType);
     }
 
+    @Override
     public boolean isNative()
     {
+        return true;
+    }
+
+    @Override
+    public boolean isPure()
+    {
+        // Most of our functions are pure, the other ones should override this
         return true;
     }
 }

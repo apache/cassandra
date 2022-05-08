@@ -40,7 +40,10 @@ public final class VirtualKeyspaceRegistry
 
     public void register(VirtualKeyspace keyspace)
     {
-        virtualKeyspaces.put(keyspace.name(), keyspace);
+        VirtualKeyspace previous = virtualKeyspaces.put(keyspace.name(), keyspace);
+        // some tests choose to replace the keyspace, if so make sure to cleanup tables as well
+        if (previous != null)
+            previous.tables().forEach(t -> virtualTables.remove(t));
         keyspace.tables().forEach(t -> virtualTables.put(t.metadata().id, t));
     }
 

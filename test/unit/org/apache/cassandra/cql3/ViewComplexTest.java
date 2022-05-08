@@ -27,12 +27,11 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Objects;
-
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.fail;
 
@@ -74,37 +73,37 @@ public class ViewComplexTest extends ViewAbstractParameterizedTest
 
         updateView("UPDATE %s USING TIMESTAMP 1 set v1 =1 where p1 = 1 AND p2 = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, 1, null));
         assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"), row(1, 1, 1, null));
 
         updateView("UPDATE %s USING TIMESTAMP 2 set v1 = null, v2 = 1 where p1 = 1 AND p2 = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
         assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
 
         updateView("UPDATE %s USING TIMESTAMP 2 set v2 = null where p1 = 1 AND p2 = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"));
         assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"));
 
         updateView("INSERT INTO %s (p1,p2) VALUES(1,1) USING TIMESTAMP 3;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, null));
         assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, null));
 
         updateView("DELETE FROM %s USING TIMESTAMP 4 WHERE p1 =1 AND p2 = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"));
         assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"));
 
         updateView("UPDATE %s USING TIMESTAMP 5 set v2 = 1 where p1 = 1 AND p2 = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         assertRowsIgnoringOrder(execute("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
         assertRowsIgnoringOrder(executeView("SELECT p1, p2, v1, v2 from %s"), row(1, 1, null, 1));
     }

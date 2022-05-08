@@ -33,10 +33,7 @@ import java.util.stream.Collectors;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.commons.io.FileUtils;
-
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
-
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
@@ -74,6 +71,7 @@ public abstract class OfflineToolUtils
     "ObjectCleanerThread",
     "process reaper",  // spawned by the jvm when executing external processes
                        // and may still be active when we check
+    "Attach Listener", // spawned in intellij IDEA
     };
 
     public void assertNoUnexpectedThreadsStarted(String[] optionalThreadNames)

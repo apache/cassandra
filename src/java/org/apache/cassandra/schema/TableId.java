@@ -25,7 +25,10 @@ import java.util.UUID;
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * The unique identifier of a table.
@@ -35,6 +38,7 @@ import org.apache.cassandra.utils.UUIDGen;
  */
 public class TableId
 {
+    // TODO: should this be a TimeUUID?
     private final UUID id;
 
     private TableId(UUID id)
@@ -47,9 +51,10 @@ public class TableId
         return new TableId(id);
     }
 
+    // TODO: should we be using UUID.randomUUID()?
     public static TableId generate()
     {
-        return new TableId(UUIDGen.getTimeUUID());
+        return new TableId(nextTimeUUID().asUUID());
     }
 
     public static TableId fromString(String idString)
@@ -67,13 +72,13 @@ public class TableId
      */
     public static TableId forSystemTable(String keyspace, String table)
     {
-        assert SchemaConstants.isLocalSystemKeyspace(keyspace) || SchemaConstants.isReplicatedSystemKeyspace(keyspace);
+        assert SchemaConstants.isSystemKeyspace(keyspace) : String.format("Table %s.%s is not a system table; only keyspaces allowed are %s", keyspace, table, SchemaConstants.getSystemKeyspaces());
         return unsafeDeterministic(keyspace, table);
     }
 
     public static TableId unsafeDeterministic(String keyspace, String table)
     {
-        return new TableId(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(), table.getBytes())));
+        return new TableId(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(UTF_8), table.getBytes(UTF_8))));
     }
 
     public String toHexString()

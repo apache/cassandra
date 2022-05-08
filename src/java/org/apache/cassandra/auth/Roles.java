@@ -35,8 +35,13 @@ public class Roles
 
     private static final Role NO_ROLE = new Role("", false, false, Collections.emptyMap(), Collections.emptySet());
 
-    public static final RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager(),
-            () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
+    public static final RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager(), () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
+
+    /** Use {@link AuthCacheService#initializeAndRegisterCaches} rather than calling this directly */
+    public static void init()
+    {
+        AuthCacheService.instance.register(cache);
+    }
 
     /**
      * Identify all roles granted to the supplied Role, including both directly granted
@@ -56,7 +61,7 @@ public class Roles
      * Get detailed info on all the roles granted to the role identified by the supplied RoleResource.
      * This includes superuser status and login privileges for the primary role and all roles granted directly
      * to it or inherited.
-     * The returnred roles may be cached if roles_validity_in_ms > 0
+     * The returned roles may be cached if roles_validity > 0
      * This method is used where we need to know specific attributes of the collection of granted roles, i.e.
      * when checking for superuser status which may be inherited from *any* granted role.
      *
@@ -66,6 +71,15 @@ public class Roles
     public static Set<Role> getRoleDetails(RoleResource primaryRole)
     {
         return cache.getRoles(primaryRole);
+    }
+
+    /**
+     * Enumerate all the roles in the system, preferably these will be fetched from the cache, which in turn
+     * may have been warmed during startup.
+     */
+    public static Set<RoleResource> getAllRoles()
+    {
+        return cache.getAllRoles();
     }
 
     /**

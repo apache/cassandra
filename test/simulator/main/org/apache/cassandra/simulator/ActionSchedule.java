@@ -26,11 +26,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import com.google.common.base.Preconditions;
-import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,43 +68,65 @@ import static org.apache.cassandra.simulator.SimulatorUtils.dumpStackTraces;
  * all descendants have executed (with the aim of it ordinarily being invalidated before this happens), and this
  * is not imposed here because it would be more complicated to manage.
  */
-public class ActionSchedule implements CloseableIterator<Object>
+public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
 {
     private static final Logger logger = LoggerFactory.getLogger(ActionList.class);
 
-    public enum Mode { TIME_LIMITED, STREAM_LIMITED, UNLIMITED }
+    public enum Mode { TIME_LIMITED, STREAM_LIMITED, TIME_AND_STREAM_LIMITED, FINITE, UNLIMITED }
 
     public static class Work
     {
         final Mode mode;
         final long runForNanos;
-        final RunnableActionScheduler runnableScheduler;
         final List<ActionList> actors;
 
-        public Work(Mode mode, RunnableActionScheduler runnableScheduler, List<ActionList> actors)
+        public Work(Mode mode, List<ActionList> actors)
         {
-            this(mode, -1, runnableScheduler, actors);
+            this(mode, -1, actors);
             Preconditions.checkArgument(mode != TIME_LIMITED);
         }
 
-        public Work(long runForNanos, RunnableActionScheduler runnableScheduler, List<ActionList> actors)
+        public Work(long runForNanos, List<ActionList> actors)
         {
-            this(TIME_LIMITED, runForNanos, runnableScheduler, actors);
+            this(TIME_LIMITED, runForNanos, actors);
             Preconditions.checkArgument(runForNanos > 0);
         }
 
-        public Work(Mode mode, long runForNanos, RunnableActionScheduler runnableScheduler, List<ActionList> actors)
+        public Work(Mode mode, long runForNanos, List<ActionList> actors)
         {
             this.mode = mode;
             this.runForNanos = runForNanos;
             this.actors = actors;
-            this.runnableScheduler = runnableScheduler;
+        }
+    }
+
+    public static class ReconcileItem
+    {
+        final long start, end;
+        final Action performed;
+        final ActionList result;
+
+        public ReconcileItem(long start, long end, Action performed, ActionList result)
+        {
+            this.start = start;
+            this.end = end;
+            this.performed = performed;
+            this.result = result;
+        }
+
+        public String toString()
+        {
+            return "run:" + performed.toReconcileString() + "; next:" + result.toReconcileString()
+                   + "; between [" + start + ',' + end + ']';
         }
     }
 
     final SimulatedTime time;
     final FutureActionScheduler scheduler;
+    final RunnableActionScheduler runnableScheduler;
     final LongSupplier schedulerJitter; // we will prioritise all actions scheduled to run within this period of the current oldest action
+    long currentJitter, currentJitterUntil;
+
     // Action flow is:
     //    perform() -> [withheld]
     //              -> consequences
@@ -139,14 +161,16 @@ public class ActionSchedule implements CloseableIterator<Object>
 
     private final Iterator<Work> moreWork;
 
-    public ActionSchedule(SimulatedTime time, FutureActionScheduler futureScheduler, LongSupplier schedulerJitter, Work ... moreWork)
+    public ActionSchedule(SimulatedTime time, FutureActionScheduler futureScheduler, LongSupplier schedulerJitter, RunnableActionScheduler runnableScheduler, Work... moreWork)
     {
-        this(time, futureScheduler, schedulerJitter, Arrays.asList(moreWork).iterator());
+        this(time, futureScheduler, runnableScheduler, schedulerJitter, Arrays.asList(moreWork).iterator());
     }
 
-    public ActionSchedule(SimulatedTime time, FutureActionScheduler futureScheduler, LongSupplier schedulerJitter, Iterator<Work> moreWork)
+    public ActionSchedule(SimulatedTime time, FutureActionScheduler futureScheduler, RunnableActionScheduler runnableScheduler, LongSupplier schedulerJitter, Iterator<Work> moreWork)
     {
         this.time = time;
+        this.runnableScheduler = runnableScheduler;
+        this.time.onDiscontinuity(this);
         this.scheduler = futureScheduler;
         this.schedulerJitter = schedulerJitter;
         this.moreWork = moreWork;
@@ -164,6 +188,13 @@ public class ActionSchedule implements CloseableIterator<Object>
         switch (mode)
         {
             default: throw new AssertionError();
+            case TIME_AND_STREAM_LIMITED:
+                if ((activeFiniteStreamCount == 0 || time.nanoTime() >= runUntilNanos) && action.is(DAEMON))
+                {
+                    action.cancel();
+                    return;
+                }
+                break;
             case TIME_LIMITED:
                 if (time.nanoTime() >= runUntilNanos && (action.is(DAEMON) || action.is(STREAM)))
                 {
@@ -186,6 +217,9 @@ public class ActionSchedule implements CloseableIterator<Object>
                     action.advanceTo(READY_TO_SCHEDULE);
                     return;
                 }
+                break;
+            case FINITE:
+                if (action.is(STREAM)) throw new IllegalStateException();
                 break;
         }
         action.advanceTo(READY_TO_SCHEDULE);
@@ -266,13 +300,12 @@ public class ActionSchedule implements CloseableIterator<Object>
             }
             else
             {
-                logger.error("Simulation failed to make progress. Run with assertions enabled to see the blocked task graph. Blocked tasks:");
+                logger.error("Simulation failed to make progress. Run with -Dcassandra.test.simulator.debug=true to see the blocked task graph. Blocked tasks:");
                 actions = sequences.values()
                                    .stream()
                                    .filter(s -> s.on instanceof OrderOnId)
                                    .map(s -> ((OrderOnId) s.on).id)
                                    .flatMap(s -> s instanceof ActionList ? ((ActionList) s).stream() : Stream.empty());
-                logger.error("Run with assertions enabled to see the blocked task graph.");
             }
 
             actions.filter(Action::isStarted)
@@ -310,7 +343,7 @@ public class ActionSchedule implements CloseableIterator<Object>
                 pendingDaemonWave = null;
             }
         }
-        work.actors.forEach(work.runnableScheduler::attachTo);
+        work.actors.forEach(runnableScheduler::attachTo);
         work.actors.forEach(a -> a.forEach(Action::setConsequence));
         work.actors.forEach(this::add);
         return true;
@@ -318,10 +351,16 @@ public class ActionSchedule implements CloseableIterator<Object>
 
     public Object next()
     {
+        long now = time.nanoTime();
+        if (now >= currentJitterUntil)
+        {
+            currentJitter = schedulerJitter.getAsLong();
+            currentJitterUntil = now + currentJitter + schedulerJitter.getAsLong();
+        }
         if (!scheduled.isEmpty())
         {
-            long scheduleUntil = (runnableByDeadline.isEmpty() ? time.nanoTime() : runnableByDeadline.peek().deadline())
-                                 + schedulerJitter.getAsLong();
+            long scheduleUntil = Math.min((runnableByDeadline.isEmpty() ? now : runnableByDeadline.peek().deadline())
+                                          + currentJitter, currentJitterUntil);
 
             while (!scheduled.isEmpty() && (runnable.isEmpty() || scheduled.peek().deadline() <= scheduleUntil))
                 advance(scheduled.poll());
@@ -341,7 +380,8 @@ public class ActionSchedule implements CloseableIterator<Object>
         if (perform.is(STREAM) && !perform.is(DAEMON))
             --activeFiniteStreamCount;
 
-        return Pair.of(perform, consequences);
+        long end = time.nanoTime();
+        return new ReconcileItem(now, end, perform, consequences);
     }
 
     private void maybeScheduleDaemons(Action perform)
@@ -387,4 +427,12 @@ public class ActionSchedule implements CloseableIterator<Object>
         sequences.clear();
         Throwables.maybeFail(fail);
     }
+
+    @Override
+    public void accept(long discontinuity)
+    {
+        if (runUntilNanos > 0)
+            runUntilNanos += discontinuity;
+    }
+
 }

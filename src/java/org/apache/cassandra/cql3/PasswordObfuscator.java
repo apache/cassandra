@@ -18,15 +18,26 @@
 
 package org.apache.cassandra.cql3;
 
+import java.util.Optional;
+
+import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.auth.RoleOptions;
+
 /**
  * Obfuscates passwords in a given string
  */
 public class PasswordObfuscator
 {
-    public static final String OBFUSCATION_TOKEN = " *******";
-    private static final String PASSWORD_TOKEN = "password";
+    public static final String OBFUSCATION_TOKEN = "*******";
+    public static final String PASSWORD_TOKEN = PasswordAuthenticator.PASSWORD_KEY.toLowerCase();
 
-    public String obfuscate(String sourceString)
+    /**
+     * Obfuscates everything after the first appearance password token
+     * 
+     * @param sourceString The query to obfuscate
+     * @return The obfuscated query
+     */
+    public static String obfuscate(String sourceString)
     {
         if (null == sourceString)
             return null;
@@ -35,6 +46,32 @@ public class PasswordObfuscator
         if (passwordTokenStartIndex < 0)
             return sourceString;
 
-        return sourceString.substring(0, passwordTokenStartIndex + PASSWORD_TOKEN.length()) + OBFUSCATION_TOKEN;
+        return sourceString.substring(0, passwordTokenStartIndex + PASSWORD_TOKEN.length()) + " " + OBFUSCATION_TOKEN;
+    }
+
+    /**
+     * Obfuscates the password in a query
+     * 
+     * @param query The query whose password to obfuscate
+     * @param opts The options containing the password to obfuscate
+     * @return The query with obfuscated password
+     */
+    public static String obfuscate(String query, RoleOptions opts)
+    {
+        if (opts == null || query == null || query.isEmpty())
+            return query;
+
+        Optional<String> pass = opts.getPassword();
+        if (!pass.isPresent() || pass.get().isEmpty())
+            pass = opts.getHashedPassword();
+        if (!pass.isPresent() || pass.get().isEmpty())
+            return query;
+
+        // Regular expression:
+        //  - Match new line and case insensitive (?si), and PASSWORD_TOKEN with greedy mode up to the start of the actual password and group it.
+        //  - Quote the password between \Q and \E so any potential special characters are ignored
+        //  - Replace the match with the grouped data + the obfuscated token
+        return query.replaceAll("((?si)"+ PASSWORD_TOKEN + ".+?)\\Q" + pass.get() + "\\E",
+                                "$1" + PasswordObfuscator.OBFUSCATION_TOKEN);
     }
 }

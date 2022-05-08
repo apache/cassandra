@@ -181,7 +181,7 @@ public class CleanupTransientTest
                     .applyUnsafe();
         }
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
     }
 
     protected List<Long> getMaxTimestampList(ColumnFamilyStore cfs)

@@ -22,12 +22,12 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "getcompactionthroughput", description = "Print the MB/s throughput cap for compaction in the system")
+@Command(name = "getcompactionthroughput", description = "Print the MiB/s throughput cap for compaction in the system")
 public class GetCompactionThroughput extends NodeToolCmd
 {
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.output().out.println("Current compaction throughput: " + probe.getCompactionThroughput() + " MB/s");
+        probe.output().out.println("Current compaction throughput: " + probe.getCompactionThroughput() + " MiB/s");
     }
 }

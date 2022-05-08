@@ -20,8 +20,8 @@ package org.apache.cassandra.db;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -31,7 +31,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -83,6 +82,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
@@ -443,10 +443,10 @@ public class ScrubTest
 
     private static void overrideWithGarbage(SSTableReader sstable, long startPosition, long endPosition) throws IOException
     {
-        try (RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw"))
+        try (FileChannel fileChannel = new File(sstable.getFilename()).newReadWriteChannel())
         {
-            file.seek(startPosition);
-            file.writeBytes(StringUtils.repeat('z', (int) (endPosition - startPosition)));
+            fileChannel.position(startPosition);
+            fileChannel.write(ByteBufferUtil.bytes(StringUtils.repeat('z', (int) (endPosition - startPosition))));
         }
         if (ChunkCache.instance != null)
             ChunkCache.instance.invalidateFile(sstable.getFilename());
@@ -483,7 +483,7 @@ public class ScrubTest
             new Mutation(update).applyUnsafe();
         }
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
     }
 
     public static void fillIndexCF(ColumnFamilyStore cfs, boolean composite, long ... values)
@@ -507,7 +507,7 @@ public class ScrubTest
             new Mutation(builder.build()).applyUnsafe();
         }
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
     }
 
     protected static void fillCounterCF(ColumnFamilyStore cfs, int partitionsPerSSTable) throws WriteTimeoutException
@@ -520,7 +520,7 @@ public class ScrubTest
             new CounterMutation(new Mutation(update), ConsistencyLevel.ONE).apply();
         }
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
     }
 
     @Test
@@ -531,14 +531,14 @@ public class ScrubTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("test_compact_static_columns");
 
         QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_static_columns (a, b, c, d) VALUES (123, c3db07e8-b602-11e3-bc6b-e0b9a54a6d93, true, 'foobar')", ksName));
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         CompactionManager.instance.performScrub(cfs, false, true, 2);
 
         QueryProcessor.process(String.format("CREATE TABLE \"%s\".test_scrub_validation (a text primary key, b int)", ksName), ConsistencyLevel.ONE);
         ColumnFamilyStore cfs2 = keyspace.getColumnFamilyStore("test_scrub_validation");
 
         new Mutation(UpdateBuilder.create(cfs2.metadata(), "key").newRow().add("b", Int32Type.instance.decompose(1)).build()).apply();
-        cfs2.forceBlockingFlush();
+        Util.flush(cfs2);
 
         CompactionManager.instance.performScrub(cfs2, false, false, 2);
     }
@@ -557,7 +557,7 @@ public class ScrubTest
         QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_dynamic_columns (a, b, c) VALUES (0, 'a', 'foo')", ksName));
         QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_dynamic_columns (a, b, c) VALUES (0, 'b', 'bar')", ksName));
         QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_dynamic_columns (a, b, c) VALUES (0, 'c', 'boo')", ksName));
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         CompactionManager.instance.performScrub(cfs, true, true, 2);
 
         // Scrub is silent, but it will remove broken records. So reading everything back to make sure nothing to "scrubbed away"
@@ -680,7 +680,7 @@ public class ScrubTest
      */
     private static class TestWriter extends BigTableWriter
     {
-        TestWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, TableMetadataRef metadata,
+        TestWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, TableMetadataRef metadata,
                    MetadataCollector collector, SerializationHeader header, LifecycleTransaction txn)
         {
             super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, collector, header, Collections.emptySet(), txn);

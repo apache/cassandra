@@ -36,8 +36,9 @@ public enum RequestFailureReason
     READ_TOO_MANY_TOMBSTONES (1),
     TIMEOUT                  (2),
     INCOMPATIBLE_SCHEMA      (3),
-    READ_SIZE                (4);
-    
+    READ_SIZE                (4),
+    NODE_DOWN                (5);
+
     public static final Serializer serializer = new Serializer();
 
     public final int code;

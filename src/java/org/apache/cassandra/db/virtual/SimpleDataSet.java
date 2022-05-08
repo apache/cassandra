@@ -176,8 +176,10 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
         private void add(String columnName, Object value)
         {
             ColumnMetadata column = metadata.getColumn(ByteBufferUtil.bytes(columnName));
-            if (null == column || !column.isRegular())
-                throw new IllegalArgumentException();
+            if (column == null)
+                throw new IllegalArgumentException("Unknown column: " + columnName);
+            if (!column.isRegular())
+                throw new IllegalArgumentException(String.format("Expect a regular column %s, but got %s", columnName, column.kind));
             values.put(column, value);
         }
 
@@ -188,9 +190,16 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
 
             columns.forEach(c ->
             {
-                Object value = values.get(c);
-                if (null != value)
-                    builder.addCell(BufferCell.live(c, now, decompose(c.type, value)));
+                try
+                {
+                    Object value = values.get(c);
+                    if (null != value)
+                        builder.addCell(BufferCell.live(c, now, decompose(c.type, value)));
+                }
+                catch (Exception e)
+                {
+                    throw new SerializationException(c, e);
+                }
             });
 
             return builder.build();
@@ -202,9 +211,16 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> ByteBuffer decompose(AbstractType<?> type, T value)
+    private static ByteBuffer decompose(AbstractType<?> type, Object value)
     {
-        return ((AbstractType<T>) type).decompose(value);
+        return type.decomposeUntyped(value);
+    }
+
+    public static class SerializationException extends RuntimeException
+    {
+        public SerializationException(ColumnMetadata c, Throwable t)
+        {
+            super("Unable to serialize column " + c.name + " " + c.type.asCQL3Type(), t, true, false);
+        }
     }
 }

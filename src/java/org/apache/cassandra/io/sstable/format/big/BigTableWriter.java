@@ -71,13 +71,13 @@ public class BigTableWriter extends SSTableWriter
 
     private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
                                                         .trickleFsync(DatabaseDescriptor.getTrickleFsync())
-                                                        .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024)
+                                                        .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
                                                         .build();
 
     public BigTableWriter(Descriptor descriptor,
                           long keyCount,
                           long repairedAt,
-                          UUID pendingRepair,
+                          TimeUUID pendingRepair,
                           boolean isTransient,
                           TableMetadataRef metadata,
                           MetadataCollector metadataCollector, 
@@ -638,7 +638,7 @@ public class BigTableWriter extends SSTableWriter
 
         protected Throwable doAbort(Throwable accumulate)
         {
-            return indexFile.abort(accumulate);
+            return summary.close(indexFile.abort(accumulate));
         }
 
         @Override

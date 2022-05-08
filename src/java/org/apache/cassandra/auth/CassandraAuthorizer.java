@@ -18,31 +18,38 @@
 package org.apache.cassandra.auth;
 
 import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Table;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.cql3.BatchQueryOptions.withoutPerStatementVariables;
-import static org.apache.cassandra.cql3.QueryOptions.DEFAULT;
-import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -88,18 +95,37 @@ public class CassandraAuthorizer implements IAuthorizer
         }
     }
 
-    public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
+    public Set<Permission> grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException
     {
-        modifyRolePermissions(permissions, resource, grantee, "+");
-        addLookupEntry(resource, grantee);
+        String roleName = escape(grantee.getRoleName());
+        String resourceName = escape(resource.getName());
+        Set<Permission> existingPermissions = getExistingPermissions(roleName, resourceName, permissions);
+        Set<Permission> nonExistingPermissions = Sets.difference(permissions, existingPermissions);
+
+        if (!nonExistingPermissions.isEmpty())
+        {
+            modifyRolePermissions(nonExistingPermissions, resource, grantee, "+");
+            addLookupEntry(resource, grantee);
+        }
+
+        return nonExistingPermissions;
     }
 
-    public void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource revokee)
+    public Set<Permission> revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource revokee)
     throws RequestValidationException, RequestExecutionException
     {
-        modifyRolePermissions(permissions, resource, revokee, "-");
-        removeLookupEntry(resource, revokee);
+        String roleName = escape(revokee.getRoleName());
+        String resourceName = escape(resource.getName());
+        Set<Permission> existingPermissions = getExistingPermissions(roleName, resourceName, permissions);
+
+        if (!existingPermissions.isEmpty())
+        {
+            modifyRolePermissions(existingPermissions, resource, revokee, "-");
+            removeLookupEntry(resource, revokee);
+        }
+
+        return existingPermissions;
     }
 
     // Called when deleting a role with DROP ROLE query.
@@ -180,6 +206,40 @@ public class CassandraAuthorizer implements IAuthorizer
         {
             logger.warn(String.format("CassandraAuthorizer failed to revoke all permissions on %s", droppedResource), e);
         }
+    }
+
+    /**
+     * Checks that the specified role has at least one of the expected permissions on the resource.
+     *
+     * @param roleName the role name
+     * @param resourceName the resource name
+     * @param expectedPermissions the permissions to check for
+     * @return The existing permissions
+     */
+    private Set<Permission> getExistingPermissions(String roleName,
+                                                   String resourceName,
+                                                   Set<Permission> expectedPermissions)
+    {
+        UntypedResultSet rs = process(String.format("SELECT permissions FROM %s.%s WHERE role = '%s' AND resource = '%s'",
+                                                    SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                    AuthKeyspace.ROLE_PERMISSIONS,
+                                                    roleName,
+                                                    resourceName),
+                                      ConsistencyLevel.LOCAL_ONE);
+
+        if (rs.isEmpty())
+            return Collections.emptySet();
+
+        Row one = rs.one();
+
+        Set<Permission> existingPermissions = Sets.newHashSetWithExpectedSize(expectedPermissions.size());
+        for (String permissionName : one.getSet("permissions", UTF8Type.instance))
+        {
+            Permission permission = Permission.valueOf(permissionName);
+            if (expectedPermissions.contains(permission))
+                existingPermissions.add(permission);
+        }
+        return existingPermissions;
     }
 
     private void executeLoggedBatch(List<CQLStatement> statements)
@@ -364,6 +424,10 @@ public class CassandraAuthorizer implements IAuthorizer
         return statement.execute(QueryState.forInternalCalls(), options, nanoTime());
     }
 
+    /**
+     * This is exposed so we can override the consistency level for tests that are single node
+     */
+    @VisibleForTesting
     UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
         return QueryProcessor.process(query, cl);
@@ -386,5 +450,85 @@ public class CassandraAuthorizer implements IAuthorizer
     public static ConsistencyLevel authReadConsistencyLevel()
     {
         return AuthProperties.instance.getReadConsistencyLevel();
+    }
+
+    /**
+     * Get an initial set of permissions to load into the PermissionsCache at startup
+     * @return map of User/Resource -> Permissions for cache initialisation
+     */
+    public Supplier<Map<Pair<AuthenticatedUser, IResource>, Set<Permission>>> bulkLoader()
+    {
+        return () ->
+        {
+            Map<Pair<AuthenticatedUser, IResource>, Set<Permission>> entries = new HashMap<>();
+            String cqlTemplate = "SELECT %s, %s, %s FROM %s.%s";
+
+            logger.info("Warming permissions cache from role_permissions table");
+            UntypedResultSet results = process(String.format(cqlTemplate,
+                                                             ROLE, RESOURCE, PERMISSIONS,
+                                                             SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_PERMISSIONS),
+                                                             AuthProperties.instance.getReadConsistencyLevel());
+
+            // role_name -> (resource, permissions)
+            Table<String, IResource, Set<Permission>> individualRolePermissions = HashBasedTable.create();
+            results.forEach(row -> {
+                if (row.has(PERMISSIONS))
+                {
+                    individualRolePermissions.put(row.getString(ROLE),
+                                                  Resources.fromName(row.getString(RESOURCE)),
+                                                  permissions(row.getSet(PERMISSIONS, UTF8Type.instance)));
+                }
+            });
+
+            // Iterate all user level roles in the system and accumulate the permissions of their granted roles
+            Roles.getAllRoles().forEach(roleResource -> {
+                // If the role has login priv, accumulate the permissions of all its granted roles
+                if (Roles.canLogin(roleResource))
+                {
+                    // Structure to accumulate the resource -> permission mappings for the closure of granted roles
+                    Map<IResource, ImmutableSet.Builder<Permission>> userPermissions = new HashMap<>();
+                    BiConsumer<IResource, Set<Permission>> accumulator = accumulator(userPermissions);
+
+                    // For each role granted to this primary, lookup the specific resource/permissions grants
+                    // we read in the first step. We'll accumlate those in the userPermissions map, which we'll turn
+                    // into cache entries when we're done.
+                    // Note: we need to provide a default empty set of permissions for roles without any explicitly
+                    // granted to them (e.g. superusers or roles with no direct perms).
+                    Roles.getRoleDetails(roleResource).forEach(grantedRole ->
+                                                               individualRolePermissions.rowMap()
+                                                                                        .getOrDefault(grantedRole.resource.getRoleName(), Collections.emptyMap())
+                                                                                        .forEach(accumulator));
+
+                    // Having iterated all the roles granted to this user, finalize the transitive permissions
+                    // (i.e. turn them into entries for the PermissionsCache)
+                    userPermissions.forEach((resource, builder) -> entries.put(cacheKey(roleResource, resource),
+                                                                               builder.build()));
+                }
+            });
+
+            return entries;
+        };
+    }
+
+    // Helper function to group the transitive set of permissions granted
+    // to user by the specific resources to which they apply
+    private static BiConsumer<IResource, Set<Permission>> accumulator(Map<IResource, ImmutableSet.Builder<Permission>> accumulator)
+    {
+        return (resource, permissions) -> accumulator.computeIfAbsent(resource, k -> new ImmutableSet.Builder<>()).addAll(permissions);
+    }
+
+    private static Set<Permission> permissions(Set<String> permissionNames)
+    {
+        return permissionNames.stream().map(Permission::valueOf).collect(Collectors.toSet());
+    }
+
+    private static Pair<AuthenticatedUser, IResource> cacheKey(RoleResource role, IResource resource)
+    {
+        return cacheKey(role.getRoleName(), resource);
+    }
+
+    private static Pair<AuthenticatedUser, IResource> cacheKey(String roleName, IResource resource)
+    {
+        return Pair.create(new AuthenticatedUser(roleName), resource);
     }
 }

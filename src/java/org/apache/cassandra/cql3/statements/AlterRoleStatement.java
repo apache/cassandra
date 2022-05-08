@@ -22,29 +22,33 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.auth.IRoleManager.Option;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+import static org.apache.cassandra.cql3.statements.RequestValidations.*;
 
 public class AlterRoleStatement extends AuthenticationStatement
 {
     private final RoleResource role;
     private final RoleOptions opts;
     final DCPermissions dcPermissions;
+    private final boolean ifExists;
 
     public AlterRoleStatement(RoleName name, RoleOptions opts)
     {
-        this(name, opts, null);
+        this(name, opts, null, false);
     }
 
-    public AlterRoleStatement(RoleName name, RoleOptions opts, DCPermissions dcPermissions)
+    public AlterRoleStatement(RoleName name, RoleOptions opts, DCPermissions dcPermissions, boolean ifExists)
     {
         this.role = RoleResource.role(name.getName());
         this.opts = opts;
         this.dcPermissions = dcPermissions;
+        this.ifExists = ifExists;
     }
 
     public void validate(ClientState state) throws RequestValidationException
@@ -62,7 +66,9 @@ public class AlterRoleStatement extends AuthenticationStatement
         // validate login here before authorize to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
         if (!DatabaseDescriptor.getRoleManager().isExistingRole(role))
-            throw new InvalidRequestException(String.format("%s doesn't exist", role.getRoleName()));
+        {
+            checkTrue(ifExists, "Role %s doesn't exist", role.getRoleName());
+        }
     }
 
     public void authorize(ClientState state) throws UnauthorizedException
@@ -105,7 +111,7 @@ public class AlterRoleStatement extends AuthenticationStatement
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
         return null;
     }
-    
+
     @Override
     public String toString()
     {
@@ -116,5 +122,11 @@ public class AlterRoleStatement extends AuthenticationStatement
     public AuditLogContext getAuditLogContext()
     {
         return new AuditLogContext(AuditLogEntryType.ALTER_ROLE);
+    }
+
+    @Override
+    public String obfuscatePassword(String query)
+    {
+        return PasswordObfuscator.obfuscate(query, opts);
     }
 }

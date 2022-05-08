@@ -31,6 +31,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 public class ListType<T> extends CollectionType<List<T>>
@@ -103,7 +104,7 @@ public class ListType<T> extends CollectionType<List<T>>
         return elements;
     }
 
-    public AbstractType<UUID> nameComparator()
+    public AbstractType<TimeUUID> nameComparator()
     {
         return TimeUUIDType.instance;
     }

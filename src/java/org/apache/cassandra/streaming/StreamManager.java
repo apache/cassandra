@@ -17,9 +17,11 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanNotificationInfo;
 import javax.management.NotificationFilter;
@@ -28,28 +30,37 @@ import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * StreamManager manages currently running {@link StreamResultFuture}s and provides status of all operation invoked.
  *
- * All stream operation should be created through this class to track streaming status and progress.
+ * All stream operations should be created through this class to track streaming status and progress.
  */
 public class StreamManager implements StreamManagerMBean
 {
+    private static final Logger logger = LoggerFactory.getLogger(StreamManager.class);
+
     public static final StreamManager instance = new StreamManager();
 
     /**
      * Gets streaming rate limiter.
-     * When stream_throughput_outbound_megabits_per_sec is 0, this returns rate limiter
+     * When stream_throughput_outbound is 0, this returns rate limiter
      * with the rate of Double.MAX_VALUE bytes per second.
      * Rate unit is bytes per sec.
      *
@@ -60,13 +71,13 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.LIMITER,
                                      StreamRateLimiter.INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec(),
-                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec());
+                                     DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec(),
+                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec());
     }
 
     /**
      * Get streaming rate limiter for entire SSTable operations.
-     * When {@code entire_sstable_stream_throughput_outbound_megabits_per_sec}
+     * When {@code entire_sstable_stream_throughput_outbound}
      * is less than or equal ot {@code 0}, this returns rate limiter with the
      * rate of {@link Double.MAX_VALUE} bytes per second.
      * Rate unit is bytes per sec.
@@ -79,13 +90,13 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.ENTIRE_SSTABLE_LIMITER,
                                      StreamRateLimiter.ENTIRE_SSTABLE_INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec(),
-                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec());
+                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec(),
+                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec());
     }
 
     public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
     {
-        public static final double BYTES_PER_MEGABIT = (1024 * 1024) / 8; // from bits
+        public static final double BYTES_PER_MEBIBYTE = 1024.0 * 1024.0;
         private static final RateLimiter LIMITER = RateLimiter.create(calculateRateInBytes());
         private static final RateLimiter INTER_DC_LIMITER = RateLimiter.create(calculateInterDCRateInBytes());
         private static final RateLimiter ENTIRE_SSTABLE_LIMITER = RateLimiter.create(calculateEntireSSTableRateInBytes());
@@ -94,10 +105,10 @@ public class StreamManager implements StreamManagerMBean
         private final RateLimiter limiter;
         private final RateLimiter interDCLimiter;
         private final boolean isLocalDC;
-        private final int throughput;
-        private final int interDCThroughput;
+        private final double throughput;
+        private final double interDCThroughput;
 
-        private StreamRateLimiter(InetAddressAndPort peer, RateLimiter limiter, RateLimiter interDCLimiter, int throughput, int interDCThroughput)
+        private StreamRateLimiter(InetAddressAndPort peer, RateLimiter limiter, RateLimiter interDCLimiter, double throughput, double interDCThroughput)
         {
             this.limiter = limiter;
             this.interDCLimiter = interDCLimiter;
@@ -148,25 +159,25 @@ public class StreamManager implements StreamManagerMBean
 
         private static double calculateRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
+            double throughput = DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateInterDCRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
+            double throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMegabitsPerSec();
+            double throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableInterDCRateInBytes()
         {
-            int throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMegabitsPerSec();
+            double throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
@@ -194,24 +205,102 @@ public class StreamManager implements StreamManagerMBean
             return ENTIRE_SSTABLE_INTER_DC_LIMITER.getRate();
         }
 
-        private static double calculateEffectiveRateInBytes(int throughput)
+        private static double calculateEffectiveRateInBytes(double throughput)
         {
-            // if throughput is set to 0 or negative value, throttling is disabled
+            // if throughput is set to 0, throttling is disabled
             return throughput > 0
-                   ? throughput * BYTES_PER_MEGABIT
+                   ? throughput * BYTES_PER_MEBIBYTE
                    : Double.MAX_VALUE;
         }
     }
 
     private final StreamEventJMXNotifier notifier = new StreamEventJMXNotifier();
+    private final CopyOnWriteArrayList<StreamListener> listeners = new CopyOnWriteArrayList<>();
 
     /*
      * Currently running streams. Removed after completion/failure.
      * We manage them in two different maps to distinguish plan from initiated ones to
      * receiving ones withing the same JVM.
      */
-    private final Map<UUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
-    private final Map<UUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
+    private final Map<TimeUUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
+    private final Map<TimeUUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
+
+    private final Cache<TimeUUID, StreamingState> states;
+    private final StreamListener listener = new StreamListener()
+    {
+        @Override
+        public void onRegister(StreamResultFuture result)
+        {
+            // reason for synchronized rather than states.get is to detect duplicates
+            // streaming shouldn't be producing duplicates as that would imply a planId collision
+            synchronized (states)
+            {
+                StreamingState previous = states.getIfPresent(result.planId);
+                if (previous == null)
+                {
+                    StreamingState state = new StreamingState(result);
+                    states.put(state.id(), state);
+                    state.phase.start();
+                    result.addEventListener(state);
+                }
+                else
+                {
+                    logger.warn("Duplicate streaming states detected for id {}", result.planId);
+                }
+            }
+        }
+    };
+
+    public StreamManager()
+    {
+        DurationSpec duration = DatabaseDescriptor.getStreamingStateExpires();
+        long sizeBytes = DatabaseDescriptor.getStreamingStateSize().toBytes();
+        long numElements = sizeBytes / StreamingState.ELEMENT_SIZE;
+        logger.info("Storing streaming state for {} or for {} elements", duration, numElements);
+        states = CacheBuilder.newBuilder()
+                             .expireAfterWrite(duration.quantity(), duration.unit())
+                             .maximumSize(numElements)
+                             .build();
+    }
+
+    public void start()
+    {
+        addListener(listener);
+    }
+
+    public void stop()
+    {
+        removeListener(listener);
+    }
+
+    public Collection<StreamingState> getStreamingStates()
+    {
+        return states.asMap().values();
+    }
+
+    public StreamingState getStreamingState(TimeUUID id)
+    {
+        return states.getIfPresent(id);
+    }
+
+    @VisibleForTesting
+    public void putStreamingState(StreamingState state)
+    {
+        synchronized (states)
+        {
+            StreamingState previous = states.getIfPresent(state.id());
+            if (previous != null)
+                throw new AssertionError("StreamPlan id " + state.id() + " already exists");
+            states.put(state.id(), state);
+        }
+    }
+
+    @VisibleForTesting
+    public void clearStates()
+    {
+        // states.cleanUp() doesn't clear, it looks to only run gc on things that could be removed... this method should remove all state
+        states.asMap().clear();
+    }
 
     public Set<CompositeData> getCurrentStreams()
     {
@@ -231,6 +320,7 @@ public class StreamManager implements StreamManagerMBean
         result.addListener(() -> initiatorStreams.remove(result.planId));
 
         initiatorStreams.put(result.planId, result);
+        notifySafeOnRegister(result);
     }
 
     public StreamResultFuture registerFollower(final StreamResultFuture result)
@@ -240,12 +330,61 @@ public class StreamManager implements StreamManagerMBean
         result.addListener(() -> followerStreams.remove(result.planId));
 
         StreamResultFuture previous = followerStreams.putIfAbsent(result.planId, result);
-        return previous == null ? result : previous;
+        if (previous == null)
+        {
+            notifySafeOnRegister(result);
+            return result;
+        }
+        return previous;
     }
 
-    public StreamResultFuture getReceivingStream(UUID planId)
+    @VisibleForTesting
+    public void putInitiatorStream(StreamResultFuture future)
+    {
+        StreamResultFuture current = initiatorStreams.putIfAbsent(future.planId, future);
+        assert current == null: "Duplicat initiator stream for " + future.planId;
+    }
+
+    @VisibleForTesting
+    public void putFollowerStream(StreamResultFuture future)
+    {
+        StreamResultFuture current = followerStreams.putIfAbsent(future.planId, future);
+        assert current == null: "Duplicate follower stream for " + future.planId;
+    }
+
+    public void addListener(StreamListener listener)
+    {
+        listeners.add(listener);
+    }
+
+    public void removeListener(StreamListener listener)
+    {
+        listeners.remove(listener);
+    }
+
+    private void notifySafeOnRegister(StreamResultFuture result)
+    {
+        for (StreamListener l : listeners)
+        {
+            try
+            {
+                l.onRegister(result);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to notify stream listener of new Initiator/Follower", t);
+            }
+        }
+    }
+
+    public StreamResultFuture getReceivingStream(TimeUUID planId)
     {
         return followerStreams.get(planId);
+    }
+
+    public StreamResultFuture getInitiatorStream(TimeUUID planId)
+    {
+        return initiatorStreams.get(planId);
     }
 
     public void addNotificationListener(NotificationListener listener, NotificationFilter filter, Object handback)
@@ -268,18 +407,23 @@ public class StreamManager implements StreamManagerMBean
         return notifier.getNotificationInfo();
     }
 
-    public StreamSession findSession(InetAddressAndPort peer, UUID planId, int sessionIndex, boolean searchInitiatorSessions)
+    public StreamSession findSession(InetAddressAndPort peer, TimeUUID planId, int sessionIndex, boolean searchInitiatorSessions)
     {
-        Map<UUID, StreamResultFuture> streams = searchInitiatorSessions ? initiatorStreams : followerStreams;
+        Map<TimeUUID, StreamResultFuture> streams = searchInitiatorSessions ? initiatorStreams : followerStreams;
         return findSession(streams, peer, planId, sessionIndex);
     }
 
-    private StreamSession findSession(Map<UUID, StreamResultFuture> streams, InetAddressAndPort peer, UUID planId, int sessionIndex)
+    private StreamSession findSession(Map<TimeUUID, StreamResultFuture> streams, InetAddressAndPort peer, TimeUUID planId, int sessionIndex)
     {
         StreamResultFuture streamResultFuture = streams.get(planId);
         if (streamResultFuture == null)
             return null;
 
         return streamResultFuture.getSession(peer, sessionIndex);
+    }
+
+    public interface StreamListener
+    {
+        default void onRegister(StreamResultFuture result) {}
     }
 }

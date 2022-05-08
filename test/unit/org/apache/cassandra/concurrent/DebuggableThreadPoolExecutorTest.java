@@ -22,12 +22,10 @@ package org.apache.cassandra.concurrent;
 
 
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import com.google.common.base.Throwables;
 import com.google.common.net.InetAddresses;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
@@ -41,11 +39,12 @@ import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.TraceStateImpl;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.FailingRunnable;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -151,7 +150,7 @@ public class DebuggableThreadPoolExecutorTest
         assertThat(ClientWarn.instance.getWarnings()).isNullOrEmpty();
 
         ConcurrentLinkedQueue<String> q = new ConcurrentLinkedQueue<>();
-        Tracing.instance.set(new TraceState(FBUtilities.getLocalAddressAndPort(), UUID.randomUUID(), Tracing.TraceType.NONE)
+        Tracing.instance.set(new TraceState(FBUtilities.getLocalAddressAndPort(), nextTimeUUID(), Tracing.TraceType.NONE)
         {
             @Override
             protected void traceImpl(String message)
@@ -249,7 +248,7 @@ public class DebuggableThreadPoolExecutorTest
     {
         TraceState state = Tracing.instance.get();
         try {
-            Tracing.instance.set(new TraceStateImpl(InetAddressAndPort.getByAddress(InetAddresses.forString("127.0.0.1")), UUID.randomUUID(), Tracing.TraceType.NONE));
+            Tracing.instance.set(new TraceStateImpl(InetAddressAndPort.getByAddress(InetAddresses.forString("127.0.0.1")), nextTimeUUID(), Tracing.TraceType.NONE));
             fn.run();
         }
         finally
@@ -318,24 +317,5 @@ public class DebuggableThreadPoolExecutorTest
 
     private static final class DebuggingThrowsException extends RuntimeException {
 
-    }
-
-    // REVIEWER : I know this is the same as WrappedRunnable, but that doesn't support lambda...
-    private interface FailingRunnable extends Runnable
-    {
-        void doRun() throws Throwable;
-
-        default void run()
-        {
-            try
-            {
-                doRun();
-            }
-            catch (Throwable t)
-            {
-                Throwables.throwIfUnchecked(t);
-                throw new RuntimeException(t);
-            }
-        }
     }
 }

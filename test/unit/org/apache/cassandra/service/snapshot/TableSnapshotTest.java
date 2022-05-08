@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.service.snapshot;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -35,6 +36,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TableSnapshotTest
@@ -68,12 +70,11 @@ public class TableSnapshotTest
         TableSnapshot snapshot = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some",
         null,
         null,
-        folders,
-        (File file) -> 0L
-        );
+        folders);
 
         assertThat(snapshot.exists()).isTrue();
 
@@ -90,54 +91,50 @@ public class TableSnapshotTest
         TableSnapshot snapshot = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some",
         null,
         null,
-        folders,
-        (File file) -> 0L
-        );
+        folders);
 
         assertThat(snapshot.isExpiring()).isFalse();
-        assertThat(snapshot.isExpired(Instant.now())).isFalse();
+        assertThat(snapshot.isExpired(now())).isFalse();
 
         snapshot = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some",
-        Instant.now(),
+        now(),
         null,
-        folders,
-        (File file) -> 0L
-        );
+        folders);
 
         assertThat(snapshot.isExpiring()).isFalse();
-        assertThat(snapshot.isExpired(Instant.now())).isFalse();
+        assertThat(snapshot.isExpired(now())).isFalse();
 
         snapshot = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some",
-        Instant.now(),
-        Instant.now().plusSeconds(1000),
-        folders,
-        (File file) -> 0L
-        );
+        now(),
+        now().plusSeconds(1000),
+        folders);
 
         assertThat(snapshot.isExpiring()).isTrue();
-        assertThat(snapshot.isExpired(Instant.now())).isFalse();
+        assertThat(snapshot.isExpired(now())).isFalse();
 
         snapshot = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some",
-        Instant.now(),
-        Instant.now().minusSeconds(1000),
-        folders,
-        (File file) -> 0L
-        );
+        now(),
+        now().minusSeconds(1000),
+        folders);
 
         assertThat(snapshot.isExpiring()).isTrue();
-        assertThat(snapshot.isExpired(Instant.now())).isTrue();
+        assertThat(snapshot.isExpired(now())).isTrue();
     }
 
     private Long writeBatchToFile(File file) throws IOException
@@ -158,14 +155,11 @@ public class TableSnapshotTest
         TableSnapshot tableDetails = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some",
         null,
         null,
-        folders,
-        (File file) -> {
-            return 0L;
-        }
-        );
+        folders);
 
         Long res = 0L;
 
@@ -187,19 +181,19 @@ public class TableSnapshotTest
         TableSnapshot tableDetails = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some",
         null,
         null,
-        folders,
-        File::length
-        );
+        folders);
 
         Long res = 0L;
 
         for (File dir : folders)
         {
-            writeBatchToFile(new File(dir, "tmp"));
-            res += dir.length();
+            File file = new File(dir, "tmp");
+            writeBatchToFile(file);
+            res += file.length();
         }
 
         assertThat(tableDetails.computeTrueSizeBytes()).isGreaterThan(0L);
@@ -216,25 +210,41 @@ public class TableSnapshotTest
         TableSnapshot withCreatedAt = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some1",
         createdAt,
         null,
-        folders,
-        (File file) -> 0L
-        );
+        folders);
         assertThat(withCreatedAt.getCreatedAt()).isEqualTo(createdAt);
 
         // When createdAt is  null, it should return the snapshot folder minimum update time
         TableSnapshot withoutCreatedAt = new TableSnapshot(
         "ks",
         "tbl",
+        UUID.randomUUID(),
         "some1",
         null,
         null,
-        folders,
-        (File file) -> 0L
-        );
+        folders);
         assertThat(withoutCreatedAt.getCreatedAt()).isEqualTo(Instant.ofEpochMilli(folders.stream().mapToLong(f -> f.lastModified()).min().getAsLong()));
     }
 
+    @Test
+    public void testGetLiveFileFromSnapshotFile()
+    {
+        testGetLiveFileFromSnapshotFile("~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/me-1-big-Data.db",
+                                        "~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/me-1-big-Data.db");
+    }
+
+    @Test
+    public void testGetLiveFileFromSnapshotIndexFile()
+    {
+        testGetLiveFileFromSnapshotFile("~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/snapshots/1643481737850/.tbl_val_idx/me-1-big-Summary.db",
+                                        "~/.ccm/test/node1/data0/test_ks/tbl-e03faca0813211eca100c705ea09b5ef/.tbl_val_idx/me-1-big-Summary.db");
+    }
+
+    public void testGetLiveFileFromSnapshotFile(String snapshotFile, String expectedLiveFile)
+    {
+        assertThat(TableSnapshot.getLiveFileFromSnapshotFile(Paths.get(snapshotFile)).toString()).isEqualTo(expectedLiveFile);
+    }
 }

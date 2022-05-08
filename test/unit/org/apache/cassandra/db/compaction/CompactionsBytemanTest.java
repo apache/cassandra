@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
@@ -129,7 +130,7 @@ public class CompactionsBytemanTest extends CQLTester
 
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 0, 1, 1);
         Util.spinAssertEquals(true, () -> CompactionManager.instance.compactingCF.count(cfs) == 0, 5);
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         Util.spinAssertEquals(true, () -> CompactionManager.instance.compactingCF.count(cfs) == 0, 5);
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
@@ -147,7 +148,7 @@ public class CompactionsBytemanTest extends CQLTester
         {
             execute("INSERT INTO %s (id, val) values (2, 'immortal')");
         }
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
     }
 
     private void createLowGCGraceTable(){
@@ -194,7 +195,7 @@ public class CompactionsBytemanTest extends CQLTester
             {
                 execute("insert into %s (k, c, v) values (?, ?, ?)", i, j, i*j);
             }
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
         cfs.getCompactionStrategyManager().mutateRepaired(cfs.getLiveSSTables(), System.currentTimeMillis(), null, false);
         for (int i = 0; i < 5; i++)
@@ -203,7 +204,7 @@ public class CompactionsBytemanTest extends CQLTester
             {
                 execute("insert into %s (k, c, v) values (?, ?, ?)", i, j, i*j);
             }
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
 
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
@@ -216,7 +217,7 @@ public class CompactionsBytemanTest extends CQLTester
         }
         catch (RuntimeException t)
         {
-            if (!(t.getCause().getCause() instanceof CompactionInterruptedException))
+            if (!Throwables.isCausedBy(t, CompactionInterruptedException.class::isInstance))
                 throw t;
             //expected
         }

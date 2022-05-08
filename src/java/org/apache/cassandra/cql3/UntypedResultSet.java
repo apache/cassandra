@@ -38,6 +38,7 @@ import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -373,6 +374,12 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return Int32Type.instance.compose(data.get(column));
         }
 
+        public int getInt(String column, int ifNull)
+        {
+            ByteBuffer bytes = data.get(column);
+            return bytes == null ? ifNull : Int32Type.instance.compose(bytes);
+        }
+
         public double getDouble(String column)
         {
             return DoubleType.instance.compose(data.get(column));
@@ -383,6 +390,16 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return data.get(column);
         }
 
+        public byte[] getByteArray(String column)
+        {
+            ByteBuffer buf = data.get(column);
+            byte[] arr = new byte[buf.remaining()];
+            for (int i = 0; i < arr.length; i++)
+                arr[i] = buf.get(buf.position() + i);
+
+            return arr;
+        }
+
         public InetAddress getInetAddress(String column)
         {
             return InetAddressType.instance.compose(data.get(column));
@@ -391,6 +408,17 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         public UUID getUUID(String column)
         {
             return UUIDType.instance.compose(data.get(column));
+        }
+
+        public UUID getUUID(String column, UUID ifNull)
+        {
+            ByteBuffer bytes = data.get(column);
+            return bytes == null ? ifNull : UUIDType.instance.compose(bytes);
+        }
+
+        public TimeUUID getTimeUUID(String column)
+        {
+            return TimeUUID.deserialize(data.get(column));
         }
 
         public Date getTimestamp(String column)

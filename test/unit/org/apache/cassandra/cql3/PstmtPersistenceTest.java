@@ -32,7 +32,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MD5Digest;
 
@@ -92,7 +91,7 @@ public class PstmtPersistenceTest extends CQLTester
             Assert.assertNull(handler.getPrepared(stmtId));
 
         // load prepared statements and validate that these still execute fine
-        QueryProcessor.preloadPreparedStatement();
+        QueryProcessor.instance.preloadPreparedStatements();
         validatePstmts(stmtIds, handler);
 
 
@@ -190,6 +189,6 @@ public class PstmtPersistenceTest extends CQLTester
     private MD5Digest prepareStatement(String stmt, String keyspace, String table, ClientState clientState)
     {
         System.out.println(stmt + String.format(stmt, keyspace + "." + table));
-        return QueryProcessor.prepare(String.format(stmt, keyspace + "." + table), clientState).statementId;
+        return QueryProcessor.instance.prepare(String.format(stmt, keyspace + "." + table), clientState).statementId;
     }
 }

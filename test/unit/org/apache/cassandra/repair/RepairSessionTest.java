@@ -38,8 +38,9 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -58,16 +59,15 @@ public class RepairSessionTest
         Gossiper.instance.initializeNodeUnsafe(remote, UUID.randomUUID(), 1);
 
         // Set up RepairSession
-        UUID parentSessionId = UUIDGen.getTimeUUID();
-        UUID sessionId = UUID.randomUUID();
+        TimeUUID parentSessionId = nextTimeUUID();
         IPartitioner p = Murmur3Partitioner.instance;
         Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)));
         Set<InetAddressAndPort> endpoints = Sets.newHashSet(remote);
-        RepairSession session = new RepairSession(parentSessionId, sessionId,
+        RepairSession session = new RepairSession(parentSessionId,
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
                                                   false, false,
-                                                  PreviewKind.NONE, false, "Standard1");
+                                                  PreviewKind.NONE, false, false, false, "Standard1");
 
         // perform convict
         session.convict(remote, Double.MAX_VALUE);

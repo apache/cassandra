@@ -28,5 +28,6 @@ public abstract class ValidationPartitionIterator extends AbstractUnfilteredPart
 {
     public abstract long getEstimatedBytes();
     public abstract long estimatedPartitions();
+    public abstract long getBytesRead();
     public abstract Map<Range<Token>, Long> getRangePartitionCounts();
 }

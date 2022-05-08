@@ -267,7 +267,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
         Term.Raw limit = null;
         Term.Raw perPartitionLimit = null;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<>();
-        List<ColumnIdentifier> groups = new ArrayList<>();
+        List<Selectable.Raw> groups = new ArrayList<>();
         boolean allowFiltering = false;
         boolean isJson = false;
     }
@@ -463,8 +463,8 @@ orderByClause[Map<ColumnIdentifier, Boolean> orderings]
     : c=cident (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
     ;
 
-groupByClause[List<ColumnIdentifier> groups]
-    : c=cident { groups.add(c); }
+groupByClause[List<Selectable.Raw> groups]
+    : s=unaliasedSelector { groups.add(s); }
     ;
 
 /**
@@ -915,37 +915,45 @@ dropTriggerStatement returns [DropTriggerStatement.Raw stmt]
     ;
 
 /**
- * ALTER KEYSPACE <KS> WITH <property> = <value>;
+ * ALTER KEYSPACE [IF EXISTS] <KS> WITH <property> = <value>;
  */
 alterKeyspaceStatement returns [AlterKeyspaceStatement.Raw stmt]
-    @init { KeyspaceAttributes attrs = new KeyspaceAttributes(); }
-    : K_ALTER K_KEYSPACE ks=keyspaceName
-        K_WITH properties[attrs] { $stmt = new AlterKeyspaceStatement.Raw(ks, attrs); }
+    @init {
+     KeyspaceAttributes attrs = new KeyspaceAttributes();
+     boolean ifExists = false;
+    }
+    : K_ALTER K_KEYSPACE (K_IF K_EXISTS { ifExists = true; } )? ks=keyspaceName
+        K_WITH properties[attrs] { $stmt = new AlterKeyspaceStatement.Raw(ks, attrs, ifExists); }
     ;
 
 /**
  * ALTER TABLE <table> ALTER <column> TYPE <newtype>;
- * ALTER TABLE <table> ADD <column> <newtype>; | ALTER TABLE <table> ADD (<column> <newtype>,<column1> <newtype1>..... <column n> <newtype n>)
- * ALTER TABLE <table> DROP <column>; | ALTER TABLE <table> DROP ( <column>,<column1>.....<column n>)
- * ALTER TABLE <table> RENAME <column> TO <column>;
- * ALTER TABLE <table> WITH <property> = <value>;
+ * ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] <column> <newtype>; | ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] (<column> <newtype>,<column1> <newtype1>..... <column n> <newtype n>)
+ * ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] <column>; | ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] ( <column>,<column1>.....<column n>)
+ * ALTER TABLE [IF EXISTS] <table> RENAME [IF EXISTS] <column> TO <column>;
+ * ALTER TABLE [IF EXISTS] <table> WITH <property> = <value>;
  */
 alterTableStatement returns [AlterTableStatement.Raw stmt]
-    : K_ALTER K_COLUMNFAMILY cf=columnFamilyName { $stmt = new AlterTableStatement.Raw(cf); }
+    @init { boolean ifExists = false; }
+    : K_ALTER K_COLUMNFAMILY (K_IF K_EXISTS { ifExists = true; } )?
+      cf=columnFamilyName { $stmt = new AlterTableStatement.Raw(cf, ifExists); }
       (
         K_ALTER id=cident K_TYPE v=comparatorType { $stmt.alter(id, v); }
 
-      | K_ADD  (        id=ident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b);  }
+      | K_ADD ( K_IF K_NOT K_EXISTS { $stmt.ifColumnNotExists(true); } )?
+              (        id=ident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b);  }
                | ('('  id1=ident v1=comparatorType b1=isStaticColumn { $stmt.add(id1, v1, b1); }
                  ( ',' idn=ident vn=comparatorType bn=isStaticColumn { $stmt.add(idn, vn, bn); } )* ')') )
 
-      | K_DROP (        id=ident { $stmt.drop(id);  }
+      | K_DROP ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )?
+               (       id=ident { $stmt.drop(id);  }
                | ('('  id1=ident { $stmt.drop(id1); }
                  ( ',' idn=ident { $stmt.drop(idn); } )* ')') )
                ( K_USING K_TIMESTAMP t=INTEGER { $stmt.timestamp(Long.parseLong(Constants.Literal.integer($t.text).getText())); } )?
 
-      | K_RENAME id1=ident K_TO toId1=ident { $stmt.rename(id1, toId1); }
-         ( K_AND idn=ident K_TO toIdn=ident { $stmt.rename(idn, toIdn); } )*
+      | K_RENAME ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )?
+               (        id1=ident K_TO toId1=ident { $stmt.rename(id1, toId1); }
+                ( K_AND idn=ident K_TO toIdn=ident { $stmt.rename(idn, toIdn); } )* )
 
       | K_DROP K_COMPACT K_STORAGE { $stmt.dropCompactStorage(); }
 
@@ -961,28 +969,32 @@ isStaticColumn returns [boolean isStaticColumn]
 alterMaterializedViewStatement returns [AlterViewStatement.Raw stmt]
     @init {
         TableAttributes attrs = new TableAttributes();
+        boolean ifExists = false;
     }
-    : K_ALTER K_MATERIALIZED K_VIEW name=columnFamilyName
+    : K_ALTER K_MATERIALIZED K_VIEW (K_IF K_EXISTS { ifExists = true; } )? name=columnFamilyName
           K_WITH properties[attrs]
     {
-        $stmt = new AlterViewStatement.Raw(name, attrs);
+        $stmt = new AlterViewStatement.Raw(name, attrs, ifExists);
     }
     ;
 
 
 /**
- * ALTER TYPE <name> ALTER <field> TYPE <newtype>;
- * ALTER TYPE <name> ADD <field> <newtype>;
- * ALTER TYPE <name> RENAME <field> TO <newtype> AND ...;
+ * ALTER TYPE [IF EXISTS] <name> ALTER <field> TYPE <newtype>;
+ * ALTER TYPE [IF EXISTS] <name> ADD [IF NOT EXISTS]<field> <newtype>;
+ * ALTER TYPE [IF EXISTS] <name> RENAME [IF EXISTS] <field> TO <newtype> AND ...;
  */
 alterTypeStatement returns [AlterTypeStatement.Raw stmt]
-    : K_ALTER K_TYPE name=userTypeName { $stmt = new AlterTypeStatement.Raw(name); }
+    @init {
+        boolean ifExists = false;
+    }
+    : K_ALTER K_TYPE (K_IF K_EXISTS { ifExists = true; } )? name=userTypeName { $stmt = new AlterTypeStatement.Raw(name, ifExists); }
       (
         K_ALTER   f=fident K_TYPE v=comparatorType { $stmt.alter(f, v); }
 
-      | K_ADD     f=fident v=comparatorType        { $stmt.add(f, v); }
+      | K_ADD (K_IF K_NOT K_EXISTS { $stmt.ifFieldNotExists(true); } )?     f=fident v=comparatorType        { $stmt.add(f, v); }
 
-      | K_RENAME f1=fident K_TO toF1=fident        { $stmt.rename(f1, toF1); }
+      | K_RENAME (K_IF K_EXISTS { $stmt.ifFieldExists(true); } )? f1=fident K_TO toF1=fident        { $stmt.rename(f1, toF1); }
          ( K_AND fn=fident K_TO toFn=fident        { $stmt.rename(fn, toFn); } )*
       )
     ;
@@ -1169,22 +1181,33 @@ createUserStatement returns [CreateRoleStatement stmt]
       ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
       { opts.setOption(IRoleManager.Option.SUPERUSER, superuser);
+        if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
+        {
+           throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+        }
         $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), ifNotExists); }
     ;
 
 /**
- * ALTER USER <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
+ * ALTER USER [IF EXISTS] <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
  */
 alterUserStatement returns [AlterRoleStatement stmt]
     @init {
         RoleOptions opts = new RoleOptions();
         RoleName name = new RoleName();
+        boolean ifExists = false;
     }
-    : K_ALTER K_USER u=username { name.setName($u.text, true); }
+    : K_ALTER K_USER (K_IF K_EXISTS { ifExists = true; })? u=username { name.setName($u.text, true); }
       ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, true); }
         | K_NOSUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, false); } ) ?
-      {  $stmt = new AlterRoleStatement(name, opts, null); }
+      {
+         if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
+         {
+            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+         }
+         $stmt = new AlterRoleStatement(name, opts, null, ifExists);
+      }
     ;
 
 /**
@@ -1232,12 +1255,16 @@ createRoleStatement returns [CreateRoleStatement stmt]
         {
             opts.setOption(IRoleManager.Option.SUPERUSER, false);
         }
+        if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
+        {
+            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+        }
         $stmt = new CreateRoleStatement(name, opts, dcperms.build(), ifNotExists);
       }
     ;
 
 /**
- * ALTER ROLE <rolename> [ [WITH] option [ [AND] option ]* ]
+ * ALTER ROLE [IF EXISTS] <rolename> [ [WITH] option [ [AND] option ]* ]
  *
  * where option can be:
  *  PASSWORD = '<password>'
@@ -1249,10 +1276,17 @@ alterRoleStatement returns [AlterRoleStatement stmt]
     @init {
         RoleOptions opts = new RoleOptions();
         DCPermissions.Builder dcperms = DCPermissions.builder();
+        boolean ifExists = false;
     }
-    : K_ALTER K_ROLE name=userOrRoleName
+    : K_ALTER K_ROLE (K_IF K_EXISTS { ifExists = true; })? name=userOrRoleName
       ( K_WITH roleOptions[opts, dcperms] )?
-      {  $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null); }
+      {
+         if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
+         {
+            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+         }
+         $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null, ifExists);
+      }
     ;
 
 /**
@@ -1286,6 +1320,7 @@ roleOptions[RoleOptions opts, DCPermissions.Builder dcperms]
 
 roleOption[RoleOptions opts, DCPermissions.Builder dcperms]
     :  K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
+    |  K_HASHED K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
     |  K_OPTIONS '=' m=fullMapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
     |  K_SUPERUSER '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.SUPERUSER, Boolean.valueOf($b.text)); }
     |  K_LOGIN '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.LOGIN, Boolean.valueOf($b.text)); }
@@ -1300,6 +1335,7 @@ dcPermission[DCPermissions.Builder builder]
 // for backwards compatibility in CREATE/ALTER USER, this has no '='
 userPassword[RoleOptions opts]
     :  K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
+    |  K_HASHED K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
     ;
 
 /**
@@ -1626,6 +1662,7 @@ columnCondition[List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions]
     // Note: we'll reject duplicates later
     : key=cident
         ( op=relationType t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleCondition(t, op))); }
+        | op=containsOperator t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleCondition(t, op))); }
         | K_IN
             ( values=singleColumnInValues { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleInCondition(values))); }
             | marker=inMarker { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleInCondition(marker))); }
@@ -1869,6 +1906,7 @@ basic_unreserved_keyword returns [String str]
         | K_NOLOGIN
         | K_OPTIONS
         | K_PASSWORD
+        | K_HASHED
         | K_EXISTS
         | K_CUSTOM
         | K_TRIGGER

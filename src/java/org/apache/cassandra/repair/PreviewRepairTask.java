@@ -34,15 +34,17 @@ import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
 public class PreviewRepairTask extends AbstractRepairTask
 {
-    private final UUID parentSession;
+    private final TimeUUID parentSession;
     private final List<CommonRange> commonRanges;
     private final String[] cfnames;
+    private volatile String successMessage = name() + " completed successfully";
 
-    protected PreviewRepairTask(RepairOption options, String keyspace, RepairNotifier notifier, UUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
+    protected PreviewRepairTask(RepairOption options, String keyspace, RepairNotifier notifier, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
     {
         super(options, keyspace, notifier);
         this.parentSession = parentSession;
@@ -54,6 +56,12 @@ public class PreviewRepairTask extends AbstractRepairTask
     public String name()
     {
         return "Repair preview";
+    }
+
+    @Override
+    public String successMessage()
+    {
+        return successMessage;
     }
 
     @Override
@@ -81,13 +89,14 @@ public class PreviewRepairTask extends AbstractRepairTask
                 if (previewKind == PreviewKind.REPAIRED)
                     maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
             }
+            successMessage += "; " + message;
             notifier.notification(message);
 
             return result;
         });
     }
 
-    private void maybeSnapshotReplicas(UUID parentSession, String keyspace, List<RepairSessionResult> results)
+    private void maybeSnapshotReplicas(TimeUUID parentSession, String keyspace, List<RepairSessionResult> results)
     {
         if (!DatabaseDescriptor.snapshotOnRepairedDataMismatch())
             return;

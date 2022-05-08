@@ -94,6 +94,8 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
     private void validateTransientStatus(Message<ReadCommand> message)
     {
         ReadCommand command = message.payload;
+        if (command.metadata().isVirtual())
+            return;
         Token token;
 
         if (command instanceof SinglePartitionReadCommand)

@@ -37,7 +37,6 @@ public enum CliOption
     LOG("Where to log progress to, and the interval at which to do it", SettingsLog.helpPrinter()),
     TRANSPORT("Custom transport factories", SettingsTransport.helpPrinter()),
     PORT("The port to connect to cassandra nodes on", SettingsPort.helpPrinter()),
-    SENDTO("-send-to", "Specify a stress server to send this command to", SettingsMisc.sendToDaemonHelpPrinter()),
     GRAPH("-graph", "Graph recorded metrics", SettingsGraph.helpPrinter()),
     TOKENRANGE("Token range settings", SettingsTokenRange.helpPrinter())
     ;

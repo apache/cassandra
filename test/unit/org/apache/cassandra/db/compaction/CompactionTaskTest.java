@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -31,6 +30,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -41,8 +41,11 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
+
+import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class CompactionTaskTest
 {
@@ -53,7 +56,7 @@ public class CompactionTaskTest
     public static void setUpClass() throws Exception
     {
         SchemaLoader.prepareServer();
-        cfm = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", "coordinatorsessiontest").build();
+        cfm = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", "ks").build();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1), cfm);
         cfs = Schema.instance.getColumnFamilyStoreInstance(cfm.id);
     }
@@ -71,10 +74,10 @@ public class CompactionTaskTest
         cfs.getCompactionStrategyManager().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (3, 3);");
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (4, 4);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
 
         Assert.assertEquals(2, sstables.size());
@@ -96,7 +99,7 @@ public class CompactionTaskTest
         Assert.assertEquals(Transactional.AbstractTransactional.State.ABORTED, txn.state());
     }
 
-    private static void mutateRepaired(SSTableReader sstable, long repairedAt, UUID pendingRepair, boolean isTransient) throws IOException
+    private static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
     {
         sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingRepair, isTransient);
         sstable.reloadSSTableMetadata();
@@ -111,13 +114,13 @@ public class CompactionTaskTest
     {
         cfs.getCompactionStrategyManager().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (3, 3);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (4, 4);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
         Assert.assertEquals(4, sstables.size());
@@ -128,8 +131,8 @@ public class CompactionTaskTest
         SSTableReader pending2 = sstables.get(3);
 
         mutateRepaired(repaired, FBUtilities.nowInSeconds(), ActiveRepairService.NO_PENDING_REPAIR, false);
-        mutateRepaired(pending1, ActiveRepairService.UNREPAIRED_SSTABLE, UUIDGen.getTimeUUID(), false);
-        mutateRepaired(pending2, ActiveRepairService.UNREPAIRED_SSTABLE, UUIDGen.getTimeUUID(), false);
+        mutateRepaired(pending1, UNREPAIRED_SSTABLE, nextTimeUUID(), false);
+        mutateRepaired(pending2, UNREPAIRED_SSTABLE, nextTimeUUID(), false);
 
         LifecycleTransaction txn = null;
         List<SSTableReader> toCompact = new ArrayList<>(sstables);
@@ -160,13 +163,13 @@ public class CompactionTaskTest
     {
         cfs.getCompactionStrategyManager().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (3, 3);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (4, 4);");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
         Assert.assertEquals(4, sstables.size());

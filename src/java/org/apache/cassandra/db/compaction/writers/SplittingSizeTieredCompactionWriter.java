@@ -37,7 +37,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
  * CompactionAwareWriter that splits input in differently sized sstables
  *
  * Biggest sstable will be total_compaction_size / 2, second biggest total_compaction_size / 4 etc until
- * the result would be sub 50MB, all those are put in the same
+ * the result would be sub 50MiB, all those are put in the same
  */
 public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
 {
@@ -70,7 +70,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         }
 
         int noPointIndex = 0;
-        // find how many sstables we should create - 50MB min sstable size
+        // find how many sstables we should create - 50MiB min sstable size
         for (double ratio : potentialRatios)
         {
             noPointIndex++;
@@ -90,7 +90,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
-            currentBytesToWrite = Math.round(totalSize * ratios[currentRatioIndex]);
+            currentBytesToWrite = getExpectedWriteSize();
             switchCompactionLocation(location);
             logger.debug("Switching writer, currentBytesToWrite = {}", currentBytesToWrite);
         }
@@ -115,5 +115,11 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                     txn);
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         sstableWriter.switchWriter(writer);
+    }
+
+    @Override
+    protected long getExpectedWriteSize()
+    {
+        return Math.round(totalSize * ratios[currentRatioIndex]);
     }
 }

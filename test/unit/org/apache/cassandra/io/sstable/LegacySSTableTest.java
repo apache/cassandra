@@ -19,11 +19,12 @@ package org.apache.cassandra.io.sstable;
 
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.UUID;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Iterables;
@@ -57,7 +58,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
@@ -68,10 +68,12 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.Collections.singleton;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -140,14 +142,10 @@ public class LegacySSTableTest
     /**
      * Get a descriptor for the legacy sstable at the given version.
      */
-    protected Descriptor getDescriptor(String legacyVersion, String table)
+    protected Descriptor getDescriptor(String legacyVersion, String table) throws IOException
     {
-        return new Descriptor(SSTableFormat.Type.BIG.info.getVersion(legacyVersion),
-                              getTableDir(legacyVersion, table),
-                              "legacy_tables",
-                              table,
-                              1,
-                              SSTableFormat.Type.BIG);
+        Path file = Files.list(getTableDir(legacyVersion, table).toPath()).findFirst().orElseThrow(() -> new RuntimeException(String.format("No files for version=%s and table=%s", legacyVersion, table)));
+        return Descriptor.fromFilename(new File(file));
     }
 
     @Test
@@ -191,7 +189,7 @@ public class LegacySSTableTest
                 boolean isTransient = false;
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
-                    UUID random = UUID.randomUUID();
+                    TimeUUID random = nextTimeUUID();
                     sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, UNREPAIRED_SSTABLE, random, isTransient);
                     sstable.reloadSSTableMetadata();
                     assertEquals(UNREPAIRED_SSTABLE, sstable.getRepairedAt());
@@ -223,7 +221,7 @@ public class LegacySSTableTest
                 // set pending
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
-                    UUID random = UUID.randomUUID();
+                    TimeUUID random = nextTimeUUID();
                     try
                     {
                         cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, random, false);
@@ -241,7 +239,7 @@ public class LegacySSTableTest
                 {
                     try
                     {
-                        cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, UUID.randomUUID(), true);
+                        cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, nextTimeUUID(), true);
                         if (!sstable.descriptor.version.hasIsTransient())
                             fail("We should fail setting pending repair on unsupported sstables "+sstable);
                     }
@@ -369,7 +367,7 @@ public class LegacySSTableTest
             boolean shouldFail = !cfs.getLiveSSTables().stream().allMatch(sstable -> sstable.descriptor.version.hasPendingRepair());
             IPartitioner p = Iterables.getFirst(cfs.getLiveSSTables(), null).getPartitioner();
             Range<Token> r = new Range<>(p.getMinimumToken(), p.getMinimumToken());
-            PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, Collections.singleton(r), UUIDGen.getTimeUUID(), 0, 0);
+            PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, singleton(r), nextTimeUUID(), 0, 0);
             PendingAntiCompaction.AcquireResult res = acquisitionCallable.call();
             assertEquals(shouldFail, res == null);
             if (res != null)
@@ -635,7 +633,7 @@ public class LegacySSTableTest
             }
         }
 
-        StorageService.instance.forceKeyspaceFlush("legacy_tables");
+        StorageService.instance.forceKeyspaceFlush("legacy_tables", ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", BigFormat.latestVersion));
         ksDir.tryCreateDirectories();

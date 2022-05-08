@@ -50,6 +50,7 @@ public class SimulatedExecution implements InterceptorOfExecution
         @Override public void cancelPending(Object task) { throw new UnsupportedOperationException(); }
         @Override public void submitUnmanaged(Runnable task) { throw new UnsupportedOperationException(); }
         @Override public void submitAndAwaitPause(Runnable task, InterceptorOfConsequences interceptor) { throw new UnsupportedOperationException(); }
+
         @Override public OrderOn orderAppliesAfterScheduling() { throw new UnsupportedOperationException(); }
         @Override public int concurrency() { return Integer.MAX_VALUE; }
     }

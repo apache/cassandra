@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -50,6 +49,7 @@ import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Companion to CompactionStrategyManager which manages the sstables marked pending repair.
@@ -66,7 +66,7 @@ class PendingRepairManager
     private final ColumnFamilyStore cfs;
     private final CompactionParams params;
     private final boolean isTransient;
-    private volatile ImmutableMap<UUID, AbstractCompactionStrategy> strategies = ImmutableMap.of();
+    private volatile ImmutableMap<TimeUUID, AbstractCompactionStrategy> strategies = ImmutableMap.of();
 
     /**
      * Indicates we're being asked to do something with an sstable that isn't marked pending repair
@@ -86,12 +86,12 @@ class PendingRepairManager
         this.isTransient = isTransient;
     }
 
-    private ImmutableMap.Builder<UUID, AbstractCompactionStrategy> mapBuilder()
+    private ImmutableMap.Builder<TimeUUID, AbstractCompactionStrategy> mapBuilder()
     {
         return ImmutableMap.builder();
     }
 
-    AbstractCompactionStrategy get(UUID id)
+    AbstractCompactionStrategy get(TimeUUID id)
     {
         return strategies.get(id);
     }
@@ -102,7 +102,7 @@ class PendingRepairManager
         return get(sstable.getSSTableMetadata().pendingRepair);
     }
 
-    AbstractCompactionStrategy getOrCreate(UUID id)
+    AbstractCompactionStrategy getOrCreate(TimeUUID id)
     {
         checkPendingID(id);
         assert id != null;
@@ -124,7 +124,7 @@ class PendingRepairManager
         return strategy;
     }
 
-    private static void checkPendingID(UUID pendingID)
+    private static void checkPendingID(TimeUUID pendingID)
     {
         if (pendingID == null)
         {
@@ -137,7 +137,7 @@ class PendingRepairManager
         return getOrCreate(sstable.getSSTableMetadata().pendingRepair);
     }
 
-    private synchronized void removeSessionIfEmpty(UUID sessionID)
+    private synchronized void removeSessionIfEmpty(TimeUUID sessionID)
     {
         if (!strategies.containsKey(sessionID) || !strategies.get(sessionID).getSSTables().isEmpty())
             return;
@@ -148,7 +148,7 @@ class PendingRepairManager
 
     synchronized void removeSSTable(SSTableReader sstable)
     {
-        for (Map.Entry<UUID, AbstractCompactionStrategy> entry : strategies.entrySet())
+        for (Map.Entry<TimeUUID, AbstractCompactionStrategy> entry : strategies.entrySet())
         {
             entry.getValue().removeSSTable(sstable);
             removeSessionIfEmpty(entry.getKey());
@@ -180,10 +180,10 @@ class PendingRepairManager
             return;
 
         // left=removed, right=added
-        Map<UUID, Pair<Set<SSTableReader>, Set<SSTableReader>>> groups = new HashMap<>();
+        Map<TimeUUID, Pair<Set<SSTableReader>, Set<SSTableReader>>> groups = new HashMap<>();
         for (SSTableReader sstable : removed)
         {
-            UUID sessionID = sstable.getSSTableMetadata().pendingRepair;
+            TimeUUID sessionID = sstable.getSSTableMetadata().pendingRepair;
             if (!groups.containsKey(sessionID))
             {
                 groups.put(sessionID, Pair.create(new HashSet<>(), new HashSet<>()));
@@ -193,7 +193,7 @@ class PendingRepairManager
 
         for (SSTableReader sstable : added)
         {
-            UUID sessionID = sstable.getSSTableMetadata().pendingRepair;
+            TimeUUID sessionID = sstable.getSSTableMetadata().pendingRepair;
             if (!groups.containsKey(sessionID))
             {
                 groups.put(sessionID, Pair.create(new HashSet<>(), new HashSet<>()));
@@ -201,7 +201,7 @@ class PendingRepairManager
             groups.get(sessionID).right.add(sstable);
         }
 
-        for (Map.Entry<UUID, Pair<Set<SSTableReader>, Set<SSTableReader>>> entry : groups.entrySet())
+        for (Map.Entry<TimeUUID, Pair<Set<SSTableReader>, Set<SSTableReader>>> entry : groups.entrySet())
         {
             AbstractCompactionStrategy strategy = getOrCreate(entry.getKey());
             Set<SSTableReader> groupRemoved = entry.getValue().left;
@@ -226,7 +226,7 @@ class PendingRepairManager
         strategies.values().forEach(AbstractCompactionStrategy::shutdown);
     }
 
-    private int getEstimatedRemainingTasks(UUID sessionID, AbstractCompactionStrategy strategy)
+    private int getEstimatedRemainingTasks(TimeUUID sessionID, AbstractCompactionStrategy strategy)
     {
         if (canCleanup(sessionID))
         {
@@ -241,7 +241,7 @@ class PendingRepairManager
     int getEstimatedRemainingTasks()
     {
         int tasks = 0;
-        for (Map.Entry<UUID, AbstractCompactionStrategy> entry : strategies.entrySet())
+        for (Map.Entry<TimeUUID, AbstractCompactionStrategy> entry : strategies.entrySet())
         {
             tasks += getEstimatedRemainingTasks(entry.getKey(), entry.getValue());
         }
@@ -254,7 +254,7 @@ class PendingRepairManager
     int getMaxEstimatedRemainingTasks()
     {
         int tasks = 0;
-        for (Map.Entry<UUID, AbstractCompactionStrategy> entry : strategies.entrySet())
+        for (Map.Entry<TimeUUID, AbstractCompactionStrategy> entry : strategies.entrySet())
         {
             tasks = Math.max(tasks, getEstimatedRemainingTasks(entry.getKey(), entry.getValue()));
         }
@@ -262,7 +262,7 @@ class PendingRepairManager
     }
 
     @SuppressWarnings("resource")
-    private RepairFinishedCompactionTask getRepairFinishedCompactionTask(UUID sessionID)
+    private RepairFinishedCompactionTask getRepairFinishedCompactionTask(TimeUUID sessionID)
     {
         Preconditions.checkState(canCleanup(sessionID));
         AbstractCompactionStrategy compactionStrategy = get(sessionID);
@@ -277,9 +277,9 @@ class PendingRepairManager
     public static class CleanupTask
     {
         private final ColumnFamilyStore cfs;
-        private final List<Pair<UUID, RepairFinishedCompactionTask>> tasks;
+        private final List<Pair<TimeUUID, RepairFinishedCompactionTask>> tasks;
 
-        public CleanupTask(ColumnFamilyStore cfs, List<Pair<UUID, RepairFinishedCompactionTask>> tasks)
+        public CleanupTask(ColumnFamilyStore cfs, List<Pair<TimeUUID, RepairFinishedCompactionTask>> tasks)
         {
             this.cfs = cfs;
             this.tasks = tasks;
@@ -287,11 +287,11 @@ class PendingRepairManager
 
         public CleanupSummary cleanup()
         {
-            Set<UUID> successful = new HashSet<>();
-            Set<UUID> unsuccessful = new HashSet<>();
-            for (Pair<UUID, RepairFinishedCompactionTask> pair : tasks)
+            Set<TimeUUID> successful = new HashSet<>();
+            Set<TimeUUID> unsuccessful = new HashSet<>();
+            for (Pair<TimeUUID, RepairFinishedCompactionTask> pair : tasks)
             {
-                UUID session = pair.left;
+                TimeUUID session = pair.left;
                 RepairFinishedCompactionTask task = pair.right;
 
                 if (task != null)
@@ -318,16 +318,16 @@ class PendingRepairManager
 
         public Throwable abort(Throwable accumulate)
         {
-            for (Pair<UUID, RepairFinishedCompactionTask> pair : tasks)
+            for (Pair<TimeUUID, RepairFinishedCompactionTask> pair : tasks)
                 accumulate = pair.right.transaction.abort(accumulate);
             return accumulate;
         }
     }
 
-    public CleanupTask releaseSessionData(Collection<UUID> sessionIDs)
+    public CleanupTask releaseSessionData(Collection<TimeUUID> sessionIDs)
     {
-        List<Pair<UUID, RepairFinishedCompactionTask>> tasks = new ArrayList<>(sessionIDs.size());
-        for (UUID session : sessionIDs)
+        List<Pair<TimeUUID, RepairFinishedCompactionTask>> tasks = new ArrayList<>(sessionIDs.size());
+        for (TimeUUID session : sessionIDs)
         {
             if (hasDataForSession(session))
             {
@@ -340,7 +340,7 @@ class PendingRepairManager
     synchronized int getNumPendingRepairFinishedTasks()
     {
         int count = 0;
-        for (UUID sessionID : strategies.keySet())
+        for (TimeUUID sessionID : strategies.keySet())
         {
             if (canCleanup(sessionID))
             {
@@ -352,7 +352,7 @@ class PendingRepairManager
 
     synchronized AbstractCompactionTask getNextRepairFinishedTask()
     {
-        for (UUID sessionID : strategies.keySet())
+        for (TimeUUID sessionID : strategies.keySet())
         {
             if (canCleanup(sessionID))
             {
@@ -367,9 +367,9 @@ class PendingRepairManager
         if (strategies.isEmpty())
             return null;
 
-        Map<UUID, Integer> numTasks = new HashMap<>(strategies.size());
-        ArrayList<UUID> sessions = new ArrayList<>(strategies.size());
-        for (Map.Entry<UUID, AbstractCompactionStrategy> entry : strategies.entrySet())
+        Map<TimeUUID, Integer> numTasks = new HashMap<>(strategies.size());
+        ArrayList<TimeUUID> sessions = new ArrayList<>(strategies.size());
+        for (Map.Entry<TimeUUID, AbstractCompactionStrategy> entry : strategies.entrySet())
         {
             if (canCleanup(entry.getKey()))
             {
@@ -385,7 +385,7 @@ class PendingRepairManager
         // we want the session with the most compactions at the head of the list
         sessions.sort((o1, o2) -> numTasks.get(o2) - numTasks.get(o1));
 
-        UUID sessionID = sessions.get(0);
+        TimeUUID sessionID = sessions.get(0);
         return get(sessionID).getNextBackgroundTask(gcBefore);
     }
 
@@ -395,7 +395,7 @@ class PendingRepairManager
             return null;
 
         List<AbstractCompactionTask> maximalTasks = new ArrayList<>(strategies.size());
-        for (Map.Entry<UUID, AbstractCompactionStrategy> entry : strategies.entrySet())
+        for (Map.Entry<TimeUUID, AbstractCompactionStrategy> entry : strategies.entrySet())
         {
             if (canCleanup(entry.getKey()))
             {
@@ -416,12 +416,12 @@ class PendingRepairManager
         return strategies.values();
     }
 
-    Set<UUID> getSessions()
+    Set<TimeUUID> getSessions()
     {
         return strategies.keySet();
     }
 
-    boolean canCleanup(UUID sessionID)
+    boolean canCleanup(TimeUUID sessionID)
     {
         return !ActiveRepairService.instance.consistent.local.isSessionInProgress(sessionID);
     }
@@ -434,10 +434,10 @@ class PendingRepairManager
             return Collections.emptySet();
         }
 
-        Map<UUID, Set<SSTableReader>> sessionSSTables = new HashMap<>();
+        Map<TimeUUID, Set<SSTableReader>> sessionSSTables = new HashMap<>();
         for (SSTableReader sstable : sstables)
         {
-            UUID sessionID = sstable.getSSTableMetadata().pendingRepair;
+            TimeUUID sessionID = sstable.getSSTableMetadata().pendingRepair;
             checkPendingID(sessionID);
             sessionSSTables.computeIfAbsent(sessionID, k -> new HashSet<>()).add(sstable);
         }
@@ -445,7 +445,7 @@ class PendingRepairManager
         Set<ISSTableScanner> scanners = new HashSet<>(sessionSSTables.size());
         try
         {
-            for (Map.Entry<UUID, Set<SSTableReader>> entry : sessionSSTables.entrySet())
+            for (Map.Entry<TimeUUID, Set<SSTableReader>> entry : sessionSSTables.entrySet())
             {
                 scanners.addAll(getOrCreate(entry.getKey()).getScanners(entry.getValue(), ranges).scanners);
             }
@@ -462,7 +462,7 @@ class PendingRepairManager
         return strategies.values().contains(strategy);
     }
 
-    public synchronized boolean hasDataForSession(UUID sessionID)
+    public synchronized boolean hasDataForSession(TimeUUID sessionID)
     {
         return strategies.keySet().contains(sessionID);
     }
@@ -478,7 +478,7 @@ class PendingRepairManager
 
     public Collection<AbstractCompactionTask> createUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
     {
-        Map<UUID, List<SSTableReader>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getSSTableMetadata().pendingRepair));
+        Map<TimeUUID, List<SSTableReader>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getSSTableMetadata().pendingRepair));
         return group.entrySet().stream().map(g -> strategies.get(g.getKey()).getUserDefinedTask(g.getValue(), gcBefore)).collect(Collectors.toList());
     }
 
@@ -487,10 +487,10 @@ class PendingRepairManager
      */
     class RepairFinishedCompactionTask extends AbstractCompactionTask
     {
-        private final UUID sessionID;
+        private final TimeUUID sessionID;
         private final long repairedAt;
 
-        RepairFinishedCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, UUID sessionID, long repairedAt)
+        RepairFinishedCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, TimeUUID sessionID, long repairedAt)
         {
             super(cfs, transaction);
             this.sessionID = sessionID;
@@ -498,7 +498,7 @@ class PendingRepairManager
         }
 
         @VisibleForTesting
-        UUID getSessionID()
+        TimeUUID getSessionID()
         {
             return sessionID;
         }

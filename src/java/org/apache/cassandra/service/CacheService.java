@@ -19,11 +19,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -42,6 +38,9 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.CachedBTreePartition;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SSTableIdFactory;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -99,9 +98,9 @@ public class CacheService implements CacheServiceMBean
      */
     private AutoSavingCache<KeyCacheKey, RowIndexEntry> initKeyCache()
     {
-        logger.info("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMB());
+        logger.info("Initializing key cache with capacity of {} MiBs.", DatabaseDescriptor.getKeyCacheSizeInMiB());
 
-        long keyCacheInMemoryCapacity = DatabaseDescriptor.getKeyCacheSizeInMB() * 1024 * 1024;
+        long keyCacheInMemoryCapacity = DatabaseDescriptor.getKeyCacheSizeInMiB() * 1024 * 1024;
 
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
@@ -121,10 +120,10 @@ public class CacheService implements CacheServiceMBean
      */
     private AutoSavingCache<RowCacheKey, IRowCacheEntry> initRowCache()
     {
-        logger.info("Initializing row cache with capacity of {} MBs", DatabaseDescriptor.getRowCacheSizeInMB());
+        logger.info("Initializing row cache with capacity of {} MiBs", DatabaseDescriptor.getRowCacheSizeInMiB());
 
         CacheProvider<RowCacheKey, IRowCacheEntry> cacheProvider;
-        String cacheProviderClassName = DatabaseDescriptor.getRowCacheSizeInMB() > 0
+        String cacheProviderClassName = DatabaseDescriptor.getRowCacheSizeInMiB() > 0
                                         ? DatabaseDescriptor.getRowCacheClassName() : "org.apache.cassandra.cache.NopCacheProvider";
         try
         {
@@ -150,9 +149,9 @@ public class CacheService implements CacheServiceMBean
 
     private AutoSavingCache<CounterCacheKey, ClockAndCount> initCounterCache()
     {
-        logger.info("Initializing counter cache with capacity of {} MBs", DatabaseDescriptor.getCounterCacheSizeInMB());
+        logger.info("Initializing counter cache with capacity of {} MiBs", DatabaseDescriptor.getCounterCacheSizeInMiB());
 
-        long capacity = DatabaseDescriptor.getCounterCacheSizeInMB() * 1024 * 1024;
+        long capacity = DatabaseDescriptor.getCounterCacheSizeInMiB() * 1024 * 1024;
 
         AutoSavingCache<CounterCacheKey, ClockAndCount> cache =
             new AutoSavingCache<>(CaffeineCache.create(capacity),
@@ -418,7 +417,7 @@ public class CacheService implements CacheServiceMBean
         // For column families with many SSTables the linear nature of getSSTables slowed down KeyCache loading
         // by orders of magnitude. So we cache the sstables once and rely on cleanupAfterDeserialize to cleanup any
         // cached state we may have accumulated during the load.
-        Map<Pair<String, String>, Map<Integer, SSTableReader>> cachedSSTableReaders = new ConcurrentHashMap<>();
+        Map<Pair<String, String>, Map<SSTableId, SSTableReader>> cachedSSTableReaders = new ConcurrentHashMap<>();
 
         public void serialize(KeyCacheKey key, DataOutputPlus out, ColumnFamilyStore cfs) throws IOException
         {
@@ -430,7 +429,15 @@ public class CacheService implements CacheServiceMBean
             tableMetadata.id.serialize(out);
             out.writeUTF(tableMetadata.indexName().orElse(""));
             ByteArrayUtil.writeWithLength(key.key, out);
-            out.writeInt(key.desc.generation);
+            if (key.desc.id instanceof SequenceBasedSSTableId)
+            {
+                out.writeInt(((SequenceBasedSSTableId) key.desc.id).generation);
+            }
+            else
+            {
+                out.writeInt(Integer.MIN_VALUE); // backwards compatibility for "int based generation only"
+                ByteBufferUtil.writeWithShortLength(key.desc.id.asBytes(), out);
+            }
             out.writeBoolean(true);
 
             SerializationHeader header = new SerializationHeader(false, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
@@ -451,23 +458,26 @@ public class CacheService implements CacheServiceMBean
             }
             ByteBuffer key = ByteBufferUtil.read(input, keyLength);
             int generation = input.readInt();
+            SSTableId generationId = generation == Integer.MIN_VALUE
+                                                   ? SSTableIdFactory.instance.fromBytes(ByteBufferUtil.readWithShortLength(input))
+                                                   : new SequenceBasedSSTableId(generation); // Backwards compatibility for "int based generation sstables"
             input.readBoolean(); // backwards compatibility for "promoted indexes" boolean
             SSTableReader reader = null;
             if (!skipEntry)
             {
                 Pair<String, String> qualifiedName = Pair.create(cfs.metadata.keyspace, cfs.metadata.name);
-                Map<Integer, SSTableReader> generationToSSTableReader = cachedSSTableReaders.get(qualifiedName);
+                Map<SSTableId, SSTableReader> generationToSSTableReader = cachedSSTableReaders.get(qualifiedName);
                 if (generationToSSTableReader == null)
                 {
                     generationToSSTableReader = new HashMap<>(cfs.getLiveSSTables().size());
                     for (SSTableReader ssTableReader : cfs.getSSTables(SSTableSet.CANONICAL))
                     {
-                        generationToSSTableReader.put(ssTableReader.descriptor.generation, ssTableReader);
+                        generationToSSTableReader.put(ssTableReader.descriptor.id, ssTableReader);
                     }
 
                     cachedSSTableReaders.putIfAbsent(qualifiedName, generationToSSTableReader);
                 }
-                reader = generationToSSTableReader.get(generation);
+                reader = generationToSSTableReader.get(generationId);
             }
 
             if (skipEntry || reader == null)

@@ -23,10 +23,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionsTest;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -38,6 +38,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -55,8 +56,10 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.Collections.singletonList;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -66,7 +69,7 @@ import static org.junit.Assert.assertTrue;
 public class ValidatorTest
 {
     private static final long TEST_TIMEOUT = 60; //seconds
-    private static int testSizeMegabytes;
+    private static int testSizeMebibytes;
 
     private static final String keyspace = "ValidatorTest";
     private static final String columnFamily = "Standard1";
@@ -80,27 +83,27 @@ public class ValidatorTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(keyspace, columnFamily));
         partitioner = Schema.instance.getTableMetadata(keyspace, columnFamily).partitioner;
-        testSizeMegabytes = DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
+        testSizeMebibytes = DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
     @After
     public void tearDown()
     {
         MessagingService.instance().outboundSink.clear();
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(testSizeMebibytes);
     }
 
     @Before
     public void setup()
     {
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(testSizeMebibytes);
     }
 
     @Test
     public void testValidatorComplete() throws Throwable
     {
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
-        final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
+        final RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), keyspace, columnFamily, Arrays.asList(range));
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
@@ -108,10 +111,11 @@ public class ValidatorTest
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
-        Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, remote), 0, PreviewKind.NONE);
+        validator.state.phase.start(10, 10);
         MerkleTrees trees = new MerkleTrees(partitioner);
         trees.addMerkleTrees((int) Math.pow(2, 15), validator.desc.ranges);
-        validator.prepare(cfs, trees);
+        validator.prepare(cfs, trees, null);
 
         // and confirm that the trees were split
         assertTrue(trees.size() > 1);
@@ -138,14 +142,14 @@ public class ValidatorTest
     public void testValidatorFailed() throws Throwable
     {
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
-        final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
+        final RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), keyspace, columnFamily, Arrays.asList(range));
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
-        Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
-        validator.fail();
+        Validator validator = new Validator(new ValidationState(desc, remote), 0, PreviewKind.NONE);
+        validator.fail(new Throwable());
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(Verb.VALIDATION_RSP, message.verb());
@@ -184,16 +188,16 @@ public class ValidatorTest
 
         CompactionsTest.populate(keyspace, columnFamily, 0, n, 0); //ttl=3s
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction
         TimeUnit.SECONDS.sleep(5);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        UUID repairSessionId = UUIDGen.getTimeUUID();
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
-                                                     cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+        TimeUUID repairSessionId = nextTimeUUID();
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
+                                                     cfs.getTableName(), singletonList(new Range<>(sstable.first.getToken(),
                                                                                                                sstable.last.getToken())));
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
@@ -203,7 +207,7 @@ public class ValidatorTest
                                                                  false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, host), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
@@ -233,7 +237,7 @@ public class ValidatorTest
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
         cfs.clearUnsafe();
 
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(1);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(1);
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();
@@ -241,16 +245,16 @@ public class ValidatorTest
         // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
         CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction
         TimeUnit.SECONDS.sleep(5);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        UUID repairSessionId = UUIDGen.getTimeUUID();
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
-                                                     cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+        TimeUUID repairSessionId = nextTimeUUID();
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
+                                                     cfs.getTableName(), singletonList(new Range<>(sstable.first.getToken(),
                                                                                                                sstable.last.getToken())));
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
@@ -260,7 +264,7 @@ public class ValidatorTest
                                                                  false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, host), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
@@ -292,7 +296,7 @@ public class ValidatorTest
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
         cfs.clearUnsafe();
 
-        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(1);
+        DatabaseDescriptor.setRepairSessionSpaceInMiB(1);
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();
@@ -300,19 +304,19 @@ public class ValidatorTest
         // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
         CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction
         TimeUnit.SECONDS.sleep(5);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        UUID repairSessionId = UUIDGen.getTimeUUID();
+        TimeUUID repairSessionId = nextTimeUUID();
 
         List<Range<Token>> ranges = splitHelper(new Range<>(sstable.first.getToken(), sstable.last.getToken()), 2);
 
 
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
                                                      cfs.getTableName(), ranges);
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
@@ -322,13 +326,13 @@ public class ValidatorTest
                                                                  false, PreviewKind.NONE);
 
         final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(desc, host), 0, true, false, PreviewKind.NONE);
         ValidationManager.instance.submitValidation(cfs, validator);
 
         Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
         MerkleTrees trees = ((ValidationResponse) message.payload).trees;
 
-        // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 megabytes)
+        // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 mebibytes)
         Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
         int numTrees = 0;
         double totalResolution = 0;
@@ -347,7 +351,7 @@ public class ValidatorTest
         assertEquals(trees.rowCount(), 1 << 14);
         assertEquals(4, numTrees);
 
-        // With a single tree and a megabyte we should had a total resolution of 2^12 leaves; with multiple
+        // With a single tree and a mebibyte we should had a total resolution of 2^12 leaves; with multiple
         // ranges we should get similar overall resolution, but not more.
         assertTrue(totalResolution > (1 << 11) && totalResolution < (1 << 13));
     }

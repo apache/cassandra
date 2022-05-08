@@ -21,7 +21,6 @@ package org.apache.cassandra.db.streaming;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -35,6 +34,7 @@ import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
@@ -141,7 +141,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @Override
-    public UUID getPendingRepair()
+    public TimeUUID getPendingRepair()
     {
         return ref.get().getPendingRepair();
     }
@@ -155,8 +155,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         {
             // Acquire lock to avoid concurrent sstable component mutation because of stats update or index summary
             // redistribution, otherwise file sizes recorded in component manifest will be different from actual
-            // file sizes. (Note: Windows doesn't support atomic replace and index summary redistribution deletes
-            // existing file first)
+            // file sizes.
             // Recreate the latest manifest and hard links for mutatable components in case they are modified.
             try (ComponentContext context = sstable.runWithLock(ignored -> ComponentContext.create(sstable.descriptor)))
             {

@@ -61,7 +61,7 @@ public class StandaloneSplitter
         try
         {
             // load keyspace descriptions.
-            Schema.instance.loadFromDisk(false);
+            Schema.instance.loadFromDisk();
 
             String ksName = null;
             String cfName = null;

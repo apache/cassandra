@@ -106,6 +106,14 @@ public final class ComponentManifest implements Iterable<Component>
         return components.hashCode();
     }
 
+    @Override
+    public String toString()
+    {
+        return "ComponentManifest{" +
+               "components=" + components +
+               '}';
+    }
+
     public static final IVersionedSerializer<ComponentManifest> serializer = new IVersionedSerializer<ComponentManifest>()
     {
         public void serialize(ComponentManifest manifest, DataOutputPlus out, int version) throws IOException

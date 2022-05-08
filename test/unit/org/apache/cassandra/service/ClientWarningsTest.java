@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
@@ -38,7 +39,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.QueryMessage;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 @RunWith(Parameterized.class)
@@ -60,7 +61,7 @@ public class ClientWarningsTest extends CQLTester
     public static void setUp()
     {
         requireNetwork();
-        DatabaseDescriptor.setBatchSizeWarnThresholdInKB(1);
+        DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(1);
     }
 
     @Test
@@ -122,7 +123,7 @@ public class ClientWarningsTest extends CQLTester
                 client.execute(query);
             }
             ColumnFamilyStore store = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
-            store.forceBlockingFlush();
+            Util.flush(store);
 
             for (int i = 0; i < iterations; i++)
             {
@@ -132,7 +133,7 @@ public class ClientWarningsTest extends CQLTester
                                                                     i), QueryOptions.DEFAULT);
                 client.execute(query);
             }
-            store.forceBlockingFlush();
+            Util.flush(store);
 
             {
                 QueryMessage query = new QueryMessage(String.format("SELECT * FROM %s.%s WHERE pk = 1",

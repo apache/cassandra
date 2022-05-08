@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
@@ -45,8 +46,11 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.utils.Pair;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.util.Lists;
+import org.assertj.core.util.Strings;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -54,7 +58,8 @@ public class ToolRunner
 {
     protected static final Logger logger = LoggerFactory.getLogger(ToolRunner.class);
 
-    private static final ImmutableList<String> DEFAULT_CLEANERS = ImmutableList.of("(?im)^picked up.*\\R");
+    private static final ImmutableList<String> DEFAULT_CLEANERS = ImmutableList.of("(?im)^picked up.*\\R",
+                                                                                   "(?im)^.*`USE <keyspace>` with prepared statements is.*\\R");
 
     public static int runClassAsTool(String clazz, String... args)
     {
@@ -118,11 +123,13 @@ public class ToolRunner
 
         private final InputStream input;
         private final T out;
+        private final boolean autoCloseOut;
 
-        private StreamGobbler(InputStream input, T out)
+        private StreamGobbler(InputStream input, T out, boolean autoCloseOut)
         {
             this.input = input;
             this.out = out;
+            this.autoCloseOut = autoCloseOut;
         }
 
         public void run()
@@ -135,6 +142,8 @@ public class ToolRunner
                     int read = input.read(buffer);
                     if (read == -1)
                     {
+                        if (autoCloseOut)
+                            out.close();
                         return;
                     }
                     out.write(buffer, 0, read);
@@ -450,6 +459,55 @@ public class ToolRunner
             assertOnExitCode();
             assertCleanStdErr();
         }
+
+        public AssertHelp asserts()
+        {
+            return new AssertHelp();
+        }
+
+        public final class AssertHelp
+        {
+            public AssertHelp success()
+            {
+                if (exitCode != 0)
+                    fail("was not successful");
+                return this;
+            }
+
+            public AssertHelp failure()
+            {
+                if (exitCode == 0)
+                    fail("was not successful");
+                return this;
+            }
+
+            public AssertHelp errorContains(String messages)
+            {
+                return errorContainsAny(messages);
+            }
+
+            public AssertHelp errorContainsAny(String... messages)
+            {
+                assertThat(messages).hasSizeGreaterThan(0);
+                assertThat(stderr).isNotNull();
+                if (!Stream.of(messages).anyMatch(stderr::contains))
+                    fail("stderr does not contain " + Arrays.toString(messages));
+                return this;
+            }
+
+            private void fail(String msg)
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.append("nodetool command ").append(String.join(" ", allArgs)).append(": ").append(msg).append('\n');
+                if (stdout != null)
+                    sb.append("stdout:\n").append(stdout).append('\n');
+                if (stderr != null)
+                    sb.append("stderr:\n").append(stderr).append('\n');
+                if (e != null)
+                    sb.append("Exception:\n").append(Throwables.getStackTraceAsString(e)).append('\n');
+                throw new AssertionError(sb.toString());
+            }
+        }
     }
 
     public interface ObservableTool extends AutoCloseable
@@ -535,19 +593,19 @@ public class ToolRunner
             if (includeStdinWatcher)
                 numWatchers = 3;
             ioWatchers = new Thread[numWatchers];
-            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), err));
+            ioWatchers[0] = new Thread(new StreamGobbler<>(process.getErrorStream(), err, false));
             ioWatchers[0].setDaemon(true);
             ioWatchers[0].setName("IO Watcher stderr");
             ioWatchers[0].start();
 
-            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), out));
+            ioWatchers[1] = new Thread(new StreamGobbler<>(process.getInputStream(), out, false));
             ioWatchers[1].setDaemon(true);
             ioWatchers[1].setName("IO Watcher stdout");
             ioWatchers[1].start();
 
             if (includeStdinWatcher)
             {
-                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream()));
+                ioWatchers[2] = new Thread(new StreamGobbler<>(stdin, process.getOutputStream(), true));
                 ioWatchers[2].setDaemon(true);
                 ioWatchers[2].setName("IO Watcher stdin");
                 ioWatchers[2].start();

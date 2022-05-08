@@ -32,6 +32,8 @@ public interface StorageProxyMBean
     public Set<String> getHintedHandoffDisabledDCs();
     public int getMaxHintWindow();
     public void setMaxHintWindow(int ms);
+    public int getMaxHintsSizePerHostInMiB();
+    public void setMaxHintsSizePerHostInMiB(int value);
     public int getMaxHintsInProgress();
     public void setMaxHintsInProgress(int qs);
     public int getHintsInProgress();
@@ -89,6 +91,9 @@ public interface StorageProxyMBean
     public String getIdealConsistencyLevel();
     public String setIdealConsistencyLevel(String cl);
 
+    public void logBlockingReadRepairAttemptsForNSeconds(int seconds);
+    public boolean isLoggingReadRepairs();
+
     /**
      * Tracking and reporting of variances in the repaired data set across replicas at read time
      */
@@ -121,4 +126,13 @@ public interface StorageProxyMBean
 
     void setPaxosVariant(String variant);
     String getPaxosVariant();
+
+    boolean getUseStatementsEnabled();
+    void setUseStatementsEnabled(boolean enabled);
+
+    void setPaxosContentionStrategy(String variant);
+    String getPaxosContentionStrategy();
+
+    void setPaxosCoordinatorLockingDisabled(boolean disabled);
+    boolean getPaxosCoordinatorLockingDisabled();
 }

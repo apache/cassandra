@@ -18,6 +18,24 @@ CASSANDRA-14092.txt file.
 If you use or plan to use very large TTLS (10 to 20 years), read CASSANDRA-14092.txt
 for more information.
 
+PLEASE READ: CVE-2021-44521 SCRIPTED UDF SYSTEM ACCESS (CASSANDRA-17352)
+------------------------------------------------------------------------
+
+If you have enabled scripted UDFs and run without UDF threads in cassandra.yaml:
+
+    enable_user_defined_functions_threads: false
+
+an attacker could access java.lang.System methods and execute arbitrary code on
+the machine. Disabling UDF threads is still considered insecure and not recommended.
+
+To continue running without UDF threads you will need to set:
+
+    allow_insecure_udfs: true
+
+and if you need access to java.lang.System for existing UDFs, set:
+
+    allow_extra_insecure_udfs: true
+
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
@@ -33,15 +51,77 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+
+4.2
+===
+
+New features
+------------
+
+Upgrading
+---------
+
+Deprecation
+-----------
+
+
 4.1
 ===
 
 New features
 ------------
+    - Added API for alternative memtable implementations. For details, see
+      src/java/org/apache/cassandra/db/memtable/Memtable_API.md
+    - Added a new guardrails framework allowing to define soft/hard limits for different user actions, such as limiting
+      the number of tables, columns per table or the size of collections. These guardrails are only applied to regular
+      user queries, and superusers and internal queries are excluded. Reaching the soft limit raises a client warning,
+      whereas reaching the hard limit aborts the query. In both cases a log message and a diagnostic event are emitted.
+      Additionally, some guardrails are not linked to specific user queries due to techincal limitations, such as
+      detecting the size of large collections during compaction or periodically monitoring the disk usage. These
+      guardrails would only emit the proper logs and diagnostic events when triggered, without aborting any processes.
+      Guardrails config is defined through cassandra.yaml properties, and they can be dynamically updated through the
+      JMX MBean `org.apache.cassandra.db:type=Guardrails`. There are guardrails for:
+        - Number of user keyspaces.
+        - Number of user tables.
+        - Number of columns per table.
+        - Number of secondary indexes per table.
+        - Number of materialized tables per table.
+        - Number of fields per user-defined type.
+        - Number of items in a collection .
+        - Number of partition keys selected by an IN restriction.
+        - Number of partition keys selected by the cartesian product of multiple IN restrictions.
+        - Allowed table properties.
+        - Allowed read consistency levels.
+        - Allowed write consistency levels.
+        - Collections size.
+        - Query page size.
+        - Minimum replication factor.
+        - Data disk usage, defined either as a percentage or as an absolute size.
+        - Whether user-defined timestamps are allowed.
+        - Whether GROUP BY queries are allowed.
+        - Whether the creation of secondary indexes is allowed.
+        - Whether the creation of uncompressed tables is allowed.
+        - Whether querying with ALLOW FILTERING is allowed.
+        - Whether DROP or TRUNCATE TABLE commands are allowed.
+    - Add support for the use of pure monotonic functions on the last attribute of the GROUP BY clause.
+    - Add floor functions that can be use to group by time range.
+    - Support for native transport rate limiting via native_transport_rate_limiting_enabled and
+      native_transport_max_requests_per_second in cassandra.yaml.
+    - Support for pre hashing passwords on CQL DCL commands
+    - Expose all client options via system_views.clients and nodetool clientstats.
+    - Support for String concatenation has been added through the + operator.
+    - New configuration max_hints_size_per_host to limit the size of local hints files per host in mebibytes. Setting to
+      non-positive value disables the limit, which is the default behavior. Setting to a positive value to ensure
+      the total size of the hints files per host does not exceed the limit.
+    - Added ability to configure auth caches through corresponding `nodetool` commands.
     - CDC data flushing now can be configured to be non-blocking with the configuration cdc_block_writes. Setting to true,
       any writes to the CDC-enabled tables will be blocked when reaching to the limit for CDC data on disk, which is the
       existing and the default behavior. Setting to false, the writes to the CDC-enabled tables will be accepted and
       the oldest CDC data on disk will be deleted to ensure the size constraint.
+    - Top partitions based on partition size or tombstone count are now tracked per table. These partitions are stored
+      in a new system.top_partitions table and exposed via JMX and nodetool tablestats. The partitions are tracked
+      during full or validation repairs but not incremental ones since those don't include all sstables and the partition
+      size/tombstone count would not be correct.
     - New native functions to convert unix time values into C* native types: toDate(bigint), toTimestamp(bigint),
       mintimeuuid(bigint) and maxtimeuuid(bigint)
     - Support for multiple permission in a single GRANT/REVOKE/LIST statement has been added. It allows to
@@ -50,16 +130,28 @@ New features
     - A new ALL TABLES IN KEYSPACE resource has been added. It allows to grant permissions for all tables and user types
       in a keyspace while preventing the user to use those permissions on the keyspace itself.
     - Added support for type casting in the WHERE clause components and in the values of INSERT and UPDATE statements.
-    - Warn/abort thresholds added to read queries notifying clients when these thresholds trigger (by
-      emitting a client warning or aborting the query).  This feature is disabled by default, scheduled
-      to be enabled in 4.2; it is controlled with the configuration track_warnings.enabled,
-      setting to true will enable this feature.  Each check has its own warn/abort thresholds, currently
+    - A new implementation of Paxos (named v2) has been included that improves the safety and performance of LWT operations.
+      Importantly, v2 guarantees linearizability across safe range movements, so users are encouraged to enable v2.
+      v2 also halves the number of WAN messages required to be exchanged if used on conjunction with the new Paxos Repair
+      mechanism (see below) and with some minor modifications to applications using LWTs.
+      The new implementation may be enabled at any time by setting paxos_variant: v2, and disabled by setting to v1,
+      and this alone will reduce the number of WAN round-trips by between one and two for reads, and one for writes.
+    - A new Paxos Repair mechanism has been introduced as part of Repair, that permits further reducing the number of WAN
+      round-trips for write LWTs. This process may be manually executed for v1 and is run automatically alongside normal
+      repairs for v2. Once users are running regular repairs that include paxos repairs they are encouraged to set
+      paxos_state_purging: repaired. Once this has been set across the cluster, users are encouraged to set their
+      applications to supply a Commit consistency level of ANY with their LWT write operations, saving one additional WAN
+      round-trip. See upgrade notes below.
+    - Warn/fail thresholds added to read queries notifying clients when these thresholds trigger (by
+      emitting a client warning or failing the query).  This feature is disabled by default, scheduled
+      to be enabled in 4.2; it is controlled with the configuration read_thresholds_enabled,
+      setting to true will enable this feature.  Each check has its own warn/fail thresholds, currently
       tombstones (tombstone_warn_threshold, and tombstone_failure_threshold), coordinator result set
-      materialized size (track_warnings.coordinator_large_read.warn_threshold_kb, and
-      track_warnings.coordinator_large_read.abort_threshold_kb), local read materialized heap size
-      (track_warnings.local_read_size.warn_threshold_kb and track_warnings.local_read_size.abort_threshold_kb),
-      and RowIndexEntry estimated memory size (track_warnings.row_index_size.warn_threshold_kb and
-      track_warnings.row_index_size.abort_threshold_kb) are supported; more checks will be added over time.
+      materialized size (coordinator_read_size_warn_threshold and coordinator_read_size_fail_threshold),
+      local read materialized heap size
+      (local_read_size_warn_threshold and local_read_size_fail_threshold),
+      and RowIndexEntry estimated memory size (row_index_read_size_warn_threshold and
+      row_index_read_size_fail_threshold) are supported; more checks will be added over time.
     - Prior to this version, the hint system was storing a window of hints as defined by
       configuration property max_hint_window_in_ms, however this window is not persistent across restarts.
       For example, if a node is restarted, it will be still eligible for a hint to be sent to it because it
@@ -76,13 +168,68 @@ New features
     - Information about pending hints is now available through `nodetool listpendinghints` and `pending_hints` virtual
       table.
     - Added ability to invalidate auth caches through corresponding `nodetool` commands and virtual tables.
+    - DCL statements in audit logs will now obscure only the password if they don't fail to parse.
+    - Starting from 4.1 sstables support UUID based generation identifiers. They are globally unique and thus they let
+      the node to create sstables without any prior knowledge about the existing sstables in the data directory.
+      The feature is disabled by default in cassandra.yaml because once enabled, there is no easy way to downgrade.
+      When the node is restarted with UUID based generation identifiers enabled, each newly created sstable will have
+      a UUID based generation identifier and such files are not readable by previous Cassandra versions. In the future
+      those new identifiers will become enabled by default.
 
 Upgrading
 ---------
+    - We added new JMX methods `setStreamThroughputMbitPerSec`, `getStreamThroughputMbitPerSec`, `setInterDCStreamThroughputMbitPerSec`,
+      `getInterDCStreamThroughputMbitPerSec` to the JMX MBean `org.apache.cassandra.db:type=StorageService`. They replace the now
+      deprecated methods `setStreamThroughputMbPerSec`, `getStreamThroughputMbPerSec`, `setInterDCStreamThroughputMbPerSec`, and
+      `getInterDCStreamThroughputMbPerSec`, which will be removed in a future major release.
+    - The config property `repair_session_space_in_mb` was wrongly advertised in previous versions that it should be set in
+      megabytes when it is interpreted internally in mebibytes. To reduce the confusion we added two new JMX methods
+      `setRepairSessionSpaceInMebibytes(int sizeInMebibytes)` and `getRepairSessionSpaceInMebibytes`. They replace the now
+      deprecated methods `setRepairSessionSpaceInMegabytes(int sizeInMegabytes)` and `getRepairSessionSpaceInMegabytes`, which
+      will be removed in a future major release.
+    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|MiB/s|KiB/s|MiB/s),
+      memory (KiB|MiB|GiB|B) and duration(d|h|s|ms|us|µs|ns|m)
+      parameters. List of changed parameters and details to consider during configuration setup can be
+      found at https://cassandra.apache.org/doc/latest/cassandra/new/configuration.html. (CASSANDRA-15234)
+      Backward compatibility with the old cassandra.yaml file will be in place until at least the next major version.
+      By default we refuse starting Cassandra with a config containing both old and new config keys for the same parameter. Start
+      Cassandra with -Dcassandra.allow_new_old_config_keys=true to override. For historical reasons duplicate config keys
+      in cassandra.yaml are allowed by default, start Cassandra with -Dcassandra.allow_duplicate_config_keys=false to disallow this.
+    - Many cassandra.yaml parameters' names have been changed. Full list and details to consider during configuration setup
+      when installing/upgrading Cassandra can be found at https://cassandra.apache.org/doc/latest/cassandra/new/configuration.html (CASSANDRA-15234)
+    - Negative values cannot be used for parameters of type data rate, duration and data storage with both old and new cassandra.yaml version.
+      Only exception is if you use old cassandra.yaml, pre-CASSANDRA-15234 - then -1 or other negative values which were advertised as an option
+      to disable config parameters in the old cassandra.yaml are still used. Those are probably converted to null value with the new cassandra.yaml,
+      as written in the new cassandra.yaml version and docs.
     - Before you upgrade, if you are using `cassandra.auth_bcrypt_gensalt_log2_rounds` property,
       confirm it is set to value lower than 31 otherwise Cassandra will fail to start. See CASSANDRA-9384
       for further details. You also need to regenerate passwords for users for who the password
       was created while the above property was set to be more than 30 otherwise they will not be able to log in.
+    - JNA library was updated from 5.6.0 to 5.9.0. In version 5.7.0, Darwin support for M1 devices
+      was fixed but prebuild native library for Darwin x86 (32bit Java on Mac OS) was removed.
+    - The config properties for setting the streaming throughput `stream_throughput_outbound_megabits_per_sec` and
+      `inter_dc_stream_throughput_outbound_megabits_per_sec` were incorrectly interpreted as mebibits. This has
+      been fixed by CASSANDRA-17243, so the values for these properties will now indicate a throughput ~4.6% lower than
+      what was actually applied in previous versions. This also affects the setters and getters for these properties in
+      the JMX MBean `org.apache.cassandra.db:type=StorageService` and the nodetool commands `set/getstreamthroughput`
+      and `set/getinterdcstreamthroughput`.
+    - Steps for upgrading Paxos
+        - Set paxos_variant: v2 across the cluster. This may be set via JMX, but should also be written
+          persistently to any yaml.
+        - Ensure paxos repairs are running regularly, either as part of normal incremental repair workflows or on their
+          own separate schedule. These operations are cheap and better to run frequently (e.g. once per hour)
+        - Set paxos_state_purging: repaired across the cluster.  This may be set via JMX, but should also be written
+          persistently to any yaml. NOTE: once this has been set, you must not restore paxos_state_purging: legacy. If
+          this setting must be disabled you must instead set paxos_state_purging: gc_grace. This may be necessary if
+          paxos repairs must be disabled for some reason on an extended basis, but in this case your applications must
+          restore default commit consistency to ensure correctness.
+        - Applications may now safely be updated to use ANY commit consistency level (or LOCAL_QUORUM, as preferred).
+          Uncontended writes should now take 2 round-trips, and uncontended reads should typically take one round-trip.
+    - A required [f|force] flag has been added to both "nodetool verify" and the standalone "sstableverify" tools.
+      These tools have some subtleties and should not be used unless the operator is familiar with what they do
+      and do not do, as well as the edge cases associated with their use.
+      NOTE: ANY SCRIPTS THAT RELY ON sstableverify OR nodetool verify WILL STOP WORKING UNTIL MODIFIED.
+      Please see CASSANDRA-17017 for details: https://issues.apache.org/jira/browse/CASSANDRA-17017
 
 Deprecation
 -----------
@@ -91,12 +238,16 @@ Deprecation
       in a subsequent major version. This also affects the setters and getters for those properties in the JMX MBean
       `org.apache.cassandra.db:type=StorageService`, which are equally deprecated in favour of the analogous methods
       in the JMX MBean `org.apache.cassandra.db:type=Guardrails`. See CASSANDRA-17195 for further details.
+    - The functionality behind the property `windows_timer_interval` was removed as part of CASSANDRA-16956. The
+      property is still present but it is deprecated and it is just a place-holder to prevent breaking upgrades. This
+      property is expected to be fully removed in the next major release of Cassandra.
 
 4.0
 ===
 
 New features
 ------------
+    - Full support for Java 11, it is not experimental anymore.
     - The data of the system keyspaces using a local strategy (at the exception of the system.batches,
       system.paxos, system.compaction_history, system.prepared_statements and system.repair tables)
       is now stored by default in the first data directory, instead of being distributed among all
@@ -186,6 +337,9 @@ New features
 
 Upgrading
 ---------
+    - otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
+      otc_backlog_expiration_interval_ms are deprecated and will be removed at earliest with next major release.
+      otc_coalescing_strategy is disabled since 3.11.
     - As part of the Internode Messaging improvement work in CASSANDRA-15066, internode_send_buff_size_in_bytes and
       internode_recv_buff_size_in_bytes were renamed to internode_socket_send_buffer_size_in_bytes and
       internode_socket_receive_buffer_size_in_bytes. To support upgrades pre-4.0, we add backward compatibility and
@@ -356,7 +510,8 @@ Upgrading
 
 Deprecation
 -----------
-
+    - JavaScript user-defined functions have been deprecated. They are planned for removal
+      in the next major release. (CASSANDRA-17280)
     - The JMX MBean org.apache.cassandra.metrics:type=Streaming,name=ActiveOutboundStreams has been
       deprecated and will be removed in a subsequent major version. This metric was not updated since several version
       already.

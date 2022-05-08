@@ -18,14 +18,10 @@
 package org.apache.cassandra.stress;
 
 import java.io.*;
-import java.net.Socket;
-import java.net.SocketException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.MultiResultLogger;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.WindowsTimer;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 public final class Stress
@@ -53,21 +49,10 @@ public final class Stress
      *   thread count with a high error rate / low count to get some basic numbers
      */
 
-    private static volatile boolean stopped = false;
-
     public static void main(String[] arguments) throws Exception
     {
-        if (FBUtilities.isWindows)
-            WindowsTimer.startTimerPeriod(1);
-
-        int exitCode = run(arguments);
-
-        if (FBUtilities.isWindows)
-            WindowsTimer.endTimerPeriod(1);
-
-        System.exit(exitCode);
+        System.exit(run(arguments));
     }
-
 
     private static int run(String[] arguments)
     {
@@ -112,52 +97,11 @@ public final class Stress
                 logout.addStream(new PrintStream(settings.graph.temporaryLogFile));
             }
 
-            if (settings.sendToDaemon != null)
-            {
-                Socket socket = new Socket(settings.sendToDaemon, 2159);
-
-                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-                BufferedReader inp = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-                Runtime.getRuntime().addShutdownHook(new ShutDown(socket, out));
-
-                out.writeObject(settings);
-
-                String line;
-
-                try
-                {
-                    while (!socket.isClosed() && (line = inp.readLine()) != null)
-                    {
-                        if (line.equals("END") || line.equals("FAILURE"))
-                        {
-                            out.writeInt(1);
-                            break;
-                        }
-
-                        logout.println(line);
-                    }
-                }
-                catch (SocketException e)
-                {
-                    if (!stopped)
-                        e.printStackTrace();
-                }
-
-                out.close();
-                inp.close();
-
-                socket.close();
-            }
-            else
-            {
-                StressAction stressAction = new StressAction(settings, logout);
-                stressAction.run();
-                logout.flush();
-                if (settings.graph.inGraphMode())
-                    new StressGraph(settings, arguments).generateGraph();
-            }
-
+            StressAction stressAction = new StressAction(settings, logout);
+            stressAction.run();
+            logout.flush();
+            if (settings.graph.inGraphMode())
+                new StressGraph(settings, arguments).generateGraph();
         }
         catch (Throwable t)
         {
@@ -175,37 +119,4 @@ public final class Stress
     {
         StressSettings.printHelp();
     }
-
-    private static class ShutDown extends Thread
-    {
-        private final Socket socket;
-        private final ObjectOutputStream out;
-
-        public ShutDown(Socket socket, ObjectOutputStream out)
-        {
-            this.out = out;
-            this.socket = socket;
-        }
-
-        public void run()
-        {
-            try
-            {
-                if (!socket.isClosed())
-                {
-                    System.out.println("Control-C caught. Canceling running action and shutting down...");
-
-                    out.writeInt(1);
-                    out.close();
-
-                    stopped = true;
-                }
-            }
-            catch (IOException e)
-            {
-                e.printStackTrace();
-            }
-        }
-    }
-
 }

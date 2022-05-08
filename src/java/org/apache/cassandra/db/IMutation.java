@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -35,6 +36,7 @@ public interface IMutation
     public long getTimeout(TimeUnit unit);
     public String toString(boolean shallow);
     public Collection<PartitionUpdate> getPartitionUpdates();
+    public Supplier<Mutation> hintOnFailure();
 
     public default void validateIndexedColumns()
     {

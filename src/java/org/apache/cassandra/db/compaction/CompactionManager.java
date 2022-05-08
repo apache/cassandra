@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
@@ -70,7 +71,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
-import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -95,6 +95,7 @@ import static org.apache.cassandra.db.compaction.CompactionManager.CompactionExe
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * <p>
@@ -152,18 +153,18 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public RateLimiter getRateLimiter()
     {
-        setRate(DatabaseDescriptor.getCompactionThroughputMbPerSec());
+        setRate(DatabaseDescriptor.getCompactionThroughputMebibytesPerSec());
         return compactionRateLimiter;
     }
 
     /**
-     * Sets the rate for the rate limiter. When compaction_throughput_mb_per_sec is 0 or node is bootstrapping,
+     * Sets the rate for the rate limiter. When compaction_throughput is 0 or node is bootstrapping,
      * this sets the rate to Double.MAX_VALUE bytes per second.
-     * @param throughPutMbPerSec throughput to set in mb per second
+     * @param throughPutMiBPerSec throughput to set in MiB/s
      */
-    public void setRate(final double throughPutMbPerSec)
+    public void setRate(final double throughPutMiBPerSec)
     {
-        double throughput = throughPutMbPerSec * 1024.0 * 1024.0;
+        double throughput = throughPutMiBPerSec * 1024.0 * 1024.0;
         // if throughput is set to 0, throttling is disabled
         if (throughput == 0 || StorageService.instance.isBootstrapMode())
             throughput = Double.MAX_VALUE;
@@ -721,7 +722,7 @@ public class CompactionManager implements CompactionManagerMBean
                                                     RangesAtEndpoint tokenRanges,
                                                     Refs<SSTableReader> sstables,
                                                     LifecycleTransaction txn,
-                                                    UUID sessionId,
+                                                    TimeUUID sessionId,
                                                     BooleanSupplier isCancelled)
     {
         Runnable runnable = new WrappedRunnable()
@@ -760,7 +761,7 @@ public class CompactionManager implements CompactionManagerMBean
                                                      Iterator<SSTableReader> sstableIterator,
                                                      Collection<Range<Token>> ranges,
                                                      LifecycleTransaction txn,
-                                                     UUID sessionID,
+                                                     TimeUUID sessionID,
                                                      boolean isTransient) throws IOException
     {
         if (ranges.isEmpty())
@@ -795,7 +796,7 @@ public class CompactionManager implements CompactionManagerMBean
                                       RangesAtEndpoint replicas,
                                       Refs<SSTableReader> validatedForRepair,
                                       LifecycleTransaction txn,
-                                      UUID sessionID,
+                                      TimeUUID sessionID,
                                       BooleanSupplier isCancelled) throws IOException
     {
         try
@@ -836,7 +837,7 @@ public class CompactionManager implements CompactionManagerMBean
         logger.info("{} Completed anticompaction successfully", PreviewKind.NONE.logPrefix(sessionID));
     }
 
-    static void validateSSTableBoundsForAnticompaction(UUID sessionID,
+    static void validateSSTableBoundsForAnticompaction(TimeUUID sessionID,
                                                        Collection<SSTableReader> sstables,
                                                        RangesAtEndpoint ranges)
     {
@@ -858,7 +859,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     @VisibleForTesting
-    static Set<SSTableReader> findSSTablesToAnticompact(Iterator<SSTableReader> sstableIterator, List<Range<Token>> normalizedRanges, UUID parentRepairSession)
+    static Set<SSTableReader> findSSTablesToAnticompact(Iterator<SSTableReader> sstableIterator, List<Range<Token>> normalizedRanges, TimeUUID parentRepairSession)
     {
         Set<SSTableReader> fullyContainedSSTables = new HashSet<>();
         while (sstableIterator.hasNext())
@@ -928,10 +929,10 @@ public class CompactionManager implements CompactionManagerMBean
         return futures;
     }
 
-    public void forceCompactionForTokenRange(ColumnFamilyStore cfStore, Collection<Range<Token>> ranges)
+    public void forceCompaction(ColumnFamilyStore cfStore, Supplier<Collection<SSTableReader>> sstablesFn, com.google.common.base.Predicate<SSTableReader> sstablesPredicate)
     {
         Callable<CompactionTasks> taskCreator = () -> {
-            Collection<SSTableReader> sstables = sstablesInBounds(cfStore, ranges);
+            Collection<SSTableReader> sstables = sstablesFn.get();
             if (sstables == null || sstables.isEmpty())
             {
                 logger.debug("No sstables found for the provided token range");
@@ -941,7 +942,7 @@ public class CompactionManager implements CompactionManagerMBean
         };
 
         try (CompactionTasks tasks = cfStore.runWithCompactionsDisabled(taskCreator,
-                                                                        (sstable) -> new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges),
+                                                                        sstablesPredicate,
                                                                         false,
                                                                         false,
                                                                         false))
@@ -961,6 +962,11 @@ public class CompactionManager implements CompactionManagerMBean
 
             FBUtilities.waitOnFuture(executor.submitIfRunning(runnable, "force compaction for token range"));
         }
+    }
+
+    public void forceCompactionForTokenRange(ColumnFamilyStore cfStore, Collection<Range<Token>> ranges)
+    {
+        forceCompaction(cfStore, () -> sstablesInBounds(cfStore, ranges), (sstable) -> new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges));
     }
 
     private static Collection<SSTableReader> sstablesInBounds(ColumnFamilyStore cfs, Collection<Range<Token>> tokenRangeCollection)
@@ -988,6 +994,24 @@ public class CompactionManager implements CompactionManagerMBean
             }
         }
         return sstables;
+    }
+
+    public void forceCompactionForKey(ColumnFamilyStore cfStore, DecoratedKey key)
+    {
+        forceCompaction(cfStore, () -> sstablesWithKey(cfStore, key), sstable -> sstable.maybePresent(key));
+    }
+
+    private static Collection<SSTableReader> sstablesWithKey(ColumnFamilyStore cfs, DecoratedKey key)
+    {
+        final Set<SSTableReader> sstables = new HashSet<>();
+        Iterable<SSTableReader> liveTables = cfs.getTracker().getView().liveSSTablesInBounds(key.getToken().minKeyBound(),
+                                                                                             key.getToken().maxKeyBound());
+        for (SSTableReader sstable : liveTables)
+        {
+            if (sstable.maybePresent(key))
+                sstables.add(sstable);
+        }
+        return sstables.isEmpty() ? Collections.emptyList() : sstables;
     }
 
     public void forceUserDefinedCompaction(String dataFiles)
@@ -1137,7 +1161,7 @@ public class CompactionManager implements CompactionManagerMBean
     /* Used in tests. */
     public void disableAutoCompaction()
     {
-        for (String ksname : Schema.instance.getNonSystemKeyspaces())
+        for (String ksname : Schema.instance.getNonSystemKeyspaces().names())
         {
             for (ColumnFamilyStore cfs : Keyspace.open(ksname).getColumnFamilyStores())
                 cfs.disableAutoCompaction();
@@ -1286,7 +1310,7 @@ public class CompactionManager implements CompactionManagerMBean
              ISSTableScanner scanner = cleanupStrategy.getScanner(sstable);
              CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable));
-             CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, UUIDGen.getTimeUUID(), active))
+             CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, nextTimeUUID(), active, null))
         {
             StatsMetadata metadata = sstable.getSSTableMetadata();
             writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, txn));
@@ -1450,7 +1474,7 @@ public class CompactionManager implements CompactionManagerMBean
                                              File compactionFileLocation,
                                              long expectedBloomFilterSize,
                                              long repairedAt,
-                                             UUID pendingRepair,
+                                             TimeUUID pendingRepair,
                                              boolean isTransient,
                                              SSTableReader sstable,
                                              LifecycleTransaction txn)
@@ -1473,7 +1497,7 @@ public class CompactionManager implements CompactionManagerMBean
                                                               File compactionFileLocation,
                                                               int expectedBloomFilterSize,
                                                               long repairedAt,
-                                                              UUID pendingRepair,
+                                                              TimeUUID pendingRepair,
                                                               boolean isTransient,
                                                               Collection<SSTableReader> sstables,
                                                               ILifecycleTransaction txn)
@@ -1520,7 +1544,7 @@ public class CompactionManager implements CompactionManagerMBean
     private void doAntiCompaction(ColumnFamilyStore cfs,
                                   RangesAtEndpoint ranges,
                                   LifecycleTransaction txn,
-                                  UUID pendingRepair,
+                                  TimeUUID pendingRepair,
                                   BooleanSupplier isCancelled)
     {
         int originalCount = txn.originals().size();
@@ -1555,7 +1579,7 @@ public class CompactionManager implements CompactionManagerMBean
     int antiCompactGroup(ColumnFamilyStore cfs,
                          RangesAtEndpoint ranges,
                          LifecycleTransaction txn,
-                         UUID pendingRepair,
+                         TimeUUID pendingRepair,
                          BooleanSupplier isCancelled)
     {
         Preconditions.checkArgument(!ranges.isEmpty(), "need at least one full or transient range");
@@ -1623,7 +1647,7 @@ public class CompactionManager implements CompactionManagerMBean
 
              AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(txn.originals());
              CompactionController controller = new CompactionController(cfs, sstableAsSet, getDefaultGcBefore(cfs, nowInSec));
-             CompactionIterator ci = getAntiCompactionIterator(scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID(), active, isCancelled))
+             CompactionIterator ci = getAntiCompactionIterator(scanners.scanners, controller, nowInSec, nextTimeUUID(), active, isCancelled))
         {
             int expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval, (int)(SSTableReader.getApproximateKeyCount(sstableAsSet)));
 
@@ -1706,10 +1730,10 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     @VisibleForTesting
-    public static CompactionIterator getAntiCompactionIterator(List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID timeUUID, ActiveCompactionsTracker activeCompactions, BooleanSupplier isCancelled)
+    public static CompactionIterator getAntiCompactionIterator(List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, TimeUUID timeUUID, ActiveCompactionsTracker activeCompactions, BooleanSupplier isCancelled)
     {
-        return new CompactionIterator(OperationType.ANTICOMPACTION, scanners, controller, nowInSec, timeUUID, activeCompactions) {
-
+        return new CompactionIterator(OperationType.ANTICOMPACTION, scanners, controller, nowInSec, timeUUID, activeCompactions, null)
+        {
             public boolean isStopRequested()
             {
                 return super.isStopRequested() || isCancelled.getAsBoolean();
@@ -1846,7 +1870,6 @@ public class CompactionManager implements CompactionManagerMBean
     static class CompactionExecutor extends WrappedExecutorPlus
     {
         static final ThreadGroup compactionThreadGroup = executorFactory().newThreadGroup("compaction");
-        private static final WithResources RESCHEDULE_FAILED = () -> SnapshotDeletingTask::rescheduleFailedTasks;
 
         public CompactionExecutor()
         {
@@ -1901,12 +1924,12 @@ public class CompactionManager implements CompactionManagerMBean
 
         public void execute(Runnable command)
         {
-            executor.execute(RESCHEDULE_FAILED, command);
+            executor.execute(command);
         }
 
         public <T> Future<T> submit(Callable<T> task)
         {
-            return executor.submit(RESCHEDULE_FAILED, task);
+            return executor.submit(task);
         }
 
         public <T> Future<T> submit(Runnable task, T result)
@@ -2045,8 +2068,8 @@ public class CompactionManager implements CompactionManagerMBean
     {
         for (Holder holder : active.getCompactions())
         {
-            UUID holderId = holder.getCompactionInfo().getTaskId();
-            if (holderId != null && holderId.equals(UUID.fromString(compactionId)))
+            TimeUUID holderId = holder.getCompactionInfo().getTaskId();
+            if (holderId != null && holderId.equals(TimeUUID.fromString(compactionId)))
                 holder.stop();
         }
     }

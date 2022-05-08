@@ -18,7 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool.formatter;
 
+import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -72,6 +76,11 @@ public class TableBuilder
         this.rows.addAll(base.rows);
     }
 
+    public void add(@Nonnull List<String> row)
+    {
+        add(row.toArray(new String[0]));
+    }
+
     public void add(@Nonnull String... row)
     {
         Objects.requireNonNull(row);
@@ -113,6 +122,22 @@ public class TableBuilder
                     out.print(columnDelimiter);
             }
             out.println();
+        }
+    }
+
+    @Override
+    public String toString()
+    {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try (PrintStream stream = new PrintStream(os, true, StandardCharsets.UTF_8.displayName()))
+        {
+            printTo(stream);
+            stream.flush();
+            return os.toString(StandardCharsets.UTF_8.displayName());
+        }
+        catch (UnsupportedEncodingException e)
+        {
+            throw new UncheckedIOException(e);
         }
     }
 

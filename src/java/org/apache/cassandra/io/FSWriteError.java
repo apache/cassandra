@@ -44,9 +44,23 @@ public class FSWriteError extends FSError
         this(cause, new File(""));
     }
 
-    @Override
-    public String toString()
+    public FSWriteError(String message, Throwable cause, Path path)
     {
-        return "FSWriteError in " + path;
+        super(message, cause, path);
+    }
+
+    public FSWriteError(String message, Throwable cause, File path)
+    {
+        super(message, cause, path);
+    }
+
+    public FSWriteError(String message, Throwable cause, String path)
+    {
+        this(message, cause, new File(path));
+    }
+
+    public FSWriteError(String message, Throwable cause)
+    {
+        this(message, cause, new File(""));
     }
 }

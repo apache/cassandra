@@ -20,6 +20,11 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.db.ConsistencyLevel;
+
 /**
  * Configuration settings for guardrails.
  *
@@ -27,10 +32,7 @@ import java.util.Set;
  * checking each guarded constraint (which, again, should use the higher level abstractions defined in
  * {@link Guardrails}).
  *
- * <p>This contains a main setting, {@code enabled}, controlling if guardrails are globally active or not, and
- * individual settings to control each guardrail.
- *
- * <p>We have 2 variants of guardrails, soft (warn) and hard (abort) limits, each guardrail having either one of the
+ * <p>We have 2 variants of guardrails, soft (warn) and hard (fail) limits, each guardrail having either one of the
  * variants or both. Note in particular that hard limits only make sense for guardrails triggering during query
  * execution. For other guardrails, say one triggering during compaction, aborting that compaction does not make sense.
  *
@@ -44,41 +46,84 @@ import java.util.Set;
 public interface GuardrailsConfig
 {
     /**
-     * Whether guardrails are enabled or not.
-     *
-     * @return {@code true} if guardrails are enabled, {@code false} otherwise
+     * @return The threshold to warn when creating more user keyspaces than threshold.
      */
-    boolean getEnabled();
+    int getKeyspacesWarnThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more user keyspaces than threshold.
+     * @return The threshold to fail when creating more user keyspaces than threshold.
      */
-    IntThreshold getKeyspaces();
+    int getKeyspacesFailThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more user tables than threshold.
+     * @return The threshold to warn when creating more user tables than threshold.
      */
-    IntThreshold getTables();
+    int getTablesWarnThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more columns per table than threshold.
+     * @return The threshold to fail when creating more user tables than threshold.
      */
-    IntThreshold getColumnsPerTable();
+    int getTablesFailThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more secondary indexes per table than threshold.
+     * @return The threshold to warn when creating more columns per table than threshold.
      */
-    IntThreshold getSecondaryIndexesPerTable();
+    int getColumnsPerTableWarnThreshold();
 
     /**
-     * @return The threshold to warn or abort when creating more materialized views per table than threshold.
+     * @return The threshold to fail when creating more columns per table than threshold.
      */
-    IntThreshold getMaterializedViewsPerTable();
+    int getColumnsPerTableFailThreshold();
 
     /**
-     * @return The table properties that are ignored/disallowed when creating or altering a table.
+     * @return The threshold to warn when creating more secondary indexes per table than threshold.
      */
-    TableProperties getTableProperties();
+    int getSecondaryIndexesPerTableWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating more secondary indexes per table than threshold.
+     */
+    int getSecondaryIndexesPerTableFailThreshold();
+
+    /**
+     * @return Whether creation of secondary indexes is allowed.
+     */
+    boolean getSecondaryIndexesEnabled();
+
+    /**
+     * @return The threshold to warn when creating more materialized views per table than threshold.
+     */
+    int getMaterializedViewsPerTableWarnThreshold();
+
+    /**
+     * @return The threshold to warn when partition keys in select more than threshold.
+     */
+    int getPartitionKeysInSelectWarnThreshold();
+
+    /**
+     * @return The threshold to fail when partition keys in select more than threshold.
+     */
+    int getPartitionKeysInSelectFailThreshold();
+
+    /**
+     * @return The threshold to fail when creating more materialized views per table than threshold.
+     */
+    int getMaterializedViewsPerTableFailThreshold();
+
+    /**
+     * @return The table properties that are warned about when creating or altering a table.
+     */
+    Set<String> getTablePropertiesWarned();
+
+    /**
+     * @return The table properties that are ignored when creating or altering a table.
+     */
+    Set<String> getTablePropertiesIgnored();
+
+    /**
+     * @return The table properties that are disallowed when creating or altering a table.
+     */
+    Set<String> getTablePropertiesDisallowed();
 
     /**
      * Returns whether user-provided timestamps are allowed.
@@ -88,9 +133,42 @@ public interface GuardrailsConfig
     boolean getUserTimestampsEnabled();
 
     /**
-     * @return The threshold to warn or abort when page size exceeds given size.
+     * Returns whether tables can be uncompressed
+     *
+     * @return {@code true} if user's can disable compression, {@code false} otherwise.
      */
-    IntThreshold getPageSize();
+    boolean getUncompressedTablesEnabled();
+
+    /**
+     * Returns whether users can create new COMPACT STORAGE tables
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getCompactTablesEnabled();
+
+    /**
+     * Returns whether GROUP BY functionality is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getGroupByEnabled();
+
+    /**
+     * Returns whether TRUNCATE or DROP table are allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDropTruncateTableEnabled();
+
+    /**
+     * @return The threshold to warn when page size exceeds given size.
+     */
+    int getPageSizeWarnThreshold();
+
+    /**
+     * @return The threshold to fail when page size exceeds given size.
+     */
+    int getPageSizeFailThreshold();
 
     /**
      * Returns whether list operations that require read before write are allowed.
@@ -100,35 +178,103 @@ public interface GuardrailsConfig
     boolean getReadBeforeWriteListOperationsEnabled();
 
     /**
-     * Configuration of {@code int}-based thresholds to check if the guarded value should trigger a warning or abort the
-     * operation.
+     * Returns whether ALLOW FILTERING property is allowed.
+     *
+     * @return {@code true} if ALLOW FILTERING is allowed, {@code false} otherwise.
      */
-    public interface IntThreshold
-    {
-        /**
-         * @return The threshold to warn when the guarded value exceeds it. A negative value means disabled.
-         */
-        public int getWarnThreshold();
-
-        /**
-         * @return The threshold to abort the operation when the guarded value exceeds it. A negative value means disabled.
-         */
-        public int getAbortThreshold();
-    }
+    boolean getAllowFilteringEnabled();
 
     /**
-     * Configuration class containing the sets of table properties to ignore and/or reject.
+     * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
      */
-    public interface TableProperties
-    {
-        /**
-         * @return The values to be ignored.
-         */
-        Set<String> getIgnored();
+    public int getInSelectCartesianProductWarnThreshold();
 
-        /**
-         * @return The values to be rejected.
-         */
-        Set<String> getDisallowed();
-    }
+    /**
+     * @return The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductFailThreshold();
+
+    /**
+     * @return The consistency levels that are warned about when reading.
+     */
+    Set<ConsistencyLevel> getReadConsistencyLevelsWarned();
+
+    /**
+     * @return The consistency levels that are disallowed when reading.
+     */
+    Set<ConsistencyLevel> getReadConsistencyLevelsDisallowed();
+
+    /**
+     * @return The consistency levels that are warned about when writing.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyLevelsWarned();
+
+    /**
+     * @return The consistency levels that are disallowed when writing.
+     */
+    Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
+
+    /**
+     * @return The threshold to warn when encountering a collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec getCollectionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec getCollectionSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering more elements in a collection than threshold.
+     */
+    int getItemsPerCollectionWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with more elements than threshold.
+     */
+    int getItemsPerCollectionFailThreshold();
+
+    /**
+     * @return The threshold to warn when creating a UDT with more fields than threshold.
+     */
+    int getFieldsPerUDTWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a UDT with more fields than threshold.
+     */
+    int getFieldsPerUDTFailThreshold();
+
+    /**
+     * @return The threshold to warn when local disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageWarnThreshold();
+
+    /**
+     * @return The threshold to fail when local disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageFailThreshold();
+
+    /**
+     * @return The max disk size of the data directories when calculating disk usage thresholds, {@code null} means
+     * disabled.
+     */
+    @Nullable
+    DataStorageSpec getDataDiskUsageMaxDiskSize();
+
+    /**
+     * @return The threshold to warn when replication factor is lesser than threshold.
+     */
+    int getMinimumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is lesser than threshold.
+     */
+    int getMinimumReplicationFactorFailThreshold();
+
 }

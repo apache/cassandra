@@ -37,7 +37,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static junit.framework.Assert.assertFalse;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -194,6 +194,6 @@ public class LeveledGenerationsTest extends CQLTester
 
     private void print(SSTableReader sstable)
     {
-        System.out.println(String.format("%d %s %s %d", sstable.descriptor.generation, sstable.first, sstable.last, sstable.getSSTableLevel()));
+        System.out.println(String.format("%d %s %s %d", sstable.descriptor.id, sstable.first, sstable.last, sstable.getSSTableLevel()));
     }
 }

@@ -402,33 +402,10 @@ public class LoaderOptions
                 {
                     config = new Config();
                     // unthrottle stream by default
-                    config.stream_throughput_outbound_megabits_per_sec = 0;
-                    config.inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
-                    config.entire_sstable_stream_throughput_outbound_megabits_per_sec = 0;
-                    config.entire_sstable_inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
-                }
-
-
-                if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
-                {
-                    String[] nodes = cmd.getOptionValue(INITIAL_HOST_ADDRESS_OPTION).split(",");
-                    try
-                    {
-                        for (String node : nodes)
-                        {
-                            HostAndPort hap = HostAndPort.fromString(node);
-                            hosts.add(new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPortOrDefault(nativePort)));
-                        }
-                    } catch (UnknownHostException e)
-                    {
-                        errorMsg("Unknown host: " + e.getMessage(), options);
-                    }
-
-                } else
-                {
-                    System.err.println("Initial hosts must be specified (-d)");
-                    printUsage(options);
-                    System.exit(1);
+                    config.stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
+                    config.inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
+                    config.entire_sstable_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
+                    config.entire_sstable_inter_dc_stream_throughput_outbound = DataRateSpec.inMebibytesPerSecond(0);
                 }
 
                 if (cmd.hasOption(STORAGE_PORT_OPTION))
@@ -460,11 +437,45 @@ public class LoaderOptions
                     sslStoragePort = Integer.parseInt(cmd.getOptionValue(SSL_STORAGE_PORT_OPTION));
                 else
                     sslStoragePort = config.ssl_storage_port;
-                throttle = config.stream_throughput_outbound_megabits_per_sec;
+                throttle = config.stream_throughput_outbound.toMebibytesPerSecondAsInt();
                 // Copy the encryption options and apply the config so that argument parsing can accesss isEnabled.
                 clientEncOptions = config.client_encryption_options.applyConfig();
                 serverEncOptions = config.server_encryption_options;
                 serverEncOptions.applyConfig();
+
+                if (cmd.hasOption(NATIVE_PORT_OPTION))
+                {
+                    nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
+                }
+                else
+                {
+                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.getEnabled() || clientEncOptions.getEnabled()))
+                        nativePort = config.native_transport_port_ssl;
+                    else
+                        nativePort = config.native_transport_port;
+                }
+
+                if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
+                {
+                    String[] nodes = cmd.getOptionValue(INITIAL_HOST_ADDRESS_OPTION).split(",");
+                    try
+                    {
+                        for (String node : nodes)
+                        {
+                            HostAndPort hap = HostAndPort.fromString(node);
+                            hosts.add(new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPortOrDefault(nativePort)));
+                        }
+                    } catch (UnknownHostException e)
+                    {
+                        errorMsg("Unknown host: " + e.getMessage(), options);
+                    }
+
+                } else
+                {
+                    System.err.println("Initial hosts must be specified (-d)");
+                    printUsage(options);
+                    System.exit(1);
+                }
 
                 if (cmd.hasOption(THROTTLE_MBITS))
                 {
@@ -490,18 +501,6 @@ public class LoaderOptions
                             cmd.hasOption(SSL_KEYSTORE) || cmd.hasOption(SSL_KEYSTORE_PW))
                 {
                     clientEncOptions = clientEncOptions.withEnabled(true);
-                }
-
-                if (cmd.hasOption(NATIVE_PORT_OPTION))
-                {
-                    nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
-                }
-                else
-                {
-                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.isEnabled() || clientEncOptions.isEnabled()))
-                        nativePort = config.native_transport_port_ssl;
-                    else
-                        nativePort = config.native_transport_port;
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE))
@@ -675,7 +674,7 @@ public class LoaderOptions
                 "you will need to have the files Standard1-g-1-Data.db and Standard1-g-1-Index.db into a directory /path/to/Keyspace1/Standard1/.";
         String footer = System.lineSeparator() +
                 "You can provide cassandra.yaml file with -f command line option to set up streaming throughput, client and server encryption options. " +
-                "Only stream_throughput_outbound_megabits_per_sec, server_encryption_options and client_encryption_options are read from yaml. " +
+                "Only stream_throughput_outbound, server_encryption_options and client_encryption_options are read from yaml. " +
                 "You can override options read from cassandra.yaml with corresponding command line options.";
         new HelpFormatter().printHelp(usage, header, options, footer);
     }

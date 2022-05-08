@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
@@ -267,7 +268,27 @@ public interface Index
     public Optional<ColumnFamilyStore> getBackingTable();
 
     /**
-     * Return a task which performs a blocking flush of the index's data to persistent storage.
+     * Return a task which performs a blocking flush of the index's data corresponding to the provided
+     * base table's Memtable. This may extract any necessary data from the base table's Memtable as part of the flush.
+     *
+     * This version of the method is invoked whenever we flush the base table. If the index stores no in-memory data
+     * of its own, it is safe to only implement this method.
+     *
+     * @return task to be executed by the index manager to perform the flush.
+     */
+    public default Callable<?> getBlockingFlushTask(Memtable baseCfs)
+    {
+        return getBlockingFlushTask();
+    }
+
+    /**
+     * Return a task which performs a blocking flush of any in-memory index data to persistent storage,
+     * independent of any flush of the base table.
+     *
+     * Note that this method is only invoked outside of normal flushes: if there is no in-memory storage
+     * for this index, and it only extracts data on flush from the base table's Memtable, then it is safe to
+     * perform no work.
+     *
      * @return task to be executed by the index manager to perform the flush.
      */
     public Callable<?> getBlockingFlushTask();

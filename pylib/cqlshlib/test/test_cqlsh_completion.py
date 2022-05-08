@@ -21,11 +21,10 @@
 import locale
 import os
 import re
-from .basecase import BaseTestCase, cqlsh, cqlshlog
+from .basecase import BaseTestCase
 from .cassconnect import create_db, remove_db, testrun_cqlsh
 from .run_cqlsh import TimeoutError
-import unittest
-import sys
+from cqlshlib.cql3handling import CqlRuleSet
 
 BEL = '\x07'  # the terminal-bell character
 CTRL_C = '\x03'
@@ -40,7 +39,6 @@ COMPLETION_RESPONSE_TIME = 0.5
 completion_separation_re = re.compile(r'\s+')
 
 
-@unittest.skipIf(sys.platform == "win32", 'Tab completion tests not supported on Windows')
 class CqlshCompletionCase(BaseTestCase):
 
     @classmethod
@@ -55,7 +53,7 @@ class CqlshCompletionCase(BaseTestCase):
         env = os.environ.copy()
         env['COLUMNS'] = '100000'
         if (locale.getpreferredencoding() != 'UTF-8'):
-             env['LC_CTYPE'] = 'en_US.utf8'
+            env['LC_CTYPE'] = 'en_US.utf8'
         self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 
@@ -153,15 +151,13 @@ class CqlshCompletionCase(BaseTestCase):
                 # retry once
                 self.cqlsh.send(CTRL_C)
                 self.cqlsh.read_to_next_prompt(timeout=10.0)
- 
 
     def strategies(self):
-        return self.module.CqlRuleSet.replication_strategies
+        return CqlRuleSet.replication_strategies
 
 
 class TestCqlshCompletion(CqlshCompletionCase):
     cqlver = '3.1.6'
-    module = cqlsh.cql3handling
 
     def test_complete_on_empty_string(self):
         self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
@@ -385,7 +381,16 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['EXISTS', '<quotedName>', '<identifier>'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF EXISTS ",
-                            choices=['>=', '!=', '<=', 'IN', '[', ';', '=', '<', '>', '.'])
+                            choices=['>=', '!=', '<=', 'IN', '[', ';', '=', '<', '>', '.', 'CONTAINS'])
+
+        self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF lonelykey ",
+                            choices=['>=', '!=', '<=', 'IN', '=', '<', '>', 'CONTAINS'])
+
+        self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF lonelykey CONTAINS ",
+                            choices=['false', 'true', '<pgStringLiteral>',
+                                     '-', '<float>', 'TOKEN', '<identifier>',
+                                     '<uuid>', '{', '[', 'NULL', '<quotedStringLiteral>',
+                                     '<blobLiteral>', '<wholenumber>', 'KEY'])
 
     def test_complete_in_delete(self):
         self.trycompletions('DELETE F', choices=['FROM', '<identifier>', '<quotedName>'])
@@ -467,7 +472,13 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['EXISTS', '<identifier>', '<quotedName>'])
         self.trycompletions(('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE '
                              'TOKEN(a) >= TOKEN(0) IF b '),
-                            choices=['>=', '!=', '<=', 'IN', '=', '<', '>'])
+                            choices=['>=', '!=', '<=', 'IN', '=', '<', '>', 'CONTAINS'])
+        self.trycompletions(('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE '
+                             'TOKEN(a) >= TOKEN(0) IF b CONTAINS '),
+                            choices=['false', 'true', '<pgStringLiteral>',
+                                     '-', '<float>', 'TOKEN', '<identifier>',
+                                     '<uuid>', '{', '[', 'NULL','<quotedStringLiteral>',
+                                     '<blobLiteral>','<wholenumber>', 'KEY'])
         self.trycompletions(('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE '
                              'TOKEN(a) >= TOKEN(0) IF b < 0 '),
                             choices=['AND', ';'])
@@ -684,7 +695,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
-                                     'only_purge_repaired_tombstones','provide_overlapping_tombstones'])
+                                     'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])
@@ -822,7 +833,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_alter_keyspace(self):
         self.trycompletions('ALTER KEY', 'SPACE ')
         self.trycompletions('ALTER KEYSPACE ', '', choices=[self.cqlsh.keyspace, 'system_auth',
-                                                            'system_distributed', 'system_traces'])
+                                                            'system_distributed', 'system_traces', 'IF'])
+        self.trycompletions('ALTER KEYSPACE I', immediate='F EXISTS ')
         self.trycompletions('ALTER KEYSPACE system_trac', "es WITH replication = {'class': '")
         self.trycompletions("ALTER KEYSPACE system_traces WITH replication = {'class': '", '',
                             choices=['NetworkTopologyStrategy', 'SimpleStrategy'])
@@ -890,3 +902,42 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             immediate='SPACE ')
         self.trycompletions("REVOKE MODIFY PERMISSION, DROP ON KEYSPACE system_tr",
                             immediate='aces FROM ')
+
+    def test_complete_in_alter_table(self):
+        self.trycompletions('ALTER TABLE I', immediate='F EXISTS ')
+        self.trycompletions('ALTER TABLE IF', immediate=' EXISTS ')
+        self.trycompletions('ALTER TABLE ', choices=['IF', 'twenty_rows_table',
+                                                     'ascii_with_special_chars', 'users',
+                                                     'has_all_types', 'system.',
+                                                     'empty_composite_table', 'empty_table',
+                                                     'system_auth.', 'undefined_values_table',
+                                                     'dynamic_columns',
+                                                     'twenty_rows_composite_table',
+                                                     'utf8_with_special_chars',
+                                                     'system_traces.', 'songs', 'system_views.',
+                                                     'system_virtual_schema.',
+                                                     'system_schema.', 'system_distributed.',
+                                                     self.cqlsh.keyspace + '.'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ADD ', choices=['<new_column_name>', 'IF'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
+        self.trycompletions('ALTER TABLE new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+        self.trycompletions('ALTER TABLE new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table DROP ', choices=['IF', '<quotedName>', '<identifier>'])
+
+    def test_complete_in_alter_type(self):
+        self.trycompletions('ALTER TYPE I', immediate='F EXISTS ')
+        self.trycompletions('ALTER TYPE ', choices=['IF', 'system_views.',
+                                                    'tags', 'system_traces.', 'system_distributed.',
+                                                    'phone_number', 'band_info_type', 'address', 'system.', 'system_schema.',
+                                                    'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
+                                                    ])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type ADD ', choices=['<new_field_name>', 'IF'])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type ADD IF NOT EXISTS ', choices=['<new_field_name>'])
+        self.trycompletions('ALTER TYPE IF EXISTS new_type RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
+
+    def test_complete_in_alter_user(self):
+        self.trycompletions('ALTER USER ', choices=['<identifier>', 'IF', '<pgStringLiteral>', '<quotedStringLiteral>'])
+
+    def test_complete_in_alter_role(self):
+        self.trycompletions('ALTER ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])

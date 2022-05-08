@@ -36,6 +36,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader.UniqueIdentifier;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static com.google.common.base.Functions.compose;
@@ -142,7 +143,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     public static LifecycleTransaction offline(OperationType operationType, Iterable<SSTableReader> readers)
     {
         // if offline, for simplicity we just use a dummy tracker
-        Tracker dummy = new Tracker(null, false);
+        Tracker dummy = Tracker.newDummyTracker();
         dummy.addInitialSSTables(readers);
         dummy.apply(updateCompacting(emptySet(), readers));
         return new LifecycleTransaction(dummy, operationType, readers);
@@ -154,7 +155,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     @SuppressWarnings("resource") // log closed during postCleanup
     public static LifecycleTransaction offline(OperationType operationType)
     {
-        Tracker dummy = new Tracker(null, false);
+        Tracker dummy = Tracker.newDummyTracker();
         return new LifecycleTransaction(dummy, new LogTransaction(operationType, dummy), Collections.emptyList());
     }
 
@@ -187,7 +188,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return log.type();
     }
 
-    public UUID opId()
+    public TimeUUID opId()
     {
         return log.id();
     }

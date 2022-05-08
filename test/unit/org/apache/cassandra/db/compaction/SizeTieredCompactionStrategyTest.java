@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -165,9 +166,9 @@ public class SizeTieredCompactionStrategyTest
             new RowUpdateBuilder(cfs.metadata(), 0, key)
                 .clustering("column").add("val", value)
                 .build().applyUnsafe();
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
         Pair<List<SSTableReader>, Double> bucket;

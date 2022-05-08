@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
@@ -45,10 +44,12 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.FBUtilities.now;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -87,10 +88,10 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files. {}MB required, {}",
+            logger.warn("insufficient space to compact all requested files. {}MiB required, {} for compaction {}",
                         (float) expectedSize / 1024 / 1024,
-                        StringUtils.join(transaction.originals(), ", "));
-
+                        StringUtils.join(transaction.originals(), ", "),
+                        transaction.opId());
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
             SSTableReader removedSSTable = cfs.getMaxSizeFile(nonExpiredSSTables);
@@ -120,9 +121,8 @@ public class CompactionTask extends AbstractCompactionTask
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
         {
-            long epochMilli = currentTimeMillis();
-            Instant creationTime = Instant.ofEpochMilli(epochMilli);
-            cfs.snapshotWithoutFlush(epochMilli + "-compact-" + cfs.name, creationTime);
+            Instant creationTime = now();
+            cfs.snapshotWithoutMemtable(creationTime.toEpochMilli() + "-compact-" + cfs.name, creationTime);
         }
 
         try (CompactionController controller = getCompactionController(transaction.originals()))
@@ -143,7 +143,7 @@ public class CompactionTask extends AbstractCompactionTask
                 }
             });
 
-            UUID taskId = transaction.opId();
+            TimeUUID taskId = transaction.opId();
 
             // new sstables from flush can be added during a compaction, but only the compaction can remove them,
             // so in our single-threaded compaction world this is a valid way of determining if we're compacting
@@ -171,9 +171,6 @@ public class CompactionTask extends AbstractCompactionTask
             long[] mergedRowCounts;
             long totalSourceCQLRows;
 
-            // SSTableScanners need to be closed before markCompactedSSTablesReplaced call as scanners contain references
-            // to both ifile and dfile and SSTR will throw deletion errors on Windows if it tries to delete before scanner is closed.
-            // See CASSANDRA-8019 and CASSANDRA-8399
             int nowInSec = FBUtilities.nowInSeconds();
             try (Refs<SSTableReader> refs = Refs.ref(actuallyCompact);
                  AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact);
@@ -317,13 +314,13 @@ public class CompactionTask extends AbstractCompactionTask
         return minRepairedAt;
     }
 
-    public static UUID getPendingRepair(Set<SSTableReader> sstables)
+    public static TimeUUID getPendingRepair(Set<SSTableReader> sstables)
     {
         if (sstables.isEmpty())
         {
             return ActiveRepairService.NO_PENDING_REPAIR;
         }
-        Set<UUID> ids = new HashSet<>();
+        Set<TimeUUID> ids = new HashSet<>();
         for (SSTableReader sstable: sstables)
             ids.add(sstable.getSSTableMetadata().pendingRepair);
 
@@ -397,7 +394,7 @@ public class CompactionTask extends AbstractCompactionTask
             }
 
             sstablesRemoved++;
-            logger.warn("Not enough space for compaction, {}MB estimated.  Reducing scope.",
+            logger.warn("Not enough space for compaction, {}MiB estimated.  Reducing scope.",
                         (float) expectedWriteSize / 1024 / 1024);
         }
 

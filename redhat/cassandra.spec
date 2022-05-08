@@ -48,6 +48,7 @@ BuildRequires: ant-junit >= 1.9
 
 Requires:      jre >= 1.8.0
 Requires:      python(abi) >= 3.6
+Requires:      procps-ng >= 3.3
 Requires(pre): user(cassandra)
 Requires(pre): group(cassandra)
 Requires(pre): shadow-utils
@@ -190,7 +191,6 @@ This package contains extra tools for working with Cassandra clusters.
 
 %files tools
 %attr(755,root,root) %{_bindir}/sstabledump
-%attr(755,root,root) %{_bindir}/cassandra-stressd
 %attr(755,root,root) %{_bindir}/compaction-stress
 %attr(755,root,root) %{_bindir}/sstableexpiredblockers
 %attr(755,root,root) %{_bindir}/sstablelevelreset
@@ -202,6 +202,7 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/fqltool
 %attr(755,root,root) %{_bindir}/generatetokens
+%attr(755,root,root) %{_bindir}/hash_password
 
 
 %changelog

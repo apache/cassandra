@@ -1,0 +1,1 @@
+$ bin/nodetool status

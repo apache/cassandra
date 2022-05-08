@@ -1,0 +1,1 @@
+revoke_role_statement ::= REVOKE role_name FROM role_name

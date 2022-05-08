@@ -18,18 +18,21 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Random;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -42,7 +45,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         createTable("create table %s (id int primary key, t text) with compaction = {'class':'LeveledCompactionStrategy','single_sstable_uplevel':true}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         execute("insert into %s (id, t) values (1, 'meep')");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.COMPACTION))
@@ -95,7 +98,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
                 execute("insert into %s (id, id2, t) values (?, ?, ?)", i, j, value);
             }
             if (i % 100 == 0)
-                cfs.forceBlockingFlush();
+                Util.flush(cfs);
         }
         // now we have a bunch of data in L0, first compaction will be a normal one, containing all sstables:
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
@@ -123,14 +126,15 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         createTable("create table %s (id int primary key, t text) with compaction = {'class':'LeveledCompactionStrategy','single_sstable_uplevel':true}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         execute("insert into %s (id, t) values (1, 'meep')");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);
-        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw");
-        file.seek(0);
-        file.writeBytes(StringUtils.repeat('z', 2));
-        file.close();
+        try(FileChannel fc = new File(filenameToCorrupt).newReadWriteChannel())
+        {
+            fc.position(0);
+            fc.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
+        }
         boolean gotException = false;
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.COMPACTION))
         {

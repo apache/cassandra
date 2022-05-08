@@ -21,7 +21,6 @@ package org.apache.cassandra.locator;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.utils.FBUtilities;
 
-import java.util.AbstractList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -54,20 +53,14 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
         return byEndpoint().keySet();
     }
 
+    public InetAddressAndPort endpoint(int i)
+    {
+        return get(i).endpoint();
+    }
+
     public List<InetAddressAndPort> endpointList()
     {
-        return new AbstractList<InetAddressAndPort>()
-        {
-            public InetAddressAndPort get(int index)
-            {
-                return list.get(index).endpoint();
-            }
-
-            public int size()
-            {
-                return list.size;
-            }
-        };
+        return asList(Replica::endpoint);
     }
 
     public Map<InetAddressAndPort, Replica> byEndpoint()
@@ -85,6 +78,11 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
                 && Objects.equals(
                         byEndpoint().get(replica.endpoint()),
                         replica);
+    }
+
+    public boolean contains(InetAddressAndPort endpoint)
+    {
+        return endpoint != null && byEndpoint().containsKey(endpoint);
     }
 
     public E withoutSelf()

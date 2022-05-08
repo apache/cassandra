@@ -114,7 +114,7 @@ public class SSTableLoader implements StreamEventHandler
                                                   Descriptor newDesc = new Descriptor(desc.directory,
                                                                                       desc.ksname,
                                                                                       Directories.BACKUPS_SUBDIR,
-                                                                                      desc.generation,
+                                                                                      desc.id,
                                                                                       desc.formatType);
                                                   metadata = client.getTableMetadata(newDesc.cfname);
                                                   if (metadata != null)
@@ -154,6 +154,11 @@ public class SSTableLoader implements StreamEventHandler
                                                   List<Range<Token>> tokenRanges = Range.normalize(entry.getValue());
 
                                                   List<SSTableReader.PartitionPositionBounds> sstableSections = sstable.getPositionsForRanges(tokenRanges);
+                                                  // Do not stream to nodes that don't own any part of the SSTable, empty streams
+                                                  // will generate an error on the server. See CASSANDRA-16349 for details.
+                                                  if (sstableSections.isEmpty())
+                                                      continue;
+
                                                   long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
                                                   Ref<SSTableReader> ref = sstable.ref();
                                                   OutgoingStream stream = new CassandraOutgoingFile(StreamOperation.BULK_LOAD, ref, sstableSections, tokenRanges, estimatedKeys);

@@ -22,17 +22,23 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLongArray;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
-import com.codahale.metrics.Clock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -76,9 +82,10 @@ import static java.lang.Math.min;
  *   <li>[3]: https://github.com/dropwizard/metrics/blob/v3.1.2/metrics-core/src/main/java/com/codahale/metrics/ExponentiallyDecayingReservoir.java</li>
  * </ul>
  */
-public class DecayingEstimatedHistogramReservoir implements Reservoir
+public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoir
 {
-
+    private static final Logger logger = LoggerFactory.getLogger(DecayingEstimatedHistogramReservoir.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5L, TimeUnit.MINUTES);
     /**
      * The default number of decayingBuckets. Use this bucket count to reduce memory allocation for bucket offsets.
      */
@@ -147,21 +154,20 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     public static final long HALF_TIME_IN_S = 60L;
     public static final double MEAN_LIFETIME_IN_S = HALF_TIME_IN_S / Math.log(2.0);
-    public static final long LANDMARK_RESET_INTERVAL_IN_MS = 30L * 60L * 1000L;
+    public static final long LANDMARK_RESET_INTERVAL_IN_NS = TimeUnit.MINUTES.toNanos(30L);
 
     private final AtomicBoolean rescaling = new AtomicBoolean(false);
     private volatile long decayLandmark;
 
     // Wrapper around System.nanoTime() to simplify unit testing.
-    private final Clock clock;
-
+    private final MonotonicClock clock;
 
     /**
      * Construct a decaying histogram with default number of buckets and without considering zeroes.
      */
     public DecayingEstimatedHistogramReservoir()
     {
-        this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, Clock.defaultClock());
+        this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, MonotonicClock.Global.approxTime);
     }
 
     /**
@@ -172,7 +178,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      */
     public DecayingEstimatedHistogramReservoir(boolean considerZeroes)
     {
-        this(considerZeroes, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, Clock.defaultClock());
+        this(considerZeroes, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, MonotonicClock.Global.approxTime);
     }
 
     /**
@@ -184,17 +190,17 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      */
     public DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes)
     {
-        this(considerZeroes, bucketCount, stripes, Clock.defaultClock());
+        this(considerZeroes, bucketCount, stripes, MonotonicClock.Global.approxTime);
     }
 
     @VisibleForTesting
-    public DecayingEstimatedHistogramReservoir(Clock clock)
+    public DecayingEstimatedHistogramReservoir(MonotonicClock clock)
     {
         this(DEFAULT_ZERO_CONSIDERATION, DEFAULT_BUCKET_COUNT, DEFAULT_STRIPE_COUNT, clock);
     }
 
     @VisibleForTesting
-    DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes, Clock clock)
+    DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, int stripes, MonotonicClock clock)
     {
         assert bucketCount <= MAX_BUCKET_COUNT : "bucket count cannot exceed: " + MAX_BUCKET_COUNT;
 
@@ -218,7 +224,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         decayingBuckets = new AtomicLongArray((bucketOffsets.length + 1) * nStripes);
         buckets = new AtomicLongArray((bucketOffsets.length + 1) * nStripes);
         this.clock = clock;
-        decayLandmark = clock.getTime();
+        decayLandmark = clock.now();
         int distributionPrime = 1;
         for (int prime : DISTRIBUTION_PRIMES)
         {
@@ -238,7 +244,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      */
     public void update(long value)
     {
-        long now = clock.getTime();
+        long now = clock.now();
         rescaleIfNeeded(now);
 
         int index = findIndex(bucketOffsets, value);
@@ -283,7 +289,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private double forwardDecayWeight(long now)
     {
-        return Math.exp(((now - decayLandmark) / 1000.0) / MEAN_LIFETIME_IN_S);
+        return Math.exp(TimeUnit.NANOSECONDS.toSeconds(now - decayLandmark) / MEAN_LIFETIME_IN_S);
     }
 
     /**
@@ -312,10 +318,18 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      *
      * @return the snapshot
      */
+    @Override
     public Snapshot getSnapshot()
     {
         rescaleIfNeeded();
         return new EstimatedHistogramReservoirSnapshot(this);
+    }
+
+    @Override
+    public Snapshot getPercentileSnapshot()
+    {
+        rescaleIfNeeded();
+        return new DecayingBucketsOnlySnapshot(this);
     }
 
     /**
@@ -345,7 +359,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private void rescaleIfNeeded()
     {
-        rescaleIfNeeded(clock.getTime());
+        rescaleIfNeeded(clock.now());
     }
 
     private void rescaleIfNeeded(long now)
@@ -380,7 +394,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private boolean needRescale(long now)
     {
-        return (now - decayLandmark) > LANDMARK_RESET_INTERVAL_IN_MS;
+        return (now - decayLandmark) > LANDMARK_RESET_INTERVAL_IN_NS;
     }
 
     @VisibleForTesting
@@ -430,42 +444,16 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     }
 
-    /**
-     * Represents a snapshot of the decaying histogram.
-     *
-     * The decaying buckets are copied into a snapshot array to give a consistent view for all getters. However, the
-     * copy is made without a write-lock and so other threads may change the buckets while the array is copied,
-     * probably causign a slight skew up in the quantiles and mean values.
-     *
-     * The decaying buckets will be used for quantile calculations and mean values, but the non decaying buckets will be
-     * exposed for calls to {@link Snapshot#getValues()}.
-     */
-    static class EstimatedHistogramReservoirSnapshot extends Snapshot
+    private static abstract class AbstractSnapshot extends Snapshot
     {
-        private final long[] decayingBuckets;
-        private final long[] values;
-        private long count;
-        private long snapshotLandmark;
-        private long[] bucketOffsets;
-        private DecayingEstimatedHistogramReservoir reservoir;
+        protected final long[] decayingBuckets;
+        protected final long[] bucketOffsets;
 
-        public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
+        AbstractSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
-            final int length = reservoir.size();
-            final double rescaleFactor = reservoir.forwardDecayWeight(reservoir.clock.getTime());
-
+            int length = reservoir.size();
             this.decayingBuckets = new long[length];
-            this.values = new long[length];
-            this.snapshotLandmark = reservoir.decayLandmark;
             this.bucketOffsets = reservoir.bucketOffsets; // No need to copy, these are immutable
-
-            for (int i = 0; i < length; i++)
-            {
-                this.decayingBuckets[i] = Math.round(reservoir.bucketValue(i, true) / rescaleFactor);
-                this.values[i] = reservoir.bucketValue(i, false);
-            }
-            this.count = count();
-            this.reservoir = reservoir;
         }
 
         /**
@@ -475,6 +463,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
          * @return estimated value at given quantile
          * @throws IllegalStateException in case the histogram overflowed
          */
+        @Override
         public double getValue(double quantile)
         {
             assert quantile >= 0 && quantile <= 1.0;
@@ -482,7 +471,10 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
             final int lastBucket = decayingBuckets.length - 1;
 
             if (decayingBuckets[lastBucket] > 0)
-                throw new IllegalStateException("Unable to compute when histogram overflowed");
+            {
+                try { throw new IllegalStateException("EstimatedHistogram overflow: " + Arrays.toString(decayingBuckets)); }
+                catch (IllegalStateException e) { noSpamLogger.warn("", e); }
+            }
 
             final long qcount = (long) Math.ceil(count() * quantile);
             if (qcount == 0)
@@ -499,48 +491,11 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         }
 
         /**
-         * Will return a snapshot of the non-decaying buckets.
-         *
-         * The values returned will not be consistent with the quantile and mean values. The caller must be aware of the
-         * offsets created by {@link EstimatedHistogram#getBucketOffsets()} to make use of the values returned.
-         *
-         * @return a snapshot of the non-decaying buckets.
-         */
-        public long[] getValues()
-        {
-            return values;
-        }
-
-        /**
-         * @see {@link Snapshot#size()}
-         * @return
-         */
-        public int size()
-        {
-            return Ints.saturatedCast(count);
-        }
-
-        @VisibleForTesting
-        public long getSnapshotLandmark()
-        {
-            return snapshotLandmark;
-        }
-
-        @VisibleForTesting
-        public Range getBucketingRangeForValue(long value)
-        {
-            int index = findIndex(bucketOffsets, value);
-            long max = bucketOffsets[index];
-            long min = index == 0 ? 0 : 1 + bucketOffsets[index - 1];
-            return new Range(min, max);
-        }
-
-        /**
          * Return the number of registered values taking forward decay into account.
          *
          * @return the sum of all bucket values
          */
-        private long count()
+        protected long count()
         {
             long sum = 0L;
             for (int i = 0; i < decayingBuckets.length; i++)
@@ -557,6 +512,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
          * @return the largest value that could have been added to this reservoir, or Long.MAX_VALUE if the reservoir
          * overflowed
          */
+        @Override
         public long getMax()
         {
             final int lastBucket = decayingBuckets.length - 1;
@@ -578,6 +534,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
          * @return the mean histogram value (average of bucket offsets, weighted by count)
          * @throws IllegalStateException if any values were greater than the largest bucket threshold
          */
+        @Override
         public double getMean()
         {
             final int lastBucket = decayingBuckets.length - 1;
@@ -605,6 +562,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
          *
          * @return the smallest value that could have been added to this reservoir
          */
+        @Override
         public long getMin()
         {
             for (int i = 0; i < decayingBuckets.length; i++)
@@ -623,6 +581,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
          *
          * @return an estimate of the standard deviation
          */
+        @Override
         public double getStdDev()
         {
             final int lastBucket = decayingBuckets.length - 1;
@@ -652,6 +611,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
             }
         }
 
+        @Override
         public void dump(OutputStream output)
         {
             try (PrintWriter out = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8)))
@@ -663,6 +623,77 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
                     out.printf("%d%n", decayingBuckets[i]);
                 }
             }
+        }
+    }
+
+    /**
+     * Represents a snapshot of the decaying histogram.
+     *
+     * The decaying buckets are copied into a snapshot array to give a consistent view for all getters. However, the
+     * copy is made without a write-lock and so other threads may change the buckets while the array is copied,
+     * probably causing a slight skew up in the quantiles and mean values.
+     *
+     * The decaying buckets will be used for quantile calculations and mean values, but the non decaying buckets will be
+     * exposed for calls to {@link Snapshot#getValues()}.
+     */
+    static class EstimatedHistogramReservoirSnapshot extends AbstractSnapshot
+    {
+        private final long[] values;
+        private long count;
+        private long snapshotLandmark;
+        private final DecayingEstimatedHistogramReservoir reservoir;
+
+        public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
+        {
+            super(reservoir);
+            
+            int length = reservoir.size();
+            double rescaleFactor = reservoir.forwardDecayWeight(reservoir.clock.now());
+
+            this.values = new long[length];
+            this.snapshotLandmark = reservoir.decayLandmark;
+
+            for (int i = 0; i < length; i++)
+            {
+                this.decayingBuckets[i] = Math.round(reservoir.bucketValue(i, true) / rescaleFactor);
+                this.values[i] = reservoir.bucketValue(i, false);
+            }
+            this.count = count();
+            this.reservoir = reservoir;
+        }
+
+        /**
+         * Will return a snapshot of the non-decaying buckets.
+         *
+         * The values returned will not be consistent with the quantile and mean values. The caller must be aware of the
+         * offsets created by {@link EstimatedHistogram#getBucketOffsets()} to make use of the values returned.
+         *
+         * @return a snapshot of the non-decaying buckets.
+         */
+        public long[] getValues()
+        {
+            return values;
+        }
+
+        @Override
+        public int size()
+        {
+            return Ints.saturatedCast(count);
+        }
+
+        @VisibleForTesting
+        public long getSnapshotLandmark()
+        {
+            return snapshotLandmark;
+        }
+
+        @VisibleForTesting
+        public Range getBucketingRangeForValue(long value)
+        {
+            int index = findIndex(bucketOffsets, value);
+            long max = bucketOffsets[index];
+            long min = index == 0 ? 0 : 1 + bucketOffsets[index - 1];
+            return new Range(min, max);
         }
 
         /**
@@ -723,9 +754,48 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
             }
         }
 
-        public void rebaseReservoir() 
+        public void rebaseReservoir()
         {
             this.reservoir.rebase(this);
+        }
+    }
+
+    /**
+     * Like {@link EstimatedHistogramReservoirSnapshot}, represents a snapshot of a given histogram reservoir.
+     * 
+     * Unlike {@link EstimatedHistogramReservoirSnapshot}, this only copies and supports operations based on the
+     * decaying buckets from the source reservoir. (ex. percentiles, min, max) It also does not support snapshot 
+     * merging or rebasing on the source reservoir.
+     */
+    private static class DecayingBucketsOnlySnapshot extends AbstractSnapshot
+    {
+        private final long count;
+
+        public DecayingBucketsOnlySnapshot(DecayingEstimatedHistogramReservoir reservoir)
+        {
+            super(reservoir);
+
+            int length = reservoir.size();
+            double rescaleFactor = reservoir.forwardDecayWeight(reservoir.clock.now());
+
+            for (int i = 0; i < length; i++)
+            {
+                this.decayingBuckets[i] = Math.round(reservoir.bucketValue(i, true) / rescaleFactor);
+            }
+
+            this.count = count();
+        }
+
+        @Override
+        public long[] getValues()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size()
+        {
+            return Ints.saturatedCast(count);
         }
     }
 
@@ -752,6 +822,12 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         public int hashCode()
         {
             return Objects.hash(min, max);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "[" + min + ',' + max + ']';
         }
     }
 }

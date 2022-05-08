@@ -63,16 +63,19 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -131,14 +134,14 @@ public class CompactionsTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
         store.clearUnsafe();
-        MigrationManager.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).build(), true);
+        SchemaTestUtil.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).build());
 
         // disable compaction while flushing
         store.disableAutoCompaction();
 
         long timestamp = populate(KEYSPACE1, CF_STANDARD1, 0, 9, 3); //ttl=3s
 
-        store.forceBlockingFlush();
+        Util.flush(store);
         assertEquals(1, store.getLiveSSTables().size());
         long originalSize = store.getLiveSSTables().iterator().next().uncompressedLength();
 
@@ -173,18 +176,18 @@ public class CompactionsTest
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
         store.clearUnsafe();
 
-        MigrationManager.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build(), true);
+        SchemaTestUtil.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build());
 
         // disable compaction while flushing
         store.disableAutoCompaction();
 
         //Populate sstable1 with with keys [0..9]
         populate(KEYSPACE1, CF_STANDARD1, 0, 9, 3); //ttl=3s
-        store.forceBlockingFlush();
+        Util.flush(store);
 
         //Populate sstable2 with with keys [10..19] (keys do not overlap with SSTable1)
         long timestamp2 = populate(KEYSPACE1, CF_STANDARD1, 10, 19, 3); //ttl=3s
-        store.forceBlockingFlush();
+        Util.flush(store);
 
         assertEquals(2, store.getLiveSSTables().size());
 
@@ -216,7 +219,7 @@ public class CompactionsTest
 
         // now let's enable the magic property
         compactionOptions.put("unchecked_tombstone_compaction", "true");
-        MigrationManager.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build(), true);
+        SchemaTestUtil.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).compaction(CompactionParams.stcs(compactionOptions)).build());
 
         //submit background task again and wait for it to complete
         FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
@@ -264,13 +267,13 @@ public class CompactionsTest
             .add("val", "val1")
             .build().applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
 
         assertEquals(1, sstables.size());
         SSTableReader sstable = sstables.iterator().next();
 
-        int prevGeneration = sstable.descriptor.generation;
+        SSTableId prevGeneration = sstable.descriptor.id;
         String file = new File(sstable.descriptor.filenameFor(Component.DATA)).absolutePath();
         // submit user defined compaction on flushed sstable
         CompactionManager.instance.forceUserDefinedCompaction(file);
@@ -282,7 +285,7 @@ public class CompactionsTest
         // CF should have only one sstable with generation number advanced
         sstables = cfs.getLiveSSTables();
         assertEquals(1, sstables.size());
-        assertEquals( prevGeneration + 1, sstables.iterator().next().descriptor.generation);
+        assertThat(SSTableIdFactory.COMPARATOR.compare(prevGeneration, sstables.iterator().next().descriptor.id)).isLessThan(0);
     }
 
     public static void writeSSTableWithRangeTombstoneMaskingOneColumn(ColumnFamilyStore cfs, TableMetadata table, int[] dks) {
@@ -299,7 +302,7 @@ public class CompactionsTest
             notYetDeletedRowUpdateBuilder.clustering("02").add("val", "a"); //Range tombstone doesn't cover this (timestamp 3 > 2)
             notYetDeletedRowUpdateBuilder.build().applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
     }
 
     @Test
@@ -384,7 +387,7 @@ public class CompactionsTest
         rowUpdateBuilder.clustering("c").add("val", "a");
         rowUpdateBuilder.build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         Collection<SSTableReader> sstablesBefore = cfs.getLiveSSTables();
 
@@ -402,7 +405,7 @@ public class CompactionsTest
         // Sleep one second so that the removal is indeed purgeable even with gcgrace == 0
         Thread.sleep(1000);
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         Collection<SSTableReader> sstablesAfter = cfs.getLiveSSTables();
         Collection<SSTableReader> toCompact = new ArrayList<SSTableReader>();
@@ -484,7 +487,7 @@ public class CompactionsTest
             insertRowWithKey(i + 100);
             insertRowWithKey(i + 200);
         }
-        store.forceBlockingFlush();
+        Util.flush(store);
 
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();

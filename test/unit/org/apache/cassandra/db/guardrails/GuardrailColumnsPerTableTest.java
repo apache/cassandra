@@ -20,8 +20,6 @@ package org.apache.cassandra.db.guardrails;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 import static java.lang.String.format;
 
 /**
@@ -30,16 +28,16 @@ import static java.lang.String.format;
 public class GuardrailColumnsPerTableTest extends ThresholdTester
 {
     private static final int COLUMNS_PER_TABLE_WARN_THRESHOLD = 2;
-    private static final int COLUMNS_PER_TABLE_ABORT_THRESHOLD = 4;
+    private static final int COLUMNS_PER_TABLE_FAIL_THRESHOLD = 4;
 
     public GuardrailColumnsPerTableTest()
     {
         super(COLUMNS_PER_TABLE_WARN_THRESHOLD,
-              COLUMNS_PER_TABLE_ABORT_THRESHOLD,
-              DatabaseDescriptor.getGuardrailsConfig().getColumnsPerTable(),
+              COLUMNS_PER_TABLE_FAIL_THRESHOLD,
+              Guardrails.columnsPerTable,
               Guardrails::setColumnsPerTableThreshold,
               Guardrails::getColumnsPerTableWarnThreshold,
-              Guardrails::getColumnsPerTableAbortThreshold);
+              Guardrails::getColumnsPerTableFailThreshold);
     }
 
     @Override
@@ -55,39 +53,39 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
         assertCreateTableValid("CREATE TABLE %s (k1 int, v int, PRIMARY KEY((k1)))");
         assertCreateTableWarns(3, "CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY((k1, k2)))");
         assertCreateTableWarns(4, "CREATE TABLE %s (k1 int, k2 int, k3 int, v int, PRIMARY KEY((k1, k2, k3)))");
-        assertCreateTableAborts(5, "CREATE TABLE %s (k1 int, k2 int, k3 int, k4 int, v int, PRIMARY KEY((k1, k2, k3, k4)))");
-        assertCreateTableAborts(6, "CREATE TABLE %s (k1 int, k2 int, k3 int, k4 int, k5 int, v int, PRIMARY KEY((k1, k2, k3, k4, k5)))");
+        assertCreateTableFails(5, "CREATE TABLE %s (k1 int, k2 int, k3 int, k4 int, v int, PRIMARY KEY((k1, k2, k3, k4)))");
+        assertCreateTableFails(6, "CREATE TABLE %s (k1 int, k2 int, k3 int, k4 int, k5 int, v int, PRIMARY KEY((k1, k2, k3, k4, k5)))");
 
         // partition key on wide table
         assertCreateTableWarns(3, "CREATE TABLE %s (k1 int, c int, v int, PRIMARY KEY(k1, c))");
         assertCreateTableWarns(4, "CREATE TABLE %s (k1 int, k2 int, c int, v int, PRIMARY KEY((k1, k2), c))");
-        assertCreateTableAborts(5, "CREATE TABLE %s (k1 int, k2 int, k3 int, c int, v int, PRIMARY KEY((k1, k2, k3), c))");
-        assertCreateTableAborts(6, "CREATE TABLE %s (k1 int, k2 int, k3 int, k4 int, c int, v int, PRIMARY KEY((k1, k2, k3, k4), c))");
+        assertCreateTableFails(5, "CREATE TABLE %s (k1 int, k2 int, k3 int, c int, v int, PRIMARY KEY((k1, k2, k3), c))");
+        assertCreateTableFails(6, "CREATE TABLE %s (k1 int, k2 int, k3 int, k4 int, c int, v int, PRIMARY KEY((k1, k2, k3, k4), c))");
 
         // clustering key
         assertCreateTableWarns(3, "CREATE TABLE %s (k int, c1 int, v int, PRIMARY KEY(k, c1))");
         assertCreateTableWarns(4, "CREATE TABLE %s (k int, c1 int, c2 int, v int, PRIMARY KEY(k, c1, c2))");
-        assertCreateTableAborts(5, "CREATE TABLE %s (k int, c1 int, c2 int, c3 int, v int, PRIMARY KEY(k, c1, c2, c3))");
-        assertCreateTableAborts(6, "CREATE TABLE %s (k int, c1 int, c2 int, c3 int, c4 int, v int, PRIMARY KEY(k, c1, c2, c3, c4))");
+        assertCreateTableFails(5, "CREATE TABLE %s (k int, c1 int, c2 int, c3 int, v int, PRIMARY KEY(k, c1, c2, c3))");
+        assertCreateTableFails(6, "CREATE TABLE %s (k int, c1 int, c2 int, c3 int, c4 int, v int, PRIMARY KEY(k, c1, c2, c3, c4))");
 
         // static column
         assertCreateTableWarns(3, "CREATE TABLE %s (k int, c int, s1 int STATIC, PRIMARY KEY(k, c))");
         assertCreateTableWarns(4, "CREATE TABLE %s (k int, c int, s1 int STATIC, s2 int STATIC, PRIMARY KEY(k, c))");
-        assertCreateTableAborts(5, "CREATE TABLE %s (k int, c int, s1 int STATIC, s2 int STATIC, s3 int STATIC, PRIMARY KEY(k, c))");
-        assertCreateTableAborts(6, "CREATE TABLE %s (k int, c int, s1 int STATIC, s2 int STATIC, s3 int STATIC, s4 int STATIC, PRIMARY KEY(k, c))");
+        assertCreateTableFails(5, "CREATE TABLE %s (k int, c int, s1 int STATIC, s2 int STATIC, s3 int STATIC, PRIMARY KEY(k, c))");
+        assertCreateTableFails(6, "CREATE TABLE %s (k int, c int, s1 int STATIC, s2 int STATIC, s3 int STATIC, s4 int STATIC, PRIMARY KEY(k, c))");
 
         // regular column on skinny table
         assertCreateTableValid("CREATE TABLE %s (k int PRIMARY KEY, v1 int)");
         assertCreateTableWarns(3, "CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int)");
         assertCreateTableWarns(4, "CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int)");
-        assertCreateTableAborts(5, "CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int, v4 int)");
-        assertCreateTableAborts(6, "CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int, v4 int, v5 int)");
+        assertCreateTableFails(5, "CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int, v4 int)");
+        assertCreateTableFails(6, "CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int, v4 int, v5 int)");
 
         // regular column on wide table
         assertCreateTableWarns(3, "CREATE TABLE %s (k int, c int, v1 int, PRIMARY KEY(k, c))");
         assertCreateTableWarns(4, "CREATE TABLE %s (k int, c int, v1 int, v2 int, PRIMARY KEY(k, c))");
-        assertCreateTableAborts(5, "CREATE TABLE %s (k int, c int, v1 int, v2 int, v3 int, PRIMARY KEY(k, c))");
-        assertCreateTableAborts(6, "CREATE TABLE %s (k int, c int, v1 int, v2 int, v3 int, v4 int, PRIMARY KEY(k, c))");
+        assertCreateTableFails(5, "CREATE TABLE %s (k int, c int, v1 int, v2 int, v3 int, PRIMARY KEY(k, c))");
+        assertCreateTableFails(6, "CREATE TABLE %s (k int, c int, v1 int, v2 int, v3 int, v4 int, PRIMARY KEY(k, c))");
 
         // udt
         String udt = createType("CREATE TYPE %s (a int, b int, c int, d int)");
@@ -101,16 +99,16 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int)");
         assertAddColumnWarns("ALTER TABLE %s ADD v2 int");
         assertAddColumnWarns("ALTER TABLE %s ADD v3 int");
-        assertAddColumnAborts("ALTER TABLE %s ADD v4 int");
+        assertAddColumnFails("ALTER TABLE %s ADD v4 int");
 
         // skinny table at threshold
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int)");
-        assertAddColumnAborts("ALTER TABLE %s ADD v4 int");
+        assertAddColumnFails("ALTER TABLE %s ADD v4 int");
 
         // wide table
         createTable("CREATE TABLE %s (k int, c int, v1 int, v2 int, PRIMARY KEY(k, c))");
-        assertAddColumnAborts("ALTER TABLE %s ADD v3 int");
-        assertAddColumnAborts("ALTER TABLE %s ADD s int STATIC");
+        assertAddColumnFails("ALTER TABLE %s ADD v3 int");
+        assertAddColumnFails("ALTER TABLE %s ADD s int STATIC");
 
         // udt
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int)");
@@ -128,7 +126,7 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
         guardrails().setColumnsPerTableThreshold(2, 2);
         assertDropColumnValid("ALTER TABLE %s DROP v2");
         assertDropColumnValid("ALTER TABLE %s DROP v3");
-        assertAddColumnAborts("ALTER TABLE %s ADD v2 int");
+        assertAddColumnFails("ALTER TABLE %s ADD v2 int");
     }
 
     @Test
@@ -142,7 +140,7 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
 
     private void assertCreateTableValid(String query) throws Throwable
     {
-        assertThresholdValid(format(query, keyspace() + '.' + createTableName()));
+        assertMaxThresholdValid(format(query, keyspace() + '.' + createTableName()));
     }
 
     private void assertDropColumnValid(String query) throws Throwable
@@ -162,29 +160,31 @@ public class GuardrailColumnsPerTableTest extends ThresholdTester
 
     private void assertWarns(long numColumns, String query, String tableName) throws Throwable
     {
-        assertThresholdWarns(format("The table %s has %s columns, this exceeds the warning threshold of %s.",
+        assertThresholdWarns(format(query, keyspace() + '.' + tableName),
+                             format("The table %s has %s columns, this exceeds the warning threshold of %s.",
                                     tableName,
                                     numColumns,
-                                    guardrails().getColumnsPerTableWarnThreshold()),
-                             format(query, keyspace() + '.' + tableName));
+                                    guardrails().getColumnsPerTableWarnThreshold())
+        );
     }
 
-    private void assertAddColumnAborts(String query) throws Throwable
+    private void assertAddColumnFails(String query) throws Throwable
     {
-        assertAborts(currentValue() + 1, query, currentTable());
+        assertFails(currentValue() + 1, query, currentTable());
     }
 
-    private void assertCreateTableAborts(long numColumns, String query) throws Throwable
+    private void assertCreateTableFails(long numColumns, String query) throws Throwable
     {
-        assertAborts(numColumns, query, ABORT_TABLE);
+        assertFails(numColumns, query, FAIL_TABLE);
     }
 
-    private void assertAborts(long numColumns, String query, String tableName) throws Throwable
+    private void assertFails(long numColumns, String query, String tableName) throws Throwable
     {
-        assertThresholdAborts(format("Tables cannot have more than %s columns, but %s provided for table %s",
-                                     guardrails().getColumnsPerTableAbortThreshold(),
-                                     numColumns,
-                                     tableName),
-                              format(query, keyspace() + '.' + tableName));
+        assertThresholdFails(format(query, keyspace() + '.' + tableName),
+                             format("Tables cannot have more than %s columns, but %s provided for table %s",
+                                    guardrails().getColumnsPerTableFailThreshold(),
+                                    numColumns,
+                                    tableName)
+        );
     }
 }

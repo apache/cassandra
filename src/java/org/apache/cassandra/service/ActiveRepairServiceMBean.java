@@ -29,8 +29,13 @@ public interface ActiveRepairServiceMBean
     public List<Map<String, String>> getSessions(boolean all, String rangesStr);
     public void failSession(String session, boolean force);
 
+    @Deprecated
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes);
+    @Deprecated
     public int getRepairSessionSpaceInMegabytes();
+
+    public void setRepairSessionSpaceInMebibytes(int sizeInMebibytes);
+    public int getRepairSessionSpaceInMebibytes();
 
     public boolean getUseOffheapMerkleTrees();
     public void setUseOffheapMerkleTrees(boolean value);
@@ -50,4 +55,6 @@ public interface ActiveRepairServiceMBean
      * @return current size of the internal cache holding {@link ActiveRepairService.ParentRepairSession} instances
      */
     int parentRepairSessionsCount();
+    public int getPaxosRepairParallelism();
+    public void setPaxosRepairParallelism(int v);
 }

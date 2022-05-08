@@ -138,8 +138,8 @@ public class RandomAccessReaderTest
     @Test
     public void testVeryLarge() throws IOException
     {
-        final long SIZE = 1L << 32; // 2GB
-        Parameters params = new Parameters(SIZE, 1 << 20); // 1MB
+        final long SIZE = 1L << 32; // 2GiB
+        Parameters params = new Parameters(SIZE, 1 << 20); // 1MiB
 
 
         try (ChannelProxy channel = new ChannelProxy("abc", new FakeFileChannel(SIZE));

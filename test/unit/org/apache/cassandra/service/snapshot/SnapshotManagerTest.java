@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.service.snapshot;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.BeforeClass;
@@ -32,11 +30,11 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
 
 import static org.apache.cassandra.service.snapshot.TableSnapshotTest.createFolders;
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SnapshotManagerTest
@@ -55,20 +53,20 @@ public class SnapshotManagerTest
 
     private TableSnapshot generateSnapshotDetails(String tag, Instant expiration) throws Exception {
         return new TableSnapshot(
-            "ks",
-            "tbl",
-            tag,
-            Instant.EPOCH,
-            expiration,
-            createFolders(temporaryFolder),
-            (file) -> 0L
+        "ks",
+        "tbl",
+        UUID.randomUUID(),
+        tag,
+        Instant.EPOCH,
+        expiration,
+        createFolders(temporaryFolder)
         );
     }
 
     @Test
     public void testLoadSnapshots() throws Exception {
         TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH);
-        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", Instant.now().plusSeconds(ONE_DAY_SECS));
+        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusSeconds(ONE_DAY_SECS));
         TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null);
         List<TableSnapshot> snapshots = Arrays.asList(expired, nonExpired, nonExpiring);
 
@@ -88,7 +86,7 @@ public class SnapshotManagerTest
 
         // Add 3 snapshots: expired, non-expired and non-expiring
         TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH);
-        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", Instant.now().plusMillis(ONE_DAY_SECS));
+        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS));
         TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null);
         manager.addSnapshot(expired);
         manager.addSnapshot(nonExpired);
@@ -121,8 +119,8 @@ public class SnapshotManagerTest
 
             // Add 2 expiring snapshots: one to expire in 2 seconds, another in 1 day
             int TTL_SECS = 2;
-            TableSnapshot toExpire = generateSnapshotDetails("to-expire", Instant.now().plusSeconds(TTL_SECS));
-            TableSnapshot nonExpired = generateSnapshotDetails("non-expired", Instant.now().plusMillis(ONE_DAY_SECS));
+            TableSnapshot toExpire = generateSnapshotDetails("to-expire", now().plusSeconds(TTL_SECS));
+            TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS));
             manager.addSnapshot(toExpire);
             manager.addSnapshot(nonExpired);
 
@@ -153,7 +151,7 @@ public class SnapshotManagerTest
     {
         // Given
         SnapshotManager manager = new SnapshotManager(1, 3, Stream::empty);
-        TableSnapshot expiringSnapshot = generateSnapshotDetails("snapshot", Instant.now().plusMillis(50000));
+        TableSnapshot expiringSnapshot = generateSnapshotDetails("snapshot", now().plusMillis(50000));
         manager.addSnapshot(expiringSnapshot);
         assertThat(manager.getExpiringSnapshots()).contains(expiringSnapshot);
         assertThat(expiringSnapshot.exists()).isTrue();

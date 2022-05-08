@@ -19,7 +19,6 @@ package org.apache.cassandra.repair;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -36,10 +35,12 @@ import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * LocalSyncTask performs streaming between local(coordinator) node and remote replica.
@@ -50,15 +51,18 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
     private static final Logger logger = LoggerFactory.getLogger(LocalSyncTask.class);
 
-    private final UUID pendingRepair;
+    private final TimeUUID pendingRepair;
 
     @VisibleForTesting
     public final boolean requestRanges;
     @VisibleForTesting
     public final boolean transferRanges;
 
+    private boolean active = true;
+    private StreamPlan streamPlan;
+
     public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
-                         List<Range<Token>> diff, UUID pendingRepair,
+                         List<Range<Token>> diff, TimeUUID pendingRepair,
                          boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
     {
         super(desc, local, remote, diff, previewKind);
@@ -101,15 +105,19 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
      * that will be called out of band once the streams complete.
      */
     @Override
-    protected void startSync()
+    protected synchronized void startSync()
     {
-        InetAddressAndPort remote = nodePair.peer;
+        if (active)
+        {
+            InetAddressAndPort remote = nodePair.peer;
 
-        String message = String.format("Performing streaming repair of %d ranges with %s", rangesToSync.size(), remote);
-        logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
-        Tracing.traceRepair(message);
+            String message = String.format("Performing streaming repair of %d ranges with %s", rangesToSync.size(), remote);
+            logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
+            Tracing.traceRepair(message);
 
-        createStreamPlan().execute();
+            streamPlan = createStreamPlan();
+            streamPlan.execute();
+        }
     }
 
     @Override
@@ -144,19 +152,31 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         }
     }
 
-    public void onSuccess(StreamState result)
+    @Override
+    public synchronized void onSuccess(StreamState result)
     {
-        String message = String.format("Sync complete using session %s between %s and %s on %s", desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
-        logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
-        Tracing.traceRepair(message);
-        trySuccess(stat.withSummaries(result.createSummaries()));
-        finished();
+        if (active)
+        {
+            active = false;
+            String status = result.hasAbortedSession() ? "aborted" : "complete";
+            String message = String.format("Sync %s using session %s between %s and %s on %s",
+                                           status, desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
+            logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
+            Tracing.traceRepair(message);
+            trySuccess(result.hasAbortedSession() ? stat : stat.withSummaries(result.createSummaries()));
+            finished();
+        }
     }
 
-    public void onFailure(Throwable t)
+    @Override
+    public synchronized void onFailure(Throwable t)
     {
-        tryFailure(t);
-        finished();
+        if (active)
+        {
+            active = false;
+            tryFailure(t);
+            finished();
+        }
     }
 
     @Override
@@ -168,5 +188,25 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
                ", rangesToSync=" + rangesToSync +
                ", nodePair=" + nodePair +
                '}';
+    }
+
+    @Override
+    public synchronized void abort()
+    {
+        if (active)
+        {
+            if (streamPlan == null)
+            {
+                active = false;
+                String message = String.format("Sync for session %s between %s and %s on %s aborted before starting",
+                                               desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
+                logger.debug("{} {}", previewKind.logPrefix(desc.sessionId), message);
+                trySuccess(stat);
+            }
+            else
+            {
+                streamPlan.getCoordinator().getAllStreamSessions().forEach(StreamSession::abort);
+            }
+        }
     }
 }

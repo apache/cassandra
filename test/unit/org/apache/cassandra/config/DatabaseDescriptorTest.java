@@ -113,7 +113,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testRpcInterface() throws Exception
+    public void testRpcInterface()
     {
         Config testConfig = DatabaseDescriptor.loadConfig();
         testConfig.rpc_interface = suitableInterface.getName();
@@ -198,7 +198,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testRpcAddress() throws Exception
+    public void testRpcAddress()
     {
         Config testConfig = DatabaseDescriptor.loadConfig();
         testConfig.rpc_address = suitableInterface.getInterfaceAddresses().get(0).getAddress().getHostAddress();
@@ -282,7 +282,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexCacheSize(-1);
-            fail("Should have received a ConfigurationException column_index_cache_size_in_kb = -1");
+            fail("Should have received a ConfigurationException column_index_cache_size = -1");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
@@ -290,7 +290,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexCacheSize(2 * 1024 * 1024);
-            fail("Should have received a ConfigurationException column_index_cache_size_in_kb = 2GiB");
+            fail("Should have received a ConfigurationException column_index_cache_size= 2GiB");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
@@ -298,7 +298,7 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexSize(-1);
-            fail("Should have received a ConfigurationException column_index_size_in_kb = -1");
+            fail("Should have received a ConfigurationException column_index_size = -1");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
@@ -306,23 +306,23 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexSize(2 * 1024 * 1024);
-            fail("Should have received a ConfigurationException column_index_size_in_kb = 2GiB");
+            fail("Should have received a ConfigurationException column_index_size = 2GiB");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
 
         try
         {
-            DatabaseDescriptor.setBatchSizeWarnThresholdInKB(-1);
-            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = -1");
+            DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(-1);
+            fail("Should have received a ConfigurationException batch_size_warn_threshold = -1");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
 
         try
         {
-            DatabaseDescriptor.setBatchSizeWarnThresholdInKB(2 * 1024 * 1024);
-            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = 2GiB");
+            DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(2 * 1024 * 1024);
+            fail("Should have received a ConfigurationException batch_size_warn_threshold = 2GiB");
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
@@ -332,71 +332,77 @@ public class DatabaseDescriptorTest
     public void testLowestAcceptableTimeouts() throws ConfigurationException
     {
         Config testConfig = new Config();
-        testConfig.read_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
-        testConfig.range_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
-        testConfig.write_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
-        testConfig.truncate_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
-        testConfig.cas_contention_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
-        testConfig.counter_write_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
-        testConfig.request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
 
-        assertTrue(testConfig.read_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.range_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.write_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.truncate_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.cas_contention_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.counter_write_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        SmallestDurationMilliseconds greaterThanLowestTimeout = SmallestDurationMilliseconds
+                                                                .inMilliseconds(DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT.toMilliseconds() + 1);
+
+        testConfig.read_request_timeout = greaterThanLowestTimeout;
+        testConfig.range_request_timeout = greaterThanLowestTimeout;
+        testConfig.write_request_timeout = greaterThanLowestTimeout;
+        testConfig.truncate_request_timeout = greaterThanLowestTimeout;
+        testConfig.cas_contention_timeout = greaterThanLowestTimeout;
+        testConfig.counter_write_request_timeout = greaterThanLowestTimeout;
+        testConfig.request_timeout = greaterThanLowestTimeout;
+
+        assertEquals(testConfig.read_request_timeout, greaterThanLowestTimeout);
+        assertEquals(testConfig.range_request_timeout, greaterThanLowestTimeout);
+        assertEquals(testConfig.write_request_timeout, greaterThanLowestTimeout);
+        assertEquals(testConfig.truncate_request_timeout, greaterThanLowestTimeout);
+        assertEquals(testConfig.cas_contention_timeout, greaterThanLowestTimeout);
+        assertEquals(testConfig.counter_write_request_timeout, greaterThanLowestTimeout);
+        assertEquals(testConfig.request_timeout, greaterThanLowestTimeout);
 
         //set less than Lowest acceptable value
-        testConfig.read_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT - 1;
-        testConfig.range_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT - 1;
-        testConfig.write_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT - 1;
-        testConfig.truncate_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT - 1;
-        testConfig.cas_contention_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT - 1;
-        testConfig.counter_write_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT - 1;
-        testConfig.request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT - 1;
+        SmallestDurationMilliseconds lowerThanLowestTimeout = SmallestDurationMilliseconds.inMilliseconds(DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT.toMilliseconds() - 1);
+
+        testConfig.read_request_timeout = lowerThanLowestTimeout;
+        testConfig.range_request_timeout = lowerThanLowestTimeout;
+        testConfig.write_request_timeout = lowerThanLowestTimeout;
+        testConfig.truncate_request_timeout = lowerThanLowestTimeout;
+        testConfig.cas_contention_timeout = lowerThanLowestTimeout;
+        testConfig.counter_write_request_timeout = lowerThanLowestTimeout;
+        testConfig.request_timeout = lowerThanLowestTimeout;
 
         DatabaseDescriptor.checkForLowestAcceptedTimeouts(testConfig);
 
-        assertTrue(testConfig.read_request_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.range_request_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.write_request_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.truncate_request_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.cas_contention_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.counter_write_request_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
-        assertTrue(testConfig.request_timeout_in_ms == DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        assertEquals(testConfig.read_request_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        assertEquals(testConfig.range_request_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        assertEquals(testConfig.write_request_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        assertEquals(testConfig.truncate_request_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        assertEquals(testConfig.cas_contention_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        assertEquals(testConfig.counter_write_request_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        assertEquals(testConfig.request_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
     }
 
     @Test
     public void testRepairSessionMemorySizeToggles()
     {
-        int previousSize = DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
+        int previousSize = DatabaseDescriptor.getRepairSessionSpaceInMiB();
         try
         {
             Assert.assertEquals((Runtime.getRuntime().maxMemory() / (1024 * 1024) / 16),
-                                DatabaseDescriptor.getRepairSessionSpaceInMegabytes());
+                                DatabaseDescriptor.getRepairSessionSpaceInMiB());
 
             int targetSize = (int) (Runtime.getRuntime().maxMemory() / (1024 * 1024) / 4) + 1;
 
-            DatabaseDescriptor.setRepairSessionSpaceInMegabytes(targetSize);
-            Assert.assertEquals(targetSize, DatabaseDescriptor.getRepairSessionSpaceInMegabytes());
+            DatabaseDescriptor.setRepairSessionSpaceInMiB(targetSize);
+            Assert.assertEquals(targetSize, DatabaseDescriptor.getRepairSessionSpaceInMiB());
 
-            DatabaseDescriptor.setRepairSessionSpaceInMegabytes(10);
-            Assert.assertEquals(10, DatabaseDescriptor.getRepairSessionSpaceInMegabytes());
+            DatabaseDescriptor.setRepairSessionSpaceInMiB(10);
+            Assert.assertEquals(10, DatabaseDescriptor.getRepairSessionSpaceInMiB());
 
             try
             {
-                DatabaseDescriptor.setRepairSessionSpaceInMegabytes(0);
+                DatabaseDescriptor.setRepairSessionSpaceInMiB(0);
                 fail("Should have received a ConfigurationException for depth of 9");
             }
             catch (ConfigurationException ignored) { }
 
-            Assert.assertEquals(10, DatabaseDescriptor.getRepairSessionSpaceInMegabytes());
+            Assert.assertEquals(10, DatabaseDescriptor.getRepairSessionSpaceInMiB());
         }
         finally
         {
-            DatabaseDescriptor.setRepairSessionSpaceInMegabytes(previousSize);
+            DatabaseDescriptor.setRepairSessionSpaceInMiB(previousSize);
         }
     }
 
@@ -436,25 +442,25 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testCalculateDefaultSpaceInMB()
+    public void testCalculateDefaultSpaceInMiB()
     {
         // check prefered size is used for a small storage volume
-        int preferredInMB = 667;
+        int preferredInMiB = 667;
         int numerator = 2;
         int denominator = 3;
         int spaceInBytes = 999 * 1024 * 1024;
 
         assertEquals(666, // total size is less than preferred, so return lower limit
-                     DatabaseDescriptor.calculateDefaultSpaceInMB("type", "/path", "setting_name", preferredInMB, spaceInBytes, numerator, denominator));
+                     DatabaseDescriptor.calculateDefaultSpaceInMiB("type", "/path", "setting_name", preferredInMiB, spaceInBytes, numerator, denominator));
 
         // check preferred size is used for a small storage volume
-        preferredInMB = 100;
+        preferredInMiB = 100;
         numerator = 1;
         denominator = 3;
         spaceInBytes = 999 * 1024 * 1024;
 
         assertEquals(100, // total size is more than preferred so keep the configured limit
-                     DatabaseDescriptor.calculateDefaultSpaceInMB("type", "/path", "setting_name", preferredInMB, spaceInBytes, numerator, denominator));
+                     DatabaseDescriptor.calculateDefaultSpaceInMiB("type", "/path", "setting_name", preferredInMiB, spaceInBytes, numerator, denominator));
     }
 
     @Test
@@ -599,8 +605,8 @@ public class DatabaseDescriptorTest
     {
         DatabaseDescriptor.loadConfig();
 
-        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, 0, "denylist_refresh_seconds must be a positive integer.");
-        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, -1, "denylist_refresh_seconds must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, 0, "denylist_refresh must be a positive integer.");
+        expectIllegalArgumentException(DatabaseDescriptor::setDenylistRefreshSeconds, -1, "denylist_refresh must be a positive integer.");
         expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysPerTable, 0, "denylist_max_keys_per_table must be a positive integer.");
         expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysPerTable, -1, "denylist_max_keys_per_table must be a positive integer.");
         expectIllegalArgumentException(DatabaseDescriptor::setDenylistMaxKeysTotal, 0, "denylist_max_keys_total must be a positive integer.");
@@ -616,152 +622,121 @@ public class DatabaseDescriptorTest
 
     // coordinator read
     @Test
-    public void testClientLargeReadWarnAndAbortNegative()
-    {
-        Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = -2;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
-        Assertions.assertThat(conf.track_warnings.coordinator_read_size.warn_threshold_kb).isEqualTo(0);
-        Assertions.assertThat(conf.track_warnings.coordinator_read_size.abort_threshold_kb).isEqualTo(0);
-    }
-
-    @Test
     public void testClientLargeReadWarnGreaterThanAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+        conf.coordinator_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.coordinator_read_size_fail_threshold = DataStorageSpec.inKibibytes(1);
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
-                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.coordinator_read_size");
+                  .hasMessage("coordinator_read_size_fail_threshold (1KiB) must be greater than or equal to coordinator_read_size_warn_threshold (2KiB)");
     }
 
     @Test
     public void testClientLargeReadWarnEqAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.coordinator_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.coordinator_read_size_fail_threshold = DataStorageSpec.inKibibytes(2);
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     @Test
     public void testClientLargeReadWarnEnabledAbortDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.coordinator_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.coordinator_read_size_fail_threshold = null;
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     @Test
     public void testClientLargeReadAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.coordinator_read_size.warn_threshold_kb = 0;
-        conf.track_warnings.coordinator_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.coordinator_read_size_warn_threshold = DataStorageSpec.inKibibytes(0);
+        conf.coordinator_read_size_fail_threshold = DataStorageSpec.inKibibytes(2);
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     // local read
-    @Test
-    public void testLocalLargeReadWarnAndAbortNegative()
-    {
-        Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = -2;
-        conf.track_warnings.local_read_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
-        Assertions.assertThat(conf.track_warnings.local_read_size.warn_threshold_kb).isEqualTo(0);
-        Assertions.assertThat(conf.track_warnings.local_read_size.abort_threshold_kb).isEqualTo(0);
-    }
 
     @Test
     public void testLocalLargeReadWarnGreaterThanAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.local_read_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+        conf.local_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.local_read_size_fail_threshold = DataStorageSpec.inKibibytes(1);
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
-                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.local_read_size");
+                  .hasMessage("local_read_size_fail_threshold (1KiB) must be greater than or equal to local_read_size_warn_threshold (2KiB)");
     }
 
     @Test
     public void testLocalLargeReadWarnEqAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.local_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.local_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.local_read_size_fail_threshold = DataStorageSpec.inKibibytes(2);
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     @Test
     public void testLocalLargeReadWarnEnabledAbortDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = 2;
-        conf.track_warnings.local_read_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.local_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.local_read_size_fail_threshold = null;
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     @Test
     public void testLocalLargeReadAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.local_read_size.warn_threshold_kb = 0;
-        conf.track_warnings.local_read_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.local_read_size_warn_threshold = DataStorageSpec.inKibibytes(0);
+        conf.local_read_size_fail_threshold = DataStorageSpec.inKibibytes(2);
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     // row index entry
-    @Test
-    public void testRowIndexSizeWarnAndAbortNegative()
-    {
-        Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = -2;
-        conf.track_warnings.row_index_size.abort_threshold_kb = -2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
-        Assertions.assertThat(conf.track_warnings.row_index_size.warn_threshold_kb).isEqualTo(0);
-        Assertions.assertThat(conf.track_warnings.row_index_size.abort_threshold_kb).isEqualTo(0);
-    }
 
     @Test
     public void testRowIndexSizeWarnGreaterThanAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
-        conf.track_warnings.row_index_size.abort_threshold_kb = 1;
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyTrackWarningsValidations(conf))
+        conf.row_index_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.row_index_read_size_fail_threshold = DataStorageSpec.inKibibytes(1);
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
-                  .hasMessage("abort_threshold_kb (1) must be greater than or equal to warn_threshold_kb (2); see track_warnings.row_index_size");
+                  .hasMessage("row_index_read_size_fail_threshold (1KiB) must be greater than or equal to row_index_read_size_warn_threshold (2KiB)");
     }
 
     @Test
     public void testRowIndexSizeWarnEqAbort()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
-        conf.track_warnings.row_index_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.row_index_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.row_index_read_size_fail_threshold = DataStorageSpec.inKibibytes(2);
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     @Test
     public void testRowIndexSizeWarnEnabledAbortDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = 2;
-        conf.track_warnings.row_index_size.abort_threshold_kb = 0;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.row_index_read_size_warn_threshold = DataStorageSpec.inKibibytes(2);
+        conf.row_index_read_size_fail_threshold = null;
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     @Test
     public void testRowIndexSizeAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
-        conf.track_warnings.row_index_size.warn_threshold_kb = 0;
-        conf.track_warnings.row_index_size.abort_threshold_kb = 2;
-        DatabaseDescriptor.applyTrackWarningsValidations(conf);
+        conf.row_index_read_size_warn_threshold = DataStorageSpec.inKibibytes(0);
+        conf.row_index_read_size_fail_threshold = DataStorageSpec.inKibibytes(2);
+        DatabaseDescriptor.applyReadThresholdsValidations(conf);
     }
 
     @Test
@@ -780,25 +755,5 @@ public class DatabaseDescriptorTest
     public void testInvalidSub1DefaultRFs() throws ConfigurationException
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(0);
-    }
-
-    @Test (expected = ConfigurationException.class)
-    public void testInvalidSub0MinimumRFs() throws ConfigurationException
-    {
-        DatabaseDescriptor.setMinimumKeyspaceRF(-1);
-    }
-
-    @Test (expected = ConfigurationException.class)
-    public void testDefaultRfLessThanMinRF()
-    {
-        DatabaseDescriptor.setMinimumKeyspaceRF(2);
-        DatabaseDescriptor.setDefaultKeyspaceRF(1);
-    }
-
-    @Test (expected = ConfigurationException.class)
-    public void testMinimumRfGreaterThanDefaultRF()
-    {
-        DatabaseDescriptor.setDefaultKeyspaceRF(1);
-        DatabaseDescriptor.setMinimumKeyspaceRF(2);
     }
 }

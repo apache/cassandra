@@ -31,7 +31,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
  * alteration and the granting and revoking of roles to other
  * roles.
  */
-public interface IRoleManager
+public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Role>>
 {
 
     /**
@@ -41,7 +41,7 @@ public interface IRoleManager
      */
     public enum Option
     {
-        SUPERUSER, PASSWORD, LOGIN, OPTIONS
+        SUPERUSER, PASSWORD, LOGIN, OPTIONS, HASHED_PASSWORD
     }
 
     /**

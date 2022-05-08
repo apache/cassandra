@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
@@ -44,7 +45,7 @@ import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
-public class Mutation implements IMutation
+public class Mutation implements IMutation, Supplier<Mutation>
 {
     public static final MutationSerializer serializer = new MutationSerializer();
 
@@ -132,6 +133,18 @@ public class Mutation implements IMutation
         return modifications.values();
     }
 
+    @Override
+    public Supplier<Mutation> hintOnFailure()
+    {
+        return this;
+    }
+
+    @Override
+    public Mutation get()
+    {
+        return this;
+    }
+
     public void validateSize(int version, int overhead)
     {
         long totalSize = serializedSize(version) + overhead;
@@ -210,9 +223,14 @@ public class Mutation implements IMutation
         return ks.applyFuture(this, Keyspace.open(keyspaceName).getMetadata().params.durableWrites, true);
     }
 
+    private void apply(Keyspace keyspace, boolean durableWrites, boolean isDroppable)
+    {
+        keyspace.apply(this, durableWrites, true, isDroppable);
+    }
+
     public void apply(boolean durableWrites, boolean isDroppable)
     {
-        Keyspace.open(keyspaceName).apply(this, durableWrites, true, isDroppable);
+        apply(Keyspace.open(keyspaceName), durableWrites, isDroppable);
     }
 
     public void apply(boolean durableWrites)
@@ -226,7 +244,8 @@ public class Mutation implements IMutation
      */
     public void apply()
     {
-        apply(Keyspace.open(keyspaceName).getMetadata().params.durableWrites);
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+        apply(keyspace, keyspace.getMetadata().params.durableWrites, true);
     }
 
     public void applyUnsafe()

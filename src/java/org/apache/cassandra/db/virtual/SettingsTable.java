@@ -17,46 +17,32 @@
  */
 package org.apache.cassandra.db.virtual;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Functions;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Loader;
+import org.apache.cassandra.config.Properties;
+import org.apache.cassandra.config.Replacement;
+import org.apache.cassandra.config.Replacements;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.transport.ServerError;
+import org.apache.cassandra.service.ClientWarn;
+import org.yaml.snakeyaml.introspector.Property;
 
 final class SettingsTable extends AbstractVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
 
-    @VisibleForTesting
-    static final Map<String, Field> FIELDS =
-        Arrays.stream(Config.class.getFields())
-              .filter(f -> !Modifier.isStatic(f.getModifiers()))
-              .collect(Collectors.toMap(Field::getName, Functions.identity()));
-
-    @VisibleForTesting
-    final Map<String, BiConsumer<SimpleDataSet, Field>> overrides =
-        ImmutableMap.<String, BiConsumer<SimpleDataSet, Field>>builder()
-                    .put("audit_logging_options", this::addAuditLoggingOptions)
-                    .put("client_encryption_options", this::addEncryptionOptions)
-                    .put("server_encryption_options", this::addEncryptionOptions)
-                    .put("transparent_data_encryption_options", this::addTransparentEncryptionOptions)
-                    .build();
+    private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
+    protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
 
     private final Config config;
 
@@ -77,57 +63,15 @@ final class SettingsTable extends AbstractVirtualTable
         this.config = config;
     }
 
-    @VisibleForTesting
-    Object getValue(Field f)
-    {
-        Object value;
-        try
-        {
-            value = f.get(config);
-        }
-        catch (IllegalAccessException | IllegalArgumentException e)
-        {
-            throw new ServerError(e);
-        }
-        return value;
-    }
-
-    private void addValue(SimpleDataSet result, Field f)
-    {
-        Object value = getValue(f);
-        if (value == null)
-        {
-            result.row(f.getName());
-        }
-        else if (overrides.containsKey(f.getName()))
-        {
-            overrides.get(f.getName()).accept(result, f);
-        }
-        else
-        {
-            if (value.getClass().isArray())
-                value = Arrays.toString((Object[]) value);
-            result.row(f.getName()).column(VALUE, value.toString());
-        }
-    }
-
     @Override
     public DataSet data(DecoratedKey partitionKey)
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
-        Field field = FIELDS.get(name);
-        if (field != null)
-        {
-            addValue(result, field);
-        }
-        else
-        {
-            // rows created by overrides might be directly queried so include them in result to be possibly filtered
-            for (String override : overrides.keySet())
-                if (name.startsWith(override))
-                    addValue(result, FIELDS.get(override));
-        }
+        if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
+            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
+        if (PROPERTIES.containsKey(name))
+            result.row(name).column(VALUE, getValue(PROPERTIES.get(name)));
         return result;
     }
 
@@ -135,56 +79,83 @@ final class SettingsTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Field setting : FIELDS.values())
-            addValue(result, setting);
+        for (Map.Entry<String, Property> e : PROPERTIES.entrySet())
+            result.row(e.getKey()).column(VALUE, getValue(e.getValue()));
         return result;
     }
 
-    private void addAuditLoggingOptions(SimpleDataSet result, Field f)
+    private String getValue(Property prop)
     {
-        Preconditions.checkArgument(AuditLogOptions.class.isAssignableFrom(f.getType()));
-
-        AuditLogOptions value = (AuditLogOptions) getValue(f);
-        result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.enabled));
-        result.row(f.getName() + "_logger").column(VALUE, value.logger.class_name);
-        result.row(f.getName() + "_audit_logs_dir").column(VALUE, value.audit_logs_dir);
-        result.row(f.getName() + "_included_keyspaces").column(VALUE, value.included_keyspaces);
-        result.row(f.getName() + "_excluded_keyspaces").column(VALUE, value.excluded_keyspaces);
-        result.row(f.getName() + "_included_categories").column(VALUE, value.included_categories);
-        result.row(f.getName() + "_excluded_categories").column(VALUE, value.excluded_categories);
-        result.row(f.getName() + "_included_users").column(VALUE, value.included_users);
-        result.row(f.getName() + "_excluded_users").column(VALUE, value.excluded_users);
+        Object value = prop.get(config);
+        return value == null ? null : value.toString();
     }
 
-    private void addEncryptionOptions(SimpleDataSet result, Field f)
+    private static Map<String, Property> getProperties()
     {
-        Preconditions.checkArgument(EncryptionOptions.class.isAssignableFrom(f.getType()));
-
-        EncryptionOptions value = (EncryptionOptions) getValue(f);
-        result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.isEnabled()));
-        result.row(f.getName() + "_algorithm").column(VALUE, value.algorithm);
-        result.row(f.getName() + "_protocol").column(VALUE, Objects.toString(value.acceptedProtocols(), null));
-        result.row(f.getName() + "_cipher_suites").column(VALUE, Objects.toString(value.cipher_suites, null));
-        result.row(f.getName() + "_client_auth").column(VALUE, Boolean.toString(value.require_client_auth));
-        result.row(f.getName() + "_endpoint_verification").column(VALUE, Boolean.toString(value.require_endpoint_verification));
-        result.row(f.getName() + "_optional").column(VALUE, Boolean.toString(value.isOptional()));
-
-        if (value instanceof EncryptionOptions.ServerEncryptionOptions)
+        Loader loader = Properties.defaultLoader();
+        Map<String, Property> properties = loader.flatten(Config.class);
+        // only handling top-level replacements for now, previous logic was only top level so not a regression
+        Map<String, Replacement> replacements = Replacements.getNameReplacements(Config.class).get(Config.class);
+        if (replacements != null)
         {
-            EncryptionOptions.ServerEncryptionOptions server = (EncryptionOptions.ServerEncryptionOptions) value;
-            result.row(f.getName() + "_internode_encryption").column(VALUE, server.internode_encryption.toString());
-            result.row(f.getName() + "_legacy_ssl_storage_port").column(VALUE, Boolean.toString(server.enable_legacy_ssl_storage_port));
+            for (Replacement r : replacements.values())
+            {
+                Property latest = properties.get(r.newName);
+                assert latest != null : "Unable to find replacement new name: " + r.newName;
+                Property conflict = properties.put(r.oldName, r.toProperty(latest));
+                // some configs kept the same name, but changed the type, if this is detected then rely on the replaced property
+                assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
+            }
         }
+        for (Map.Entry<String, String> e : BACKWARDS_COMPATABLE_NAMES.entrySet())
+        {
+            String oldName = e.getKey();
+            if (properties.containsKey(oldName))
+                throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
+            String newName = e.getValue();
+            Property prop = Objects.requireNonNull(properties.get(newName), newName + " cant be found for " + oldName);
+            properties.put(oldName, Properties.rename(oldName, prop));
+        }
+        return properties;
     }
 
-    private void addTransparentEncryptionOptions(SimpleDataSet result, Field f)
+    /**
+     * settings table was released in 4.0 and attempted to support nested properties for a few hand selected properties.
+     * The issue is that 4.0 used '_' to seperate the names, which makes it hard to map back to the yaml names; to solve
+     * this 4.1+ uses '.' to avoid possible conflicts, this class provides mappings from old names to the '.' names.
+     *
+     * There were a handle full of properties which had custom names, names not present in the yaml, this map also
+     * fixes this and returns the proper (what is accessable via yaml) names.
+     */
+    private static Map<String, String> getBackwardsCompatableNames()
     {
-        Preconditions.checkArgument(TransparentDataEncryptionOptions.class.isAssignableFrom(f.getType()));
+        Map<String, String> names = new HashMap<>();
+        // Names that dont match yaml
+        names.put("audit_logging_options_logger", "audit_logging_options.logger.class_name");
+        names.put("server_encryption_options_client_auth", "server_encryption_options.require_client_auth");
+        names.put("server_encryption_options_endpoint_verification", "server_encryption_options.require_endpoint_verification");
+        names.put("server_encryption_options_legacy_ssl_storage_port", "server_encryption_options.legacy_ssl_storage_port_enabled");
+        names.put("server_encryption_options_protocol", "server_encryption_options.accepted_protocols");
 
-        TransparentDataEncryptionOptions value = (TransparentDataEncryptionOptions) getValue(f);
-        result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.enabled));
-        result.row(f.getName() + "_cipher").column(VALUE, value.cipher);
-        result.row(f.getName() + "_chunk_length_kb").column(VALUE, Integer.toString(value.chunk_length_kb));
-        result.row(f.getName() + "_iv_length").column(VALUE, Integer.toString(value.iv_length));
+        // matching names
+        names.put("audit_logging_options_audit_logs_dir", "audit_logging_options.audit_logs_dir");
+        names.put("audit_logging_options_enabled", "audit_logging_options.enabled");
+        names.put("audit_logging_options_excluded_categories", "audit_logging_options.excluded_categories");
+        names.put("audit_logging_options_excluded_keyspaces", "audit_logging_options.excluded_keyspaces");
+        names.put("audit_logging_options_excluded_users", "audit_logging_options.excluded_users");
+        names.put("audit_logging_options_included_categories", "audit_logging_options.included_categories");
+        names.put("audit_logging_options_included_keyspaces", "audit_logging_options.included_keyspaces");
+        names.put("audit_logging_options_included_users", "audit_logging_options.included_users");
+        names.put("server_encryption_options_algorithm", "server_encryption_options.algorithm");
+        names.put("server_encryption_options_cipher_suites", "server_encryption_options.cipher_suites");
+        names.put("server_encryption_options_enabled", "server_encryption_options.enabled");
+        names.put("server_encryption_options_internode_encryption", "server_encryption_options.internode_encryption");
+        names.put("server_encryption_options_optional", "server_encryption_options.optional");
+        names.put("transparent_data_encryption_options_chunk_length_kb", "transparent_data_encryption_options.chunk_length_kb");
+        names.put("transparent_data_encryption_options_cipher", "transparent_data_encryption_options.cipher");
+        names.put("transparent_data_encryption_options_enabled", "transparent_data_encryption_options.enabled");
+        names.put("transparent_data_encryption_options_iv_length", "transparent_data_encryption_options.iv_length");
+
+        return names;
     }
 }

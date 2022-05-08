@@ -54,8 +54,8 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.utils.*;
 
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Hadoop InputFormat allowing map/reduce against Cassandra rows within one ColumnFamily.
@@ -330,8 +330,8 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
     private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Host host, Configuration conf, Session session)
     {
         int splitSize = ConfigHelper.getInputSplitSize(conf);
-        int splitSizeMb = ConfigHelper.getInputSplitSizeInMb(conf);
-        return describeSplits(keyspace, cfName, range, host, splitSize, splitSizeMb, session);
+        int splitSizeMiB = ConfigHelper.getInputSplitSizeInMb(conf);
+        return describeSplits(keyspace, cfName, range, host, splitSize, splitSizeMiB, session);
     }
 
     private static Map<TokenRange, List<Host>> getRangeMap(String keyspace, Metadata metadata, String targetDC)

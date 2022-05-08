@@ -61,6 +61,7 @@ import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthCache;
+import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.auth.NetworkPermissionsCache;
 import org.apache.cassandra.auth.NetworkPermissionsCacheMBean;
 import org.apache.cassandra.auth.PasswordAuthenticator;
@@ -119,7 +120,7 @@ import org.apache.cassandra.utils.NativeLibrary;
  */
 public class NodeProbe implements AutoCloseable
 {
-    private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://[%s]:%d/jmxrmi";
+    private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final int defaultPort = 7199;
 
@@ -220,6 +221,12 @@ public class NodeProbe implements AutoCloseable
      */
     protected void connect() throws IOException
     {
+        String host = this.host;
+        if (host.contains(":"))
+        {
+            // Use square brackets to surround IPv6 addresses to fix CASSANDRA-7669 and CASSANDRA-17581
+            host = "[" + host + "]";
+        }
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
         Map<String, Object> env = new HashMap<String, Object>();
         if (username != null)
@@ -440,6 +447,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.forceKeyspaceCompactionForTokenRange(keyspaceName, startToken, endToken, tableNames);
     }
 
+    public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws InterruptedException, ExecutionException, IOException
+    {
+        ssProxy.forceKeyspaceCompactionForPartitionKey(keyspaceName, partitionKey, tableNames);
+    }
+
     public void forceKeyspaceFlush(String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceKeyspaceFlush(keyspaceName, tableNames);
@@ -497,6 +509,11 @@ public class NodeProbe implements AutoCloseable
             result.put(sampler, cfsProxy.finishLocalSampling(sampler, count));
         }
         return result;
+    }
+
+    public double getDroppableTombstoneRatio(String keyspace, String table) {
+        ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, table);
+        return cfsProxy.getDroppableTombstoneRatio();
     }
 
     public void invalidateCounterCache()
@@ -562,6 +579,25 @@ public class NodeProbe implements AutoCloseable
     public void invalidateRowCache()
     {
         cacheService.invalidateRowCache();
+    }
+
+    public AuthCacheMBean getAuthCacheMBean(String cacheName)
+    {
+        switch (cacheName)
+        {
+            case PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME:
+                return ccProxy;
+            case AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME:
+                return jpcProxy;
+            case NetworkPermissionsCacheMBean.CACHE_NAME:
+                return npcProxy;
+            case PermissionsCacheMBean.CACHE_NAME:
+                return pcProxy;
+            case RolesCacheMBean.CACHE_NAME:
+                return rcProxy;
+            default:
+                throw new IllegalArgumentException("Unknown cache name: " + cacheName);
+        }
     }
 
     public void drain() throws IOException, InterruptedException, ExecutionException
@@ -1202,14 +1238,14 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.isInitialized();
     }
 
-    public void setColumnIndexSize(int columnIndexSizeInKB)
+    public void setColumnIndexSize(int columnIndexSizeInKiB)
     {
-        ssProxy.setColumnIndexSize(columnIndexSizeInKB);
+        ssProxy.setColumnIndexSize(columnIndexSizeInKiB);
     }
 
     public int getColumnIndexSizeInKB()
     {
-        return ssProxy.getColumnIndexSizeInKB();
+        return ssProxy.getColumnIndexSizeInKiB();
     }
 
     public void setCompactionThroughput(int value)
@@ -1293,22 +1329,22 @@ public class NodeProbe implements AutoCloseable
 
     public int getStreamThroughput()
     {
-        return ssProxy.getStreamThroughputMbPerSec();
+        return ssProxy.getStreamThroughputMbitPerSec();
     }
 
     public int getInterDCStreamThroughput()
     {
-        return ssProxy.getInterDCStreamThroughputMbPerSec();
+        return ssProxy.getInterDCStreamThroughputMbitPerSec();
     }
 
     public int getEntireSSTableStreamThroughput()
     {
-        return ssProxy.getEntireSSTableStreamThroughputMbPerSec();
+        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSec();
     }
 
     public int getEntireSSTableInterDCStreamThroughput()
     {
-        return ssProxy.getEntireSSTableInterDCStreamThroughputMbPerSec();
+        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
     }
 
     public double getTraceProbability()
@@ -1406,22 +1442,22 @@ public class NodeProbe implements AutoCloseable
 
     public void setStreamThroughput(int value)
     {
-        ssProxy.setStreamThroughputMbPerSec(value);
+        ssProxy.setStreamThroughputMbitPerSec(value);
     }
 
     public void setInterDCStreamThroughput(int value)
     {
-        ssProxy.setInterDCStreamThroughputMbPerSec(value);
+        ssProxy.setInterDCStreamThroughputMbitPerSec(value);
     }
 
     public void setEntireSSTableStreamThroughput(int value)
     {
-        ssProxy.setEntireSSTableStreamThroughputMbPerSec(value);
+        ssProxy.setEntireSSTableStreamThroughputMebibytesPerSec(value);
     }
 
     public void setEntireSSTableInterDCStreamThroughput(int value)
     {
-        ssProxy.setEntireSSTableInterDCStreamThroughputMbPerSec(value);
+        ssProxy.setEntireSSTableInterDCStreamThroughputMebibytesPerSec(value);
     }
 
     public void setTraceProbability(double value)
@@ -2007,16 +2043,6 @@ public class NodeProbe implements AutoCloseable
     public int getDefaultKeyspaceReplicationFactor()
     {
         return ssProxy.getDefaultKeyspaceReplicationFactor();
-    }
-
-    public void setMinimumKeyspaceReplicationFactor(int value)
-    {
-        ssProxy.setMinimumKeyspaceReplicationFactor(value);
-    }
-
-    public int getMinimumKeyspaceReplicationFactor()
-    {
-        return ssProxy.getMinimumKeyspaceReplicationFactor();
     }
 }
 

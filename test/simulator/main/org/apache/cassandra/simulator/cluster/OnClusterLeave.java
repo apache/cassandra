@@ -25,7 +25,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.systems.SimulatedActionConsumer;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
@@ -51,8 +50,9 @@ class OnClusterLeave extends OnClusterChangeTopology
             new OnClusterUpdateGossip(actions, leaving, new OnInstanceSetLeaving(actions, leaving)),
             new SimulatedActionConsumer<>("Prepare unbootstrap on " + leaving, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, leaveInstance,
                                           ref -> ref.set(StorageService.instance.prepareUnbootstrapStreaming()), preparedUnbootstrap),
+            new OnInstanceTopologyChangePaxosRepair(actions, leaving, "Leave"),
             new SimulatedActionConsumer<>("Execute unbootstrap on " + leaving, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, actions, leaveInstance,
-                                          ref -> FBUtilities.waitOnFuture(ref.get().get()), preparedUnbootstrap),
+                                          ref -> ref.get().get().syncThrowUncheckedOnInterrupt(), preparedUnbootstrap),
             // setup the node's own gossip state for natural ownership, and return gossip actions to disseminate
             new OnClusterUpdateGossip(actions, leaving, new OnInstanceSetLeft(actions, leaving))
         );

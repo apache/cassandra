@@ -30,8 +30,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class DeletePartitionTest
 {
@@ -75,7 +75,7 @@ public class DeletePartitionTest
         assertTrue(r.getCell(column).value().equals(ByteBufferUtil.bytes("asdf")));
 
         if (flushBeforeRemove)
-            store.forceBlockingFlush();
+            Util.flush(store);
 
         // delete the partition
         new Mutation.PartitionUpdateCollector(KEYSPACE1, key)
@@ -84,7 +84,7 @@ public class DeletePartitionTest
                 .applyUnsafe();
 
         if (flushAfterRemove)
-            store.forceBlockingFlush();
+            Util.flush(store);
 
         // validate removal
         ImmutableBTreePartition partitionUnfiltered = Util.getOnlyPartitionUnfiltered(Util.cmd(store, key).build());

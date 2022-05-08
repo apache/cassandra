@@ -24,13 +24,12 @@ from cqlshlib import pylexotron, util
 
 Hint = pylexotron.Hint
 
-cql_keywords_reserved = set((
-    'add', 'allow', 'alter', 'and', 'apply', 'asc', 'authorize', 'batch', 'begin', 'by', 'columnfamily', 'create',
-    'delete', 'desc', 'describe', 'drop', 'entries', 'execute', 'from', 'full', 'grant', 'if', 'in', 'index',
-    'infinity', 'insert', 'into', 'is', 'keyspace', 'limit', 'materialized', 'modify', 'nan', 'norecursive', 'not',
-    'null', 'of', 'on', 'or', 'order', 'primary', 'rename', 'revoke', 'schema', 'select', 'set', 'table', 'to', 'token',
-    'truncate', 'unlogged', 'update', 'use', 'using', 'view', 'where', 'with'
-))
+cql_keywords_reserved = {'add', 'allow', 'alter', 'and', 'apply', 'asc', 'authorize', 'batch', 'begin', 'by',
+                         'columnfamily', 'create', 'delete', 'desc', 'describe', 'drop', 'entries', 'execute', 'from',
+                         'full', 'grant', 'if', 'in', 'index', 'infinity', 'insert', 'into', 'is', 'keyspace', 'limit',
+                         'materialized', 'modify', 'nan', 'norecursive', 'not', 'null', 'of', 'on', 'or', 'order',
+                         'primary', 'rename', 'revoke', 'schema', 'select', 'set', 'table', 'to', 'token', 'truncate',
+                         'unlogged', 'update', 'use', 'using', 'view', 'where', 'with'}
 """
 Set of reserved keywords in CQL.
 
@@ -60,7 +59,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
     )
 
     def __init__(self, *args, **kwargs):
-        pylexotron.ParsingRuleSet.__init__(self, *args, **kwargs)
+        pylexotron.ParsingRuleSet.__init__(self)
 
         # note: commands_end_with_newline may be extended by callers.
         self.commands_end_with_newline = set()
@@ -111,12 +110,6 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                     # don't put any 'endline' tokens in output
                     continue
 
-            # Convert all unicode tokens to ascii, where possible.  This
-            # helps avoid problems with performing unicode-incompatible
-            # operations on tokens (like .lower()).  See CASSANDRA-9083
-            # for one example of this.
-            str_token = t[1]
-
             curstmt.append(t)
             if t[0] == 'endtoken':
                 term_on_nl = False
@@ -158,10 +151,10 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                     in_batch = True
         return output, in_batch or in_pg_string
 
-    def cql_complete_single(self, text, partial, init_bindings={}, ignore_case=True,
+    def cql_complete_single(self, text, partial, init_bindings=None, ignore_case=True,
                             startsymbol='Start'):
         tokens = (self.cql_split_statements(text)[0] or [[]])[-1]
-        bindings = init_bindings.copy()
+        bindings = {} if init_bindings is None else init_bindings.copy()
 
         # handle some different completion scenarios- in particular, completing
         # inside a string literal

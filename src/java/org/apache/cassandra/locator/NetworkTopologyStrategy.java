@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.Map.Entry;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -38,6 +40,7 @@ import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 /**
  * <p>
@@ -311,6 +314,15 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
         // Validate the data center names
         super.validateExpectedOptions();
+
+        if (keyspaceName.equalsIgnoreCase(SchemaConstants.AUTH_KEYSPACE_NAME))
+        {
+            Set<String> differenceSet = Sets.difference((Set<String>) recognizedOptions(), configOptions.keySet());
+            if (!differenceSet.isEmpty())
+            {
+                throw new ConfigurationException("Following datacenters have active nodes and must be present in replication options for keyspace " + SchemaConstants.AUTH_KEYSPACE_NAME + ": " + differenceSet.toString());
+            }
+        }
     }
 
     @Override
@@ -326,7 +338,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    public void maybeWarnOnOptions()
+    public void maybeWarnOnOptions(ClientState state)
     {
         if (!SchemaConstants.isSystemKeyspace(keyspaceName))
         {
@@ -337,6 +349,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
                 String dc = e.getKey();
                 ReplicationFactor rf = getReplicationFactor(dc);
+                Guardrails.minimumReplicationFactor.guard(rf.fullReplicas, keyspaceName, false, state);
                 int nodeCount = dcsNodes.get(dc).size();
                 // nodeCount==0 on many tests
                 if (rf.fullReplicas > nodeCount && nodeCount != 0)

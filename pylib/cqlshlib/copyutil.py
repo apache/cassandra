@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import unicode_literals
 import csv
 import datetime
 import json
@@ -27,7 +26,6 @@ import platform
 import random
 import re
 import signal
-import six
 import struct
 import sys
 import threading
@@ -39,19 +37,16 @@ from calendar import timegm
 from collections import defaultdict, namedtuple
 from decimal import Decimal
 from random import randint
-from io import BytesIO, StringIO
+from io import StringIO
 from select import select
 from uuid import UUID
-from .util import profile_on, profile_off
 
-from six import ensure_str, ensure_text
-from six.moves import configparser
-from six.moves import range
-from six.moves.queue import Queue
+import configparser
+from queue import Queue
 
 from cassandra import OperationTimedOut
 from cassandra.cluster import Cluster, DefaultConnection
-from cassandra.cqltypes import ReversedType, UserType, BytesType, VarcharType
+from cassandra.cqltypes import ReversedType, UserType, VarcharType
 from cassandra.metadata import protect_name, protect_names, protect_value
 from cassandra.policies import RetryPolicy, WhiteListRoundRobinPolicy, DCAwareRoundRobinPolicy, FallthroughRetryPolicy
 from cassandra.query import BatchStatement, BatchType, SimpleStatement, tuple_factory
@@ -66,6 +61,7 @@ from cqlshlib.sslhandling import ssl_settings
 PROFILE_ON = False
 STRACE_ON = False
 DEBUG = False  # This may be set to True when initializing the task
+# TODO: review this for MacOS, maybe use in ('Linux', 'Darwin')
 IS_LINUX = platform.system() == 'Linux'
 
 CopyOptions = namedtuple('CopyOptions', 'copy dialect unrecognized')
@@ -84,15 +80,10 @@ def printdebugmsg(msg):
         printmsg(msg)
 
 
-def printmsg(msg, eol='\n', encoding='utf8'):
+def printmsg(msg, eol='\n'):
     sys.stdout.write(msg)
     sys.stdout.write(eol)
     sys.stdout.flush()
-
-
-# Keep arguments in sync with printmsg
-def swallowmsg(msg, eol='', encoding=''):
-    None
 
 
 class OneWayPipe(object):
@@ -174,7 +165,7 @@ class SendingChannels(object):
         for ch in self.channels:
             try:
                 ch.close()
-            except Exception:
+            except ValueError:
                 pass
 
 
@@ -197,7 +188,13 @@ class ReceivingChannels(object):
         Implementation of the recv method for Linux, where select is available. Receive an object from
         all pipes that are ready for reading without blocking.
         """
-        readable, _, _ = select(self._readers, [], [], timeout)
+        while True:
+            try:
+                readable, _, _ = select(self._readers, [], [], timeout)
+            except OSError:
+                raise
+            else:
+                break
         for r in readable:
             with self._rlocks_by_readers[r]:
                 try:
@@ -228,7 +225,7 @@ class ReceivingChannels(object):
         for ch in self.channels:
             try:
                 ch.close()
-            except Exception:
+            except ValueError:
                 pass
 
 
@@ -252,8 +249,7 @@ class CopyTask(object):
             DEBUG = True
 
         # do not display messages when exporting to STDOUT unless --debug is set
-        self.printmsg = printmsg if self.fname is not None or direction == 'from' or DEBUG \
-            else swallowmsg
+        self.printmsg = printmsg if self.fname is not None or direction == 'from' or DEBUG else None
         self.options = self.parse_options(opts, direction)
 
         self.num_processes = self.options.copy['numprocesses']
@@ -283,7 +279,7 @@ class CopyTask(object):
             return opts
 
         configs = configparser.RawConfigParser()
-        configs.readfp(open(config_file))
+        configs.read_file(open(config_file))
 
         ret = dict()
         config_sections = list(['copy', 'copy-%s' % (direction,),
@@ -325,9 +321,9 @@ class CopyTask(object):
         opts = self.clean_options(self.maybe_read_config_file(opts, direction))
 
         dialect_options = dict()
-        dialect_options['quotechar'] = ensure_str(opts.pop('quote', '"'))
-        dialect_options['escapechar'] = ensure_str(opts.pop('escape', '\\'))
-        dialect_options['delimiter'] = ensure_str(opts.pop('delimiter', ','))
+        dialect_options['quotechar'] = opts.pop('quote', '"')
+        dialect_options['escapechar'] = opts.pop('escape', '\\')
+        dialect_options['delimiter'] = opts.pop('delimiter', ',')
         if dialect_options['quotechar'] == dialect_options['escapechar']:
             dialect_options['doublequote'] = True
             del dialect_options['escapechar']
@@ -335,7 +331,7 @@ class CopyTask(object):
             dialect_options['doublequote'] = False
 
         copy_options = dict()
-        copy_options['nullval'] = ensure_str(opts.pop('null', ''))
+        copy_options['nullval'] = opts.pop('null', '')
         copy_options['header'] = bool(opts.pop('header', '').lower() == 'true')
         copy_options['encoding'] = opts.pop('encoding', 'utf8')
         copy_options['maxrequests'] = int(opts.pop('maxrequests', 6))
@@ -357,7 +353,7 @@ class CopyTask(object):
         copy_options['consistencylevel'] = shell.consistency_level
         copy_options['decimalsep'] = opts.pop('decimalsep', '.')
         copy_options['thousandssep'] = opts.pop('thousandssep', '')
-        copy_options['boolstyle'] = [ensure_str(s.strip()) for s in opts.pop('boolstyle', 'True, False').split(',')]
+        copy_options['boolstyle'] = [s.strip() for s in opts.pop('boolstyle', 'True, False').split(',')]
         copy_options['numprocesses'] = int(opts.pop('numprocesses', self.get_num_processes(16)))
         copy_options['begintoken'] = opts.pop('begintoken', '')
         copy_options['endtoken'] = opts.pop('endtoken', '')
@@ -560,7 +556,7 @@ class ExportWriter(object):
 
         if self.header:
             writer = csv.writer(self.current_dest.output, **self.options.dialect)
-            writer.writerow([ensure_str(c) for c in self.columns])
+            writer.writerow([str(c) for c in self.columns])
 
         return True
 
@@ -656,7 +652,7 @@ class ExportTask(CopyTask):
             return 0
 
         columns = "[" + ", ".join(self.columns) + "]"
-        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns), encoding=self.encoding)
+        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns))
 
         params = self.make_params()
         for i in range(self.num_processes):
@@ -765,6 +761,7 @@ class ExportTask(CopyTask):
             #  For the last ring interval we query the same replicas that hold the first token in the ring
             if previous is not None and (not end_token or previous < end_token):
                 ranges[(previous, end_token)] = first_range_data
+            # TODO: fix this logic added in 4.0: if previous is None, then it can't be compared with less than
             elif previous is None and (not end_token or previous < end_token):
                 previous = begin_token if begin_token else min_token
                 ranges[(previous, end_token)] = first_range_data
@@ -876,12 +873,13 @@ class FilesReader(object):
         self.max_rows = options.copy['maxrows']
         self.skip_rows = options.copy['skiprows']
         self.fname = fname
-        self.sources = None  # must be created later due to pickle problems on Windows
+        self.sources = None  # might be initialised directly here? (see CASSANDRA-17350)
         self.num_sources = 0
         self.current_source = None
         self.num_read = 0
 
-    def get_source(self, paths):
+    @staticmethod
+    def get_source(paths):
         """
          Return a source generator. Each source is a named tuple
          wrapping the source input, file name and a boolean indicating
@@ -903,7 +901,7 @@ class FilesReader(object):
                     raise IOError("Can't open %r for reading: no matching file found" % (path,))
 
                 for f in result:
-                    yield (make_source(f))
+                    yield make_source(f)
 
     def start(self):
         self.sources = self.get_source(self.fname)
@@ -1158,7 +1156,7 @@ class ImportTask(CopyTask):
             return 0
 
         columns = "[" + ", ".join(self.valid_columns) + "]"
-        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns), encoding=self.encoding)
+        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns))
 
         try:
             params = self.make_params()
@@ -1291,9 +1289,9 @@ class FeedingProcess(mp.Process):
         self.inpipe = inpipe
         self.outpipe = outpipe
         self.worker_pipes = worker_pipes
-        self.inmsg = None  # must be created after forking on Windows
-        self.outmsg = None  # must be created after forking on Windows
-        self.worker_channels = None  # must be created after forking on Windows
+        self.inmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.outmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.worker_channels = None  # might be initialised directly here? (see CASSANDRA-17350)
         self.reader = FilesReader(fname, options) if fname else PipeReader(inpipe, options)
         self.send_meter = RateMeter(log_fcn=None, update_interval=1)
         self.ingest_rate = options.copy['ingestrate']
@@ -1332,7 +1330,8 @@ class FeedingProcess(mp.Process):
         try:
             reader.start()
         except IOError as exc:
-            self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
+            self.outmsg.send(
+                ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
 
         channels = self.worker_channels
         max_pending_chunks = self.max_pending_chunks
@@ -1361,7 +1360,8 @@ class FeedingProcess(mp.Process):
                     if rows:
                         sent += self.send_chunk(ch, rows)
                 except Exception as exc:
-                    self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
+                    self.outmsg.send(
+                        ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
 
                 if reader.exhausted:
                     break
@@ -1397,8 +1397,8 @@ class ChildProcess(mp.Process):
         super(ChildProcess, self).__init__(target=target)
         self.inpipe = params['inpipe']
         self.outpipe = params['outpipe']
-        self.inmsg = None  # must be initialized after fork on Windows
-        self.outmsg = None  # must be initialized after fork on Windows
+        self.inmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.outmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
         self.ks = params['ks']
         self.table = params['table']
         self.local_dc = params['local_dc']
@@ -1719,7 +1719,7 @@ class ExportProcess(ChildProcess):
             return  # no rows in this range
 
         try:
-            output = StringIO() if six.PY3 else BytesIO()
+            output = StringIO()
             writer = csv.writer(output, **self.options.dialect)
 
             for row in rows:
@@ -1749,7 +1749,7 @@ class ExportProcess(ChildProcess):
                               float_precision=cqltype.precision, nullval=self.nullval, quote=False,
                               decimal_sep=self.decimal_sep, thousands_sep=self.thousands_sep,
                               boolean_styles=self.boolean_styles)
-        return formatted if six.PY3 else formatted.encode('utf8')
+        return formatted
 
     def close(self):
         ChildProcess.close(self)
@@ -1889,7 +1889,7 @@ class ImportConversion(object):
         select_query = 'SELECT * FROM %s.%s WHERE %s' % (protect_name(parent.ks),
                                                          protect_name(parent.table),
                                                          where_clause)
-        return parent.session.prepare(ensure_str(select_query))
+        return parent.session.prepare(select_query)
 
     @staticmethod
     def unprotect(v):
@@ -1925,20 +1925,20 @@ class ImportConversion(object):
                 return BlobType(v[2:].decode("hex"))
 
         def convert_text(v, **_):
-            return ensure_str(v)
+            return str(v)
 
         def convert_uuid(v, **_):
             return UUID(v)
 
         def convert_bool(v, **_):
-            return True if v.lower() == ensure_str(self.boolean_styles[0]).lower() else False
+            return True if v.lower() == self.boolean_styles[0].lower() else False
 
         def get_convert_integer_fcn(adapter=int):
             """
             Return a slow and a fast integer conversion function depending on self.thousands_sep
             """
             if self.thousands_sep:
-                return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, ensure_str('')))
+                return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, ''))
             else:
                 return lambda v, ct=cql_type: adapter(v)
 
@@ -1946,10 +1946,11 @@ class ImportConversion(object):
             """
             Return a slow and a fast decimal conversion function depending on self.thousands_sep and self.decimal_sep
             """
-            empty_str = ensure_str('')
-            dot_str = ensure_str('.')
+            empty_str = ''
+            dot_str = '.'
             if self.thousands_sep and self.decimal_sep:
-                return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, empty_str).replace(self.decimal_sep, dot_str))
+                return lambda v, ct=cql_type: \
+                    adapter(v.replace(self.thousands_sep, empty_str).replace(self.decimal_sep, dot_str))
             elif self.thousands_sep:
                 return lambda v, ct=cql_type: adapter(v.replace(self.thousands_sep, empty_str))
             elif self.decimal_sep:
@@ -2005,20 +2006,14 @@ class ImportConversion(object):
             return ret
 
         # this should match all possible CQL and CQLSH datetime formats
-        p = re.compile(r"(\d{4})\-(\d{2})\-(\d{2})\s?(?:'T')?"  # YYYY-MM-DD[( |'T')]
+        p = re.compile(r"(\d{4})-(\d{2})-(\d{2})\s?(?:'T')?"  # YYYY-MM-DD[( |'T')]
                        + r"(?:(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?))?"  # [HH:MM[:SS[.NNNNNN]]]
                        + r"(?:([+\-])(\d{2}):?(\d{2}))?")  # [(+|-)HH[:]MM]]
 
         def convert_datetime(val, **_):
             try:
-                if six.PY2:
-                    # Python 2 implementation
-                    tval = time.strptime(val, self.date_time_format)
-                    return timegm(tval) * 1e3  # scale seconds to millis for the raw value
-                else:
-                    # Python 3 implementation
-                    dtval = datetime.datetime.strptime(val, self.date_time_format)
-                    return dtval.timestamp() * 1000
+                dtval = datetime.datetime.strptime(val, self.date_time_format)
+                return dtval.timestamp() * 1000
             except ValueError:
                 pass  # if it's not in the default format we try CQL formats
 
@@ -2069,8 +2064,8 @@ class ImportConversion(object):
             """
             See ImmutableDict above for a discussion of why a special object is needed here.
             """
-            split_format_str = ensure_str('{%s}')
-            sep = ensure_str(':')
+            split_format_str = '{%s}'
+            sep = ':'
             return ImmutableDict(frozenset((convert_mandatory(ct.subtypes[0], v[0]), convert(ct.subtypes[1], v[1]))
                                  for v in [split(split_format_str % vv, sep=sep) for vv in split(val)]))
 
@@ -2083,8 +2078,8 @@ class ImportConversion(object):
             Also note that it is possible that the subfield names in the csv are in the
             wrong order, so we must sort them according to ct.fieldnames, see CASSANDRA-12959.
             """
-            split_format_str = ensure_str('{%s}')
-            sep = ensure_str(':')
+            split_format_str = '{%s}'
+            sep = ':'
             vals = [v for v in [split(split_format_str % vv, sep=sep) for vv in split(val)]]
             dict_vals = dict((unprotect(v[0]), v[1]) for v in vals)
             sorted_converted_vals = [(n, convert(t, dict_vals[n]) if n in dict_vals else self.get_null_val())
@@ -2142,7 +2137,7 @@ class ImportConversion(object):
         or "NULL" otherwise. Note that for counters we never use prepared statements, so we
         only check is_counter when use_prepared_statements is false.
         """
-        return None if self.use_prepared_statements else (ensure_str("0") if self.is_counter else ensure_str("NULL"))
+        return None if self.use_prepared_statements else ("0" if self.is_counter else "NULL")
 
     def convert_row(self, row):
         """
@@ -2427,7 +2422,6 @@ class ImportProcess(ChildProcess):
             if self.ttl >= 0:
                 query += 'USING TTL %s' % (self.ttl,)
             make_statement = self.wrap_make_statement(self.make_non_prepared_batch_statement)
-            query = ensure_str(query)
 
         conv = ImportConversion(self, table_meta, prepared_statement)
         tm = TokenMap(self.ks, self.hostname, self.local_dc, self.session)
@@ -2495,12 +2489,12 @@ class ImportProcess(ChildProcess):
             set_clause = []
             for i, value in enumerate(row):
                 if i in conv.primary_key_indexes:
-                    where_clause.append(ensure_text("{}={}").format(self.valid_columns[i], ensure_text(value)))
+                    where_clause.append("{}={}".format(self.valid_columns[i], str(value)))
                 else:
-                    set_clause.append(ensure_text("{}={}+{}").format(self.valid_columns[i], self.valid_columns[i], ensure_text(value)))
+                    set_clause.append("{}={}+{}".format(self.valid_columns[i], self.valid_columns[i], str(value)))
 
-            full_query_text = query % (ensure_text(',').join(set_clause), ensure_text(' AND ').join(where_clause))
-            statement.add(ensure_str(full_query_text))
+            full_query_text = query % (','.join(set_clause), ' AND '.join(where_clause))
+            statement.add(full_query_text)
         return statement
 
     def make_prepared_batch_statement(self, query, _, batch, replicas):
@@ -2524,7 +2518,7 @@ class ImportProcess(ChildProcess):
         statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
         statement.replicas = replicas
         statement.keyspace = self.ks
-        field_sep = b',' if six.PY2 else ','
+        field_sep = ','
         statement._statements_and_parameters = [(False, query % (field_sep.join(r),), ()) for r in batch['rows']]
         return statement
 
@@ -2633,7 +2627,8 @@ class ImportProcess(ChildProcess):
                     yield filter_replicas(replicas[ring_pos]), make_batch(chunk['id'], rows[i:i + max_batch_size])
             else:
                 # select only the first valid replica to guarantee more overlap or none at all
-                rows_by_replica[tuple(filter_replicas(replicas[ring_pos])[:1])].extend(rows)  # TODO: revisit tuple wrapper
+                # TODO: revisit tuple wrapper
+                rows_by_replica[tuple(filter_replicas(replicas[ring_pos])[:1])].extend(rows)
 
         # Now send the batches by replica
         for replicas, rows in rows_by_replica.items():
@@ -2655,6 +2650,7 @@ class ImportProcess(ChildProcess):
             future.add_callbacks(callback=self.result_callback, callback_args=(batch, chunk),
                                  errback=self.err_callback, errback_args=(batch, chunk, replicas))
 
+    # TODO: review why this is defined twice
     def report_error(self, err, chunk=None, rows=None, attempts=1, final=True):
         if self.debug and sys.exc_info()[1] == err:
             traceback.print_exc()

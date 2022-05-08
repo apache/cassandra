@@ -42,6 +42,7 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.locator.InetAddressAndPort.getByAddress;
@@ -86,8 +87,27 @@ public class UnsafeGossipHelper
                 Token token;
                 if (FBUtilities.getBroadcastAddressAndPort().equals(addressAndPort))
                 {
-                    String str = tokenString == null ? Iterables.getOnlyElement(DatabaseDescriptor.getInitialTokens()) : tokenString;
-                    token = DatabaseDescriptor.getPartitioner().getTokenFactory().fromString(str);
+                    // try grabbing saved tokens so that - if we're leaving - we get the ones we may have adopted as part of a range movement
+                    // if that fails, grab them from config (as we're probably joining and should just use the default token)
+                    Token.TokenFactory tokenFactory = DatabaseDescriptor.getPartitioner().getTokenFactory();
+                    if (tokenString == null)
+                    {
+                        Token tmp;
+                        try
+                        {
+                             tmp = getOnlyElement(SystemKeyspace.getSavedTokens());
+                        }
+                        catch (Throwable t)
+                        {
+                            tmp = tokenFactory.fromString(getOnlyElement(DatabaseDescriptor.getInitialTokens()));
+                        }
+                        token = tmp;
+                    }
+                    else
+                    {
+                        token = tokenFactory.fromString(tokenString);
+                    }
+
                     SystemKeyspace.setLocalHostId(hostId);
                     SystemKeyspace.updateTokens(singleton(token));
                 }

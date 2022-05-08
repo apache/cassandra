@@ -31,7 +31,6 @@ import static org.junit.Assert.assertTrue;
 
 public class AuthTest extends TestBaseImpl
 {
-
     /**
      * Simply tests that initialisation of a test Instance results in
      * StorageService.instance.doAuthSetup being called as the regular

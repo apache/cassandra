@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -84,8 +85,8 @@ public class ViewBuilderTaskTest extends CQLTester
                               int expectedRowsInView) throws Throwable
             {
                 // Truncate the materialized view (not the base table)
-                cfs.viewManager.forceBlockingFlush();
-                cfs.viewManager.truncateBlocking(cfs.forceBlockingFlush(), System.currentTimeMillis());
+                Util.flush(cfs.viewManager);
+                cfs.viewManager.truncateBlocking(cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS), System.currentTimeMillis());
                 assertRowCount(execute("SELECT * FROM " + viewName), 0);
 
                 // Get the tokens from the referenced inserted rows

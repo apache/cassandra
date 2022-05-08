@@ -600,19 +600,19 @@ public class MerkleTreeTest
         Assert.assertEquals(1, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance, 0, 32));
         Assert.assertEquals(1, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance, 1, 32));
 
-        // The minimum of 1 megabyte split between RF=3 should yield trees of around 10
+        // The minimum of 1 mebibyte split between RF=3 should yield trees of around 10
         Assert.assertEquals(10, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
                                                                      1048576 / 3, 32));
 
-        // With a single megabyte of space we should get 12
+        // With a single mebibyte of space we should get 12
         Assert.assertEquals(12, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
                                                                      1048576, 32));
 
-        // With 100 megabytes we should get a limit of 19
+        // With 100 mebibytes we should get a limit of 19
         Assert.assertEquals(19, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
                                                                      100 * 1048576, 32));
 
-        // With 300 megabytes we should get the old limit of 20
+        // With 300 mebibytes we should get the old limit of 20
         Assert.assertEquals(20, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
                                                                      300 * 1048576, 32));
         Assert.assertEquals(20, MerkleTree.estimatedMaxDepthForBytes(RandomPartitioner.instance,
@@ -635,7 +635,7 @@ public class MerkleTreeTest
         Range<Token> fullRange = new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken());
         MerkleTree tree = new MerkleTree(partitioner, fullRange, RECOMMENDED_DEPTH, 0);
 
-        // Test 16 kilobyte -> 16 megabytes
+        // Test 16 kibibyte -> 16 mebibytes
         for (int i = 14; i < 24; i ++)
         {
             long numBytes = 1 << i;

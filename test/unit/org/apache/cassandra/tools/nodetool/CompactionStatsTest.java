@@ -34,8 +34,10 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class CompactionStatsTest extends CQLTester
@@ -99,7 +101,7 @@ public class CompactionStatsTest extends CQLTester
 
         long bytesCompacted = 123;
         long bytesTotal = 123456;
-        UUID compactionId = UUID.randomUUID();
+        TimeUUID compactionId = nextTimeUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
                 .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
                 .collect(Collectors.toList());
@@ -142,7 +144,7 @@ public class CompactionStatsTest extends CQLTester
 
         long bytesCompacted = 123;
         long bytesTotal = 123456;
-        UUID compactionId = UUID.randomUUID();
+        TimeUUID compactionId = nextTimeUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
                 .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
                 .collect(Collectors.toList());

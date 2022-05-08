@@ -18,7 +18,7 @@ import os
 import sys
 import ssl
 
-from six.moves import configparser
+import configparser
 
 
 def ssl_settings(host, config_file, env=os.environ):
@@ -39,7 +39,7 @@ def ssl_settings(host, config_file, env=os.environ):
     either in the config file or as an environment variable.
     Environment variables override any options set in cqlsh config file.
     """
-    configs = configparser.SafeConfigParser()
+    configs = configparser.ConfigParser()
     configs.read(config_file)
 
     def get_option(section, option):
@@ -49,16 +49,9 @@ def ssl_settings(host, config_file, env=os.environ):
             return None
 
     def get_best_tls_protocol(ssl_ver_str):
-        # newer python versions suggest to use PROTOCOL_TLS to negotiate the highest TLS version.
-        # older protocol versions have been deprecated:
-        # https://docs.python.org/2/library/ssl.html#ssl.PROTOCOL_TLS
-        # https://docs.python.org/3/library/ssl.html#ssl.PROTOCOL_TLS
         if ssl_ver_str:
-            return getattr(ssl, "PROTOCOL_%s" % ssl_ver_str, None)
-        for protocol in ['PROTOCOL_TLS', 'PROTOCOL_TLSv1_2', 'PROTOCOL_TLSv1_1', 'PROTOCOL_TLSv1']:
-            if hasattr(ssl, protocol):
-                return getattr(ssl, protocol)
-        return None
+            print("Warning: Explicit SSL and TLS versions in the cqlshrc file or in SSL_VERSION environment property are ignored as the protocol is auto-negotiated.\n")
+        return ssl.PROTOCOL_TLS
 
     ssl_validate = env.get('SSL_VALIDATE')
     if ssl_validate is None:
@@ -70,9 +63,6 @@ def ssl_settings(host, config_file, env=os.environ):
         ssl_version_str = get_option('ssl', 'version')
 
     ssl_version = get_best_tls_protocol(ssl_version_str)
-    if ssl_version is None:
-        sys.exit("%s is not a valid SSL protocol, please use one of "
-                 "TLS, TLSv1_2, TLSv1_1, or TLSv1" % (ssl_version_str,))
 
     ssl_certfile = env.get('SSL_CERTFILE')
     if ssl_certfile is None:

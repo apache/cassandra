@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.repair;
 
-import java.util.UUID;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class NoSuchRepairSessionException extends Exception
 {
-    public NoSuchRepairSessionException(UUID parentSessionId)
+    public NoSuchRepairSessionException(TimeUUID parentSessionId)
     {
-        super(String.format("Parent repair session with id = %s has failed.", parentSessionId));
+        super(String.format("Parent repair session with id = %s does not exist.", parentSessionId));
     }
 }

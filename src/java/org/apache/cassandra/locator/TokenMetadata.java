@@ -132,11 +132,17 @@ public class TokenMetadata
 
     private TokenMetadata(BiMultiValMap<Token, InetAddressAndPort> tokenToEndpointMap, BiMap<InetAddressAndPort, UUID> endpointsMap, Topology topology, IPartitioner partitioner)
     {
+        this(tokenToEndpointMap, endpointsMap, topology, partitioner, 0);
+    }
+
+    private TokenMetadata(BiMultiValMap<Token, InetAddressAndPort> tokenToEndpointMap, BiMap<InetAddressAndPort, UUID> endpointsMap, Topology topology, IPartitioner partitioner, long ringVersion)
+    {
         this.tokenToEndpointMap = tokenToEndpointMap;
         this.topology = topology;
         this.partitioner = partitioner;
         endpointToHostIdMap = endpointsMap;
         sortedTokens = sortTokens();
+        this.ringVersion = ringVersion;
     }
 
     /**
@@ -675,7 +681,8 @@ public class TokenMetadata
             return new TokenMetadata(SortedBiMultiValMap.create(tokenToEndpointMap),
                                      HashBiMap.create(endpointToHostIdMap),
                                      topology,
-                                     partitioner);
+                                     partitioner,
+                                     ringVersion);
         }
         finally
         {
@@ -1384,7 +1391,7 @@ public class TokenMetadata
      */
     public Topology getTopology()
     {
-        assert this != StorageService.instance.getTokenMetadata();
+        assert !DatabaseDescriptor.isDaemonInitialized() || this != StorageService.instance.getTokenMetadata();
         return topology;
     }
 

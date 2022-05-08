@@ -19,10 +19,7 @@
 
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.io.util.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -38,7 +35,6 @@ import org.junit.Test;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -57,9 +53,10 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.ServerTestUtils.cleanup;
+import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
 
 public class StorageServiceServerTest
 {
@@ -72,6 +69,9 @@ public class StorageServiceServerTest
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
         Keyspace.setInitialized();
+        mkdirs();
+        cleanup();
+        StorageService.instance.initServer(0);
     }
 
     @Test
@@ -86,75 +86,6 @@ public class StorageServiceServerTest
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
         StorageService.instance.takeSnapshot(UUID.randomUUID().toString());
-    }
-
-    private void checkTempFilePresence(File f, boolean exist)
-    {
-        for (int i = 0; i < 5; i++)
-        {
-            File subdir = new File(f, Integer.toString(i));
-            subdir.tryCreateDirectory();
-            for (int j = 0; j < 5; j++)
-            {
-                File subF = new File(subdir, Integer.toString(j));
-                assert(exist ? subF.exists() : !subF.exists());
-            }
-        }
-    }
-
-    @Test
-    public void testSnapshotFailureHandler() throws IOException
-    {
-        assumeTrue(FBUtilities.isWindows);
-
-        // Initial "run" of Cassandra, nothing in failed snapshot file
-        WindowsFailedSnapshotTracker.deleteOldSnapshots();
-
-        File f = new File(System.getenv("TEMP") + File.pathSeparator() + Integer.toString(new Random().nextInt()));
-        f.tryCreateDirectory();
-        f.deleteOnExit();
-        for (int i = 0; i < 5; i++)
-        {
-            File subdir = new File(f, Integer.toString(i));
-            subdir.tryCreateDirectory();
-            for (int j = 0; j < 5; j++)
-                new File(subdir, Integer.toString(j)).createFileIfNotExists();
-        }
-
-        checkTempFilePresence(f, true);
-
-        // Confirm deletion is recursive
-        for (int i = 0; i < 5; i++)
-            WindowsFailedSnapshotTracker.handleFailedSnapshot(new File(f, Integer.toString(i)));
-
-        assertTrue(new File(WindowsFailedSnapshotTracker.TODELETEFILE).exists());
-
-        // Simulate shutdown and restart of C* node, closing out the list of failed snapshots.
-        WindowsFailedSnapshotTracker.resetForTests();
-
-        // Perform new run, mimicking behavior of C* at startup
-        WindowsFailedSnapshotTracker.deleteOldSnapshots();
-        checkTempFilePresence(f, false);
-
-        // Check to make sure we don't delete non-temp, non-datafile locations
-        WindowsFailedSnapshotTracker.resetForTests();
-        PrintWriter tempPrinter = new PrintWriter(new FileWriter(WindowsFailedSnapshotTracker.TODELETEFILE, true));
-        tempPrinter.println(".safeDir");
-        tempPrinter.close();
-
-        File protectedDir = new File(".safeDir");
-        protectedDir.tryCreateDirectory();
-        File protectedFile = new File(protectedDir, ".safeFile");
-        protectedFile.createFileIfNotExists();
-
-        WindowsFailedSnapshotTracker.handleFailedSnapshot(protectedDir);
-        WindowsFailedSnapshotTracker.deleteOldSnapshots();
-
-        assertTrue(protectedDir.exists());
-        assertTrue(protectedFile.exists());
-
-        protectedFile.tryDelete();
-        protectedDir.tryDelete();
     }
 
     @Test
@@ -190,9 +121,9 @@ public class StorageServiceServerTest
         configOptions.put("DC2", "2");
         configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getLocalPrimaryRangeForEndpoint(InetAddressAndPort.getByName("127.0.0.1"));
         Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
@@ -230,9 +161,9 @@ public class StorageServiceServerTest
         configOptions.put("DC2", "1");
         configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name,
                                                                                                             InetAddressAndPort.getByName("127.0.0.1"));
@@ -273,9 +204,9 @@ public class StorageServiceServerTest
         configOptions.put("DC2", "1");
         configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
@@ -310,9 +241,9 @@ public class StorageServiceServerTest
         configOptions.put("DC2", "2");
         configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
@@ -349,9 +280,9 @@ public class StorageServiceServerTest
         configOptions.put("DC2", "2");
         configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
@@ -401,9 +332,9 @@ public class StorageServiceServerTest
         configOptions.put("DC2", "2");
         configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
@@ -468,9 +399,9 @@ public class StorageServiceServerTest
         configOptions.put("DC2", "2");
         configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         // endpoints in DC1 should have primary ranges which also cover DC2
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
@@ -527,9 +458,9 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new StringToken("B"), InetAddressAndPort.getByName("127.0.0.2"));
         metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.3"));
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleTransient(2));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
@@ -558,9 +489,9 @@ public class StorageServiceServerTest
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("replication_factor", "2");
 
-        Schema.instance.maybeRemoveKeyspaceInstance("Keyspace1");
+        SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleTransient(2));
-        Schema.instance.load(meta);
+        SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
         Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);

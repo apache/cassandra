@@ -19,12 +19,14 @@ package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -36,6 +38,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -63,6 +67,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -77,6 +82,7 @@ import static org.junit.Assert.fail;
  * Test the functionality of {@link SSTableHeaderFix}.
  * It writes an 'big-m' version sstable(s) and executes against these.
  */
+@RunWith(Parameterized.class)
 public class SSTableHeaderFixTest
 {
     static
@@ -86,9 +92,20 @@ public class SSTableHeaderFixTest
 
     private File temporaryFolder;
 
+    @Parameterized.Parameter
+    public Supplier<? extends SSTableId> sstableIdGen;
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> parameters()
+    {
+        return MockSchema.sstableIdGenerators();
+    }
+
     @Before
     public void setup()
     {
+        MockSchema.sstableIds.clear();
+        MockSchema.sstableIdGenerator = sstableIdGen;
         File f = FileUtils.createTempFile("SSTableUDTFixTest", "");
         f.tryDelete();
         f.tryCreateDirectories();
@@ -805,7 +822,7 @@ public class SSTableHeaderFixTest
         try
         {
 
-            Descriptor desc = new Descriptor(version, dir, "ks", "cf", generation, SSTableFormat.Type.BIG);
+            Descriptor desc = new Descriptor(version, dir, "ks", "cf", MockSchema.sstableId(generation), SSTableFormat.Type.BIG);
 
             // Just create the component files - we don't really need those.
             for (Component component : requiredComponents)

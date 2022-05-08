@@ -40,6 +40,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -68,12 +69,13 @@ final class LogFile implements AutoCloseable
 
     // The transaction records, this set must be ORDER PRESERVING
     private final Set<LogRecord> records = Collections.synchronizedSet(new LinkedHashSet<>()); // TODO: Hack until we fix CASSANDRA-14554
+    private final Set<LogRecord> onDiskRecords = Collections.synchronizedSet(new LinkedHashSet<>());
 
     // The type of the transaction
     private final OperationType type;
 
     // The unique id of the transaction
-    private final UUID id;
+    private final TimeUUID id;
 
     static LogFile make(File logReplica)
     {
@@ -91,7 +93,7 @@ final class LogFile implements AutoCloseable
         //String version = matcher.group(1);
 
         OperationType operationType = OperationType.fromFileName(matcher.group(2));
-        UUID id = UUID.fromString(matcher.group(3));
+        TimeUUID id = TimeUUID.fromString(matcher.group(3));
 
         return new LogFile(operationType, id, logReplicas);
     }
@@ -106,7 +108,7 @@ final class LogFile implements AutoCloseable
         return type;
     }
 
-    UUID id()
+    TimeUUID id()
     {
         return id;
     }
@@ -142,13 +144,13 @@ final class LogFile implements AutoCloseable
         return LogFile.FILE_REGEX.matcher(file.name()).matches();
     }
 
-    LogFile(OperationType type, UUID id, List<File> replicas)
+    LogFile(OperationType type, TimeUUID id, List<File> replicas)
     {
         this(type, id);
         this.replicas.addReplicas(replicas);
     }
 
-    LogFile(OperationType type, UUID id)
+    LogFile(OperationType type, TimeUUID id)
     {
         this.type = type;
         this.id = id;
@@ -322,19 +324,13 @@ final class LogFile implements AutoCloseable
         assert type == Type.ADD || type == Type.REMOVE;
 
         for (SSTableReader sstable : tables)
-        {
-            File directory = sstable.descriptor.directory;
-            String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
-            replicas.maybeCreateReplica(directory, fileName, records);
-        }
+            maybeCreateReplica(sstable);
         return LogRecord.make(type, tables);
     }
 
     private LogRecord makeAddRecord(SSTable table)
     {
-        File directory = table.descriptor.directory;
-        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
-        replicas.maybeCreateReplica(directory, fileName, records);
+        maybeCreateReplica(table);
         return LogRecord.make(Type.ADD, table);
     }
 
@@ -346,11 +342,15 @@ final class LogFile implements AutoCloseable
     private LogRecord makeRecord(Type type, SSTable table, LogRecord record)
     {
         assert type == Type.ADD || type == Type.REMOVE;
-
-        File directory = table.descriptor.directory;
-        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
-        replicas.maybeCreateReplica(directory, fileName, records);
+        maybeCreateReplica(table);
         return record.asType(type);
+    }
+
+    private void maybeCreateReplica(SSTable sstable)
+    {
+        File directory = sstable.descriptor.directory;
+        String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
+        replicas.maybeCreateReplica(directory, fileName, onDiskRecords);
     }
 
     void addRecord(LogRecord record)
@@ -364,6 +364,7 @@ final class LogFile implements AutoCloseable
         replicas.append(record);
         if (!records.add(record))
             throw new IllegalStateException("Failed to add record");
+        onDiskRecords.add(record);
     }
 
     void remove(SSTable table)

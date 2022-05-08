@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
+import javax.annotation.Nullable;
 
 /**
  * JMX entrypoint for updating the default guardrails configuration parsed from {@code cassandra.yaml}.
@@ -26,28 +27,14 @@ import java.util.Set;
  * This is different to just exposing {@link GuardrailsConfig} in that the methods here should be JMX-friendly.
  *
  * <p>For consistency, guardrails based on a simple numeric threshold should use the naming scheme
- * {@code <whatIsGuarded>WarnThreshold} for soft limits and {@code <whatIsGuarded>AbortThreshold} for hard
+ * {@code <whatIsGuarded>WarnThreshold} for soft limits and {@code <whatIsGuarded>FailThreshold} for hard
  * ones, and if the value has a unit, that unit should be added at the end (for instance,
- * {@code <whatIsGuarded>AbortThresholdInKb}). For "boolean" guardrails that disable a feature, use
+ * {@code <whatIsGuarded>FailThresholdInKb}). For "boolean" guardrails that disable a feature, use
  * {@code <whatIsGuardedEnabled}. Other type of guardrails can use appropriate suffixes but should start with
  * {@code <whatIsGuarded>}.
  */
 public interface GuardrailsMBean
 {
-    /**
-     * Whether guardrails are enabled or not.
-     *
-     * @return {@code true} if guardrails are enabled, {@code false} otherwise
-     */
-    boolean getEnabled();
-
-    /**
-     * Enable/disable guardrails.
-     *
-     * @param enabled {@code true} for enabling guardrails, {@code false} for disabling them.
-     */
-    void setEnabled(boolean enabled);
-
     /**
      * @return The threshold to warn when creating more user keyspaces than threshold.
      * -1 means disabled.
@@ -58,13 +45,13 @@ public interface GuardrailsMBean
      * @return The threshold to prevent creating more user keyspaces than threshold.
      * -1 means disabled.
      */
-    int getKeyspacesAbortThreshold();
+    int getKeyspacesFailThreshold();
 
     /**
      * @param warn The threshold to warn when creating more user keyspaces than threshold. -1 means disabled.
-     * @param abort The threshold to prevent creating more user keyspaces than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating more user keyspaces than threshold. -1 means disabled.
      */
-    void setKeyspacesThreshold(int warn, int abort);
+    void setKeyspacesThreshold(int warn, int fail);
 
     /**
      * @return The threshold to warn when creating more tables than threshold.
@@ -76,13 +63,13 @@ public interface GuardrailsMBean
      * @return The threshold to prevent creating more tables than threshold.
      * -1 means disabled.
      */
-    int getTablesAbortThreshold();
+    int getTablesFailThreshold();
 
     /**
      * @param warn The threshold to warn when creating more tables than threshold. -1 means disabled.
-     * @param abort The threshold to prevent creating more tables than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating more tables than threshold. -1 means disabled.
      */
-    void setTablesThreshold(int warn, int abort);
+    void setTablesThreshold(int warn, int fail);
 
     /**
      * @return The threshold to warn when having more columns per table than threshold.
@@ -93,13 +80,13 @@ public interface GuardrailsMBean
     /**
      * @return The threshold to prevent having more columns per table than threshold. -1 means disabled.
      */
-    int getColumnsPerTableAbortThreshold();
+    int getColumnsPerTableFailThreshold();
 
     /**
      * @param warn The threshold to warn when having more columns per table than threshold. -1 means disabled.
-     * @param abort The threshold to prevent having more columns per table than threshold. -1 means disabled.
+     * @param fail The threshold to prevent having more columns per table than threshold. -1 means disabled.
      */
-    void setColumnsPerTableThreshold(int warn, int abort);
+    void setColumnsPerTableThreshold(int warn, int fail);
 
     /**
      * @return The threshold to warn when creating more secondary indexes per table than threshold. -1 means disabled.
@@ -109,13 +96,25 @@ public interface GuardrailsMBean
     /**
      * @return The threshold to prevent creating more secondary indexes per table than threshold. -1 means disabled.
      */
-    int getSecondaryIndexesPerTableAbortThreshold();
+    int getSecondaryIndexesPerTableFailThreshold();
 
     /**
      * @param warn The threshold to warn when creating more secondary indexes per table than threshold. -1 means disabled.
-     * @param abort The threshold to prevent creating more secondary indexes per table than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating more secondary indexes per table than threshold. -1 means disabled.
      */
-    void setSecondaryIndexesPerTableThreshold(int warn, int abort);
+    void setSecondaryIndexesPerTableThreshold(int warn, int fail);
+
+    /**
+     * @return Whether secondary index creation is active or not on the node
+     */
+    boolean getSecondaryIndexesEnabled();
+
+    /**
+     * Enables or disables the ability to create secondary indexes
+     *
+     * @param enabled
+     */
+    void setSecondaryIndexesEnabled(boolean enabled);
 
     /**
      * @return The threshold to warn when creating more materialized views per table than threshold.
@@ -127,13 +126,33 @@ public interface GuardrailsMBean
      * @return The threshold to prevent creating more materialized views per table than threshold.
      * -1 means disabled.
      */
-    int getMaterializedViewsPerTableAbortThreshold();
+    int getMaterializedViewsPerTableFailThreshold();
 
     /**
      * @param warn The threshold to warn when creating more materialized views per table than threshold. -1 means disabled.
-     * @param abort The threshold to prevent creating more materialized views per table than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating more materialized views per table than threshold. -1 means disabled.
      */
-    void setMaterializedViewsPerTableThreshold(int warn, int abort);
+    void setMaterializedViewsPerTableThreshold(int warn, int fail);
+
+    /**
+     * @return properties that are warned about when creating or altering a table.
+     */
+    Set<String> getTablePropertiesWarned();
+
+    /**
+     * @return Comma-separated list of properties that are warned about when creating or altering a table.
+     */
+    String getTablePropertiesWarnedCSV();
+
+    /**
+     * @param properties properties that are warned about when creating or altering a table.
+     */
+    void setTablePropertiesWarned(Set<String> properties);
+
+    /**
+     * @param properties Comma-separated list of properties that are warned about when creating or altering a table.
+     */
+    void setTablePropertiesWarnedCSV(String properties);
 
     /**
      * @return properties that are not allowed when creating or altering a table.
@@ -190,6 +209,74 @@ public interface GuardrailsMBean
     void setUserTimestampsEnabled(boolean enabled);
 
     /**
+     * Returns whether ALLOW FILTERING property is allowed.
+     *
+     * @return {@code true} if ALLOW FILTERING is allowed, {@code false} otherwise.
+     */
+    boolean getAllowFilteringEnabled();
+
+    /**
+     * Sets whether ALLOW FILTERING is allowed.
+     *
+     * @param enabled {@code true} if ALLOW FILTERING is allowed, {@code false} otherwise.
+     */
+    void setAllowFilteringEnabled(boolean enabled);
+
+    /**
+     * Returns whether users can disable compression on tables
+     *
+     * @return {@code true} if users can disable compression on a table, {@code false} otherwise.
+     */
+    boolean getUncompressedTablesEnabled();
+
+    /**
+     * Sets whether users can disable compression on tables
+     *
+     * @param enabled {@code true} if users can disable compression on a table, {@code false} otherwise.
+     */
+    void setUncompressedTablesEnabled(boolean enabled);
+
+    /**
+     * Returns whether users can create new COMPACT STORAGE tables
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getCompactTablesEnabled();
+
+    /**
+     * Sets whether users can create new COMPACT STORAGE tables
+     *
+     * @param enabled {@code true} if allowed, {@code false} otherwise.
+     */
+    void setCompactTablesEnabled(boolean enabled);
+
+    /**
+     * Returns whether GROUP BY queries are allowed.
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getGroupByEnabled();
+
+    /**
+     * Sets whether GROUP BY queries are allowed.
+     *
+     * @param enabled {@code true} if allowed, {@code false} otherwise.
+     */
+    void setGroupByEnabled(boolean enabled);
+
+    /**
+     * Returns whether users can TRUNCATE or DROP TABLE
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDropTruncateTableEnabled();
+
+    /**
+     * Sets whether users can TRUNCATE or DROP TABLE
+     */
+    void setDropTruncateTableEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when requested page size greater than threshold.
      * -1 means disabled.
      */
@@ -199,13 +286,13 @@ public interface GuardrailsMBean
      * @return The threshold to prevent requesting page with more elements than threshold.
      * -1 means disabled.
      */
-    int getPageSizeAbortThreshold();
+    int getPageSizeFailThreshold();
 
     /**
      * @param warn The threshold to warn when the requested page size is greater than threshold. -1 means disabled.
-     * @param abort The threshold to prevent requesting pages with more elements than threshold. -1 means disabled.
+     * @param fail The threshold to prevent requesting pages with more elements than threshold. -1 means disabled.
      */
-    void setPageSizeThreshold(int warn, int abort);
+    void setPageSizeThreshold(int warn, int fail);
 
     /**
      * Returns whether list operations that require read before write are allowed.
@@ -220,4 +307,236 @@ public interface GuardrailsMBean
      * @param enabled {@code true} if list operations that require read before write are allowed, {@code false} otherwise.
      */
     void setReadBeforeWriteListOperationsEnabled(boolean enabled);
+
+    /**
+     * @return The threshold to warn when the number of partition keys in a select statement greater than threshold.
+     * -1 means disabled.
+     */
+    int getPartitionKeysInSelectWarnThreshold();
+
+    /**
+     * @return The threshold to fail when the number of partition keys in a select statement greater than threshold.
+     * -1 means disabled.
+     */
+    int getPartitionKeysInSelectFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when the number of partition keys in a select statement is greater than
+     *             threshold -1 means disabled.
+     * @param fail The threshold to prevent when the number of partition keys in a select statement is more than
+     *             threshold -1 means disabled.
+     */
+    void setPartitionKeysInSelectThreshold(int warn, int fail);
+
+    /**
+     * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductWarnThreshold();
+
+    /**
+     * @return The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
+     * -1 means disabled.
+     */
+    public int getInSelectCartesianProductFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
+     *             -1 means disabled.
+     * @param fail The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
+     *             -1 means disabled.
+     */
+    public void setInSelectCartesianProductThreshold(int warn, int fail);
+
+    /**
+     * @return consistency levels that are warned about when reading.
+     */
+    Set<String> getReadConsistencyLevelsWarned();
+
+    /**
+     * @return Comma-separated list of consistency levels that are warned about when reading.
+     */
+    String getReadConsistencyLevelsWarnedCSV();
+
+    /**
+     * @param consistencyLevels consistency levels that are warned about when reading.
+     */
+    void setReadConsistencyLevelsWarned(Set<String> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels that are warned about when reading.
+     */
+    void setReadConsistencyLevelsWarnedCSV(String consistencyLevels);
+
+    /**
+     * @return consistency levels that are not allowed when reading.
+     */
+    Set<String> getReadConsistencyLevelsDisallowed();
+
+    /**
+     * @return Comma-separated list of consistency levels that are not allowed when reading.
+     */
+    String getReadConsistencyLevelsDisallowedCSV();
+
+    /**
+     * @param consistencyLevels consistency levels that are not allowed when reading.
+     */
+    void setReadConsistencyLevelsDisallowed(Set<String> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels that are not allowed when reading.
+     */
+    void setReadConsistencyLevelsDisallowedCSV(String consistencyLevels);
+
+    /**
+     * @return consistency levels that are warned about when writing.
+     */
+    Set<String> getWriteConsistencyLevelsWarned();
+
+    /**
+     * @return Comma-separated list of consistency levels that are warned about when writing.
+     */
+    String getWriteConsistencyLevelsWarnedCSV();
+
+    /**
+     * @param consistencyLevels consistency levels that are warned about when writing.
+     */
+    void setWriteConsistencyLevelsWarned(Set<String> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels that are warned about when writing.
+     */
+    void setWriteConsistencyLevelsWarnedCSV(String consistencyLevels);
+
+    /**
+     * @return consistency levels that are not allowed when writing.
+     */
+    Set<String> getWriteConsistencyLevelsDisallowed();
+
+    /**
+     * @return Comma-separated list of consistency levels that are not allowed when writing.
+     */
+    String getWriteConsistencyLevelsDisallowedCSV();
+
+    /**
+     * @param consistencyLevels consistency levels that are not allowed when writing.
+     */
+    void setWriteConsistencyLevelsDisallowed(Set<String> consistencyLevels);
+
+    /**
+     * @param consistencyLevels Comma-separated list of consistency levels that are not allowed when writing.
+     */
+    void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
+
+    /**
+     * @return The threshold to warn when encountering larger size of collection data than threshold, as a string
+     * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
+     * means that the threshold is disabled.
+     */
+    @Nullable
+    String getCollectionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with larger data size than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means that the
+     * threshold is disabled.
+     */
+    @Nullable
+    String getCollectionSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering larger size of collection data than threshold, as a
+     *                 string formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent collections with larger data size than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null}
+     *                 value means disabled.
+     */
+    void setCollectionSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering more elements in a collection than threshold.
+     */
+    int getItemsPerCollectionWarnThreshold();
+
+    /**
+     * @return The threshold to prevent collections with more elements than threshold.
+     */
+    int getItemsPerCollectionFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when encountering more elements in a collection than threshold.
+     * @param fail The threshold to prevent collectiosn with more elements than threshold.
+     */
+    void setItemsPerCollectionThreshold(int warn, int fail);
+
+    /**
+     * @return The threshold to warn when creating a UDT with more fields than threshold. -1 means disabled.
+     */
+    int getFieldsPerUDTWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a UDT with more fields than threshold. -1 means disabled.
+     */
+    int getFieldsPerUDTFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when creating a UDT with more fields than threshold. -1 means disabled.
+     * @param fail The threshold to prevent creating a UDT with more fields than threshold. -1 means disabled.
+     */
+    void setFieldsPerUDTThreshold(int warn, int fail);
+
+    /**
+     * @return The threshold to warn when local data disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageWarnThreshold();
+
+    /**
+     * @return The threshold to fail when local data disk usage percentage exceeds that threshold.
+     * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    int getDataDiskUsagePercentageFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when local disk usage percentage exceeds that threshold.
+     *             Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     * @param fail The threshold to fail when local disk usage percentage exceeds that threshold.
+     *             Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
+     */
+    public void setDataDiskUsagePercentageThreshold(int warn, int fail);
+
+    /**
+     * @return The max disk size of the data directories when calculating disk usage thresholds, as a string formatted
+     * as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means
+     * disabled.
+     */
+    @Nullable
+    String getDataDiskUsageMaxDiskSize();
+
+    /**
+     * @param size The max disk size of the data directories when calculating disk usage thresholds, as a string
+     *             formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *             A {@code null} value means disabled.
+     */
+    void setDataDiskUsageMaxDiskSize(@Nullable String size);
+
+    /**
+     * @return The threshold to warn when replication factor is lesser threshold.
+     */
+    int getMinimumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is lesser threshold.
+     */
+    int getMinimumReplicationFactorFailThreshold();
+
+    /**
+     * @param warn the threshold to warn when the minimum replication factor is lesser than
+     *             threshold -1 means disabled.
+     * @param fail the threshold to fail when the minimum replication factor is lesser than
+     *             threshold -1 means disabled.
+     */
+    void setMinimumReplicationFactorThreshold (int warn, int fail);
+
 }

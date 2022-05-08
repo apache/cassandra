@@ -24,6 +24,8 @@ import java.util.concurrent.Future;
 import org.junit.Test;
 
 import org.junit.Assert;
+
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -68,7 +70,7 @@ public class CrcCheckChanceTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(currentTable());
         ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         Assert.assertEquals(0.99, cfs.getCrcCheckChance(), 0.0);
         Assert.assertEquals(0.99, cfs.getLiveSSTables().iterator().next().getCrcCheckChance(), 0.0);
@@ -96,19 +98,19 @@ public class CrcCheckChanceTest extends CQLTester
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         cfs.forceMajorCompaction();
 
         //Now let's change via JMX
@@ -182,10 +184,10 @@ public class CrcCheckChanceTest extends CQLTester
             execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
             execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
 
-        DatabaseDescriptor.setCompactionThroughputMbPerSec(1);
+        DatabaseDescriptor.setCompactionThroughputMebibytesPerSec(1);
         List<? extends Future<?>> futures = CompactionManager.instance.submitMaximal(cfs, CompactionManager.getDefaultGcBefore(cfs, FBUtilities.nowInSeconds()), false);
         execute("DROP TABLE %s");
 

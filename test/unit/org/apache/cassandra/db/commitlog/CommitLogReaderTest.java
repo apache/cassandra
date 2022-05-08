@@ -27,6 +27,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
@@ -261,7 +262,9 @@ public class CommitLogReaderTest extends CQLTester
         for (int i = midpoint; i < entryCount; i++)
             execute("INSERT INTO %s (idx, data) VALUES (?, ?)", i, Integer.toString(i));
 
-        Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
+        Keyspace.open(keyspace())
+                .getColumnFamilyStore(currentTable())
+                .forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         return result;
     }
 }

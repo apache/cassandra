@@ -30,8 +30,8 @@ public final class ClientRequestsMetricsHolder
     public static final CASClientRequestMetrics casReadMetrics = new CASClientRequestMetrics("CASRead");
     public static final ViewWriteMetrics viewWriteMetrics = new ViewWriteMetrics("ViewWrite");
 
-    private static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
-    private static final Map<ConsistencyLevel, ClientWriteRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
+    public static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
+    public static final Map<ConsistencyLevel, ClientWriteRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
 
     static
     {
