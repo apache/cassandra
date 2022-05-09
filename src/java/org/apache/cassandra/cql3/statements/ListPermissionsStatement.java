@@ -25,10 +25,12 @@ import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -39,17 +41,14 @@ public class ListPermissionsStatement extends AuthorizationStatement
     private static final String KS = SchemaConstants.AUTH_KEYSPACE_NAME;
     private static final String CF = "permissions"; // virtual cf to use for now.
 
-    private static final List<ColumnSpecification> metadata;
-
-    static
-    {
-        List<ColumnSpecification> columns = new ArrayList<ColumnSpecification>(4);
-        columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("role", true), UTF8Type.instance));
-        columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("username", true), UTF8Type.instance));
-        columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("resource", true), UTF8Type.instance));
-        columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("permission", true), UTF8Type.instance));
-        metadata = Collections.unmodifiableList(columns);
-    }
+    private static final List<ColumnSpecification> metadata = Collections.unmodifiableList(Arrays.asList(new ColumnSpecification(KS, CF, new ColumnIdentifier("role", true), UTF8Type.instance),
+                                                                                                         new ColumnSpecification(KS, CF, new ColumnIdentifier("username", true), UTF8Type.instance),
+                                                                                                         new ColumnSpecification(KS, CF, new ColumnIdentifier("resource", true), UTF8Type.instance),
+                                                                                                         new ColumnSpecification(KS, CF, new ColumnIdentifier("permission", true), UTF8Type.instance),
+                                                                                                         new ColumnSpecification(KS, CF, new ColumnIdentifier("granted", true), BooleanType.instance),
+                                                                                                         new ColumnSpecification(KS, CF, new ColumnIdentifier("restricted", true), BooleanType.instance),
+                                                                                                         new ColumnSpecification(KS, CF, new ColumnIdentifier("grantable", true), BooleanType.instance)
+                                                                                                     ));
 
     protected final Set<Permission> permissions;
     protected IResource resource;
@@ -78,6 +77,13 @@ public class ListPermissionsStatement extends AuthorizationStatement
 
         if ((grantee != null) && !DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
             throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
+
+        // If the user requesting 'LIST PERMISSIONS' is not a superuser OR their username doesn't match 'grantee', we
+        // throw UnauthorizedException. So only a superuser can view everybody's permissions. Regular users are only
+        // allowed to see their own permissions.
+        if (!(state.getUser().isSuper() || state.getUser().isSystem()) && !state.getUser().getRoles().contains(grantee))
+            throw new UnauthorizedException(String.format("You are not authorized to view %s's permissions",
+                                                          grantee == null ? "everyone" : grantee.getRoleName()));
    }
 
     public void authorize(ClientState state)
@@ -88,7 +94,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
     // TODO: Create a new ResultMessage type (?). Rows will do for now.
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        List<PermissionDetails> details = new ArrayList<PermissionDetails>();
+        List<PermissionDetails> details = new ArrayList<>();
 
         if (resource != null && recursive)
         {
@@ -109,7 +115,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
     {
         try
         {
-            return DatabaseDescriptor.getAuthorizer().list(state.getUser(), permissions, resource, grantee);
+            return DatabaseDescriptor.getAuthorizer().list(permissions, resource, grantee);
         }
         catch (UnsupportedOperationException e)
         {
@@ -130,6 +136,9 @@ public class ListPermissionsStatement extends AuthorizationStatement
             result.addColumnValue(UTF8Type.instance.decompose(pd.grantee));
             result.addColumnValue(UTF8Type.instance.decompose(pd.resource.toString()));
             result.addColumnValue(UTF8Type.instance.decompose(pd.permission.toString()));
+            result.addColumnValue(BooleanType.instance.decompose(pd.modes.contains(GrantMode.GRANT)));
+            result.addColumnValue(BooleanType.instance.decompose(pd.modes.contains(GrantMode.RESTRICT)));
+            result.addColumnValue(BooleanType.instance.decompose(pd.modes.contains(GrantMode.GRANTABLE)));
         }
         return new ResultMessage.Rows(result);
     }

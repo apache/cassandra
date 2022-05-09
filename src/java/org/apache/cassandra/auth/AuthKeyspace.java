@@ -76,6 +76,7 @@ public final class AuthKeyspace
               + "member text,"
               + "PRIMARY KEY(role, member))");
 
+    // role_permissions contains the permissions a role is actually granted on a resource
     private static final TableMetadata RolePermissions =
         parse(ROLE_PERMISSIONS,
               "permissions granted to db roles",
@@ -83,6 +84,8 @@ public final class AuthKeyspace
               + "role text,"
               + "resource text,"
               + "permissions set<text>,"
+              + "restricted set<text>,"
+              + "grantables set<text>,"
               + "PRIMARY KEY(role, resource))");
 
     private static final TableMetadata ResourceRoleIndex =

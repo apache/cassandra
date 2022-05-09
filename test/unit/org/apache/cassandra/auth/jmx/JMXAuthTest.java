@@ -203,7 +203,8 @@ public class JMXAuthTest extends CQLTester
         DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
                                                  ImmutableSet.of(permission),
                                                  resource,
-                                                 role);
+                                                 role,
+                                                 GrantMode.GRANT);
     }
 
     private void assertAuthorized(MBeanAction action)

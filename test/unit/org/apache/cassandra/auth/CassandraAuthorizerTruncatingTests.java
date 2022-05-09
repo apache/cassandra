@@ -20,12 +20,12 @@ package org.apache.cassandra.auth;
 
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Set;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.auth.AuthTestUtils.LocalCassandraRoleManager;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -34,7 +34,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
-import static org.apache.cassandra.auth.AuthTestUtils.LocalCassandraRoleManager;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_1;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_2;
@@ -91,28 +90,28 @@ public class CassandraAuthorizerTruncatingTests extends CQLTester
 
         CassandraAuthorizer authorizer = new CassandraAuthorizer();
         // Granted on ks1.t1: B1 -> {SELECT, MODIFY}, B2 -> {AUTHORIZE}, so B -> {SELECT, MODIFY, AUTHORIZE}
-        authorizer.grant(AuthenticatedUser.SYSTEM_USER, EnumSet.of(Permission.SELECT, Permission.MODIFY), table1, ROLE_B_1);
-        authorizer.grant(AuthenticatedUser.SYSTEM_USER, EnumSet.of(Permission.AUTHORIZE), table1, ROLE_B_2);
+        authorizer.grant(AuthenticatedUser.SYSTEM_USER, EnumSet.of(Permission.SELECT, Permission.MODIFY), table1, ROLE_B_1, GrantMode.GRANT);
+        authorizer.grant(AuthenticatedUser.SYSTEM_USER, EnumSet.of(Permission.AUTHORIZE), table1, ROLE_B_2, GrantMode.GRANT);
 
         // Granted on ks2.t2: C1 -> {SELECT, MODIFY}, C2 -> {AUTHORIZE}, so C -> {SELECT, MODIFY, AUTHORIZE}
-        authorizer.grant(AuthenticatedUser.SYSTEM_USER, EnumSet.of(Permission.SELECT, Permission.MODIFY), table2, ROLE_C_1);
-        authorizer.grant(AuthenticatedUser.SYSTEM_USER, EnumSet.of(Permission.AUTHORIZE), table2, ROLE_C_2);
+        authorizer.grant(AuthenticatedUser.SYSTEM_USER, EnumSet.of(Permission.SELECT, Permission.MODIFY), table2, ROLE_C_1, GrantMode.GRANT);
+        authorizer.grant(AuthenticatedUser.SYSTEM_USER, EnumSet.of(Permission.AUTHORIZE), table2, ROLE_C_2, GrantMode.GRANT);
 
-        Map<Pair<AuthenticatedUser, IResource>, Set<Permission>> cacheEntries = authorizer.bulkLoader().get();
+        Map<Pair<AuthenticatedUser, IResource>, PermissionSets> cacheEntries = authorizer.bulkLoader().get();
 
         // Only ROLE_B and ROLE_C have LOGIN privs, so only they should be in the cached
         assertEquals(2, cacheEntries.size());
         assertEquals(EnumSet.of(Permission.SELECT, Permission.MODIFY, Permission.AUTHORIZE),
-                     cacheEntries.get(Pair.create(new AuthenticatedUser(ROLE_B.getRoleName()), table1)));
+                     cacheEntries.get(Pair.create(new AuthenticatedUser(ROLE_B.getRoleName()), table1)).granted);
         assertEquals(EnumSet.of(Permission.SELECT, Permission.MODIFY, Permission.AUTHORIZE),
-                     cacheEntries.get(Pair.create(new AuthenticatedUser(ROLE_C.getRoleName()), table2)));
+                     cacheEntries.get(Pair.create(new AuthenticatedUser(ROLE_C.getRoleName()), table2)).granted);
     }
 
     @Test
     public void testBulkLoadingForAuthCachWithEmptyTable()
     {
         CassandraAuthorizer authorizer = new CassandraAuthorizer();
-        Map<Pair<AuthenticatedUser, IResource>, Set<Permission>> cacheEntries = authorizer.bulkLoader().get();
+        Map<Pair<AuthenticatedUser, IResource>, PermissionSets> cacheEntries = authorizer.bulkLoader().get();
         assertTrue(cacheEntries.isEmpty());
     }
 }

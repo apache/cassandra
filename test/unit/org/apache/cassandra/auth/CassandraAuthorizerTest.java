@@ -51,7 +51,7 @@ public class CassandraAuthorizerTest extends CQLTester
         executeNet(format("CREATE ROLE %s WITH login=true AND password='%s'", PARENT, PASSWORD));
         executeNet(format("GRANT CREATE ON ALL ROLES TO %s", PARENT));
         assertRowsNet(executeNet(format("LIST ALL PERMISSIONS OF %s", PARENT)),
-                      row(PARENT, PARENT, "<all roles>", "CREATE"));
+                      row(PARENT, PARENT, "<all roles>", "CREATE", true, false, false));
 
         // create other role by super user
         executeNet(format("CREATE ROLE %s WITH login=true AND password='%s'", OTHER, PASSWORD));
@@ -64,12 +64,13 @@ public class CassandraAuthorizerTest extends CQLTester
 
         // list permissions by parent
         assertRowsNet(executeNet(format("LIST ALL PERMISSIONS OF %s", PARENT)),
-                      row(PARENT, PARENT, "<all roles>", "CREATE"),
-                      row(PARENT, PARENT, "<role child>", "ALTER"),
-                      row(PARENT, PARENT, "<role child>", "DROP"),
-                      row(PARENT, PARENT, "<role child>", "AUTHORIZE"),
-                      row(PARENT, PARENT, "<role child>", "DESCRIBE"));
-        assertRowsNet(executeNet(format("LIST ALL PERMISSIONS OF %s", CHILD)));
+                      row(PARENT, PARENT, "<all roles>", "CREATE", true, false, false),
+                      row(PARENT, PARENT, "<role child>", "ALTER", true, false, false),
+                      row(PARENT, PARENT, "<role child>", "DROP", true, false, false),
+                      row(PARENT, PARENT, "<role child>", "AUTHORIZE", true, false, false),
+                      row(PARENT, PARENT, "<role child>", "DESCRIBE", true, false, false));
+        assertInvalidMessageNet(format("You are not authorized to view %s's permissions", CHILD),
+                                format("LIST ALL PERMISSIONS OF %s", CHILD));
         assertInvalidMessageNet(format("You are not authorized to view %s's permissions", OTHER),
                                 format("LIST ALL PERMISSIONS OF %s", OTHER));
 

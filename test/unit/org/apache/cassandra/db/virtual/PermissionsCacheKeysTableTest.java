@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.DataResource;
+import org.apache.cassandra.auth.GrantMode;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.IRoleManager;
@@ -71,9 +72,11 @@ public class PermissionsCacheKeysTableTest extends CQLTester
         for (IResource resource : resources)
         {
             Set<Permission> permissions = resource.applicablePermissions();
-            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
-            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
+            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A, GrantMode.GRANT);
+            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B, GrantMode.GRANT);
         }
+
+        CQLTester.requireNetwork();
     }
 
     @Before
@@ -106,10 +109,15 @@ public class PermissionsCacheKeysTableTest extends CQLTester
         cachePermissionsForResource(ROLE_A, DataResource.keyspace(KEYSPACE));
         cachePermissionsForResource(ROLE_B, DataResource.table(KEYSPACE, "t1"));
 
-        assertRows(execute("SELECT * FROM vts.permissions_cache_keys"),
+        assertRowsIgnoringOrder(execute("SELECT * FROM vts.permissions_cache_keys"),
+                // Check the mandatory entries
                 row("role_a", "data"),
                 row("role_a", "data/cql_test_keyspace"),
-                row("role_b", "data/cql_test_keyspace/t1"));
+                row("role_b", "data/cql_test_keyspace/t1"),
+                // Check also entries for the full chain.
+                row("role_b", "data"),
+                row("role_b", "data/cql_test_keyspace"),
+                row("role_b", "data/cql_test_keyspace/*"));
     }
 
     @Test
@@ -181,6 +189,6 @@ public class PermissionsCacheKeysTableTest extends CQLTester
     private void cachePermissionsForResource(RoleResource roleResource, IResource resource)
     {
         AuthenticatedUser role = new AuthenticatedUser(roleResource.getRoleName());
-        role.getPermissions(resource);
+        role.resourceChainPermissions(resource);
     }
 }

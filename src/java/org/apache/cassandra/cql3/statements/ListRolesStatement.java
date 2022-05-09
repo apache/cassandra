@@ -82,9 +82,11 @@ public class ListRolesStatement extends AuthorizationStatement
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         // If the executing user has DESCRIBE permission on the root roles resource, let them list any and all roles
-        boolean hasRootLevelSelect = DatabaseDescriptor.getAuthorizer()
-                                                       .authorize(state.getUser(), RoleResource.root())
-                                                       .contains(Permission.DESCRIBE);
+        PermissionSets rootLevelPerms = DatabaseDescriptor.getAuthorizer()
+                                                          .allPermissionSets(state.getUser(), RoleResource.root());
+        boolean hasRootLevelSelect = rootLevelPerms != null
+                                     && rootLevelPerms.granted.contains(Permission.DESCRIBE)
+                                     && !rootLevelPerms.restricted.contains(Permission.DESCRIBE);
         if (hasRootLevelSelect)
         {
             if (grantee == null)

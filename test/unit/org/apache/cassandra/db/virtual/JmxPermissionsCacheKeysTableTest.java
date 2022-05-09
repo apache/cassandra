@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.CassandraPrincipal;
+import org.apache.cassandra.auth.GrantMode;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.IRoleManager;
@@ -74,8 +75,8 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
         for (IResource resource : resources)
         {
             Set<Permission> permissions = resource.applicablePermissions();
-            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
-            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
+            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A, GrantMode.GRANT);
+            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B, GrantMode.GRANT);
         }
 
         startJMXServer();

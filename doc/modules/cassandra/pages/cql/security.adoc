@@ -352,6 +352,7 @@ The full set of available permissions is:
 * `AUTHORIZE`
 * `DESCRIBE`
 * `EXECUTE`
+* `AUTHORIZE FOR`
 
 Not all permissions are applicable to every type of resource. For
 instance, `EXECUTE` is only relevant in the context of functions or
@@ -454,6 +455,8 @@ keyspace
 
 | `AUTHORIZE` | `ROLES` | `GRANT ROLE` and `REVOKE ROLE` on specified roles
 
+| `AUTHORIZE FOR` | `PERMISSION` | Authorize a user to `GRANT` and `REVOKE` permissions to another user
+
 | `DESCRIBE` | `ALL ROLES` | `LIST ROLES` on all roles or only roles granted to another, specified role
 
 | `DESCRIBE` | `ALL MBEANS` | Retrieve metadata about any mbean from the platform's MBeanServer
@@ -538,6 +541,29 @@ and all roles in the system with a `LIST ROLES` statement.
 When the `GRANT ALL` form is used, the appropriate set of permissions is
 determined automatically based on the target resource.
 
+=== GRANT AUTHORIZE FOR
+
+AKA Separation of duties, this enables certain users to manage permissions without having access to the data. Think of a hospital with patient data which is very sensitive information. IT should be able to grant/revoke/restrict access to the data without having access to the data itself. This is the clear separation of duties between admins and users of the database.
+
+An example is along the lines:
+
+[source,cql]
+----
+As a superuser:
+CREATE KEYSPACE patientdata …;
+CREATE ROLE security_admin;
+GRANT security_admin TO admin_guy;
+GRANT AUTHORIZE FOR SELECT, MODIFY, EXECUTE ON patientdata TO security_admin;
+RESTRICT SELECT, MODIFY, EXECUTE ON KEYSPACE patientdata TO security_admin;
+
+As a security admin:
+GRANT SELECT ON patientdata TO new_nurse;
+GRANT SELECT, MODIFY ON patientdata TO doctor_house;
+----
+
+Notice the usages of `GRANT AUTHORIZE FOR`, `RESTRICT` and `UNRESTRICT` commands.
+
+
 ==== Automatic Granting
 
 When a resource is created, via a `CREATE KEYSPACE`, `CREATE TABLE`,
@@ -614,3 +640,23 @@ include::example$CQL/list_select_perm.cql[]
 
 Show any permissions granted to `carlos` or any of `carlos`'s roles,
 limited to `SELECT` permissions on any resource.
+
+[[restrict-permissions-statement]]
+=== RESTRICT STATEMENT
+
+On separation of duties a user should be able to grant and revoke permissions but without having access to the data. The `RESTRICT` command allows the superuser to place such restriction. See `GRANT AUTHORIZE FOR` and Separation of duties for examples. 
+
+[source, bnf]
+----
+include::example$BNF/restrict_statement.bnf[]
+----
+
+[[unrestrict-permissions-statement]]
+=== UNRESTRICT STATEMENT
+
+On separation of duties a user should be able to grant and revoke permissions but without having access to the data. The `RESTRICT` command allows the superuser to place such restriction. The `UNRESTRICT` command allows the superuser to modify such restriction.
+
+[source, bnf]
+----
+include::example$BNF/restrict_statement.bnf[]
+----

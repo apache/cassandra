@@ -33,6 +33,7 @@ import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
+import org.apache.cassandra.auth.GrantMode;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.IRoleManager;
@@ -81,11 +82,12 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         for (IResource resource : resources)
         {
             Set<Permission> permissions = resource.applicablePermissions();
-            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
-            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
+            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A, GrantMode.GRANT);
+            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B, GrantMode.GRANT);
         }
 
         startJMXServer();
+        CQLTester.requireNetwork();
     }
 
     @Test
@@ -255,8 +257,8 @@ public class InvalidatePermissionsCacheTest extends CQLTester
 
         FunctionResource resource = FunctionResource.function(KEYSPACE, functionName, Collections.singletonList(Int32Type.instance));
         Set<Permission> permissions = resource.applicablePermissions();
-        DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
-        DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
+        DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A, GrantMode.GRANT);
+        DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B, GrantMode.GRANT);
 
         assertInvalidation(resource,
                 Arrays.asList("--functions-in-keyspace", KEYSPACE, "--function", functionName + "[Int32Type]"));
@@ -269,11 +271,11 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         AuthenticatedUser role = new AuthenticatedUser(ROLE_A.getRoleName());
 
         // cache permission
-        role.getPermissions(resource);
+        role.resourceChainPermissions(resource);
         long originalReadsCount = getRolePermissionsReadCount();
 
-        // enure permission is cached
-        assertThat(role.getPermissions(resource)).isEqualTo(dataPermissions);
+        // ensure permission is cached
+        assertThat(role.resourceChainPermissions(resource).allContainedPermissions()).isEqualTo(dataPermissions);
         assertThat(originalReadsCount).isEqualTo(getRolePermissionsReadCount());
 
         // invalidate permission
@@ -286,7 +288,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         assertThat(tool.getStdout()).isEmpty();
 
         // ensure permission is reloaded
-        assertThat(role.getPermissions(resource)).isEqualTo(dataPermissions);
+        assertThat(role.resourceChainPermissions(resource).allContainedPermissions()).isEqualTo(dataPermissions);
         assertThat(originalReadsCount).isLessThan(getRolePermissionsReadCount());
     }
 
@@ -300,13 +302,13 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         AuthenticatedUser roleB = new AuthenticatedUser(ROLE_B.getRoleName());
 
         // cache permissions
-        roleA.getPermissions(rootDataResource);
-        roleB.getPermissions(rootDataResource);
+        roleA.resourceChainPermissions(rootDataResource);
+        roleB.resourceChainPermissions(rootDataResource);
         long originalReadsCount = getRolePermissionsReadCount();
 
         // enure permissions are cached
-        assertThat(roleA.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
-        assertThat(roleB.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(roleA.resourceChainPermissions(rootDataResource).allContainedPermissions()).isEqualTo(dataPermissions);
+        assertThat(roleB.resourceChainPermissions(rootDataResource).allContainedPermissions()).isEqualTo(dataPermissions);
         assertThat(originalReadsCount).isEqualTo(getRolePermissionsReadCount());
 
         // invalidate both permissions
@@ -315,12 +317,12 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         assertThat(tool.getStdout()).isEmpty();
 
         // ensure permission for roleA is reloaded
-        assertThat(roleA.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(roleA.resourceChainPermissions(rootDataResource).allContainedPermissions()).isEqualTo(dataPermissions);
         long readsCountAfterFirstReLoad = getRolePermissionsReadCount();
         assertThat(originalReadsCount).isLessThan(readsCountAfterFirstReLoad);
 
         // ensure permission for roleB is reloaded
-        assertThat(roleB.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(roleB.resourceChainPermissions(rootDataResource).allContainedPermissions()).isEqualTo(dataPermissions);
         long readsCountAfterSecondReLoad = getRolePermissionsReadCount();
         assertThat(readsCountAfterFirstReLoad).isLessThan(readsCountAfterSecondReLoad);
     }

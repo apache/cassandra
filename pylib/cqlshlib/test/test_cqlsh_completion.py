@@ -164,7 +164,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING', 'REVOKE',
                                          'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'SERIAL', 'TRUNCATE',
-                                         'UPDATE', 'USE', 'exit', 'quit', 'CLEAR', 'CLS'))
+                                         'UPDATE', 'USE', 'exit', 'quit', 'CLEAR', 'CLS', 'UNRESTRICT', 'RESTRICT'))
 
     def test_complete_command_words(self):
         self.trycompletions('alt', '\b\b\bALTER ')
@@ -251,7 +251,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                      'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
                      'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'SERIAL', 'TRACING',
                      'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit',
-                     'CLEAR', 'CLS'])
+                     'CLEAR', 'CLS', 'UNRESTRICT', 'RESTRICT'])
 
         self.trycompletions(
             ("INSERT INTO twenty_rows_composite_table (a, b, c) "
@@ -870,9 +870,40 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("GRANT MODIFY PERMISSION ON KEYSPACE system_tr",
                             immediate='aces TO ')
 
+    def test_complete_in_restrict(self):
+        self.trycompletions("RES",
+                            immediate='TRICT ')
+        self.trycompletions("RESTRICT ",
+                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT'],
+                            other_choices_ok=True)
+        self.trycompletions("RESTRICT MODIFY ",
+                            choices=[',', 'ON', 'PERMISSION'])
+        self.trycompletions("RESTRICT MODIFY P",
+                            immediate='ERMISSION ')
+        self.trycompletions("RESTRICT MODIFY PERMISSION ",
+                            choices=[',', 'ON'])
+        self.trycompletions("RESTRICT MODIFY PERMISSION, ",
+                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT'])
+        self.trycompletions("RESTRICT MODIFY PERMISSION, D",
+                            choices=['DESCRIBE', 'DROP'])
+        self.trycompletions("RESTRICT MODIFY PERMISSION, DR",
+                            immediate='OP ')
+        self.trycompletions("RESTRICT MODIFY PERMISSION, DROP O",
+                            immediate='N ')
+        self.trycompletions("RESTRICT MODIFY, DROP ON ",
+                            choices=['ALL', 'KEYSPACE', 'MBEANS', 'ROLE', 'FUNCTION', 'MBEAN', 'TABLE'],
+                            other_choices_ok=True)
+        self.trycompletions("RESTRICT MODIFY, DROP ON ALL ",
+                            choices=['KEYSPACES', 'TABLES'],
+                            other_choices_ok=True)
+        self.trycompletions("RESTRICT MODIFY PERMISSION ON KEY",
+                            immediate='SPACE ')
+        self.trycompletions("RESTRICT MODIFY PERMISSION ON KEYSPACE system_tr",
+                            immediate='aces TO ')
+
     def test_complete_in_revoke(self):
-        self.trycompletions("RE",
-                            immediate='VOKE ')
+        self.trycompletions("REV",
+                            immediate='OKE ')
         self.trycompletions("REVOKE ",
                             choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT'],
                             other_choices_ok=True)
@@ -901,6 +932,39 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("REVOKE MODIFY PERMISSION, DROP ON KEY",
                             immediate='SPACE ')
         self.trycompletions("REVOKE MODIFY PERMISSION, DROP ON KEYSPACE system_tr",
+                            immediate='aces FROM ')
+
+    def test_complete_in_unrestrict(self):
+        self.trycompletions("UNR",
+                            immediate='ESTRICT ')
+        self.trycompletions("UNRESTRICT ",
+                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT'],
+                            other_choices_ok=True)
+        self.trycompletions("UNRESTRICT MODIFY ",
+                            choices=[',', 'ON', 'PERMISSION'])
+        self.trycompletions("UNRESTRICT MODIFY P",
+                            immediate='ERMISSION ')
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION ",
+                            choices=[',', 'ON'])
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION, ",
+                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT'])
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION, D",
+                            choices=['DESCRIBE', 'DROP'])
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION, DR",
+                            immediate='OP ')
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION, DROP ",
+                            choices=[',', 'ON', 'PERMISSION'])
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION, DROP O",
+                            immediate='N ')
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION, DROP ON ",
+                            choices=['ALL', 'KEYSPACE', 'MBEANS', 'ROLE', 'FUNCTION', 'MBEAN', 'TABLE'],
+                            other_choices_ok=True)
+        self.trycompletions("UNRESTRICT MODIFY, DROP ON ALL ",
+                            choices=['KEYSPACES', 'TABLES'],
+                            other_choices_ok=True)
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION, DROP ON KEY",
+                            immediate='SPACE ')
+        self.trycompletions("UNRESTRICT MODIFY PERMISSION, DROP ON KEYSPACE system_tr",
                             immediate='aces FROM ')
 
     def test_complete_in_alter_table(self):

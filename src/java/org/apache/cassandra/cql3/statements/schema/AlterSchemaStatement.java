@@ -22,6 +22,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.GrantMode;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -148,7 +149,8 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
                               .grant(AuthenticatedUser.SYSTEM_USER,
                                      resource.applicablePermissions(),
                                      resource,
-                                     user.getPrimaryRole());
+                                     user.getPrimaryRole(),
+                                     GrantMode.GRANT);
         }
         catch (UnsupportedOperationException e)
         {

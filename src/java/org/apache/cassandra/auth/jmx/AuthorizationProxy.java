@@ -472,10 +472,11 @@ public class AuthorizationProxy implements InvocationHandler
         // get all permissions for the specified subject. We'll cache them as it's likely
         // we'll receive multiple lookups for the same subject (but for different resources
         // and permissions) in quick succession
-        return DatabaseDescriptor.getAuthorizer().list(AuthenticatedUser.SYSTEM_USER, Permission.ALL, null, subject)
-                                                 .stream()
-                                                 .filter(details -> details.resource instanceof JMXResource)
-                                                 .collect(Collectors.toSet());
+        return DatabaseDescriptor.getAuthorizer()
+                                 .list(Permission.ALL, null, subject)
+                                 .stream()
+                                 .filter(details -> details.resource instanceof JMXResource)
+                                 .collect(Collectors.toSet());
     }
 
     public static final class JmxPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>

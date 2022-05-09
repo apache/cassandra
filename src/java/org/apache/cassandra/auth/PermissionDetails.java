@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Set;
+
 import com.google.common.base.Objects;
 import com.google.common.collect.ComparisonChain;
 
@@ -29,12 +31,14 @@ public class PermissionDetails implements Comparable<PermissionDetails>
     public final String grantee;
     public final IResource resource;
     public final Permission permission;
+    public final Set<GrantMode> modes;
 
-    public PermissionDetails(String grantee, IResource resource, Permission permission)
+    public PermissionDetails(String grantee, IResource resource, Permission permission, Set<GrantMode> modes)
     {
         this.grantee = grantee;
         this.resource = resource;
         this.permission = permission;
+        this.modes = modes;
     }
 
     @Override

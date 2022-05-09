@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.auth.GrantMode;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
@@ -35,15 +36,15 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class GrantPermissionsStatement extends PermissionsManagementStatement
 {
-    public GrantPermissionsStatement(Set<Permission> permissions, IResource resource, RoleName grantee)
+    public GrantPermissionsStatement(Set<Permission> permissions, IResource resource, RoleName grantee, GrantMode grantMode)
     {
-        super(permissions, resource, grantee);
+        super(permissions, resource, grantee, grantMode);
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
-        Set<Permission> granted = authorizer.grant(state.getUser(), permissions, resource, grantee);
+        Set<Permission> granted = authorizer.grant(state.getUser(), permissions, resource, grantee, grantMode);
 
         // We want to warn the client if all the specified permissions have not been granted and the client did
         // not specify ALL in the query.

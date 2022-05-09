@@ -247,6 +247,8 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st39=dropMaterializedViewStatement   { $stmt = st39; }
     | st40=alterMaterializedViewStatement  { $stmt = st40; }
     | st41=describeStatement               { $stmt = st41; }
+    | st42=restrictPermissionsStatement    { $stmt = st42; }
+    | st43=unrestrictPermissionsStatement  { $stmt = st43; }
     ;
 
 /*
@@ -1052,26 +1054,60 @@ truncateStatement returns [TruncateStatement stmt]
  * GRANT <permission>[, <permission>]* | ALL ON <resource> TO <rolename>
  */
 grantPermissionsStatement returns [GrantPermissionsStatement stmt]
+    @init{
+        GrantMode grantOption = GrantMode.GRANT;
+    }
     : K_GRANT
+          ( K_AUTHORIZE K_FOR { grantOption = GrantMode.GRANTABLE; } )?
           permissionOrAll
       K_ON
           resource
       K_TO
           grantee=userOrRoleName
-      { $stmt = new GrantPermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, grantee); }
+      { $stmt = new GrantPermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, grantee, grantOption); }
     ;
 
 /**
  * REVOKE <permission>[, <permission>]* | ALL ON <resource> FROM <rolename>
  */
 revokePermissionsStatement returns [RevokePermissionsStatement stmt]
+	@init{
+        GrantMode grantMode = GrantMode.GRANT;
+    }
     : K_REVOKE
+          ( K_AUTHORIZE K_FOR { grantMode = GrantMode.GRANTABLE; } )?
           permissionOrAll
       K_ON
           resource
       K_FROM
           revokee=userOrRoleName
-      { $stmt = new RevokePermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, revokee); }
+      { $stmt = new RevokePermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, revokee, grantMode); }
+    ;
+
+/**
+ * RESTRICT <permission> ON <resource> TO <rolename>
+ */
+restrictPermissionsStatement returns [GrantPermissionsStatement stmt]
+    : K_RESTRICT
+          permissionOrAll
+      K_ON
+          resource
+      K_TO
+          grantee=userOrRoleName
+      { $stmt = new GrantPermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, grantee, GrantMode.RESTRICT); }
+    ;
+
+/**
+ * UNRESTRICT <permission> ON <resource> FROM <rolename>
+ */
+unrestrictPermissionsStatement returns [RevokePermissionsStatement stmt]
+    : K_UNRESTRICT
+          permissionOrAll
+      K_ON
+          resource
+      K_FROM
+          revokee=userOrRoleName
+      { $stmt = new RevokePermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, revokee, GrantMode.RESTRICT); }
     ;
 
 /**
@@ -1939,5 +1975,9 @@ basic_unreserved_keyword returns [String str]
         | K_MBEANS
         | K_REPLACE
         | K_UNSET
+        | K_RESOURCE
+        | K_FOR
+        | K_RESTRICT
+        | K_UNRESTRICT
         ) { $str = $k.text; }
     ;
