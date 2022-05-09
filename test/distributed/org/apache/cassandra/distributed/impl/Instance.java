@@ -731,20 +731,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return shutdown(true);
     }
 
-    private static void shutdownHintService() throws ExecutionException, InterruptedException
-    {
-        // this is to allow shutdown in the case hints were halted already
-        try
-        {
-            HintsService.instance.shutdownBlocking();
-        }
-        catch (IllegalStateException e)
-        {
-            if (!"HintsService has already been shut down".equals(e.getMessage()))
-                throw e;
-        }
-    }
-
     @Override
     public Future<Void> shutdown(boolean graceful)
     {
@@ -765,11 +751,25 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
 
+            // trigger init early or else it could try to init and touch a thread pool that got shutdown
+            HintsService hints = HintsService.instance;
+            ThrowingRunnable shutdownHints = () -> {
+                // this is to allow shutdown in the case hints were halted already
+                try
+                {
+                    HintsService.instance.shutdownBlocking();
+                }
+                catch (IllegalStateException e)
+                {
+                    if (!"HintsService has already been shut down".equals(e.getMessage()))
+                        throw e;
+                }
+            };
             error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
                                 CompactionManager.instance::forceShutdown,
                                 () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
-                                Instance::shutdownHintService,
+                                shutdownHints,
                                 () -> CompactionLogger.shutdownNowAndWait(1L, MINUTES),
                                 () -> AuthCache.shutdownAllAndWait(1L, MINUTES),
                                 () -> Sampler.shutdownNowAndWait(1L, MINUTES),
