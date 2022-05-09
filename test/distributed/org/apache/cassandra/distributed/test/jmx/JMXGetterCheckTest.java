@@ -48,7 +48,7 @@ import static org.apache.cassandra.cql3.CQLTester.getAutomaticallyAllocatedPort;
 public class JMXGetterCheckTest extends TestBaseImpl
 {
     private static final Set<String> IGNORE_ATTRIBUTES = ImmutableSet.of(
-    "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost" // throws unsupported saying the feature was removed... this feels like a regression...
+    "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost" // throws unsupported saying the feature was removed... dropped in CASSANDRA-15375
     );
     private static final Set<String> IGNORE_OPERATIONS = ImmutableSet.of(
     "org.apache.cassandra.db:type=StorageService:stopDaemon", // halts the instance, which then causes the JVM to exit
