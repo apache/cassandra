@@ -25,10 +25,11 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.db.IMutation.MAX_MUTATION_SIZE;
 
-public class MutationExceededMaxSizeException extends RuntimeException
+public class MutationExceededMaxSizeException extends InvalidRequestException
 {
     public static final int PARTITION_MESSAGE_LIMIT = 1024;
 
@@ -52,7 +53,7 @@ public class MutationExceededMaxSizeException extends RuntimeException
                                              .collect(Collectors.toList());
 
         String topKeys = makeTopKeysString(topPartitions, PARTITION_MESSAGE_LIMIT);
-        return String.format("Encountered an oversized mutation (%d/%d) for keyspace: %s. Top keys are: %s",
+        return String.format("Rejected an oversized mutation (%d/%d) for keyspace: %s. Top keys are: %s",
                              totalSize,
                              MAX_MUTATION_SIZE,
                              mutation.getKeyspaceName(),
