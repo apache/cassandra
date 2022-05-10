@@ -355,7 +355,6 @@ public abstract class AbstractFuture<V> implements Future<V>
             catch (Throwable t)
             {
                 result.tryFailure(t);
-                throw t;
             }
         }, executor);
         return result;
@@ -377,7 +376,6 @@ public abstract class AbstractFuture<V> implements Future<V>
             catch (Throwable t)
             {
                 result.tryFailure(t);
-                throw t;
             }
         }, executor);
         return result;
