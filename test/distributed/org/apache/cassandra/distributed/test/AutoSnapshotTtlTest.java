@@ -36,6 +36,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.db.ColumnFamilyStore.SNAPSHOT_DROP_PREFIX;
 import static org.apache.cassandra.db.ColumnFamilyStore.SNAPSHOT_TRUNCATE_PREFIX;
 import static org.apache.cassandra.distributed.Cluster.build;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.awaitility.Awaitility.await;
 
 public class AutoSnapshotTtlTest extends TestBaseImpl
@@ -114,6 +115,41 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
 
             // Check snapshot is removed after 10s
             await().timeout(10, SECONDS)
+                   .pollInterval(1, SECONDS)
+                   .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
+        }
+    }
+
+    /**
+     * Check that when auto_snapshot_ttl=5s, snapshots created from TRUNCATE are expired after 10s
+     */
+    @Test
+    public void testAutoSnapshotTTlOnDropAfterRestart() throws IOException
+    {
+        int TWENTY_SECONDS = 20; // longer TTL to allow snapshot to survive node restart
+        try (Cluster cluster = init(build().withNodes(1)
+                                           .withConfig(c -> c.with(Feature.GOSSIP)
+                                                             .set("auto_snapshot_ttl", String.format("%ds", TWENTY_SECONDS)))
+                                           .start()))
+        {
+            IInvokableInstance instance = cluster.get(1);
+
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
+
+            populate(cluster);
+
+            // Drop Table
+            cluster.schemaChange(withKeyspace("DROP TABLE %s.tbl;"));
+
+            // Restart node
+            stopUnchecked(instance);
+            instance.startup();
+
+            // Check snapshot is listed after restart
+            instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_DROP_PREFIX);
+
+            // Check snapshot is removed after at most 21s
+            await().timeout(TWENTY_SECONDS + 1, SECONDS)
                    .pollInterval(1, SECONDS)
                    .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
         }
