@@ -38,6 +38,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -4037,67 +4039,73 @@ public class DatabaseDescriptor
         }
     }
 
+    @Nullable
     public static DataStorageSpec getCoordinatorReadSizeWarnThreshold()
     {
         return conf.coordinator_read_size_warn_threshold;
     }
 
-    public static void setCoordinatorReadSizeWarnThreshold(DataStorageSpec value)
+    public static void setCoordinatorReadSizeWarnThreshold(@Nullable DataStorageSpec value)
     {
         logger.info("updating  coordinator_read_size_warn_threshold to {}", value);
         conf.coordinator_read_size_warn_threshold = value;
     }
 
+    @Nullable
     public static DataStorageSpec getCoordinatorReadSizeFailThreshold()
     {
         return conf.coordinator_read_size_fail_threshold;
     }
 
-    public static void setCoordinatorReadSizeFailThreshold(DataStorageSpec value)
+    public static void setCoordinatorReadSizeFailThreshold(@Nullable DataStorageSpec value)
     {
         logger.info("updating  coordinator_read_size_fail_threshold to {}", value);
         conf.coordinator_read_size_fail_threshold = value;
     }
 
+    @Nullable
     public static DataStorageSpec getLocalReadSizeWarnThreshold()
     {
         return conf.local_read_size_warn_threshold;
     }
 
-    public static void setLocalReadSizeWarnThreshold(DataStorageSpec value)
+    public static void setLocalReadSizeWarnThreshold(@Nullable DataStorageSpec value)
     {
         logger.info("updating  local_read_size_warn_threshold to {}", value);
         conf.local_read_size_warn_threshold = value;
     }
 
+    @Nullable
     public static DataStorageSpec getLocalReadSizeFailThreshold()
     {
         return conf.local_read_size_fail_threshold;
     }
 
-    public static void setLocalReadSizeFailThreshold(DataStorageSpec value)
+    public static void setLocalReadSizeFailThreshold(@Nullable DataStorageSpec value)
     {
         logger.info("updating  local_read_size_fail_threshold to {}", value);
         conf.local_read_size_fail_threshold = value;
     }
 
+    @Nullable
     public static DataStorageSpec getRowIndexReadSizeWarnThreshold()
     {
         return conf.row_index_read_size_warn_threshold;
     }
 
-    public static void setRowIndexReadSizeWarnThreshold(DataStorageSpec value)
+    public static void setRowIndexReadSizeWarnThreshold(@Nullable DataStorageSpec value)
     {
         logger.info("updating  row_index_size_warn_threshold to {}", value);
         conf.row_index_read_size_warn_threshold = value;
     }
 
+    @Nullable
     public static DataStorageSpec getRowIndexReadSizeFailThreshold()
     {
         return conf.row_index_read_size_fail_threshold;
     }
 
-    public static void setRowIndexReadSizeFailThreshold(DataStorageSpec value)
+    public static void setRowIndexReadSizeFailThreshold(@Nullable DataStorageSpec value)
     {
         logger.info("updating  row_index_read_size_fail_threshold to {}", value);
         conf.row_index_read_size_fail_threshold = value;
