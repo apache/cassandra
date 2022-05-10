@@ -98,7 +98,7 @@ public abstract class AbstractTableOperation implements TableOperation
     /**
      * The progress information for an operation, refer to the description of the class properties.
      */
-    public static final class OperationProgress implements Serializable, Progress
+    public static class OperationProgress implements Serializable, Progress
     {
         private static final long serialVersionUID = 3695381572726744816L;
 
