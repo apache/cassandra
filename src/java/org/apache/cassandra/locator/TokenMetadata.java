@@ -601,7 +601,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            assert isMember(endpoint); // don't want to return nulls
+            assert isMember(endpoint): String.format("Unable to get tokens for %s; it is not a member", endpoint); // don't want to return nulls
             return new ArrayList<>(tokenToEndpointMap.inverse().get(endpoint));
         }
         finally

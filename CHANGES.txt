@@ -1,4 +1,5 @@
 4.1
+ * StorageService read threshold get methods throw NullPointerException due to not handling null configs (CASSANDRA-17593)
  * Rename truncate_drop guardrail to drop_truncate_table (CASSANDRA-17592)
  * nodetool enablefullquerylog can NPE when directory has no files (CASSANDRA-17595)
  * Add auto_snapshot_ttl configuration (CASSANDRA-16790)

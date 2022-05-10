@@ -226,7 +226,7 @@ public abstract class CQLTester
      *
      * @return a port number
      */
-    private static int getAutomaticallyAllocatedPort(InetAddress address)
+    public static int getAutomaticallyAllocatedPort(InetAddress address)
     {
         try
         {

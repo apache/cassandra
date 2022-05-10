@@ -6441,7 +6441,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String getCoordinatorLargeReadWarnThreshold()
     {
-        return DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold().toString();
+        return toString(DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold());
     }
 
     @Override
@@ -6453,7 +6453,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String getCoordinatorLargeReadAbortThreshold()
     {
-        return DatabaseDescriptor.getCoordinatorReadSizeFailThreshold().toString();
+        return toString(DatabaseDescriptor.getCoordinatorReadSizeFailThreshold());
     }
 
     @Override
@@ -6465,7 +6465,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String getLocalReadTooLargeWarnThreshold()
     {
-        return DatabaseDescriptor.getLocalReadSizeWarnThreshold().toString();
+        return toString(DatabaseDescriptor.getLocalReadSizeWarnThreshold());
     }
 
     @Override
@@ -6477,7 +6477,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String getLocalReadTooLargeAbortThreshold()
     {
-        return DatabaseDescriptor.getLocalReadSizeFailThreshold().toString();
+        return toString(DatabaseDescriptor.getLocalReadSizeFailThreshold());
     }
 
     @Override
@@ -6489,7 +6489,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String getRowIndexReadSizeWarnThreshold()
     {
-        return DatabaseDescriptor.getRowIndexReadSizeWarnThreshold().toString();
+        return toString(DatabaseDescriptor.getRowIndexReadSizeWarnThreshold());
     }
 
     @Override
@@ -6501,13 +6501,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String getRowIndexReadSizeAbortThreshold()
     {
-        return DatabaseDescriptor.getRowIndexReadSizeFailThreshold().toString();
+        return toString(DatabaseDescriptor.getRowIndexReadSizeFailThreshold());
     }
 
     @Override
     public void setRowIndexReadSizeAbortThreshold(String threshold)
     {
         DatabaseDescriptor.setRowIndexReadSizeFailThreshold(parseDataStorageSpec(threshold));
+    }
+
+    private static String toString(DataStorageSpec value)
+    {
+        return value == null ? null : value.toString();
     }
 
     public void setDefaultKeyspaceReplicationFactor(int value)
