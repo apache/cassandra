@@ -28,6 +28,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.repair.CoordinatedRepairResult;
+import org.apache.cassandra.utils.concurrent.AbstractFuture;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -47,6 +48,7 @@ import org.apache.cassandra.repair.messages.FinalizePropose;
 import org.apache.cassandra.repair.messages.PrepareConsistentRequest;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -298,15 +300,15 @@ public class CoordinatorSession extends ConsistentSession
         });
 
         // if any session failed, then fail the future
-        Future<CoordinatedRepairResult> onlySuccessSessionResults = repairSessionResults.map(result -> {
+        Future<CoordinatedRepairResult> onlySuccessSessionResults = repairSessionResults.flatMap(result -> {
             finalizeStart = currentTimeMillis();
             if (result.hasFailed())
             {
                 if (logger.isDebugEnabled())
                     logger.debug("Incremental repair {} validation/stream phase completed in {}", sessionID, formatDuration(repairStart, finalizeStart));
-                throw SomeRepairFailedException.INSTANCE;
+                return ImmediateFuture.failure(SomeRepairFailedException.INSTANCE);
             }
-            return result;
+            return ImmediateFuture.success(result);
         });
 
         // mark propose finalization and commit
