@@ -69,6 +69,7 @@ public class HintsServiceMetricsTest extends TestBaseImpl
                                         .withInstanceInitializer(FailHints::install)
                                         .start())
         {
+            cluster.setUncaughtExceptionsFilter(t -> "Injected failure".equals(t.getMessage()));
             // setup a message filter to drop some of the hint request messages from node1
             AtomicInteger hintsNode2 = new AtomicInteger();
             AtomicInteger hintsNode3 = new AtomicInteger();
@@ -152,6 +153,7 @@ public class HintsServiceMetricsTest extends TestBaseImpl
         await().atMost(5, MINUTES)
                .pollDelay(0, SECONDS)
                .pollInterval(1, SECONDS)
+               .dontCatchUncaughtExceptions()
                .untilAsserted(assertion);
     }
 
