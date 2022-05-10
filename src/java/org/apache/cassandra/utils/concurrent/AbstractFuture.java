@@ -36,6 +36,7 @@ import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit
 
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.internal.ThrowableUtil;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.ListenerList.CallbackBiConsumerListener;
 import org.apache.cassandra.utils.concurrent.ListenerList.CallbackLambdaListener;
 import org.apache.cassandra.utils.concurrent.ListenerList.CallbackListener;
@@ -355,6 +356,7 @@ public abstract class AbstractFuture<V> implements Future<V>
             catch (Throwable t)
             {
                 result.tryFailure(t);
+                JVMStabilityInspector.inspectThrowable(t);
             }
         }, executor);
         return result;
@@ -376,6 +378,7 @@ public abstract class AbstractFuture<V> implements Future<V>
             catch (Throwable t)
             {
                 result.tryFailure(t);
+                JVMStabilityInspector.inspectThrowable(t);
             }
         }, executor);
         return result;
