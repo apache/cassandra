@@ -48,6 +48,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -72,6 +73,7 @@ public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseIm
         String table = policy.name();
         try (final Cluster cluster = init(getCluster(policy).start()))
         {
+            cluster.setUncaughtExceptionsFilter(t -> Throwables.anyCauseMatches(t, t2 -> t2.getClass().getCanonicalName().equals(CorruptSSTableException.class.getCanonicalName())));
             IInvokableInstance node = cluster.get(1);
             boolean[] setup = node.callOnInstance(() -> {
                 CassandraDaemon instanceForTesting = CassandraDaemon.getInstanceForTesting();
