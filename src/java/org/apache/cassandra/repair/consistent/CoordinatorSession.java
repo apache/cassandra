@@ -28,7 +28,6 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.repair.CoordinatedRepairResult;
-import org.apache.cassandra.utils.concurrent.AbstractFuture;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
