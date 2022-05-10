@@ -21,6 +21,7 @@ package org.apache.cassandra.service.snapshot;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
@@ -65,7 +66,7 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
 
     public SnapshotLoader(String[] dataDirectories)
     {
-        this.dataDirectories = Arrays.stream(dataDirectories).map(Paths::get).collect(Collectors.toList());
+        this(Arrays.stream(dataDirectories).map(Paths::get).collect(Collectors.toList()));
     }
 
     public SnapshotLoader(Collection<Path> dataDirs)
@@ -79,16 +80,38 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
         {
             try
             {
-                Files.walkFileTree(dataDir, Collections.EMPTY_SET, 5, this);
+                if (dataDir.toFile().exists())
+                {
+                    Files.walkFileTree(dataDir, Collections.EMPTY_SET, 5, this);
+                }
+                else
+                {
+                    logger.debug("Skipping non-existing data directory {}", dataDir);
+                }
             }
             catch (IOException e)
             {
-                throw new RuntimeException(String.format("Error while loading snapshots from %s", dataDir));
+                throw new RuntimeException(String.format("Error while loading snapshots from %s", dataDir), e);
             }
         }
         return snapshots.values().stream().map(TableSnapshot.Builder::build).collect(Collectors.toSet());
     }
 
+    @Override
+    public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+        // Cassandra can remove some files while traversing the tree,
+        // for example when SSTables are compacted while we are walking it.
+        // SnapshotLoader is interested only in SSTables in snapshot directories which are not compacted,
+        // but we need to cover these in regular table directories too.
+        // If listing failed but such file exists and the exception is not NoSuchFileException, then we
+        // have a legitimate error while traversing the tree, otherwise just skip it and continue with the listing.
+        if (Files.exists(file) && !(exc instanceof NoSuchFileException))
+            return super.visitFileFailed(file, exc);
+        else
+            return FileVisitResult.CONTINUE;
+    }
+
+    @Override
     public FileVisitResult preVisitDirectory(Path subdir, BasicFileAttributes attrs)
     {
         if (subdir.getParent().getFileName().toString().equals(SNAPSHOT_SUBDIR))
@@ -108,7 +131,7 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
             return FileVisitResult.SKIP_SUBTREE;
         }
 
-        return subdir.getFileName().equals(Directories.BACKUPS_SUBDIR)
+        return subdir.getFileName().toString().equals(Directories.BACKUPS_SUBDIR)
                ? FileVisitResult.SKIP_SUBTREE
                : FileVisitResult.CONTINUE;
     }
