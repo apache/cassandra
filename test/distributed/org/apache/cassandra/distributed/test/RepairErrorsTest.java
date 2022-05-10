@@ -129,6 +129,10 @@ public class RepairErrorsTest extends TestBaseImpl
             assertEquals(0, parents.intValue());
             Integer sessions = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance.sessionCount());
             assertEquals(0, sessions.intValue());
+
+            cluster.forEach(i -> Assertions.assertThat(i.logs().grep("SomeRepairFailedException").getResult())
+                                           .describedAs("node%d logged hidden exception org.apache.cassandra.repair.SomeRepairFailedException", i.config().num())
+                                           .isEmpty());
         }
     }
 
