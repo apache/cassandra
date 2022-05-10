@@ -339,7 +339,7 @@ executors:
         type: string
         default: medium
     docker:
-      - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210929
+      - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
     resource_class: << parameters.exec_resource_class >>
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
