@@ -145,7 +145,7 @@ public class Config
     @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile SmallestDurationMilliseconds truncate_request_timeout = new SmallestDurationMilliseconds("60000ms");
 
-    public volatile Long repair_request_timeout_in_ms = 120000L;
+    public volatile SmallestDurationMilliseconds repair_request_timeout = new SmallestDurationMilliseconds("120000ms");
 
     public Integer streaming_connections_per_host = 1;
     @Replaces(oldName = "streaming_keep_alive_period_in_secs", converter = Converters.SECONDS_DURATION, deprecated = true)
@@ -1026,12 +1026,6 @@ public class Config
      * See {@link org.apache.cassandra.service.paxos.ContentionStrategy}
      */
     public String paxos_contention_min_delta;
-
-    /**
-     * The amount of disk space paxos uncommitted key files can consume before we begin automatically scheduling paxos repairs.
-     * Note that these repairs are uncoordinated and so do not contribute to expunging system.paxos records.
-     */
-    public volatile int paxos_auto_repair_threshold_mb = 32;
 
     /**
      * The number of keys we may simultaneously attempt to finish incomplete paxos operations for.
