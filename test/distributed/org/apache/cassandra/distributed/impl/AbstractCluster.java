@@ -245,6 +245,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
 
         @Override
+        public boolean isValid()
+        {
+            return delegate != null;
+        }
+
+        @Override
         public synchronized void startup()
         {
             startup(AbstractCluster.this);
