@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
  * The start or end of a range of clusterings, either inclusive or exclusive.
@@ -47,7 +47,7 @@ public interface ClusteringBound<V> extends ClusteringBoundOrBoundary<V>
     ClusteringBound<V> invert();
 
     @Override
-    ClusteringBound<ByteBuffer> copy(AbstractAllocator allocator);
+    ClusteringBound<ByteBuffer> clone(ByteBufferCloner cloner);
 
     default boolean isStart()
     {

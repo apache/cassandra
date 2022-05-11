@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.NavigableSet;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.schema.TableMetadata;
@@ -49,14 +50,15 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         this.partitionKey = partitionKey;
     }
 
-    protected static final class Holder
+    @VisibleForTesting
+    public static final class Holder
     {
-        final RegularAndStaticColumns columns;
-        final DeletionInfo deletionInfo;
+        public final RegularAndStaticColumns columns;
+        public final DeletionInfo deletionInfo;
         // the btree of rows
-        final Object[] tree;
-        final Row staticRow;
-        final EncodingStats stats;
+        public final Object[] tree;
+        public final Row staticRow;
+        public final EncodingStats stats;
 
         Holder(RegularAndStaticColumns columns, Object[] tree, DeletionInfo deletionInfo, Row staticRow, EncodingStats stats)
         {
@@ -351,25 +353,25 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     // Note that when building with a RowIterator, deletion will generally be LIVE, but we allow to pass it nonetheless because PartitionUpdate
     // passes a MutableDeletionInfo that it mutates later.
-    protected static Holder build(RowIterator rows, DeletionInfo deletion, boolean buildEncodingStats, int initialRowCapacity)
+    protected static Holder build(RowIterator rows, DeletionInfo deletion, boolean buildEncodingStats)
     {
-        TableMetadata metadata = rows.metadata();
         RegularAndStaticColumns columns = rows.columns();
         boolean reversed = rows.isReverseOrder();
 
-        BTree.Builder<Row> builder = BTree.builder(metadata.comparator, initialRowCapacity);
-        builder.auto(false);
-        while (rows.hasNext())
-            builder.add(rows.next());
+        try (BTree.FastBuilder<Row> builder = BTree.fastBuilder())
+        {
+            while (rows.hasNext())
+                builder.add(rows.next());
 
-        if (reversed)
-            builder.reverse();
 
-        Row staticRow = rows.staticRow();
-        Object[] tree = builder.build();
-        EncodingStats stats = buildEncodingStats ? EncodingStats.Collector.collect(staticRow, BTree.iterator(tree), deletion)
-                                                 : EncodingStats.NO_STATS;
-        return new Holder(columns, tree, deletion, staticRow, stats);
+            Object[] tree = reversed ? builder.buildReverse()
+                                     : builder.build();
+
+            Row staticRow = rows.staticRow();
+            EncodingStats stats = buildEncodingStats ? EncodingStats.Collector.collect(staticRow, BTree.iterator(tree), deletion)
+                                                     : EncodingStats.NO_STATS;
+            return new Holder(columns, tree, deletion, staticRow, stats);
+        }
     }
 
     @Override
@@ -412,5 +414,17 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             return null;
 
         return BTree.findByIndex(tree, BTree.size(tree) - 1);
+    }
+
+    @VisibleForTesting
+    public static Holder unsafeGetEmptyHolder()
+    {
+        return EMPTY;
+    }
+
+    @VisibleForTesting
+    public static Holder unsafeConstructHolder(RegularAndStaticColumns columns, Object[] tree, DeletionInfo deletionInfo, Row staticRow, EncodingStats stats)
+    {
+        return new Holder(columns, tree, deletionInfo, staticRow, stats);
     }
 }

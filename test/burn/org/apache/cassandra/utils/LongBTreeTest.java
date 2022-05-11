@@ -1108,14 +1108,18 @@ public class LongBTreeTest
     public static final class InverseNoOp<V> implements UpdateFunction<V, V>
     {
         public static final InverseNoOp instance = new InverseNoOp();
-        public V apply(V replacing, V update)
+        public V merge(V replacing, V update)
         {
             return update;
         }
         public void onAllocatedOnHeap(long heapSize)
         {
         }
-        public V apply(V v)
+        public V insert(V v)
+        {
+            return v;
+        }
+        public V retain(V v)
         {
             return v;
         }

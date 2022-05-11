@@ -349,29 +349,29 @@ public class CellTest
         return FieldIdentifier.forQuoted(field);
     }
 
-    @Test
-    public void testComplexCellReconcile()
-    {
-        ColumnMetadata m = cfm2.getColumn(new ColumnIdentifier("m", false));
-        int now1 = FBUtilities.nowInSeconds();
-        long ts1 = now1*1000000L;
-
-
-        Cell<?> r1m1 = BufferCell.live(m, ts1, bb(1), CellPath.create(bb(1)));
-        Cell<?> r1m2 = BufferCell.live(m, ts1, bb(2), CellPath.create(bb(2)));
-        List<Cell<?>> cells1 = Lists.newArrayList(r1m1, r1m2);
-
-        int now2 = now1 + 1;
-        long ts2 = now2*1000000L;
-        Cell<?> r2m2 = BufferCell.live(m, ts2, bb(1), CellPath.create(bb(2)));
-        Cell<?> r2m3 = BufferCell.live(m, ts2, bb(2), CellPath.create(bb(3)));
-        Cell<?> r2m4 = BufferCell.live(m, ts2, bb(3), CellPath.create(bb(4)));
-        List<Cell<?>> cells2 = Lists.newArrayList(r2m2, r2m3, r2m4);
-
-        RowBuilder builder = new RowBuilder();
-        Cells.reconcileComplex(m, cells1.iterator(), cells2.iterator(), DeletionTime.LIVE, builder);
-        Assert.assertEquals(Lists.newArrayList(r1m1, r2m2, r2m3, r2m4), builder.cells);
-    }
+//    @Test
+//    public void testComplexCellReconcile()
+//    {
+//        ColumnMetadata m = cfm2.getColumn(new ColumnIdentifier("m", false));
+//        int now1 = FBUtilities.nowInSeconds();
+//        long ts1 = now1*1000000L;
+//
+//
+//        Cell<?> r1m1 = BufferCell.live(m, ts1, bb(1), CellPath.create(bb(1)));
+//        Cell<?> r1m2 = BufferCell.live(m, ts1, bb(2), CellPath.create(bb(2)));
+//        List<Cell<?>> cells1 = Lists.newArrayList(r1m1, r1m2);
+//
+//        int now2 = now1 + 1;
+//        long ts2 = now2*1000000L;
+//        Cell<?> r2m2 = BufferCell.live(m, ts2, bb(1), CellPath.create(bb(2)));
+//        Cell<?> r2m3 = BufferCell.live(m, ts2, bb(2), CellPath.create(bb(3)));
+//        Cell<?> r2m4 = BufferCell.live(m, ts2, bb(3), CellPath.create(bb(4)));
+//        List<Cell<?>> cells2 = Lists.newArrayList(r2m2, r2m3, r2m4);
+//
+//        RowBuilder builder = new RowBuilder();
+//        Cells.reconcileComplex(m, cells1.iterator(), cells2.iterator(), DeletionTime.LIVE, builder);
+//        Assert.assertEquals(Lists.newArrayList(r1m1, r2m2, r2m3, r2m4), builder.cells);
+//    }
 
     private int testExpiring(String n1, String v1, long t1, int et1, String n2, String v2, Long t2, Integer et2)
     {

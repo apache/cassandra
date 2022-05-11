@@ -22,7 +22,7 @@ import java.util.Objects;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
  * A range tombstone marker that indicates the bound of a range tombstone (start or end).
@@ -137,9 +137,10 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
         return isClose(reversed) ? clustering() : null;
     }
 
-    public RangeTombstoneBoundMarker copy(AbstractAllocator allocator)
+    @Override
+    public RangeTombstoneBoundMarker clone(ByteBufferCloner cloner)
     {
-        return new RangeTombstoneBoundMarker(clustering().copy(allocator), deletion);
+        return new RangeTombstoneBoundMarker(clustering().clone(cloner), deletion);
     }
 
     public RangeTombstoneBoundMarker withNewOpeningDeletionTime(boolean reversed, DeletionTime newDeletionTime)
