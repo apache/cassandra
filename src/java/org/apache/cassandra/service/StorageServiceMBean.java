@@ -952,9 +952,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     String getSkipPaxosRepairOnTopologyChangeKeyspaces();
     void setSkipPaxosRepairOnTopologyChangeKeyspaces(String v);
 
-    int getPaxosAutoRepairThresholdMb();
-    void setPaxosAutoRepairThresholdMb(int threshold);
-
     boolean getPaxosAutoRepairsEnabled();
     void setPaxosAutoRepairsEnabled(boolean enabled);
 
