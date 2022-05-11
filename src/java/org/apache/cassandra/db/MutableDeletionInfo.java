@@ -25,7 +25,7 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
  * A mutable implementation of {@code DeletionInfo}.
@@ -83,11 +83,12 @@ public class MutableDeletionInfo implements DeletionInfo
         return new MutableDeletionInfo(partitionDeletion, ranges == null ? null : ranges.copy());
     }
 
-    public MutableDeletionInfo copy(AbstractAllocator allocator)
+    @Override
+    public MutableDeletionInfo clone(ByteBufferCloner cloner)
     {
         RangeTombstoneList rangesCopy = null;
         if (ranges != null)
-             rangesCopy = ranges.copy(allocator);
+             rangesCopy = ranges.clone(cloner);
 
         return new MutableDeletionInfo(partitionDeletion, rangesCopy);
     }

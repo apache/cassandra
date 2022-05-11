@@ -20,19 +20,28 @@ package org.apache.cassandra.utils.btree;
 
 import java.util.function.BiFunction;
 
-import com.google.common.base.Function;
 /**
- * An interface defining a function to be applied to both the object we are replacing in a BTree and
- * the object that is intended to replace it, returning the object to actually replace it.
+ * An interface defining the method to be applied to the existing and replacing object in a BTree. The objects returned
+ * by the methods will be the object that need to be stored in the BTree.
  */
-public interface UpdateFunction<K, V> extends Function<K, V>
+public interface UpdateFunction<K, V>
 {
     /**
+     * Computes the value that should be inserted in the BTree.
+     *
+     * @param insert the update value
+     * @return the value that should be inserted in the BTree
+     */
+    V insert(K insert);
+
+    /**
+     * Computes the result of merging the existing value with the one from the update.
+     *
      * @param replacing the value in the original tree we have matched
      * @param update the value in the updating collection that matched
      * @return the value to insert into the new tree
      */
-    V apply(V replacing, K update);
+    V merge(V replacing, K update);
 
     /**
      * @param heapSize extra heap space allocated (over previous tree)
@@ -48,13 +57,13 @@ public interface UpdateFunction<K, V> extends Function<K, V>
         }
 
         @Override
-        public V apply(V v)
+        public V insert(V v)
         {
             return v;
         }
 
         @Override
-        public V apply(V replacing, V update)
+        public V merge(V replacing, V update)
         {
             return wrapped.apply(replacing, update);
         }
