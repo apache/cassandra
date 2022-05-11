@@ -286,12 +286,27 @@ public class BufferPool
         return globalPool;
     }
 
+    /**
+     * Forces to recycle free local chunks back to the global pool.
+     * This is needed because if buffers were freed by a different thread than the one
+     * that allocated them, recycling might not have happened and the local pool may still own some
+     * fully empty chunks.
+     */
+    @VisibleForTesting
+    public void releaseLocal()
+    {
+        localPool.get().release();
+    }
+
     interface Debug
     {
         public static Debug NO_OP = new Debug()
         {
             @Override
             public void registerNormal(Chunk chunk) {}
+
+            @Override
+            public void acquire(Chunk chunk) {}
             @Override
             public void recycleNormal(Chunk oldVersion, Chunk newVersion) {}
             @Override
@@ -299,6 +314,7 @@ public class BufferPool
         };
 
         void registerNormal(Chunk chunk);
+        void acquire(Chunk chunk);
         void recycleNormal(Chunk oldVersion, Chunk newVersion);
         void recyclePartial(Chunk chunk);
     }
@@ -362,6 +378,14 @@ public class BufferPool
 
         /** Return a chunk, the caller will take owership of the parent chunk. */
         public Chunk get()
+        {
+            Chunk chunk = getInternal();
+            if (chunk != null)
+                debug.acquire(chunk);
+            return chunk;
+        }
+
+        private Chunk getInternal()
         {
             Chunk chunk = chunks.poll();
             if (chunk != null)
