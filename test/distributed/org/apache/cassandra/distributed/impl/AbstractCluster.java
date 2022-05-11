@@ -47,7 +47,6 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -234,6 +233,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         private boolean isRunning()
         {
             return !isShutdown;
+        }
+
+        @Override
+        public boolean isValid()
+        {
+            return delegate != null;
         }
 
         @Override

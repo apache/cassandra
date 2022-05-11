@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
@@ -108,6 +109,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
@@ -590,7 +592,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 else
                 {
                     Schema.instance.startSync();
-                    cluster.stream().forEach(peer -> {
+                    Stream<IInstance> peers = cluster.stream().filter(instance -> ((IInstance) instance).isValid());
+                    peers.forEach(peer -> {
                         if (cluster instanceof Cluster)
                             GossipHelper.statusToNormal((IInvokableInstance) peer).accept(this);
                         else
@@ -761,6 +764,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public Future<Void> shutdown(boolean graceful)
     {
+        if (!Boolean.parseBoolean(System.getProperty("cassandra.test.flush_local_schema_changes", "true")))
+            flush(SchemaKeyspace.metadata().name);
+
         if (!graceful)
             MessagingService.instance().shutdown(1L, MINUTES, false, true);
 
