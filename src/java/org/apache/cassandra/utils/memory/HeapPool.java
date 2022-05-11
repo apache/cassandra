@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
+import com.google.common.annotations.VisibleForTesting;
+
 public class HeapPool extends MemtablePool
 {
     public HeapPool(long maxOnHeapMemory, float cleanupThreshold, MemtableCleaner cleaner)
@@ -34,10 +36,13 @@ public class HeapPool extends MemtablePool
         return new Allocator(this);
     }
 
-    private static class Allocator extends MemtableBufferAllocator
+    @VisibleForTesting
+    public static class Allocator extends MemtableBufferAllocator
     {
         private static final EnsureOnHeap ENSURE_NOOP = new EnsureOnHeap.NoOp();
-        Allocator(HeapPool pool)
+
+        @VisibleForTesting
+        public Allocator(HeapPool pool)
         {
             super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
         }
@@ -51,6 +56,11 @@ public class HeapPool extends MemtablePool
         public EnsureOnHeap ensureOnHeap()
         {
             return ENSURE_NOOP;
+        }
+
+        public Cloner cloner(OpOrder.Group opGroup)
+        {
+            return allocator(opGroup);
         }
     }
 }

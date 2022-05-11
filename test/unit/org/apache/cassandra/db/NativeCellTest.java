@@ -36,7 +36,7 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 import org.apache.cassandra.utils.memory.NativePool;
 
@@ -151,8 +151,8 @@ public class NativeCellTest
 
     private static void test(Row row)
     {
-        Row nrow = clone(row, nativeAllocator.rowBuilder(group));
-        Row brow = clone(row, HeapAllocator.instance.cloningBTreeRowBuilder());
+        Row nrow = row.clone(nativeAllocator.cloner(group));
+        Row brow = row.clone(HeapCloner.instance);
         Assert.assertEquals(row, nrow);
         Assert.assertEquals(row, brow);
         Assert.assertEquals(nrow, brow);
@@ -166,10 +166,4 @@ public class NativeCellTest
         Assert.assertEquals(0, comparator.compare(row.clustering(), brow.clustering()));
         Assert.assertEquals(0, comparator.compare(nrow.clustering(), brow.clustering()));
     }
-
-    private static Row clone(Row row, Row.Builder builder)
-    {
-        return Rows.copy(row, builder).build();
-    }
-
 }

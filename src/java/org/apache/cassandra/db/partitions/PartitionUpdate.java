@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -125,8 +126,8 @@ public class PartitionUpdate extends AbstractBTreePartition
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
         Holder holder = new Holder(
             new RegularAndStaticColumns(
-                staticRow == null ? Columns.NONE : Columns.from(staticRow.columns()),
-                row == null ? Columns.NONE : Columns.from(row.columns())
+                staticRow == null ? Columns.NONE : Columns.from(staticRow),
+                row == null ? Columns.NONE : Columns.from(row)
             ),
             row == null ? BTree.empty() : BTree.singleton(row),
             deletionInfo,
@@ -200,7 +201,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     {
         iterator = RowIterators.withOnlyQueriedData(iterator, filter);
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
-        Holder holder = build(iterator, deletionInfo, true, 16);
+        Holder holder = build(iterator, deletionInfo, true);
         return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
     }
 
@@ -473,6 +474,16 @@ public class PartitionUpdate extends AbstractBTreePartition
         IndexRegistry.obtain(metadata()).validate(this);
     }
 
+    @VisibleForTesting
+    public static PartitionUpdate unsafeConstruct(TableMetadata metadata,
+                                                  DecoratedKey key,
+                                                  Holder holder,
+                                                  MutableDeletionInfo deletionInfo,
+                                                  boolean canHaveShadowedData)
+    {
+        return new PartitionUpdate(metadata, key, holder, deletionInfo, canHaveShadowedData);
+    }
+
     /**
      * Interface for building partition updates geared towards human.
      * <p>
@@ -644,25 +655,25 @@ public class PartitionUpdate extends AbstractBTreePartition
             assert header.rowEstimate >= 0;
 
             MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(header.partitionDeletion, metadata.comparator, false);
-            BTree.Builder<Row> rows = BTree.builder(metadata.comparator, header.rowEstimate);
-            rows.auto(false);
-
-            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, flag, header))
+            Object[] rows;
+            try (BTree.FastBuilder<Row> builder = BTree.fastBuilder();
+                 UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, flag, header))
             {
                 while (partition.hasNext())
                 {
                     Unfiltered unfiltered = partition.next();
                     if (unfiltered.kind() == Unfiltered.Kind.ROW)
-                        rows.add((Row)unfiltered);
+                        builder.add((Row)unfiltered);
                     else
                         deletionBuilder.add((RangeTombstoneMarker)unfiltered);
                 }
+                rows = builder.build();
             }
 
             MutableDeletionInfo deletionInfo = deletionBuilder.build();
             return new PartitionUpdate(metadata,
                                        header.key,
-                                       new Holder(header.sHeader.columns(), rows.build(), deletionInfo, header.staticRow, header.sHeader.stats()),
+                                       new Holder(header.sHeader.columns(), rows, deletionInfo, header.staticRow, header.sHeader.stats()),
                                        deletionInfo,
                                        false);
         }

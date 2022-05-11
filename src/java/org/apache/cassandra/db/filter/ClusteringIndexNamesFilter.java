@@ -30,6 +30,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
@@ -225,12 +226,14 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         public ClusteringIndexFilter deserialize(DataInputPlus in, int version, TableMetadata metadata, boolean reversed) throws IOException
         {
             ClusteringComparator comparator = metadata.comparator;
-            BTreeSet.Builder<Clustering<?>> clusterings = BTreeSet.builder(comparator);
             int size = (int)in.readUnsignedVInt();
-            for (int i = 0; i < size; i++)
-                clusterings.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()));
-
-            return new ClusteringIndexNamesFilter(clusterings.build(), reversed);
+            try (BTree.FastBuilder<Clustering<?>> builder = BTree.fastBuilder())
+            {
+                for (int i = 0; i < size; i++)
+                    builder.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()));
+                BTreeSet<Clustering<?>> clusterings = BTreeSet.wrap(builder.build(), comparator);
+                return new ClusteringIndexNamesFilter(clusterings, reversed);
+            }
         }
     }
 }
