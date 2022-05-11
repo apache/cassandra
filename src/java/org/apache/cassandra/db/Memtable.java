@@ -68,6 +68,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.Cloner;
 import org.apache.cassandra.utils.memory.HeapPool;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.apache.cassandra.utils.memory.MemtableCleaner;
@@ -272,12 +273,13 @@ public class Memtable implements Comparable<Memtable>
      */
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
     {
+        Cloner cloner = allocator.cloner(opGroup);
         AtomicBTreePartition previous = partitions.get(update.partitionKey());
 
         long initialSize = 0;
         if (previous == null)
         {
-            final DecoratedKey cloneKey = allocator.clone(update.partitionKey(), opGroup);
+            final DecoratedKey cloneKey = cloner.clone(update.partitionKey());
             AtomicBTreePartition empty = new AtomicBTreePartition(cfs.metadata, cloneKey, allocator);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = partitions.putIfAbsent(cloneKey, empty);
@@ -292,7 +294,7 @@ public class Memtable implements Comparable<Memtable>
             }
         }
 
-        long[] pair = previous.addAllWithSizeDelta(update, opGroup, indexer);
+        long[] pair = previous.addAllWithSizeDelta(update, cloner, opGroup, indexer);
         minTimestamp = Math.min(minTimestamp, previous.stats().minTimestamp);
         liveDataSize.addAndGet(initialSize + pair[0]);
         columnsCollector.update(update.columns());
@@ -538,10 +540,11 @@ public class Memtable implements Comparable<Memtable>
         {
             int rowOverhead;
             MemtableAllocator allocator = MEMORY_POOL.newAllocator();
+            Cloner cloner = allocator.cloner(group);
             ConcurrentNavigableMap<PartitionPosition, Object> partitions = new ConcurrentSkipListMap<>();
             final Object val = new Object();
             for (int i = 0 ; i < count ; i++)
-                partitions.put(allocator.clone(new BufferDecoratedKey(new LongToken(i), ByteBufferUtil.EMPTY_BYTE_BUFFER), group), val);
+                partitions.put(cloner.clone(new BufferDecoratedKey(new LongToken(i), ByteBufferUtil.EMPTY_BYTE_BUFFER)), val);
             double avgSize = ObjectSizes.measureDeep(partitions) / (double) count;
             rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
             rowOverhead -= ObjectSizes.measureDeep(new LongToken(0));
