@@ -282,9 +282,9 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexCacheSize(-1);
-            fail("Should have received a ConfigurationException column_index_cache_size = -1");
+            fail("Should have received a IllegalArgumentException column_index_cache_size = -1");
         }
-        catch (ConfigurationException ignored) { }
+        catch (IllegalArgumentException ignored) { }
         Assert.assertEquals(2048, DatabaseDescriptor.getColumnIndexCacheSize());
 
         try
@@ -298,9 +298,9 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setColumnIndexSize(-1);
-            fail("Should have received a ConfigurationException column_index_size = -1");
+            fail("Should have received a IllegalArgumentException column_index_size = -1");
         }
-        catch (ConfigurationException ignored) { }
+        catch (IllegalArgumentException ignored) { }
         Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
 
         try
@@ -314,9 +314,9 @@ public class DatabaseDescriptorTest
         try
         {
             DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(-1);
-            fail("Should have received a ConfigurationException batch_size_warn_threshold = -1");
+            fail("Should have received a IllegalArgumentException batch_size_warn_threshold = -1");
         }
-        catch (ConfigurationException ignored) { }
+        catch (IllegalArgumentException ignored) { }
         Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
 
         try
@@ -751,8 +751,8 @@ public class DatabaseDescriptorTest
         Assert.assertTrue(config.server_encryption_options.ssl_context_factory.parameters.isEmpty());
     }
 
-    @Test (expected = ConfigurationException.class)
-    public void testInvalidSub1DefaultRFs() throws ConfigurationException
+    @Test (expected = IllegalArgumentException.class)
+    public void testInvalidSub1DefaultRFs() throws IllegalArgumentException
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(0);
     }

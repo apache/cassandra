@@ -1,4 +1,6 @@
 4.1
+ * Fix leak of non-standard Java types in our Exceptions as clients using JMX are unable to handle them.
+   Remove useless validation that leads to unnecessary additional read of cassandra.yaml on startup (CASSANDRA-17638)
  * Fix repair_request_timeout_in_ms and remove paxos_auto_repair_threshold_mb (CASSANDRA-17557)
  * Incremental repair leaks SomeRepairFailedException after switch away from flatMap (CASSANDRA-17620)
  * StorageService read threshold get methods throw NullPointerException due to not handling null configs (CASSANDRA-17593)
