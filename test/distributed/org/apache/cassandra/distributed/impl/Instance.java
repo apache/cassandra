@@ -738,9 +738,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public Future<Void> shutdown(boolean graceful)
     {
-        if (!graceful && config.has(NETWORK))
-            MessagingService.instance().shutdown(1L, MINUTES, false, true);
-
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
 
