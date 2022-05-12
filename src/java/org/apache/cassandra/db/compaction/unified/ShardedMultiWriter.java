@@ -96,7 +96,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
         this.minSstableSizeInBytes = minSstableSizeInBytes;
         this.boundaries = boundaries;
         this.writers = new SSTableMultiWriter[boundaries.size()];
-        this.estimatedSSTables = (int) Math.max(1, Math.ceil(realm.metrics().flushSizeOnDisk.get() / minSstableSizeInBytes));
+        this.estimatedSSTables = (int) Math.max(1, Math.ceil(realm.metrics().flushSizeOnDisk().get() / minSstableSizeInBytes));
 
         this.currentBoundary = 0;
         this.currentWriter = 0;
