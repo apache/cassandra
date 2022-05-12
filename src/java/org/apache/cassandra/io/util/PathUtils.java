@@ -40,9 +40,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.Throwables;
 
 import static java.nio.file.StandardOpenOption.*;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -73,12 +71,19 @@ public final class PathUtils
 
     private static final boolean USE_NIX_RECURSIVE_DELETE = CassandraRelevantProperties.USE_NIX_RECURSIVE_DELETE.getBoolean();
 
+    private static volatile boolean DAEMON_SETUP_COMPLETED = false;
+
     private static Consumer<Path> onDeletion = path -> {
-        if (StorageService.instance.isDaemonSetupCompleted())
+        if (DAEMON_SETUP_COMPLETED)
             setDeletionListener(ignore -> {});
         else if (logger.isTraceEnabled())
             logger.trace("Deleting file during startup: {}", path);
     };
+
+    public static void daemonSetupCompleted()
+    {
+        DAEMON_SETUP_COMPLETED = true;
+    }
 
     public static FileChannel newReadChannel(Path path) throws NoSuchFileException
     {
