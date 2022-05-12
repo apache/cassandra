@@ -366,7 +366,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }
         catch (NoSuchRepairSessionException e)
         {
-            throw new NoSuchRepairSessionExceptionWrapper(e);
+            return ImmediateFuture.failure(new NoSuchRepairSessionExceptionWrapper(e));
         }
     }
 
