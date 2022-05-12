@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.junit.Test;
 
 import org.junit.Assert;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.utils.Pair;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -97,8 +102,7 @@ public class TimestampTest extends CQLTester
                    row(1, null, null));
     }
 
-    @Test
-    public void testMaxTimestamp() throws Throwable
+    private void setupSchemaForMaxTimestamp()
     {
         String myType = createType("CREATE TYPE %s (a int, b int)");
         createTable("CREATE TABLE %s (k int PRIMARY KEY, a text, " +
@@ -106,30 +110,73 @@ public class TimestampTest extends CQLTester
                     "s set<int>, fs frozen<set<int>>," +
                     "m map<int, text>, fm frozen<map<int, text>>," +
                     "t " + myType + ", ft frozen<" + myType + ">)");
-        execute("INSERT INTO %s (k, a, l, fl, s, fs, m, fm, t, ft) VALUES " +
-                "(1, 'test', [1], [2], {1}, {2}, {1 : 'a'}, {2 : 'b'}, {a : 1, b : 1 }, {a : 2, b : 2}) USING TIMESTAMP 1");
-        // update the list, so its maxWritetime should be more advanced than other columns
-        execute("UPDATE %s USING TIMESTAMP 2 SET l = l + [10] WHERE k = 1");
+    }
 
+    @Test
+    public void testCallMaxTimestampOnEmptyCollectionReturnsNull() throws Throwable
+    {
+        setupSchemaForMaxTimestamp();
+
+        execute("INSERT INTO %s (k) VALUES (1)");
         Object[][] res = getRows(execute("SELECT maxwritetime(a), maxwritetime(l), maxwritetime(fl)," +
                                          "maxwritetime(s), maxwritetime(fs), maxwritetime(m), maxwritetime(fm)," +
-                                         "maxwritetime(t), maxwritetime(ft) FROM %s"));
-        Assert.assertEquals(1, res.length);
-        Assert.assertEquals("maxwritetime should work on both single cell and complex columns",
-                            9, res[0].length);
-        for (Object ts : res[0])
+                                         "maxwritetime(t), maxwritetime(ft) FROM %s WHERE k=1"));
+
+        assertEquals(1, res.length);
+        for (Object v : res[0])
         {
-            assertTrue(ts instanceof Long); // all the result fields are timestamps
+            assertNull("All the multi-cell data are empty (we did not insert), calling maxwritetime should return null",
+                       v);
         }
-        long aMaxTimestamp = (long) res[0][0]; // maxwritetime selector of a is at the 1st position
-        long lMaxTimestamp = (long) res[0][1]; // maxwritetime selector of l is at the 2nd position
-        assertTrue("l should have a large maxwritetime since it is updated later",
-                   aMaxTimestamp < lMaxTimestamp);
-        for (int i = 0; i < res[0].length; i++)
+    }
+
+    @Test
+    public void testMaxTimestamp() throws Throwable
+    {
+        setupSchemaForMaxTimestamp();
+
+        execute("INSERT INTO %s (k, a, l, fl, s, fs, m, fm, t, ft) VALUES " +
+                "(1, 'test', [1], [2], {1}, {2}, {1 : 'a'}, {2 : 'b'}, {a : 1, b : 1 }, {a : 2, b : 2}) USING TIMESTAMP 1");
+
+        // enumerate through all multi-cell types and make sure maxwritetime reflects the expected result
+        testMaxTimestampWithColumnUpdate(Arrays.asList(
+           Pair.create(1, "UPDATE %s USING TIMESTAMP 10 SET l = l + [10] WHERE k = 1"),
+           Pair.create(3, "UPDATE %s USING TIMESTAMP 11 SET s = s + {10} WHERE k = 1"),
+           Pair.create(5, "UPDATE %s USING TIMESTAMP 12 SET m = m + {10 : 'c'} WHERE k = 1"),
+           Pair.create(7, "UPDATE %s USING TIMESTAMP 13 SET t.a = 10 WHERE k = 1")
+        ));
+    }
+
+    private void testMaxTimestampWithColumnUpdate(List<Pair<Integer, String>> updateStatements) throws Throwable
+    {
+        for (Pair<Integer, String> update : updateStatements)
         {
-            long ts = (long) res[0][i];
-            if (i != 1)
-                Assert.assertEquals("All other columns should have the same maxwritetime", aMaxTimestamp, ts);
+            int fieldPos = update.left();
+            String statement = update.right();
+
+            // run the update statement and update the timestamp of the column
+            execute(statement);
+
+            Object[][] res = getRows(execute("SELECT maxwritetime(a), maxwritetime(l), maxwritetime(fl)," +
+                                             "maxwritetime(s), maxwritetime(fs), maxwritetime(m), maxwritetime(fm)," +
+                                             "maxwritetime(t), maxwritetime(ft) FROM %s WHERE k=1"));
+            Assert.assertEquals(1, res.length);
+            Assert.assertEquals("maxwritetime should work on both single cell and complex columns",
+                                9, res[0].length);
+            for (Object ts : res[0])
+            {
+                assertTrue(ts instanceof Long); // all the result fields are timestamps
+            }
+
+            long updatedTs = (long) res[0][fieldPos]; // maxwritetime the updated column
+
+            for (int i = 0; i < res[0].length; i++)
+            {
+                long ts = (long) res[0][i];
+                if (i != fieldPos)
+                    assertTrue("The updated column should have a large maxwritetime since it is updated later",
+                               ts < updatedTs);
+            }
         }
     }
 

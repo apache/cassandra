@@ -377,7 +377,7 @@ public abstract class Selection
         public boolean collectTimestamps();
 
         /**
-         * Checks if one of the selectors collect maxTimestamps.
+         * Checks if one of the selectors collects maxTimestamps.
          * @return {@code true} if one of the selectors collect maxTimestamps, {@code false} otherwise.
          */
         public boolean collectMaxTimestamps();

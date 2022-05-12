@@ -224,9 +224,9 @@ public interface Selectable extends AssignmentTestable
     {
         public enum Kind
         {
+            TTL("ttl", Int32Type.instance),
             WRITE_TIME("writetime", LongType.instance),
-            MAX_WRITE_TIME("maxwritetime", LongType.instance),
-            TTL("ttl", Int32Type.instance);
+            MAX_WRITE_TIME("maxwritetime", LongType.instance);
 
             public final String name;
             public final AbstractType<?> returnType;
@@ -274,7 +274,7 @@ public interface Selectable extends AssignmentTestable
                                       kind.name,
                                       column.name));
 
-            // maxwritetime is allowed for collection
+            // only maxwritetime is allowed for collection
             if (column.type.isCollection() && !kind.allowedForMultiCell())
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on collections",
                                                                 kind.name));
