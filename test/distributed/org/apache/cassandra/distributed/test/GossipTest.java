@@ -112,7 +112,7 @@ public class GossipTest extends TestBaseImpl
                 }).accept(failAddress);
             }
 
-            cluster.get(fail).shutdown(false).get();
+            ClusterUtils.stopAbrupt(cluster, cluster.get(fail));
             cluster.get(late).startup();
             cluster.get(late).acceptsOnInstance((InetSocketAddress address) -> {
                 EndpointState ep;

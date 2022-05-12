@@ -51,6 +51,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -547,6 +548,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() -> {
             try
             {
+                // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
+                // so extract it to populate ExecutorFactory.Global
+                ExecutorFactory.Global.unsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
@@ -734,9 +738,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public Future<Void> shutdown(boolean graceful)
     {
-        if (!graceful && config.has(NETWORK))
-            MessagingService.instance().shutdown(1L, MINUTES, false, true);
-
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
 
