@@ -123,7 +123,7 @@ class RealEnvironment implements Environment
     @Override
     public double flushSize()
     {
-        return metrics().flushSizeOnDisk.get();
+        return metrics().flushSizeOnDisk().get();
     }
 
     /**
