@@ -171,7 +171,7 @@ public class SnapshotsTest extends TestBaseImpl
     @Test
     public void testSecondaryIndexCleanup() throws Exception
     {
-        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
         cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
         cluster.schemaChange("CREATE INDEX value_idx ON default.tbl (value)");
 
@@ -198,7 +198,7 @@ public class SnapshotsTest extends TestBaseImpl
     {
         IInvokableInstance instance = cluster.get(1);
 
-        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
         cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
 
         populate(cluster);
@@ -229,7 +229,7 @@ public class SnapshotsTest extends TestBaseImpl
     {
         IInvokableInstance instance = cluster.get(1);
 
-        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
         cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
 
         populate(cluster);
@@ -260,7 +260,7 @@ public class SnapshotsTest extends TestBaseImpl
         int TWENTY_SECONDS = 20; // longer TTL to allow snapshot to survive node restart
         IInvokableInstance instance = cluster.get(1);
 
-        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS default WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
         cluster.schemaChange("CREATE TABLE default.tbl (key int, value text, PRIMARY KEY (key))");
 
         populate(cluster);
