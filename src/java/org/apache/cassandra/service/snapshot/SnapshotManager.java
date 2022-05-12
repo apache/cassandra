@@ -125,7 +125,8 @@ public class SnapshotManager {
     {
         if (cleanupTaskFuture == null)
         {
-            logger.info("Scheduling expired snapshot cleanup with initialDelaySeconds={} and cleanupPeriodSeconds={}");
+            logger.info("Scheduling expired snapshot cleanup with initialDelaySeconds={} and cleanupPeriodSeconds={}",
+                        initialDelaySeconds, cleanupPeriodSeconds);
             cleanupTaskFuture = executor.scheduleWithFixedDelay(this::clearExpiredSnapshots, initialDelaySeconds,
                                                                 cleanupPeriodSeconds, TimeUnit.SECONDS);
         }
