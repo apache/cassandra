@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import static java.lang.String.format;
-import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
-import static org.junit.Assert.assertEquals;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -30,17 +26,21 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.openmbean.CompositeData;
-import javax.management.openmbean.TabularDataSupport;
+
+import com.google.common.collect.Lists;
+
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
-import com.google.common.collect.Lists;
+import static java.lang.String.format;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.junit.Assert.assertEquals;
 
 public class TopPartitionsTest
 {
@@ -76,10 +76,10 @@ public class TopPartitionsTest
     @Test
     public void testServiceTopPartitionsSingleTable() throws Exception
     {
-        ColumnFamilyStore.getIfExists("system", "local").beginLocalSampling("READS", 5, 100000);
+        ColumnFamilyStore.getIfExists("system", "local").beginLocalSampling("READS", 5, 240000);
         String req = "SELECT * FROM system.%s WHERE key='%s'";
         executeInternal(format(req, SystemKeyspace.LOCAL, SystemKeyspace.LOCAL));
         List<CompositeData> result = ColumnFamilyStore.getIfExists("system", "local").finishLocalSampling("READS", 5);
-        assertEquals(1, result.size());
+        assertEquals("If this failed you probably have to raise the beginLocalSampling duration", 1, result.size());
     }
 }
