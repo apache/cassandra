@@ -67,6 +67,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
@@ -599,6 +600,7 @@ public class CassandraDaemon
     public void completeSetup()
     {
         setupCompleted = true;
+        PathUtils.daemonSetupCompleted();
     }
 
     public boolean setupCompleted()
