@@ -37,6 +37,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -115,7 +116,7 @@ public class SnapshotManager {
     @VisibleForTesting
     protected synchronized void addSnapshots(Collection<TableSnapshot> snapshots)
     {
-        logger.debug("Adding snapshots: {}", snapshots.stream().map(s -> s.getId()).collect(Collectors.toList()));
+        logger.debug("Adding snapshots: {}.", Joiner.on(", ").join(snapshots.stream().map(s -> s.getId()).collect(Collectors.toList())));
         snapshots.forEach(this::addSnapshot);
     }
 

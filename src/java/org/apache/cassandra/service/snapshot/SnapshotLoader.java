@@ -65,7 +65,7 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
 
     public SnapshotLoader(String[] dataDirectories)
     {
-        this.dataDirectories = Arrays.stream(dataDirectories).map(Paths::get).collect(Collectors.toList());
+        this(Arrays.stream(dataDirectories).map(Paths::get).collect(Collectors.toList()));
     }
 
     public SnapshotLoader(Collection<Path> dataDirs)
