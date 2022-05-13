@@ -33,6 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.Pair;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -199,7 +200,7 @@ public class BackgroundCompactionsTest
         CompactionPick compaction = Mockito.mock(CompactionPick.class);
         when(aggregate.getSelected()).thenReturn(compaction);
         when(aggregate.getMatching(any(TreeMap.class))).thenReturn(aggregate);
-        when(aggregate.getActive()).thenReturn(ImmutableList.of(compaction)); // ensure the aggregate already has the compaction
+        when(aggregate.containsSameInstance(eq(compaction))).thenReturn(Pair.create(true, compaction)); // ensure the aggregate already has the compaction
 
         backgroundCompactions.setSubmitted(strategyContainer, uuid, aggregate);
 
@@ -259,8 +260,10 @@ public class BackgroundCompactionsTest
         CompactionPick compaction = Mockito.mock(CompactionPick.class);
         when(aggregate.getSelected()).thenReturn(compaction);
         when(aggregate.getMatching(any(TreeMap.class))).thenReturn(pending.get(0));
-        when(pending.get(0).getActive()).thenReturn(ImmutableList.of()); // ensure the matching aggregate does not have the compaction
-        when(pending.get(0).withAdditionalCompactions(any(Collection.class))).thenReturn(pending.get(0));
+
+        CompactionPick existingCompaction = pending.get(0).getActive().get(0); // ensure the matching aggregate does not have the compaction
+        when(pending.get(0).containsSameInstance(eq(compaction))).thenReturn(Pair.create(false, existingCompaction));
+        when(pending.get(0).withReplacedCompaction(eq(compaction), eq(existingCompaction))).thenReturn(pending.get(0));
 
         backgroundCompactions.setSubmitted(strategyContainer, uuid, aggregate);
 
