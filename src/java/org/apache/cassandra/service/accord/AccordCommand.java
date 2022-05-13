@@ -58,10 +58,10 @@ import accord.primitives.Writes;
 import accord.utils.DeterministicIdentitySet;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
-import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -178,7 +178,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 //               ", txn=" + txn +
 //               ", writes=" + writes +
 //               ", result=" + result +
-               ", txn is null?=" + (partialTxn.get() == null) +
+               // TODO: Should we have to check for isLoaded() here?
+               ", txn is null?=" + (!partialTxn.isLoaded() || partialTxn.get() == null) +
                ", durability=" + durability +
                ", waitingOnCommit=" + waitingOnCommit +
                ", waitingOnApply=" + waitingOnApply +
@@ -426,7 +427,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         size += executeAt.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += partialDeps.estimatedSizeOnHeap(AccordObjectSizes::dependencies);
         size += writes.estimatedSizeOnHeap(AccordObjectSizes::writes);
-        size += result.estimatedSizeOnHeap(r -> ((AccordData) r).estimatedSizeOnHeap());
+        size += result.estimatedSizeOnHeap(r -> ((TxnData) r).estimatedSizeOnHeap());
         size += status.estimatedSizeOnHeap(s -> 0);
         size += durability.estimatedSizeOnHeap(s -> 0);
         size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp);

@@ -48,14 +48,9 @@ public abstract class Sets
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
     }
 
-    private static AbstractType<?> unwrap(AbstractType<?> type)
-    {
-        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
-    }
-
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        return ((SetType) unwrap(type)).getElementsType();
+        return ((SetType) type.unwrap()).getElementsType();
     }
 
     /**
@@ -163,7 +158,7 @@ public abstract class Sets
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            AbstractType<?> type = unwrap(receiver.type);
+            AbstractType<?> type = receiver.type.unwrap();
 
             if (!(type instanceof SetType))
             {

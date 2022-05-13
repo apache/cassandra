@@ -39,7 +39,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
 {
     enum RoutingKeyKind
     {
-        TOKEN, SENTINEL;
+        TOKEN, SENTINEL
     }
 
     protected AccordRoutingKey(TableId tableId)
@@ -200,6 +200,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             {
                 TableId tableId = TableId.deserialize(in);
                 TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+                // TODO: metadata might be null here if the table was dropped?
                 Token token = Token.compactSerializer.deserialize(in, metadata.partitioner, version);
                 return new TokenKey(tableId, token);
             }

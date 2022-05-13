@@ -33,8 +33,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
-import org.apache.commons.httpclient.methods.multipart.Part;
-
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.ExceptionCode;
@@ -80,7 +78,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.FailureRecordingCallback;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.reads.DataResolver;
@@ -89,7 +86,6 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.CollectionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
@@ -122,7 +118,9 @@ import static org.apache.cassandra.service.paxos.PaxosCommitAndPrepare.commitAnd
 import static org.apache.cassandra.service.paxos.PaxosPrepare.prepare;
 import static org.apache.cassandra.service.paxos.PaxosPropose.propose;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.CollectionSerializer.newHashSet;
+import static org.apache.cassandra.utils.CollectionSerializers.deserializeSet;
+import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
+import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**
@@ -284,21 +282,21 @@ public class Paxos
         {
             public void serialize(Electorate electorate, DataOutputPlus out, int version) throws IOException
             {
-                CollectionSerializer.serializeCollection(inetAddressAndPortSerializer, electorate.natural, out, version);
-                CollectionSerializer.serializeCollection(inetAddressAndPortSerializer, electorate.pending, out, version);
+                serializeCollection(electorate.natural, out, version, inetAddressAndPortSerializer);
+                serializeCollection(electorate.pending, out, version, inetAddressAndPortSerializer);
             }
 
             public Electorate deserialize(DataInputPlus in, int version) throws IOException
             {
-                Set<InetAddressAndPort> endpoints = CollectionSerializer.deserializeCollection(inetAddressAndPortSerializer, newHashSet(), in, version);
-                Set<InetAddressAndPort> pending = CollectionSerializer.deserializeCollection(inetAddressAndPortSerializer, newHashSet(), in, version);
+                Set<InetAddressAndPort> endpoints = deserializeSet(in, version, inetAddressAndPortSerializer);
+                Set<InetAddressAndPort> pending = deserializeSet(in, version, inetAddressAndPortSerializer);
                 return new Electorate(endpoints, pending);
             }
 
             public long serializedSize(Electorate electorate, int version)
             {
-                return CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, electorate.natural, version) +
-                       CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, electorate.pending, version);
+                return serializedCollectionSize(electorate.natural, version, inetAddressAndPortSerializer) +
+                       serializedCollectionSize(electorate.pending, version, inetAddressAndPortSerializer);
             }
         }
     }

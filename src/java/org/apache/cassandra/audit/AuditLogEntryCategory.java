@@ -23,5 +23,5 @@ package org.apache.cassandra.audit;
  */
 public enum AuditLogEntryCategory
 {
-    QUERY, DML, DDL, DCL, OTHER, AUTH, ERROR, PREPARE
+    QUERY, DML, DDL, DCL, OTHER, AUTH, ERROR, PREPARE, TRANSACTION
 }

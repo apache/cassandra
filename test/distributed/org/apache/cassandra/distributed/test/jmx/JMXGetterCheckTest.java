@@ -53,7 +53,8 @@ public class JMXGetterCheckTest extends TestBaseImpl
     private static final Set<String> IGNORE_OPERATIONS = ImmutableSet.of(
     "org.apache.cassandra.db:type=StorageService:stopDaemon", // halts the instance, which then causes the JVM to exit
     "org.apache.cassandra.db:type=StorageService:drain", // don't drain, it stops things which can cause other APIs to be unstable as we are in a stopped state
-    "org.apache.cassandra.db:type=StorageService:stopGossiping" // if we stop gossip this can causes other issues, so avoid
+    "org.apache.cassandra.db:type=StorageService:stopGossiping", // if we stop gossip this can causes other issues, so avoid
+    "org.apache.cassandra.db:type=StorageService:createEpochUnsafe" // for Accord testing, but will likely be removed
     );
 
     @Test

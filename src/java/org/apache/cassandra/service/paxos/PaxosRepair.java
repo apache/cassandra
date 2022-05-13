@@ -614,14 +614,14 @@ public class PaxosRepair extends AbstractPaxosRepair
         public void serialize(Response response, DataOutputPlus out, int version) throws IOException
         {
             response.latestWitnessedOrLowBound.serialize(out);
-            serializeNullable(Accepted.serializer, response.acceptedButNotCommitted, out, version);
+            serializeNullable(response.acceptedButNotCommitted, out, version, Accepted.serializer);
             Committed.serializer.serialize(response.committed, out, version);
         }
 
         public Response deserialize(DataInputPlus in, int version) throws IOException
         {
             Ballot latestWitnessed = Ballot.deserialize(in);
-            Accepted acceptedButNotCommitted = deserializeNullable(Accepted.serializer, in, version);
+            Accepted acceptedButNotCommitted = deserializeNullable(in, version, Accepted.serializer);
             Committed committed = Committed.serializer.deserialize(in, version);
             return new Response(latestWitnessed, acceptedButNotCommitted, committed);
         }
@@ -629,7 +629,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         public long serializedSize(Response response, int version)
         {
             return Ballot.sizeInBytes()
-                   + serializedSizeNullable(Accepted.serializer, response.acceptedButNotCommitted, version)
+                   + serializedSizeNullable(response.acceptedButNotCommitted, version, Accepted.serializer)
                    + Committed.serializer.serializedSize(response.committed, version);
         }
     }
