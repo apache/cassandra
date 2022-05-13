@@ -16,21 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord.db;
+package org.apache.cassandra.service.accord.txn;
 
+import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.primitives.Txn;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.accord.AccordTxnBuilder;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.NOT_EXISTS;
 import static org.apache.cassandra.utils.SerializerTestUtils.assertSerializerIOEquality;
 
-public class AccordUpdateTest
+public class TxnUpdateTest
 {
     @BeforeClass
     public static void setupClass()
@@ -44,15 +43,8 @@ public class AccordUpdateTest
     @Test
     public void predicateSerializer()
     {
-
-        AccordTxnBuilder txnBuilder = new AccordTxnBuilder();
-        txnBuilder.withRead("SELECT * FROM ks.tbl WHERE k=0 AND c=0");
-        txnBuilder.withWrite("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
-        txnBuilder.withCondition("ks", "tbl", 0, 0, NOT_EXISTS);
-        Txn txn = txnBuilder.build();
-
-
-        AccordUpdate update = (AccordUpdate) txn.update();
-        assertSerializerIOEquality(update.getPredicate(0).get(0), AccordUpdate.predicateSerializer);
+        Txn txn = AccordTestUtils.createTxn(0, 0);
+        TxnUpdate update = (TxnUpdate) txn.update();
+        assertSerializerIOEquality(update, TxnUpdate.serializer);
     }
 }

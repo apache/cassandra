@@ -45,7 +45,7 @@ public class ListType<T> extends CollectionType<List<T>>
     private static final ConcurrentHashMap<AbstractType<?>, ListType> frozenInstances = new ConcurrentHashMap<>();
 
     private final AbstractType<T> elements;
-    public final ListSerializer<T> serializer;
+    private final ListSerializer<T> serializer;
     private final boolean isMultiCell;
 
     public static ListType<?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException

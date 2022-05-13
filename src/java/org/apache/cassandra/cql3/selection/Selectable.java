@@ -568,8 +568,8 @@ public interface Selectable extends AssignmentTestable
 
         public static class Raw implements Selectable.Raw
         {
-            private final Selectable.Raw selected;
-            private final FieldIdentifier field;
+            public final Selectable.Raw selected;
+            public final FieldIdentifier field;
 
             public Raw(Selectable.Raw selected, FieldIdentifier field)
             {
@@ -1316,8 +1316,8 @@ public interface Selectable extends AssignmentTestable
 
         public static class Raw implements Selectable.Raw
         {
-            private final Selectable.Raw selected;
-            private final Term.Raw element;
+            public final Selectable.Raw selected;
+            public final Term.Raw element;
 
             public Raw(Selectable.Raw selected, Term.Raw element)
             {

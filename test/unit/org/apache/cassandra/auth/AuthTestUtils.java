@@ -20,10 +20,15 @@ package org.apache.cassandra.auth;
 
 import java.util.concurrent.Callable;
 
+import org.apache.commons.lang3.RandomStringUtils;
+
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.AuthenticationStatement;
+import org.apache.cassandra.cql3.statements.AuthorizationStatement;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -31,9 +36,11 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 
 public class AuthTestUtils
 {
@@ -170,5 +177,45 @@ public class AuthTestUtils
         roleOptions.setOption(IRoleManager.Option.LOGIN, true);
         roleOptions.setOption(IRoleManager.Option.PASSWORD, "ignored");
         return roleOptions;
+    }
+
+    static void authenticate(String query, Object... args)
+    {
+        CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare(ClientState.forInternalCalls());
+        assert statement instanceof AuthenticationStatement;
+        AuthenticationStatement authStmt = (AuthenticationStatement) statement;
+
+        // invalidate roles cache so that any changes to the underlying roles are picked up
+        Roles.cache.invalidate();
+        authStmt.execute(getClientState());
+    }
+
+    static void authorize(String query, Object... args)
+    {
+        CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare(ClientState.forInternalCalls());
+        assert statement instanceof AuthorizationStatement;
+        AuthorizationStatement authStmt = (AuthorizationStatement) statement;
+
+        // invalidate roles cache so that any changes to the underlying roles are picked up
+        AuthenticatedUser.permissionsCache.invalidate();
+        authStmt.execute(getClientState());
+    }
+
+    static ClientState getClientState()
+    {
+        ClientState state = ClientState.forInternalCalls();
+        state.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
+        return state;
+    }
+
+    static String createName()
+    {
+        return RandomStringUtils.randomAlphabetic(8).toLowerCase();
+    }
+
+    static void setupSuperUser()
+    {
+        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s')",
+                                                     AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "xxx"));
     }
 }

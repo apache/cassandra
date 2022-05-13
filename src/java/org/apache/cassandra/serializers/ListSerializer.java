@@ -20,17 +20,20 @@ package org.apache.cassandra.serializers;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Range;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ListSerializer<T> extends CollectionSerializer<List<T>>
 {
@@ -229,10 +232,29 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     }
 
     @Override
-    public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator)
+    public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer index, AbstractType<?> comparator)
     {
-        // We don't allow selecting an element of a list, so we don't need this.
-        throw new UnsupportedOperationException();
+        try
+        {
+            int n = readCollectionSize(collection, ByteBufferAccessor.instance);
+            // Start the offset after the (size of) the collection size we just read
+            int offset = sizeOfCollectionSize();
+            int idx = ByteBufferUtil.toInt(index);
+
+            Preconditions.checkElementIndex(idx, n);
+
+            for (int i = 0; i <= idx; i++)
+            {
+                if (i == idx)
+                    return readValue(collection, ByteBufferAccessor.instance, offset);
+                offset += skipValue(collection, ByteBufferAccessor.instance, offset);
+            }
+            throw new AssertionError("Asked to read index " + idx + " but never read the index");
+        }
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
+        {
+            throw new MarshalException("Not enough bytes to read a list");
+        }
     }
 
     @Override

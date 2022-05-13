@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.concurrent.ExecutionException;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -25,18 +26,28 @@ import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.api.Result;
+import accord.coordinate.Timeout;
 import accord.impl.SimpleProgressLog;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
-import accord.messages.Reply;
 import accord.messages.Request;
+import accord.primitives.Txn;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 public class AccordService implements Shutdownable
 {
@@ -45,7 +56,7 @@ public class AccordService implements Shutdownable
     private final AccordMessageSink messageSink;
     public final AccordConfigurationService configService;
     private final AccordScheduler scheduler;
-    private final AccordVerbHandler verbHandler;
+    private final AccordVerbHandler<? extends Request> verbHandler;
 
     private static class Handle
     {
@@ -80,10 +91,10 @@ public class AccordService implements Shutdownable
                              SimpleProgressLog::new,
                              AccordCommandStores::new);
         this.nodeShutdown = toShutdownable(node);
-        this.verbHandler = new AccordVerbHandler(this.node);
+        this.verbHandler = new AccordVerbHandler<>(this.node);
     }
 
-    public <T extends Request> IVerbHandler<T> verbHandler()
+    public IVerbHandler<? extends Request> verbHandler()
     {
         return verbHandler;
     }
@@ -97,6 +108,37 @@ public class AccordService implements Shutdownable
     public static long nowInMicros()
     {
         return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+    }
+
+    public TxnData coordinate(Txn txn, QueryOptions options)
+    {
+        try
+        {
+            Future<Result> future = node.coordinate(txn);
+            Result result = future.get(DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            return (TxnData) result;
+        }
+        catch (ExecutionException e)
+        {
+            Throwable cause = e.getCause();
+            if (cause instanceof Timeout)
+                throw throwTimeout(txn, options);
+            throw new RuntimeException(cause);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (TimeoutException e)
+        {
+            throw throwTimeout(txn, options);
+        }
+    }
+
+    private static RuntimeException throwTimeout(Txn txn, QueryOptions options)
+    {
+        throw txn.isWrite() ? new WriteTimeoutException(WriteType.TRANSACTION, options.getConsistency(), 0, 0)
+                            : new ReadTimeoutException(options.getConsistency(), 0, 0, false);
     }
 
     @VisibleForTesting
@@ -179,7 +221,7 @@ public class AccordService implements Shutdownable
             }
 
             @Override
-            public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+            public boolean awaitTermination(long timeout, TimeUnit units)
             {
                 // node doesn't offer
                 return true;

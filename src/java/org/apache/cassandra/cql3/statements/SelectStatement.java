@@ -122,7 +122,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private final Comparator<List<ByteBuffer>> orderingComparator;
 
     // Used by forSelection below
-    private static final Parameters defaultParameters = new Parameters(Collections.emptyMap(),
+    public static final Parameters defaultParameters = new Parameters(Collections.emptyMap(),
                                                                        Collections.emptyList(),
                                                                        false,
                                                                        false,
@@ -818,6 +818,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return getLimit(limit, options);
     }
 
+    public boolean isLimitMarker()
+    {
+        return limit instanceof Constants.Marker;
+    }
+
     /**
      * Returns the per partition limit specified by the user.
      * May be used by custom QueryHandler implementations
@@ -1075,17 +1080,35 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         {
             // Cache locally for use by Guardrails
             this.state = state;
-            return prepare(state, false);
+            return prepare(state, false, bindVariables);
         }
 
-        public SelectStatement prepare(ClientState state, boolean forView) throws InvalidRequestException
+        public SelectStatement prepare(ClientState state, boolean forView)
+        {
+            return prepare(state, forView, bindVariables);
+        }
+
+        public SelectStatement prepare(VariableSpecifications variableSpecifications)
+        {
+            return prepare(state, false, variableSpecifications);
+        }
+
+        public SelectStatement prepare(boolean forView)
+        {
+            return prepare(state, forView, bindVariables);
+        }
+
+        /**
+         * @throws InvalidRequestException if the statement being prepared is invalid
+         */
+        public SelectStatement prepare(ClientState state, boolean forView, VariableSpecifications variableSpecifications) throws InvalidRequestException
         {
             TableMetadata table = Schema.instance.validateTable(keyspace(), name());
 
             List<Selectable> selectables = RawSelector.toSelectables(selectClause, table);
             boolean containsOnlyStaticColumns = selectOnlyStaticColumns(table, selectables);
 
-            StatementRestrictions restrictions = prepareRestrictions(state, table, bindVariables, containsOnlyStaticColumns, forView);
+            StatementRestrictions restrictions = prepareRestrictions(state, table, variableSpecifications, containsOnlyStaticColumns, forView);
 
             // If we order post-query, the sorted column needs to be in the ResultSet for sorting,
             // even if we don't ultimately ship them to the client (CASSANDRA-4911).
@@ -1095,7 +1118,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
             Selection selection = prepareSelection(table,
                                                    selectables,
-                                                   bindVariables,
+                                                   variableSpecifications,
                                                    resultSetOrderingColumns,
                                                    restrictions);
 
@@ -1131,15 +1154,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             checkNeedsFiltering(restrictions);
 
             return new SelectStatement(table,
-                                       bindVariables,
+                                       variableSpecifications,
                                        parameters,
                                        selection,
                                        restrictions,
                                        isReversed,
                                        aggregationSpecFactory,
                                        orderingComparator,
-                                       prepareLimit(bindVariables, limit, keyspace(), limitReceiver()),
-                                       prepareLimit(bindVariables, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
+                                       prepareLimit(variableSpecifications, limit, keyspace(), limitReceiver()),
+                                       prepareLimit(variableSpecifications, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
         }
 
         private Selection prepareSelection(TableMetadata table,
@@ -1475,6 +1498,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         public final boolean isDistinct;
         public final boolean allowFiltering;
         public final boolean isJson;
+        public final String refName;
 
         public Parameters(Map<ColumnIdentifier, Boolean> orderings,
                           List<Selectable.Raw> groups,
@@ -1482,11 +1506,22 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                           boolean allowFiltering,
                           boolean isJson)
         {
+            this(orderings, groups, isDistinct, allowFiltering, isJson, null);
+        }
+
+        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+                          List<Selectable.Raw> groups,
+                          boolean isDistinct,
+                          boolean allowFiltering,
+                          boolean isJson,
+                          String refName)
+        {
             this.orderings = orderings;
             this.groups = groups;
             this.isDistinct = isDistinct;
             this.allowFiltering = allowFiltering;
             this.isJson = isJson;
+            this.refName = refName;
         }
     }
 
@@ -1590,7 +1625,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
     }
 
-    private String asCQL(QueryOptions options, ClientState state)
+    public String asCQL(QueryOptions options, ClientState state)
     {
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
         StringBuilder sb = new StringBuilder();

@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -38,11 +37,13 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.utils.CollectionSerializer;
 
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
+import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
+import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
+import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
 
 public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
 {
@@ -121,7 +122,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
             serializeNullable(command.executeAt(), out, version.msgVersion, CommandSerializers.timestamp);
             CommandSerializers.status.serialize(command.status(), out, version.msgVersion);
             CommandSerializers.kind.serialize(command.kind(), out, version.msgVersion);
-            CollectionSerializer.serializeCollection(CommandSerializers.txnId, command.deps, out, version.msgVersion);
+            serializeCollection(command.deps, out, version.msgVersion, CommandSerializers.txnId);
         }
 
         public ByteBuffer serialize(AccordPartialCommand command)
@@ -157,7 +158,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
             Timestamp executeAt = deserializeNullable(in, version.msgVersion, CommandSerializers.timestamp);
             Status status = CommandSerializers.status.deserialize(in, version.msgVersion);
             Txn.Kind kind = CommandSerializers.kind.deserialize(in, version.msgVersion);
-            List<TxnId> deps = CollectionSerializer.deserializeCollection(CommandSerializers.txnId, ArrayList::new, in, version.msgVersion);
+            List<TxnId> deps = deserializeList(in, version.msgVersion, CommandSerializers.txnId);
             AccordPartialCommand partial = new AccordPartialCommand(txnId, executeAt, deps, status, kind);
             addToContext(partial, context);
             return partial;
@@ -182,7 +183,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
             size += serializedSizeNullable(command.executeAt(), version.msgVersion, CommandSerializers.timestamp);
             size += CommandSerializers.status.serializedSize(command.status(), version.msgVersion);
             size += CommandSerializers.kind.serializedSize(command.kind(), version.msgVersion);
-            size += CollectionSerializer.serializedSizeCollection(CommandSerializers.txnId, command.deps, version.msgVersion);
+            size += serializedCollectionSize(command.deps, version.msgVersion, CommandSerializers.txnId);
             return size;
         }
 

@@ -30,9 +30,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
 
 public class CommitSerializers
 {

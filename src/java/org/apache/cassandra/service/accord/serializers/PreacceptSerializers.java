@@ -35,9 +35,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
 
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
 
 public class PreacceptSerializers
 {
