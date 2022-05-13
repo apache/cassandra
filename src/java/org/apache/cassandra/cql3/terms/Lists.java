@@ -312,7 +312,7 @@ public abstract class Lists
 
     public static class SetterByIndex extends Operation
     {
-        private final Term idx;
+        public final Term idx;
 
         public SetterByIndex(ColumnMetadata column, Term idx, Term t)
         {

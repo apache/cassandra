@@ -231,7 +231,7 @@ public abstract class ColumnCondition
         }
 
         /** Returns true if the operator is satisfied (i.e. "otherValue operator value == true"), false otherwise. */
-        protected static boolean compareWithOperator(Operator operator, AbstractType<?> type, ByteBuffer value, ByteBuffer otherValue)
+        public static boolean compareWithOperator(Operator operator, AbstractType<?> type, ByteBuffer value, ByteBuffer otherValue)
         {
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 throw invalidRequest("Invalid 'unset' value in condition");
@@ -344,7 +344,7 @@ public abstract class ColumnCondition
     /**
      * A condition on an element of a collection column.
      */
-    private static final class ElementAccessBound extends Bound
+    public static final class ElementAccessBound extends Bound
     {
         /**
          * The collection element
@@ -356,7 +356,7 @@ public abstract class ColumnCondition
          */
         private final List<ByteBuffer> values;
 
-        private ElementAccessBound(ColumnMetadata column,
+        public ElementAccessBound(ColumnMetadata column,
                                    ByteBuffer collectionElement,
                                    Operator operator,
                                    List<ByteBuffer> values)
@@ -448,7 +448,7 @@ public abstract class ColumnCondition
     /**
      * A condition on an entire collection column.
      */
-    private static final class MultiCellCollectionBound extends Bound
+    public static final class MultiCellCollectionBound extends Bound
     {
         private final Terms.Terminals values;
 
@@ -461,6 +461,11 @@ public abstract class ColumnCondition
 
         public boolean appliesTo(Row row)
         {
+            return appliesTo(column, comparisonOperator, values, row);
+        }
+
+        public static boolean appliesTo(ColumnMetadata column, Operator operator, Terms.Terminals values, Row row)
+        {
             CollectionType<?> type = (CollectionType<?>) column.type;
 
             // copy iterator contents so that we can properly reuse them for each comparison with an IN value
@@ -469,20 +474,20 @@ public abstract class ColumnCondition
                 Iterator<Cell<?>> iter = getCells(row, column);
                 if (value == null)
                 {
-                    if (comparisonOperator == Operator.EQ)
+                    if (operator == Operator.EQ)
                     {
                         if (!iter.hasNext())
                             return true;
                         continue;
                     }
 
-                    if (comparisonOperator == Operator.NEQ)
+                    if (operator == Operator.NEQ)
                         return iter.hasNext();
 
-                    throw invalidRequest("Invalid comparison with null for operator \"%s\"", comparisonOperator);
+                    throw invalidRequest("Invalid comparison with null for operator \"%s\"", operator);
                 }
 
-                if (valueAppliesTo(type, iter, value, comparisonOperator))
+                if (valueAppliesTo(type, iter, value, operator))
                     return true;
             }
             return false;
@@ -672,7 +677,7 @@ public abstract class ColumnCondition
     /**
      * A condition on an entire UDT.
      */
-    private static final class MultiCellUdtBound extends Bound
+    public static final class MultiCellUdtBound extends Bound
     {
         /**
          * The conditions values.
@@ -684,7 +689,7 @@ public abstract class ColumnCondition
          */
         private final ProtocolVersion protocolVersion;
 
-        private MultiCellUdtBound(ColumnMetadata column, Operator op, List<ByteBuffer> values, ProtocolVersion protocolVersion)
+        public MultiCellUdtBound(ColumnMetadata column, Operator op, List<ByteBuffer> values, ProtocolVersion protocolVersion)
         {
             super(column, op);
             assert column.type.isMultiCell();

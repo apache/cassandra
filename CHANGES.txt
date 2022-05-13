@@ -1,4 +1,6 @@
 5.1
+ * CEP-15: Multi-Partition Transaction CQL Support (Alpha) (CASSANDRA-17719)
+ * CEP-15 (C*): Messaging and storage engine integration (CASSANDRA-17103)
  * Add option for MutualTlsAuthenticator to restrict the certificate validity period (CASSANDRA-18951)
  * Fix StorageService::constructRangeToEndpointMap for non-distributed keyspaces (CASSANDRA-19255)
  * Group nodetool cms commands into single command group (CASSANDRA-19393)

@@ -21,15 +21,12 @@ package org.apache.cassandra.simulator.paxos;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.ExecutionException;
 import java.util.function.LongSupplier;
-import java.util.stream.StreamSupport;
 
-import com.google.common.collect.Iterators;
+import com.google.common.collect.ImmutableList;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +35,7 @@ import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.primitives.Txn;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -53,19 +51,18 @@ import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTxnBuilder;
-import org.apache.cassandra.service.accord.db.AccordData;
+import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataName;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
 
-import static java.lang.Boolean.TRUE;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 // TODO: the class hierarchy is a bit broken, but hard to untangle. Need to go Paxos->Consensus, probably.
 @SuppressWarnings("unused")
@@ -111,21 +108,25 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     private static IIsolatedExecutor.SerializableCallable<Object[][]> read(int primaryKey)
     {
         return () -> {
-            AccordTxnBuilder builder = new AccordTxnBuilder();
-            builder.withRead(SELECT, primaryKey);
+            String cql = "BEGIN TRANSACTION\n" + SELECT + ";\n" + "COMMIT TRANSACTION";
+            List<ByteBuffer> values = ImmutableList.of(bytes(primaryKey));
+            Txn txn = AccordTestUtils.createTxn(cql, QueryOptions.forInternalCalls(values));
             // TODO (now): support complex columns
-            return execute(builder.build(), "pk", "count", "seq");
+            return execute(txn, "pk", "count", "seq");
         };
     }
 
     private static IIsolatedExecutor.SerializableCallable<Object[][]> write(int id, int primaryKey)
     {
         return () -> {
-            AccordTxnBuilder builder = new AccordTxnBuilder();
-            builder.withRead(SELECT, primaryKey);
-            builder.withAppend(KEYSPACE, TABLE, primaryKey, "seq", id + ",");
-            builder.withIncrement(KEYSPACE, TABLE, primaryKey, "count", 1);
-            return execute(builder.build());
+            String cql = "BEGIN TRANSACTION\n" + 
+                         "    " + SELECT + ";\n" +
+                         "    UPDATE " + KEYSPACE + ".tbl SET seq += '" + id + ",' WHERE pk = ?;\n" +
+                         "    UPDATE " + KEYSPACE + ".tbl SET count += 1 WHERE pk = ?;\n" +
+                         "COMMIT TRANSACTION";
+            List<ByteBuffer> values = ImmutableList.of(bytes(primaryKey), bytes(primaryKey), bytes(primaryKey));
+            Txn txn = AccordTestUtils.createTxn(cql, QueryOptions.forInternalCalls(values));
+            return execute(txn, "pk", "count", "seq");
         };
     }
 
@@ -133,23 +134,24 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     {
         try
         {
-            AccordData result = (AccordData) AccordService.instance().node.coordinate(txn).get();
+            TxnData result = (TxnData) AccordService.instance().node.coordinate(txn).get();
             Assert.assertNotNull(result);
             QueryResults.Builder builder = QueryResults.builder();
             boolean addedHeader = false;
-            for (FilteredPartition partition : result)
-            {
-                //TODO lot of this is copy/paste from SelectStatement...
-                TableMetadata metadata = partition.metadata();
-                if (!addedHeader)
-                {
-                    builder.columns(columns);
-                    addedHeader = true;
-                }
-                ByteBuffer[] keyComponents = SelectStatement.getComponents(metadata, partition.partitionKey());
-                for (Row row : partition)
-                    append(metadata, keyComponents, row, builder, columns);
-            }
+
+            FilteredPartition partition = result.get(TxnDataName.returning());
+            TableMetadata metadata = partition.metadata();
+            builder.columns(columns);
+
+            ByteBuffer[] keyComponents = SelectStatement.getComponents(metadata, partition.partitionKey());
+
+            Row s = partition.staticRow();
+            if (!s.isEmpty())
+                append(metadata, keyComponents, s, builder, columns);
+
+            for (Row row : partition)
+                append(metadata, keyComponents, row, builder, columns);
+
             return builder.build().toObjectArrays();
         }
         catch (InterruptedException e)
@@ -196,7 +198,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
                         else
                         {
                             List<Object> result = new ArrayList<>(data.cellsCount());
-                            for (Cell cell : data)
+                            for (Cell<?> cell : data)
                                 result.add(column.cellValueType().compose(cell.buffer()));
                             buffer[idx++] = result;
                         }
@@ -243,7 +245,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
             if (outcome.result != null)
             {
                 if (outcome.result.length != 1)
-                    throw fail(primaryKey, "Result: 1 != #%s", Arrays.toString(outcome.result));
+                    throw fail(primaryKey, "Accord Result: 1 != #%s", ArrayUtils.toString(outcome.result));
             }
             historyChecker.applied(outcome.id, outcome.start, outcome.end, outcome.result != null);
         }

@@ -58,6 +58,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .addAll(LocalRepairTables.getAll(VIRTUAL_VIEWS))
                     .addAll(CIDRFilteringMetricsTable.getAll(VIRTUAL_VIEWS))
                     .addAll(StorageAttachedIndexTables.getAll(VIRTUAL_VIEWS))
+                    .addAll(AccordVirtualTables.getAll(VIRTUAL_VIEWS))
                     .build());
     }
 }

@@ -24,6 +24,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.utils.btree.BTree;
 
 public class FilteredPartition extends ImmutableBTreePartition
 {
@@ -41,6 +42,11 @@ public class FilteredPartition extends ImmutableBTreePartition
     public static FilteredPartition create(RowIterator iterator)
     {
         return new FilteredPartition(iterator);
+    }
+
+    public Row getAtIdx(int idx)
+    {
+        return BTree.findByIndex(holder.tree, idx);
     }
 
     public RowIterator rowIterator()
