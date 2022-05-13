@@ -2096,7 +2096,7 @@ public abstract class CQLTester
         return s;
     }
 
-    protected static ByteBuffer makeByteBuffer(Object value, AbstractType type)
+    public static ByteBuffer makeByteBuffer(Object value, AbstractType<?> type)
     {
         if (value == null)
             return null;
@@ -2127,12 +2127,12 @@ public abstract class CQLTester
         return type.getString(bb);
     }
 
-    protected TupleValue tuple(Object...values)
+    public static TupleValue tuple(Object...values)
     {
         return new TupleValue(values);
     }
 
-    protected Object userType(Object... values)
+    public static UserTypeValue userType(Object... values)
     {
         if (values.length % 2 != 0)
             throw new IllegalArgumentException("userType() requires an even number of arguments");

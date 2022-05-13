@@ -27,20 +27,19 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class NullableSerializer
 {
-
-    public static <T> void serializeNullable(IVersionedSerializer<T> serializer, T value, DataOutputPlus out, int version) throws IOException
+    public static <T> void serializeNullable(T value, DataOutputPlus out, int version, IVersionedSerializer<T> serializer) throws IOException
     {
         out.writeBoolean(value != null);
         if (value != null)
             serializer.serialize(value, out, version);
     }
 
-    public static <T> T deserializeNullable(IVersionedSerializer<T> serializer, DataInputPlus in, int version) throws IOException
+    public static <T> T deserializeNullable(DataInputPlus in, int version, IVersionedSerializer<T> serializer) throws IOException
     {
         return in.readBoolean() ? serializer.deserialize(in, version) : null;
     }
 
-    public static <T> long serializedSizeNullable(IVersionedSerializer<T> serializer, T value, int version)
+    public static <T> long serializedSizeNullable(T value, int version, IVersionedSerializer<T> serializer)
     {
         return value != null
                 ? TypeSizes.sizeof(true) + serializer.serializedSize(value, version)
@@ -52,19 +51,18 @@ public class NullableSerializer
         return new IVersionedSerializer<T>() {
             public void serialize(T t, DataOutputPlus out, int version) throws IOException
             {
-                serializeNullable(wrap, t, out, version);
+                serializeNullable(t, out, version, wrap);
             }
 
             public T deserialize(DataInputPlus in, int version) throws IOException
             {
-                return deserializeNullable(wrap, in, version);
+                return deserializeNullable(in, version, wrap);
             }
 
             public long serializedSize(T t, int version)
             {
-                return serializedSizeNullable(wrap, t, version);
+                return serializedSizeNullable(t, version, wrap);
             }
         };
     }
-
 }

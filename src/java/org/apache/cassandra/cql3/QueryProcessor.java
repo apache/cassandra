@@ -269,6 +269,8 @@ public class QueryProcessor implements QueryHandler
             return processNodeLocalWrite(statement, queryState, options);
         else if (statement instanceof SelectStatement)
             return processNodeLocalSelect((SelectStatement) statement, queryState, options);
+        else if (statement instanceof TransactionStatement)
+            return statement.executeLocally(queryState, options);
         else
             throw new InvalidRequestException("NODE_LOCAL consistency level can only be used with BATCH, UPDATE, INSERT, DELETE, and SELECT statements");
     }

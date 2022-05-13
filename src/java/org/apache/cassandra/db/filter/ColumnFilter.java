@@ -782,7 +782,7 @@ public abstract class ColumnFilter
                                      SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections)
         {
             assert queried != null;
-            assert fetched.includes(queried);
+            assert fetched.includes(queried) : String.format("Queries columns %s are not included in the fetch strategy %s", queried, fetched);
 
             this.fetchingStrategy = fetchingStrategy;
             this.queried = queried;

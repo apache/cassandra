@@ -18,7 +18,13 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Predicate;
@@ -124,6 +130,11 @@ public abstract class Selection
         ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(Lists.newArrayList(jsonSpec));
         resultMetadata.addNonSerializedColumns(orderingColumns);
         return resultMetadata;
+    }
+
+    public static Selection.Selectors noopSelector()
+    {
+        return new SimpleSelectors();
     }
 
     public static Selection wildcard(TableMetadata table, boolean isJson, boolean returnStaticContentOnPartitionWithNoRows)
@@ -337,55 +348,72 @@ public abstract class Selection
         return Arrays.asList(jsonRow);
     }
 
-    public static interface Selectors
+    public interface Selectors
     {
         /**
          * Returns the {@code ColumnFilter} corresponding to those selectors
          *
          * @return the {@code ColumnFilter} corresponding to those selectors
          */
-        public ColumnFilter getColumnFilter();
+        default ColumnFilter getColumnFilter() { return ColumnFilter.NONE; }
 
         /**
          * Checks if this Selectors perform some processing
          * @return {@code true} if this Selectors perform some processing, {@code false} otherwise.
          */
-        public boolean hasProcessing();
+        default boolean hasProcessing() { return false; }
 
         /**
          * Checks if one of the selectors perform some aggregations.
          * @return {@code true} if one of the selectors perform some aggregations, {@code false} otherwise.
          */
-        public boolean isAggregate();
-
-        /**
-         * Returns the number of fetched columns
-         * @return the number of fetched columns
-         */
-        public int numberOfFetchedColumns();
+        default boolean isAggregate() { return false; }
 
         /**
          * Checks if one of the selectors collect TTLs.
          * @return {@code true} if one of the selectors collect TTLs, {@code false} otherwise.
          */
-        public boolean collectTTLs();
+        default boolean collectTTLs() { return false; }
 
         /**
          * Checks if one of the selectors collects write timestamps.
          * @return {@code true} if one of the selectors collects write timestamps, {@code false} otherwise.
          */
-        public boolean collectWritetimes();
+        default boolean collectWritetimes() { return false; }
 
         /**
          * Adds the current row of the specified <code>ResultSetBuilder</code>.
          *
          * @param input the input row
          */
-        public void addInputRow(InputRow input);
+        void addInputRow(InputRow input);
 
-        public List<ByteBuffer> getOutputRow();
+        List<ByteBuffer> getOutputRow();
 
-        public void reset();
+        void reset();
+    }
+
+    public static class SimpleSelectors implements Selectors
+    {
+        protected List<ByteBuffer> current;
+
+        @Override
+        public void addInputRow(InputRow input)
+        {
+            current = input.getValues();
+        }
+
+        @Override
+        public List<ByteBuffer> getOutputRow()
+        {
+            return current;
+        }
+
+        @Override
+        public void reset()
+        {
+            current = null;
+        }
     }
 
     // Special cased selection for when only columns are selected.
@@ -457,53 +485,14 @@ public abstract class Selection
 
         public Selectors newSelectors(QueryOptions options)
         {
-            return new Selectors()
+            return new SimpleSelectors()
             {
-                private List<ByteBuffer> current;
-
-                public void reset()
-                {
-                    current = null;
-                }
-
+                @Override
                 public List<ByteBuffer> getOutputRow()
                 {
                     if (isJson)
                         return rowToJson(current, options.getProtocolVersion(), metadata, orderingColumns);
                     return current;
-                }
-
-                public void addInputRow(InputRow input)
-                {
-                    current = input.getValues();
-                }
-
-                public boolean isAggregate()
-                {
-                    return false;
-                }
-
-                public boolean hasProcessing()
-                {
-                    return false;
-                }
-
-                @Override
-                public int numberOfFetchedColumns()
-                {
-                    return getColumns().size();
-                }
-
-                @Override
-                public boolean collectTTLs()
-                {
-                    return false;
-                }
-
-                @Override
-                public boolean collectWritetimes()
-                {
-                    return false;
                 }
 
                 @Override
@@ -604,12 +593,6 @@ public abstract class Selection
                 {
                     for (Selector selector : selectors)
                         selector.addInput(input);
-                }
-
-                @Override
-                public int numberOfFetchedColumns()
-                {
-                    return getColumns().size();
                 }
 
                 @Override

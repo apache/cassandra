@@ -44,10 +44,10 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
-import org.apache.cassandra.service.accord.db.AccordQuery;
-import org.apache.cassandra.service.accord.db.AccordRead;
-import org.apache.cassandra.service.accord.db.AccordUpdate;
-import org.apache.cassandra.service.accord.db.AccordWrite;
+import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
+import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class AccordObjectSizes
@@ -175,11 +175,11 @@ public class AccordObjectSizes
     {
         long size = EMPTY_TXN;
         size += seekables(txn.keys());
-        size += ((AccordRead) txn.read()).estimatedSizeOnHeap();
+        size += ((TxnRead) txn.read()).estimatedSizeOnHeap();
         if (txn.update() != null)
-            size += ((AccordUpdate) txn.update()).estimatedSizeOnHeap();
+            size += ((TxnUpdate) txn.update()).estimatedSizeOnHeap();
         if (txn.query() != null)
-            size += ((AccordQuery) txn.query()).estimatedSizeOnHeap();
+            size += ((TxnQuery) txn.query()).estimatedSizeOnHeap();
         return size;
     }
 
@@ -213,7 +213,7 @@ public class AccordObjectSizes
         size += timestamp(writes.executeAt);
         size += keys(writes.keys);
         if (writes.write != null)
-            size += ((AccordWrite) writes.write).estimatedSizeOnHeap();
+            size += ((TxnWrite) writes.write).estimatedSizeOnHeap();
         return size;
     }
 

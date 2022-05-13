@@ -383,6 +383,7 @@ public class DatabaseDescriptorTest
         testConfig.cas_contention_timeout = lowerThanLowestTimeout;
         testConfig.counter_write_request_timeout = lowerThanLowestTimeout;
         testConfig.request_timeout = lowerThanLowestTimeout;
+        testConfig.transaction_timeout = lowerThanLowestTimeout;
 
         DatabaseDescriptor.checkForLowestAcceptedTimeouts(testConfig);
 
@@ -393,6 +394,7 @@ public class DatabaseDescriptorTest
         assertEquals(testConfig.cas_contention_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
         assertEquals(testConfig.counter_write_request_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
         assertEquals(testConfig.request_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
+        assertEquals(testConfig.transaction_timeout, DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
     }
 
     @Test

@@ -264,7 +264,7 @@ public class BTreeRow extends AbstractRow
 
     public Cell<?> getCell(ColumnMetadata c)
     {
-        assert !c.isComplex();
+        assert !c.isComplex(): String.format("Column %s.%s#%s", c.ksName, c.cfName, c.name);
         return (Cell<?>) BTree.<Object>find(btree, ColumnMetadata.asymmetricColumnDataComparator, c);
     }
 

@@ -51,7 +51,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
-import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1791,12 +1790,10 @@ public final class SystemKeyspace
     @SuppressWarnings("unchecked")
     private static Range<Token> byteBufferToRange(ByteBuffer rawRange, IPartitioner partitioner)
     {
-        try
+        try (DataInputPlus.DataInputStreamPlus in = new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(ByteBufferUtil.getArray(rawRange))))
         {
             // See rangeToBytes above for why version is 0.
-            return (Range<Token>) Range.tokenSerializer.deserialize(new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(ByteBufferUtil.getArray(rawRange))),
-                                                                    partitioner,
-                                                                    0);
+            return (Range<Token>) Range.tokenSerializer.deserialize(in, partitioner, 0);
         }
         catch (IOException e)
         {

@@ -28,6 +28,7 @@ import java.util.function.Predicate;
 import com.google.monitoring.runtime.instrumentation.common.collect.Iterators;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.assertj.core.api.Assertions;
 
@@ -186,6 +187,41 @@ public class QueryResultUtil
             qr.reset();
             if (!QueryResultUtil.contains(qr, fn))
                 throw new AssertionError("Row  is not present");
+            return this;
+        }
+
+        public SimpleQueryResultAssertHelper isEqualTo(SimpleQueryResult expectedResult)
+        {
+            qr.mark();
+            expectedResult.mark();
+            try
+            {
+                // org.apache.cassandra.distributed.shared.AssertUtils.assertRows has some issues with the error msg
+                // so rewrite to make sure to have a nicer msg
+                List<String> otherNames = qr.names().isEmpty() ? expectedResult.names() : qr.names();
+                Assertions.assertThat(otherNames).describedAs("Column names do not match").isEqualTo(qr.names());
+                int rowId = 0;
+                while (qr.hasNext())
+                {
+                    if (!expectedResult.hasNext())
+                        throw new AssertionError("Unexpected row at index " + rowId + "; found " + Arrays.toString(qr.next().toObjectArray()));
+                    Row next = qr.next();
+                    Row expected = expectedResult.next();
+                    if (!Arrays.equals(next.toObjectArray(), expected.toObjectArray()))
+                        throw new AssertionError("Expected row " + rowId + " to be " + Arrays.toString(expected.toObjectArray()) + " but was " + Arrays.toString(next.toObjectArray()));
+
+                    rowId++;
+                }
+                if (expectedResult.hasNext())
+                    throw new AssertionError("Expected row " + rowId + " to be " + Arrays.toString(expectedResult.next().toObjectArray()) + " but was missing");
+
+                AssertUtils.assertRows(qr, expectedResult);
+            }
+            finally
+            {
+                qr.reset();
+                expectedResult.reset();
+            }
             return this;
         }
 
