@@ -31,7 +31,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.db.AccordData;
+import org.apache.cassandra.service.accord.txn.TxnData;
 
 public class ReadDataSerializers
 {
@@ -82,7 +82,7 @@ public class ReadDataSerializers
 
             out.writeByte(0);
             ReadOk readOk = (ReadOk) reply;
-            AccordData.serializer.serialize((AccordData) readOk.data, out, version);
+            TxnData.serializer.serialize((TxnData) readOk.data, out, version);
         }
 
         @Override
@@ -92,7 +92,7 @@ public class ReadDataSerializers
             if (id != 0)
                 return nacks[id - 1];
 
-            return new ReadOk(AccordData.serializer.deserialize(in, version));
+            return new ReadOk(TxnData.serializer.deserialize(in, version));
         }
 
         @Override
@@ -102,7 +102,7 @@ public class ReadDataSerializers
                 return TypeSizes.BYTE_SIZE;
 
             ReadOk readOk = (ReadOk) reply;
-            return TypeSizes.BYTE_SIZE + AccordData.serializer.serializedSize((AccordData) readOk.data, version);
+            return TypeSizes.BYTE_SIZE + TxnData.serializer.serializedSize((TxnData) readOk.data, version);
         }
     };
 }

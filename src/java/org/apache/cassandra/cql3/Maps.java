@@ -66,19 +66,14 @@ public abstract class Maps
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), valuesType(column.type));
     }
 
-    private static AbstractType<?> unwrap(AbstractType<?> type)
-    {
-        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
-    }
-
     private static AbstractType<?> keysType(AbstractType<?> type)
     {
-        return ((MapType<?, ?>) unwrap(type)).getKeysType();
+        return ((MapType<?, ?>) type.unwrap()).getKeysType();
     }
 
     private static AbstractType<?> valuesType(AbstractType<?> type)
     {
-        return ((MapType<?, ?>) unwrap(type)).getValuesType();
+        return ((MapType<?, ?>) type.unwrap()).getValuesType();
     }
 
     /**
@@ -210,7 +205,7 @@ public abstract class Maps
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            AbstractType<?> type = unwrap(receiver.type);
+            AbstractType<?> type = receiver.type.unwrap();
 
             if (!(type instanceof MapType))
                 throw new InvalidRequestException(String.format("Invalid map literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
@@ -403,7 +398,7 @@ public abstract class Maps
 
     public static class SetterByKey extends Operation
     {
-        private final Term k;
+        public final Term k;
 
         public SetterByKey(ColumnMetadata column, Term k, Term t)
         {

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.LongSupplier;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -114,7 +115,7 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
             if (outcome.result != null)
             {
                 if (outcome.result.length != 1)
-                    throw fail(primaryKey, "Result: 1 != #%s", Arrays.toString(outcome.result));
+                    throw fail(primaryKey, "Paxos Result: 1 != #%s", ArrayUtils.toString(outcome.result));
                 if (outcome.result[0][0] != TRUE)
                     throw fail(primaryKey, "Result != TRUE");
             }

@@ -37,7 +37,6 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -65,14 +64,9 @@ public abstract class Lists
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
     }
 
-    private static AbstractType<?> unwrap(AbstractType<?> type)
-    {
-        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
-    }
-
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        return ((ListType<?>) unwrap(type)).getElementsType();
+        return ((ListType<?>) type.unwrap()).getElementsType();
     }
 
     /**
@@ -177,7 +171,7 @@ public abstract class Lists
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            AbstractType<?> type = unwrap(receiver.type);
+            AbstractType<?> type = receiver.type.unwrap();
 
             if (!(type instanceof ListType))
                 throw new InvalidRequestException(String.format("Invalid list literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
@@ -438,7 +432,7 @@ public abstract class Lists
 
     public static class SetterByIndex extends Operation
     {
-        private final Term idx;
+        public final Term idx;
 
         public SetterByIndex(ColumnMetadata column, Term idx, Term t)
         {

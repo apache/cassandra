@@ -370,7 +370,7 @@ public abstract class UserTypes
 
     public static class SetterByField extends Operation
     {
-        private final FieldIdentifier field;
+        public final FieldIdentifier field;
 
         public SetterByField(ColumnMetadata column, FieldIdentifier field, Term t)
         {

@@ -24,7 +24,6 @@ import java.util.List;
 import accord.api.ConfigurationService;
 import accord.local.Node;
 import accord.topology.Topology;
-import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Currently a stubbed out config service meant to be triggered from a dtest
@@ -84,5 +83,12 @@ public class AccordConfigurationService implements ConfigurationService
         epochs.add(topology);
         for (Listener listener : listeners)
             listener.onTopologyUpdate(topology);
+
+        // TODO: This is a hack to enable simplistic cluster reuse for TxnAuthTest, AccordCQLTest, etc.
+        // Since we don't have a dist sys that sets this up, we have to just lie...
+        EndpointMapping.knownIds().forEach(id -> {
+            for (Listener listener : listeners)
+                listener.onEpochSyncComplete(id, topology.epoch());
+        });
     }
 }

@@ -20,19 +20,34 @@ package org.apache.cassandra.cql3;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
-import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.NumberType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
+
+import static java.nio.charset.StandardCharsets.US_ASCII;
 
 /**
  * Static helper methods and classes for constants.
@@ -46,7 +61,7 @@ public abstract class Constants
             @Override
             public AbstractType<?> getPreferedTypeFor(String text)
             {
-                 if (StandardCharsets.US_ASCII.newEncoder().canEncode(text))
+                 if (US_ASCII.newEncoder().canEncode(text))
                  {
                      return AsciiType.instance;
                  }
@@ -258,6 +273,7 @@ public abstract class Constants
             return new Literal(Type.DURATION, text);
         }
 
+        @Override
         public Value prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!testAssignment(keyspace, receiver).isAssignable())
@@ -519,6 +535,8 @@ public abstract class Constants
             {
                 @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
                 ByteBuffer increment = t.bindAndGet(params.options);
+                if (increment == null)
+                    return;
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 if (current == null)
                     return;
@@ -528,6 +546,8 @@ public abstract class Constants
             else if (column.type instanceof StringType)
             {
                 ByteBuffer append = t.bindAndGet(params.options);
+                if (append == null)
+                    return;
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 if (current == null)
                     return;
@@ -536,13 +556,6 @@ public abstract class Constants
                 FastByteOperations.copy(append, append.position(), newValue, newValue.position() + current.remaining(), append.remaining());
                 params.addCell(column, newValue);
             }
-        }
-
-        private ByteBuffer getCurrentCellBuffer(DecoratedKey key, UpdateParameters params)
-        {
-            Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
-            Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
-            return currentCell == null ? null : currentCell.buffer();
         }
     }
 
@@ -553,19 +566,39 @@ public abstract class Constants
             super(column, t);
         }
 
+        public boolean requiresRead()
+        {
+            return !(column.type instanceof CounterColumnType);
+        }
+
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer bytes = t.bindAndGet(params.options);
-            if (bytes == null)
-                throw new InvalidRequestException("Invalid null value for counter increment");
-            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return;
+            if (column.type instanceof CounterColumnType)
+            {
+                ByteBuffer bytes = t.bindAndGet(params.options);
+                if (bytes == null)
+                    throw new InvalidRequestException("Invalid null value for counter decrement");
+                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                    return;
 
-            long increment = ByteBufferUtil.toLong(bytes);
-            if (increment == Long.MIN_VALUE)
-                throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
+                long decrement = ByteBufferUtil.toLong(bytes);
+                if (decrement == Long.MIN_VALUE)
+                    throw new InvalidRequestException("The negation of " + decrement + " overflows supported counter precision (signed 8 bytes integer)");
 
-            params.addCounter(column, -increment);
+                params.addCounter(column, -decrement);
+            }
+            else if (column.type instanceof NumberType)
+            {
+                NumberType<?> type = (NumberType<?>) column.type;
+                ByteBuffer bytes = t.bindAndGet(params.options);
+                if (bytes == null)
+                    return;
+                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                if (current == null)
+                    return;
+                ByteBuffer newValue = type.substract(type, current, type, bytes);
+                params.addCell(column, newValue);
+            }
         }
     }
 
