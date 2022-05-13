@@ -1,4 +1,5 @@
 4.2
+ * Add CQLSH command SHOW REPLICAS (CASSANDRA-17577)
  * Add guardrail to allow disabling of SimpleStrategy (CASSANDRA-17647)
  * Change default directory permission to 750 in packaging (CASSANDRA-17470)
  * Adding support for TLS client authentication for internode communication (CASSANDRA-17513)

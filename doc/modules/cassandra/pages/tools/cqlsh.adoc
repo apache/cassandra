@@ -181,6 +181,21 @@ cqlsh> SHOW HOST
 Connected to Prod_Cluster at 192.0.0.1:9042.
 ----
 
+=== `SHOW REPLICAS`
+
+Prints the IP addresses of the Cassandra nodes which are replicas for the
+listed given token and keyspace. This command is available from Cassandra 4.2.
+
+`Usage`: `SHOW REPLICAS <token> (<keyspace>)`
+
+Example usage:
+
+[source,none]
+----
+cqlsh> SHOW REPLICAS 95
+['192.0.0.1', '192.0.0.2']
+----
+
 === `SHOW SESSION`
 
 Pretty prints a specific tracing session.
