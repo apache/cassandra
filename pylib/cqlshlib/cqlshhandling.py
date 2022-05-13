@@ -131,7 +131,7 @@ cqlsh_serial_consistency_level_syntax_rules = r'''
 '''
 
 cqlsh_show_cmd_syntax_rules = r'''
-<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> )
+<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> | "REPLICAS" token=<integer> (keyspace=<keyspaceName>)? )
                 ;
 '''
 
