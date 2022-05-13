@@ -20,17 +20,14 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import com.google.common.collect.Sets;
-
-import accord.messages.InformDurable;
 import accord.messages.InformHomeDurable;
-import accord.primitives.PartialRoute;
-import accord.primitives.Timestamp;
-import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.CollectionSerializer;
+
+import static org.apache.cassandra.utils.CollectionSerializers.deserializeSet;
+import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
+import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
 
 public class InformHomeDurableSerializers
 {
@@ -43,7 +40,7 @@ public class InformHomeDurableSerializers
             KeySerializers.routingKey.serialize(inform.homeKey, out, version);
             CommandSerializers.timestamp.serialize(inform.executeAt, out, version);
             CommandSerializers.durability.serialize(inform.durability, out, version);
-            CollectionSerializer.serializeCollection(TopologySerializers.nodeId, inform.persistedOn, out, version);
+            serializeCollection(inform.persistedOn, out, version, TopologySerializers.nodeId);
 
         }
 
@@ -54,7 +51,7 @@ public class InformHomeDurableSerializers
                                          KeySerializers.routingKey.deserialize(in, version),
                                          CommandSerializers.timestamp.deserialize(in, version),
                                          CommandSerializers.durability.deserialize(in, version),
-                                         CollectionSerializer.deserializeCollection(TopologySerializers.nodeId, Sets::newHashSetWithExpectedSize, in, version));
+                                         deserializeSet(in, version, TopologySerializers.nodeId));
         }
 
         @Override
@@ -64,7 +61,7 @@ public class InformHomeDurableSerializers
                    + KeySerializers.routingKey.serializedSize(inform.homeKey, version)
                    + CommandSerializers.timestamp.serializedSize(inform.executeAt, version)
                    + CommandSerializers.durability.serializedSize(inform.durability, version)
-                   + CollectionSerializer.serializedSizeCollection(TopologySerializers.nodeId, inform.persistedOn, version);
+                   + serializedCollectionSize(inform.persistedOn, version, TopologySerializers.nodeId);
         }
 
     };

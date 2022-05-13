@@ -32,26 +32,14 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CIDR;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
-import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 
 public class CIDRGroupsMappingManagerTest
 {
     CIDRGroupsMappingManager cidrGroupsMappingManager;
-
-    private static void setupSuperUser()
-    {
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
-                                                     + "VALUES ('%s', true, true, '%s')",
-                                                     AUTH_KEYSPACE_NAME,
-                                                     AuthKeyspace.ROLES,
-                                                     CassandraRoleManager.DEFAULT_SUPERUSER_NAME,
-                                                     "xxx"));
-    }
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -64,7 +52,7 @@ public class CIDRGroupsMappingManagerTest
                                new AuthTestUtils.LocalCassandraNetworkAuthorizer(),
                                new AuthTestUtils.LocalCassandraCIDRAuthorizer());
         AuthCacheService.initializeAndRegisterCaches();
-        setupSuperUser();
+        AuthTestUtils.setupSuperUser();
     }
 
     @Before

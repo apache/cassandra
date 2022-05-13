@@ -66,7 +66,7 @@ public class InsertTest extends CQLTester
                                 row(12, expectedDuration),
                                 row(13, expectedDuration),
                                 row(14, expectedDuration));
-        assertInvalidMessage("no viable alternative at input ')' (... b) VALUES (15, [P]))","INSERT INTO %s (a, b) VALUES (15, P)");
+        assertInvalid("no viable alternative at input ')' (... b) VALUES (15, [P]))","INSERT INTO %s (a, b) VALUES (15, P)");
     }
 
     @Test

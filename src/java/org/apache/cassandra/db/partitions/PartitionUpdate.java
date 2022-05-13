@@ -236,7 +236,8 @@ public class PartitionUpdate extends AbstractBTreePartition
     }
 
 
-    protected boolean canHaveShadowedData()
+    @Override
+    public boolean canHaveShadowedData()
     {
         return canHaveShadowedData;
     }
@@ -571,6 +572,15 @@ public class PartitionUpdate extends AbstractBTreePartition
                                                   boolean canHaveShadowedData)
     {
         return new PartitionUpdate(metadata, metadata.epoch, key, holder, deletionInfo, canHaveShadowedData);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (!(obj instanceof PartitionUpdate))
+            return false;
+
+        return super.equals(obj);
     }
 
     /**

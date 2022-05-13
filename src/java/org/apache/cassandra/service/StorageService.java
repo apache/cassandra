@@ -168,6 +168,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosCommit;
@@ -1254,6 +1255,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public long getTruncateRpcTimeout()
     {
         return DatabaseDescriptor.getTruncateRpcTimeout(MILLISECONDS);
+    }
+
+    public void setTransactionTimeout(long value)
+    {
+        DatabaseDescriptor.setTransactionTimeout(value);
+        logger.info("set transaction timeout to {} ms", value);
+    }
+
+    public long getTransactionTimeout()
+    {
+        return DatabaseDescriptor.getTransactionTimeout(MILLISECONDS);
     }
 
     /** @deprecated See CASSANDRA-15234 */

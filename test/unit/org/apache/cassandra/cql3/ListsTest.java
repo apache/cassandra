@@ -143,7 +143,6 @@ public class ListsTest extends CQLTester
         ByteBuffer keyBuf = ByteBufferUtil.bytes("key");
         DecoratedKey key = Murmur3Partitioner.instance.decorateKey(keyBuf);
         UpdateParameters parameters = new UpdateParameters(metaData,
-                                                           null,
                                                            ClientState.forInternalCalls(),
                                                            QueryOptions.DEFAULT,
                                                            System.currentTimeMillis(),

@@ -60,6 +60,7 @@ lexer grammar Lexer;
 // pylib/cqlshlib/cqlhandling.py::cql_keywords_reserved.
 // When adding a new unreserved keyword, add entry to unreserved keywords in Parser.g.
 K_SELECT:      S E L E C T;
+K_LET:         L E T;
 K_FROM:        F R O M;
 K_AS:          A S;
 K_WHERE:       W H E R E;
@@ -83,8 +84,10 @@ K_BEGIN:       B E G I N;
 K_UNLOGGED:    U N L O G G E D;
 K_BATCH:       B A T C H;
 K_APPLY:       A P P L Y;
+K_COMMIT:      C O M M I T;
 K_TRUNCATE:    T R U N C A T E;
 K_DELETE:      D E L E T E;
+K_TRANSACTION: T R A N S A C T I O N;
 K_IN:          I N;
 K_CREATE:      C R E A T E;
 K_SCHEMA:      S C H E M A;
@@ -122,6 +125,8 @@ K_DESC:        D E S C;
 K_ALLOW:       A L L O W;
 K_FILTERING:   F I L T E R I N G;
 K_IF:          I F;
+K_THEN:        T H E N;
+K_END:         E N D;
 K_IS:          I S;
 K_CONTAINS:    C O N T A I N S;
 K_GROUP:       G R O U P;
