@@ -33,6 +33,7 @@ import traceback
 import warnings
 import webbrowser
 from contextlib import contextmanager
+from cassandra.metadata import Murmur3Token
 from glob import glob
 from io import StringIO
 from uuid import UUID
@@ -600,6 +601,12 @@ class Shell(cmd.Cmd):
     def show_session(self, sessionid, partial_session=False):
         print_trace_session(self, self.session, sessionid, partial_session)
 
+    def show_replicas(self, token, keyspace=None):
+        ks = self.current_keyspace if keyspace is None else keyspace
+        nodes = self.conn.metadata.token_map.get_replicas(self.current_keyspace, Murmur3Token(token))
+        addresses = [x.address for x in nodes]
+        print(f"Replicas for token {token} are {addresses}")
+
     def get_connection_versions(self):
         result, = self.session.execute("select * from system.local where key = 'local'")
         vers = {
@@ -979,7 +986,7 @@ class Shell(cmd.Cmd):
         if parsed:
             self.printerr('Improper %s command (problem at %r).' % (cmdword, parsed.remainder[0]))
         else:
-            self.printerr('Improper %s command.' % cmdword)
+            self.printerr(f'Improper {cmdword} command.')
 
     def do_use(self, parsed):
         ksname = parsed.get_binding('ksname')
@@ -1578,6 +1585,11 @@ class Shell(cmd.Cmd):
         SHOW SESSION <sessionid>
 
           Pretty-prints the requested tracing session.
+
+        SHOW REPLICAS <token> (<keyspace>)
+
+          Lists the replica nodes by IP address for the given token.  The current 
+          keyspace is used if one is not specified.
         """
         showwhat = parsed.get_binding('what').lower()
         if showwhat == 'version':
@@ -1588,6 +1600,10 @@ class Shell(cmd.Cmd):
         elif showwhat.startswith('session'):
             session_id = parsed.get_binding('sessionid').lower()
             self.show_session(UUID(session_id))
+        elif showwhat.startswith('replicas'):
+            token_id = parsed.get_binding('token')
+            keyspace = parsed.get_binding('keyspace')
+            self.show_replicas(token_id, keyspace)
         else:
             self.printerr('Wait, how do I show %r?' % (showwhat,))
 

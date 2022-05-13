@@ -167,7 +167,7 @@ Example:
 [source,none]
 ----
 cqlsh> SHOW VERSION
-[cqlsh 5.0.1 | Cassandra 3.8 | CQL spec 3.4.2 | Native protocol v4]
+[cqlsh 6.1.0 | Cassandra 4.0.1 | CQL spec 3.4.5 | Native protocol v5]
 ----
 
 === `SHOW HOST`
@@ -179,6 +179,21 @@ connected to in addition to the cluster name. Example:
 ----
 cqlsh> SHOW HOST
 Connected to Prod_Cluster at 192.0.0.1:9042.
+----
+
+=== `SHOW REPLICAS`
+
+Prints the IP address the Cassandra nodes which are replicas for the 
+listed given token and keyspace.
+
+`Usage`: `SHOW REPLICAS <token> (<keyspace>)`
+
+Example usage:
+
+[source,none]
+----
+cqlsh> SHOW REPLICAS 95
+Replicas for token 95 are ['192.0.0.1', '192.0.0.2']
 ----
 
 === `SHOW SESSION`
