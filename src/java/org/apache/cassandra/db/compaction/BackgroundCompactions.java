@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.MovingAverage;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * A class for grouping the background compactions picked by a strategy, either pending or in progress.
@@ -197,13 +198,16 @@ public class BackgroundCompactions
                 if (logger.isTraceEnabled())
                     logger.trace("Found aggregate for compaction: {}", existingAggregate);
 
-                if (!existingAggregate.getActive().contains(compaction))
+                Pair<Boolean, CompactionPick> contains = existingAggregate.containsSameInstance(compaction);
+                if (!contains.left)
                 {
-                    // add the compaction just submitted to the aggregate that was found but because for STCS its
-                    // key may change slightly, first remove it
+                    // add the compaction just submitted to the aggregate that was found if it doesn't already contain it
+                    // (the same exact instance that is because when we set the progress in compactions we ideally would like
+                    // the instance in the aggregates map to also be updated)
+                    // because for STCS the key may change slightly, first remove the existing aggregate, before re-inserting it
                     aggregatesMapChanged = true;
                     aggregatesMap.remove(existingAggregate.getKey());
-                    CompactionAggregate newAggregate = existingAggregate.withAdditionalCompactions(ImmutableList.of(compaction));
+                    CompactionAggregate newAggregate = existingAggregate.withReplacedCompaction(compaction, contains.right);
                     aggregatesMap.put(newAggregate.getKey(), newAggregate);
 
                     if (logger.isTraceEnabled())

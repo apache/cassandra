@@ -30,6 +30,7 @@ import java.util.SortedMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * A compaction aggregate is either a level in {@link LeveledCompactionStrategy} or a tier (bucket) in other
@@ -270,6 +272,53 @@ public abstract class CompactionAggregate
     CompactionAggregate withExpired(Collection<CompactionSSTable> expired)
     {
        return clone(Iterables.concat(sstables, expired), selected.withExpiredSSTables(expired), compactions);
+    }
+
+    /**
+     * Check if this aggregate compactions contain the compaction passed in. Here we're looking for
+     * the exact same instance, not just a compaction that is equal to it.
+     *
+     * @param compaction the compaction to check if it can be found
+     *
+     * @return a pair containing the result on the left (true if the compaction is found, false otherwise), and
+     * a matching compaction on the right (any compaction that is equal, including the same instance).
+     */
+    public Pair<Boolean, CompactionPick> containsSameInstance(CompactionPick compaction)
+    {
+        List<CompactionPick> activeCompactions = getActive();
+        int existingCompactionIdx = activeCompactions.indexOf(compaction);
+        CompactionPick existingCompaction = existingCompactionIdx == -1 ? null : activeCompactions.get(existingCompactionIdx);
+        boolean containsSameInstance = existingCompaction != null && existingCompaction == compaction;
+        return Pair.create(containsSameInstance, existingCompaction);
+    }
+    
+    /**
+     * Replace an existing compaction pick with a new one, this is used by CNDB because it creates new
+     * compactions from etcd. If the existing compaction is null, simply add the replacement.
+     */
+    public CompactionAggregate withReplacedCompaction(CompactionPick replacement, @Nullable CompactionPick existing)
+    {
+        Preconditions.checkArgument(existing == null || this.compactions.contains(existing), "Expected existing to be part of compactions");
+        if (existing == null)
+            return withAdditionalCompactions(ImmutableList.of(replacement));
+
+        List<CompactionSSTable> sstables = new ArrayList<>(this.sstables.size());
+        LinkedHashSet<CompactionPick> compactions = new LinkedHashSet<>(this.compactions.size());
+        for (CompactionPick comp : this.compactions)
+        {
+            if (comp == existing)
+            {
+                compactions.add(replacement);
+                sstables.addAll(replacement.sstables());
+            }
+            else
+            {
+                compactions.add(comp);
+                sstables.addAll(comp.sstables());
+            }
+        }
+
+        return clone(sstables, existing == selected ? replacement : selected, compactions);
     }
 
     /**
