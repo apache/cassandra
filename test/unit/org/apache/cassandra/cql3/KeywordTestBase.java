@@ -20,32 +20,40 @@ package org.apache.cassandra.cql3;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.exceptions.SyntaxException;
 
-@RunWith(Parameterized.class)
-public class KeywordTest extends CQLTester
+/**
+ * This class tests all keywords which took a long time. Hence it was split into multiple
+ * KeywordTestSplitN to prevent CI timing out. If timeouts reappear split it further
+ */
+public class KeywordTestBase extends CQLTester
 {
-    @Parameterized.Parameters(name = "keyword {0} isReserved {1}")
-    public static Collection<Object[]> keywords() {
-        return Arrays.stream(CqlParser.tokenNames)
-                     .filter(k -> k.startsWith("K_"))
-                     .map(k -> {
-                         String keyword = k.substring(2);
-                         return new Object[]{ keyword, ReservedKeywords.isReserved(keyword) };
-                     })
-                     .collect(Collectors.toSet());
+    public static List<Object[]> keywords = Arrays.stream(CqlParser.tokenNames)
+                                                  .filter(k -> k.startsWith("K_"))
+                                                  .map(k -> {
+                                                      String keyword = k.substring(2);
+                                                      return new Object[] { keyword,ReservedKeywords.isReserved(keyword) };
+                                                  })
+                                                  .collect(Collectors.toList());
+    
+    public static Collection<Object[]> getKeywordsForSplit(int split, int totalSplits)
+    {
+        return Sets.newHashSet(Lists.partition(KeywordTestBase.keywords, KeywordTestBase.keywords.size() / totalSplits)
+                                    .get(split - 1));
     }
 
     String keyword;
     boolean isReserved;
-    public KeywordTest(String keyword, boolean isReserved)
+    public KeywordTestBase(String keyword, boolean isReserved)
     {
         this.keyword = keyword;
         this.isReserved = isReserved;
