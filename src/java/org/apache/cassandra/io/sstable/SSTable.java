@@ -46,6 +46,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -351,10 +352,13 @@ public abstract class SSTable
     protected static void appendTOC(Descriptor descriptor, Collection<Component> components)
     {
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
-        try (PrintWriter w = new PrintWriter(tocFile.newWriter(APPEND)))
+        try (FileOutputStreamPlus out = tocFile.newOutputStream(APPEND);
+             PrintWriter w = new PrintWriter(out))
         {
             for (Component component : components)
                 w.println(component.name);
+            w.flush();
+            out.sync();
         }
         catch (IOException e)
         {
