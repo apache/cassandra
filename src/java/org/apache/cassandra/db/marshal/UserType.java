@@ -131,6 +131,12 @@ public class UserType extends TupleType implements SchemaElement
         return type(i);
     }
 
+    public AbstractType<?> fieldType(CellPath path)
+    {
+        int field = ByteBufferUtil.getUnsignedShort(path.get(0), 0);
+        return fieldType(field);
+    }
+
     public List<AbstractType<?>> fieldTypes()
     {
         return types;

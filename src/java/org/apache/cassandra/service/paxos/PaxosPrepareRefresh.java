@@ -226,18 +226,18 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
     {
         public void serialize(Response response, DataOutputPlus out, int version) throws IOException
         {
-            serializeNullable(Ballot.Serializer.instance, response.isSupersededBy, out, version);
+            serializeNullable(response.isSupersededBy, out, version, Ballot.Serializer.instance);
         }
 
         public Response deserialize(DataInputPlus in, int version) throws IOException
         {
-            Ballot isSupersededBy = deserializeNullable(Ballot.Serializer.instance, in, version);
+            Ballot isSupersededBy = deserializeNullable(in, version, Ballot.Serializer.instance);
             return new Response(isSupersededBy);
         }
 
         public long serializedSize(Response response, int version)
         {
-            return serializedSizeNullable(Ballot.Serializer.instance, response.isSupersededBy, version);
+            return serializedSizeNullable(response.isSupersededBy, version, Ballot.Serializer.instance);
         }
     }
 

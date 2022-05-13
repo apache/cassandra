@@ -1,4 +1,6 @@
 5.1
+ * CEP-15: Multi-Partition Transaction CQL Support (Alpha) (CASSANDRA-17719)
+ * CEP-15 (C*): Messaging and storage engine integration (CASSANDRA-17103)
  * Refactor Relation and Restriction hierarchies (CASSANDRA-19341)
  * Raise priority of TCM internode messages during critical operations (CASSANDRA-19517)
  * Add nodetool command to unregister LEFT nodes (CASSANDRA-19581)

@@ -16,23 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord.db;
+package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.base.Preconditions;
 
 import accord.api.Data;
 import accord.api.Result;
-import accord.primitives.Keys;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
@@ -42,71 +42,47 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements Data, Result, Iterable<FilteredPartition>
+public class TxnData implements Data, Result, Iterable<FilteredPartition>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordData(Collections.emptyList()));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnData());
 
-    private static PartitionKey getKey(FilteredPartition partition)
+    private final Map<TxnDataName, FilteredPartition> data;
+
+    public TxnData(Map<TxnDataName, FilteredPartition> data)
     {
-        return new PartitionKey(partition.metadata().id, partition.partitionKey());
+        this.data = data;
     }
 
-    public AccordData(FilteredPartition partition)
+    public TxnData()
     {
-        this(Keys.of(PartitionKey.of(partition)), new ByteBuffer[] { serialize(partition, partitionSerializer) });
+        this(new HashMap<>());
     }
 
-    public AccordData(List<FilteredPartition> items)
+    public void put(TxnDataName name, FilteredPartition partition)
     {
-        super(items, AccordData::getKey);
+        data.put(name, partition);
     }
 
-    public AccordData(Keys keys, ByteBuffer[] serialized)
+    public FilteredPartition get(TxnDataName name)
     {
-        super(keys, serialized);
+        return data.get(name);
     }
 
-    void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException
+    public Set<Map.Entry<TxnDataName, FilteredPartition>> entrySet()
     {
-        partitionSerializer.serialize(partition, out, version);
-    }
-
-    @Override
-    FilteredPartition deserialize(DataInputPlus in, int version) throws IOException
-    {
-        return partitionSerializer.deserialize(in, version);
-    }
-
-    @Override
-    long serializedSize(FilteredPartition partition, int version)
-    {
-        return partitionSerializer.serializedSize(partition, version);
-    }
-
-    @Override
-    long emptySizeOnHeap()
-    {
-        return EMPTY_SIZE;
-    }
-
-    FilteredPartition get(PartitionKey key)
-    {
-        return getDeserialized(key);
-    }
-
-    @Override
-    public Iterator<FilteredPartition> iterator()
-    {
-        return Arrays.stream(serialized).map(this::deserialize).iterator();
+        return data.entrySet();
     }
 
     @Override
     public Data merge(Data data)
     {
-        return super.merge((AccordData) data, AccordData::new);
+        TxnData that = (TxnData) data;
+        TxnData merged = new TxnData();
+        this.data.forEach(merged::put);
+        that.data.forEach(merged::put);
+        return merged;
     }
 
     public static Data merge(Data left, Data right)
@@ -114,9 +90,39 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
         if (left == null)
             return right;
         if (right == null)
-            return right;
+            return null;
 
         return left.merge(right);
+    }
+
+    public long estimatedSizeOnHeap()
+    {
+        long size = EMPTY_SIZE;
+        for (Map.Entry<TxnDataName, FilteredPartition> entry : data.entrySet())
+        {
+            size += entry.getKey().estimatedSizeOnHeap();
+            
+            for (Row row : entry.getValue())
+                size += row.unsharedHeapSize();
+            
+            // TODO: Include the other parts of FilteredPartition after we rebase to pull in BTreePartitionData?
+        }
+        return size;
+    }
+
+    @Override
+    public Iterator<FilteredPartition> iterator()
+    {
+        return data.values().iterator();
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TxnData that = (TxnData) o;
+        return data.equals(that.data);
     }
 
     private static final IVersionedSerializer<FilteredPartition> partitionSerializer = new IVersionedSerializer<FilteredPartition>()
@@ -126,8 +132,10 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
         {
             partition.metadata().id.serialize(out);
             TableMetadata metadata = Schema.instance.getTableMetadata(partition.metadata().id);
+
             try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
             {
+                // TODO: Will metadata be null if we've dropped a table?
                 UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.all(metadata), out, version, partition.rowCount());
             }
         }
@@ -156,5 +164,43 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
         }
     };
 
-    public static final IVersionedSerializer<AccordData> serializer = new Serializer<>(AccordData::new);
+    public static final IVersionedSerializer<TxnData> serializer = new IVersionedSerializer<TxnData>()
+    {
+        @Override
+        public void serialize(TxnData data, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt(data.data.size());
+            for (Map.Entry<TxnDataName, FilteredPartition> entry : data.data.entrySet())
+            {
+                TxnDataName.serializer.serialize(entry.getKey(), out, version);
+                partitionSerializer.serialize(entry.getValue(), out, version);
+            }
+        }
+
+        @Override
+        public TxnData deserialize(DataInputPlus in, int version) throws IOException
+        {
+            Map<TxnDataName, FilteredPartition> data = new HashMap<>();
+            long size = in.readUnsignedVInt();
+            for (int i=0; i<size; i++)
+            {
+                TxnDataName name = TxnDataName.serializer.deserialize(in, version);
+                FilteredPartition partition = partitionSerializer.deserialize(in, version);
+                data.put(name, partition);
+            }
+            return new TxnData(data);
+        }
+
+        @Override
+        public long serializedSize(TxnData data, int version)
+        {
+            long size = TypeSizes.sizeofUnsignedVInt(data.data.size());
+            for (Map.Entry<TxnDataName, FilteredPartition> entry : data.data.entrySet())
+            {
+                size += TxnDataName.serializer.serializedSize(entry.getKey(), version);
+                size += partitionSerializer.serializedSize(entry.getValue(), version);
+            }
+            return size;
+        }
+    };
 }

@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.local.Command;
+import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
@@ -147,7 +148,7 @@ public class AsyncWriterTest
         AccordCommand command = new AccordCommand(txnId).initialize();
         command.setPartialTxn(txn.slice(ranges, true));
         command.setExecuteAt(executeAt);
-        command.setStatus(Status.Accepted);
+        command.setSaveStatus(SaveStatus.AcceptedWithDefinition);
         AsyncContext context = new AsyncContext();
         context.commands.add(command);
         save(commandStore, context);

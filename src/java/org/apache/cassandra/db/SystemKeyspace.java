@@ -79,6 +79,7 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RebufferingInputStream;
@@ -1871,12 +1872,10 @@ public final class SystemKeyspace
     @SuppressWarnings("unchecked")
     private static Range<Token> byteBufferToRange(ByteBuffer rawRange, IPartitioner partitioner)
     {
-        try
+        try (DataInputPlus.DataInputStreamPlus in = new DataInputBuffer(ByteBufferUtil.getArray(rawRange)))
         {
             // See rangeToBytes above for why version is 0.
-            return (Range<Token>) Range.tokenSerializer.deserialize(new DataInputBuffer(ByteBufferUtil.getArray(rawRange)),
-                                                                    partitioner,
-                                                                    0);
+            return (Range<Token>) Range.tokenSerializer.deserialize(in, partitioner, 0);
         }
         catch (IOException e)
         {

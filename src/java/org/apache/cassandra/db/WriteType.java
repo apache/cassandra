@@ -26,5 +26,6 @@ public enum WriteType
     BATCH_LOG,
     CAS,
     VIEW,
-    CDC;
+    CDC,
+    TRANSACTION
 }
