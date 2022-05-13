@@ -52,6 +52,11 @@
 
   <logger name="org.apache.hadoop" level="WARN"/>
 
+  <!-- Un-comment to enable TRACE logging for Accord transactions.
+  <logger name="accord" level="TRACE" />
+  <logger name="org.apache.cassandra.service.accord" level="TRACE" />
+  -->
+
   <root level="DEBUG">
     <appender-ref ref="INSTANCEFILE" /> <!-- use blocking to avoid race conditions with appending and searching -->
     <appender-ref ref="INSTANCESTDERR" />

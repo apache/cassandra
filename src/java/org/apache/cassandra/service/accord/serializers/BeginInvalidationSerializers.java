@@ -69,35 +69,35 @@ public class BeginInvalidationSerializers
         @Override
         public void serialize(InvalidateReply reply, DataOutputPlus out, int version) throws IOException
         {
-            serializeNullable(CommandSerializers.ballot, reply.supersededBy, out, version);
+            serializeNullable(reply.supersededBy, out, version, CommandSerializers.ballot);
             CommandSerializers.ballot.serialize(reply.accepted, out, version);
             CommandSerializers.status.serialize(reply.status, out, version);
             out.writeBoolean(reply.acceptedFastPath);
-            serializeNullable(KeySerializers.route, reply.route, out, version);
-            serializeNullable(KeySerializers.routingKey, reply.homeKey, out, version);
+            serializeNullable(reply.route, out, version, KeySerializers.route);
+            serializeNullable(reply.homeKey, out, version, KeySerializers.routingKey);
         }
 
         @Override
         public InvalidateReply deserialize(DataInputPlus in, int version) throws IOException
         {
-            Ballot supersededBy = deserializeNullable(CommandSerializers.ballot, in, version);
+            Ballot supersededBy = deserializeNullable(in, version, CommandSerializers.ballot);
             Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
             Status status = CommandSerializers.status.deserialize(in, version);
             boolean acceptedFastPath = in.readBoolean();
-            Route<?> route = deserializeNullable(KeySerializers.route, in, version);
-            RoutingKey homeKey = deserializeNullable(KeySerializers.routingKey, in, version);
+            Route<?> route = deserializeNullable(in, version, KeySerializers.route);
+            RoutingKey homeKey = deserializeNullable(in, version, KeySerializers.routingKey);
             return new InvalidateReply(supersededBy, accepted, status, acceptedFastPath, route, homeKey);
         }
 
         @Override
         public long serializedSize(InvalidateReply reply, int version)
         {
-            return serializedSizeNullable(CommandSerializers.ballot, reply.supersededBy, version)
+            return serializedSizeNullable(reply.supersededBy, version, CommandSerializers.ballot)
                     + CommandSerializers.ballot.serializedSize(reply.accepted, version)
                     + CommandSerializers.status.serializedSize(reply.status, version)
                     + TypeSizes.BOOL_SIZE
-                    + serializedSizeNullable(KeySerializers.route, reply.route, version)
-                    + serializedSizeNullable(KeySerializers.routingKey, reply.homeKey, version);
+                    + serializedSizeNullable(reply.route, version, KeySerializers.route)
+                    + serializedSizeNullable(reply.homeKey, version, KeySerializers.routingKey);
         }
     };
 }

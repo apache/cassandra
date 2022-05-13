@@ -20,17 +20,24 @@ package org.apache.cassandra.cql3;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.NumberType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -41,15 +48,13 @@ import org.apache.cassandra.utils.FastByteOperations;
  */
 public abstract class Constants
 {
-    private static final Logger logger = LoggerFactory.getLogger(Constants.class);
-
     public enum Type
     {
         STRING
         {
             public AbstractType<?> getPreferedTypeFor(String text)
             {
-                 if(Charset.forName("US-ASCII").newEncoder().canEncode(text))
+                 if(StandardCharsets.US_ASCII.newEncoder().canEncode(text))
                  {
                      return AsciiType.instance;
                  }
@@ -229,6 +234,7 @@ public abstract class Constants
             return new Literal(Type.DURATION, text);
         }
 
+        @Override
         public Value prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!testAssignment(keyspace, receiver).isAssignable())
@@ -502,13 +508,6 @@ public abstract class Constants
                 params.addCell(column, newValue);
             }
         }
-
-        private ByteBuffer getCurrentCellBuffer(DecoratedKey key, UpdateParameters params)
-        {
-            Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
-            Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
-            return currentCell == null ? null : currentCell.buffer();
-        }
     }
 
     public static class Substracter extends Operation
@@ -518,19 +517,39 @@ public abstract class Constants
             super(column, t);
         }
 
+        public boolean requiresRead()
+        {
+            return !(column.type instanceof CounterColumnType);
+        }
+
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer bytes = t.bindAndGet(params.options);
-            if (bytes == null)
-                throw new InvalidRequestException("Invalid null value for counter increment");
-            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return;
+            if (column.type instanceof CounterColumnType)
+            {
+                ByteBuffer bytes = t.bindAndGet(params.options);
+                if (bytes == null)
+                    throw new InvalidRequestException("Invalid null value for counter increment");
+                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                    return;
 
-            long increment = ByteBufferUtil.toLong(bytes);
-            if (increment == Long.MIN_VALUE)
-                throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
+                long increment = ByteBufferUtil.toLong(bytes);
+                if (increment == Long.MIN_VALUE)
+                    throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
 
-            params.addCounter(column, -increment);
+                params.addCounter(column, -increment);
+            }
+            else if (column.type instanceof NumberType)
+            {
+                NumberType<?> type = (NumberType<?>) column.type;
+                ByteBuffer bytes = t.bindAndGet(params.options);
+                if (bytes == null)
+                    throw new InvalidRequestException("Invalid null value for number increment");
+                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                if (current == null)
+                    return;
+                ByteBuffer newValue = type.substract(type, current, type, bytes);
+                params.addCell(column, newValue);
+            }
         }
     }
 

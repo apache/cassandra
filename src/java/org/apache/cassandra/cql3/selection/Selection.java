@@ -126,6 +126,23 @@ public abstract class Selection
         return resultMetadata;
     }
 
+    public static Selection.Selectors noopSelector()
+    {
+        return new Selectors()
+        {
+            List<ByteBuffer> current;
+            @Override public ColumnFilter getColumnFilter() { return ColumnFilter.NONE; }
+            @Override public boolean hasProcessing() { return false; }
+            @Override public boolean isAggregate() { return false; }
+            @Override public int numberOfFetchedColumns() { return 0; }
+            @Override public boolean collectTTLs() { return false; }
+            @Override public boolean collectWritetimes() { return false; }
+            @Override public void addInputRow(InputRow rs) { current = rs.getValues(); }
+            @Override public List<ByteBuffer> getOutputRow() { return current; }
+            @Override public void reset() { current = null; }
+        };
+    }
+
     public static Selection wildcard(TableMetadata table, boolean isJson, boolean returnStaticContentOnPartitionWithNoRows)
     {
         List<ColumnMetadata> all = new ArrayList<>(table.columns().size());

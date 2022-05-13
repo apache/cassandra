@@ -1855,6 +1855,11 @@ public class DatabaseDescriptor
         return conf.cas_contention_timeout.to(unit);
     }
 
+    public static long getTransactionTimeout(TimeUnit unit)
+    {
+        return conf.transaction_timeout.to(unit);
+    }
+
     public static void setCasContentionTimeout(long timeOutInMillis)
     {
         conf.cas_contention_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);

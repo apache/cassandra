@@ -1,0 +1,19 @@
+
+ccm create accord-cql-poc -n 3
+ccm start
+
+bin/cqlsh -e "create keyspace ks with replication={'class':'SimpleStrategy', 'replication_factor':3};"
+bin/cqlsh -e "create table ks.tbl1 (k int primary key, v int);"
+bin/cqlsh -e "create table ks.tbl2 (k int primary key, v int);"
+
+bin/nodetool -h 0000:0000:0000:0000:0000:ffff:7f00:0001 -p 7100 createepochunsafe
+bin/nodetool -h 0000:0000:0000:0000:0000:ffff:7f00:0001 -p 7200 createepochunsafe
+bin/nodetool -h 0000:0000:0000:0000:0000:ffff:7f00:0001 -p 7300 createepochunsafe
+
+BEGIN TRANSACTION
+  LET row1 = (SELECT * FROM ks.tbl1 WHERE k = 1);
+  SELECT row1.v;
+  IF row1 IS NULL THEN
+    INSERT INTO ks.tbl1 (k, v) VALUES (1, 2);
+  END IF
+COMMIT TRANSACTION;

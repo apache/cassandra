@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Range;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -32,6 +33,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ListSerializer<T> extends CollectionSerializer<List<T>>
 {
@@ -224,10 +226,29 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     }
 
     @Override
-    public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator)
+    public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer index, AbstractType<?> comparator)
     {
-        // We don't allow selecting an element of a list, so we don't need this.
-        throw new UnsupportedOperationException();
+        try
+        {
+            int n = readCollectionSize(collection, ByteBufferAccessor.instance, ProtocolVersion.V3);
+            int offset = sizeOfCollectionSize(n, ProtocolVersion.V3);
+            int idx = ByteBufferUtil.toInt(index);
+
+            Preconditions.checkElementIndex(idx, n);
+
+            for (int i = 0; i <= idx; i++)
+            {
+                ByteBuffer value = readValue(collection, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
+                offset += sizeOfValue(value, ByteBufferAccessor.instance, ProtocolVersion.V3);
+                if (i == idx)
+                    return value;
+            }
+            return null;
+        }
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
+        {
+            throw new MarshalException("Not enough bytes to read a list");
+        }
     }
 
     @Override

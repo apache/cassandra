@@ -63,17 +63,15 @@ import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_RSP;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.Commit.*;
-import static org.apache.cassandra.service.paxos.Commit.CompareResult.WAS_REPROPOSED_BY;
 import static org.apache.cassandra.service.paxos.Paxos.*;
 import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.*;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.service.paxos.PaxosState.*;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.*;
-import static org.apache.cassandra.utils.CollectionSerializer.deserializeMap;
-import static org.apache.cassandra.utils.CollectionSerializer.newHashMap;
-import static org.apache.cassandra.utils.CollectionSerializer.serializeMap;
-import static org.apache.cassandra.utils.CollectionSerializer.serializedSizeMap;
+import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
+import static org.apache.cassandra.utils.CollectionSerializers.serializeMap;
+import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize;
 import static org.apache.cassandra.utils.concurrent.Awaitable.SyncAwaitable.waitUntil;
 
 /**
@@ -1187,7 +1185,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 Committed.serializer.serialize(promised.latestCommitted, out, version);
                 if (promised.readResponse != null)
                     ReadResponse.serializer.serialize(promised.readResponse, out, version);
-                serializeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, promised.gossipInfo, out, version);
+                serializeMap(promised.gossipInfo, out, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
                 if (promised.outcome == PERMIT_READ)
                     promised.supersededBy.serialize(out);
             }
@@ -1207,7 +1205,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 Accepted acceptedNotCommitted = (flags & 2) != 0 ? Accepted.serializer.deserialize(in, version) : null;
                 Committed committed = Committed.serializer.deserialize(in, version);
                 ReadResponse readResponse = (flags & 4) != 0 ? ReadResponse.serializer.deserialize(in, version) : null;
-                Map<InetAddressAndPort, EndpointState> gossipInfo = deserializeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, newHashMap(), in, version);
+                Map<InetAddressAndPort, EndpointState> gossipInfo = deserializeMap(in, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
                 MaybePromise.Outcome outcome = (flags & 16) != 0 ? PERMIT_READ : PROMISE;
                 boolean hasProposalStability = (flags & 8) != 0;
                 Ballot supersededBy = null;
@@ -1231,7 +1229,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         + (permitted.latestAcceptedButNotCommitted == null ? 0 : Accepted.serializer.serializedSize(permitted.latestAcceptedButNotCommitted, version))
                         + Committed.serializer.serializedSize(permitted.latestCommitted, version)
                         + (permitted.readResponse == null ? 0 : ReadResponse.serializer.serializedSize(permitted.readResponse, version))
-                        + serializedSizeMap(inetAddressAndPortSerializer, EndpointState.nullableSerializer, permitted.gossipInfo, version)
+                        + serializedMapSize(permitted.gossipInfo, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer)
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);
             }
         }

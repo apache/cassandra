@@ -165,7 +165,8 @@ public class View
                                                Collections.emptyList(),
                                                false,
                                                true,
-                                               false);
+                                               false,
+                                               null);
 
             SelectStatement.RawStatement rawSelect =
                 new SelectStatement.RawStatement(new QualifiedName(baseCfs.keyspace.getName(), baseCfs.name),
