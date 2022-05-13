@@ -253,9 +253,9 @@ public class CQL3CasRequest implements CASRequest
         final long timeUuidMsb;
         long timeUuidNanos;
 
-        public CASUpdateParameters(TableMetadata metadata, RegularAndStaticColumns updatedColumns, ClientState state, QueryOptions options, long timestamp, int nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
+        public CASUpdateParameters(TableMetadata metadata, ClientState state, QueryOptions options, long timestamp, int nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
         {
-            super(metadata, updatedColumns, state, options, timestamp, nowInSec, ttl, prefetchedRows);
+            super(metadata, state, options, timestamp, nowInSec, ttl, prefetchedRows);
             this.timeUuidMsb = timeUuidMsb;
             this.timeUuidNanos = timeUuidNanos;
         }
@@ -293,7 +293,7 @@ public class CQL3CasRequest implements CASRequest
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
             CASUpdateParameters params =
-                new CASUpdateParameters(metadata, updateBuilder.columns(), state, options, timestamp, nowInSeconds,
+                new CASUpdateParameters(metadata, state, options, timestamp, nowInSeconds,
                                      stmt.getTimeToLive(options), map, timeUuidMsb, timeUuidNanos);
             stmt.addUpdateForKey(updateBuilder, clustering, params);
             return params.timeUuidNanos;
@@ -323,7 +323,6 @@ public class CQL3CasRequest implements CASRequest
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
             UpdateParameters params =
                 new UpdateParameters(metadata,
-                                     updateBuilder.columns(),
                                      state,
                                      options,
                                      timestamp,

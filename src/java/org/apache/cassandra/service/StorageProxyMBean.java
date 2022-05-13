@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 public interface StorageProxyMBean
 {
     public long getTotalHints();
@@ -52,6 +51,8 @@ public interface StorageProxyMBean
     public void setRangeRpcTimeout(Long timeoutInMillis);
     public Long getTruncateRpcTimeout();
     public void setTruncateRpcTimeout(Long timeoutInMillis);
+    public Long getTransactionTimeout();
+    public void setTransactionTimeout(Long timeoutInMillis);
 
     public void setNativeTransportMaxConcurrentConnections(Long nativeTransportMaxConcurrentConnections);
     public Long getNativeTransportMaxConcurrentConnections();

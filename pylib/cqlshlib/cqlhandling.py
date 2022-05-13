@@ -25,10 +25,10 @@ from cqlshlib import pylexotron, util
 Hint = pylexotron.Hint
 
 cql_keywords_reserved = {'add', 'allow', 'alter', 'and', 'apply', 'asc', 'authorize', 'batch', 'begin', 'by',
-                         'columnfamily', 'create', 'delete', 'desc', 'describe', 'drop', 'entries', 'execute', 'from',
-                         'full', 'grant', 'if', 'in', 'index', 'infinity', 'insert', 'into', 'is', 'keyspace', 'limit',
+                         'columnfamily', 'create', 'commit', 'delete', 'desc', 'describe', 'drop', 'end', 'entries', 'execute', 'from',
+                         'full', 'grant', 'if', 'in', 'index', 'infinity', 'insert', 'into', 'is', 'keyspace', 'let', 'limit',
                          'materialized', 'modify', 'nan', 'norecursive', 'not', 'null', 'of', 'on', 'or', 'order',
-                         'primary', 'rename', 'revoke', 'schema', 'select', 'set', 'table', 'to', 'token', 'truncate',
+                         'primary', 'rename', 'revoke', 'schema', 'select', 'set', 'table', 'then', 'to', 'token', 'transaction', 'truncate',
                          'unlogged', 'update', 'use', 'using', 'view', 'where', 'with'}
 """
 Set of reserved keywords in CQL.
@@ -145,7 +145,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             else:
                 output.append(stmt)
             if len(stmt) > 2:
-                if stmt[-3][1].upper() == 'APPLY':
+                if stmt[-3][1].upper() == 'APPLY' or stmt[0][1].upper() == 'COMMIT' or (stmt[0][1].upper() == 'END' and stmt[1][1].upper() == 'IF'):
                     in_batch = False
                 elif stmt[0][1].upper() == 'BEGIN':
                     in_batch = True

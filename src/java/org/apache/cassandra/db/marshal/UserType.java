@@ -126,6 +126,12 @@ public class UserType extends TupleType implements SchemaElement
         return type(i);
     }
 
+    public AbstractType<?> fieldType(CellPath path)
+    {
+        int field = ByteBufferUtil.getUnsignedShort(path.get(0), 0);
+        return fieldType(field);
+    }
+
     public List<AbstractType<?>> fieldTypes()
     {
         return types;
@@ -495,7 +501,7 @@ public class UserType extends TupleType implements SchemaElement
                 builder.append(",")
                        .newLine();
 
-            builder.append(fieldNameAsString(i))
+            builder.appendQuotingIfNeeded(fieldNameAsString(i))
                    .append(' ')
                    .append(fieldType(i));
         }

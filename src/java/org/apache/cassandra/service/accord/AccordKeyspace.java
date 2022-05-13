@@ -99,12 +99,12 @@ import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.accord.AccordCommandsForKey.SeriesKind;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
 
@@ -165,7 +165,7 @@ public class AccordKeyspace
         static final LocalVersionedSerializer<PartialTxn> partialTxn = localSerializer(CommandSerializers.partialTxn);
         static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
         static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
-        static final LocalVersionedSerializer<AccordData> result = localSerializer(AccordData.serializer);
+        static final LocalVersionedSerializer<TxnData> result = localSerializer(TxnData.serializer);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
         {
@@ -468,7 +468,7 @@ public class AccordKeyspace
                 builder.addCell(live(CommandsColumns.writes, timestampMicros, serialize(command.writes.get(), CommandsSerializers.writes)));
 
             if (command.result.hasModifications())
-                builder.addCell(live(CommandsColumns.result, timestampMicros, serialize((AccordData) command.result.get(), CommandsSerializers.result)));
+                builder.addCell(live(CommandsColumns.result, timestampMicros, serialize((TxnData) command.result.get(), CommandsSerializers.result)));
 
             if (command.waitingOnCommit.hasModifications())
             {

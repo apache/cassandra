@@ -16,10 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord.db;
+package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import javax.annotation.Nullable;
 
@@ -37,46 +36,46 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public abstract class AccordQuery implements Query
+public abstract class TxnQuery implements Query
 {
-    public static final AccordQuery ALL = new AccordQuery()
+    public static final TxnQuery ALL = new TxnQuery()
     {
         @Override
         public Result compute(TxnId txnId, Data data, @Nullable Read read, @Nullable Update update)
         {
-            return data != null ? (AccordData) data : new AccordData(Collections.emptyList());
+            return data != null ? (TxnData) data : new TxnData();
         }
     };
 
-    public static final AccordQuery NONE = new AccordQuery()
+    public static final TxnQuery NONE = new TxnQuery()
     {
         @Override
         public Result compute(TxnId txnId, Data data, @Nullable Read read, @Nullable Update update)
         {
-            return new AccordData(Collections.emptyList());
+            return new TxnData();
         }
     };
 
     private static final long SIZE = ObjectSizes.measure(ALL);
 
-    private AccordQuery() {}
+    private TxnQuery() {}
 
     public long estimatedSizeOnHeap()
     {
         return SIZE;
     }
 
-    public static final IVersionedSerializer<AccordQuery> serializer = new IVersionedSerializer<AccordQuery>()
+    public static final IVersionedSerializer<TxnQuery> serializer = new IVersionedSerializer<TxnQuery>()
     {
         @Override
-        public void serialize(AccordQuery query, DataOutputPlus out, int version) throws IOException
+        public void serialize(TxnQuery query, DataOutputPlus out, int version) throws IOException
         {
             Preconditions.checkArgument(query == null || query == ALL || query == NONE);
             out.writeByte(query == null ? 0 : query == ALL ? 1 : 2);
         }
 
         @Override
-        public AccordQuery deserialize(DataInputPlus in, int version) throws IOException
+        public TxnQuery deserialize(DataInputPlus in, int version) throws IOException
         {
             switch (in.readByte())
             {
@@ -88,7 +87,7 @@ public abstract class AccordQuery implements Query
         }
 
         @Override
-        public long serializedSize(AccordQuery query, int version)
+        public long serializedSize(TxnQuery query, int version)
         {
             Preconditions.checkArgument(query == null || query == ALL || query == NONE);
             return TypeSizes.sizeof((byte)2);

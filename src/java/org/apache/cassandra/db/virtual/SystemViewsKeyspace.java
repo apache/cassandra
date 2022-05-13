@@ -49,6 +49,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new GossipInfoTable(VIRTUAL_VIEWS))
                     .add(new QueriesTable(VIRTUAL_VIEWS))
                     .addAll(LocalRepairTables.getAll(VIRTUAL_VIEWS))
+                     .addAll(AccordVirtualTables.getAll(VIRTUAL_VIEWS))
                     .build());
     }
 }
