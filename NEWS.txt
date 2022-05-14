@@ -57,6 +57,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added new Mathematical CQL functions: abs, exp, log, log10 and round.
     - Adds a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
       performance. The new memtable is implemented by the TrieMemtable class and can be selected using the memtable
       API, see src/java/org/apache/cassandra/db/memtable/Memtable_API.md.

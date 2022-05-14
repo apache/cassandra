@@ -559,4 +559,48 @@ public final class IntegerType extends NumberType<BigInteger>
     {
         return decompose(toBigInteger(input).negate());
     }
+
+    @Override
+    public ByteBuffer abs(ByteBuffer input)
+    {
+        return decompose(toBigInteger(input).abs());
+    }
+
+    @Override
+    public ByteBuffer exp(ByteBuffer input)
+    {
+        BigInteger bi = toBigInteger(input);
+        BigDecimal bd = new BigDecimal(bi);
+        BigDecimal result = DecimalType.instance.exp(bd);
+        BigInteger out = result.toBigInteger();
+        return IntegerType.instance.decompose(out);
+    }
+
+    @Override
+    public ByteBuffer log(ByteBuffer input)
+    {
+        BigInteger bi = toBigInteger(input);
+        if (bi.compareTo(BigInteger.ZERO) <= 0) throw new ArithmeticException("Natural log of number zero or less");
+        BigDecimal bd = new BigDecimal(bi);
+        BigDecimal result = DecimalType.instance.log(bd);
+        BigInteger out = result.toBigInteger();
+        return IntegerType.instance.decompose(out);
+    }
+
+    @Override
+    public ByteBuffer log10(ByteBuffer input)
+    {
+        BigInteger bi = toBigInteger(input);
+        if (bi.compareTo(BigInteger.ZERO) <= 0) throw new ArithmeticException("Log10 of number zero or less");
+        BigDecimal bd = new BigDecimal(bi);
+        BigDecimal result = DecimalType.instance.log10(bd);
+        BigInteger out = result.toBigInteger();
+        return IntegerType.instance.decompose(out);
+    }
+
+    @Override
+    public ByteBuffer round(ByteBuffer input)
+    {
+        return ByteBufferUtil.clone(input);
+    }
 }
