@@ -238,6 +238,26 @@ For every xref:cql/types.adoc#native-types[type] supported by CQL, the function 
 Conversely, the function `blobAsType` takes a 64-bit `blob` argument and converts it to a `bigint` value. 
 For example, `bigintAsBlob(3)` returns `0x0000000000000003` and `blobAsBigint(0x0000000000000003)` returns `3`.
 
+==== Math Functions
+
+Cql provides the following math functions: `abs`, `exp`, `log`, `log10`, and `round`.
+The return type for these functions is always the same as the input type.
+
+[cols=",",options="header",]
+|===
+|Function name |Description
+
+|`abs` | Returns the absolute value of the input.
+
+|`exp` | Returns the number e to the power of the input.
+
+|`log` | Returns the natural log of the input.
+
+|`log10` | Returns the log base 10 of the input.
+
+|`round` | Rounds the input to the nearest whole number using rounding mode `HALF_UP`.
+|===
+
 [[user-defined-scalar-functions]]
 ==== User-defined functions
 

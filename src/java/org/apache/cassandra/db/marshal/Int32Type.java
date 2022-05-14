@@ -174,4 +174,34 @@ public class Int32Type extends NumberType<Integer>
     {
         return ByteBufferUtil.bytes(-toInt(input));
     }
+
+    @Override
+    public ByteBuffer abs(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes(Math.abs(toInt(input)));
+    }
+
+    @Override
+    public ByteBuffer exp(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((int) Math.exp(toInt(input)));
+    }
+
+    @Override
+    public ByteBuffer log(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((int) Math.log(toInt(input)));
+    }
+
+    @Override
+    public ByteBuffer log10(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((int) Math.log10(toInt(input)));
+    }
+
+    @Override
+    public ByteBuffer round(ByteBuffer input)
+    {
+        return ByteBufferUtil.clone(input);
+    }
 }
