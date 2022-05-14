@@ -559,4 +559,41 @@ public final class IntegerType extends NumberType<BigInteger>
     {
         return decompose(toBigInteger(input).negate());
     }
+
+    @Override
+    public ByteBuffer abs(ByteBuffer input) {
+        return decompose(toBigInteger(input).abs());
+    }
+
+    @Override
+    public ByteBuffer exp(ByteBuffer input) {
+        BigInteger bi = toBigInteger(input);
+        BigDecimal bd = new BigDecimal(bi);
+        BigDecimal result = DecimalType.instance.exp(bd);
+        BigInteger out = result.toBigInteger();
+        return IntegerType.instance.decompose(out);
+    }
+
+    @Override
+    public ByteBuffer log(ByteBuffer input) {
+        BigInteger bi = toBigInteger(input);
+        BigDecimal bd = new BigDecimal(bi);
+        BigDecimal result = DecimalType.instance.log(bd);
+        BigInteger out = result.toBigInteger();
+        return IntegerType.instance.decompose(out);
+    }
+
+    @Override
+    public ByteBuffer log10(ByteBuffer input) {
+        BigInteger bi = toBigInteger(input);
+        BigDecimal bd = new BigDecimal(bi);
+        BigDecimal result = DecimalType.instance.log10(bd);
+        BigInteger out = result.toBigInteger();
+        return IntegerType.instance.decompose(out);
+    }
+
+    @Override
+    public ByteBuffer round(ByteBuffer input) {
+        return ByteBufferUtil.clone(input);
+    }
 }

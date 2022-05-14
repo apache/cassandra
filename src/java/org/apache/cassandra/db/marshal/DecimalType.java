@@ -37,6 +37,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
+import ch.obermuhlner.math.big.BigDecimalMath;
+
 public class DecimalType extends NumberType<BigDecimal>
 {
     public static final DecimalType instance = new DecimalType();
@@ -389,5 +391,49 @@ public class DecimalType extends NumberType<BigDecimal>
     public ByteBuffer negate(ByteBuffer input)
     {
         return decompose(toBigDecimal(input).negate());
+    }
+
+    @Override
+    public ByteBuffer abs(ByteBuffer input) {
+        return decompose(toBigDecimal(input).abs());
+    }
+
+    @Override
+    public ByteBuffer exp(ByteBuffer input) {
+        return decompose(exp(toBigDecimal(input)));
+    }
+
+    protected BigDecimal exp(BigDecimal input) {
+        int precission = input.precision();
+        precission = Math.max(MIN_SIGNIFICANT_DIGITS, precission);
+        return BigDecimalMath.exp(input, new MathContext(precission, RoundingMode.HALF_EVEN));
+    }
+
+    @Override
+    public ByteBuffer log(ByteBuffer input) {
+        return decompose(log(toBigDecimal(input)));
+    }
+
+    protected BigDecimal log(BigDecimal input) {
+        int precission = input.precision();
+        precission = Math.max(MIN_SIGNIFICANT_DIGITS, precission);
+        return BigDecimalMath.log(input, new MathContext(precission, RoundingMode.HALF_EVEN));
+    }
+
+    @Override
+    public ByteBuffer log10(ByteBuffer input) {
+        return decompose(log10(toBigDecimal(input)));
+    }
+
+    protected BigDecimal log10(BigDecimal input) {
+        int precission = input.precision();
+        precission = Math.max(MIN_SIGNIFICANT_DIGITS, precission);
+        return BigDecimalMath.log10(input, new MathContext(precission, RoundingMode.HALF_EVEN));
+    }
+
+    @Override
+    public ByteBuffer round(ByteBuffer input) {
+        return DecimalType.instance.decompose(
+        toBigDecimal(input).setScale(0, RoundingMode.HALF_UP));
     }
 }

@@ -153,4 +153,29 @@ public class ByteType extends NumberType<Byte>
     {
         return ByteBufferUtil.bytes((byte) -toByte(input));
     }
+
+    @Override
+    public ByteBuffer abs(ByteBuffer input) {
+        return ByteBufferUtil.bytes((byte) Math.abs(toByte(input)));
+    }
+
+    @Override
+    public ByteBuffer exp(ByteBuffer input) {
+        return ByteBufferUtil.bytes((byte) Math.exp(toByte(input)));
+    }
+
+    @Override
+    public ByteBuffer log(ByteBuffer input) {
+        return ByteBufferUtil.bytes((byte) Math.log(toByte(input)));
+    }
+
+    @Override
+    public ByteBuffer log10(ByteBuffer input) {
+        return ByteBufferUtil.bytes((byte) Math.log10(toByte(input)));
+    }
+
+    @Override
+    public ByteBuffer round(ByteBuffer input) {
+        return ByteBufferUtil.clone(input);
+    }
 }
