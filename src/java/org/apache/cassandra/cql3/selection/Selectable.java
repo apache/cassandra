@@ -222,11 +222,12 @@ public interface Selectable extends AssignmentTestable
 
     public static class WritetimeOrTTL implements Selectable
     {
+        // The order of the variants in the Kind enum matters as they are used in ser/deser
         public enum Kind
         {
             TTL("ttl", Int32Type.instance),
             WRITE_TIME("writetime", LongType.instance),
-            MAX_WRITE_TIME("maxwritetime", LongType.instance);
+            MAX_WRITE_TIME("maxwritetime", LongType.instance); // maxwritetime is available after Cassandra 4.1 (exclusive)
 
             public final String name;
             public final AbstractType<?> returnType;
