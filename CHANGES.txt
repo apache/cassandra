@@ -1,4 +1,5 @@
 4.0.5
+ * Remove SSL storage port from sstableloader (CASSANDRA-17602)
  * Allow Java 11 to satisfy RPM/Debian packaging (CASSANDRA-17669)
  * Ensure FileStreamTask cannot compromise shared channel proxy for system table when interrupted (CASSANDRA-17663)
  * silence benign SslClosedEngineException (CASSANDRA-17565)
