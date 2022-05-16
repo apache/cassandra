@@ -48,7 +48,6 @@ public class LoaderOptions
     public static final String NOPROGRESS_OPTION = "no-progress";
     public static final String NATIVE_PORT_OPTION = "port";
     public static final String STORAGE_PORT_OPTION = "storage-port";
-    public static final String SSL_STORAGE_PORT_OPTION = "ssl-storage-port";
     public static final String USER_OPTION = "username";
     public static final String PASSWD_OPTION = "password";
     public static final String AUTH_PROVIDER_OPTION = "auth-provider";
@@ -82,7 +81,6 @@ public class LoaderOptions
     public final int throttle;
     public final int interDcThrottle;
     public final int storagePort;
-    public final int sslStoragePort;
     public final EncryptionOptions clientEncOptions;
     public final int connectionsPerHost;
     public final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
@@ -103,7 +101,6 @@ public class LoaderOptions
         throttle = builder.throttle;
         interDcThrottle = builder.interDcThrottle;
         storagePort = builder.storagePort;
-        sslStoragePort = builder.sslStoragePort;
         clientEncOptions = builder.clientEncOptions;
         connectionsPerHost = builder.connectionsPerHost;
         serverEncOptions = builder.serverEncOptions;
@@ -126,7 +123,6 @@ public class LoaderOptions
         int throttle = 0;
         int interDcThrottle = 0;
         int storagePort;
-        int sslStoragePort;
         EncryptionOptions clientEncOptions = new EncryptionOptions();
         int connectionsPerHost = 1;
         EncryptionOptions.ServerEncryptionOptions serverEncOptions = new EncryptionOptions.ServerEncryptionOptions();
@@ -227,12 +223,6 @@ public class LoaderOptions
         public Builder storagePort(int storagePort)
         {
             this.storagePort = storagePort;
-            return this;
-        }
-
-        public Builder sslStoragePort(int sslStoragePort)
-        {
-            this.sslStoragePort = sslStoragePort;
             return this;
         }
 
@@ -411,10 +401,6 @@ public class LoaderOptions
                     connectionsPerHost = Integer.parseInt(cmd.getOptionValue(CONNECTIONS_PER_HOST));
                 }
 
-                if (cmd.hasOption(SSL_STORAGE_PORT_OPTION))
-                    sslStoragePort = Integer.parseInt(cmd.getOptionValue(SSL_STORAGE_PORT_OPTION));
-                else
-                    sslStoragePort = config.ssl_storage_port;
                 throttle = config.stream_throughput_outbound_megabits_per_sec;
                 // Copy the encryption options and apply the config so that argument parsing can accesss isEnabled.
                 clientEncOptions = config.client_encryption_options.applyConfig();
@@ -609,7 +595,6 @@ public class LoaderOptions
         options.addOption("d", INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "Required. try to connect to these hosts (comma separated) initially for ring information");
         options.addOption("p",  NATIVE_PORT_OPTION, "native transport port", "port used for native connection (default 9042)");
         options.addOption("sp",  STORAGE_PORT_OPTION, "storage port", "port used for internode communication (default 7000)");
-        options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001)");
         options.addOption("t", THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
         options.addOption("idct", INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbits (default unlimited)");
         options.addOption("u", USER_OPTION, "username", "username for cassandra authentication");
