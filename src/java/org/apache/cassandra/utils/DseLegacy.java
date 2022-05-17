@@ -15,38 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.io.sstable;
 
-import java.nio.file.Path;
+package org.apache.cassandra.utils;
 
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.utils.DseLegacy;
-
-public class CorruptSSTableException extends RuntimeException
+/**
+ * used to mark DSE legacy interface
+ * which will be removed once we transition CNDB to CC core
+ */
+public @interface DseLegacy
 {
-    public final File file;
-
-    public CorruptSSTableException(Throwable cause, File file)
-    {
-        super("Corrupted: " + file, cause);
-        this.file = file;
-    }
-
-    public CorruptSSTableException(Throwable cause, String path)
-    {
-        this(cause, new File(path));
-    }
-
-    protected CorruptSSTableException(String msg, Throwable cause, File file)
-    {
-        super(msg, cause);
-        this.file = file;
-    }
-
-    @DseLegacy
-    public CorruptSSTableException(Throwable cause, Path path)
-    {
-        this(cause, new File(path));
-    }
-
 }

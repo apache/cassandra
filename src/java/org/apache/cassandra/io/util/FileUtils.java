@@ -53,6 +53,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -65,6 +66,7 @@ import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSErrorHandler;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.utils.DseLegacy;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -828,5 +830,67 @@ public final class FileUtils
     public static long size(Path path)
     {
         return PathUtils.size(path);
+    }
+
+    @DseLegacy
+    public static void deleteRecursive(Path dir)
+    {
+        deleteRecursive(dir, false);
+    }
+
+    @DseLegacy
+    public static void deleteRecursive(Path dir, boolean failOnError)
+    {
+        if (failOnError)
+        {
+            PathUtils.deleteRecursive(dir);
+        }
+        else
+        {
+            PathUtils.deleteQuietly(dir);
+        }
+    }
+
+    @DseLegacy
+    public static Path getPath(String pathOrURI)
+    {
+        return PathUtils.getPath(pathOrURI);
+    }
+
+    @DseLegacy
+    public static void createDirectory(Path directory)
+    {
+        // yes, use create*Directories*, because that's the semantics of createDirectory in DSE
+        PathUtils.createDirectoriesIfNotExists(directory);
+    }
+
+    @DseLegacy
+    public static void appendAndSync(Path file, String... lines)
+    {
+        appendAndSync(new File(file), lines);
+    }
+
+    @DseLegacy
+    public static void delete(Path path)
+    {
+        PathUtils.delete(path);
+    }
+
+    @DseLegacy
+    public static void deleteContent(Path path)
+    {
+        PathUtils.deleteContent(path);
+    }
+
+    @DseLegacy
+    public static List<Path> listPaths(Path dir)
+    {
+        return PathUtils.listPaths(dir);
+    }
+
+    @DseLegacy
+    public static List<Path> listPaths(Path dir, Predicate<Path> filter)
+    {
+        return PathUtils.listPaths(dir, filter);
     }
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -32,6 +33,7 @@ import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.io.storage.StorageProvider;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.DseLegacy;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -425,5 +427,23 @@ public class Descriptor
     public int hashCode()
     {
         return hashCode;
+    }
+
+    @DseLegacy
+    public Path getDirectory()
+    {
+        return directory.toPath();
+    }
+
+    @DseLegacy
+    public Path pathFor(Component component)
+    {
+        return fileFor(component).toPath();
+    }
+
+    @DseLegacy
+    public String baseFileURI()
+    {
+        return baseFileUri();
     }
 }
