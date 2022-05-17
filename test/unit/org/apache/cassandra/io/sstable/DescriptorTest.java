@@ -106,6 +106,7 @@ public class DescriptorTest
         assertEquals(original.cfname, desc.cfname);
         assertEquals(original.version, desc.version);
         assertEquals(original.id, desc.id);
+        assertEquals(original.fileFor(Component.DATA).toPath(), desc.pathFor(Component.DATA));
         assertEquals(Component.DATA, pair.right);
 
         assertEquals(Component.DATA, Descriptor.validFilenameWithComponent(file.name()));
