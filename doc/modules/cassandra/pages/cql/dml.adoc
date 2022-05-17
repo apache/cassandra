@@ -75,14 +75,17 @@ You must use the orignal column name instead.
 ====
 
 [[writetime-and-ttl-function]]
-==== `WRITETIME` and `TTL` function
+==== `WRITETIME`, `MAXWRITETIME` and `TTL` function
 
-Selection supports two special functions that aren't allowed anywhere
-else: `WRITETIME` and `TTL`. 
-Both functions take only one argument, a column name.
+Selection supports three special functions that aren't allowed anywhere
+else: `WRITETIME`, `MAXWRITETIME` and `TTL`.
+All functions take only one argument, a column name.
 These functions retrieve meta-information that is stored internally for each column:
 
-* `WRITETIME` stores the timestamp of the value of the column
+* `WRITETIME` stores the timestamp of the value of the column. Note that this function cannot be applied to non-frozen collection
+and UDT.
+* `MAXWRITETIME` stores the largest timestamp of the value of the column. For non-collection and non-UDT columns, `MAXWRITETIME`
+is equivalent to `WRITETIME`. In the other cases, it returns the largest timestamp of the values in the column.
 * `TTL` stores the remaining time to live (in seconds) for the value of the column if it is set to expire; otherwise the value is `null`.
 
 [[where-clause]]
