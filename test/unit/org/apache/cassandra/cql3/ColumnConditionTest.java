@@ -443,7 +443,7 @@ public class ColumnConditionTest
     {
         ColumnDefinition definition = ColumnDefinition.regularDef("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
 
-        Map<ByteBuffer, ByteBuffer> placeholderMap = new TreeMap<>();
+        SortedMap<ByteBuffer, ByteBuffer> placeholderMap = new TreeMap<>();
         placeholderMap.put(ONE, ONE);
         Maps.Value placeholder = new Maps.Value(placeholderMap);
 
