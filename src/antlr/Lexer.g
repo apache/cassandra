@@ -178,6 +178,7 @@ K_VARINT:      V A R I N T;
 K_TIMEUUID:    T I M E U U I D;
 K_TOKEN:       T O K E N;
 K_WRITETIME:   W R I T E T I M E;
+K_MAXWRITETIME:M A X W R I T E T I M E;
 K_DATE:        D A T E;
 K_TIME:        T I M E;
 

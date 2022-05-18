@@ -1083,6 +1083,7 @@ bc(syntax)..
 <selector> ::= <identifier>
              | <term>
              | WRITETIME '(' <identifier> ')'
+             | MAXWRITETIME '(' <identifier> ')'
              | COUNT '(' '*' ')'
              | TTL '(' <identifier> ')'
              | CAST '(' <selector> AS <type> ')'
@@ -1131,7 +1132,7 @@ h4(#selectSelection). @<select-clause>@
 
 The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table. Please note that for wildcard @SELECT@ queries the order of columns returned is not specified and is not guaranteed to be stable between Cassandra versions.
 
-A @<selector>@ is either a column name to retrieve or a @<function>@ of one or more @<term>@s. The function allowed are the same as for @<term>@ and are described in the "function section":#functions. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)) and the "@CAST@":#castFun function can be used to convert one data type to another.
+A @<selector>@ is either a column name to retrieve or a @<function>@ of one or more @<term>@s. The function allowed are the same as for @<term>@ and are described in the "function section":#functions. In addition to these generic functions, the @WRITETIME@ and @MAXWRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)) and the "@CAST@":#castFun function can be used to convert one data type to another.
 
 Additionally, individual values of maps and sets can be selected using @[ <term> ]@. For maps, this will return the value corresponding to the key, if such entry exists. For sets, this will return the key that is selected if it exists and is thus mainly a way to check element existence. It is also possible to select a slice of a set or map with @[ <term> ... <term> @], where both bound can be omitted.
 
@@ -2052,7 +2053,7 @@ A number of functions are provided to "convert" the native types into binary dat
 h2(#aggregates). Aggregates
 
 Aggregate functions work on a set of rows. They receive values for each row and returns one value for the whole set.
-If @normal@ columns, @scalar functions@, @UDT@ fields, @writetime@ or @ttl@ are selected together with aggregate functions, the values returned for them will be the ones of the first row matching the query.
+If @normal@ columns, @scalar functions@, @UDT@ fields, @writetime@, @maxwritetime@ or @ttl@ are selected together with aggregate functions, the values returned for them will be the ones of the first row matching the query.
 
 CQL3 distinguishes between built-in aggregates (so called 'native aggregates') and "user-defined aggregates":#udas. CQL3 includes several native aggregates, described below:
 
@@ -2433,6 +2434,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
+| @MAXWRITETIME@    | no  |
 
 h2(#appendixB). Appendix B: CQL Reserved Types
 
