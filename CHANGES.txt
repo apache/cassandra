@@ -1,6 +1,7 @@
 4.0.5
-Merged from 3.11.13:
+Merged from 3.11:
 Merged from 3.0:
+ * Suppress CVE-2022-24823 (CASSANDRA-17633)
  * fsync TOC and digest files (CASSANDRA-10709)
 
 
