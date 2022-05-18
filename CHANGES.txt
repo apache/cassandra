@@ -165,6 +165,13 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0:
+ * Suppress CVE-2022-24823 (CASSANDRA-17633)
+ * fsync TOC and digest files (CASSANDRA-10709)
+
+
+4.0.4
  * Optimise BTree build,update and transform operations (CASSANDRA-15510)
  * Clean up schema migration coordinator and tests (CASSANDRA-17533)
  * Shut repair task executor down without interruption to avoid compromising shared channel proxies (CASSANDRA-17466)
