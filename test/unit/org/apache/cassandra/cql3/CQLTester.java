@@ -157,6 +157,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
+import org.awaitility.Awaitility;
 
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
@@ -199,8 +200,7 @@ public abstract class CQLTester
     private static final Map<Pair<User, ProtocolVersion>, Cluster> clusters = new HashMap<>();
     protected static final Map<Pair<User, ProtocolVersion>, Session> sessions = new HashMap<>();
 
-    // needed in GuardrailsOnTableTest to check whether dropping schema tasks have been finished
-    protected static final ThreadPoolExecutor schemaCleanup =
+    private static final ThreadPoolExecutor schemaCleanup =
     new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
 
 
@@ -474,6 +474,14 @@ public abstract class CQLTester
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    /**
+     * Blocks until the previous schema cleanup task finished.
+     */
+    public void waitForSchemaCleanupCompleted(long timeout, TimeUnit unit)
+    {
+        Awaitility.await().atMost(timeout, unit).until(() -> schemaCleanup.getActiveCount() == 0);
     }
 
     public static List<String> buildNodetoolArgs(List<String> args)
