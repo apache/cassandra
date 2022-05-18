@@ -38,6 +38,7 @@
         <cve>CVE-2021-37136</cve>
         <cve>CVE-2021-37137</cve>
         <cve>CVE-2021-43797</cve>
+        <cve>CVE-2022-24823</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-14183 -->
