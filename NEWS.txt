@@ -70,6 +70,10 @@ Deprecation
 
 New features
 ------------
+    - Added ability to make all exceptions thrown in JMX use standard java/javax types; to enable set
+      jmx_hide_non_java_exceptions to true in cassandra.yaml.  If not using Cassandra to start jmx
+      and instead rely on java to manage, need to add -Djmx.remote.protocol.provider.pkgs=org.apache.cassandra.jmx
+      to system properties (see cassandra-env).
     - Added API for alternative memtable implementations. For details, see
       src/java/org/apache/cassandra/db/memtable/Memtable_API.md
     - Added a new guardrails framework allowing to define soft/hard limits for different user actions, such as limiting
