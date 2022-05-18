@@ -853,7 +853,7 @@ public class Config
     public volatile DurationSpec repair_state_expires = DurationSpec.inDays(3);
     public volatile int repair_state_size = 100_000;
 
-    public boolean jmx_hide_non_java_exceptions = true;
+    public boolean jmx_hide_non_java_exceptions = false;
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
