@@ -23,7 +23,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.Inet6Address;
@@ -47,7 +46,6 @@ import javax.management.InstanceNotFoundException;
 import javax.management.InvalidAttributeValueException;
 import javax.management.MBeanException;
 import javax.management.MBeanServer;
-import javax.management.MBeanServerFactory;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
 import javax.management.RuntimeMBeanException;
@@ -64,7 +62,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jmx.mbeanserver.JmxMBeanServer;
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -159,37 +156,6 @@ public class JMXServerUtils
         ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
         logJmxServiceUrl(serverAddress, port);
         return jmxServer;
-    }
-
-    public static void hackPatchGlobalMBeanServerToFixExceptions()
-    {
-        if (!DatabaseDescriptor.getJmxHideNonJavaExceptions())
-            return;
-        try
-        {
-            Field field = JmxMBeanServer.class.getDeclaredField("interceptorsEnabled");
-            field.setAccessible(true);
-            for (MBeanServer m : MBeanServerFactory.findMBeanServer(null))
-            {
-                if (m instanceof JmxMBeanServer)
-                {
-                    JmxMBeanServer server = (JmxMBeanServer) m;
-                    try
-                    {
-                        field.set(server, true);
-                        server.setMBeanServerInterceptor(JMXServerUtils.fixExceptions(server.getMBeanServerInterceptor()));
-                    }
-                    catch (Throwable t)
-                    {
-                        logger.warn("Unable to intersept JMX", t);
-                    }
-                }
-            }
-        }
-        catch (Throwable t)
-        {
-            logger.warn("Unable to intersept JMX", t);
-        }
     }
 
     public static MBeanServer fixExceptions(MBeanServer mbeanServer)

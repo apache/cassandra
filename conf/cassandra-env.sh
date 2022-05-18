@@ -273,6 +273,12 @@ JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/
 ## uncomment this to use it. Requires one of the two authentication options to be enabled
 #JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.authorizer=org.apache.cassandra.auth.jmx.AuthorizationProxy"
 
+## Cassandra some times uses exceptions not defined in java or javax packages, which can cause issues
+## for JMX clients that do not have access to Cassandra classes, to force exceptions to only use
+## java/javax types, uncomment the below
+## See CASSANDRA-17580
+#export JVM_OPTS="$JVM_OPTS -Djmx.remote.protocol.provider.pkgs=org.apache.cassandra.jmx"
+
 # To use mx4j, an HTML interface for JMX, add mx4j-tools.jar to the lib/
 # directory.
 # See http://cassandra.apache.org/doc/latest/operating/metrics.html#jmx
