@@ -853,6 +853,8 @@ public class Config
     public volatile DurationSpec repair_state_expires = DurationSpec.inDays(3);
     public volatile int repair_state_size = 100_000;
 
+    /** when launching JMX, if true will rewrite exceptions to only contain java/javax types (ConfigurationException
+     * will no longer be present)*/
     public boolean jmx_hide_non_java_exceptions = false;
 
     /**
