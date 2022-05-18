@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -76,6 +77,8 @@ public class DescribeStatementTest extends CQLTester
     @Test
     public void testDescribeFunctionAndAggregate() throws Throwable
     {
+        waitForSchemaCleanupCompleted(60, TimeUnit.SECONDS);
+
         String fNonOverloaded = createFunction(KEYSPACE_PER_TEST,
                                                "",
                                                "CREATE OR REPLACE FUNCTION %s() " +
@@ -262,6 +265,8 @@ public class DescribeStatementTest extends CQLTester
     {
         try
         {
+            waitForSchemaCleanupCompleted(60, TimeUnit.SECONDS);
+
             execute("CREATE KEYSPACE test WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
             execute("CREATE TABLE test.users ( userid text PRIMARY KEY, firstname text, lastname text, age int);");
             execute("CREATE INDEX myindex ON test.users (age);");

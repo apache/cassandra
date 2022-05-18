@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.ImmutableSet;
@@ -82,12 +83,7 @@ public class GuardrailsOnTableTest extends GuardrailTester
     @Test
     public void testTableLimit() throws Throwable
     {
-        // check previous async dropping schema tasks have been finished...
-        int waitInSeconds = 30;
-        while (schemaCleanup.getActiveCount() > 0 && waitInSeconds-- >= 0)
-        {
-            Thread.sleep(1000);
-        }
+        waitForSchemaCleanupCompleted(30, TimeUnit.SECONDS);
 
         int currentTables = Schema.instance.getUserKeyspaces().stream().map(ksm -> Keyspace.open(ksm.name))
                                            .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size()).sum();
