@@ -428,6 +428,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getSimpleStrategyEnabled()
+    {
+        return config.simplestrategy_enabled;
+    }
+
+    public void setSimpleStrategyEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("simplestrategy_enabled",
+                                  enabled,
+                                  () -> config.simplestrategy_enabled,
+                                  x -> config.simplestrategy_enabled = x);
+    }
+
+    @Override
     public int getInSelectCartesianProductWarnThreshold()
     {
         return config.in_select_cartesian_product_warn_threshold;
