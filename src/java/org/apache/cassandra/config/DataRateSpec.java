@@ -25,8 +25,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 /**
  * Represents a data rate type used for cassandra configuration. It supports the opportunity for the users to be able to
  * add units to the confiuration parameter value. (CASSANDRA-15234)
@@ -48,7 +46,7 @@ public final class DataRateSpec
         Matcher matcher = BIT_RATE_UNITS_PATTERN.matcher(value);
 
         if (!matcher.find())
-            throw new ConfigurationException("Invalid bit rate: " + value + " Accepted units: MiB/s, KiB/s, B/s where " +
+            throw new IllegalArgumentException("Invalid bit rate: " + value + " Accepted units: MiB/s, KiB/s, B/s where " +
                                              "case matters and " + "only non-negative values are valid");
 
         quantity = Long.parseLong(matcher.group(1));
@@ -58,7 +56,7 @@ public final class DataRateSpec
     DataRateSpec(double quantity, DataRateUnit unit)
     {
         if (quantity < 0)
-            throw new ConfigurationException("Invalid bit rate: value must be non-negative");
+            throw new IllegalArgumentException("Invalid bit rate: value must be non-negative");
 
         if (quantity > Long.MAX_VALUE)
             throw new NumberFormatException("Invalid bit rate: value must be between 0 and Long.MAX_VALUE = 9223372036854775807");
@@ -337,7 +335,7 @@ public final class DataRateSpec
                 if (value.symbol.equalsIgnoreCase(symbol))
                     return value;
             }
-            throw new ConfigurationException(String.format("Unsupported data rate unit: %s. Supported units are: %s",
+            throw new IllegalArgumentException(String.format("Unsupported data rate unit: %s. Supported units are: %s",
                                                              symbol, Arrays.stream(values())
                                                                            .map(u -> u.symbol)
                                                                            .collect(Collectors.joining(", "))));

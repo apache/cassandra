@@ -111,8 +111,8 @@ public class SnapshotTest extends CQLTester
     public void testInvalidTTLOption()
     {
         ToolRunner.ToolResult tool = invokeNodetool("snapshot", "-t", "ttl", "--ttl", "infinity");
-        assertThat(tool.getExitCode()).isEqualTo(2);
-        assertThat(tool.getStderr()).contains("Invalid duration: infinity");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("Invalid duration: infinity");
     }
 
     @Test

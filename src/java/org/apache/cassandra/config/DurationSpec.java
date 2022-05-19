@@ -28,8 +28,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 import static java.util.concurrent.TimeUnit.DAYS;
 import static java.util.concurrent.TimeUnit.HOURS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -73,7 +71,7 @@ public class DurationSpec
         }
         else
         {
-            throw new ConfigurationException("Invalid duration: " + value + " Accepted units: d, h, m, s, ms, us, µs," +
+            throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units: d, h, m, s, ms, us, µs," +
                                              " ns where case matters and " + "only non-negative values");
         }
     }
@@ -81,7 +79,7 @@ public class DurationSpec
     DurationSpec(long quantity, TimeUnit unit)
     {
         if (quantity < 0)
-            throw new ConfigurationException("Invalid duration " + quantity + ": value must be positive");
+            throw new IllegalArgumentException("Invalid duration " + quantity + ": value must be positive");
 
         this.quantity = quantity;
         this.unit = unit;
@@ -95,7 +93,7 @@ public class DurationSpec
     public DurationSpec(String value, TimeUnit minUnit)
     {
         if (!MAP_UNITS_PER_MIN_UNIT.containsKey(minUnit))
-            throw new ConfigurationException("Invalid smallest unit set for " + value);
+            throw new IllegalArgumentException("Invalid smallest unit set for " + value);
 
         Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
 
@@ -105,11 +103,11 @@ public class DurationSpec
             unit = fromSymbol(matcher.group(2));
 
             if (!MAP_UNITS_PER_MIN_UNIT.get(minUnit).contains(unit))
-                throw new ConfigurationException("Invalid duration: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit));
+                throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit));
         }
         else
         {
-            throw new ConfigurationException("Invalid duration: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit) +
+            throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit) +
                                              " where case matters and only non-negative values.");
         }
     }
@@ -229,7 +227,7 @@ public class DurationSpec
             case "µs": return TimeUnit.MICROSECONDS;
             case "ns": return TimeUnit.NANOSECONDS;
         }
-        throw new ConfigurationException(String.format("Unsupported time unit: %s. Supported units are: %s",
+        throw new IllegalArgumentException(String.format("Unsupported time unit: %s. Supported units are: %s",
                                                        symbol, Arrays.stream(TimeUnit.values())
                                                                      .map(DurationSpec::getSymbol)
                                                                      .collect(Collectors.joining(", "))));

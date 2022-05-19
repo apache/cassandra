@@ -29,7 +29,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DataStorageSpec;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
@@ -229,15 +228,6 @@ public abstract class ThresholdTester extends GuardrailTester
             assertValidProperty(setter, value);
             fail(format("Expected exception for guardrails.%s value: %d", name, value));
         }
-        catch (ConfigurationException e)
-        {
-            String expectedMessage = null;
-
-            if (value < 0)
-                expectedMessage = "Invalid data storage: value must be positive";
-
-            Assertions.assertThat(e.getMessage()).contains(expectedMessage);
-        }
         catch (IllegalArgumentException e)
         {
             String expectedMessage = null;
@@ -245,14 +235,18 @@ public abstract class ThresholdTester extends GuardrailTester
             if (value > maxValue)
                 expectedMessage = format("Invalid value %d for %s: maximum allowed value is %d",
                                          value, name, maxValue);
+
             if (value == 0 && value != disabledValue)
                 expectedMessage = format("Invalid value for %s: 0 is not allowed; if attempting to disable use %s",
                                          name, disabledValue);
 
-            if (value < 0 && value != disabledValue)
+            if (value < 0 && disabledValue != null && value != disabledValue)
                 expectedMessage = format("Invalid value %d for %s: negative values are not "
                                          + "allowed, outside of %s which disables the guardrail",
                                          value, name, disabledValue);
+
+            if (expectedMessage == null && value < 0)
+                expectedMessage = format("Invalid data storage: value must be positive, but was %d", value);
 
             assertEquals(format("Exception message '%s' does not contain '%s'", e.getMessage(), expectedMessage),
                          expectedMessage, e.getMessage());

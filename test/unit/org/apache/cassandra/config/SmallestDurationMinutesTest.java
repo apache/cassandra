@@ -20,8 +20,6 @@ package org.apache.cassandra.config;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 
@@ -30,17 +28,17 @@ public class SmallestDurationMinutesTest
     @Test
     public void testInvalidUnits()
     {
-        assertThatThrownBy(() -> new SmallestDurationMinutes("10s")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationMinutes("10s")).isInstanceOf(IllegalArgumentException.class)
                                                                     .hasMessageContaining("Invalid duration: 10s");
-        assertThatThrownBy(() -> new SmallestDurationMinutes("10ms")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationMinutes("10ms")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: 10ms");
-        assertThatThrownBy(() -> new SmallestDurationMinutes("10ns")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationMinutes("10ns")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: 10ns");
-        assertThatThrownBy(() -> new SmallestDurationMinutes("10us")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationMinutes("10us")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: 10us");
-        assertThatThrownBy(() -> new SmallestDurationMinutes("10µs")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationMinutes("10µs")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: 10µs");
-        assertThatThrownBy(() -> new SmallestDurationMinutes("-10s")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationMinutes("-10s")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: -10s");
     }
 

@@ -20,8 +20,6 @@ package org.apache.cassandra.config;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 
@@ -30,15 +28,15 @@ public class SmallestDurationSecondsTest
     @Test
     public void testInvalidUnits()
     {
-        assertThatThrownBy(() -> new SmallestDurationSeconds("10ms")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationSeconds("10ms")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: 10ms");
-        assertThatThrownBy(() -> new SmallestDurationSeconds("10ns")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationSeconds("10ns")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: 10ns");
-        assertThatThrownBy(() -> new SmallestDurationSeconds("10us")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationSeconds("10us")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: 10us");
-        assertThatThrownBy(() -> new SmallestDurationSeconds("10µs")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationSeconds("10µs")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: 10µs");
-        assertThatThrownBy(() -> new SmallestDurationSeconds("-10s")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDurationSeconds("-10s")).isInstanceOf(IllegalArgumentException.class)
                                                                      .hasMessageContaining("Invalid duration: -10s");
     }
 

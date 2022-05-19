@@ -20,8 +20,6 @@ package org.apache.cassandra.config;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 
@@ -30,7 +28,7 @@ public class SmallestDataStorageMebibytesTest
     @Test
     public void testInvalidUnits()
     {
-        assertThatThrownBy(() -> new SmallestDataStorageMebibytes("10B")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new SmallestDataStorageMebibytes("10B")).isInstanceOf(IllegalArgumentException.class)
                                                                          .hasMessageContaining("Invalid data storage: 10B");
     }
 
