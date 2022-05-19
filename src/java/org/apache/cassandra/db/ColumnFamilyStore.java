@@ -127,6 +127,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.Sampler.Sample;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
@@ -965,6 +966,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public String getKeyspaceName()
     {
         return keyspace.getName();
+    }
+
+    public KeyspaceMetrics getKeyspaceMetrics()
+    {
+        return keyspace.metric;
     }
 
     public Descriptor newSSTableDescriptor(File directory)
