@@ -223,6 +223,20 @@ public interface GuardrailsMBean
     void setAllowFilteringEnabled(boolean enabled);
 
     /**
+     * Returns whether SimpleStrategy is allowed on keyspace creation or alteration
+     *
+     * @return {@code true} if SimpleStrategy is allowed; {@code false} otherwise
+     */
+    boolean getSimpleStrategyEnabled();
+
+    /**
+     * Sets whether SimpleStrategy is allowed on keyspace creation or alteration
+     *
+     * @param enabled {@code true} if SimpleStrategy is allowed, {@code false} otherwise.
+     */
+    void setSimpleStrategyEnabled(boolean enabled);
+
+    /**
      * Returns whether users can disable compression on tables
      *
      * @return {@code true} if users can disable compression on a table, {@code false} otherwise.

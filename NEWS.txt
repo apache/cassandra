@@ -62,6 +62,7 @@ New features
       non-frozen collections and UDT, and returns the largest timestamp. One should not to use it when upgrading to 4.2.
     - New Guardrails added:
       - Whether ALTER TABLE commands are allowed to mutate columns
+      - Whether SimpleStrategy is allowed on keyspace creation or alteration
 
 Upgrading
 ---------
