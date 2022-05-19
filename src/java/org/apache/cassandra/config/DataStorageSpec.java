@@ -27,8 +27,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.GIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
@@ -62,7 +60,7 @@ public class DataStorageSpec
 
         if (!matcher.find())
         {
-            throw new ConfigurationException("Invalid data storage: " + value + " Accepted units: B, KiB, MiB, GiB" +
+            throw new IllegalArgumentException("Invalid data storage: " + value + " Accepted units: B, KiB, MiB, GiB" +
                                              " where case matters and only non-negative values are accepted");
         }
 
@@ -73,7 +71,7 @@ public class DataStorageSpec
     DataStorageSpec(long quantity, DataStorageUnit unit)
     {
         if (quantity < 0)
-            throw new ConfigurationException("Invalid data storage: value must be positive, but was " + quantity);
+            throw new IllegalArgumentException("Invalid data storage: value must be positive, but was " + quantity);
 
         this.quantity = quantity;
         this.unit = unit;
@@ -82,7 +80,7 @@ public class DataStorageSpec
     public DataStorageSpec (String value, DataStorageUnit minUnit)
     {
         if (!MAP_UNITS_PER_MIN_UNIT.containsKey(minUnit))
-            throw new ConfigurationException("Invalid smallest unit set for " + value);
+            throw new IllegalArgumentException("Invalid smallest unit set for " + value);
 
         //parse the string field value
         Matcher matcher = STORAGE_UNITS_PATTERN.matcher(value);
@@ -93,11 +91,11 @@ public class DataStorageSpec
             unit = DataStorageUnit.fromSymbol(matcher.group(2));
 
             if (!MAP_UNITS_PER_MIN_UNIT.get(minUnit).contains(unit))
-                throw new ConfigurationException("Invalid data storage: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT);
+                throw new IllegalArgumentException("Invalid data storage: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT);
         }
         else
         {
-            throw new ConfigurationException("Invalid data storage: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit) +
+            throw new IllegalArgumentException("Invalid data storage: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit) +
                                              " where case matters and only non-negative values are accepted");
         }
     }
@@ -389,7 +387,7 @@ public class DataStorageSpec
                 if (value.symbol.equalsIgnoreCase(symbol))
                     return value;
             }
-            throw new ConfigurationException(String.format("Unsupported data storage unit: %s. Supported units are: %s",
+            throw new IllegalArgumentException(String.format("Unsupported data storage unit: %s. Supported units are: %s",
                                                            symbol, Arrays.stream(values())
                                                                          .map(u -> u.symbol)
                                                                          .collect(Collectors.joining(", "))));

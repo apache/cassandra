@@ -264,7 +264,7 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
             DatabaseDescriptor.setDefaultKeyspaceRF(1);
             guardrails().setMinimumReplicationFactorThreshold(MINIMUM_REPLICATION_FACTOR_WARN_THRESHOLD, MINIMUM_REPLICATION_FACTOR_FAIL_THRESHOLD);
         }
-        catch (ConfigurationException e)
+        catch (IllegalArgumentException e)
         {
             String expectedMessage = "";
 

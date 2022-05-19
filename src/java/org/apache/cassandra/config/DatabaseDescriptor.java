@@ -1379,16 +1379,7 @@ public class DatabaseDescriptor
         if (updateInterval == -1)
             conf.permissions_update_interval = null;
         else
-        {
-            try
-            {
-                conf.permissions_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
-            }
-            catch (ConfigurationException e)
-            {
-                throw new IllegalArgumentException("permissions_update_interval should be >= -1");
-            }
-        }
+            conf.permissions_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
     }
 
     public static int getPermissionsCacheMaxEntries()
@@ -1443,16 +1434,7 @@ public class DatabaseDescriptor
         if (interval == -1)
             conf.roles_update_interval = null;
         else
-        {
-            try
-            {
-                conf.roles_update_interval = SmallestDurationMilliseconds.inMilliseconds(interval);
-            }
-            catch(ConfigurationException e)
-            {
-                throw new IllegalArgumentException("roles_update_interval should be >= -1");
-            }
-        }
+            conf.roles_update_interval = SmallestDurationMilliseconds.inMilliseconds(interval);
     }
 
     public static int getRolesCacheMaxEntries()
@@ -1487,16 +1469,7 @@ public class DatabaseDescriptor
         if (updateInterval == -1)
             conf.credentials_update_interval = null;
         else
-        {
-            try
-            {
-                conf.credentials_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
-            }
-            catch (ConfigurationException e)
-            {
-                throw new IllegalArgumentException("credentials_update_interval should be >= -1.");
-            }
-        }
+            conf.credentials_update_interval = SmallestDurationMilliseconds.inMilliseconds(updateInterval);
     }
 
     public static int getCredentialsCacheMaxEntries()
@@ -2669,14 +2642,7 @@ public class DatabaseDescriptor
         if (maxRequestDataInFlightInBytes == -1)
             maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 40;
 
-        try
-        {
-            conf.native_transport_max_request_data_in_flight_per_ip = DataStorageSpec.inBytes(maxRequestDataInFlightInBytes);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IllegalArgumentException("native_transport_max_request_data_in_flight_per_ip can be only -1 which gets default value or >= 0");
-        }
+        conf.native_transport_max_request_data_in_flight_per_ip = DataStorageSpec.inBytes(maxRequestDataInFlightInBytes);
 
     }
 
@@ -2690,14 +2656,7 @@ public class DatabaseDescriptor
         if (maxRequestDataInFlightInBytes == -1)
             maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 10;
 
-        try
-        {
-            conf.native_transport_max_request_data_in_flight = DataStorageSpec.inBytes(maxRequestDataInFlightInBytes);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IllegalArgumentException("native_transport_max_request_data_in_flight can be only -1 which gets default value or >= 0");
-        }
+        conf.native_transport_max_request_data_in_flight = DataStorageSpec.inBytes(maxRequestDataInFlightInBytes);
     }
 
     public static int getNativeTransportMaxRequestsPerSecond()
@@ -4097,16 +4056,16 @@ public class DatabaseDescriptor
 
     public static int getDefaultKeyspaceRF() { return conf.default_keyspace_rf; }
 
-    public static void setDefaultKeyspaceRF(int value) throws ConfigurationException
+    public static void setDefaultKeyspaceRF(int value) throws IllegalArgumentException
     {
         if (value < 1)
         {
-            throw new ConfigurationException("default_keyspace_rf cannot be less than 1");
+            throw new IllegalArgumentException("default_keyspace_rf cannot be less than 1");
         }
 
         if (value < guardrails.getMinimumReplicationFactorFailThreshold())
         {
-            throw new ConfigurationException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
+            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
         }
 
         conf.default_keyspace_rf = value;

@@ -21,7 +21,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
@@ -60,7 +59,7 @@ public class DurationSpecTest
         assertEquals(DurationSpec.fromSymbol("us"), TimeUnit.MICROSECONDS);
         assertEquals(DurationSpec.fromSymbol("µs"), TimeUnit.MICROSECONDS);
         assertEquals(DurationSpec.fromSymbol("ns"), TimeUnit.NANOSECONDS);
-        assertThatThrownBy(() -> DurationSpec.fromSymbol("n")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> DurationSpec.fromSymbol("n")).isInstanceOf(IllegalArgumentException.class)
                                                               .hasMessageContaining("Unsupported time unit: n");
     }
 
@@ -79,13 +78,13 @@ public class DurationSpecTest
     @Test
     public void testInvalidInputs()
     {
-        assertThatThrownBy(() -> new DurationSpec("10")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new DurationSpec("10")).isInstanceOf(IllegalArgumentException.class)
                                                         .hasMessageContaining("Invalid duration: 10");
-        assertThatThrownBy(() -> new DurationSpec("-10s")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new DurationSpec("-10s")).isInstanceOf(IllegalArgumentException.class)
                                                           .hasMessageContaining("Invalid duration: -10s");
-        assertThatThrownBy(() -> new DurationSpec("10xd")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new DurationSpec("10xd")).isInstanceOf(IllegalArgumentException.class)
                                                           .hasMessageContaining("Invalid duration: 10xd");
-        assertThatThrownBy(() -> new DurationSpec("0.333555555ms")).isInstanceOf(ConfigurationException.class)
+        assertThatThrownBy(() -> new DurationSpec("0.333555555ms")).isInstanceOf(IllegalArgumentException.class)
                                                                    .hasMessageContaining("Invalid duration: 0.333555555ms");
     }
 

@@ -27,15 +27,16 @@ import java.util.Map;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
 import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 
 public class YamlConfigurationLoaderTest
@@ -134,6 +135,28 @@ public class YamlConfigurationLoaderTest
     }
 
     @Test
+    public void notNullableLegacyProperties()
+    {
+        // In  the past commitlog_sync_period and commitlog_sync_group_window were int in Config. So that meant they can't
+        // be assigned null value from the yaml file. To ensure this behavior was not changed when we moved to DurationSpec
+        // in CASSANDRA-15234, we assigned those 0 value.
+
+        Map<String, Object> map = ImmutableMap.of(
+        "commitlog_sync_period", ""
+        );
+        try
+        {
+            Config config = YamlConfigurationLoader.fromMap(map, Config.class);
+        }
+        catch (YAMLException e)
+        {
+            assertTrue(e.getMessage().contains("Cannot create property=commitlog_sync_period for JavaBean=org.apache.cassandra.config.Config"));
+        }
+
+        // loadConfig will catch this exception on startup and throw a ConfigurationException
+    }
+
+    @Test
     public void fromMapTest()
     {
         int storagePort = 123;
@@ -191,7 +214,7 @@ public class YamlConfigurationLoaderTest
         // MILLIS_DURATION
         assertThat(from("permissions_validity_in_ms", "42").permissions_validity.toMilliseconds()).isEqualTo(42);
         assertThatThrownBy(() -> from("permissions_validity", -2).permissions_validity.toMilliseconds())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid duration: -2 Accepted units:[MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS] where case matters and only non-negative values.");
 
         // MILLIS_DOUBLE_DURATION
@@ -200,20 +223,20 @@ public class YamlConfigurationLoaderTest
         assertThat(from("commitlog_sync_group_window_in_ms", "42.5").commitlog_sync_group_window.toMilliseconds()).isEqualTo(43);
         assertThat(from("commitlog_sync_group_window_in_ms", "NaN").commitlog_sync_group_window.toMilliseconds()).isEqualTo(0);
         assertThatThrownBy(() -> from("commitlog_sync_group_window_in_ms", -2).commitlog_sync_group_window.toMilliseconds())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid duration -2: value must be positive");
 
         // MILLIS_CUSTOM_DURATION
         assertThat(from("permissions_update_interval_in_ms", 42).permissions_update_interval).isEqualTo(SmallestDurationMilliseconds.inMilliseconds(42));
         assertThat(from("permissions_update_interval_in_ms", -1).permissions_update_interval).isNull();
         assertThatThrownBy(() -> from("permissions_update_interval_in_ms", -2))
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid duration -2: value must be positive");
 
         // SECONDS_DURATION
         assertThat(from("streaming_keep_alive_period_in_secs", "42").streaming_keep_alive_period.toSeconds()).isEqualTo(42);
         assertThatThrownBy(() -> from("streaming_keep_alive_period_in_secs", -2).streaming_keep_alive_period.toSeconds())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid duration -2: value must be positive");
 
         // NEGATIVE_SECONDS_DURATION
@@ -226,7 +249,7 @@ public class YamlConfigurationLoaderTest
         // MINUTES_DURATION
         assertThat(from("index_summary_resize_interval_in_minutes", "42").index_summary_resize_interval.toMinutes()).isEqualTo(42);
         assertThatThrownBy(() -> from("index_summary_resize_interval_in_minutes", -2).index_summary_resize_interval.toMinutes())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid duration -2: value must be positive");
 
         // BYTES_CUSTOM_DATASTORAGE
@@ -237,37 +260,37 @@ public class YamlConfigurationLoaderTest
         // MEBIBYTES_DATA_STORAGE
         assertThat(from("memtable_heap_space_in_mb", "42").memtable_heap_space.toMebibytes()).isEqualTo(42);
         assertThatThrownBy(() -> from("memtable_heap_space_in_mb", -2).memtable_heap_space.toMebibytes())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data storage: value must be positive, but was -2");
 
         // KIBIBYTES_DATASTORAGE
         assertThat(from("column_index_size_in_kb", "42").column_index_size.toKibibytes()).isEqualTo(42);
         assertThatThrownBy(() -> from("column_index_size_in_kb", -2).column_index_size.toMebibytes())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data storage: value must be positive, but was -2");
 
         // BYTES_DATASTORAGE
         assertThat(from("internode_max_message_size_in_bytes", "42").internode_max_message_size.toBytes()).isEqualTo(42);
         assertThatThrownBy(() -> from("internode_max_message_size_in_bytes", -2).internode_max_message_size.toBytes())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data storage: value must be positive, but was -2");
 
         // BYTES_DATASTORAGE
         assertThat(from("internode_max_message_size_in_bytes", "42").internode_max_message_size.toBytes()).isEqualTo(42);
         assertThatThrownBy(() -> from("internode_max_message_size_in_bytes", -2).internode_max_message_size.toBytes())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data storage: value must be positive, but was -2");
 
         // MEBIBYTES_PER_SECOND_DATA_RATE
         assertThat(from("compaction_throughput_mb_per_sec", "42").compaction_throughput.toMebibytesPerSecondAsInt()).isEqualTo(42);
         assertThatThrownBy(() -> from("compaction_throughput_mb_per_sec", -2).compaction_throughput.toMebibytesPerSecondAsInt())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid bit rate: value must be non-negative");
 
         // MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE
         assertThat(from("stream_throughput_outbound_megabits_per_sec", "42").stream_throughput_outbound.toMegabitsPerSecondAsInt()).isEqualTo(42);
         assertThatThrownBy(() -> from("stream_throughput_outbound_megabits_per_sec", -2).stream_throughput_outbound.toMegabitsPerSecondAsInt())
-        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid bit rate: value must be non-negative");
     }
 
