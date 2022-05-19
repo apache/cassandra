@@ -33,7 +33,6 @@ import traceback
 import warnings
 import webbrowser
 from contextlib import contextmanager
-from cassandra.metadata import Murmur3Token
 from glob import glob
 from io import StringIO
 from uuid import UUID
@@ -601,11 +600,12 @@ class Shell(cmd.Cmd):
     def show_session(self, sessionid, partial_session=False):
         print_trace_session(self, self.session, sessionid, partial_session)
 
-    def show_replicas(self, token, keyspace=None):
+    def show_replicas(self, token_value, keyspace=None):
         ks = self.current_keyspace if keyspace is None else keyspace
-        nodes = self.conn.metadata.token_map.get_replicas(self.current_keyspace, Murmur3Token(token))
+        token_map = self.conn.metadata.token_map
+        nodes = token_map.get_replicas(ks, token_map.token_class(token_value))
         addresses = [x.address for x in nodes]
-        print(f"Replicas for token {token} are {addresses}")
+        print(f"Replicas {addresses}")
 
     def get_connection_versions(self):
         result, = self.session.execute("select * from system.local where key = 'local'")
