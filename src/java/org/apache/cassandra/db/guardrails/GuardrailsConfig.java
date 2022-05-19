@@ -192,6 +192,13 @@ public interface GuardrailsConfig
     boolean getAllowFilteringEnabled();
 
     /**
+     * Returns whether setting SimpleStrategy via keyspace creation or alteration is enabled
+     *
+     * @return {@code true} if SimpleStrategy is allowed, {@code false} otherwise.
+     */
+    boolean getSimpleStrategyEnabled();
+
+    /**
      * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
      * -1 means disabled.
      */

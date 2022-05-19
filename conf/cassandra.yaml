@@ -1763,6 +1763,9 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow querying with ALLOW FILTERING. Defaults to true.
 # allow_filtering_enabled: true
 #
+# Guardrail to allow/disallow setting SimpleStrategy via keyspace creation or alteration. Defaults to true.
+# simplestrategy_enabled: true
+#
 # Guardrail to warn or fail when creating a user-defined-type with more fields in than threshold.
 # Default -1 to disable.
 # fields_per_udt_warn_threshold: -1
