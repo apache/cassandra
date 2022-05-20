@@ -37,6 +37,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import com.datastax.driver.core.utils.UUIDs;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
@@ -45,6 +46,7 @@ import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Schema;
@@ -55,6 +57,7 @@ import org.apache.cassandra.utils.*;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class CQLSSTableWriterTest
@@ -117,7 +120,7 @@ public class CQLSSTableWriterTest
 
             loadSSTables(dataDir, keyspace);
 
-            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + ";");
+            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
             assertEquals(4, rs.size());
 
             Iterator<UntypedResultSet.Row> iter = rs.iterator();
@@ -945,6 +948,172 @@ public class CQLSSTableWriterTest
             assertEquals(expected, map.get(i + ID_OFFSET));
             assertEquals(expected, map.get(i));
         }
+    }
+
+    @Test
+    public void testFrozenMapType() throws Exception
+    {
+        // Test to make sure we can write to `date` fields in both old and new formats
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k text,"
+                        + "  c frozen<map<text, text>>,"
+                        + "  PRIMARY KEY (k, c)"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert)
+                                                  .withBufferSizeInMiB(1)
+                                                  .build();
+        for (int i = 0; i < 100; i++)
+        {
+            LinkedHashMap<String, String> map = new LinkedHashMap<>();
+            map.put("a_key", "av" + i);
+            map.put("b_key", "zv" + i);
+            writer.addRow(String.valueOf(i), map);
+        }
+        for (int i = 100; i < 200; i++)
+        {
+            LinkedHashMap<String, String> map = new LinkedHashMap<>();
+            map.put("b_key", "zv" + i);
+            map.put("a_key", "av" + i);
+            writer.addRow(String.valueOf(i), map);
+        }
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + ";");
+        assertEquals(200, rs.size());
+        Map<String, Map<String, String>> map = StreamSupport.stream(rs.spliterator(), false)
+                                                            .collect(Collectors.toMap(r -> r.getString("k"), r -> r.getFrozenMap("c", UTF8Type.instance, UTF8Type.instance)));
+        for (int i = 0; i < 200; i++)
+        {
+            final String expectedKey = String.valueOf(i);
+            assertTrue(map.containsKey(expectedKey));
+            Map<String, String> innerMap = map.get(expectedKey);
+            assertTrue(innerMap.containsKey("a_key"));
+            assertEquals(innerMap.get("a_key"), "av" + i);
+            assertTrue(innerMap.containsKey("b_key"));
+            assertEquals(innerMap.get("b_key"), "zv" + i);
+        }
+
+        // Make sure we can filter with map values regardless of which order we put the keys in
+        UntypedResultSet filtered;
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='0' and c={'a_key': 'av0', 'b_key': 'zv0'};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='0' and c={'b_key': 'zv0', 'a_key': 'av0'};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='100' and c={'b_key': 'zv100', 'a_key': 'av100'};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='100' and c={'a_key': 'av100', 'b_key': 'zv100'};");
+        assertEquals(1, filtered.size());
+    }
+
+    @Test
+    public void testFrozenMapTypeCustomOrdered() throws Exception
+    {
+        // Test to make sure we can write to `date` fields in both old and new formats
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k text,"
+                        + "  c frozen<map<timeuuid, int>>,"
+                        + "  PRIMARY KEY (k, c)"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert)
+                                                  .withBufferSizeInMiB(1)
+                                                  .build();
+        UUID uuid1 = UUIDs.timeBased();
+        UUID uuid2 = UUIDs.timeBased();
+        UUID uuid3 = UUIDs.timeBased();
+        UUID uuid4 = UUIDs.timeBased();
+        Map<UUID, Integer> map = new LinkedHashMap<>();
+        // NOTE: if these two `put` calls are switched, the test passes
+        map.put(uuid2, 2);
+        map.put(uuid1, 1);
+        writer.addRow(String.valueOf(1), map);
+
+        Map<UUID, Integer> map2 = new LinkedHashMap<>();
+        map2.put(uuid3, 1);
+        map2.put(uuid4, 2);
+        writer.addRow(String.valueOf(2), map2);
+
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + ";");
+        assertEquals(2, rs.size());
+
+        // Make sure we can filter with map values regardless of which order we put the keys in
+        UntypedResultSet filtered;
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='1' and c={" + uuid1 + ": 1, " + uuid2 + ": 2};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='1' and c={" + uuid2 + ": 2, " + uuid1 + ": 1};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + uuid3 + ": 1, " + uuid4 + ": 2};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + uuid4 + ": 2, " + uuid3 + ": 1};");
+        assertEquals(1, filtered.size());
+        UUID other = UUIDs.startOf(1234L); // Just some other TimeUUID
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + uuid3 + ": 1, " + other + ": 2};");
+        assertEquals(0, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + uuid4 + ": 2, " + other + ": 1};");
+        assertEquals(0, filtered.size());
+    }
+
+    @Test
+    public void testFrozenSetTypeCustomOrdered() throws Exception
+    {
+        // Test to make sure we can write to `date` fields in both old and new formats
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k text,"
+                        + "  c frozen<set<timeuuid>>,"
+                        + "  PRIMARY KEY (k, c)"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert)
+                                                  .withBufferSizeInMiB(1)
+                                                  .build();
+        UUID uuid1 = UUIDs.startOf(0L);
+        UUID uuid2 = UUIDs.startOf(10000000L);
+
+        LinkedHashSet<UUID> set = new LinkedHashSet<>();
+        set.add(uuid1);
+        set.add(uuid2);
+        writer.addRow(String.valueOf(1), set);
+
+        LinkedHashSet<UUID> set2 = new LinkedHashSet<>();
+        set2.add(uuid2);
+        set2.add(uuid1);
+        writer.addRow(String.valueOf(2), set2);
+
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + ";");
+        assertEquals(2, rs.size());
+
+        // Make sure we can filter with map values regardless of which order we put the keys in
+        UntypedResultSet filtered;
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='1' and c={" + uuid1 + ", " + uuid2 + "};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='1' and c={" + uuid2 + ", " + uuid1 + "};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + uuid1 + ", " + uuid2 + "};");
+        assertEquals(1, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + uuid2 + ", " + uuid1 + "};");
+        assertEquals(1, filtered.size());
+        UUID other = UUIDs.startOf(10000000L + 1L); // Pick one that's really close just to make sure clustering filters are working
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + uuid1 + ", " + other + "};");
+        assertEquals(0, filtered.size());
+        filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + other + ", " + uuid1 + "};");
+        assertEquals(0, filtered.size());
     }
 
     private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException
