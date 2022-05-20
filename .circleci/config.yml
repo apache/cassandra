@@ -110,8 +110,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -285,8 +285,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -394,8 +394,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -503,8 +503,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -626,8 +626,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -721,8 +721,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -816,8 +816,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -912,8 +912,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1008,8 +1008,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1118,8 +1118,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1214,8 +1214,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1358,8 +1358,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1481,8 +1481,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1579,8 +1579,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1656,8 +1656,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1732,8 +1732,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1795,8 +1795,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -1904,8 +1904,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2013,8 +2013,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2112,8 +2112,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2167,8 +2167,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2343,8 +2343,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2420,8 +2420,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2515,8 +2515,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2625,8 +2625,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2723,8 +2723,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2818,8 +2818,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2913,8 +2913,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -2976,8 +2976,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -3085,8 +3085,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -3139,8 +3139,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -3202,8 +3202,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -3300,8 +3300,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -3410,8 +3410,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -3585,8 +3585,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
@@ -3680,8 +3680,8 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorGenerationsTest
-    - REPEATED_UTEST_METHODS: testTokenGenerations
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTest
+    - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: true
     - REPEATED_DTEST_NAME: null
