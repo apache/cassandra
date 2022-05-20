@@ -37,9 +37,9 @@ import static org.apache.cassandra.dht.tokenallocator.OfflineTokenAllocatorTestU
  * We break the testTokenGenerations test out as it runs long and pushes the rest of the test suite to timeout on both
  * ci environments and local laptops.
  */
-public class OfflineTokenAllocatorTestGenerations
+public class OfflineTokenAllocatorGenerationsTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(OfflineTokenAllocatorTestGenerations.class);
+    private static final Logger logger = LoggerFactory.getLogger(OfflineTokenAllocatorGenerationsTest.class);
 
     @Before
     public void setup()
