@@ -36,9 +36,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class SetGetStreamThroughputTest extends CQLTester
 {
-    private static final double INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES = DataRateSpec
-                                                                       .megabitsPerSecondInMebibytesPerSecond(Integer.MAX_VALUE)
-                                                                       .toMebibytesPerSecond();
+    private static final int MAX_INT_CONFIG_VALUE = Integer.MAX_VALUE - 1;
+    private static final double INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES = DataRateSpec.IntMebibytesPerSecondBound
+                                                                          .megabitsPerSecondInMebibytesPerSecond(MAX_INT_CONFIG_VALUE)
+                                                                          .toMebibytesPerSecond();
 
     @BeforeClass
     public static void setup() throws Exception
@@ -70,7 +71,7 @@ public class SetGetStreamThroughputTest extends CQLTester
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(Integer.MAX_VALUE, INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(MAX_INT_CONFIG_VALUE, INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test

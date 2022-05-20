@@ -154,7 +154,7 @@ public class SnapshotLoaderTest
 
         // Write manifest for snapshot tag2 on random location
         Instant tag2Ts = Instant.now().plusSeconds(10);
-        DurationSpec tag2Ttl = new DurationSpec("10h");
+        DurationSpec.IntSecondsBound tag2Ttl = new DurationSpec.IntSecondsBound("10h");
         File tag2ManifestLocation = tag2Files.toArray(new File[0])[ThreadLocalRandom.current().nextInt(tag2Files.size())];
         writeManifest(tag2ManifestLocation, tag2Ts, tag2Ttl);
 
@@ -206,7 +206,7 @@ public class SnapshotLoaderTest
         assertThat(SnapshotLoader.parseUUID("c7e513243f0711ec9bbc0242ac130002")).isEqualTo(UUID.fromString("c7e51324-3f07-11ec-9bbc-0242ac130002"));
     }
 
-    private void writeManifest(File snapshotDir, Instant creationTime, DurationSpec ttl) throws IOException
+    private void writeManifest(File snapshotDir, Instant creationTime, DurationSpec.IntSecondsBound ttl) throws IOException
     {
         SnapshotManifest manifest = new SnapshotManifest(Lists.newArrayList("f1", "f2", "f3"), ttl, creationTime);
         manifest.serializeToJsonFile(getManifestFile(snapshotDir));

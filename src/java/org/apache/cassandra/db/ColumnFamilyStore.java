@@ -2002,7 +2002,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     /**
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned during next startup
      */
-    public TableSnapshot snapshotWithoutMemtable(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, DurationSpec ttl, RateLimiter rateLimiter, Instant creationTime)
+    public TableSnapshot snapshotWithoutMemtable(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         if (ephemeral && ttl != null)
         {
@@ -2032,7 +2032,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return createSnapshot(snapshotName, ephemeral, ttl, snapshottedSSTables, creationTime);
     }
 
-    protected TableSnapshot createSnapshot(String tag, boolean ephemeral, DurationSpec ttl, Set<SSTableReader> sstables, Instant creationTime) {
+    protected TableSnapshot createSnapshot(String tag, boolean ephemeral, DurationSpec.IntSecondsBound ttl, Set<SSTableReader> sstables, Instant creationTime) {
         Set<File> snapshotDirs = sstables.stream()
                                          .map(s -> Directories.getSnapshotDirectory(s.descriptor, tag).toAbsolute())
                                          .filter(dir -> !Directories.isSecondaryIndexFolder(dir)) // Remove secondary index subdirectory
@@ -2187,7 +2187,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return snapshot(snapshotName, null);
     }
 
-    public TableSnapshot snapshot(String snapshotName, DurationSpec ttl)
+    public TableSnapshot snapshot(String snapshotName, DurationSpec.IntSecondsBound ttl)
     {
         return snapshot(snapshotName, false, ttl, null, now());
     }
@@ -2201,7 +2201,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * @param rateLimiter Rate limiter for hardlinks-per-second
      * @param creationTime time when this snapshot was taken
      */
-    public TableSnapshot snapshot(String snapshotName, boolean skipMemtable, DurationSpec ttl, RateLimiter rateLimiter, Instant creationTime)
+    public TableSnapshot snapshot(String snapshotName, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         return snapshot(snapshotName, null, false, skipMemtable, ttl, rateLimiter, creationTime);
     }
@@ -2223,7 +2223,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * @param rateLimiter Rate limiter for hardlinks-per-second
      * @param creationTime time when this snapshot was taken
      */
-    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipMemtable, DurationSpec ttl, RateLimiter rateLimiter, Instant creationTime)
+    public TableSnapshot snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
     {
         if (!skipMemtable)
         {

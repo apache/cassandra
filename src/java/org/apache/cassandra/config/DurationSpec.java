@@ -24,14 +24,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 
 import static java.util.concurrent.TimeUnit.DAYS;
 import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
@@ -39,77 +39,87 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
  * options. (CASSANDRA-15234)
  */
-public class DurationSpec
+public abstract class DurationSpec
 {
-    /**
-     * Immutable map that matches supported time units according to a provided smallest supported time unit
-     */
-    private static final ImmutableMap<TimeUnit, ImmutableSet<TimeUnit>> MAP_UNITS_PER_MIN_UNIT =
-    ImmutableMap.of(MILLISECONDS, ImmutableSet.of(MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS),
-                    SECONDS, ImmutableSet.of(SECONDS, MINUTES, HOURS, DAYS),
-                    MINUTES, ImmutableSet.of(MINUTES, HOURS, DAYS));
     /**
      * The Regexp used to parse the duration provided as String.
      */
-    private static final Pattern TIME_UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)$"));
-
-    private static final Pattern VALUES_PATTERN = Pattern.compile(("\\d+"));
+    private static final Pattern UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)$"));
 
     private final long quantity;
 
     private final TimeUnit unit;
 
-    public DurationSpec(String value)
+    private DurationSpec(long quantity, TimeUnit unit, TimeUnit minUnit, long max)
     {
-        //parse the string field value
-        Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
+        this.quantity = quantity;
+        this.unit = unit;
+
+        validateMinUnit(unit, minUnit, quantity + " " + unit);
+        validateQuantity(quantity, unit, minUnit, max);
+    }
+
+    private DurationSpec(double quantity, TimeUnit unit, TimeUnit minUnit, long max)
+    {
+        this(Math.round(quantity), unit, minUnit, max);
+    }
+
+    private DurationSpec(String value, TimeUnit minUnit)
+    {
+        Matcher matcher = UNITS_PATTERN.matcher(value);
 
         if (matcher.find())
         {
             quantity = Long.parseLong(matcher.group(1));
             unit = fromSymbol(matcher.group(2));
+
+            // this constructor is used only by extended classes for min unit; upper bound and min unit are guarded there accordingly
         }
         else
         {
-            throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units: d, h, m, s, ms, us, µs," +
-                                             " ns where case matters and " + "only non-negative values");
+            throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units:" + acceptedUnits(minUnit) +
+                                               " where case matters and only non-negative values.");
         }
     }
 
-    DurationSpec(long quantity, TimeUnit unit)
+    private DurationSpec(String value, TimeUnit minUnit, long max)
+    {
+        this(value, minUnit);
+
+        validateMinUnit(unit, minUnit, value);
+        validateQuantity(value, quantity(), unit(), minUnit, max);
+    }
+
+    private static void validateMinUnit(TimeUnit unit, TimeUnit minUnit, String value)
+    {
+        if (unit.compareTo(minUnit) < 0)
+            throw new IllegalArgumentException(String.format("Invalid duration: %s Accepted units:%s", value, acceptedUnits(minUnit)));
+    }
+
+    private static String acceptedUnits(TimeUnit minUnit)
+    {
+        TimeUnit[] units = TimeUnit.values();
+        return Arrays.toString(Arrays.copyOfRange(units, minUnit.ordinal(), units.length));
+    }
+
+    private static void validateQuantity(String value, long quantity, TimeUnit sourceUnit, TimeUnit minUnit, long max)
+    {
+        // no need to validate for negatives as they are not allowed at first place from the regex
+
+        if (minUnit.convert(quantity, sourceUnit) >= max)
+            throw new IllegalArgumentException("Invalid duration: " + value + ". It shouldn't be more than " +
+                                             (max - 1) + " in " + minUnit.name().toLowerCase());
+    }
+
+    private static void validateQuantity(long quantity, TimeUnit sourceUnit, TimeUnit minUnit, long max)
     {
         if (quantity < 0)
-            throw new IllegalArgumentException("Invalid duration " + quantity + ": value must be positive");
+            throw new IllegalArgumentException("Invalid duration: value must be non-negative");
 
-        this.quantity = quantity;
-        this.unit = unit;
-    }
-
-    DurationSpec(double quantity, TimeUnit unit)
-    {
-        this(Math.round(quantity), unit);
-    }
-
-    public DurationSpec(String value, TimeUnit minUnit)
-    {
-        if (!MAP_UNITS_PER_MIN_UNIT.containsKey(minUnit))
-            throw new IllegalArgumentException("Invalid smallest unit set for " + value);
-
-        Matcher matcher = TIME_UNITS_PATTERN.matcher(value);
-
-        if(matcher.find())
-        {
-            quantity = Long.parseLong(matcher.group(1));
-            unit = fromSymbol(matcher.group(2));
-
-            if (!MAP_UNITS_PER_MIN_UNIT.get(minUnit).contains(unit))
-                throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit));
-        }
-        else
-        {
-            throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units:" + MAP_UNITS_PER_MIN_UNIT.get(minUnit) +
-                                             " where case matters and only non-negative values.");
-        }
+        if (minUnit.convert(quantity, sourceUnit) >= max)
+            throw new IllegalArgumentException(String.format("Invalid duration: %d %s. It shouldn't be more than %d in %s",
+                                                           quantity, sourceUnit.name().toLowerCase(),
+                                                           max - 1, minUnit.name().toLowerCase()));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
@@ -126,91 +136,6 @@ public class DurationSpec
     }
 
     /**
-     * Creates a {@code DurationSpec} of the specified amount of milliseconds.
-     *
-     * @param milliseconds the amount of milliseconds
-     * @return a duration
-     */
-    public static DurationSpec inMilliseconds(long milliseconds)
-    {
-        return new DurationSpec(milliseconds, MILLISECONDS);
-    }
-
-    public static DurationSpec inDoubleMilliseconds(double milliseconds)
-    {
-        return new DurationSpec(milliseconds, MILLISECONDS);
-    }
-
-    /**
-     * Creates a {@code DurationSpec} of the specified amount of seconds.
-     *
-     * @param seconds the amount of seconds
-     * @return a duration
-     */
-    public static DurationSpec inSeconds(long seconds)
-    {
-        return new DurationSpec(seconds, SECONDS);
-    }
-
-    /**
-     * Creates a {@code DurationSpec} of the specified amount of minutes.
-     *
-     * @param minutes the amount of minutes
-     * @return a duration
-     */
-    public static DurationSpec inMinutes(long minutes)
-    {
-        return new DurationSpec(minutes, MINUTES);
-    }
-
-    /**
-     * Creates a {@code DurationSpec} of the specified amount of hours.
-     *
-     * @param hours the amount of hours
-     * @return a duration
-     */
-    public static DurationSpec inHours(long hours)
-    {
-        return new DurationSpec(hours, HOURS);
-    }
-
-    /**
-     * Creates a {@code DurationSpec} of the specified amount of days.
-     *
-     * @param days the amount of days
-     * @return a duration
-     */
-    public static DurationSpec inDays(long days)
-    {
-        return new DurationSpec(days, DAYS);
-    }
-
-    /**
-     * Creates a {@code DurationSpec} of the specified amount of seconds. Custom method for special cases.
-     *
-     * @param value which can be in the old form only presenting the quantity or the post CASSANDRA-15234 form - a
-     * value consisting of quantity and unit. This method is necessary for three parameters which didn't change their
-     * names but only their value format. (key_cache_save_period, row_cache_save_period, counter_cache_save_period)
-     * @return a duration
-     */
-    public static DurationSpec inSecondsString(String value)
-    {
-        //parse the string field value
-        Matcher matcher = VALUES_PATTERN.matcher(value);
-
-        long seconds;
-        //if the provided string value is just a number, then we create a Duration Spec value in seconds
-        if (matcher.matches())
-        {
-            seconds = Long.parseLong(value);
-            return new DurationSpec(seconds, SECONDS);
-        }
-
-        //otherwise we just use the standard constructors
-        return new DurationSpec(value);
-    }
-
-    /**
      * @param symbol the time unit symbol
      * @return the time unit associated to the specified symbol
      */
@@ -224,12 +149,12 @@ public class DurationSpec
             case "s": return SECONDS;
             case "ms": return MILLISECONDS;
             case "us":
-            case "µs": return TimeUnit.MICROSECONDS;
+            case "µs": return MICROSECONDS;
             case "ns": return TimeUnit.NANOSECONDS;
         }
         throw new IllegalArgumentException(String.format("Unsupported time unit: %s. Supported units are: %s",
                                                        symbol, Arrays.stream(TimeUnit.values())
-                                                                     .map(DurationSpec::getSymbol)
+                                                                     .map(DurationSpec::symbol)
                                                                      .collect(Collectors.joining(", "))));
     }
 
@@ -240,104 +165,6 @@ public class DurationSpec
     public long to(TimeUnit targetUnit)
     {
         return targetUnit.convert(quantity, unit);
-    }
-
-    /**
-     * @return this duration in number of hours
-     */
-    public long toHours()
-    {
-        return unit.toHours(quantity);
-    }
-
-    /**
-     * Returns this duration in number of minutes as an {@code int}
-     *
-     * @return this duration in number of minutes or {@code Integer.MAX_VALUE} if the number of minutes is too large.
-     */
-    public int toHoursAsInt()
-    {
-        return Ints.saturatedCast(toHours());
-    }
-
-    /**
-     * @return this duration in number of minutes
-     */
-    public long toMinutes()
-    {
-        return unit.toMinutes(quantity);
-    }
-
-    /**
-     * Returns this duration in number of minutes as an {@code int}
-     *
-     * @return this duration in number of minutes or {@code Integer.MAX_VALUE} if the number of minutes is too large.
-     */
-    public int toMinutesAsInt()
-    {
-        return Ints.saturatedCast(toMinutes());
-    }
-
-    /**
-     * @return this duration in number of seconds
-     */
-    public long toSeconds()
-    {
-        return unit.toSeconds(quantity);
-    }
-
-    /**
-     * Returns this duration in number of seconds as an {@code int}
-     *
-     * @return this duration in number of seconds or {@code Integer.MAX_VALUE} if the number of seconds is too large.
-     */
-    public int toSecondsAsInt()
-    {
-        return Ints.saturatedCast(toSeconds());
-    }
-
-    /**
-     * @return this duration in number of nanoseconds
-     */
-    public long toNanoseconds()
-    {
-        return unit.toNanos(quantity);
-    }
-
-    /**
-     * Returns this duration in number of nanoseconds as an {@code int}
-     *
-     * @return this duration in number of nanoseconds or {@code Integer.MAX_VALUE} if the number of nanoseconds is too large.
-     */
-    public int toNanosecondsAsInt()
-    {
-        return Ints.saturatedCast(toNanoseconds());
-    }
-
-    /**
-     * @return this duration in number of milliseconds
-     */
-    public long toMilliseconds()
-    {
-        return unit.toMillis(quantity);
-    }
-
-    /**
-     * @return the duration value in milliseconds
-     */
-    public static long toMilliseconds(DurationSpec quantity)
-    {
-        return quantity.toMilliseconds();
-    }
-
-    /**
-     * Returns this duration in number of milliseconds as an {@code int}
-     *
-     * @return this duration in number of milliseconds or {@code Integer.MAX_VALUE} if the number of milliseconds is too large.
-     */
-    public int toMillisecondsAsInt()
-    {
-        return Ints.saturatedCast(toMilliseconds());
     }
 
     @Override
@@ -368,7 +195,7 @@ public class DurationSpec
     @Override
     public String toString()
     {
-        return quantity + getSymbol(unit);
+        return quantity + symbol(unit);
     }
 
     /**
@@ -377,7 +204,10 @@ public class DurationSpec
      * @param unit the time unit
      * @return the time unit symbol
      */
-    static String getSymbol(TimeUnit unit)
+    // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
+    // imporant to be explicit about get/set as this changes how parsing is done; this class is a data-type, so is
+    // not nested, having get/set can confuse parsing thinking this is a nested type
+    static String symbol(TimeUnit unit)
     {
         switch (unit)
         {
@@ -390,5 +220,388 @@ public class DurationSpec
             case NANOSECONDS: return "ns";
         }
         throw new AssertionError();
+    }
+
+    /**
+     * Represents a duration used for Cassandra configuration. The bound is [0, Long.MAX_VALUE) in nanoseconds.
+     * If the user sets a different unit - we still validate that converted to nanoseconds the quantity will not exceed
+     * that upper bound. (CASSANDRA-17571)
+     */
+    public final static class LongNanosecondsBound extends DurationSpec
+    {
+        /**
+         * Creates a {@code DurationSpec.LongNanosecondsBound} of the specified amount.
+         * The bound is [0, Long.MAX_VALUE) in nanoseconds.
+         *
+         * @param value the duration
+         */
+        public LongNanosecondsBound(String value)
+        {
+            super(value, NANOSECONDS, Long.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.LongNanosecondsBound} of the specified amount in the specified unit.
+         * The bound is [0, Long.MAX_VALUE) in nanoseconds.
+         *
+         * @param quantity where quantity shouldn't be bigger than Long.MAX_VALUE - 1 in nanoseconds
+         * @param unit in which the provided quantity is
+         */
+        public LongNanosecondsBound(long quantity, TimeUnit unit)
+        {
+            super(quantity, unit, NANOSECONDS, Long.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.LongNanosecondsBound} of the specified amount in nanoseconds.
+         * The bound is [0, Long.MAX_VALUE) in nanoseconds.
+         *
+         * @param nanoseconds where nanoseconds shouldn't be bigger than Long.MAX_VALUE-1
+         */
+        public LongNanosecondsBound(long nanoseconds)
+        {
+            this(nanoseconds, NANOSECONDS);
+        }
+
+        /**
+         * @return this duration in number of nanoseconds
+         */
+        public long toNanoseconds()
+        {
+            return unit().toNanos(quantity());
+        }
+    }
+
+    /**
+     * Represents a duration used for Cassandra configuration. The bound is [0, Long.MAX_VALUE) in milliseconds.
+     * If the user sets a different unit - we still validate that converted to milliseconds the quantity will not exceed
+     * that upper bound. (CASSANDRA-17571)
+     */
+    public final static class LongMillisecondsBound extends DurationSpec
+    {
+        /**
+         * Creates a {@code DurationSpec.LongMillisecondsBound} of the specified amount.
+         * The bound is [0, Long.MAX_VALUE) in milliseconds.
+         *
+         * @param value the duration
+         */
+        public LongMillisecondsBound(String value)
+        {
+            super(value, MILLISECONDS, Long.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.LongMillisecondsBound} of the specified amount in the specified unit.
+         * The bound is [0, Long.MAX_VALUE) in milliseconds.
+         *
+         * @param quantity where quantity shouldn't be bigger than Long.MAX_VALUE - 1 in milliseconds
+         * @param unit in which the provided quantity is
+         */
+        public LongMillisecondsBound(long quantity, TimeUnit unit)
+        {
+            super(quantity, unit, MILLISECONDS, Long.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.LongMillisecondsBound} of the specified amount in milliseconds.
+         * The bound is [0, Long.MAX_VALUE) in milliseconds.
+         *
+         * @param milliseconds where milliseconds shouldn't be bigger than Long.MAX_VALUE-1
+         */
+        public LongMillisecondsBound(long milliseconds)
+        {
+            this(milliseconds, MILLISECONDS);
+        }
+
+        /**
+         * @return this duration in number of milliseconds
+         */
+        public long toMilliseconds()
+        {
+            return unit().toMillis(quantity());
+        }
+    }
+
+    /**
+     * Represents a duration used for Cassandra configuration. The bound is [0, Long.MAX_VALUE) in seconds.
+     * If the user sets a different unit - we still validate that converted to seconds the quantity will not exceed
+     * that upper bound. (CASSANDRA-17571)
+     */
+    public final static class LongSecondsBound extends DurationSpec
+    {
+        /**
+         * Creates a {@code DurationSpec.LongSecondsBound} of the specified amount.
+         * The bound is [0, Long.MAX_VALUE) in seconds.
+         *
+         * @param value the duration
+         */
+        public LongSecondsBound(String value)
+        {
+            super(value, SECONDS, Long.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.LongSecondsBound} of the specified amount in the specified unit.
+         * The bound is [0, Long.MAX_VALUE) in seconds.
+         *
+         * @param quantity where quantity shouldn't be bigger than Long.MAX_VALUE - 1 in seconds
+         * @param unit in which the provided quantity is
+         */
+        public LongSecondsBound(long quantity, TimeUnit unit)
+        {
+            super(quantity, unit, SECONDS, Long.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.LongSecondsBound} of the specified amount in seconds.
+         * The bound is [0, Long.MAX_VALUE) in seconds.
+         *
+         * @param seconds where seconds shouldn't be bigger than Long.MAX_VALUE-1
+         */
+        public LongSecondsBound(long seconds)
+        {
+            this(seconds, SECONDS);
+        }
+
+        /**
+         * @return this duration in number of milliseconds
+         */
+        public long toMilliseconds()
+        {
+            return unit().toMillis(quantity());
+        }
+
+        /**
+         * @return this duration in number of seconds
+         */
+        public long toSeconds()
+        {
+            return unit().toSeconds(quantity());
+        }
+    }
+
+    /**
+     * Represents a duration used for Cassandra configuration. The bound is [0, Integer.MAX_VALUE) in minutes.
+     * If the user sets a different unit - we still validate that converted to minutes the quantity will not exceed
+     * that upper bound. (CASSANDRA-17571)
+     */
+    public final static class IntMinutesBound extends DurationSpec
+    {
+        /**
+         * Creates a {@code DurationSpec.IntMinutesBound} of the specified amount. The bound is [0, Integer.MAX_VALUE) in minutes.
+         * The bound is [0, Integer.MAX_VALUE) in minutes.
+         *
+         * @param value the duration
+         */
+        public IntMinutesBound(String value)
+        {
+            super(value, MINUTES, Integer.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.IntMinutesBound} of the specified amount in the specified unit.
+         * The bound is [0, Integer.MAX_VALUE) in minutes.
+         *
+         * @param quantity where quantity shouldn't be bigger than Integer.MAX_VALUE - 1 in minutes
+         * @param unit in which the provided quantity is
+         */
+        public IntMinutesBound(long quantity, TimeUnit unit)
+        {
+            super(quantity, unit, MINUTES, Integer.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.IntMinutesBound} of the specified amount in minutes.
+         * The bound is [0, Integer.MAX_VALUE) in minutes.
+         *
+         * @param minutes where minutes shouldn't be bigger than Integer.MAX_VALUE-1
+         */
+        public IntMinutesBound(long minutes)
+        {
+            this(minutes, MINUTES);
+        }
+
+        /**
+         * Returns this duration in number of milliseconds as an {@code int}
+         *
+         * @return this duration in number of milliseconds or {@code Integer.MAX_VALUE} if the number of milliseconds is too large.
+         */
+        public int toMilliseconds()
+        {
+            return Ints.saturatedCast(unit().toMillis(quantity()));
+        }
+
+        /**
+         * Returns this duration in number of seconds as an {@code int}
+         *
+         * @return this duration in number of seconds or {@code Integer.MAX_VALUE} if the number of seconds is too large.
+         */
+        public int toSeconds()
+        {
+            return Ints.saturatedCast(unit().toSeconds(quantity()));
+        }
+
+        /**
+         * Returns this duration in number of minutes as an {@code int}
+         *
+         * @return this duration in number of minutes or {@code Integer.MAX_VALUE} if the number of minutes is too large.
+         */
+        public int toMinutes()
+        {
+            return Ints.saturatedCast(unit().toMinutes(quantity()));
+        }
+    }
+
+    /**
+     * Represents a duration used for Cassandra configuration. The bound is [0, Integer.MAX_VALUE) in seconds.
+     * If the user sets a different unit - we still validate that converted to seconds the quantity will not exceed
+     * that upper bound. (CASSANDRA-17571)
+     */
+    public final static class IntSecondsBound extends DurationSpec
+    {
+        private static final Pattern VALUES_PATTERN = Pattern.compile(("\\d+"));
+
+        /**
+         * Creates a {@code DurationSpec.IntSecondsBound} of the specified amount. The bound is [0, Integer.MAX_VALUE) in seconds.
+         * The bound is [0, Integer.MAX_VALUE) in seconds.
+         *
+         * @param value the duration
+         */
+        public IntSecondsBound(String value)
+        {
+            super(value, SECONDS, Integer.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.IntSecondsBound} of the specified amount in the specified unit.
+         * The bound is [0, Integer.MAX_VALUE) in seconds.
+         *
+         * @param quantity where quantity shouldn't be bigger than Integer.MAX_VALUE - 1 in seconds
+         * @param unit in which the provided quantity is
+         */
+        public IntSecondsBound(long quantity, TimeUnit unit)
+        {
+            super(quantity, unit, SECONDS, Integer.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.IntSecondsBound} of the specified amount in seconds.
+         * The bound is [0, Integer.MAX_VALUE) in seconds.
+         *
+         * @param seconds where seconds shouldn't be bigger than Integer.MAX_VALUE-1
+         */
+        public IntSecondsBound(long seconds)
+        {
+            this(seconds, SECONDS);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.IntSecondsBound} of the specified amount in seconds, expressed either as the
+         * number of seconds without unit, or as a regular quantity with unit.
+         * Used in the Converters for a few parameters which changed only type, but not names
+         * The bound is [0, Integer.MAX_VALUE) in seconds.
+         *
+         * @param value where value shouldn't be bigger than Integer.MAX_VALUE-1 in seconds
+         */
+        public static IntSecondsBound inSecondsString(String value)
+        {
+            //parse the string field value
+            Matcher matcher = VALUES_PATTERN.matcher(value);
+
+            long seconds;
+            //if the provided string value is just a number, then we create a IntSecondsBound value in seconds
+            if (matcher.matches())
+            {
+                seconds = Integer.parseInt(value);
+                return new IntSecondsBound(seconds, TimeUnit.SECONDS);
+            }
+
+            //otherwise we just use the standard constructors
+            return new IntSecondsBound(value);
+        }
+
+        /**
+         * Returns this duration in number of milliseconds as an {@code int}
+         *
+         * @return this duration in number of milliseconds or {@code Integer.MAX_VALUE} if the number of milliseconds is too large.
+         */
+        public int toMilliseconds()
+        {
+            return Ints.saturatedCast(unit().toMillis(quantity()));
+        }
+
+        /**
+         * Returns this duration in number of seconds as an {@code int}
+         *
+         * @return this duration in number of seconds or {@code Integer.MAX_VALUE} if the number of seconds is too large.
+         */
+        public int toSeconds()
+        {
+            return Ints.saturatedCast(unit().toSeconds(quantity()));
+        }
+    }
+
+    /**
+     * Represents a duration used for Cassandra configuration. The bound is [0, Integer.MAX_VALUE) in milliseconds.
+     * If the user sets a different unit - we still validate that converted to milliseconds the quantity will not exceed
+     * that upper bound. (CASSANDRA-17571)
+     */
+    public final static class IntMillisecondsBound extends DurationSpec
+    {
+        /**
+         * Creates a {@code DurationSpec.IntMillisecondsBound} of the specified amount. The bound is [0, Integer.MAX_VALUE) in milliseconds.
+         * The bound is [0, Integer.MAX_VALUE) in milliseconds.
+         *
+         * @param value the duration
+         */
+        public IntMillisecondsBound(String value)
+        {
+            super(value, MILLISECONDS, Integer.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.IntMillisecondsBound} of the specified amount in the specified unit.
+         * The bound is [0, Integer.MAX_VALUE) in milliseconds.
+         *
+         * @param quantity where quantity shouldn't be bigger than Integer.MAX_VALUE - 1 in milliseconds
+         * @param unit in which the provided quantity is
+         */
+        public IntMillisecondsBound(long quantity, TimeUnit unit)
+        {
+            super(quantity, unit, MILLISECONDS, Integer.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.IntMillisecondsBound} of the specified amount in milliseconds.
+         * The bound is [0, Integer.MAX_VALUE) in milliseconds.
+         *
+         * @param milliseconds where milliseconds shouldn't be bigger than Integer.MAX_VALUE-1
+         */
+        public IntMillisecondsBound(long milliseconds)
+        {
+            this(milliseconds, MILLISECONDS);
+        }
+
+        /**
+         * Below constructor is used only for backward compatibility for the old commitlog_sync_group_window_in_ms before 4.1
+         * Creates a {@code DurationSpec.IntMillisecondsBound} of the specified amount in the specified unit.
+         *
+         * @param quantity where quantity shouldn't be bigger than Intetger.MAX_VALUE - 1 in milliseconds
+         * @param unit in which the provided quantity is
+         */
+        public IntMillisecondsBound(double quantity, TimeUnit unit)
+        {
+            super(quantity, unit, MILLISECONDS, Integer.MAX_VALUE);
+        }
+
+        /**
+         * Returns this duration in number of milliseconds as an {@code int}
+         *
+         * @return this duration in number of milliseconds or {@code Integer.MAX_VALUE} if the number of milliseconds is too large.
+         */
+        public int toMilliseconds()
+        {
+            return Ints.saturatedCast(unit().toMillis(quantity()));
+        }
     }
 }

@@ -24,54 +24,138 @@ import org.junit.Test;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.GIBIBYTES;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.*;
 import static org.quicktheories.QuickTheory.qt;
 
 public class DataStorageSpecTest
 {
+    private static final long MAX_LONG_CONFIG_VALUE = Long.MAX_VALUE - 1;
     @Test
     public void testConversions()
     {
-        assertEquals(10, new DataStorageSpec("10B").toBytes());
-        assertEquals(10240, new DataStorageSpec("10KiB").toBytes());
-        assertEquals(0, new DataStorageSpec("10KiB").toMebibytes());
-        assertEquals(10240, new DataStorageSpec("10MiB").toKibibytes());
-        assertEquals(10485760, new DataStorageSpec("10MiB").toBytes());
+        assertEquals(10, new DataStorageSpec.LongBytesBound("10B").toBytes());
+        assertEquals(10240, new DataStorageSpec.LongBytesBound("10KiB").toBytes());
+        assertEquals(10485760, new DataStorageSpec.LongBytesBound("10MiB").toBytes());
+        assertEquals(1073741824, new DataStorageSpec.LongBytesBound("1GiB").toBytes());
+
+        assertEquals(1024, new DataStorageSpec.LongMebibytesBound("1GiB").toMebibytes());
+        assertEquals(10485760, new DataStorageSpec.LongMebibytesBound("10MiB").toBytes());
+        assertEquals(10240, new DataStorageSpec.LongMebibytesBound("10MiB").toKibibytes());
+        assertEquals(1024 * 1024 * 1024, new DataStorageSpec.IntBytesBound("1GiB").toBytes());
+        assertEquals(10240, new DataStorageSpec.IntKibibytesBound("10MiB").toKibibytes());
+        assertEquals(1024, new DataStorageSpec.IntMebibytesBound("1GiB").toMebibytes());
+
+        assertEquals(10, new DataStorageSpec.LongBytesBound(10, BYTES).toBytes());
+        assertEquals(10240, new DataStorageSpec.LongBytesBound(10, KIBIBYTES).toBytes());
+        assertEquals(10485760, new DataStorageSpec.LongBytesBound(10, MEBIBYTES).toBytes());
+        assertEquals(1073741824, new DataStorageSpec.LongBytesBound(1, GIBIBYTES).toBytes());
+
+        assertEquals(1024, new DataStorageSpec.LongMebibytesBound(1, GIBIBYTES).toMebibytes());
+        assertEquals(1024 * 1024, new DataStorageSpec.LongMebibytesBound(1, GIBIBYTES).toKibibytes());
+        assertEquals(10485760, new DataStorageSpec.LongMebibytesBound(10, MEBIBYTES).toBytes());
+        assertEquals(10240, new DataStorageSpec.IntKibibytesBound(10, MEBIBYTES).toKibibytes());
+        assertEquals(1024, new DataStorageSpec.IntMebibytesBound(1, GIBIBYTES).toMebibytes());
     }
 
     @Test
-    public void testOverflowingDuringConversion()
+    public void testOverflowingConversion()
     {
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807B").toBytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807B").toBytesAsInt());
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807KiB").toBytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807KiB").toBytesAsInt());
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807MiB").toBytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807MiB").toBytesAsInt());
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807GiB").toBytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807GiB").toBytesAsInt());
+        assertThatThrownBy(() -> new DataStorageSpec.IntBytesBound("2147483648B")).isInstanceOf(IllegalArgumentException.class)
+                                                                                  .hasMessageContaining("Invalid data storage: 2147483648B. " +
+                                                                                                        "It shouldn't be more than 2147483646 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntBytesBound(2147483648L)).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid data storage: 2147483648 bytes. " +
+                                                                                                      "It shouldn't be more than 2147483646 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntBytesBound("2147483648KiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                    .hasMessageContaining("Invalid data storage: 2147483648KiB. " +
+                                                                                                          "It shouldn't be more than 2147483646 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntBytesBound("35791395MiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                  .hasMessageContaining("Invalid data storage: 35791395MiB. " +
+                                                                                                        "It shouldn't be more than 2147483646 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntBytesBound("34954GiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid data storage: 34954GiB. " +
+                                                                                                     "It shouldn't be more than 2147483646 in bytes");
 
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807KiB").toKibibytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807KiB").toKibibytesAsInt());
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807MiB").toKibibytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807MiB").toKibibytesAsInt());
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807GiB").toKibibytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807GiB").toKibibytesAsInt());
+        assertThatThrownBy(() -> new DataStorageSpec.IntKibibytesBound("2147483648B")).isInstanceOf(IllegalArgumentException.class)
+                                                                                      .hasMessageContaining("Invalid data storage: 2147483648B " +
+                                                                                                            "Accepted units:[KIBIBYTES, MEBIBYTES, GIBIBYTES]");
+        assertThatThrownBy(() -> new DataStorageSpec.IntKibibytesBound(2147483648L, BYTES)).isInstanceOf(IllegalArgumentException.class)
+                                                                                           .hasMessageContaining("Invalid data storage: 2147483648B " +
+                                                                                                                 "Accepted units:[KIBIBYTES, MEBIBYTES, GIBIBYTES]");
+        assertThatThrownBy(() -> new DataStorageSpec.IntKibibytesBound("2147483648KiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                        .hasMessageContaining("Invalid data storage: 2147483648KiB. " +
+                                                                                                              "It shouldn't be more than 2147483646 in kibibytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntKibibytesBound("35791395MiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                      .hasMessageContaining("Invalid data storage: 35791395MiB. " +
+                                                                                                            "It shouldn't be more than 2147483646 in kibibytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntKibibytesBound("34954GiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                   .hasMessageContaining("Invalid data storage: 34954GiB. " +
+                                                                                                         "It shouldn't be more than 2147483646 in kibibytes");
 
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807MiB").toMebibytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807MiB").toMebibytesAsInt());
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807GiB").toMebibytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807GiB").toMebibytesAsInt());
+        assertThatThrownBy(() -> new DataStorageSpec.IntMebibytesBound("2147483648B")).isInstanceOf(IllegalArgumentException.class)
+                                                                                      .hasMessageContaining("Invalid data storage: 2147483648B " +
+                                                                                                            "Accepted units:[MEBIBYTES, GIBIBYTES]");
+        assertThatThrownBy(() -> new DataStorageSpec.IntMebibytesBound("2147483648MiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                        .hasMessageContaining("Invalid data storage: 2147483648MiB. " +
+                                                                                                              "It shouldn't be more than 2147483646 in mebibytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntMebibytesBound(2147483648L, MEBIBYTES)).isInstanceOf(IllegalArgumentException.class)
+                                                                                               .hasMessageContaining("Invalid data storage: 2147483648 mebibytes. " +
+                                                                                                                     "It shouldn't be more than 2147483646 in mebibytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntMebibytesBound("2097152GiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                     .hasMessageContaining("Invalid data storage: 2097152GiB. " +
+                                                                                                           "It shouldn't be more than 2147483646 in mebibytes");
+        assertThatThrownBy(() -> new DataStorageSpec.IntMebibytesBound(2147483648L)).isInstanceOf(IllegalArgumentException.class)
+                                                                                    .hasMessageContaining("Invalid data storage: 2147483648 mebibytes." +
+                                                                                                          " It shouldn't be more than 2147483646 in mebibytes");
 
-        assertEquals(Long.MAX_VALUE, new DataStorageSpec("9223372036854775807GiB").toGibibytes());
-        assertEquals(Integer.MAX_VALUE, new DataStorageSpec("9223372036854775807GiB").toGibibytesAsInt());
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(Long.MAX_VALUE + "B")).isInstanceOf(IllegalArgumentException.class)
+                                                                                          .hasMessageContaining("Invalid data storage: 9223372036854775807B. " +
+                                                                                                                "It shouldn't be more than 9223372036854775806 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(Long.MAX_VALUE, BYTES)).isInstanceOf(IllegalArgumentException.class)
+                                                                                           .hasMessageContaining("Invalid data storage: 9223372036854775807 bytes. " +
+                                                                                                                 "It shouldn't be more than 9223372036854775806 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(Long.MAX_VALUE)).isInstanceOf(IllegalArgumentException.class)
+                                                                                    .hasMessageContaining("Invalid data storage: 9223372036854775807 bytes. " +
+                                                                                                          "It shouldn't be more than 9223372036854775806 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(Long.MAX_VALUE + "KiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                            .hasMessageContaining("Invalid data storage: 9223372036854775807KiB. " +
+                                                                                                                  "It shouldn't be more than 9223372036854775806 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("9223372036854775MiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                  .hasMessageContaining("Invalid data storage: 9223372036854775MiB. " +
+                                                                                                        "It shouldn't be more than 9223372036854775806 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("9223372036854775GiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                           .hasMessageContaining("Invalid data storage: 9223372036854775GiB. " +
+                                                                                                                 "It shouldn't be more than 9223372036854775806 in bytes");
+
+        assertThatThrownBy(() -> new DataStorageSpec.LongMebibytesBound(Long.MAX_VALUE + "B")).isInstanceOf(IllegalArgumentException.class)
+                                                                                              .hasMessageContaining("Invalid data storage: 9223372036854775807B " +
+                                                                                                                    "Accepted units:[MEBIBYTES, GIBIBYTES]");
+        assertThatThrownBy(() -> new DataStorageSpec.LongMebibytesBound(Long.MAX_VALUE, BYTES)).isInstanceOf(IllegalArgumentException.class)
+                                                                                              .hasMessageContaining("Invalid data storage: 9223372036854775807B " +
+                                                                                                                    "Accepted units:[MEBIBYTES, GIBIBYTES]");
+        assertThatThrownBy(() -> new DataStorageSpec.LongMebibytesBound(Long.MAX_VALUE + "KiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                                .hasMessageContaining("Invalid data storage: 9223372036854775807KiB " +
+                                                                                                                      "Accepted units:[MEBIBYTES, GIBIBYTES]");
+        assertThatThrownBy(() -> new DataStorageSpec.LongMebibytesBound(Long.MAX_VALUE + "MiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                                .hasMessageContaining("Invalid data storage: 9223372036854775807MiB. " +
+                                                                                                                      "It shouldn't be more than 9223372036854775806 in mebibytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongMebibytesBound("9223372036854775555GiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                                  .hasMessageContaining("Invalid data storage: 9223372036854775555GiB. " +
+                                                                                                                        "It shouldn't be more than 9223372036854775806 in mebibytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongMebibytesBound(Long.MAX_VALUE)).isInstanceOf(IllegalArgumentException.class)
+                                                                                        .hasMessageContaining("Invalid data storage: 9223372036854775807 mebibytes." +
+                                                                                                              " It shouldn't be more than 9223372036854775806 in mebibytes");
     }
 
     @Test
     public void testFromSymbol()
     {
-        assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("B"), DataStorageSpec.DataStorageUnit.BYTES);
+        assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("B"), BYTES);
         assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("KiB"), DataStorageSpec.DataStorageUnit.KIBIBYTES);
         assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("MiB"), DataStorageSpec.DataStorageUnit.MEBIBYTES);
         assertEquals(DataStorageSpec.DataStorageUnit.fromSymbol("GiB"), DataStorageSpec.DataStorageUnit.GIBIBYTES);
@@ -83,62 +167,82 @@ public class DataStorageSpecTest
     @Test
     public void testInvalidInputs()
     {
-        assertThatThrownBy(() -> new DataStorageSpec("10")).isInstanceOf(IllegalArgumentException.class)
-                                                           .hasMessageContaining("Invalid data storage: 10");
-        assertThatThrownBy(() -> new DataStorageSpec("-10bps")).isInstanceOf(IllegalArgumentException.class)
-                                                               .hasMessageContaining("Invalid data storage: -10bps");
-        assertThatThrownBy(() -> new DataStorageSpec("-10b")).isInstanceOf(IllegalArgumentException.class)
-                                                             .hasMessageContaining("Invalid data storage: -10b");
-        assertThatThrownBy(() -> new DataStorageSpec("10HG")).isInstanceOf(IllegalArgumentException.class)
-                                                             .hasMessageContaining("Invalid data storage: 10HG");
-        assertThatThrownBy(() -> new DataStorageSpec("9223372036854775809B")
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("10")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid data storage: 10");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("-10bps")).isInstanceOf(IllegalArgumentException.class)
+                                                                              .hasMessageContaining("Invalid data storage: -10bps");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("-10b")).isInstanceOf(IllegalArgumentException.class)
+                                                                            .hasMessageContaining("Invalid data storage: -10b");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(-10, BYTES)).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid data storage: value must be non-negative");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("10HG")).isInstanceOf(IllegalArgumentException.class)
+                                                                            .hasMessageContaining("Invalid data storage: 10HG");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("9223372036854775809B")
                                  .toBytes()).isInstanceOf(NumberFormatException.class)
                                             .hasMessageContaining("For input string: \"9223372036854775809\"");
+
+        assertThatThrownBy(() -> new DataStorageSpec.IntKibibytesBound("10B")).isInstanceOf(IllegalArgumentException.class)
+                                                                              .hasMessageContaining("Invalid data storage: 10B Accepted units");
+        assertThatThrownBy(() -> new DataStorageSpec.IntMebibytesBound("10B")).isInstanceOf(IllegalArgumentException.class)
+                                                                              .hasMessageContaining("Invalid data storage: 10B Accepted units");
+
+        assertThatThrownBy(() -> new DataStorageSpec.LongMebibytesBound("10B")).isInstanceOf(IllegalArgumentException.class)
+                                                                               .hasMessageContaining("Invalid data storage: 10B Accepted units");
+    }
+
+    @Test
+    public void testValidUnits()
+    {
+        assertEquals(10240L, new DataStorageSpec.IntBytesBound("10KiB").toBytes());
+        assertEquals(10L, new DataStorageSpec.IntKibibytesBound("10KiB").toKibibytes());
+        assertEquals(10L, new DataStorageSpec.IntMebibytesBound("10MiB").toMebibytes());
+    }
+
+    @Test
+    public void testInvalidForConversion()
+    {
+       //just test the cast to Int
+//        assertEquals(Integer.MAX_VALUE, new DataStorageSpec.LongBytesBound("9223372036854775806B").toBytesAsInt());
+
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(Long.MAX_VALUE + "B")).isInstanceOf(IllegalArgumentException.class)
+                                                                                          .hasMessageContaining("Invalid data storage: 9223372036854775807B. " +
+                                                                                                                "It shouldn't be more than 9223372036854775806 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(Long.MAX_VALUE + "KiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                            .hasMessageContaining("Invalid data storage: 9223372036854775807KiB. " +
+                                                                                                                  "It shouldn't be more than 9223372036854775806 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(Long.MAX_VALUE-5L + "MiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                               .hasMessageContaining("Invalid data storage: 9223372036854775802MiB. " +
+                                                                                                                     "It shouldn't be more than 9223372036854775806 in bytes");
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound(Long.MAX_VALUE-5L + "GiB")).isInstanceOf(IllegalArgumentException.class)
+                                                                                               .hasMessageContaining("Invalid data storage: 9223372036854775802GiB. " +
+                                                                                                                     "It shouldn't be more than 9223372036854775806 in bytes");
     }
 
     @Test
     public void testEquals()
     {
-        assertEquals(new DataStorageSpec("10B"), new DataStorageSpec("10B"));
+        assertEquals(new DataStorageSpec.LongBytesBound("10B"), new DataStorageSpec.LongBytesBound("10B"));
 
-        assertEquals(new DataStorageSpec("10KiB"), new DataStorageSpec("10240B"));
-        assertEquals(new DataStorageSpec("10240B"), new DataStorageSpec("10KiB"));
+        assertEquals(new DataStorageSpec.LongBytesBound.LongBytesBound("10KiB"), new DataStorageSpec.LongBytesBound.LongBytesBound("10240B"));
+        assertEquals(new DataStorageSpec.LongBytesBound.LongBytesBound("10240B"), new DataStorageSpec.LongBytesBound("10KiB"));
 
-        assertEquals(new DataStorageSpec("10MiB"), new DataStorageSpec("10240KiB"));
-        assertEquals(new DataStorageSpec("10240KiB"), new DataStorageSpec("10MiB"));
+        assertEquals(new DataStorageSpec.LongBytesBound("10MiB"), new DataStorageSpec.LongBytesBound("10240KiB"));
+        assertEquals(new DataStorageSpec.LongBytesBound("10240KiB"), new DataStorageSpec.LongBytesBound("10MiB"));
 
-        assertEquals(new DataStorageSpec("10GiB"), new DataStorageSpec("10240MiB"));
-        assertEquals(new DataStorageSpec("10240MiB"), new DataStorageSpec("10GiB"));
+        assertEquals(new DataStorageSpec.LongBytesBound("10GiB"), new DataStorageSpec.LongBytesBound("10240MiB"));
+        assertEquals(new DataStorageSpec.LongBytesBound("10240MiB"), new DataStorageSpec.LongBytesBound("10GiB"));
 
-        assertNotEquals(DataStorageSpec.inBytes(Long.MAX_VALUE), DataStorageSpec.inGibibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inBytes(Long.MAX_VALUE), DataStorageSpec.inMebibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inBytes(Long.MAX_VALUE), DataStorageSpec.inKibibytes(Long.MAX_VALUE));
-        assertEquals(DataStorageSpec.inBytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
+        assertEquals(new DataStorageSpec.LongBytesBound(MAX_LONG_CONFIG_VALUE, BYTES), new DataStorageSpec.LongBytesBound(MAX_LONG_CONFIG_VALUE, BYTES));
 
-        assertNotEquals(DataStorageSpec.inKibibytes(Long.MAX_VALUE), DataStorageSpec.inGibibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inKibibytes(Long.MAX_VALUE), DataStorageSpec.inMebibytes(Long.MAX_VALUE));
-        assertEquals(DataStorageSpec.inKibibytes(Long.MAX_VALUE), DataStorageSpec.inKibibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inKibibytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
-
-        assertNotEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inGibibytes(Long.MAX_VALUE));
-        assertEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inMebibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inMebibytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
-
-        assertEquals(DataStorageSpec.inGibibytes(Long.MAX_VALUE), DataStorageSpec.inGibibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inGibibytes(Long.MAX_VALUE), DataStorageSpec.inMebibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inGibibytes(Long.MAX_VALUE), DataStorageSpec.inKibibytes(Long.MAX_VALUE));
-        assertNotEquals(DataStorageSpec.inGibibytes(Long.MAX_VALUE), DataStorageSpec.inBytes(Long.MAX_VALUE));
-
-        assertNotEquals(new DataStorageSpec("0MiB"), new DataStorageSpec("10KiB"));
+        assertNotEquals(new DataStorageSpec.LongBytesBound("0MiB"), new DataStorageSpec.LongBytesBound("10KiB"));
     }
 
     @Test
-    public void thereAndBack()
+    public void thereAndBackLongBytesBound()
     {
         qt().forAll(gen()).check(there -> {
-            DataStorageSpec back = new DataStorageSpec(there.toString());
-            DataStorageSpec BACK = new DataStorageSpec(there.toString().toUpperCase(Locale.ROOT).replace("I", "i"));
+            DataStorageSpec.LongBytesBound back = new DataStorageSpec.LongBytesBound(there.toString());
+            DataStorageSpec.LongBytesBound BACK = new DataStorageSpec.LongBytesBound(there.toString().toUpperCase(Locale.ROOT).replace("I", "i"));
             return there.equals(back) && there.equals(BACK);
         });
     }
@@ -155,11 +259,11 @@ public class DataStorageSpecTest
         qt().forAll(gen(), gen()).check((a, b) -> !a.equals(b) || a.hashCode() == b.hashCode());
     }
 
-    private static Gen<DataStorageSpec> gen()
+    private static Gen<DataStorageSpec.LongBytesBound> gen()
     {
-        Gen<DataStorageSpec.DataStorageUnit> unitGen = SourceDSL.arbitrary().enumValues(DataStorageSpec.DataStorageUnit.class);
-        Gen<Long> valueGen = SourceDSL.longs().between(0, Long.MAX_VALUE);
-        Gen<DataStorageSpec> gen = rs -> new DataStorageSpec(valueGen.generate(rs), unitGen.generate(rs));
-        return gen.describedAs(DataStorageSpec::toString);
+        Gen<DataStorageSpec.LongBytesBound.DataStorageUnit> unitGen = SourceDSL.arbitrary().enumValues(DataStorageSpec.LongBytesBound.DataStorageUnit.class);
+        Gen<Long> valueGen = SourceDSL.longs().between(0, Long.MAX_VALUE/1024L/1024/1024); // max in GiB we can have without overflowing
+        Gen<DataStorageSpec.LongBytesBound> gen = rs -> new DataStorageSpec.LongBytesBound(valueGen.generate(rs), unitGen.generate(rs));
+        return gen.describedAs(DataStorageSpec.LongBytesBound::toString);
     }
 }

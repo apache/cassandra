@@ -653,7 +653,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
-    private boolean shouldTrackSize(DataStorageSpec warnThresholdBytes, DataStorageSpec abortThresholdBytes)
+    private boolean shouldTrackSize(DataStorageSpec.LongBytesBound warnThresholdBytes, DataStorageSpec.LongBytesBound abortThresholdBytes)
     {
         return trackWarnings
                && !SchemaConstants.isSystemKeyspace(metadata().keyspace)
@@ -662,8 +662,8 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private UnfilteredPartitionIterator withQuerySizeTracking(UnfilteredPartitionIterator iterator)
     {
-        DataStorageSpec warnThreshold = DatabaseDescriptor.getLocalReadSizeWarnThreshold();
-        DataStorageSpec failThreshold = DatabaseDescriptor.getLocalReadSizeFailThreshold();
+        DataStorageSpec.LongBytesBound warnThreshold = DatabaseDescriptor.getLocalReadSizeWarnThreshold();
+        DataStorageSpec.LongBytesBound failThreshold = DatabaseDescriptor.getLocalReadSizeFailThreshold();
         if (!shouldTrackSize(warnThreshold, failThreshold))
             return iterator;
         final long warnBytes = warnThreshold == null ? -1 : warnThreshold.toBytes();

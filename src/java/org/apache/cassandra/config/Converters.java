@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.config;
 
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -37,71 +38,71 @@ public enum Converters
      * able to still use the old name too. No units involved.
      */
     IDENTITY(null, null, o -> o, o -> o),
-    MILLIS_DURATION_LONG(Long.class, SmallestDurationMilliseconds.class,
-                         SmallestDurationMilliseconds::inMilliseconds,
+    MILLIS_DURATION_LONG(Long.class, DurationSpec.LongMillisecondsBound.class,
+                         DurationSpec.LongMillisecondsBound::new,
                          o -> o.toMilliseconds()),
-    MILLIS_DURATION_INT(Integer.class, SmallestDurationMilliseconds.class,
-                        i -> SmallestDurationMilliseconds.inMilliseconds(i),
-                        DurationSpec::toMillisecondsAsInt),
-    MILLIS_DURATION_DOUBLE(Double.class, SmallestDurationMilliseconds.class,
-                           o -> Double.isNaN(o) ? SmallestDurationMilliseconds.inMilliseconds(0) : SmallestDurationMilliseconds.inDoubleMilliseconds(o),
+    MILLIS_DURATION_INT(Integer.class, DurationSpec.IntMillisecondsBound.class,
+                        DurationSpec.IntMillisecondsBound::new,
+                        DurationSpec.IntMillisecondsBound::toMilliseconds),
+    MILLIS_DURATION_DOUBLE(Double.class, DurationSpec.IntMillisecondsBound.class,
+                           o -> Double.isNaN(o) ? new DurationSpec.IntMillisecondsBound(0) :
+                                new DurationSpec.IntMillisecondsBound(o, TimeUnit.MILLISECONDS),
                            o -> (double) o.toMilliseconds()),
     /**
      * This converter is used to support backward compatibility for parameters where in the past -1 was used as a value
      * Example: credentials_update_interval_in_ms = -1 and credentials_update_interval = null are equal.
      */
-    MILLIS_CUSTOM_DURATION(Integer.class, SmallestDurationMilliseconds.class,
-                           o -> o == -1 ? null : SmallestDurationMilliseconds.inMilliseconds(o),
-                           o -> o == null ? -1 : o.toMillisecondsAsInt()),
-    SECONDS_DURATION(Integer.class, SmallestDurationSeconds.class,
-                     i -> SmallestDurationSeconds.inSeconds(i),
-                     DurationSpec::toSecondsAsInt),
-    NEGATIVE_SECONDS_DURATION(Integer.class, SmallestDurationSeconds.class,
-                              o -> o < 0 ? SmallestDurationSeconds.inSeconds(0) : SmallestDurationSeconds.inSeconds(o),
-                              DurationSpec::toSecondsAsInt),
+    MILLIS_CUSTOM_DURATION(Integer.class, DurationSpec.IntMillisecondsBound.class,
+                           o -> o == -1 ? null : new DurationSpec.IntMillisecondsBound(o),
+                           o -> o == null ? -1 : o.toMilliseconds()),
+    SECONDS_DURATION(Integer.class, DurationSpec.IntSecondsBound.class,
+                     DurationSpec.IntSecondsBound::new,
+                     DurationSpec.IntSecondsBound::toSeconds),
+    NEGATIVE_SECONDS_DURATION(Integer.class, DurationSpec.IntSecondsBound.class,
+                              o -> o < 0 ? new DurationSpec.IntSecondsBound(0) : new DurationSpec.IntSecondsBound(o),
+                              DurationSpec.IntSecondsBound::toSeconds),
     /**
      * This converter is used to support backward compatibility for Duration parameters where we added the opportunity
      * for the users to add a unit in the parameters' values but we didn't change the names. (key_cache_save_period,
      * row_cache_save_period, counter_cache_save_period)
      * Example: row_cache_save_period = 0 and row_cache_save_period = 0s (quantity of 0s) are equal.
      */
-    SECONDS_CUSTOM_DURATION(String.class, SmallestDurationSeconds.class,
-                            SmallestDurationSeconds::inSecondsString,
+    SECONDS_CUSTOM_DURATION(String.class, DurationSpec.IntSecondsBound.class,
+                            DurationSpec.IntSecondsBound::inSecondsString,
                             o -> Long.toString(o.toSeconds())),
-    MINUTES_DURATION(Integer.class, SmallestDurationMinutes.class,
-                     i -> SmallestDurationMinutes.inMinutes(i),
-                     DurationSpec::toMinutesAsInt),
-    MEBIBYTES_DATA_STORAGE_LONG(Long.class, SmallestDataStorageMebibytes.class,
-                                SmallestDataStorageMebibytes::inMebibytes,
-                                DataStorageSpec::toMebibytes),
-    MEBIBYTES_DATA_STORAGE_INT(Integer.class, SmallestDataStorageMebibytes.class,
-                               i -> SmallestDataStorageMebibytes.inMebibytes(i),
-                               DataStorageSpec::toMebibytesAsInt),
-    KIBIBYTES_DATASTORAGE(Integer.class, SmallestDataStorageKibibytes.class,
-                          i -> SmallestDataStorageKibibytes.inKibibytes(i),
-                          DataStorageSpec::toKibibytesAsInt),
-    BYTES_DATASTORAGE(Integer.class, DataStorageSpec.class,
-                      i -> DataStorageSpec.inBytes(i),
-                      DataStorageSpec::toBytesAsInt),
+    MINUTES_DURATION(Integer.class, DurationSpec.IntMinutesBound.class,
+                     DurationSpec.IntMinutesBound::new,
+                     DurationSpec.IntMinutesBound::toMinutes),
+    MEBIBYTES_DATA_STORAGE_LONG(Long.class, DataStorageSpec.LongMebibytesBound.class,
+                                DataStorageSpec.LongMebibytesBound::new,
+                                DataStorageSpec.LongMebibytesBound::toMebibytes),
+    MEBIBYTES_DATA_STORAGE_INT(Integer.class, DataStorageSpec.IntMebibytesBound.class,
+                               DataStorageSpec.IntMebibytesBound::new,
+                               DataStorageSpec.IntMebibytesBound::toMebibytes),
+    KIBIBYTES_DATASTORAGE(Integer.class, DataStorageSpec.IntKibibytesBound.class,
+                          DataStorageSpec.IntKibibytesBound::new,
+                          DataStorageSpec.IntKibibytesBound::toKibibytes),
+    BYTES_DATASTORAGE(Integer.class, DataStorageSpec.IntBytesBound.class,
+                      DataStorageSpec.IntBytesBound::new,
+                      DataStorageSpec.IntBytesBound::toBytes),
     /**
      * This converter is used to support backward compatibility for parameters where in the past negative number was used as a value
      * Example: native_transport_max_concurrent_requests_in_bytes_per_ip = -1 and native_transport_max_request_data_in_flight_per_ip = null
      * are equal. All negative numbers are printed as 0 in virtual tables.
      */
-    BYTES_CUSTOM_DATASTORAGE(Long.class, DataStorageSpec.class,
-                             o -> o == -1 ? null : DataStorageSpec.inBytes(o),
-                             DataStorageSpec::toBytes),
-    MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.class,
-                                   i -> DataRateSpec.inMebibytesPerSecond(i),
-                                   DataRateSpec::toMebibytesPerSecondAsInt),
+    BYTES_CUSTOM_DATASTORAGE(Long.class, DataStorageSpec.LongBytesBound.class,
+                             o -> o == -1 ? null : new DataStorageSpec.LongBytesBound(o),
+                             DataStorageSpec.LongBytesBound::toBytes),
+    MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.IntMebibytesPerSecondBound.class,
+                                   DataRateSpec.IntMebibytesPerSecondBound::new,
+                                   DataRateSpec.IntMebibytesPerSecondBound::toMebibytesPerSecondAsInt),
     /**
      * This converter is a custom one to support backward compatibility for stream_throughput_outbound and
      * inter_dc_stream_throughput_outbound which were provided in megatibs per second prior CASSANDRA-15234.
      */
-    MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.class,
-                                               i -> DataRateSpec.megabitsPerSecondInMebibytesPerSecond(i),
-                                               DataRateSpec::toMegabitsPerSecondAsInt);
-
+    MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.IntMebibytesPerSecondBound.class,
+                                               i -> DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(i),
+                                               DataRateSpec.IntMebibytesPerSecondBound::toMegabitsPerSecondAsInt);
     private final Class<?> oldType;
     private final Class<?> newType;
     private final Function<Object, Object> convert;

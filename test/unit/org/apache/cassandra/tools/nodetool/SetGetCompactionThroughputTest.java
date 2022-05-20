@@ -53,7 +53,7 @@ public class SetGetCompactionThroughputTest extends CQLTester
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(Integer.MAX_VALUE);
+        assertSetGetValidThroughput(Integer.MAX_VALUE - 1);
     }
 
     @Test
