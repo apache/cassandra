@@ -25,6 +25,7 @@ import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.utils.UUIDs;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -1980,4 +1981,102 @@ public class CollectionsTest extends CQLTester
             assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 3"), row(null, null));
         });
     }
+
+    /*
+     Tests for CASSANDRA-17623
+     Before CASSANDRA-17623, parameterized queries with maps as values would fail because frozen maps were
+     required to be sorted by the sort order of their key type, but weren't always sorted correctly.
+     Also adding tests for Sets, which did work because they always used SortedSet, to make sure this behavior is maintained.
+     We use `executeNet` in these tests because `execute` passes parameters through CqlTester#transformValues(), which calls
+     AbstractType#decompose() on the value, which "fixes" the map order, but wouldn't happen normally.
+     */
+
+    @Test
+    public void testInsertingMapDataWithParameterizedQueriesIsKeyOrderIndependent() throws Throwable
+    {
+        UUID uuid1 = UUIDs.timeBased();
+        UUID uuid2 = UUIDs.timeBased();
+        createTable("CREATE TABLE %s (k text, c frozen<map<timeuuid, text>>, PRIMARY KEY (k, c));");
+        executeNet("INSERT INTO %s (k, c) VALUES ('0', ?)", linkedHashMap(uuid1, "0", uuid2, "1"));
+        executeNet("INSERT INTO %s (k, c) VALUES ('0', ?)", linkedHashMap(uuid2, "3", uuid1, "4"));
+        beforeAndAfterFlush(() -> {
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k='0' AND c={" + uuid1 + ": '0', " + uuid2 + ": '1'}"), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k='0' AND c={" + uuid2 + ": '1', " + uuid1 + ": '0'}"), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k='0' AND c={" + uuid1 + ": '4', " + uuid2 + ": '3'}"), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k='0' AND c={" + uuid2 + ": '3', " + uuid1 + ": '4'}"), 1);
+        });
+    }
+
+    @Test
+    public void testInsertingMapDataWithParameterizedQueriesIsKeyOrderIndependentWithSelectSlice() throws Throwable
+    {
+        UUID uuid1 = UUIDs.timeBased();
+        UUID uuid2 = UUIDs.timeBased();
+        createTable("CREATE TABLE %s (k text, c frozen<map<timeuuid, text>>, PRIMARY KEY (k, c));");
+        beforeAndAfterFlush(() -> {
+            executeNet("INSERT INTO %s (k, c) VALUES ('0', ?)", linkedHashMap(uuid2, "2", uuid1, "1"));
+            // Make sure that we can slice either value out of the map
+            assertRowsNet(executeNet("SELECT k, c[" + uuid2 + "] from %s"), row("0", "2"));
+            assertRowsNet(executeNet("SELECT k, c[" + uuid1 + "] from %s"), row("0", "1"));
+        });
+    }
+
+    @Test
+    public void testSelectingMapDataWithParameterizedQueriesIsKeyOrderIndependent() throws Throwable
+    {
+        UUID uuid1 = UUIDs.timeBased();
+        UUID uuid2 = UUIDs.timeBased();
+        createTable("CREATE TABLE %s (k text, c frozen<map<timeuuid, text>>, PRIMARY KEY (k, c));");
+        executeNet("INSERT INTO %s (k, c) VALUES ('0', {" + uuid1 + ": '0', " + uuid2 + ": '1'})");
+        executeNet("INSERT INTO %s (k, c) VALUES ('0', {" + uuid2 + ": '3', " + uuid1 + ": '4'})");
+        beforeAndAfterFlush(() -> {
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k=? AND c=?", "0", linkedHashMap(uuid1, "0", uuid2, "1")), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k=? AND c=?", "0", linkedHashMap(uuid2, "1", uuid1, "0")), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k=? AND c=?", "0", linkedHashMap(uuid1, "4", uuid2, "3")), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k=? AND c=?", "0", linkedHashMap(uuid2, "3", uuid1, "4")), 1);
+        });
+    }
+
+    @Test
+    public void testInsertingSetDataWithParameterizedQueriesIsKeyOrderIndependent() throws Throwable
+    {
+        UUID uuid1 = UUIDs.timeBased();
+        UUID uuid2 = UUIDs.timeBased();
+        createTable("CREATE TABLE %s (k text, c frozen<set<timeuuid>>, PRIMARY KEY (k, c));");
+        executeNet("INSERT INTO %s (k, c) VALUES ('0', ?)", linkedHashSet(uuid1, uuid2));
+        executeNet("INSERT INTO %s (k, c) VALUES ('0', ?)", linkedHashSet(uuid2, uuid1));
+        beforeAndAfterFlush(() -> {
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k='0' AND c={" + uuid1 + ", " + uuid2 + '}'), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k='0' AND c={" + uuid2 + ", " + uuid1 + '}'), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k='0' AND c={" + uuid1 + ", " + uuid2 + '}'), 1);
+            assertRowCountNet(executeNet("SELECT * FROM %s WHERE k='0' AND c={" + uuid2 + ", " + uuid1 + '}'), 1);
+        });
+    }
+
+    @Test
+    public void testInsertingSetDataWithParameterizedQueriesIsKeyOrderIndependentWithSelectSlice() throws Throwable
+    {
+        UUID uuid1 = UUIDs.timeBased();
+        UUID uuid2 = UUIDs.timeBased();
+        createTable("CREATE TABLE %s (k text, c frozen<set<timeuuid>>, PRIMARY KEY (k, c));");
+        beforeAndAfterFlush(() -> {
+            executeNet("INSERT INTO %s (k, c) VALUES ('0', ?)", linkedHashSet(uuid2, uuid1));
+            assertRowsNet(executeNet("SELECT k, c[" + uuid2 + "] from %s"), row("0", uuid2));
+            assertRowsNet(executeNet("SELECT k, c[" + uuid1 + "] from %s"), row("0", uuid1));
+        });
+    }
+
+    @Test
+    public void testSelectingSetDataWithParameterizedQueriesIsKeyOrderIndependent() throws Throwable
+    {
+        UUID uuid1 = UUIDs.timeBased();
+        UUID uuid2 = UUIDs.timeBased();
+        createTable("CREATE TABLE %s (k text, c frozen<set<timeuuid>>, PRIMARY KEY (k, c));");
+        executeNet("INSERT INTO %s (k, c) VALUES ('0', {" + uuid1 + ", " + uuid2 + "})");
+        beforeAndAfterFlush(() -> {
+            assertRowsNet(executeNet("SELECT k, c from %s where k='0' and c=?", linkedHashSet(uuid1, uuid2)), row("0", list(uuid1, uuid2)));
+            assertRowsNet(executeNet("SELECT k, c from %s where k='0' and c=?", linkedHashSet(uuid2, uuid1)), row("0", list(uuid1, uuid2)));
+        });
+    }
+    // End tests for CASSANDRA-17623
 }
