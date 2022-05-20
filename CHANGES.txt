@@ -1,4 +1,5 @@
 4.2
+ * Increment CQLSH to version 6.2.0 for release 4.2 (CASSANDRA-17646)
  * Adding support to perform certificate based internode authentication (CASSANDRA-17661)
  * Option to disable CDC writes of repaired data (CASSANDRA-17666)
  * When a node is bootstrapping it gets the whole gossip state but applies in random order causing some cases where StorageService will fail causing an instance to not show up in TokenMetadata (CASSANDRA-17676)
