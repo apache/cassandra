@@ -47,7 +47,7 @@ if platform.python_implementation().startswith('Jython'):
 UTF8 = 'utf-8'
 
 description = "CQL Shell for Apache Cassandra"
-version = "6.1.0"
+version = "6.2.0"
 
 readline = None
 try:
