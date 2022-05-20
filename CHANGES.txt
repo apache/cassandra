@@ -1,4 +1,4 @@
-4.1
+4.1-alpha1
  * Fix leak of non-standard Java types in our Exceptions as clients using JMX are unable to handle them.
    Remove useless validation that leads to unnecessary additional read of cassandra.yaml on startup (CASSANDRA-17638)
  * Fix repair_request_timeout_in_ms and remove paxos_auto_repair_threshold_mb (CASSANDRA-17557)
