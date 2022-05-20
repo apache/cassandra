@@ -46,6 +46,8 @@ import javax.management.remote.rmi.RMIConnectorServer;
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -235,7 +237,7 @@ public abstract class CQLTester
         jmxServer = JMXServerUtils.createJMXServer(jmxPort, true);
         jmxServer.start();
     }
-    
+
     public static void createMBeanServerConnection() throws Exception
     {
         assert jmxServer != null : "jmxServer not started";
@@ -737,14 +739,14 @@ public abstract class CQLTester
         logger.info(fullQuery);
         schemaChange(fullQuery);
     }
- 
+
     protected void alterKeyspaceMayThrow(String query) throws Throwable
     {
         String fullQuery = String.format(query, currentKeyspace());
         logger.info(fullQuery);
         QueryProcessor.executeOnceInternal(fullQuery);
     }
-    
+
     protected String createKeyspaceName()
     {
         String currentKeyspace = String.format("keyspace_%02d", seqNumber.getAndIncrement());
@@ -1137,6 +1139,13 @@ public abstract class CQLTester
 
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d (using protocol version %s)",
                                         rows.length>i ? "less" : "more", rows.length, i, protocolVersion), i == rows.length);
+    }
+
+    protected void assertRowCountNet(ResultSet r1, int expectedCount)
+    {
+        Assert.assertFalse("Received a null resultset when expected count was > 0", expectedCount > 0 && r1 == null);
+        int actualRowCount = Iterables.size(r1);
+        Assert.assertEquals(String.format("expected %d rows but received %d", expectedCount, actualRowCount), expectedCount, actualRowCount);
     }
 
     public static void assertRows(UntypedResultSet result, Object[]... rows)
@@ -1788,13 +1797,27 @@ public abstract class CQLTester
         return ImmutableSet.copyOf(values);
     }
 
+    // LinkedHashSets are iterable in insertion order, which is important for some tests
+    protected LinkedHashSet<Object> linkedHashSet(Object...values)
+    {
+        LinkedHashSet<Object> s = new LinkedHashSet<>(values.length);
+        s.addAll(Arrays.asList(values));
+        return s;
+    }
+
     protected Object map(Object...values)
+    {
+        return linkedHashMap(values);
+    }
+
+    // LinkedHashMaps are iterable in insertion order, which is important for some tests
+    protected static LinkedHashMap<Object, Object> linkedHashMap(Object...values)
     {
         if (values.length % 2 != 0)
             throw new IllegalArgumentException("Invalid number of arguments, got " + values.length);
 
         int size = values.length / 2;
-        Map<Object, Object> m = new LinkedHashMap<>(size);
+        LinkedHashMap<Object, Object> m = new LinkedHashMap<>(size);
         for (int i = 0; i < size; i++)
             m.put(values[2 * i], values[(2 * i) + 1]);
         return m;

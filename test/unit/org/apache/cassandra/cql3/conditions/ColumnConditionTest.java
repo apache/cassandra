@@ -144,7 +144,7 @@ public class ColumnConditionTest
         return bound.appliesTo(newRow(definition, rowValue));
     }
 
-    private static boolean conditionApplies(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, Map<ByteBuffer, ByteBuffer> conditionValue)
+    private static boolean conditionApplies(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, SortedMap<ByteBuffer, ByteBuffer> conditionValue)
     {
         ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Maps.Value(conditionValue)));
@@ -426,9 +426,9 @@ public class ColumnConditionTest
     }
 
     // values should be a list of key, value, key, value, ...
-    private static Map<ByteBuffer, ByteBuffer> map(ByteBuffer... values)
+    private static SortedMap<ByteBuffer, ByteBuffer> map(ByteBuffer... values)
     {
-        Map<ByteBuffer, ByteBuffer> map = new TreeMap<>();
+        SortedMap<ByteBuffer, ByteBuffer> map = new TreeMap<>();
         for (int i = 0; i < values.length; i += 2)
             map.put(values[i], values[i + 1]);
 

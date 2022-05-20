@@ -215,9 +215,9 @@ public abstract class Maps
 
     public static class Value extends Term.Terminal
     {
-        public final Map<ByteBuffer, ByteBuffer> map;
+        public final SortedMap<ByteBuffer, ByteBuffer> map;
 
-        public Value(Map<ByteBuffer, ByteBuffer> map)
+        public Value(SortedMap<ByteBuffer, ByteBuffer> map)
         {
             this.map = map;
         }
@@ -229,7 +229,8 @@ public abstract class Maps
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
                 Map<?, ?> m = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
-                Map<ByteBuffer, ByteBuffer> map = new LinkedHashMap<>(m.size());
+                // We depend on Maps to be properly sorted by their keys, so use a sorted map implementation here.
+                SortedMap<ByteBuffer, ByteBuffer> map = new TreeMap<>(type.getKeysType());
                 for (Map.Entry<?, ?> entry : m.entrySet())
                     map.put(type.getKeysType().decompose(entry.getKey()), type.getValuesType().decompose(entry.getValue()));
                 return new Value(map);
@@ -296,7 +297,7 @@ public abstract class Maps
 
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
-            Map<ByteBuffer, ByteBuffer> buffers = new TreeMap<ByteBuffer, ByteBuffer>(comparator);
+            SortedMap<ByteBuffer, ByteBuffer> buffers = new TreeMap<>(comparator);
             for (Map.Entry<Term, Term> entry : elements.entrySet())
             {
                 // We don't support values > 64K because the serialization format encode the length as an unsigned short.
@@ -426,7 +427,7 @@ public abstract class Maps
                 if (value == null)
                     return;
 
-                Map<ByteBuffer, ByteBuffer> elements = ((Value) value).map;
+                SortedMap<ByteBuffer, ByteBuffer> elements = ((Value) value).map;
                 for (Map.Entry<ByteBuffer, ByteBuffer> entry : elements.entrySet())
                     params.addCell(column, CellPath.create(entry.getKey()), entry.getValue());
             }
