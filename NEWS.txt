@@ -183,6 +183,9 @@ New features
 
 Upgrading
 ---------
+    - Parameters of type data storage, duration and data rate cannot be set to Long.MAX_VALUE (former parameters of long type)
+      and Integer.MAX_VALUE (former parameters of int type). Those numbers are used during conversion between units to prevent
+      an overflow from happening. (CASSANDRA-17571)
     - We added new JMX methods `setStreamThroughputMbitPerSec`, `getStreamThroughputMbitPerSec`, `setInterDCStreamThroughputMbitPerSec`,
       `getInterDCStreamThroughputMbitPerSec` to the JMX MBean `org.apache.cassandra.db:type=StorageService`. They replace the now
       deprecated methods `setStreamThroughputMbPerSec`, `getStreamThroughputMbPerSec`, `setInterDCStreamThroughputMbPerSec`, and

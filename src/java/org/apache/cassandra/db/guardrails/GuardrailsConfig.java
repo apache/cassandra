@@ -227,13 +227,13 @@ public interface GuardrailsConfig
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */
     @Nullable
-    DataStorageSpec getCollectionSizeWarnThreshold();
+    DataStorageSpec.LongBytesBound getCollectionSizeWarnThreshold();
 
     /**
      * @return The threshold to prevent collections with larger data size than threshold.
      */
     @Nullable
-    DataStorageSpec getCollectionSizeFailThreshold();
+    DataStorageSpec.LongBytesBound getCollectionSizeFailThreshold();
 
     /**
      * @return The threshold to warn when encountering more elements in a collection than threshold.
@@ -272,7 +272,7 @@ public interface GuardrailsConfig
      * disabled.
      */
     @Nullable
-    DataStorageSpec getDataDiskUsageMaxDiskSize();
+    DataStorageSpec.LongBytesBound getDataDiskUsageMaxDiskSize();
 
     /**
      * @return The threshold to warn when replication factor is lesser than threshold.

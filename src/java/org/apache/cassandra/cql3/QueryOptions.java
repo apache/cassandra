@@ -296,7 +296,7 @@ public abstract class QueryOptions
         private final long warnThresholdBytes;
         private final long abortThresholdBytes;
 
-        public DefaultReadThresholds(DataStorageSpec warnThreshold, DataStorageSpec abortThreshold)
+        public DefaultReadThresholds(DataStorageSpec.LongBytesBound warnThreshold, DataStorageSpec.LongBytesBound abortThreshold)
         {
             this.warnThresholdBytes = warnThreshold == null ? -1 : warnThreshold.toBytes();
             this.abortThresholdBytes = abortThreshold == null ? -1 : abortThreshold.toBytes();

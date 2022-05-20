@@ -140,7 +140,7 @@ public class DiskUsageMonitor
         BigInteger total = used.add(usable);
 
         // That total space can be limited by the config property data_disk_usage_max_disk_size.
-        DataStorageSpec diskUsageMaxSize = guardrailsConfigSupplier.get().getDataDiskUsageMaxDiskSize();
+        DataStorageSpec.LongBytesBound diskUsageMaxSize = guardrailsConfigSupplier.get().getDataDiskUsageMaxDiskSize();
         if (diskUsageMaxSize != null)
             total = total.min(BigInteger.valueOf(diskUsageMaxSize.toBytes()));
 

@@ -95,7 +95,7 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
     @AfterClass
     public static void tearDownClass()
     {
-        DatabaseDescriptor.setPermissionsValidity(DatabaseDescriptor.getRawConfig().permissions_validity.toMillisecondsAsInt());
+        DatabaseDescriptor.setPermissionsValidity(DatabaseDescriptor.getRawConfig().permissions_validity.toMilliseconds());
     }
 
     @Test

@@ -509,19 +509,19 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     @Override
     @Nullable
-    public DataStorageSpec getCollectionSizeWarnThreshold()
+    public DataStorageSpec.LongBytesBound getCollectionSizeWarnThreshold()
     {
         return config.collection_size_warn_threshold;
     }
 
     @Override
     @Nullable
-    public DataStorageSpec getCollectionSizeFailThreshold()
+    public DataStorageSpec.LongBytesBound getCollectionSizeFailThreshold()
     {
         return config.collection_size_fail_threshold;
     }
 
-    public void setCollectionSizeThreshold(@Nullable DataStorageSpec warn, @Nullable DataStorageSpec fail)
+    public void setCollectionSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
         validateSizeThreshold(warn, fail, false, "collection_size");
         updatePropertyWithLogging("collection_size_warn_threshold",
@@ -609,12 +609,12 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public DataStorageSpec getDataDiskUsageMaxDiskSize()
+    public DataStorageSpec.LongBytesBound getDataDiskUsageMaxDiskSize()
     {
         return config.data_disk_usage_max_disk_size;
     }
 
-    public void setDataDiskUsageMaxDiskSize(@Nullable DataStorageSpec diskSize)
+    public void setDataDiskUsageMaxDiskSize(@Nullable DataStorageSpec.LongBytesBound diskSize)
     {
         validateDataDiskUsageMaxDiskSize(diskSize);
         updatePropertyWithLogging("data_disk_usage_max_disk_size",
@@ -738,7 +738,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         }
     }
 
-    private static void validateSize(DataStorageSpec size, boolean allowZero, String name)
+    private static void validateSize(DataStorageSpec.LongBytesBound size, boolean allowZero, String name)
     {
         if (size == null)
             return;
@@ -749,14 +749,14 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       name));
     }
 
-    private static void validateSizeThreshold(DataStorageSpec warn, DataStorageSpec fail, boolean allowZero, String name)
+    private static void validateSizeThreshold(DataStorageSpec.LongBytesBound warn, DataStorageSpec.LongBytesBound fail, boolean allowZero, String name)
     {
         validateSize(warn, allowZero, name + "_warn_threshold");
         validateSize(fail, allowZero, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
-    private static void validateWarnLowerThanFail(DataStorageSpec warn, DataStorageSpec fail, String name)
+    private static void validateWarnLowerThanFail(DataStorageSpec.LongBytesBound warn, DataStorageSpec.LongBytesBound fail, String name)
     {
         if (warn == null || fail == null)
             return;
@@ -790,7 +790,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         return consistencyLevels.isEmpty() ? Collections.emptySet() : Sets.immutableEnumSet(consistencyLevels);
     }
 
-    private static void validateDataDiskUsageMaxDiskSize(DataStorageSpec maxDiskSize)
+    private static void validateDataDiskUsageMaxDiskSize(DataStorageSpec.LongBytesBound maxDiskSize)
     {
         if (maxDiskSize == null)
             return;

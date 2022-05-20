@@ -122,7 +122,8 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         String message = String.format("only %s are actually available on disk", FileUtils.stringifyFileSize(diskSize));
         assertConfigValid(x -> x.setDataDiskUsageMaxDiskSize(diskSize + "B"));
         assertConfigFails(x -> x.setDataDiskUsageMaxDiskSize(diskSize + 1 + "B"), message);
-        assertConfigFails(x -> x.setDataDiskUsageMaxDiskSize(Long.MAX_VALUE + "GiB"), message);
+        // We want to test with very big number, Long.MAX_VALUE is not allowed so it was easy to use Intger.MAX_VALUE
+        assertConfigFails(x -> x.setDataDiskUsageMaxDiskSize(Integer.MAX_VALUE + "GiB"), message);
 
         // warn threshold smaller than lower bound
         assertConfigFails(x -> x.setDataDiskUsagePercentageThreshold(0, 80), "0 is not allowed");
@@ -319,10 +320,10 @@ public class GuardrailDiskUsageTest extends GuardrailTester
     public void testDiskUsageCalculationWithMaxDiskSize() throws IOException
     {
         Directories.DataDirectory directory = mock(Directories.DataDirectory.class);
-        when(directory.getRawSize()).thenReturn(DataStorageSpec.inGibibytes(5).toBytes());
+        when(directory.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
 
         FileStore store = mock(FileStore.class);
-        when(store.getUsableSpace()).thenReturn(DataStorageSpec.inGibibytes(100 - 5).toBytes()); // 100GiB disk
+        when(store.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("95GiB").toBytes()); // 100GiB disk - 5GiB
 
         Multimap<FileStore, Directories.DataDirectory> directories = HashMultimap.create();
         directories.put(store, directory);
@@ -351,13 +352,13 @@ public class GuardrailDiskUsageTest extends GuardrailTester
     public void testDiskUsageCalculationWithMaxDiskSizeAndSmallUnits() throws IOException
     {
         // 5GiB used out of 100GiB disk
-        long freeDiskSizeInBytes = DataStorageSpec.inGibibytes(100).toBytes() - DataStorageSpec.inMebibytes(5).toBytes();
+        long freeDiskSizeInBytes = new DataStorageSpec.LongBytesBound("100GiB").toBytes() - new DataStorageSpec.LongBytesBound("5MiB").toBytes();
 
         FileStore store = mock(FileStore.class);
-        when(store.getUsableSpace()).thenReturn(DataStorageSpec.inBytes(freeDiskSizeInBytes).toBytes()); // 100GiB disk
+        when(store.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound(freeDiskSizeInBytes + "B").toBytes()); // 100GiB disk
 
         Directories.DataDirectory directory = mock(Directories.DataDirectory.class);
-        when(directory.getRawSize()).thenReturn(DataStorageSpec.inMebibytes(5).toBytes());
+        when(directory.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("5MiB").toBytes());
 
         Multimap<FileStore, Directories.DataDirectory> directories = HashMultimap.create();
         directories.put(store, directory);
@@ -391,20 +392,20 @@ public class GuardrailDiskUsageTest extends GuardrailTester
 
         Directories.DataDirectory directory1 = mock(Directories.DataDirectory.class);
         FileStore store1 = mock(FileStore.class);
-        when(directory1.getRawSize()).thenReturn(DataStorageSpec.inGibibytes(5).toBytes());
-        when(store1.getUsableSpace()).thenReturn(DataStorageSpec.inGibibytes(100 - 5).toBytes()); // 100 GiB disk
+        when(directory1.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
+        when(store1.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("95GiB").toBytes()); // 100 GiB disk - 5 GiB
         directories.put(store1, directory1);
 
         Directories.DataDirectory directory2 = mock(Directories.DataDirectory.class);
         FileStore store2 = mock(FileStore.class);
-        when(directory2.getRawSize()).thenReturn(DataStorageSpec.inGibibytes(25).toBytes());
-        when(store2.getUsableSpace()).thenReturn(DataStorageSpec.inGibibytes(100 - 25).toBytes()); // 100 GiB disk
+        when(directory2.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("25GiB").toBytes());
+        when(store2.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("75GiB").toBytes()); // 100 GiB disk - 25 GiB
         directories.put(store2, directory2);
 
         Directories.DataDirectory directory3 = mock(Directories.DataDirectory.class);
         FileStore store3 = mock(FileStore.class);
-        when(directory3.getRawSize()).thenReturn(DataStorageSpec.inGibibytes(20).toBytes());
-        when(store3.getUsableSpace()).thenReturn(DataStorageSpec.inGibibytes(100 - 20).toBytes()); // 100 GiB disk
+        when(directory3.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("20GiB").toBytes());
+        when(store3.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("80GiB").toBytes()); // 100 GiB disk - 20 GiB
         directories.put(store3, directory3);
 
         DiskUsageMonitor monitor = spy(new DiskUsageMonitor(() -> directories));
@@ -439,16 +440,16 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         Mockito.reset();
 
         Directories.DataDirectory directory1 = mock(Directories.DataDirectory.class);
-        when(directory1.getRawSize()).thenReturn(DataStorageSpec.inGibibytes(5).toBytes());
+        when(directory1.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("5GiB").toBytes());
 
         Directories.DataDirectory directory2 = mock(Directories.DataDirectory.class);
-        when(directory2.getRawSize()).thenReturn(DataStorageSpec.inGibibytes(25).toBytes());
+        when(directory2.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("25GiB").toBytes());
 
         Directories.DataDirectory directory3 = mock(Directories.DataDirectory.class);
-        when(directory3.getRawSize()).thenReturn(DataStorageSpec.inGibibytes(20).toBytes());
+        when(directory3.getRawSize()).thenReturn(new DataStorageSpec.LongBytesBound("20GiB").toBytes());
 
         FileStore store = mock(FileStore.class);
-        when(store.getUsableSpace()).thenReturn(DataStorageSpec.inGibibytes(300 - 5 - 25 - 20).toBytes()); // 100 GiB disk
+        when(store.getUsableSpace()).thenReturn(new DataStorageSpec.LongBytesBound("250GiB").toBytes()); // 100 GiB disk (300 - 5 - 25 - 20)
 
         Multimap<FileStore, Directories.DataDirectory> directories = HashMultimap.create();
         directories.putAll(store, ImmutableSet.of(directory1, directory2, directory3));

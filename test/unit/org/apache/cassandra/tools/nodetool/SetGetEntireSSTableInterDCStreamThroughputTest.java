@@ -55,7 +55,7 @@ public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(Integer.MAX_VALUE, Integer.MAX_VALUE * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(Integer.MAX_VALUE - 1, (Integer.MAX_VALUE - 1) * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test
