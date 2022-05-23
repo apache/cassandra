@@ -243,10 +243,13 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
         if (isNull(mid))
         {
             mid = createEmptySplitNode();
-            putIntOrdered(midPos, mid);  // ordered write to ensure no uncleaned state is visible to readers
-            // i.e. if block is reused it may need to be set to all zero. if this is not ordered the writes clearing
-            // it may execute after this link is created, and readers could see old content.
-            // Not currently necessary (we don't reuse), but let's avoid the surprise when we start doing so.
+            int tailPos = splitBlockPointerAddress(mid, splitNodeTailIndex(trans), SPLIT_OTHER_LEVEL_LIMIT);
+            int tail = createEmptySplitNode();
+            int childPos = splitBlockPointerAddress(tail, splitNodeChildIndex(trans), SPLIT_OTHER_LEVEL_LIMIT);
+            putInt(childPos, newChild);
+            putInt(tailPos, tail);
+            putIntVolatile(midPos, mid);
+            return;
         }
 
         int tailPos = splitBlockPointerAddress(mid, splitNodeTailIndex(trans), SPLIT_OTHER_LEVEL_LIMIT);
@@ -254,7 +257,10 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
         if (isNull(tail))
         {
             tail = createEmptySplitNode();
-            putIntOrdered(tailPos, tail); // as above
+            int childPos = splitBlockPointerAddress(tail, splitNodeChildIndex(trans), SPLIT_OTHER_LEVEL_LIMIT);
+            putInt(childPos, newChild);
+            putIntVolatile(tailPos, tail);
+            return;
         }
 
         int childPos = splitBlockPointerAddress(tail, splitNodeChildIndex(trans), SPLIT_OTHER_LEVEL_LIMIT);
