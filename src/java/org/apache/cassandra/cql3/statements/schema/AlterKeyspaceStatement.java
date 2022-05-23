@@ -78,7 +78,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(attrs.asAlteredKeyspaceParams(keyspace.params));
 
-        if (attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
+        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
             Guardrails.simpleStrategyEnabled.ensureEnabled(state);
 
         if (newKeyspace.params.replication.klass.equals(LocalStrategy.class))
