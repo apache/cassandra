@@ -605,7 +605,7 @@ class Shell(cmd.Cmd):
         token_map = self.conn.metadata.token_map
         nodes = token_map.get_replicas(ks, token_map.token_class(token_value))
         addresses = [x.address for x in nodes]
-        print(f"Replicas {addresses}")
+        print(f"{addresses}")
 
     def get_connection_versions(self):
         result, = self.session.execute("select * from system.local where key = 'local'")
