@@ -89,8 +89,9 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 @RunWith(Parameterized.class)
 public abstract class CommitLogTest
 {
-    protected static final String KEYSPACE1 = "CommitLogTest";
-    private static final String KEYSPACE2 = "CommitLogTestNonDurable";
+    private static int ksIter = 0;
+    protected static String KEYSPACE1 = "";
+    private static String KEYSPACE2 = "";
     protected static final String STANDARD1 = "Standard1";
     private static final String STANDARD2 = "Standard2";
     private static final String CUSTOM1 = "Custom1";
@@ -118,6 +119,8 @@ public abstract class CommitLogTest
 
     public static void beforeClass() throws ConfigurationException
     {
+        KEYSPACE1 = "CommitLogTest" + ksIter;
+        KEYSPACE2 = "CommitLogTestNonDurable" + ksIter++;
         // Disable durable writes for system keyspaces to prevent system mutations, e.g. sstable_activity,
         // to end up in CL segments and cause unexpected results in this test wrt counting CL segments,
         // see CASSANDRA-12854
