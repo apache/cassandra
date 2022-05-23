@@ -44,6 +44,15 @@ public class SimpleGraph<V>
         this.edges = edges;
     }
 
+    public static <T> SimpleGraph<T> of(T... values)
+    {
+        assert values.length % 2 == 0: "graph requires even number of values, but given " + values.length;
+        SimpleGraph.Builder<T> builder = new SimpleGraph.Builder<>();
+        for (int i = 0; i < values.length; i = i + 2)
+            builder.addEdge(values[i], values[i + 1]);
+        return builder.build();
+    }
+
     public ImmutableSet<V> vertices()
     {
         ImmutableSet.Builder<V> b = ImmutableSet.builder();
@@ -66,6 +75,8 @@ public class SimpleGraph<V>
             return; // no matches
         for (V next : check)
         {
+            if (accum.contains(next))
+                return; // ignore walking recursive
             List<V> nextAccum = new ArrayList<>(accum);
             nextAccum.add(next);
             if (next.equals(to))
