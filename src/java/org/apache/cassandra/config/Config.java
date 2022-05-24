@@ -834,8 +834,6 @@ public class Config
     public volatile boolean read_before_write_list_operations_enabled = true;
     public volatile boolean allow_filtering_enabled = true;
     public volatile boolean simplestrategy_enabled = true;
-    public volatile DataStorageSpec collection_size_warn_threshold = null;
-    public volatile DataStorageSpec collection_size_fail_threshold = null;
     public volatile DataStorageSpec.LongBytesBound collection_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound collection_size_fail_threshold = null;
     public volatile int items_per_collection_warn_threshold = -1;
