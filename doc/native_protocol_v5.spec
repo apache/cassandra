@@ -69,10 +69,10 @@ Table of Contents
 
 1. Overview
 
-  The CQL binary protocol is a frame based protocol with a frame comprises a header, payload
-  and trailer. In v5 there are two distinct frame formats, compressed and uncompressed, in
-  both cases, the payload is a stream of CQL envelopes (Section 2.4). Each envelope contains
-  a single CQL message, along with a metadata header. In effect, the v5 framing format is a
+  The CQL binary protocol is a frame based protocol with frames comprising a header, payload
+  and trailer. In v5 there are two distinct frame formats, compressed and uncompressed and in
+  both cases the payload is a stream of CQL envelopes (Section 2.4). Each envelope contains
+  a single CQL message, along with a metadata header. In effect, the framing format is a
   simple wrapper around protocol v5.
 
   In either format, a frame may or may not be self contained. If self contained, then the
@@ -92,20 +92,24 @@ Table of Contents
   The trailer contains a CRC32 to protect the integrity of the payload, covering all envelopes
   (whole or partial) contained therein.
 
+  All the integers in the v5 framing format are little-endian.
 
 2. Frame Format
 
 2.1 Uncompressed Format
 
-  The uncompressed variant uses a 6 byte header containing payload length, self contained
-  flag and CRC24 for the header itself. The max size for the payload is 128KiB, and is
-  followed by its CRC32.
+  The uncompressed variant uses a 6 byte header. The first 3 bytes contain payload length and
+  self contained flag. The following 3 bytes contain the CRC24 for the header itself.
+  The max size for the payload is 128KiB, and is followed by its CRC32.
+
+  The first 3 bytes of the header represent a single unsigned little-endian integer. The self
+  contained flag is the 17th bit of that decoded integer.
 
   1. Payload length               (17 bits)
   2. isSelfContained flag         (1 bit)
   3. Header padding               (6 bits)
   4. CRC24 of the header          (24 bits)
-  5. Payload                      (up to 2 ^ 17 - 1 bits)
+  5. Payload                      (up to 2 ^ 17 - 1 bytes)
   6. Payload CRC32                (32 bits)
 
   0                   1                   2                   3
@@ -124,11 +128,18 @@ Table of Contents
   |                        CRC32 of Payload                       |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
+  The headed padding can be discarded.
+
+  The CRC24 of the header is calculated by initializing the CRC24 algorithm
+  with the value 0x875060 and using the polynomial 0x1974F0B.
+
 2.2 LZ4 Compressed Format
 
-  The variant with LZ4 compression uses an 8 byte header, containing both the compressed
-  and uncompressed lengths of the payload, the self contained flag and a CRC24 for the
-  header. As with uncompressed frames, the max payload size is 128KiB and is followed
+  The variant with LZ4 compression uses an 8 byte header. The first 4 bytes contain
+  an unsigned integer (little endian) containing the compressed and uncompressed
+  lengths of the payload and the self contained flag. The remaining 4 bytes are an
+  unsigned integer (little endian) representing the CRC24 for the header.
+  As with uncompressed frames, the max payload size is 128KiB and is followed
   by a CRC32 trailer. This is the CRC of the compressed payload.
 
   1. Compressed length            (17 bits)
@@ -155,6 +166,13 @@ Table of Contents
   |                  CRC32 of Compressed Payload                  |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
+  The header padding can be discarded.
+
+  An uncompressed length of 0 signals that the compressed payload
+  should be used as-is and not decompressed.
+
+  The CRC24 of the header is calculated with the same parameters as for
+  the uncompressed format (Section 2.1).
 
 2.3 Protocol Negotiation
 
@@ -211,7 +229,7 @@ Table of Contents
       .                                       .
       +----------------------------------------
 
-  The protocol is big-endian (network byte order).
+  All values in an envelope are big-endian (network byte order).
 
   Each envelope contains a fixed size header (9 bytes) followed by a variable size
   body. The header is described in Section 2.4.1. The content of the body depends
