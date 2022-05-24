@@ -216,6 +216,27 @@ public class PEMBasedSslContextFactoryTest
                                                            .withRequireClientAuth(false)
                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                                                            .withSslContextFactory(sslContextFactory);
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.SERVER);
+        Assert.assertNotNull(sslContext);
+        if (OpenSsl.isAvailable())
+            Assert.assertTrue(sslContext instanceof OpenSslContext);
+        else
+            Assert.assertTrue(sslContext instanceof SslContext);
+    }
+
+    @Test
+    public void getSslContextOpenSSLOutboundKeystore() throws IOException
+    {
+        ParameterizedClass sslContextFactory = new ParameterizedClass(PEMBasedSslContextFactory.class.getSimpleName()
+        , new HashMap<>());
+        EncryptionOptions.ServerEncryptionOptions options = new EncryptionOptions.ServerEncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore.pem")
+                                                                                                           .withKeyStore("test/conf/cassandra_ssl_test.keystore.pem")
+                                                                                                           .withKeyStorePassword("cassandra")
+                                                                                                           .withOutboundKeystore("test/conf/cassandra_ssl_test.keystore.pem")
+                                                                                                           .withOutboundKeystorePassword("cassandra")
+                                                                                                           .withRequireClientAuth(false)
+                                                                                                           .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
+                                                                                                           .withSslContextFactory(sslContextFactory);
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
@@ -233,7 +254,7 @@ public class PEMBasedSslContextFactoryTest
         config.put("truststore", "/this/is/probably/not/a/file/on/your/test/machine");
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
-        defaultSslContextFactoryImpl.checkedExpiry = false;
+        defaultSslContextFactoryImpl.keystoreContext.checkedExpiry = false;
         defaultSslContextFactoryImpl.buildTrustManagerFactory();
     }
 
@@ -244,7 +265,7 @@ public class PEMBasedSslContextFactoryTest
         config.putAll(commonConfig);
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
-        sslContextFactory.checkedExpiry = false;
+        sslContextFactory.keystoreContext.checkedExpiry = false;
         TrustManagerFactory trustManagerFactory = sslContextFactory.buildTrustManagerFactory();
         Assert.assertNotNull(trustManagerFactory);
     }
@@ -258,7 +279,7 @@ public class PEMBasedSslContextFactoryTest
         addFileBaseTrustStoreOptions(config);
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
-        sslContextFactory.checkedExpiry = false;
+        sslContextFactory.keystoreContext.checkedExpiry = false;
         TrustManagerFactory trustManagerFactory = sslContextFactory.buildTrustManagerFactory();
         Assert.assertNotNull(trustManagerFactory);
     }
@@ -271,7 +292,7 @@ public class PEMBasedSslContextFactoryTest
         config.put("keystore", "/this/is/probably/not/a/file/on/your/test/machine");
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
-        sslContextFactory.checkedExpiry = false;
+        sslContextFactory.keystoreContext.checkedExpiry = false;
         sslContextFactory.buildKeyManagerFactory();
     }
 
@@ -295,20 +316,20 @@ public class PEMBasedSslContextFactoryTest
 
         PEMBasedSslContextFactory sslContextFactory1 = new PEMBasedSslContextFactory(config);
         // Make sure the exiry check didn't happen so far for the private key
-        Assert.assertFalse(sslContextFactory1.checkedExpiry);
+        Assert.assertFalse(sslContextFactory1.keystoreContext.checkedExpiry);
 
         addKeyStoreOptions(config);
         PEMBasedSslContextFactory sslContextFactory2 = new PEMBasedSslContextFactory(config);
         // Trigger the private key loading. That will also check for expired private key
         sslContextFactory2.buildKeyManagerFactory();
         // Now we should have checked the private key's expiry
-        Assert.assertTrue(sslContextFactory2.checkedExpiry);
+        Assert.assertTrue(sslContextFactory2.keystoreContext.checkedExpiry);
 
         // Make sure that new factory object preforms the fresh private key expiry check
         PEMBasedSslContextFactory sslContextFactory3 = new PEMBasedSslContextFactory(config);
-        Assert.assertFalse(sslContextFactory3.checkedExpiry);
+        Assert.assertFalse(sslContextFactory3.keystoreContext.checkedExpiry);
         sslContextFactory3.buildKeyManagerFactory();
-        Assert.assertTrue(sslContextFactory3.checkedExpiry);
+        Assert.assertTrue(sslContextFactory3.keystoreContext.checkedExpiry);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -343,20 +364,20 @@ public class PEMBasedSslContextFactoryTest
 
         PEMBasedSslContextFactory sslContextFactory1 = new PEMBasedSslContextFactory(config);
         // Make sure the expiry check didn't happen so far for the private key
-        Assert.assertFalse(sslContextFactory1.checkedExpiry);
+        Assert.assertFalse(sslContextFactory1.keystoreContext.checkedExpiry);
 
         addFileBaseKeyStoreOptions(config);
         PEMBasedSslContextFactory sslContextFactory2 = new PEMBasedSslContextFactory(config);
         // Trigger the private key loading. That will also check for expired private key
         sslContextFactory2.buildKeyManagerFactory();
         // Now we should have checked the private key's expiry
-        Assert.assertTrue(sslContextFactory2.checkedExpiry);
+        Assert.assertTrue(sslContextFactory2.keystoreContext.checkedExpiry);
 
         // Make sure that new factory object preforms the fresh private key expiry check
         PEMBasedSslContextFactory sslContextFactory3 = new PEMBasedSslContextFactory(config);
-        Assert.assertFalse(sslContextFactory3.checkedExpiry);
+        Assert.assertFalse(sslContextFactory3.keystoreContext.checkedExpiry);
         sslContextFactory3.buildKeyManagerFactory();
-        Assert.assertTrue(sslContextFactory3.checkedExpiry);
+        Assert.assertTrue(sslContextFactory3.keystoreContext.checkedExpiry);
     }
 
     @Test

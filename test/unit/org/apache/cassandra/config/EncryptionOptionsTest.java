@@ -125,7 +125,7 @@ public class EncryptionOptionsTest
                                                          EncryptionOptions.TlsEncryptionPolicy expected)
         {
             return new ServerEncryptionOptionsTestCase(new EncryptionOptions.ServerEncryptionOptions(new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactory",
-                                                                                                                            new HashMap<>()), keystorePath, "dummypass", "dummytruststore", "dummypass",
+                                                                                                                            new HashMap<>()), keystorePath, "dummypass", keystorePath, "dummypass", "dummytruststore", "dummypass",
                                                                                                Collections.emptyList(), null, null, null, "JKS", false, false, optional, internodeEncryption, false)
                                                        .applyConfig(),
                                                  expected,
