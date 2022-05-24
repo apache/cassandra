@@ -18,11 +18,19 @@
 */
 package org.apache.cassandra.security;
 
-import org.apache.cassandra.io.util.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.HashMap;
 import java.util.Map;
+import javax.net.ssl.X509KeyManager;
 
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
@@ -31,12 +39,19 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.handler.ssl.OpenSslClientContext;
+import io.netty.handler.ssl.OpenSslServerContext;
+import io.netty.handler.ssl.OpenSslSessionContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.io.util.File;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class SSLFactoryTest
 {
@@ -65,13 +80,17 @@ public class SSLFactoryTest
                             .withTrustStore("test/conf/cassandra_ssl_test.truststore")
                             .withTrustStorePassword("cassandra")
                             .withRequireClientAuth(false)
-                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
+                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
+                            .withSslContextFactory(new ParameterizedClass(TestFileBasedSSLContextFactory.class.getName(),
+                                                                          new HashMap<>()));
     }
 
     private ServerEncryptionOptions addKeystoreOptions(ServerEncryptionOptions options)
     {
         return options.withKeyStore("test/conf/cassandra_ssl_test.keystore")
-                      .withKeyStorePassword("cassandra");
+                      .withKeyStorePassword("cassandra")
+                      .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
+                      .withOutboundKeystorePassword("cassandra");
     }
 
     private ServerEncryptionOptions addPEMKeystoreOptions(ServerEncryptionOptions options)
@@ -81,6 +100,8 @@ public class SSLFactoryTest
         return options.withSslContextFactory(sslContextFactoryClass)
                       .withKeyStore("test/conf/cassandra_ssl_test.keystore.pem")
                       .withKeyStorePassword("cassandra")
+                      .withOutboundKeystore("test/conf/cassandra_ssl_test.keystore.pem")
+                      .withOutboundKeystorePassword("cassandra")
                       .withTrustStore("test/conf/cassandra_ssl_test.truststore.pem");
     }
 
@@ -117,7 +138,41 @@ public class SSLFactoryTest
     }
 
     @Test
-    public void testPEMSslContextReload_HappyPath() throws IOException, InterruptedException
+    public void testServerSocketShouldUseKeystore() throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException, NoSuchFieldException, IllegalAccessException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException
+    {
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
+        .withOutboundKeystore("dummyKeystore")
+        .withOutboundKeystorePassword("dummyPassword");
+
+        // Server socket type should create a keystore with keystore & keystore password
+        final OpenSslServerContext context = (OpenSslServerContext) SSLFactory.createNettySslContext(options, true, ISslContextFactory.SocketType.SERVER);
+        assertNotNull(context);
+
+        // Verify if right certificate is loaded into SslContext
+        final Certificate loadedCertificate = getCertificateLoadedInSslContext(context.sessionContext());
+        final Certificate certificate = getCertificates("test/conf/cassandra_ssl_test.keystore", "cassandra");
+        assertEquals(loadedCertificate, certificate);
+    }
+
+    @Test
+    public void testClientSocketShouldUseOutboundKeystore() throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException, NoSuchFieldException, ClassNotFoundException, InvocationTargetException, IllegalAccessException, NoSuchMethodException
+    {
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
+        .withKeyStore("dummyKeystore")
+        .withKeyStorePassword("dummyPassword");
+
+        // Client socket type should create a keystore with outbound Keystore & outbound password
+        final OpenSslClientContext context = (OpenSslClientContext) SSLFactory.createNettySslContext(options, true, ISslContextFactory.SocketType.CLIENT);
+        assertNotNull(context);
+
+        // Verify if right certificate is loaded into SslContext
+        final Certificate loadedCertificate = getCertificateLoadedInSslContext(context.sessionContext());
+        final Certificate certificate = getCertificates("test/conf/cassandra_ssl_test_outbound.keystore", "cassandra");
+        assertEquals(loadedCertificate, certificate);
+    }
+
+    @Test
+    public void testPEMSslContextReload_HappyPath() throws IOException
     {
         try
         {
@@ -223,8 +278,7 @@ public class SSLFactoryTest
     @Test
     public void getSslContext_ParamChanges() throws IOException
     {
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions)
-                                    .withEnabled(true)
+        ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
                                     .withCipherSuites("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256");
 
         SslContext ctx1 = SSLFactory.getOrCreateSslContext(options, true,
@@ -300,5 +354,37 @@ public class SSLFactoryTest
         );
 
         Assert.assertNotEquals(cacheKey1, cacheKey2);
+    }
+
+    public static class TestFileBasedSSLContextFactory extends FileBasedSslContextFactory {
+        public TestFileBasedSSLContextFactory(Map<String, Object> parameters)
+        {
+            super(parameters);
+        }
+    }
+
+    private static Certificate getCertificates(final String filename, final String password) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException
+    {
+        FileInputStream is = new FileInputStream(filename);
+        KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+        char[] passwd = password.toCharArray();
+        keystore.load(is, passwd);
+        return keystore.getCertificate("cassandra_ssl_test");
+    }
+
+    private static Certificate getCertificateLoadedInSslContext(final OpenSslSessionContext session)
+    throws ClassNotFoundException, InvocationTargetException, IllegalAccessException, NoSuchMethodException, NoSuchFieldException
+    {
+        Field providerField = OpenSslSessionContext.class.getDeclaredField("provider");
+        providerField.setAccessible(true);
+
+        Class<?> keyMaterialProvider = Class.forName("io.netty.handler.ssl.OpenSslKeyMaterialProvider");
+        Object provider = keyMaterialProvider.cast(providerField.get(session));
+
+        Method keyManager = provider.getClass().getDeclaredMethod("keyManager");
+        keyManager.setAccessible(true);
+        X509KeyManager keyManager1 = (X509KeyManager) keyManager.invoke(provider);
+        final Certificate[] certificates = keyManager1.getCertificateChain("cassandra_ssl_test");
+        return certificates[0];
     }
 }

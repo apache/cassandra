@@ -82,7 +82,7 @@ public class OutboundConnectionSettings
     public final IInternodeAuthenticator authenticator;
     public final InetAddressAndPort to;
     public final InetAddressAndPort connectTo; // may be represented by a different IP address on this node's local network
-    public final EncryptionOptions encryption;
+    public final ServerEncryptionOptions encryption;
     public final Framing framing;
     public final Integer socketSendBufferSizeInBytes;
     public final Integer applicationSendQueueCapacityInBytes;
@@ -112,7 +112,7 @@ public class OutboundConnectionSettings
     private OutboundConnectionSettings(IInternodeAuthenticator authenticator,
                                        InetAddressAndPort to,
                                        InetAddressAndPort connectTo,
-                                       EncryptionOptions encryption,
+                                       ServerEncryptionOptions encryption,
                                        Framing framing,
                                        Integer socketSendBufferSizeInBytes,
                                        Integer applicationSendQueueCapacityInBytes,
@@ -365,7 +365,7 @@ public class OutboundConnectionSettings
         return debug != null ? debug : OutboundDebugCallbacks.NONE;
     }
 
-    public EncryptionOptions encryption()
+    public ServerEncryptionOptions encryption()
     {
         return encryption != null ? encryption : defaultEncryptionOptions(to);
     }
@@ -499,7 +499,7 @@ public class OutboundConnectionSettings
     }
 
     @VisibleForTesting
-    static EncryptionOptions defaultEncryptionOptions(InetAddressAndPort endpoint)
+    static ServerEncryptionOptions defaultEncryptionOptions(InetAddressAndPort endpoint)
     {
         ServerEncryptionOptions options = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
         return options.shouldEncrypt(endpoint) ? options : null;

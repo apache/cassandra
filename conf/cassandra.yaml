@@ -1316,6 +1316,12 @@ server_encryption_options:
   # Set to a valid keystore if internode_encryption is dc, rack or all
   keystore: conf/.keystore
   keystore_password: cassandra
+  # During internode mTLS authentication, inbound connections (acting as servers) use keystore, keystore_password
+  # containing server certificate to create SSLContext and
+  # outbound connections (acting as clients) use outbound_keystore & outbound_keystore_password with client certificates
+  # to create SSLContext. By default, outbound_keystore is the same as keystore indicating mTLS is not enabled.
+#  outbound_keystore: conf/.keystore
+#  outbound_keystore_password: cassandra
   # Verify peer server certificates
   require_client_auth: false
   # Set to a valid trustore if require_client_auth is true

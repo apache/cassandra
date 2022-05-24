@@ -53,15 +53,23 @@ public class DefaultSslContextFactoryTest
         config.put("keystore_password", "cassandra");
     }
 
+    private void addOutboundKeystoreOptions(Map<String, Object> config)
+    {
+        config.put("outbound_keystore", "test/conf/cassandra_ssl_test_outbound.keystore");
+        config.put("outbound_keystore_password", "cassandra");
+    }
+
     @Test
     public void getSslContextOpenSSL() throws IOException
     {
-        EncryptionOptions options = new EncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                                                           .withTrustStorePassword("cassandra")
-                                                           .withKeyStore("test/conf/cassandra_ssl_test.keystore")
-                                                           .withKeyStorePassword("cassandra")
-                                                           .withRequireClientAuth(false)
-                                                           .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
+        EncryptionOptions.ServerEncryptionOptions options = new EncryptionOptions.ServerEncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore")
+                                                                                                           .withTrustStorePassword("cassandra")
+                                                                                                           .withKeyStore("test/conf/cassandra_ssl_test.keystore")
+                                                                                                           .withKeyStorePassword("cassandra")
+                                                                                                           .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
+                                                                                                           .withOutboundKeystorePassword("cassandra")
+                                                                                                           .withRequireClientAuth(false)
+                                                                                                           .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
@@ -78,7 +86,7 @@ public class DefaultSslContextFactoryTest
         config.put("truststore", "/this/is/probably/not/a/file/on/your/test/machine");
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
-        defaultSslContextFactoryImpl.checkedExpiry = false;
+        defaultSslContextFactoryImpl.keystoreContext.checkedExpiry = false;
         defaultSslContextFactoryImpl.buildTrustManagerFactory();
     }
 
@@ -90,7 +98,7 @@ public class DefaultSslContextFactoryTest
         config.put("truststore_password", "HomeOfBadPasswords");
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
-        defaultSslContextFactoryImpl.checkedExpiry = false;
+        defaultSslContextFactoryImpl.keystoreContext.checkedExpiry = false;
         defaultSslContextFactoryImpl.buildTrustManagerFactory();
     }
 
@@ -101,7 +109,7 @@ public class DefaultSslContextFactoryTest
         config.putAll(commonConfig);
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
-        defaultSslContextFactoryImpl.checkedExpiry = false;
+        defaultSslContextFactoryImpl.keystoreContext.checkedExpiry = false;
         TrustManagerFactory trustManagerFactory = defaultSslContextFactoryImpl.buildTrustManagerFactory();
         Assert.assertNotNull(trustManagerFactory);
     }
@@ -114,7 +122,7 @@ public class DefaultSslContextFactoryTest
         config.put("keystore", "/this/is/probably/not/a/file/on/your/test/machine");
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
-        defaultSslContextFactoryImpl.checkedExpiry = false;
+        defaultSslContextFactoryImpl.keystoreContext.checkedExpiry = false;
         defaultSslContextFactoryImpl.buildKeyManagerFactory();
     }
 
@@ -138,20 +146,70 @@ public class DefaultSslContextFactoryTest
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
         // Make sure the exiry check didn't happen so far for the private key
-        Assert.assertFalse(defaultSslContextFactoryImpl.checkedExpiry);
+        Assert.assertFalse(defaultSslContextFactoryImpl.keystoreContext.checkedExpiry);
 
         addKeystoreOptions(config);
         DefaultSslContextFactory defaultSslContextFactoryImpl2 = new DefaultSslContextFactory(config);
         // Trigger the private key loading. That will also check for expired private key
         defaultSslContextFactoryImpl2.buildKeyManagerFactory();
         // Now we should have checked the private key's expiry
-        Assert.assertTrue(defaultSslContextFactoryImpl2.checkedExpiry);
+        Assert.assertTrue(defaultSslContextFactoryImpl2.keystoreContext.checkedExpiry);
 
         // Make sure that new factory object preforms the fresh private key expiry check
         DefaultSslContextFactory defaultSslContextFactoryImpl3 = new DefaultSslContextFactory(config);
-        Assert.assertFalse(defaultSslContextFactoryImpl3.checkedExpiry);
+        Assert.assertFalse(defaultSslContextFactoryImpl3.keystoreContext.checkedExpiry);
         defaultSslContextFactoryImpl3.buildKeyManagerFactory();
-        Assert.assertTrue(defaultSslContextFactoryImpl3.checkedExpiry);
+        Assert.assertTrue(defaultSslContextFactoryImpl3.keystoreContext.checkedExpiry);
+    }
+
+    @Test(expected = IOException.class)
+    public void buildOutboundKeyManagerFactoryWithInvalidKeystoreFile() throws IOException
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        config.put("outbound_keystore", "/this/is/probably/not/a/file/on/your/test/machine");
+
+        DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
+        defaultSslContextFactoryImpl.outboundKeystoreContext.checkedExpiry = false;
+        defaultSslContextFactoryImpl.buildOutboundKeyManagerFactory();
+    }
+
+    @Test(expected = IOException.class)
+    public void buildOutboundKeyManagerFactoryWithBadPassword() throws IOException
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        addOutboundKeystoreOptions(config);
+        config.put("outbound_keystore_password", "HomeOfBadPasswords");
+
+        DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
+        defaultSslContextFactoryImpl.buildKeyManagerFactory();
+    }
+
+    @Test
+    public void buildOutboundKeyManagerFactoryHappyPath() throws IOException
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+
+        DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
+        // Make sure the exiry check didn't happen so far for the private key
+        Assert.assertFalse(defaultSslContextFactoryImpl.outboundKeystoreContext.checkedExpiry);
+
+        addOutboundKeystoreOptions(config);
+        DefaultSslContextFactory defaultSslContextFactoryImpl2 = new DefaultSslContextFactory(config);
+        // Trigger the private key loading. That will also check for expired private key
+        defaultSslContextFactoryImpl2.buildOutboundKeyManagerFactory();
+        // Now we should have checked the private key's expiry
+        Assert.assertTrue(defaultSslContextFactoryImpl2.outboundKeystoreContext.checkedExpiry);
+        Assert.assertFalse(defaultSslContextFactoryImpl2.keystoreContext.checkedExpiry);
+
+        // Make sure that new factory object preforms the fresh private key expiry check
+        DefaultSslContextFactory defaultSslContextFactoryImpl3 = new DefaultSslContextFactory(config);
+        Assert.assertFalse(defaultSslContextFactoryImpl3.outboundKeystoreContext.checkedExpiry);
+        defaultSslContextFactoryImpl3.buildOutboundKeyManagerFactory();
+        Assert.assertTrue(defaultSslContextFactoryImpl3.outboundKeystoreContext.checkedExpiry);
+        Assert.assertFalse(defaultSslContextFactoryImpl2.keystoreContext.checkedExpiry);
     }
 
     @Test
