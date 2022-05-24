@@ -154,6 +154,7 @@ public class UpgradeTestBase extends DistributedTestBase
         private RunOnCluster setup;
         private RunOnClusterAndNode runBeforeNodeRestart;
         private RunOnClusterAndNode runAfterNodeUpgrade;
+        private RunOnCluster runBeforeClusterUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
         private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
         private Consumer<IInstanceConfig> configConsumer;
@@ -228,6 +229,12 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        public TestCase runBeforeClusterUpgrade(RunOnCluster runBeforeClusterUpgrade)
+        {
+            this.runBeforeClusterUpgrade = runBeforeClusterUpgrade;
+            return this;
+        }
+
         public TestCase runAfterClusterUpgrade(RunOnCluster runAfterClusterUpgrade)
         {
             this.runAfterClusterUpgrade = runAfterClusterUpgrade;
@@ -256,6 +263,8 @@ public class UpgradeTestBase extends DistributedTestBase
                 throw new AssertionError();
             if (runBeforeNodeRestart == null)
                 runBeforeNodeRestart = (c, n) -> {};
+            if (runBeforeClusterUpgrade == null)
+                runBeforeClusterUpgrade = (c) -> {};
             if (runAfterClusterUpgrade == null)
                 runAfterClusterUpgrade = (c) -> {};
             if (runAfterNodeUpgrade == null)
@@ -271,12 +280,12 @@ public class UpgradeTestBase extends DistributedTestBase
                 {
                     setup.run(cluster);
 
-
-
                     for (Version nextVersion : upgrade.upgrade)
                     {
                         try
                         {
+                            runBeforeClusterUpgrade.run(cluster);
+
                             for (int n : nodesToUpgrade)
                             {
                                 cluster.get(n).shutdown().get();
