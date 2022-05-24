@@ -175,11 +175,6 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
-        public TestCase defaultUpgrades()
-        {
-            return upgrades(OLDEST, CURRENT);
-        }
-
         /** performs all supported upgrade paths that exist in between from and CURRENT (inclusive) **/
         public TestCase upgradesFrom(Semver from)
         {
@@ -335,7 +330,7 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .defaultUpgrades()
+                             .upgradesFrom(v30)
                              .nodesToUpgrade(toUpgrade);
     }
 
