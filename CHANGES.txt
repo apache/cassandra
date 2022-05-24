@@ -178,6 +178,7 @@ Merged from 3.0:
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
  * Update JNA library to 5.9.0 and snappy-java to version 1.1.8.4 (CASSANDRA-17040)
 Merged from 4.0:
+ * silence benign SslClosedEngineException (CASSANDRA-17565)
 Merged from 3.11:
 Merged from 3.0:
  * Fix issue where frozen maps may not be serialized in the correct order (CASSANDRA-17623)
