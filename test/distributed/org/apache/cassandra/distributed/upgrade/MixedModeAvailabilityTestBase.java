@@ -18,17 +18,30 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+
+import org.junit.Test;
 
 import com.vdurmont.semver4j.Semver;
 
+import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
@@ -42,7 +55,7 @@ import static org.junit.Assert.assertFalse;
 import static java.lang.String.format;
 
 
-public class MixedModeAvailabilityTestBase extends UpgradeTestBase
+public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
 {
     private static final int NUM_NODES = 3;
     private static final int COORDINATOR = 1;
@@ -50,16 +63,23 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
                                                               new Tester(QUORUM, QUORUM),
                                                               new Tester(ALL, ONE));
 
+    private final Semver initial;
 
-    protected static void testAvailability(Semver initial) throws Throwable
+    protected MixedModeAvailabilityTestBase(Semver initial)
     {
-        testAvailability(initial, UpgradeTestBase.CURRENT);
+        this.initial = initial;
     }
 
-    protected static void testAvailability(Semver initial, Semver upgrade) throws Throwable
+    @Test
+    public void testAvailabilityCoordinatorNotUpgraded() throws Throwable
     {
-        testAvailability(true, initial, upgrade);
-        testAvailability(false, initial, upgrade);
+        testAvailability(false, initial, CURRENT);
+    }
+
+    @Test
+    public void testAvailabilityCoordinatorUpgraded() throws Throwable
+    {
+        testAvailability(true, initial, CURRENT);
     }
 
     private static void testAvailability(boolean upgradedCoordinator,
@@ -72,7 +92,9 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
         .upgrades(initial, upgrade)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(2))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(2)))
-        .setup(c -> c.schemaChange(withKeyspace("CREATE TABLE %s.t (k uuid, c int, v int, PRIMARY KEY (k, c))")))
+        //TODO - REVIEW - Why is this failing when the coordinator is 3.x?  with NEVER speculation we don't recover in quorum?
+        .setup(c -> c.schemaChange(withKeyspace("CREATE TABLE %s.t (k uuid, c int, v int, PRIMARY KEY (k, c)) WITH speculative_retry = '10ms'")))
+        .runBeforeClusterUpgrade(cluster -> cluster.filters().reset())
         .runAfterNodeUpgrade((cluster, n) -> {
 
             // using 0 to 2 down nodes...
@@ -88,7 +110,7 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
                 // run the test cases that are compatible with the number of down nodes
                 ICoordinator coordinator = cluster.coordinator(COORDINATOR);
                 for (Tester tester : TESTERS)
-                    tester.test(coordinator, numNodesDown, upgradedCoordinator);
+                    tester.test(cluster, coordinator, numNodesDown, upgradedCoordinator);
             }
         }).run();
     }
@@ -113,38 +135,59 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
             this.readConsistencyLevel = readConsistencyLevel;
         }
 
-        public void test(ICoordinator coordinator, int numNodesDown, boolean upgradedCoordinator)
+        public void test(UpgradeableCluster cluster, ICoordinator coordinator, int numNodesDown, boolean upgradedCoordinator)
         {
             UUID key = UUID.randomUUID();
             Object[] row1 = row(key, 1, 10);
             Object[] row2 = row(key, 2, 20);
 
             boolean wrote = false;
+            class Session { TimeUUID sessionId = TimeUUID.Generator.nextTimeUUID(); }
+            Session session = new Session();
             try
             {
                 // test write
                 maybeFail(WriteTimeoutException.class, numNodesDown > maxNodesDown(writeConsistencyLevel), () -> {
-                    coordinator.execute(INSERT, writeConsistencyLevel, row1);
-                    coordinator.execute(INSERT, writeConsistencyLevel, row2);
+                    coordinator.executeWithTracing(session.sessionId.asUUID(), INSERT, writeConsistencyLevel, row1);
+                    session.sessionId = TimeUUID.Generator.nextTimeUUID();
+                    coordinator.executeWithTracing(session.sessionId.asUUID(), INSERT, writeConsistencyLevel, row2);
                 });
 
                 wrote = true;
 
                 // test read
                 maybeFail(ReadTimeoutException.class, numNodesDown > maxNodesDown(readConsistencyLevel), () -> {
-                    Object[][] rows = coordinator.execute(SELECT, readConsistencyLevel, key);
+                    session.sessionId = TimeUUID.Generator.nextTimeUUID();
+                    Object[][] rows = coordinator.executeWithTracing(session.sessionId.asUUID(), SELECT, readConsistencyLevel, key);
                     if (numNodesDown <= maxNodesDown(writeConsistencyLevel))
                         assertRows(rows, row1, row2);
                 });
             }
             catch (Throwable t)
             {
-                throw new AssertionError(format("Unexpected error while %s in case write-read consistency %s-%s with %s coordinator and %d nodes down",
+                cluster.filters().reset();
+                SimpleQueryResult events = coordinator.executeWithResult("SELECT * FROM system_traces.events WHERE session_id=?", QUORUM, session.sessionId.asUUID());
+                StringBuilder history = new StringBuilder();
+                Map<InetAddress, List<Row>> histories = new HashMap<>();
+                while (events.hasNext())
+                {
+                    Row next = events.next();
+                    histories.computeIfAbsent(next.get("source"), ignore -> new ArrayList<>()).add(next.copy());
+                }
+                for (Map.Entry<InetAddress, List<Row>> e : histories.entrySet())
+                {
+                    history.append("Instance ").append(e.getKey()).append('\n');
+                    Collections.sort(e.getValue(), Comparator.comparingInt(a -> a.getInteger("source_elapsed")));
+                    for (Row next : e.getValue())
+                        history.append('\t').append(next.getInteger("source_elapsed")).append('\t').append(next.getString("activity")).append('\n');
+                }
+                throw new AssertionError(format("Unexpected error while %s in case write-read consistency %s-%s with %s coordinator and %d nodes down; trace\n%s",
                                                 wrote ? "reading" : "writing",
                                                 writeConsistencyLevel,
                                                 readConsistencyLevel,
                                                 upgradedCoordinator ? "upgraded" : "not upgraded",
-                                                numNodesDown), t);
+                                                numNodesDown,
+                                                history), t);
             }
         }
 

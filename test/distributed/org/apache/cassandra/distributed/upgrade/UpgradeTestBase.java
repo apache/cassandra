@@ -273,6 +273,7 @@ public class UpgradeTestBase extends DistributedTestBase
                 for (int n = 1; n <= nodeCount; n++)
                     nodesToUpgrade.add(n);
 
+            int offset = 0;
             for (TestVersions upgrade : this.upgrade)
             {
                 logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.upgradeVersions);
@@ -302,10 +303,11 @@ public class UpgradeTestBase extends DistributedTestBase
                         }
                         catch (Throwable t)
                         {
-                            throw new AssertionError(String.format("Error in test '%s' while upgrading to '%s'", upgrade, nextVersion.version), t);
+                            throw new AssertionError(String.format("Error in test '%s' while upgrading to '%s'; successful upgrades %s", upgrade, nextVersion.version, this.upgrade.stream().limit(offset).collect(Collectors.toList())), t);
                         }
                     }
                 }
+                offset++;
             }
         }
 
