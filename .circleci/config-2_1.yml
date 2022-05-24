@@ -60,7 +60,9 @@ default_env_vars: &default_env_vars
     # REPEATED_UTEST_METHODS: testCompoundPartitionKey,testStaticTable
     # Please note that some Ant targets will ignore the -Dtest.methods argument produced by this.
     REPEATED_UTEST_METHODS:
-    # Whether the test iteration should use vnodes for JVM dtests (-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16')
+    # Whether the test iteration should use vnodes for JVM dtests (-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16').
+    # This will only be applied as a default to JVM dtests that don't provide their own initial tokens or token count,
+    # in the same way that it's done for *_jvm_dtests_vnode jobs. Ant targets other than JVM dtests will ignore this.
     REPEATED_UTEST_VNODES: false
     # The number of times that the repeated JUnit test should be run
     REPEATED_UTEST_COUNT: 100
