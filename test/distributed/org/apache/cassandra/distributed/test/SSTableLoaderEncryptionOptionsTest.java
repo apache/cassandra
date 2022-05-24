@@ -113,7 +113,7 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
                                                             "--truststore-password", validTrustStorePassword,
                                                             "test/data/legacy-sstables/na/legacy_tables/legacy_na_clust");
         assertNotEquals(0, tool.getExitCode());
-        assertTrue(tool.getStdout().contains("SSLHandshakeException"));
+        assertTrue(tool.getStderr().contains("TransportException"));
     }
 
     private static File prepareSstablesForUpload() throws IOException
