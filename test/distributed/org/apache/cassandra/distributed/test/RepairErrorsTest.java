@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -29,10 +30,15 @@ import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.streaming.CassandraIncomingFile;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.StreamSession;
@@ -47,7 +53,6 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class RepairErrorsTest extends TestBaseImpl
 {
-    @SuppressWarnings("Convert2MethodRef")
     @Test
     public void testRemoteSyncFailure() throws Exception
     {
@@ -90,12 +95,61 @@ public class RepairErrorsTest extends TestBaseImpl
             result = cluster.get(1).nodetoolResult("repair", KEYSPACE);
             result.asserts().success();
 
-            // Make sure we've cleaned up sessions and parent sessions:
-            Integer parents = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance.parentRepairSessionCount());
-            assertEquals(0, parents.intValue());
-            Integer sessions = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance.sessionCount());
-            assertEquals(0, sessions.intValue());
+            assertNoActiveRepairSessions(cluster.get(1));
         }
+    }
+
+    @Test
+    public void testRemoteStreamFailure() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withConfig(config -> config.with(GOSSIP, NETWORK)
+                                                                       .set("disk_failure_policy", "stop")
+                                                                       .set("disk_access_mode", "mmap_index_only"))
+                                           .withInstanceInitializer(ByteBuddyHelperStreamFailure::installStreamHandlingFailure).start()))
+        {
+            // Make sure we don't auto-compact the peers table. We'll need to try it manually later.
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("peers_v2");
+                cfs.disableAutoCompaction();
+            });
+
+            cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, x int)");
+
+            // On repair, this data layout will require two (local) syncs from node 1 and one remote sync from node 2:
+            cluster.get(1).executeInternal("insert into " + KEYSPACE + ".tbl (id, x) VALUES (?,?)", 1, 1);
+            cluster.get(2).executeInternal("insert into " + KEYSPACE + ".tbl (id, x) VALUES (?,?)", 2, 2);
+            cluster.get(3).executeInternal("insert into " + KEYSPACE + ".tbl (id, x) VALUES (?,?)", 3, 3);
+            cluster.forEach(i -> i.flush(KEYSPACE));
+
+            // Flush system.peers_v2, or there won't be any SSTables...
+            cluster.forEach(i -> i.flush("system"));
+
+            // Stream reading will fail on node 3, and this will interrupt node 1 just as it starts to stream to node 2.
+            NodeToolResult result = cluster.get(1).nodetoolResult("repair", KEYSPACE);
+            result.asserts().failure();
+
+            // Ensure that the peers table is compactable even after the file streaming task is interrupted.
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("peers_v2");
+                cfs.forceMajorCompaction();
+            });
+
+            assertTrue(cluster.get(1).logs().grep("Stopping transports as disk_failure_policy is stop").getResult().isEmpty());
+            assertTrue(cluster.get(1).logs().grep("FSReadError").getResult().isEmpty());
+
+            assertNoActiveRepairSessions(cluster.get(1));
+        }
+    }
+
+    @SuppressWarnings("Convert2MethodRef")
+    private void assertNoActiveRepairSessions(IInvokableInstance instance)
+    {
+        // Make sure we've cleaned up sessions and parent sessions:
+        Integer parents = instance.callOnInstance(() -> ActiveRepairService.instance.parentRepairSessionCount());
+        assertEquals(0, parents.intValue());
+        Integer sessions = instance.callOnInstance(() -> ActiveRepairService.instance.sessionCount());
+        assertEquals(0, sessions.intValue());
     }
 
     public static class ByteBuddyHelper
@@ -159,6 +213,55 @@ public class RepairErrorsTest extends TestBaseImpl
                 // Clear the interrupt flag so the FSReadError is propagated correctly in DebuggableThreadPoolExecutor:
                 Thread.interrupted();
             
+            return zuper.call();
+        }
+    }
+
+    public static class ByteBuddyHelperStreamFailure
+    {
+        public static void installStreamHandlingFailure(ClassLoader cl, int nodeNumber)
+        {
+            if (nodeNumber == 3)
+            {
+                new ByteBuddy().rebase(CassandraIncomingFile.class)
+                        .method(named("read"))
+                        .intercept(MethodDelegation.to(ByteBuddyHelperStreamFailure.class))
+                        .make()
+                        .load(cl, ClassLoadingStrategy.Default.INJECTION);
+            }
+
+            if (nodeNumber == 1)
+            {
+                new ByteBuddy().rebase(SystemKeyspace.class)
+                        .method(named("getPreferredIP"))
+                        .intercept(MethodDelegation.to(ByteBuddyHelperStreamFailure.class))
+                        .make()
+                        .load(cl, ClassLoadingStrategy.Default.INJECTION);
+            }
+        }
+
+        @SuppressWarnings("unused")
+        public static void read(DataInputPlus in, int version) throws IOException
+        {
+            throw new IOException("Failing incoming file read from test!");
+        }
+
+        @SuppressWarnings("unused")
+        public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep, @SuperCall Callable<InetAddressAndPort> zuper) throws Exception
+        {
+            if (Thread.currentThread().getName().contains("NettyStreaming-Outbound") && ep.address.toString().contains("127.0.0.2"))
+            {
+                try
+                {
+                    TimeUnit.SECONDS.sleep(10);
+                }
+                catch (InterruptedException e)
+                {
+                    // Leave the interrupt flag intact for the ChannelProxy downstream...
+                    Thread.currentThread().interrupt();
+                }
+            }
+
             return zuper.call();
         }
     }
