@@ -21,13 +21,16 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
+import java.security.cert.Certificate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import io.netty.util.concurrent.Promise; //checkstyle: permit this import
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +62,10 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.*;
+import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
+import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
+import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
+import static org.apache.cassandra.net.InternodeConnectionUtils.certificates;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.HandshakeProtocol.*;
 import static org.apache.cassandra.net.ConnectionType.STREAMING;
@@ -130,13 +137,6 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         if (logger.isTraceEnabled())
             logger.trace("creating outbound bootstrap to {}, requestVersion: {}", settings, requestMessagingVersion);
 
-        if (!settings.authenticate())
-        {
-            // interrupt other connections, so they must attempt to re-authenticate
-            MessagingService.instance().interruptOutbound(settings.to);
-            return ImmediateFuture.failure(new IOException("authentication failed to " + settings.connectToId()));
-        }
-
         // this is a bit ugly, but is the easiest way to ensure that if we timeout we can propagate a suitable error message
         // and still guarantee that, if on timing out we raced with success, the successfully created channel is handled
         AtomicBoolean timedout = new AtomicBoolean();
@@ -198,7 +198,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         {
             ChannelPipeline pipeline = channel.pipeline();
 
-            // order of handlers: ssl -> logger -> handshakeHandler
+            // order of handlers: ssl -> server-authentication -> logger -> handshakeHandler
             if (settings.withEncryption())
             {
                 // check if we should actually encrypt this connection
@@ -209,8 +209,9 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                 logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
-                pipeline.addFirst("ssl", sslHandler);
+                pipeline.addFirst(SSL_HANDLER_NAME, sslHandler);
             }
+            pipeline.addLast("server-authentication", new ServerAuthenticationHandler(settings));
 
             if (WIRETRACE)
                 pipeline.addLast("logger", new LoggingHandler(LogLevel.INFO));
@@ -218,6 +219,45 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             pipeline.addLast("handshake", new Handler());
         }
 
+    }
+
+    /**
+     * Authenticates the server before an outbound connection is established. If a connection is SSL based connection
+     * Server's identity is verified during ssl handshake using root certificate in truststore. One may choose to ignore
+     * outbound authentication or perform required authentication for outbound connections in the implementation
+     * of IInternodeAuthenticator interface.
+     */
+    @VisibleForTesting
+    static class ServerAuthenticationHandler extends ByteToMessageDecoder
+    {
+        final OutboundConnectionSettings settings;
+
+        ServerAuthenticationHandler(OutboundConnectionSettings settings)
+        {
+            this.settings = settings;
+        }
+
+        @Override
+        protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception
+        {
+            // Extract certificates from SSL handler(handler with name "ssl").
+            final Certificate[] certificates = certificates(channelHandlerContext.channel());
+            if (!settings.authenticator.authenticate(settings.to.getAddress(), settings.to.getPort(), certificates, OUTBOUND))
+            {
+                // interrupt other connections, so they must attempt to re-authenticate
+                MessagingService.instance().interruptOutbound(settings.to);
+                logger.error("authentication failed to " + settings.connectToId());
+
+                // To release all the pending buffered data, replace authentication handler with discard handler.
+                // This avoids pending inbound data to be fired through the pipeline
+                channelHandlerContext.pipeline().replace(this, DISCARD_HANDLER_NAME, new InternodeConnectionUtils.ByteBufDiscardHandler());
+                channelHandlerContext.pipeline().close();
+            }
+            else
+            {
+                channelHandlerContext.pipeline().remove(this);
+            }
+        }
     }
 
     private class Handler extends ByteToMessageDecoder
