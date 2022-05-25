@@ -213,7 +213,10 @@ public class AccordKeyspace
 
         static boolean hasStaticChanges(AccordCommandsForKey commandsForKey)
         {
-            return commandsForKey.maxTimestamp.hasModifications() || commandsForKey.blindWitnessed.hasModifications();
+            return commandsForKey.maxTimestamp.hasModifications()
+                   || commandsForKey.lastExecutedTimestamp.hasModifications()
+                   || commandsForKey.lastExecutedMicros.hasModifications()
+                   || commandsForKey.blindWitnessed.hasModifications();
         }
 
         static RegularAndStaticColumns columnsFor(AccordCommandsForKey commandsForKey)
