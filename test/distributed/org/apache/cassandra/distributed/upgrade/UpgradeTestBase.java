@@ -188,6 +188,11 @@ public class UpgradeTestBase extends DistributedTestBase
             List<TestVersions> upgrades = findUpgradePaths(from, to);
             // order by most direct to largest path
             Collections.sort(upgrades, Comparator.comparingInt(a -> a.upgrade.size()));
+            // due to test parallelism being defined by the file and not test permutations, when we have a large list
+            // this can cause tests to take a very long time to complete; for this reason limit the paths until this
+            // issue can be addressed
+            if (upgrades.size() > 2)
+                upgrades = Arrays.asList(upgrades.get(0), upgrades.get(upgrades.size() - 1)); // get the shorted and longest upgrade paths
             logger.info("Adding upgrades of\n{}", upgrades.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
             this.upgrade.addAll(upgrades);
             return this;
