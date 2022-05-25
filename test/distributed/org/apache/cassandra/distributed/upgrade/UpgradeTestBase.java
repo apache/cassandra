@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Ordering;
 
@@ -195,6 +196,12 @@ public class UpgradeTestBase extends DistributedTestBase
                 upgrades = Arrays.asList(upgrades.get(0), upgrades.get(upgrades.size() - 1)); // get the shorted and longest upgrade paths
             logger.info("Adding upgrades of\n{}", upgrades.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
             this.upgrade.addAll(upgrades);
+            return this;
+        }
+
+        public TestCase upgrades(Semver from, Semver... to)
+        {
+            this.upgrade.add(new TestVersions(versions.getLatest(from), Stream.of(to).map(versions::getLatest).collect(Collectors.toList())));
             return this;
         }
 
