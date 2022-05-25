@@ -199,12 +199,6 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
-        public TestCase upgrades(Semver from, Semver... to)
-        {
-            this.upgrade.add(new TestVersions(versions.getLatest(from), Stream.of(to).map(versions::getLatest).collect(Collectors.toList())));
-            return this;
-        }
-
         private List<TestVersions> findUpgradePaths(Semver from, Semver to)
         {
             return SUPPORTED_UPGRADE_PATHS.findPaths(from, to).stream()
