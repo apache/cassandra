@@ -1,4 +1,5 @@
 4.2
+ * Add ability to disable resumable bootstrap (CASSANDRA-17679)
  * When bootstrap fails, CassandraRoleManager may attempt to do read queries that fail with "Cannot read from a bootstrapping node", and increments unavailables counters (CASSANDRA-17754)
  * Add guardrail to disallow DROP KEYSPACE commands (CASSANDRA-17767)
  * Remove ephemeral snapshot marker file and introduce a flag to SnapshotManifest (CASSANDRA-16911)

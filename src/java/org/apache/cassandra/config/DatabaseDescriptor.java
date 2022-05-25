@@ -2815,6 +2815,13 @@ public class DatabaseDescriptor
         return Boolean.parseBoolean(System.getProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", Boolean.toString(conf.auto_bootstrap)));
     }
 
+    public static boolean getResumableBootstrapEnabled()
+    {
+        return System.getProperty(Config.PROPERTY_PREFIX + "resumable_bootstrap_enabled") == null ?
+            conf.resumable_bootstrap_enabled :
+            Boolean.parseBoolean(System.getProperty(Config.PROPERTY_PREFIX + "resumable_boostrap_enabled"));
+    }
+
     public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)
     {
         conf.hinted_handoff_enabled = hintedHandoffEnabled;

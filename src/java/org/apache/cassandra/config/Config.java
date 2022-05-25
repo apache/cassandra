@@ -96,6 +96,7 @@ public class Config
     public String partitioner;
 
     public boolean auto_bootstrap = true;
+    public boolean resumable_bootstrap_enabled = true;
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
     @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)

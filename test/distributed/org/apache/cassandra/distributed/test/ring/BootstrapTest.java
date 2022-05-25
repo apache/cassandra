@@ -70,7 +70,18 @@ public class BootstrapTest extends TestBaseImpl
     }
 
     @Test
-    public void bootstrapTest() throws Throwable
+    public void bootstrapWithResumeTest() throws Throwable
+    {
+        bootstrapTest(true);
+    }
+
+    @Test
+    public void bootstrapWithoutResumeTest() throws Throwable
+    {
+        bootstrapTest(false);
+    }
+
+    private void bootstrapTest(boolean withResume) throws Throwable
     {
         int originalNodeCount = 2;
         int expandedNodeCount = originalNodeCount + 1;
@@ -78,7 +89,8 @@ public class BootstrapTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(originalNodeCount)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                    .set("resumable_bootstrap_enabled", withResume))
                                         .start())
         {
             populate(cluster, 0, 100);

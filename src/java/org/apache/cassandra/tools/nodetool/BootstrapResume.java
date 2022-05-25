@@ -33,6 +33,8 @@ public class BootstrapResume extends NodeToolCmd
     {
         try
         {
+            if (Boolean.parseBoolean(System.getProperty("cassandra.resumable_bootstrap_enabled", "false")))
+                throw new RuntimeException("'nodetool bootstrap resume' is disabled.");
             probe.resumeBootstrap(probe.output().out);
         }
         catch (IOException e)

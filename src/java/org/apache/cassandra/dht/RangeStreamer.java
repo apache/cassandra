@@ -41,6 +41,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.FailureDetector;
@@ -688,11 +689,18 @@ public class RangeStreamer
 
                 List<FetchReplica> remaining = fetchReplicas.stream().filter(not(isAvailable)).collect(Collectors.toList());
 
-                if (remaining.size() < available.full.size() + available.trans.size())
+                if (DatabaseDescriptor.getResumableBootstrapEnabled())
                 {
-                    List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
-                    logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
-                                fetchReplicas, skipped, available.full, available.trans);
+                    if (remaining.size() < available.full.size() + available.trans.size())
+                    {
+                        List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
+                        logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
+                                    fetchReplicas, skipped, available.full, available.trans);
+                    }
+                }
+                else
+                {
+                    logger.info("Re-streaming all ranges as resumable bootstrap is disabled in cassandra.yaml.");
                 }
 
                 if (logger.isTraceEnabled())

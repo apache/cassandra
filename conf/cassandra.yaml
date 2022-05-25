@@ -1096,6 +1096,13 @@ truncate_request_timeout: 60000ms
 # Min unit: ms
 request_timeout: 10000ms
 
+# In certain environments, operators may want to disable resumable bootstrap in order to avoid potential correctness
+# violations or data loss scenarios. Largely this centers around nodes going down during bootstrap, tombstones being
+# written, and potential races with repair. By default we leave this on as it's been enabled for quite some time,
+# however the option to disable it is more palatable now that we have zero copy streaming as that greatly accelerates
+# bootstraps. This defaults to true.
+# resumable_bootstrap_enabled: true
+
 # Defensive settings for protecting Cassandra from true network partitions.
 # See (CASSANDRA-14358) for details.
 #

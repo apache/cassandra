@@ -72,6 +72,15 @@ New features
       - Maximum replication factor
       - Whether DROP KEYSPACE commands are allowed.
     - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
+    - Added ability to disable resumable bootstrap via both conf/cassandra.yaml and a -D param. In certain environments,
+      operators may want to disable resumable bootstrap in order to avoid potential correctness violations or data loss
+      scenarios. Largely this centers around nodes going down during bootstrap, tombstones being written, and potential
+      races with repair. By default we leave this on as it's been enabled for quite some time, however the option to
+      disable it is more palatable now that we have zero copy streaming as that greatly accelerates bootstraps.
+      The parameters to toggle this are as follows:
+      - cassandra.yaml: resumable_bootstrap_enabled: true
+      - System property: -Dcassandra.resumable_bootstrap_enabled=[true|false]
+      If the System property is set the value will override the setting in the cassandra.yaml file.
 
 Upgrading
 ---------
