@@ -167,7 +167,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     /**
      * Used by initiator to setup control message channel connecting to follower
      */
-    private void setupControlMessageChannel() throws IOException
+    private void setupControlMessageChannel(OutboundConnectionSettings templateWithConnectTo) throws IOException
     {
         if (controlMessageChannel == null)
         {
@@ -177,7 +177,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
              *  b) for streaming receiver (note: both initiator and follower can receive streaming files) to reveive files,
              *     in {@link Handler#setupStreamingPipeline}
              */
-            controlMessageChannel = createChannel(true);
+            controlMessageChannel = createChannel(true, templateWithConnectTo);
             scheduleKeepAliveTask(controlMessageChannel);
         }
     }
@@ -194,9 +194,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         task.future = scheduledFuture;
     }
     
-    private Channel createChannel(boolean isInboundHandlerNeeded) throws IOException
+    private Channel createChannel(boolean isInboundHandlerNeeded, OutboundConnectionSettings templateWithConnectTo) throws IOException
     {
-        Channel channel = factory.createConnection(template, streamingVersion);
+        Channel channel = factory.createConnection(templateWithConnectTo, streamingVersion);
         session.attachOutbound(channel);
 
         if (isInboundHandlerNeeded)
@@ -236,13 +236,16 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                 throw new RuntimeException("Cannot send stream data messages for preview streaming sessions");
             if (logger.isDebugEnabled())
                 logger.debug("{} Sending {}", createLogTag(session, null), message);
-            fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage)message));
+
+            // Supply a preferred IP up-front to avoid trying to get it in the executor thread, which can be interrupted.
+            OutboundConnectionSettings templateWithConnectTo = template.withConnectTo(template.connectTo());
+            fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage) message, templateWithConnectTo));
             return;
         }
 
         try
         {
-            setupControlMessageChannel();
+            setupControlMessageChannel(template);
             sendControlMessage(controlMessageChannel, message, future -> onControlMessageComplete(future, message));
         }
         catch (Exception e)
@@ -315,9 +318,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
          */
         private final StreamMessage msg;
 
-        FileStreamTask(OutgoingStreamMessage ofm)
+        private final OutboundConnectionSettings templateWithConnectTo;
+
+        FileStreamTask(OutgoingStreamMessage ofm, OutboundConnectionSettings templateWithConnectTo)
         {
             this.msg = ofm;
+            this.templateWithConnectTo = templateWithConnectTo;
         }
 
         /**
@@ -326,6 +332,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         FileStreamTask(StreamMessage msg)
         {
             this.msg = msg;
+            this.templateWithConnectTo = null;
         }
 
         @Override
@@ -337,7 +344,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             Channel channel = null;
             try
             {
-                channel = getOrCreateChannel();
+                channel = getOrCreateChannel(templateWithConnectTo);
                 if (!channel.attr(TRANSFERRING_FILE_ATTR).compareAndSet(false, true))
                     throw new IllegalStateException("channel's transferring state is currently set to true. refusing to start new stream");
 
@@ -406,7 +413,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             }
         }
 
-        private Channel getOrCreateChannel()
+        private Channel getOrCreateChannel(OutboundConnectionSettings templateWithConnectTo)
         {
             Thread currentThread = Thread.currentThread();
             try
@@ -415,7 +422,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                 if (channel != null)
                     return channel;
 
-                channel = createChannel(false);
+                channel = createChannel(false, templateWithConnectTo);
                 threadToChannelMap.put(currentThread, channel);
                 return channel;
             }

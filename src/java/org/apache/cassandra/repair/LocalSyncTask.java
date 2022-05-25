@@ -20,6 +20,8 @@ package org.apache.cassandra.repair;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -58,8 +60,8 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     @VisibleForTesting
     public final boolean transferRanges;
 
-    private boolean active = true;
-    private StreamPlan streamPlan;
+    private final AtomicBoolean active = new AtomicBoolean(true);
+    private final CompletableFuture<StreamPlan> planFuture = new CompletableFuture<>();
 
     public LocalSyncTask(RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
                          List<Range<Token>> diff, UUID pendingRepair,
@@ -105,9 +107,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
      * that will be called out of band once the streams complete.
      */
     @Override
-    protected synchronized void startSync()
+    protected void startSync()
     {
-        if (active)
+        if (active.get())
         {
             InetAddressAndPort remote = nodePair.peer;
 
@@ -115,8 +117,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
             logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
             Tracing.traceRepair(message);
 
-            streamPlan = createStreamPlan();
-            streamPlan.execute();
+            StreamPlan plan = createStreamPlan();
+            plan.execute();
+            planFuture.complete(plan);
         }
     }
 
@@ -153,11 +156,10 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     }
 
     @Override
-    public synchronized void onSuccess(StreamState result)
+    public void onSuccess(StreamState result)
     {
-        if (active)
+        if (active.compareAndSet(true, false))
         {
-            active = false;
             String status = result.hasAbortedSession() ? "aborted" : "complete";
             String message = String.format("Sync %s using session %s between %s and %s on %s",
                                            status, desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
@@ -169,11 +171,10 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     }
 
     @Override
-    public synchronized void onFailure(Throwable t)
+    public void onFailure(Throwable t)
     {
-        if (active)
+        if (active.compareAndSet(true, false))
         {
-            active = false;
             setException(t);
             finished();
         }
@@ -191,22 +192,12 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     }
 
     @Override
-    public synchronized void abort()
+    public void abort()
     {
-        if (active)
+        planFuture.whenComplete((plan, cause) ->
         {
-            if (streamPlan == null)
-            {
-                active = false;
-                String message = String.format("Sync for session %s between %s and %s on %s aborted before starting",
-                                               desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
-                logger.debug("{} {}", previewKind.logPrefix(desc.sessionId), message);
-                set(stat);
-            }
-            else
-            {
-                streamPlan.getCoordinator().getAllStreamSessions().forEach(StreamSession::abort);
-            }
-        }
+            assert plan != null : "StreamPlan future should never be completed exceptionally";
+            plan.getCoordinator().getAllStreamSessions().forEach(StreamSession::abort);
+        });
     }
 }
