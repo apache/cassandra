@@ -18,31 +18,20 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import org.junit.Test;
 
-
 import com.vdurmont.semver4j.Semver;
-
-import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.distributed.api.Row;
-import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.utils.TimeUUID;
 
+import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
@@ -52,7 +41,6 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.net.Verb.READ_REQ;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static java.lang.String.format;
 
 
 public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
