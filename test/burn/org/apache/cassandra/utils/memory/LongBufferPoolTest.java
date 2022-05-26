@@ -344,7 +344,6 @@ public class LongBufferPoolTest
             {
                 // request all threads to release all buffers to the bufferPool
                 testEnv.shouldFreeMemoryAndSuspend = true;
-                // wait until allocations stop
                 testEnv.stopAllocationsBarrier.await(10, TimeUnit.SECONDS);
                 // wait until all memory released
                 testEnv.freedAllMemoryBarrier.await(10, TimeUnit.SECONDS);
@@ -404,8 +403,7 @@ public class LongBufferPoolTest
 
             void testOne() throws Exception
             {
-                if (testEnv.shouldFreeMemoryAndSuspend)
-                    freeAllAndSuspend();
+                testEnv.maybeSuspendAndFreeMemory(this::freeAll);
 
                 long currentTargetSize = rand.nextInt(testEnv.poolSize / 1024) == 0 ? 0 : targetSize;
                 int spinCount = 0;
@@ -499,10 +497,8 @@ public class LongBufferPoolTest
             /**
              * Returns all allocated buffers back to the buffer pool.
              */
-            void freeAllAndSuspend() throws BrokenBarrierException, InterruptedException
+            void freeAll()
             {
-                testEnv.stopAllocationsBarrier.await();   // make sure other threads don't allocate any more buffers
-
                 while (checks.size() > 0)
                 {
                     BufferCheck check = sample();
@@ -519,9 +515,6 @@ public class LongBufferPoolTest
                 }
 
                 bufferPool.releaseLocal();
-
-                testEnv.freedAllMemoryBarrier.await();    // notify others we freed everything
-                testEnv.resumeAllocationsBarrier.await(); // wait until the main thread is done with all the checks
             }
 
             void cleanup()
@@ -610,13 +603,7 @@ public class LongBufferPoolTest
                     if (pendingBuffersCount.get() == 0)
                     {
                         count = 0;
-                        if (testEnv.shouldFreeMemoryAndSuspend)
-                        {
-                            testEnv.stopAllocationsBarrier.await();
-                            bufferPool.releaseLocal();
-                            testEnv.freedAllMemoryBarrier.await();
-                            testEnv.resumeAllocationsBarrier.await();
-                        }
+                        testEnv.maybeSuspendAndFreeMemory(bufferPool::releaseLocal);
                     } else
                     {
                         Thread.yield();
