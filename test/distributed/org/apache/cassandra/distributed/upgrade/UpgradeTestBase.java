@@ -193,6 +193,8 @@ public class UpgradeTestBase extends DistributedTestBase
                 if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to))
                     upgrade.add(new TestVersions(versions.getLatest(start), toVersions));
             }
+            if (upgrade.isEmpty())
+                throw new AssertionError(String.format("Unable to find supported pairs [%s, %s)", from, to));
             logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
             this.upgrade.addAll(upgrade);
             return this;
