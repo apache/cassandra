@@ -271,6 +271,57 @@ public class LongBufferPoolTest
                 fail("Checked thread threw exception: " + ex.toString());
             }
         }
+
+        /**
+         * Implementers must assure all buffers were returned to the buffer pool on run exit.
+         */
+        interface MemoryFreeTask
+        {
+            void run();
+        }
+
+        /**
+         * If the main test loop requested stopping the threads by setting
+         * {@link TestEnvironment#shouldFreeMemoryAndSuspend},
+         * waits until all threads reach this call and then frees the memory by running the given memory free task.
+         * After the task finishes, it waits on the {@link TestEnvironment#freedAllMemoryBarrier} and
+         * {@link TestEnvironment#resumeAllocationsBarrier} to let the main test loop perform the post-free checks.
+         * The call exits after {@link TestEnvironment#resumeAllocationsBarrier} is reached by all threads.
+         *
+         * @param task the task that should return all buffers held by this thread to the buffer pool
+         */
+        void maybeSuspendAndFreeMemory(MemoryFreeTask task) throws InterruptedException, BrokenBarrierException
+        {
+            if (shouldFreeMemoryAndSuspend)
+            {
+                try
+                {
+                    // Wait until allocations stop in all threads; this guanrantees this thread won't
+                    // receive any new buffers from other threads while freeing memory.
+                    stopAllocationsBarrier.await();
+                    // Free our memory
+                    task.run();
+                    // Now wait for the other threads to free their memory
+                    freedAllMemoryBarrier.await();
+                    // Now all memory is freed, but let's not resume allocations until the main test thread
+                    // performs the required checks.
+                    // At this point, used memory indicated by the pool
+                    // should be == 0 and all buffers should be recycled.
+                    resumeAllocationsBarrier.await();
+                }
+                catch (BrokenBarrierException | InterruptedException e)
+                {
+                    // At the end of the test some threads may have already exited,
+                    // so they can't arrive at one of the barriers, and we may end up here.
+                    // This is fine if this happens after the test deadline, and we
+                    // just allow the test worker to exit cleanly.
+                    // It must not happen before the test deadline though, it would likely be a bug,
+                    // so we rethrow in that case.
+                    if (System.nanoTime() < until)
+                        throw e;
+                }
+            }
+        }
     }
 
     public void testAllocate(BufferPool bufferPool, int threadCount, long duration) throws InterruptedException, ExecutionException, BrokenBarrierException, TimeoutException
@@ -293,7 +344,6 @@ public class LongBufferPoolTest
             {
                 // request all threads to release all buffers to the bufferPool
                 testEnv.shouldFreeMemoryAndSuspend = true;
-                // wait until allocations stop
                 testEnv.stopAllocationsBarrier.await(10, TimeUnit.SECONDS);
                 // wait until all memory released
                 testEnv.freedAllMemoryBarrier.await(10, TimeUnit.SECONDS);
@@ -307,6 +357,8 @@ public class LongBufferPoolTest
             }
             catch (TimeoutException e)
             {
+                // a thread that is done will not reach the barriers, so timeout is unexpected only if
+                // all threads are still running
                 if (testEnv.countDoneThreads() == 0)
                 {
                     logger.error("Some threads have stalled and didn't reach the barrier", e);
@@ -351,8 +403,7 @@ public class LongBufferPoolTest
 
             void testOne() throws Exception
             {
-                if (testEnv.shouldFreeMemoryAndSuspend)
-                    freeAllAndSuspend();
+                testEnv.maybeSuspendAndFreeMemory(this::freeAll);
 
                 long currentTargetSize = rand.nextInt(testEnv.poolSize / 1024) == 0 ? 0 : targetSize;
                 int spinCount = 0;
@@ -443,10 +494,11 @@ public class LongBufferPoolTest
                 while (recycleFromNeighbour());
             }
 
-            void freeAllAndSuspend() throws BrokenBarrierException, InterruptedException
+            /**
+             * Returns all allocated buffers back to the buffer pool.
+             */
+            void freeAll()
             {
-                testEnv.stopAllocationsBarrier.await();   // make sure other threads don't allocate any more buffers
-
                 while (checks.size() > 0)
                 {
                     BufferCheck check = sample();
@@ -463,9 +515,6 @@ public class LongBufferPoolTest
                 }
 
                 bufferPool.releaseLocal();
-
-                testEnv.freedAllMemoryBarrier.await();    // notify others we freed everything
-                testEnv.resumeAllocationsBarrier.await(); // wait until the main thread is done with all the checks
             }
 
             void cleanup()
@@ -554,13 +603,7 @@ public class LongBufferPoolTest
                     if (pendingBuffersCount.get() == 0)
                     {
                         count = 0;
-                        if (testEnv.shouldFreeMemoryAndSuspend)
-                        {
-                            testEnv.stopAllocationsBarrier.await();
-                            bufferPool.releaseLocal();
-                            testEnv.freedAllMemoryBarrier.await();
-                            testEnv.resumeAllocationsBarrier.await();
-                        }
+                        testEnv.maybeSuspendAndFreeMemory(bufferPool::releaseLocal);
                     } else
                     {
                         Thread.yield();
