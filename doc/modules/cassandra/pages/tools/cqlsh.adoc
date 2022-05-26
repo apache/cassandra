@@ -193,7 +193,7 @@ Example usage:
 [source,none]
 ----
 cqlsh> SHOW REPLICAS 95
-Replicas for token 95 are ['192.0.0.1', '192.0.0.2']
+['192.0.0.1', '192.0.0.2']
 ----
 
 === `SHOW SESSION`
