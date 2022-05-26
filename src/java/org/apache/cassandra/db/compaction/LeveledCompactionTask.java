@@ -56,7 +56,7 @@ public class LeveledCompactionTask extends CompactionTask
     @Override
     protected boolean partialCompactionsAcceptable()
     {
-        throw new UnsupportedOperationException("This is now handled in reduceScopeForLimitedSpace");
+        return level == 0;
     }
 
     protected int getLevel()
