@@ -26,7 +26,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -54,6 +53,7 @@ import org.apache.cassandra.utils.SimpleGraph;
 
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
+import static org.apache.cassandra.utils.SimpleGraph.sortedVertices;
 
 public class UpgradeTestBase extends DistributedTestBase
 {
@@ -187,7 +187,7 @@ public class UpgradeTestBase extends DistributedTestBase
         {
             List<TestVersions> upgrade = new ArrayList<>();
             List<Version> toVersions = Collections.singletonList(versions.getLatest(to));
-            for (Semver start : new TreeSet<>(SUPPORTED_UPGRADE_PATHS.vertices()).subSet(from, to))
+            for (Semver start : sortedVertices(SUPPORTED_UPGRADE_PATHS).subSet(from, to))
             {
                 // only include pairs that are allowed
                 if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to))

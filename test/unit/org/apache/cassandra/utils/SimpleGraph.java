@@ -24,6 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
@@ -51,6 +53,11 @@ public class SimpleGraph<V>
         for (int i = 0; i < values.length; i = i + 2)
             builder.addEdge(values[i], values[i + 1]);
         return builder.build();
+    }
+
+    public static <T extends Comparable<T>> SortedSet<T> sortedVertices(SimpleGraph<T> graph)
+    {
+        return new TreeSet<>(graph.vertices());
     }
 
     public boolean hasEdge(V a, V b)
