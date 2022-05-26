@@ -49,6 +49,15 @@ public interface StreamingChannel
         }
 
         StreamingChannel create(InetSocketAddress to, int messagingVersion, Kind kind) throws IOException;
+
+        default StreamingChannel create(InetSocketAddress to,
+                                        InetSocketAddress preferred,
+                                        int messagingVersion,
+                                        StreamingChannel.Kind kind) throws IOException
+        {
+            // Implementations can decide whether or not to do something with the preferred address.
+            return create(to, messagingVersion, kind);
+        }
     }
 
     public enum Kind { CONTROL, FILE }

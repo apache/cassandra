@@ -16,6 +16,7 @@ Merged from 4.1:
  * Incremental repair leaks SomeRepairFailedException after switch away from flatMap (CASSANDRA-17620)
  * StorageService read threshold get methods throw NullPointerException due to not handling null configs (CASSANDRA-17593)
 Merged from 4.0:
+ * Ensure FileStreamTask cannot compromise shared channel proxy for system table when interrupted (CASSANDRA-17663)
 Merged from 3.11:
 Merged from 3.0:
 
