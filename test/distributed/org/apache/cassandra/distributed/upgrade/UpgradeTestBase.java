@@ -203,7 +203,9 @@ public class UpgradeTestBase extends DistributedTestBase
         {
             if (!SUPPORTED_UPGRADE_PATHS.hasEdge(from, CURRENT))
                 throw new AssertionError("Upgrading from " + from + " to " + CURRENT + " isn't directly supported and must go through other versions first; supported paths: " + SUPPORTED_UPGRADE_PATHS.findPaths(from, CURRENT));
-            this.upgrade.add(new TestVersions(versions.getLatest(from), Arrays.asList(versions.getLatest(CURRENT))));
+            TestVersions tests = new TestVersions(this.versions.getLatest(from), Arrays.asList(this.versions.getLatest(CURRENT)));
+            logger.info("Adding upgrade of {}", tests);
+            this.upgrade.add(tests);
             return this;
         }
 
