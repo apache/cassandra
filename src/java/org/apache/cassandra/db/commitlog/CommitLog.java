@@ -429,11 +429,7 @@ public class CommitLog implements CommitLogMBean
     @Override
     public void setCDCBlockWrites(boolean val)
     {
-        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(),
-                                 "Unable to set block_writes (%s): CDC is not enabled.", val);
-        Preconditions.checkState(segmentManager instanceof CommitLogSegmentManagerCDC,
-                                 "CDC is enabled but we have the wrong CommitLogSegmentManager type: %s. " +
-                                 "Please report this as bug.", segmentManager.getClass().getName());
+        ensureCDCEnabled();
         boolean oldVal = DatabaseDescriptor.getCDCBlockWrites();
         CommitLogSegment currentSegment = segmentManager.allocatingFrom();
         // Update the current segment CDC state to PERMITTED if block_writes is disabled now, and it was in FORBIDDEN state
@@ -441,6 +437,29 @@ public class CommitLog implements CommitLogMBean
             currentSegment.setCDCState(CommitLogSegment.CDCState.PERMITTED);
         DatabaseDescriptor.setCDCBlockWrites(val);
         logger.info("Updated CDC block_writes from {} to {}", oldVal, val);
+    }
+
+
+    @Override
+    public boolean isWritePathForCDCEnabled()
+    {
+        return DatabaseDescriptor.isWritePathForCDCEnabled();
+    }
+
+    @Override
+    public void setWritePathForCdcEnabled(boolean value)
+    {
+        ensureCDCEnabled();
+        DatabaseDescriptor.setWritePathForCDCEnabled(value);
+        logger.info("Set write_path_for_cdc_enabled to {}", value);
+    }
+
+    private void ensureCDCEnabled()
+    {
+        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(), "CDC is not enabled.");
+        Preconditions.checkState(segmentManager instanceof CommitLogSegmentManagerCDC,
+                                 "CDC is enabled but we have the wrong CommitLogSegmentManager type: %s. " +
+                                 "Please report this as bug.", segmentManager.getClass().getName());
     }
 
     /**

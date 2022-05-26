@@ -3486,6 +3486,16 @@ public class DatabaseDescriptor
         conf.cdc_block_writes = val;
     }
 
+    public static boolean isWritePathForCDCEnabled()
+    {
+        return conf.write_path_for_cdc_enabled;
+    }
+
+    public static void setWritePathForCDCEnabled(boolean val)
+    {
+        conf.write_path_for_cdc_enabled = val;
+    }
+
     public static String getCDCLogLocation()
     {
         return conf.cdc_raw_directory;
