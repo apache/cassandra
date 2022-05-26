@@ -53,6 +53,12 @@ public class SimpleGraph<V>
         return builder.build();
     }
 
+    public boolean hasEdge(V a, V b)
+    {
+        ImmutableSet<V> matches = edges.get(a);
+        return matches != null && matches.contains(b);
+    }
+
     public ImmutableSet<V> vertices()
     {
         ImmutableSet.Builder<V> b = ImmutableSet.builder();

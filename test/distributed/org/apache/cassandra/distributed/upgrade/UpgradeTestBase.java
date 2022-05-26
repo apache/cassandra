@@ -21,15 +21,14 @@ package org.apache.cassandra.distributed.upgrade;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import com.google.common.collect.Ordering;
 
@@ -186,34 +185,25 @@ public class UpgradeTestBase extends DistributedTestBase
         /** performs all supported upgrade paths that exist in between from and to (inclusive) **/
         public TestCase upgrades(Semver from, Semver to)
         {
-            List<TestVersions> upgrades = findUpgradePaths(from, to);
-            // order by most direct to largest path
-            Collections.sort(upgrades, Comparator.comparingInt(a -> a.upgrade.size()));
-            // due to test parallelism being defined by the file and not test permutations, when we have a large list
-            // this can cause tests to take a very long time to complete; for this reason limit the paths until this
-            // issue can be addressed
-            if (upgrades.size() > 2)
-                upgrades = Arrays.asList(upgrades.get(0), upgrades.get(upgrades.size() - 1)); // get the shorted and longest upgrade paths
-            logger.info("Adding upgrades of\n{}", upgrades.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
-            this.upgrade.addAll(upgrades);
+            List<TestVersions> upgrade = new ArrayList<>();
+            List<Version> toVersions = Collections.singletonList(versions.getLatest(to));
+            for (Semver start : new TreeSet<>(SUPPORTED_UPGRADE_PATHS.vertices()).subSet(from, to))
+            {
+                // only include pairs that are allowed
+                if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to))
+                    upgrade.add(new TestVersions(versions.getLatest(start), toVersions));
+            }
+            logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
+            this.upgrade.addAll(upgrade);
             return this;
-        }
-
-        private List<TestVersions> findUpgradePaths(Semver from, Semver to)
-        {
-            return SUPPORTED_UPGRADE_PATHS.findPaths(from, to).stream()
-                                          .map(m -> new TestVersions(versions.getLatest(m.get(0)), m.stream().skip(1).map(versions::getLatest).collect(Collectors.toList())))
-                                          .collect(Collectors.toList());
         }
 
         /** Will test this specific upgrade path **/
         public TestCase singleUpgrade(Semver from)
         {
-            TestVersions target = new TestVersions(versions.getLatest(from), Arrays.asList(versions.getLatest(CURRENT)));
-            Set<TestVersions> supported = new HashSet<>(findUpgradePaths(from, CURRENT));
-            if (!supported.contains(target))
-                throw new AssertionError("Upgrading from " + from + " to " + CURRENT + " isn't directly supported and must go through other versions first; supported paths: " + supported);
-            this.upgrade.add(target);
+            if (!SUPPORTED_UPGRADE_PATHS.hasEdge(from, CURRENT))
+                throw new AssertionError("Upgrading from " + from + " to " + CURRENT + " isn't directly supported and must go through other versions first; supported paths: " + SUPPORTED_UPGRADE_PATHS.findPaths(from, CURRENT));
+            this.upgrade.add(new TestVersions(versions.getLatest(from), Arrays.asList(versions.getLatest(CURRENT))));
             return this;
         }
 

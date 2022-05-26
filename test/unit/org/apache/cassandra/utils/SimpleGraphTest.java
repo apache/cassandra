@@ -83,6 +83,11 @@ public class SimpleGraphTest
         assertThat(graph.findPaths("A", "B")).isEqualTo(Collections.singletonList(Arrays.asList("A", "B")));
         assertThat(graph.findPaths("A", "C")).isEqualTo(Collections.singletonList(Arrays.asList("A", "B", "C")));
         assertThat(graph.findPaths("B", "D")).isEqualTo(Collections.singletonList(Arrays.asList("B", "C", "D")));
+
+        assertThat(graph.hasEdge("A", "B")).isTrue();
+        assertThat(graph.hasEdge("C", "D")).isTrue();
+        assertThat(graph.hasEdge("B", "A")).isFalse();
+        assertThat(graph.hasEdge("C", "B")).isFalse();
     }
 
     private static <T> Map<T, Integer> countDistinct(List<T> list)
