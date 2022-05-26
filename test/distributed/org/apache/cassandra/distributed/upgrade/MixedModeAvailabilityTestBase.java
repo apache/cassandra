@@ -61,23 +61,22 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
     @Test
     public void testAvailabilityCoordinatorNotUpgraded() throws Throwable
     {
-        testAvailability(false, initial, CURRENT);
+        testAvailability(false, initial);
     }
 
     @Test
     public void testAvailabilityCoordinatorUpgraded() throws Throwable
     {
-        testAvailability(true, initial, CURRENT);
+        testAvailability(true, initial);
     }
 
     private static void testAvailability(boolean upgradedCoordinator,
-                                         Semver initial,
-                                         Semver upgrade) throws Throwable
+                                         Semver initial) throws Throwable
     {
         new TestCase()
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator ? 1 : 2)
-        .upgrades(initial, upgrade)
+        .upgradesFrom(initial)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(2))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(2)))
         // use retry of 10ms so that each check is consistent
