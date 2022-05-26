@@ -30,6 +30,7 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Ordering;
 
 /**
  * A directed graph. Main usage is the {@link #findPaths(Object, Object)} method which is used to find all paths between
@@ -58,6 +59,16 @@ public class SimpleGraph<V>
     public static <T extends Comparable<T>> SortedSet<T> sortedVertices(SimpleGraph<T> graph)
     {
         return new TreeSet<>(graph.vertices());
+    }
+
+    public static <T extends Comparable<T>> T min(SimpleGraph<T> graph)
+    {
+        return Ordering.natural().min(graph.vertices());
+    }
+
+    public static <T extends Comparable<T>> T max(SimpleGraph<T> graph)
+    {
+        return Ordering.natural().max(graph.vertices());
     }
 
     public boolean hasEdge(V a, V b)

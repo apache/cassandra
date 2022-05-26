@@ -29,8 +29,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Ordering;
-
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
 
@@ -105,8 +103,8 @@ public class UpgradeTestBase extends DistributedTestBase
                                                                                         v41, v42);
 
     // the last is always the current
-    public static final Semver CURRENT = Ordering.natural().max(SUPPORTED_UPGRADE_PATHS.vertices());
-    public static final Semver OLDEST = Ordering.natural().min(SUPPORTED_UPGRADE_PATHS.vertices());
+    public static final Semver CURRENT = SimpleGraph.max(SUPPORTED_UPGRADE_PATHS);
+    public static final Semver OLDEST = SimpleGraph.min(SUPPORTED_UPGRADE_PATHS);
 
     public static class TestVersions
     {
