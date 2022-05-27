@@ -1,136 +1,241 @@
-104,105c104,105
-<     #exec_resource_class: xlarge
-<   parallelism: 4
----
->     exec_resource_class: medium
->   parallelism: 25
-110,111c110,111
-<     #exec_resource_class: xlarge
-<   parallelism: 1
----
->     exec_resource_class: large
->   parallelism: 10
-118a119,130
-> j8_large_par_executor: &j8_large_par_executor
->   executor:
->     name: java8-executor
->     exec_resource_class: large
->   parallelism: 50
-> 
-> j8_very_large_par_executor: &j8_very_large_par_executor
->   executor:
->     name: java8-executor
->     exec_resource_class: xlarge
->   parallelism: 100
-> 
-122,123c134,135
-<     #exec_resource_class: xlarge
-<   parallelism: 1
----
->     exec_resource_class: large
->   parallelism: 4
-128c140
-<     #exec_resource_class: xlarge
----
->     exec_resource_class: medium
-134,135c146,147
-<     #exec_resource_class: xlarge
-<   parallelism: 4
----
->     exec_resource_class: medium
->   parallelism: 25
-140,141c152,153
-<     #exec_resource_class: xlarge
-<   parallelism: 1
----
->     exec_resource_class: large
->   parallelism: 10
-148a161,166
-> j11_large_par_executor: &j11_large_par_executor
->   executor:
->     name: java11-executor
->     exec_resource_class: large
->   parallelism: 50
-> 
-152c170,171
-<   parallelism: 4
----
->     exec_resource_class: medium
->   parallelism: 25
-157c176,177
-<   parallelism: 4
----
->     exec_resource_class: large
->   parallelism: 25
-162c182,183
-<   parallelism: 4
----
->     exec_resource_class: xlarge
->   parallelism: 25
-167c188,189
-<   parallelism: 4
----
->     exec_resource_class: large
->   parallelism: 25
-172c194,195
-<   parallelism: 4
----
->     exec_resource_class: medium
->   parallelism: 25
-177c200,201
-<   parallelism: 4
----
->     exec_resource_class: large
->   parallelism: 25
-875c899
-<     <<: *j8_par_executor
----
->     <<: *j8_large_par_executor
-889c913
-<     <<: *j11_par_executor
----
->     <<: *j11_large_par_executor
-904c928
-<     <<: *j8_par_executor
----
->     <<: *j8_large_par_executor
-918c942
-<     <<: *j11_par_executor
----
->     <<: *j11_large_par_executor
-933c957
-<     <<: *j8_par_executor
----
->     <<: *j8_very_large_par_executor
-947c971
-<     <<: *j8_par_executor
----
->     <<: *j8_large_par_executor
-962c986
-<     <<: *j8_par_executor
----
->     <<: *j8_large_par_executor
-980c1004
-<     <<: *j8_par_executor
----
->     <<: *j8_large_par_executor
-995c1019
-<     <<: *j8_par_executor
----
->     <<: *j8_large_par_executor
-1013c1037
-<     <<: *j11_par_executor
----
->     <<: *j11_large_par_executor
-1028c1052
-<     <<: *j11_par_executor
----
->     <<: *j11_large_par_executor
-1046c1070
-<     <<: *j11_par_executor
----
->     <<: *j11_large_par_executor
-1061c1085
-<     <<: *j11_par_executor
----
->     <<: *j11_large_par_executor
+--- config-2_1.yml	2022-05-27 12:30:26.000000000 -0400
++++ config-2_1.yml.MIDRES	2022-05-27 12:31:30.000000000 -0400
+@@ -105,14 +105,14 @@
+ j8_par_executor: &j8_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 4
++    exec_resource_class: medium
++  parallelism: 25
+ 
+ j8_small_par_executor: &j8_small_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: large
++  parallelism: 10
+ 
+ j8_small_executor: &j8_small_executor
+   executor:
+@@ -120,29 +120,41 @@
+     exec_resource_class: medium
+   parallelism: 1
+ 
++j8_large_par_executor: &j8_large_par_executor
++  executor:
++    name: java8-executor
++    exec_resource_class: large
++  parallelism: 50
++
++j8_very_large_par_executor: &j8_very_large_par_executor
++  executor:
++    name: java8-executor
++    exec_resource_class: xlarge
++  parallelism: 100
++
+ j8_medium_par_executor: &j8_medium_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: large
++  parallelism: 4
+ 
+ j8_seq_executor: &j8_seq_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
++    exec_resource_class: medium
+   parallelism: 1 # sequential, single container tests: no parallelism benefits
+ 
+ j11_par_executor: &j11_par_executor
+   executor:
+     name: java11-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 4
++    exec_resource_class: medium
++  parallelism: 25
+ 
+ j11_small_par_executor: &j11_small_par_executor
+   executor:
+     name: java11-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: large
++  parallelism: 10
+ 
+ j11_small_executor: &j11_small_executor
+   executor:
+@@ -150,35 +162,47 @@
+     #exec_resource_class: medium
+   parallelism: 1
+ 
++j11_large_par_executor: &j11_large_par_executor
++  executor:
++    name: java11-executor
++    exec_resource_class: large
++  parallelism: 50
++
+ j8_repeated_utest_executor: &j8_repeated_utest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: medium
++  parallelism: 25
+ 
+ j8_repeated_dtest_executor: &j8_repeated_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: large
++  parallelism: 25
+ 
+ j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 25
+ 
+ j8_repeated_jvm_upgrade_dtest_executor: &j8_repeated_jvm_upgrade_dtest_executor
+   executor:
+     name: java8-executor
+-  parallelism: 4
++    exec_resource_class: large
++  parallelism: 25
+ 
+ j11_repeated_utest_executor: &j11_repeated_utest_executor
+   executor:
+     name: java11-executor
+-  parallelism: 4
++    exec_resource_class: medium
++  parallelism: 25
+ 
+ j11_repeated_dtest_executor: &j11_repeated_dtest_executor
+   executor:
+     name: java11-executor
+-  parallelism: 4
++    exec_resource_class: large
++  parallelism: 25
+ 
+ j8_with_dtests_jobs: &j8_with_dtests_jobs
+   jobs:
+@@ -870,7 +894,7 @@
+           target: testclasslist-system-keyspace-directory
+ 
+   j8_dtests-with-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -884,7 +908,7 @@
+           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+ 
+   j11_dtests-with-vnodes:
+-    <<: *j11_par_executor
++    <<: *j11_large_par_executor
+     steps:
+     - attach_workspace:
+         at: /home/cassandra
+@@ -899,7 +923,7 @@
+         pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+ 
+   j8_dtests-no-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -913,7 +937,7 @@
+           pytest_extra_args: '--skip-resource-intensive-tests'
+ 
+   j11_dtests-no-vnodes:
+-    <<: *j11_par_executor
++    <<: *j11_large_par_executor
+     steps:
+     - attach_workspace:
+         at: /home/cassandra
+@@ -928,7 +952,7 @@
+         pytest_extra_args: '--skip-resource-intensive-tests'
+ 
+   j8_upgradetests-no-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_very_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -942,7 +966,7 @@
+           pytest_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
+ 
+   j8_cqlsh-dtests-py3-with-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -957,7 +981,7 @@
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+ 
+   j8_cqlsh-dtests-py38-with-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -975,7 +999,7 @@
+           python_version: '3.8'
+ 
+   j8_cqlsh-dtests-py3-no-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -990,7 +1014,7 @@
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+ 
+   j8_cqlsh-dtests-py38-no-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -1008,7 +1032,7 @@
+           python_version: '3.8'
+ 
+   j11_cqlsh-dtests-py3-with-vnodes:
+-    <<: *j11_par_executor
++    <<: *j11_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -1023,7 +1047,7 @@
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+ 
+   j11_cqlsh-dtests-py38-with-vnodes:
+-    <<: *j11_par_executor
++    <<: *j11_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -1041,7 +1065,7 @@
+           python_version: '3.8'
+ 
+   j11_cqlsh-dtests-py3-no-vnodes:
+-    <<: *j11_par_executor
++    <<: *j11_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -1056,7 +1080,7 @@
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+ 
+   j11_cqlsh-dtests-py38-no-vnodes:
+-    <<: *j11_par_executor
++    <<: *j11_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
