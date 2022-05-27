@@ -41,6 +41,7 @@ print_help()
   echo "                   -e REPEATED_UTEST_TARGET=testsome"
   echo "                   -e REPEATED_UTEST_CLASS=org.apache.cassandra.cql3.ViewTest"
   echo "                   -e REPEATED_UTEST_METHODS=testCompoundPartitionKey,testStaticTable"
+  echo "                   -e REPEATED_UTEST_VNODES=false"
   echo "                   -e REPEATED_UTEST_COUNT=100"
   echo "                   -e REPEATED_UTEST_STOP_ON_FAILURE=false"
   echo "                   -e REPEATED_DTEST_NAME=cqlsh_tests/test_cqlsh.py::TestCqlshSmoke"
@@ -98,6 +99,7 @@ if $has_env_vars && $check_env_vars; then
        [ "$key" != "REPEATED_UTEST_TARGET" ] &&
        [ "$key" != "REPEATED_UTEST_CLASS" ] &&
        [ "$key" != "REPEATED_UTEST_METHODS" ] &&
+       [ "$key" != "REPEATED_UTEST_VNODES" ] &&
        [ "$key" != "REPEATED_UTEST_COUNT" ] &&
        [ "$key" != "REPEATED_UTEST_STOP_ON_FAILURE" ] &&
        [ "$key" != "REPEATED_DTEST_NAME" ] &&
