@@ -1200,14 +1200,14 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setHintedHandoffThrottleInKB(throttleInKB);
     }
 
-    public List<String> getEndpointsWithPort(String keyspace, String cf, String key)
+    public List<String> getReplicasWithPort(String keyspace, String cf, String key)
     {
-        return ssProxy.getNaturalEndpointsWithPort(keyspace, cf, key);
+        return ssProxy.getNaturalReplicasWithPort(keyspace, cf, key);
     }
 
-    public List<InetAddress> getEndpoints(String keyspace, String cf, String key)
+    public List<InetAddress> getReplicas(String keyspace, String cf, String key)
     {
-        return ssProxy.getNaturalEndpoints(keyspace, cf, key);
+        return ssProxy.getNaturalReplicas(keyspace, cf, key);
     }
 
     public List<String> getSSTables(String keyspace, String cf, String key, boolean hexFormat)

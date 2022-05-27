@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
@@ -78,16 +81,22 @@ public class GossipSettlesTest extends TestBaseImpl
                 Assert.assertEquals(addPortToValues(ss.getHostIdToEndpoint()), ss.getHostIdToEndpointWithPort());
                 Assert.assertEquals(addPortToKeys(ss.getLoadMap()), ss.getLoadMapWithPort());
                 Assert.assertEquals(addPortToList(ss.getLiveNodes()), ss.getLiveNodesWithPort());
-                List<String> naturalEndpointsAddedPort = ss.getNaturalEndpoints(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                List<String> naturalReplicasAddedPort = ss.getNaturalReplicas(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                                                                 SystemDistributedKeyspace.VIEW_BUILD_STATUS, "dummy").stream()
                                                            .map(e -> addStoragePortToIP(e.getHostAddress())).collect(Collectors.toList());
-                Assert.assertEquals(naturalEndpointsAddedPort,
-                                    ss.getNaturalEndpointsWithPort(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-                                                                   SystemDistributedKeyspace.VIEW_BUILD_STATUS, "dummy"));
-                naturalEndpointsAddedPort = ss.getNaturalEndpoints(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, ByteBufferUtil.EMPTY_BYTE_BUFFER).stream()
-                                              .map(e -> addStoragePortToIP(e.getHostAddress())).collect(Collectors.toList());
-                Assert.assertEquals(naturalEndpointsAddedPort,
-                                    ss.getNaturalEndpointsWithPort(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+                Assert.assertEquals(naturalReplicasAddedPort,
+                                    ss.getNaturalReplicasWithPort(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                                                  SystemDistributedKeyspace.VIEW_BUILD_STATUS, "dummy"));
+
+                EndpointsForToken replicas = ss.getNaturalReplicasForToken(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                List<InetAddress> inetList = new ArrayList<>(replicas.size());
+                replicas.forEach(r -> inetList.add(r.endpoint().getAddress()));
+
+                naturalReplicasAddedPort = inetList.stream().map(e -> addStoragePortToIP(e.getHostAddress())).collect(Collectors.toList());
+
+                List<String> replicas2 = Replicas.stringify(ss.getNaturalReplicasForToken(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, ByteBufferUtil.EMPTY_BYTE_BUFFER), true);
+
+                Assert.assertEquals(naturalReplicasAddedPort, replicas2);
 
 
                 // Difference in key type... convert to String and add the port to the older format

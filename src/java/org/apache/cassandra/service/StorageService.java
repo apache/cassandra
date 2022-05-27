@@ -3404,15 +3404,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated(since = "4.0")
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, String cf, String key)
     {
+        return getNaturalReplicas(keyspaceName, cf, key);
+    }
+
+    public List<InetAddress> getNaturalReplicas(String keyspaceName, String cf, String key)
+    {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, cf, key);
         List<InetAddress> inetList = new ArrayList<>(replicas.size());
         replicas.forEach(r -> inetList.add(r.endpoint().getAddress()));
         return inetList;
     }
 
-    public List<String> getNaturalEndpointsWithPort(String keyspaceName, String cf, String key)
+    public List<String> getNaturalReplicasWithPort(String keyspaceName, String cf, String key)
     {
         return Replicas.stringify(getNaturalReplicasForToken(keyspaceName, cf, key), true);
+    }
+
+    public List<String> getNaturalEndpointsWithPort(String keyspaceName, String cf, String key)
+    {
+        return getNaturalReplicasWithPort(keyspaceName, cf, key);
     }
 
     /** @deprecated See CASSANDRA-7544 */

@@ -1,12 +1,11 @@
 NAME
-        nodetool getendpoints - Print the end points that owns the key,
-        deprecated, use getreplicas instead
+        nodetool getreplicas - Print the replicas that own the key
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] getendpoints
+                [(-u <username> | --username <username>)] getreplicas
                 [(-pp | --print-port)] [--] <keyspace> <table> <key>
 
 OPTIONS
