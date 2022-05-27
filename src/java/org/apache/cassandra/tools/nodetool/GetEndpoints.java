@@ -28,6 +28,8 @@ import java.util.List;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
+
+@Deprecated // this is alias to getreplicas
 @Command(name = "getendpoints", description = "Print the end points that owns the key")
 public class GetEndpoints extends NodeToolCmd
 {

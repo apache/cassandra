@@ -144,6 +144,7 @@ public class NodeTool
                 GetInterDCStreamThroughput.class,
                 GetLoggingLevels.class,
                 GetMaxHintWindow.class,
+                GetReplicas.class,
                 GetSSTables.class,
                 GetSeeds.class,
                 GetSnapshotThrottle.class,
