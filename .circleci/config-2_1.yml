@@ -60,6 +60,10 @@ default_env_vars: &default_env_vars
     # REPEATED_UTEST_METHODS: testCompoundPartitionKey,testStaticTable
     # Please note that some Ant targets will ignore the -Dtest.methods argument produced by this.
     REPEATED_UTEST_METHODS:
+    # Whether the test iteration should use vnodes for JVM dtests (-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16').
+    # This will only be applied as a default to JVM dtests that don't provide their own initial tokens or token count,
+    # in the same way that it's done for *_jvm_dtests_vnode jobs. Ant targets other than JVM dtests will ignore this.
+    REPEATED_UTEST_VNODES: false
     # The number of times that the repeated JUnit test should be run
     REPEATED_UTEST_COUNT: 100
     # Whether the test iteration should stop on the first failure
@@ -1085,6 +1089,7 @@ jobs:
           target: ${REPEATED_UTEST_TARGET}
           class: ${REPEATED_UTEST_CLASS}
           methods: ${REPEATED_UTEST_METHODS}
+          vnodes: ${REPEATED_UTEST_VNODES}
           count: ${REPEATED_UTEST_COUNT}
           stop_on_failure: ${REPEATED_UTEST_STOP_ON_FAILURE}
 
@@ -1098,6 +1103,7 @@ jobs:
           target: ${REPEATED_UTEST_TARGET}
           class: ${REPEATED_UTEST_CLASS}
           methods: ${REPEATED_UTEST_METHODS}
+          vnodes: ${REPEATED_UTEST_VNODES}
           count: ${REPEATED_UTEST_COUNT}
           stop_on_failure: ${REPEATED_UTEST_STOP_ON_FAILURE}
 
@@ -1140,6 +1146,7 @@ jobs:
           target: test-jvm-dtest-some
           class: ${REPEATED_JVM_UPGRADE_DTEST_CLASS}
           methods: ${REPEATED_JVM_UPGRADE_DTEST_METHODS}
+          vnodes: "false"
           count: ${REPEATED_JVM_UPGRADE_DTEST_COUNT}
           stop_on_failure: ${REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE}
 
@@ -1513,6 +1520,8 @@ commands:
         type: string
       methods:
         type: string
+      vnodes:
+        type: string
       count:
         type: string
       stop_on_failure:
@@ -1571,6 +1580,12 @@ commands:
                 else
                   methods="-Dtest.methods=<<parameters.methods>>"
                 fi
+            
+                # Prepare the JVM dtests vnodes argument, which is optional
+                vnodes_args=""
+                if <<parameters.vnodes>>; then
+                  vnodes_args="-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
+                fi
 
                 # Run the test target as many times as requested collecting the exit code,
                 # stopping the iteration only if stop_on_failure is set.
@@ -1581,7 +1596,7 @@ commands:
 
                   # run the test
                   status="passes"
-                  if !( set -o pipefail && ant $target $name $methods -Dno-build-test=true | tee stdout.txt ); then
+                  if !( set -o pipefail && ant $target $name $methods $vnodes_args -Dno-build-test=true | tee stdout.txt ); then
                     status="fails"
                     exit_code=1
                   fi
