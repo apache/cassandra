@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.FileStore;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.zip.CRC32;
@@ -456,7 +457,7 @@ public class CommitLog implements CommitLogMBean
         executor.shutdown();
         executor.awaitTermination();
         segmentManager.shutdown();
-        segmentManager.awaitTermination();
+        segmentManager.awaitTermination(1L, TimeUnit.MINUTES);
     }
 
     /**
