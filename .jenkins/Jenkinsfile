@@ -29,57 +29,244 @@ pipeline {
     stage('Init') {
       steps {
           cleanWs()
+          script {
+              currentBuild.result='SUCCESS'
+          }
       }
     }
     stage('Build') {
       steps {
+       script {
+        def attempt = 1
+        retry(2) {
+          if (attempt > 1) {
+            sleep(60 * attempt)
+          }
+          attempt = attempt + 1
           build job: "${env.JOB_NAME}-artifacts"
+        }
+       }
       }
     }
     stage('Test') {
-        parallel {
-          stage('stress') {
-            steps {
-                script {
-                  stress = build job: "${env.JOB_NAME}-stress-test", propagate: false
-                  if (stress.result != 'SUCCESS') unstable('stress test failures')
-                  if (stress.result == 'FAILURE') currentBuild.result='FAILURE'
+      parallel {
+        stage('stress') {
+          steps {
+            script {
+              def attempt = 1
+              retry(2) {
+                if (attempt > 1) {
+                  sleep(60 * attempt)
                 }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('stress-test', stress.getNumber())
-                      }
-                  }
+                attempt = attempt + 1
+                stress = build job: "${env.JOB_NAME}-stress-test", propagate: false
               }
+              if (stress.result != 'SUCCESS') unstable('stress test failures')
+              if (stress.result == 'FAILURE') currentBuild.result='FAILURE'
             }
           }
-          stage('fqltool') {
-            steps {
-                script {
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('stress-test', stress.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('fqltool') {
+          steps {
+              script {
+                def attempt = 1
+                retry(2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
                   fqltool = build job: "${env.JOB_NAME}-fqltool-test", propagate: false
-                  if (fqltool.result != 'SUCCESS') unstable('fqltool test failures')
-                  if (fqltool.result == 'FAILURE') currentBuild.result='FAILURE'
                 }
+                if (fqltool.result != 'SUCCESS') unstable('fqltool test failures')
+                if (fqltool.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('fqltool-test', fqltool.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('units') {
+          steps {
+            script {
+                def attempt = 1
+                retry(2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  test = build job: "${env.JOB_NAME}-test", propagate: false
+              }
+              if (test.result != 'SUCCESS') unstable('unit test failures')
+              if (test.result == 'FAILURE') currentBuild.result='FAILURE'
+            }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('test', test.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('long units') {
+          steps {
+            script {
+                def attempt = 1
+                retry(2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  long_test = build job: "${env.JOB_NAME}-long-test", propagate: false
+              }
+              if (long_test.result != 'SUCCESS') unstable('long unit test failures')
+              if (long_test.result == 'FAILURE') currentBuild.result='FAILURE'
+            }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('long-test', long_test.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('burn') {
+          steps {
+            script {
+                def attempt = 1
+                retry(2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  burn = build job: "${env.JOB_NAME}-test-burn", propagate: false
+              }
+              if (burn.result != 'SUCCESS') unstable('burn test failures')
+              if (burn.result == 'FAILURE') currentBuild.result='FAILURE'
+            }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('test-burn', burn.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('cdc') {
+          steps {
+            script {
+                def attempt = 1
+                retry(2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  cdc = build job: "${env.JOB_NAME}-test-cdc", propagate: false
+              }
+              if (cdc.result != 'SUCCESS') unstable('cdc failures')
+              if (cdc.result == 'FAILURE') currentBuild.result='FAILURE'
+            }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('test-cdc', cdc.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('compression') {
+          steps {
+            script {
+                def attempt = 1
+                retry(2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  compression = build job: "${env.JOB_NAME}-test-compression", propagate: false
+              }
+              if (compression.result != 'SUCCESS') unstable('compression failures')
+              if (compression.result == 'FAILURE') currentBuild.result='FAILURE'
+            }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('test-compression', compression.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('cqlsh') {
+          steps {
+            script {
+                def attempt = 1
+                retry(2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  cqlsh = build job: "${env.JOB_NAME}-cqlsh-tests", propagate: false
+                }
+                if (cqlsh.result != 'SUCCESS') unstable('cqlsh failures')
+                if (cqlsh.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
             }
             post {
               always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('fqltool-test', fqltool.getNumber())
+                          copyTestResults('cqlsh-tests', cqlsh.getNumber())
                       }
                   }
               }
             }
-          }
+        }
+      }
+    }
+    stage('Distributed Test') {
+        parallel {
           stage('jvm-dtest') {
             steps {
               script {
-                jvm_dtest = build job: "${env.JOB_NAME}-jvm-dtest", propagate: false
-                if (jvm_dtest.result != 'SUCCESS') unstable('jvm-dtest failures')
-                if (jvm_dtest.result == 'FAILURE') currentBuild.result='FAILURE'
+                  def attempt = 1
+                  retry(2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    jvm_dtest = build job: "${env.JOB_NAME}-jvm-dtest", propagate: false
+                  }
+                  if (jvm_dtest.result != 'SUCCESS') unstable('jvm-dtest failures')
+                  if (jvm_dtest.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
@@ -95,7 +282,14 @@ pipeline {
           stage('jvm-dtest-upgrade') {
             steps {
               script {
-                jvm_dtest_upgrade = build job: "${env.JOB_NAME}-jvm-dtest-upgrade", propagate: false
+                  def attempt = 1
+                  retry(2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    jvm_dtest_upgrade = build job: "${env.JOB_NAME}-jvm-dtest-upgrade", propagate: false
+                }
                 if (jvm_dtest_upgrade.result != 'SUCCESS') unstable('jvm-dtest-upgrade failures')
                 if (jvm_dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
               }
@@ -108,124 +302,19 @@ pipeline {
                       }
                   }
               }
-            }
-          }
-          stage('units') {
-            steps {
-              script {
-                test = build job: "${env.JOB_NAME}-test", propagate: false
-                if (test.result != 'SUCCESS') unstable('unit test failures')
-                if (test.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('test', test.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('long units') {
-            steps {
-              script {
-                long_test = build job: "${env.JOB_NAME}-long-test", propagate: false
-                if (long_test.result != 'SUCCESS') unstable('long unit test failures')
-                if (long_test.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('long-test', long_test.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('burn') {
-            steps {
-              script {
-                burn = build job: "${env.JOB_NAME}-test-burn", propagate: false
-                if (burn.result != 'SUCCESS') unstable('burn test failures')
-                if (burn.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('test-burn', burn.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('cdc') {
-            steps {
-              script {
-                cdc = build job: "${env.JOB_NAME}-test-cdc", propagate: false
-                if (cdc.result != 'SUCCESS') unstable('cdc failures')
-                if (cdc.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('test-cdc', cdc.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('compression') {
-            steps {
-              script {
-                compression = build job: "${env.JOB_NAME}-test-compression", propagate: false
-                if (compression.result != 'SUCCESS') unstable('compression failures')
-                if (compression.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('test-compression', compression.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('cqlsh') {
-            steps {
-              script {
-                cqlsh = build job: "${env.JOB_NAME}-cqlsh-tests", propagate: false
-                  if (cqlsh.result != 'SUCCESS') unstable('cqlsh failures')
-                  if (cqlsh.result == 'FAILURE') currentBuild.result='FAILURE'
-                }
-              }
-              post {
-                always {
-                    warnError('missing test xml files') {
-                        script {
-                            copyTestResults('cqlsh-tests', cqlsh.getNumber())
-                        }
-                    }
-                }
-              }
-          }
-        }
-    }
-    stage('Distributed Test') {
-        parallel {
+            } 
+          }       
           stage('dtest') {
             steps {
               script {
-                dtest = build job: "${env.JOB_NAME}-dtest", propagate: false
+                  def attempt = 1
+                  retry(2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest = build job: "${env.JOB_NAME}-dtest", propagate: false
+                }
                 if (dtest.result != 'SUCCESS') unstable('dtest failures')
                 if (dtest.result == 'FAILURE') currentBuild.result='FAILURE'
               }
@@ -243,7 +332,14 @@ pipeline {
           stage('dtest-large') {
             steps {
               script {
-                dtest_large = build job: "${env.JOB_NAME}-dtest-large", propagate: false
+                  def attempt = 1
+                  retry(2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest_large = build job: "${env.JOB_NAME}-dtest-large", propagate: false
+                }
                 if (dtest_large.result != 'SUCCESS') unstable('dtest-large failures')
                 if (dtest_large.result == 'FAILURE') currentBuild.result='FAILURE'
               }
@@ -261,7 +357,14 @@ pipeline {
           stage('dtest-novnode') {
             steps {
               script {
-                dtest_novnode = build job: "${env.JOB_NAME}-dtest-novnode", propagate: false
+                  def attempt = 1
+                  retry(2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest_novnode = build job: "${env.JOB_NAME}-dtest-novnode", propagate: false
+                }
                 if (dtest_novnode.result != 'SUCCESS') unstable('dtest-novnode failures')
                 if (dtest_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
               }
@@ -279,7 +382,14 @@ pipeline {
           stage('dtest-offheap') {
             steps {
               script {
-                dtest_offheap = build job: "${env.JOB_NAME}-dtest-offheap", propagate: false
+                  def attempt = 1
+                  retry(2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest_offheap = build job: "${env.JOB_NAME}-dtest-offheap", propagate: false
+                }
                 if (dtest_offheap.result != 'SUCCESS') unstable('dtest-offheap failures')
                 if (dtest_offheap.result == 'FAILURE') currentBuild.result='FAILURE'
               }
@@ -297,7 +407,14 @@ pipeline {
           stage('dtest-large-novnode') {
             steps {
               script {
-                dtest_large_novnode = build job: "${env.JOB_NAME}-dtest-large-novnode", propagate: false
+                  def attempt = 1
+                  retry(2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest_large_novnode = build job: "${env.JOB_NAME}-dtest-large-novnode", propagate: false
+                }
                 if (dtest_large_novnode.result != 'SUCCESS') unstable('dtest-large-novnode failures')
                 if (dtest_large_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
               }
@@ -315,7 +432,14 @@ pipeline {
           stage('dtest-upgrade') {
             steps {
               script {
-                dtest_upgrade = build job: "${env.JOB_NAME}-dtest-upgrade", propagate: false
+                  def attempt = 1
+                  retry(2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest_upgrade = build job: "${env.JOB_NAME}-dtest-upgrade", propagate: false
+                }
                 if (dtest_upgrade.result != 'SUCCESS') unstable('dtest failures')
                 if (dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
               }
@@ -361,14 +485,16 @@ ${FAILED_TESTS,maxTests=500,showMessage=false,showStack=false}
 For complete test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/
 '''
           }
-          sh "echo \"cassandra-builds at: `git -C cassandra-builds log -1 --pretty=format:'%h %an %ad %s'`\" > builds.head"
-          sh "find . -type f -name \\*.head -exec cat {} \\;"
+          sh "echo \"summary) cassandra-builds: `git -C cassandra-builds log -1 --pretty=format:'%H %an %ad %s'`\" > builds.head"
+          sh "./cassandra-builds/jenkins-dsl/print-shas.sh"
           sh "xz TESTS-TestSuites.xml"
+          sh "wget --retry-connrefused --waitretry=1 \"\${BUILD_URL}/timestamps/?time=HH:mm:ss&timeZone=UTC&appendLog\" -qO - > console.log || echo wget failed"
+          sh "xz console.log"
           sh "echo \"For test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/\""
       }
       post {
           always {
-              sshPublisher(publishers: [sshPublisherDesc(configName: 'Nightlies', transfers: [sshTransfer(remoteDirectory: 'cassandra/${JOB_NAME}/${BUILD_NUMBER}/', sourceFiles: 'TESTS-TestSuites.xml.xz')])])
+              sshPublisher(publishers: [sshPublisherDesc(configName: 'Nightlies', transfers: [sshTransfer(remoteDirectory: 'cassandra/${JOB_NAME}/${BUILD_NUMBER}/', sourceFiles: 'console.log.xz,TESTS-TestSuites.xml.xz')])])
           }
       }
     }
