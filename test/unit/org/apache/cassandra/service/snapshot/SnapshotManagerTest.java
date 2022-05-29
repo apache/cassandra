@@ -22,7 +22,6 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -71,8 +70,8 @@ public class SnapshotManagerTest
         List<TableSnapshot> snapshots = Arrays.asList(expired, nonExpired, nonExpiring);
 
         // Create SnapshotManager with 3 snapshots: expired, non-expired and non-expiring
-        SnapshotManager manager = new SnapshotManager(3, 3, snapshots::stream);
-        manager.loadSnapshots();
+        SnapshotManager manager = new SnapshotManager(3, 3);
+        manager.addSnapshots(snapshots);
 
         // Only expiring snapshots should be loaded
         assertThat(manager.getExpiringSnapshots()).hasSize(2);
@@ -82,7 +81,7 @@ public class SnapshotManagerTest
 
     @Test
     public void testClearExpiredSnapshots() throws Exception {
-        SnapshotManager manager = new SnapshotManager(3, 3, Stream::empty);
+        SnapshotManager manager = new SnapshotManager(3, 3);
 
         // Add 3 snapshots: expired, non-expired and non-expiring
         TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH);
@@ -111,7 +110,7 @@ public class SnapshotManagerTest
 
     @Test
     public void testScheduledCleanup() throws Exception {
-        SnapshotManager manager = new SnapshotManager(0, 1, Stream::empty);
+        SnapshotManager manager = new SnapshotManager(0, 1);
         try
         {
             // Start snapshot manager which should start expired snapshot cleanup thread
@@ -150,7 +149,7 @@ public class SnapshotManagerTest
     public void testClearSnapshot() throws Exception
     {
         // Given
-        SnapshotManager manager = new SnapshotManager(1, 3, Stream::empty);
+        SnapshotManager manager = new SnapshotManager(1, 3);
         TableSnapshot expiringSnapshot = generateSnapshotDetails("snapshot", now().plusMillis(50000));
         manager.addSnapshot(expiringSnapshot);
         assertThat(manager.getExpiringSnapshots()).contains(expiringSnapshot);
