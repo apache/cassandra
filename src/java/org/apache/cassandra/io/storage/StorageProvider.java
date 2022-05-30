@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.io.storage;
 
+import java.nio.file.Path;
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -30,6 +31,8 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.INativeLibrary;
+import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_STORAGE_PROVIDER;
 
@@ -103,6 +106,12 @@ public interface StorageProvider
      */
     File createDirectory(String dir, DirectoryType type);
 
+    /**
+     * Remove the give file from any local cache, for example the OS page cache, or at least it tries to.
+     * @param file the file that is no longer required in the file system caches
+     */
+    void invalidateFileSystemCache(File file);
+
     class DefaultProvider implements StorageProvider
     {
         @Override
@@ -130,6 +139,12 @@ public interface StorageProvider
             File ret = new File(dir);
             PathUtils.createDirectoriesIfNotExists(ret.toPath());
             return ret;
+        }
+
+        @Override
+        public void invalidateFileSystemCache(File file)
+        {
+            INativeLibrary.instance.trySkipCache(file, 0, 0);
         }
     }
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.nio.file.Path;
 import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
@@ -30,6 +31,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.DseLegacy;
 import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
@@ -177,5 +179,14 @@ public class DescriptorTest
         }
     }
 
+    @Test
+    public void testLegacyDSEAPI()
+    {
+        File dir = new File(".");
+        Descriptor desc = new Descriptor(dir, "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG);
 
+        assertEquals(dir.toCanonical().toPath(), desc.getDirectory());
+        assertEquals(desc.fileFor(Component.DATA).toPath(), desc.pathFor(Component.DATA));
+        assertEquals(desc.baseFileUri(), desc.baseFileURI());
+    }
 }

@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 import org.junit.Assert;
@@ -33,6 +34,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.DseLegacy;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -282,6 +284,22 @@ public class FileUtilsTest
         to = tmpDir.resolve("d.txt");
         FileUtils.copyWithOutConfirm(nonExisting, new File(to));
         Assert.assertFalse(new File(to).exists());
+    }
+
+    @Test
+    public void testLegacyDSEAPI() throws IOException
+    {
+        Path tmpDir = Files.createTempDirectory(this.getClass().getSimpleName());
+
+        FileUtils.createDirectory(tmpDir);
+        Path f = tmpDir.resolve("somefile");
+        FileUtils.appendAndSync(f, "lorem", "ipsum");
+        assertEquals(Arrays.asList(f), FileUtils.listPaths(tmpDir, path -> true));
+        assertEquals(Arrays.asList(f), FileUtils.listPaths(tmpDir));
+        FileUtils.deleteContent(tmpDir);
+        assertEquals(Arrays.asList(), FileUtils.listPaths(tmpDir));
+        FileUtils.delete(tmpDir);
+        FileUtils.deleteRecursive(tmpDir);
     }
 
     private File createFolder(File folder, String additionalName)

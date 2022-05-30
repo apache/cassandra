@@ -111,6 +111,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.storage.StorageProvider;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.CheckedFunction;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
@@ -2377,8 +2378,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     obsoletion.commit();
 
                 // don't ideally want to dropPageCache for the file until all instances have been released
-                INativeLibrary.instance.trySkipCache(desc.fileFor(Component.DATA), 0, 0);
-                INativeLibrary.instance.trySkipCache(desc.fileFor(Component.PRIMARY_INDEX), 0, 0);
+                StorageProvider.instance.invalidateFileSystemCache(desc.fileFor(Component.DATA));
+                StorageProvider.instance.invalidateFileSystemCache(desc.fileFor(Component.ROW_INDEX));
+                StorageProvider.instance.invalidateFileSystemCache(desc.fileFor(Component.PARTITION_INDEX));
             }
             finally
             {
