@@ -175,8 +175,12 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     @Override
     public EndpointsForRange calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata)
     {
-        // we want to preserve insertion order so that the first added endpoint becomes primary
         ArrayList<Token> sortedTokens = tokenMetadata.sortedTokens();
+        // handle the case of an empty ring and return an empty EndpointsForRange
+        if (sortedTokens.isEmpty())
+            return EndpointsForRange.empty(new Range<>(tokenMetadata.partitioner.getMinimumToken(), tokenMetadata.partitioner.getMinimumToken()));
+
+        // we want to preserve insertion order so that the first added endpoint becomes primary
         Token replicaEnd = TokenMetadata.firstToken(sortedTokens, searchToken);
         Token replicaStart = tokenMetadata.getPredecessor(replicaEnd);
         Range<Token> replicatedRange = new Range<>(replicaStart, replicaEnd);
