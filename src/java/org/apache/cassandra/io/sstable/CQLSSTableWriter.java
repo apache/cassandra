@@ -502,6 +502,26 @@ public class CQLSSTableWriter implements Closeable
         }
 
         /**
+         * This method is deprecated in favor of the new withBufferSizeInMiB(int size)
+         * The size of the buffer to use.
+         * <p>
+         * This defines how much data will be buffered before being written as
+         * a new SSTable. This correspond roughly to the data size that will have the created
+         * sstable.
+         * <p>
+         * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
+         * OOM while using the writer, you should lower this value.
+         *
+         * @param size the size to use in MiB.
+         * @return this builder.
+         */
+        @Deprecated
+        public Builder withBufferSizeInMB(int size)
+        {
+            return withBufferSizeInMiB(size);
+        }
+
+        /**
          * Creates a CQLSSTableWriter that expects sorted inputs.
          * <p>
          * If this option is used, the resulting writer will expect rows to be

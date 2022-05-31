@@ -187,7 +187,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .using(insert)
                                                   .forTable(schema)
-                                                  .withBufferSizeInMiB(1)
+                                                  .withBufferSizeInMB(1)
                                                   .build();
 
         ByteBuffer val = ByteBuffer.allocate(1024 * 1050);
@@ -215,7 +215,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
-                                                  .withBufferSizeInMiB(1)
+                                                  .withBufferSizeInMB(1)
                                                   .build();
 
         for (int i = 0 ; i < 50000 ; i++) {
@@ -926,7 +926,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
-                                                  .withBufferSizeInMiB(1)
+                                                  .withBufferSizeInMB(1)
                                                   .build();
 
         final int ID_OFFSET = 1000;
@@ -964,7 +964,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
-                                                  .withBufferSizeInMiB(1)
+                                                  .withBufferSizeInMB(1)
                                                   .build();
         for (int i = 0; i < 100; i++)
         {
@@ -1024,7 +1024,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
-                                                  .withBufferSizeInMiB(1)
+                                                  .withBufferSizeInMB(1)
                                                   .build();
         UUID uuid1 = UUIDs.timeBased();
         UUID uuid2 = UUIDs.timeBased();
@@ -1078,7 +1078,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
-                                                  .withBufferSizeInMiB(1)
+                                                  .withBufferSizeInMB(1)
                                                   .build();
         UUID uuid1 = UUIDs.startOf(0L);
         UUID uuid2 = UUIDs.startOf(10000000L);

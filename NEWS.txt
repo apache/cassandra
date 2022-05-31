@@ -224,6 +224,9 @@ Upgrading
 
 Deprecation
 -----------
+    - `withBufferSizeInMB(int size)` in CQLSSTableWriter.Builder class is deprecated in favor of withBufferSizeInMiB(int size)
+      No change of functionality in the new one, only name change for clarity in regards to units and to follow naming
+      standartization.
     - The properties `keyspace_count_warn_threshold` and `table_count_warn_threshold` in cassandra.yaml have been
       deprecated in favour of the new `guardrails.keyspaces` and `guardrails.tables` properties and will be removed
       in a subsequent major version. This also affects the setters and getters for those properties in the JMX MBean
