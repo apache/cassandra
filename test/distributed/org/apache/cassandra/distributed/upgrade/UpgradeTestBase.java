@@ -197,7 +197,7 @@ public class UpgradeTestBase extends DistributedTestBase
             {
                 // when from=CURRENT we want to test upgrading to more recent versions rather than just upgrading
                 // from previous versions; so special case that
-                for (Semver end : vertices.subSet(from, false, to, true))
+                for (Semver end : vertices.subSet(from, false, to, false)) //from->to included above, so don't need to readd
                 {
                     if (SUPPORTED_UPGRADE_PATHS.hasEdge(CURRENT, end))
                         upgrade.add(new TestVersions(versions.getLatest(CURRENT), Collections.singletonList(versions.getLatest(end))));
