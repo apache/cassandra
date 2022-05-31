@@ -20,14 +20,12 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
-import org.apache.cassandra.distributed.shared.Versions;
-
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 
-public class CompactStorage3to4UpgradeTest extends UpgradeTestBase
+public class DropCompactStorageNullClusteringValuesTest extends UpgradeTestBase
 {
     public static final String TABLE_NAME = "cs_tbl";
 
