@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
@@ -41,6 +42,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -63,23 +65,23 @@ import static org.junit.Assert.fail;
 
 public class CompactionsCQLTest extends CQLTester
 {
-
     public static final int SLEEP_TIME = 5000;
 
     private Config.CorruptedTombstoneStrategy strategy;
 
     @Before
-    public void before()
+    public void before() throws IOException
     {
         strategy = DatabaseDescriptor.getCorruptedTombstoneStrategy();
+        
+        CommitLog.instance.resetUnsafe(true);
     }
 
     @After
     public void after()
     {
-        DatabaseDescriptor.setCorruptedTombstoneStrategy(DatabaseDescriptor.getCorruptedTombstoneStrategy());
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(strategy);
     }
-
 
     @Test
     public void testTriggerMinorCompactionSTCS() throws Throwable
