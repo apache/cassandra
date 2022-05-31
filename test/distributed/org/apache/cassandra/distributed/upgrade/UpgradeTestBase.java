@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -185,11 +186,22 @@ public class UpgradeTestBase extends DistributedTestBase
         {
             List<TestVersions> upgrade = new ArrayList<>();
             List<Version> toVersions = Collections.singletonList(versions.getLatest(to));
-            for (Semver start : sortedVertices(SUPPORTED_UPGRADE_PATHS).subSet(from, to))
+            NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
+            for (Semver start : vertices.subSet(from, to))
             {
                 // only include pairs that are allowed
                 if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to))
                     upgrade.add(new TestVersions(versions.getLatest(start), toVersions));
+            }
+            if (CURRENT.equals(from))
+            {
+                // when from=CURRENT we want to test upgrading to more recent versions rather than just upgrading
+                // from previous versions; so special case that
+                for (Semver end : vertices.subSet(from, false, to, true))
+                {
+                    if (SUPPORTED_UPGRADE_PATHS.hasEdge(CURRENT, end))
+                        upgrade.add(new TestVersions(versions.getLatest(CURRENT), Collections.singletonList(versions.getLatest(end))));
+                }
             }
             if (upgrade.isEmpty())
                 throw new AssertionError(String.format("Unable to find supported pairs [%s, %s)", from, to));

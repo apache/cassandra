@@ -23,8 +23,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
@@ -56,7 +56,7 @@ public class SimpleGraph<V>
         return builder.build();
     }
 
-    public static <T extends Comparable<T>> SortedSet<T> sortedVertices(SimpleGraph<T> graph)
+    public static <T extends Comparable<T>> NavigableSet<T> sortedVertices(SimpleGraph<T> graph)
     {
         return new TreeSet<>(graph.vertices());
     }
