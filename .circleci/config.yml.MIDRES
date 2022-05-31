@@ -3812,8 +3812,11 @@ workflows:
         requires:
         - start_utests_fqltool
         - j8_build
+    - start_utests_system_keyspace_directory:
+        type: approval
     - utests_system_keyspace_directory:
         requires:
+        - start_utests_system_keyspace_directory
         - j8_build
     - start_j8_dtest_jars_build:
         type: approval
