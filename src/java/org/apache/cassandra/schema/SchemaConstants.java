@@ -59,8 +59,11 @@ public final class SchemaConstants
      * the filename will contain both the KS and CF names. Since non-schema-name components only take up
      * ~64 characters, we could allow longer names than this, but on Windows, the entire path should be not greater than
      * 255 characters, so a lower limit here helps avoid problems.  See CASSANDRA-4110.
+     *
+     * Note: This extended to 222 for CNDB tenant specific keyspaces. The windows restriction is not valid here
+     * because CNDB does not support windows.
      */
-    public static final int NAME_LENGTH = 48;
+    public static final int NAME_LENGTH = 222;
 
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;

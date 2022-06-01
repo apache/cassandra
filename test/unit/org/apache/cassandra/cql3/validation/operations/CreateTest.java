@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -365,8 +367,8 @@ public class CreateTest extends CQLTester
 
         execute("CREATE KEYSPACE testXYZ WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
 
-        assertInvalid(
-                     "CREATE KEYSPACE My_much_much_too_long_identifier_that_should_not_work WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        String tooLongKeyspace = IntStream.range(0, SchemaConstants.NAME_LENGTH + 1).mapToObj(i ->"x").collect(Collectors.joining());
+        assertInvalid("CREATE KEYSPACE " + tooLongKeyspace + " WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
 
         execute("DROP KEYSPACE testXYZ");
         assertInvalidThrow(InvalidRequestException.class, "DROP KEYSPACE non_existing");
