@@ -47,15 +47,6 @@ public class SimpleGraph<V>
         this.edges = edges;
     }
 
-    public static <T> SimpleGraph<T> of(T... values)
-    {
-        assert values.length % 2 == 0: "graph requires even number of values, but given " + values.length;
-        SimpleGraph.Builder<T> builder = new SimpleGraph.Builder<>();
-        for (int i = 0; i < values.length; i = i + 2)
-            builder.addEdge(values[i], values[i + 1]);
-        return builder.build();
-    }
-
     public static <T extends Comparable<T>> NavigableSet<T> sortedVertices(SimpleGraph<T> graph)
     {
         return new TreeSet<>(graph.vertices());

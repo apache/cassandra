@@ -27,7 +27,6 @@ import org.junit.Test;
 
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.utils.SimpleGraph.of;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SimpleGraphTest
@@ -96,5 +95,14 @@ public class SimpleGraphTest
         for (T t : list)
             map.compute(t, (ignore, accum) -> accum == null ? 1 : accum + 1);
         return map;
+    }
+
+    static <T> SimpleGraph<T> of(T... values)
+    {
+        assert values.length % 2 == 0: "graph requires even number of values, but given " + values.length;
+        SimpleGraph.Builder<T> builder = new SimpleGraph.Builder<>();
+        for (int i = 0; i < values.length; i = i + 2)
+            builder.addEdge(values[i], values[i + 1]);
+        return builder.build();
     }
 }
