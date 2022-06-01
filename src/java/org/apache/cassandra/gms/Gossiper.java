@@ -85,6 +85,7 @@ import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_SYN;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.gms.VersionedValue.BOOTSTRAPPING_STATUS;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -1500,11 +1501,54 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return pieces[0];
     }
 
+    /**
+     * Gossip offers no happens-before relationship, but downstream subscribers assume a happens-before relationship
+     * before being notified!  To attempt to be nicer to subscribers, this {@link Comparator} attempts to order EndpointState
+     * within a map based off a few heuristics:
+     * <ol>
+     *     <li>STATUS - some STATUS depends on other instance STATUS, so make sure they are last; eg. BOOT, and BOOT_REPLACE</li>
+     *     <li>generation - normally defined as system clock millis, this can be skewed and is a best effort</li>
+     *     <li>address - tie breaker to make sure order is consistent</li>
+     * </ol>
+     * <p>
+     * Problems:
+     * Generation is normally defined as system clock millis, which can be skewed and in-consistent cross nodes
+     * (generations do not have a happens-before relationship, so ordering is sketchy at best).
+     * <p>
+     * Motivations:
+     * {@link Map#entrySet()} returns data in effectivlly random order, so can get into a situation such as the following example.
+     * {@code
+     * 3 node cluster: n1, n2, and n3
+     * n2 goes down and n4 does host replacement and fails before completion
+     * h5 tries to do a host replacement against n4 (ignore the fact this doesn't make sense)
+     * }
+     * In that case above, the {@link Map#entrySet()} ordering can be random, causing h4 to apply before h2, which will
+     * be rejected by subscripers (only after updating gossip causing zero retries).
+     */
+    private static Comparator<Entry<InetAddressAndPort, EndpointState>> STATE_MAP_ORDERING =
+    ((Comparator<Entry<InetAddressAndPort, EndpointState>>) (e1, e2) -> {
+        // check status first, make sure bootstrap status happens-after all others
+        if (BOOTSTRAPPING_STATUS.contains(getGossipStatus(e1.getValue())))
+            return 1;
+        if (BOOTSTRAPPING_STATUS.contains(getGossipStatus(e2.getValue())))
+            return -1;
+        return 0;
+    })
+    .thenComparingInt((Entry<InetAddressAndPort, EndpointState> e) -> e.getValue().getHeartBeatState().getGeneration())
+    .thenComparing(Entry::getKey);
+
+    private static Iterable<Entry<InetAddressAndPort, EndpointState>> order(Map<InetAddressAndPort, EndpointState> epStateMap)
+    {
+        List<Entry<InetAddressAndPort, EndpointState>> list = new ArrayList<>(epStateMap.entrySet());
+        Collections.sort(list, STATE_MAP_ORDERING);
+        return list;
+    }
+
     @VisibleForTesting
     public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         checkProperThreadForStateMutation();
-        for (Entry<InetAddressAndPort, EndpointState> entry : epStateMap.entrySet())
+        for (Entry<InetAddressAndPort, EndpointState> entry : order(epStateMap))
         {
             InetAddressAndPort ep = entry.getKey();
             if (ep.equals(getBroadcastAddressAndPort()) && !isInShadowRound())
