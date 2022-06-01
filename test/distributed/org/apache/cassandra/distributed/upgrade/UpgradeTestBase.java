@@ -34,6 +34,7 @@ import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
 
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 
 import org.slf4j.Logger;
@@ -178,38 +179,67 @@ public class UpgradeTestBase extends DistributedTestBase
         }
 
         /** performs all supported upgrade paths that exist in between from and CURRENT (inclusive) **/
-        public TestCase upgradesFrom(Semver from)
+        public TestCase upgradesToCurrent(Semver from)
         {
-            return upgrades(from, CURRENT);
+            return upgradesTo(from, CURRENT);
         }
 
-        /** performs all supported upgrade paths that exist in between from and to (inclusive) **/
-        public TestCase upgrades(Semver from, Semver to)
+        /**
+         * performs all supported upgrade paths to the "to" target; example
+         * {@code upgradesTo(3.0, 4.0); // produces: 3.0 -> 4.0, 3.11 -> 4.0}
+         */
+        public TestCase upgradesTo(Semver from, Semver to)
         {
             List<TestVersions> upgrade = new ArrayList<>();
-            List<Version> toVersions = Collections.singletonList(versions.getLatest(to));
             NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
-            for (Semver start : vertices.subSet(from, to))
+            for (Semver start : vertices.subSet(from, true, to, false))
             {
                 // only include pairs that are allowed
                 if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to))
-                    upgrade.add(new TestVersions(versions.getLatest(start), toVersions));
+                    upgrade.add(new TestVersions(versions.getLatest(start), Collections.singletonList(versions.getLatest(to))));
             }
-            if (CURRENT.equals(from))
-            {
-                // when from=CURRENT we want to test upgrading to more recent versions rather than just upgrading
-                // from previous versions; so special case that
-                for (Semver end : vertices.subSet(from, false, to, false)) //from->to included above, so don't need to readd
-                {
-                    if (SUPPORTED_UPGRADE_PATHS.hasEdge(CURRENT, end))
-                        upgrade.add(new TestVersions(versions.getLatest(CURRENT), Collections.singletonList(versions.getLatest(end))));
-                }
-            }
-            if (upgrade.isEmpty())
-                throw new AssertionError(String.format("Unable to find supported pairs [%s, %s)", from, to));
             logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
             this.upgrade.addAll(upgrade);
             return this;
+        }
+
+        /**
+         * performs all supported upgrade paths from the "from" target; example
+         * {@code upgradesFrom(4.0, 4.2); // produces: 4.0 -> 4.1, 4.0 -> 4.2}
+         */
+        public TestCase upgradesFrom(Semver from, Semver to)
+        {
+            List<TestVersions> upgrade = new ArrayList<>();
+            NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
+            for (Semver end : vertices.subSet(from, false, to, true))
+            {
+                // only include pairs that are allowed
+                if (SUPPORTED_UPGRADE_PATHS.hasEdge(from, end))
+                    upgrade.add(new TestVersions(versions.getLatest(from), Collections.singletonList(versions.getLatest(end))));
+            }
+            logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
+            this.upgrade.addAll(upgrade);
+            return this;
+        }
+
+        /**
+         * performs all supported upgrade paths that exist in between from and to that include the current version.
+         * This call is equivilent to calling {@code upgradesTo(from, CURRENT).upgradesFrom(CURRENT, to)}.
+         **/
+        public TestCase upgrades(Semver from, Semver to)
+        {
+            Assume.assumeTrue("Unable to do upgrades(" + from + ", " + to + "); does not contain CURRENT=" + CURRENT, contains(from, to, CURRENT));
+            if (from.compareTo(CURRENT) < 0)
+                upgradesTo(from, CURRENT);
+            if (CURRENT.compareTo(to) < 0)
+                upgradesFrom(CURRENT, to);
+            return this;
+        }
+
+        private static boolean contains(Semver from, Semver to, Semver target)
+        {
+            // target >= from && target <= to
+            return target.compareTo(from) >= 0 && target.compareTo(to) <= 0;
         }
 
         /** Will test this specific upgrade path **/
@@ -353,7 +383,7 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgradesFrom(v30)
+                             .upgradesToCurrent(v30)
                              .nodesToUpgrade(toUpgrade);
     }
 

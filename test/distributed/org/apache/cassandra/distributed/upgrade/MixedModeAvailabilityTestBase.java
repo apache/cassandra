@@ -76,7 +76,7 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator ? 1 : 2)
-        .upgradesFrom(initial)
+        .upgradesToCurrent(initial)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(2))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(2)))
         // use retry of 10ms so that each check is consistent
