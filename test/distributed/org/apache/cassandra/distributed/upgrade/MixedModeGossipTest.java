@@ -33,7 +33,6 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.net.Verb;
 import org.assertj.core.api.Assertions;
 
@@ -51,8 +50,8 @@ public class MixedModeGossipTest extends UpgradeTestBase
         .nodes(3)
         .nodesToUpgradeOrdered(1, 2, 3)
         // all upgrades from v30 up, excluding v30->v3X and from v40
-        .singleUpgrade(v30)
-        .singleUpgrade(v3X)
+        .singleUpgradeToCurrent(v30)
+        .singleUpgradeToCurrent(v3X)
         .setup(c -> {})
         .runAfterNodeUpgrade((cluster, node) -> {
             if (node == 1) {
@@ -87,8 +86,8 @@ public class MixedModeGossipTest extends UpgradeTestBase
         .nodes(3)
         .nodesToUpgradeOrdered(1, 2, 3)
         // all upgrades from v30 up, excluding v30->v3X and from v40
-        .singleUpgrade(v30)
-        .singleUpgrade(v3X)
+        .singleUpgradeToCurrent(v30)
+        .singleUpgradeToCurrent(v3X)
         .setup(cluster -> {
             // node2 and node3 gossiper cannot talk with each other
             cluster.filters().verbs(Verb.GOSSIP_DIGEST_SYN.id).from(2).to(3).drop();

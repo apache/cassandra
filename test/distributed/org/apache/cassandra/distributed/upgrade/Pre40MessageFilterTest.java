@@ -35,7 +35,7 @@ public class Pre40MessageFilterTest extends UpgradeTestBase
         .withConfig(configConsumer)
         .nodesToUpgrade(1)
         // all upgrades from v30 up, excluding v30->v3X
-        .singleUpgrade(v30)
+        .singleUpgradeToCurrent(v30)
         .upgradesToCurrent(v3X)
         .setup((cluster) -> {
             cluster.filters().outbound().allVerbs().messagesMatching((f,t,m) -> false).drop();

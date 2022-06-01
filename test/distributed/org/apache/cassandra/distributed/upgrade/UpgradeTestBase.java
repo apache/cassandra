@@ -243,7 +243,7 @@ public class UpgradeTestBase extends DistributedTestBase
         }
 
         /** Will test this specific upgrade path **/
-        public TestCase singleUpgrade(Semver from)
+        public TestCase singleUpgradeToCurrent(Semver from)
         {
             if (!SUPPORTED_UPGRADE_PATHS.hasEdge(from, CURRENT))
                 throw new AssertionError("Upgrading from " + from + " to " + CURRENT + " isn't directly supported and must go through other versions first; supported paths: " + SUPPORTED_UPGRADE_PATHS.findPaths(from, CURRENT));
