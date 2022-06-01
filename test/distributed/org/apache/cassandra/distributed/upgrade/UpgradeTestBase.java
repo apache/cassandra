@@ -179,7 +179,7 @@ public class UpgradeTestBase extends DistributedTestBase
         }
 
         /** performs all supported upgrade paths that exist in between from and CURRENT (inclusive) **/
-        public TestCase upgradesToCurrent(Semver from)
+        public TestCase upgradesToCurrentFrom(Semver from)
         {
             return upgradesTo(from, CURRENT);
         }
@@ -243,7 +243,7 @@ public class UpgradeTestBase extends DistributedTestBase
         }
 
         /** Will test this specific upgrade path **/
-        public TestCase singleUpgradeToCurrent(Semver from)
+        public TestCase singleUpgradeToCurrentFrom(Semver from)
         {
             if (!SUPPORTED_UPGRADE_PATHS.hasEdge(from, CURRENT))
                 throw new AssertionError("Upgrading from " + from + " to " + CURRENT + " isn't directly supported and must go through other versions first; supported paths: " + SUPPORTED_UPGRADE_PATHS.findPaths(from, CURRENT));
@@ -383,7 +383,7 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgradesToCurrent(v30)
+                             .upgradesToCurrentFrom(v30)
                              .nodesToUpgrade(toUpgrade);
     }
 

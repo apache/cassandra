@@ -34,7 +34,7 @@ public class UpgradeTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(1)
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
-        .upgradesToCurrent(v3X)
+        .upgradesToCurrentFrom(v3X)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);

@@ -50,7 +50,7 @@ public class MixedModeConsistencyTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1)
-        .upgradesToCurrent(initial)
+        .upgradesToCurrentFrom(initial)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(30))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(30)))
         .setup(cluster -> {
