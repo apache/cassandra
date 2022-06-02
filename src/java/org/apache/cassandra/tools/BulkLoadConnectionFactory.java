@@ -43,12 +43,29 @@ public class BulkLoadConnectionFactory extends NettyStreamingConnectionFactory
         this.outboundBindAny = outboundBindAny;
     }
 
+    @Override
     public NettyStreamingChannel create(InetSocketAddress to, int messagingVersion, StreamingChannel.Kind kind) throws IOException
+    {
+        OutboundConnectionSettings template = new OutboundConnectionSettings(getByAddress(to));
+        return create(template, messagingVersion, kind);
+    }
+
+    @Override
+    public StreamingChannel create(InetSocketAddress to,
+                                   InetSocketAddress preferred,
+                                   int messagingVersion,
+                                   StreamingChannel.Kind kind) throws IOException
+    {
+        // Supply a preferred address to the template, which will be overwritten if encryption is configured.
+        OutboundConnectionSettings template = new OutboundConnectionSettings(getByAddress(to), getByAddress(preferred));
+        return create(template, messagingVersion, kind);
+    }
+
+    private NettyStreamingChannel create(OutboundConnectionSettings template, int messagingVersion, StreamingChannel.Kind kind) throws IOException
     {
         // Connect to secure port for all peers if ServerEncryptionOptions is configured other than 'none'
         // When 'all', 'dc' and 'rack', server nodes always have SSL port open, and since thin client like sstableloader
-        // does not know which node is in which dc/rack, connecting to SSL port is always the option.
-        OutboundConnectionSettings template = new OutboundConnectionSettings(getByAddress(to));
+        // does not know which node is in which dc/rack, connecting to SSL port is always the option. 
         if (encryptionOptions != null && encryptionOptions.internode_encryption != EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
             template = template.withConnectTo(template.to.withPort(secureStoragePort)).withEncryption(encryptionOptions);
 

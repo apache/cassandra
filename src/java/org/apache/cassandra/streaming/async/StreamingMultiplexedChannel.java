@@ -29,12 +29,6 @@ import java.util.concurrent.ScheduledFuture;
 
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.streaming.StreamDeserializingTask;
-import org.apache.cassandra.streaming.StreamingChannel;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
-import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,10 +36,17 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.streaming.StreamDeserializingTask;
+import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Throwables.getRootCause;
@@ -54,6 +55,7 @@ import static java.lang.String.format;
 import static java.lang.System.getProperty;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.*;
+
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.Config.PROPERTY_PREFIX;
 import static org.apache.cassandra.streaming.StreamSession.createLogTag;
@@ -64,8 +66,6 @@ import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 import static org.apache.cassandra.utils.JVMStabilityInspector.inspectThrowable;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 import static org.apache.cassandra.utils.concurrent.Semaphore.newFairSemaphore;
-
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Responsible for sending {@link StreamMessage}s to a given peer. We manage an array of netty {@link Channel}s
@@ -155,24 +155,32 @@ public class StreamingMultiplexedChannel
              *  b) for streaming receiver (note: both initiator and follower can receive streaming files) to reveive files,
              *     in {@link Handler#setupStreamingPipeline}
              */
-            controlChannel = createChannel(StreamingChannel.Kind.CONTROL);
+            controlChannel = createControlChannel();
         }
     }
 
-    private StreamingChannel createChannel(StreamingChannel.Kind kind) throws IOException
+    private StreamingChannel createControlChannel() throws IOException
     {
         logger.debug("Creating stream session to {} as {}", to, session.isFollower() ? "follower" : "initiator");
 
-        StreamingChannel channel = factory.create(to, messagingVersion, kind);
-        if (kind == StreamingChannel.Kind.CONTROL)
-        {
-            executorFactory().startThread(String.format("Stream-Deserializer-%s-%s", to.toString(), channel.id()),
-                                          new StreamDeserializingTask(session, channel, messagingVersion));
-            session.attachInbound(channel);
-        }
+        StreamingChannel channel = factory.create(to, messagingVersion, StreamingChannel.Kind.CONTROL);
+        executorFactory().startThread(String.format("Stream-Deserializer-%s-%s", to.toString(), channel.id()),
+                                      new StreamDeserializingTask(session, channel, messagingVersion));
+        session.attachInbound(channel);
         session.attachOutbound(channel);
 
-        logger.debug("Creating {}", channel.description());
+        logger.debug("Creating control {}", channel.description());
+        return channel;
+    }
+    
+    private StreamingChannel createFileChannel(InetAddressAndPort connectTo) throws IOException
+    {
+        logger.debug("Creating stream session to {} as {}", to, session.isFollower() ? "follower" : "initiator");
+
+        StreamingChannel channel = factory.create(to, connectTo, messagingVersion, StreamingChannel.Kind.FILE);
+        session.attachOutbound(channel);
+
+        logger.debug("Creating file {}", channel.description());
         return channel;
     }
 
@@ -202,7 +210,9 @@ public class StreamingMultiplexedChannel
                 throw new RuntimeException("Cannot send stream data messages for preview streaming sessions");
             if (logger.isDebugEnabled())
                 logger.debug("{} Sending {}", createLogTag(session), message);
-            return fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage)message));
+
+            InetAddressAndPort connectTo = SystemKeyspace.getPreferredIP(to);
+            return fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage) message, connectTo));
         }
 
         try
@@ -268,9 +278,12 @@ public class StreamingMultiplexedChannel
          */
         private final StreamMessage msg;
 
-        FileStreamTask(OutgoingStreamMessage ofm)
+        private final InetAddressAndPort connectTo;
+
+        FileStreamTask(OutgoingStreamMessage ofm, InetAddressAndPort connectTo)
         {
             this.msg = ofm;
+            this.connectTo = connectTo;
         }
 
         /**
@@ -279,6 +292,7 @@ public class StreamingMultiplexedChannel
         FileStreamTask(StreamMessage msg)
         {
             this.msg = msg;
+            this.connectTo = null;
         }
 
         @Override
@@ -290,7 +304,7 @@ public class StreamingMultiplexedChannel
             StreamingChannel channel = null;
             try
             {
-                channel = getOrCreateChannel();
+                channel = getOrCreateFileChannel(connectTo);
 
                 // close the DataOutputStreamPlus as we're done with it - but don't close the channel
                 try (StreamingDataOutputPlus out = channel.acquireOut())
@@ -353,7 +367,7 @@ public class StreamingMultiplexedChannel
             }
         }
 
-        private StreamingChannel getOrCreateChannel()
+        private StreamingChannel getOrCreateFileChannel(InetAddressAndPort connectTo)
         {
             Thread currentThread = currentThread();
             try
@@ -362,7 +376,7 @@ public class StreamingMultiplexedChannel
                 if (channel != null)
                     return channel;
 
-                channel = createChannel(StreamingChannel.Kind.FILE);
+                channel = createFileChannel(connectTo);
                 threadToChannelMap.put(currentThread, channel);
                 return channel;
             }
