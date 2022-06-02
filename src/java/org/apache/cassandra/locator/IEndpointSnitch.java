@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.util.Set;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -95,6 +96,18 @@ public interface IEndpointSnitch
     default InetAddressAndPort getPreferredAddress(InetAddressAndPort remoteEndpoint)
     {
         return FBUtilities.getBroadcastAddressAndPort();
+    }
+
+    /**
+     * Given the following {@code rf} and {@code rackCount}, returns true if nodes from the same rack should be accepted
+     * according to {@link AbstractReplicationStrategy#calculateNaturalReplicas(Token, TokenMetadata)}
+     * implementations, false otherwise.
+     * <br/><br/>
+     * Always returns true by default.
+     */
+    default boolean acceptsNodesFromSameRack(int rf, int rackCount)
+    {
+        return true;
     }
 
 }

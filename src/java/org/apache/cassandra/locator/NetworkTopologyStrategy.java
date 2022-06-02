@@ -113,7 +113,8 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                             int rackCount,
                             int nodeCount,
                             EndpointsForRange.Builder replicas,
-                            Set<Pair<String, String>> racks)
+                            Set<Pair<String, String>> racks,
+                            IEndpointSnitch snitch)
         {
             this.replicas = replicas;
             this.racks = racks;
@@ -121,7 +122,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             this.rfLeft = Math.min(rf.allReplicas, nodeCount);
             // If there aren't enough racks in this DC to fill the RF, we'll still use at least one node from each rack,
             // and the difference is to be filled by the first encountered nodes.
-            acceptableRackRepeats = rf.allReplicas - rackCount;
+            acceptableRackRepeats = snitch.acceptsNodesFromSameRack(rf.allReplicas, rackCount) ? rf.allReplicas - rackCount : 0;
 
             // if we have fewer replicas than rf calls for, reduce transients accordingly
             int reduceTransients = rf.allReplicas - this.rfLeft;
@@ -208,7 +209,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (rf.allReplicas <= 0 || nodeCount <= 0)
                 continue;
 
-            DatacenterEndpoints dcEndpoints = new DatacenterEndpoints(rf, sizeOrZero(racks.get(dc)), nodeCount, builder, seenRacks);
+            DatacenterEndpoints dcEndpoints = new DatacenterEndpoints(rf, sizeOrZero(racks.get(dc)), nodeCount, builder, seenRacks, snitch);
             dcs.put(dc, dcEndpoints);
             ++dcsToFill;
         }
