@@ -316,7 +316,7 @@ public class Tracker
                     accumulate = updateSizeTracking(removed, emptySet(), accumulate);
                     accumulate = release(selfRefs(removed), accumulate);
                     // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
-                    accumulate = notifySSTablesChanged(removed, Collections.emptySet(), txnLogs.opType(), accumulate);
+                    accumulate = notifySSTablesChanged(removed, Collections.emptySet(), txnLogs.opType(), Optional.of(txnLogs.id()), accumulate);
                 }
             }
             catch (Throwable t)
@@ -403,7 +403,7 @@ public class Tracker
         apply(View.markFlushing(memtable));
     }
 
-    public void replaceFlushed(Memtable memtable, Iterable<SSTableReader> sstables)
+    public void replaceFlushed(Memtable memtable, Iterable<SSTableReader> sstables, Optional<UUID> operationId)
     {
         assert !isDummy();
         if (Iterables.isEmpty(sstables))
@@ -426,7 +426,7 @@ public class Tracker
         notifyDiscarded(memtable);
 
         // TODO: if we're invalidated, should we notifyadded AND removed, or just skip both?
-        fail = notifyAdded(sstables, OperationType.FLUSH, false, memtable, fail);
+        fail = notifyAdded(sstables, OperationType.FLUSH, operationId, false, memtable, fail);
 
         if (!isDummy() && !cfstore.isValid())
             dropSSTables();
@@ -472,9 +472,9 @@ public class Tracker
 
     // NOTIFICATION
 
-    public Throwable notifySSTablesChanged(Collection<SSTableReader> removed, Collection<SSTableReader> added, OperationType compactionType, Throwable accumulate)
+    public Throwable notifySSTablesChanged(Collection<SSTableReader> removed, Collection<SSTableReader> added, OperationType operationType, Optional<UUID> operationId, Throwable accumulate)
     {
-        INotification notification = new SSTableListChangedNotification(added, removed, compactionType);
+        INotification notification = new SSTableListChangedNotification(added, removed, operationType, operationId);
         for (INotificationConsumer subscriber : subscribers)
         {
             try
@@ -489,11 +489,11 @@ public class Tracker
         return accumulate;
     }
 
-    Throwable notifyAdded(Iterable<SSTableReader> added, OperationType operationType, boolean isInitialSSTables, Memtable memtable, Throwable accumulate)
+    Throwable notifyAdded(Iterable<SSTableReader> added, OperationType operationType, Optional<UUID> operationId, boolean isInitialSSTables, Memtable memtable, Throwable accumulate)
     {
         INotification notification;
         if (!isInitialSSTables)
-            notification = new SSTableAddedNotification(added, memtable, operationType);
+            notification = new SSTableAddedNotification(added, memtable, operationType, operationId);
         else
             notification = new InitialSSTableAddedNotification(added);
 
@@ -514,7 +514,7 @@ public class Tracker
     @VisibleForTesting
     public void notifyAdded(Iterable<SSTableReader> added, OperationType operationType, boolean isInitialSSTables)
     {
-        maybeFail(notifyAdded(added, operationType, isInitialSSTables, null, null));
+        maybeFail(notifyAdded(added, operationType, Optional.empty(), isInitialSSTables, null, null));
     }
 
     public void notifySSTableRepairedStatusChanged(Collection<SSTableReader> repairStatusesChanged)

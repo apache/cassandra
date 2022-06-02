@@ -18,6 +18,7 @@
 package org.apache.cassandra.notifications;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -40,6 +41,9 @@ public class SSTableAddedNotification implements INotification
     /** The type of operation that created the sstables */
     public final OperationType operationType;
 
+    /** The id of the operation that created the sstables, if available */
+    public final Optional<UUID> operationId;
+
     /**
      * Creates a new {@code SSTableAddedNotification} for the specified SSTables and optional memtable using
      * an unknown operation type.
@@ -50,7 +54,7 @@ public class SSTableAddedNotification implements INotification
      */
     public SSTableAddedNotification(Iterable<SSTableReader> added, @Nullable Memtable memtable)
     {
-        this(added, memtable, OperationType.UNKNOWN);
+        this(added, memtable, OperationType.UNKNOWN, Optional.empty());
     }
 
     /**
@@ -61,11 +65,12 @@ public class SSTableAddedNotification implements INotification
      *                 or {@code null} if they don't come from a flush
      * @param operationType the type of operation that created the sstables
      */
-    public SSTableAddedNotification(Iterable<SSTableReader> added, @Nullable Memtable memtable, OperationType operationType)
+    public SSTableAddedNotification(Iterable<SSTableReader> added, @Nullable Memtable memtable, OperationType operationType, Optional<UUID> operationId)
     {
         this.added = added;
         this.memtable = memtable;
         this.operationType = operationType;
+        this.operationId = operationId;
     }
 
     /**

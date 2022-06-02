@@ -18,6 +18,8 @@
 package org.apache.cassandra.notifications;
 
 import java.util.Collection;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -26,12 +28,14 @@ public class SSTableListChangedNotification implements INotification
 {
     public final Collection<SSTableReader> removed;
     public final Collection<SSTableReader> added;
-    public final OperationType compactionType;
+    public final OperationType operationType;
+    public final Optional<UUID> operationId;
 
-    public SSTableListChangedNotification(Collection<SSTableReader> added, Collection<SSTableReader> removed, OperationType compactionType)
+    public SSTableListChangedNotification(Collection<SSTableReader> added, Collection<SSTableReader> removed, OperationType operationType, Optional<UUID> operationId)
     {
         this.removed = removed;
         this.added = added;
-        this.compactionType = compactionType;
+        this.operationType = operationType;
+        this.operationId = operationId;
     }
 }
