@@ -420,4 +420,10 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
     {
         return subsnitch.getPreferredAddress(remoteEndpoint);
     }
+
+    @Override
+    public boolean acceptsNodesFromSameRack(int rf, int rackCount)
+    {
+        return subsnitch.acceptsNodesFromSameRack(rf, rackCount);
+    }
 }
