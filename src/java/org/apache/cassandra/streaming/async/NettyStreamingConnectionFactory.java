@@ -73,4 +73,13 @@ public class NettyStreamingConnectionFactory implements StreamingChannel.Factory
     {
         return connect(new OutboundConnectionSettings(getByAddress(to)), messagingVersion, kind);
     }
+
+    @Override
+    public StreamingChannel create(InetSocketAddress to,
+                                   InetSocketAddress preferred,
+                                   int messagingVersion,
+                                   StreamingChannel.Kind kind) throws IOException
+    {
+        return connect(new OutboundConnectionSettings(getByAddress(to), getByAddress(preferred)), messagingVersion, kind);
+    }
 }

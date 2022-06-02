@@ -1,6 +1,7 @@
 4.1-alpha2
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619) 
 Merged from 4.0:
+ * Ensure FileStreamTask cannot compromise shared channel proxy for system table when interrupted (CASSANDRA-17663)
  * silence benign SslClosedEngineException (CASSANDRA-17565)
 Merged from 3.11:
 Merged from 3.0:
