@@ -76,7 +76,7 @@ public class CQLSSTableWriterLongTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
-                                                  .withBufferSizeInMiB(1)
+                                                  .withBufferSizeInMB(1)
                                                   .build();
 
         long high = 100;
