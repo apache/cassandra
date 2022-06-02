@@ -22,6 +22,7 @@ import java.net.SocketException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -167,7 +168,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         assertEmpty(execute("SELECT * FROM %s WHERE c=1"));
 
         // remote reload should trigger index rebuild
-        cfs.getTracker().notifySSTablesChanged(Collections.emptySet(), sstables, OperationType.REMOTE_RELOAD, null);
+        cfs.getTracker().notifySSTablesChanged(Collections.emptySet(), sstables, OperationType.REMOTE_RELOAD, Optional.empty(), null);
         assertRows(execute("SELECT * FROM %s WHERE a=1"), row(1, 1, 1));
         assertRows(execute("SELECT * FROM %s WHERE c=1"), row(1, 1, 1));
     }
