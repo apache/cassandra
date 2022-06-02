@@ -179,7 +179,7 @@ public class Scrubber implements Closeable
         }
     }
 
-    public void scrub()
+    public List<SSTableReader>  scrub()
     {
         List<SSTableReader> finished = new ArrayList<>();
         outputHandler.output(String.format("Scrubbing %s (%s)", sstable, FBUtilities.prettyPrintMemory(dataFile.length())));
@@ -377,6 +377,8 @@ public class Scrubber implements Closeable
             else
                 outputHandler.output("Scrub of " + sstable + " complete; looks like all " + emptyPartitions + " partitions were tombstoned");
         }
+
+        return finished; // already released
     }
 
     @SuppressWarnings("resource")
@@ -561,8 +563,8 @@ public class Scrubber implements Closeable
     @VisibleForTesting
     public ScrubResult scrubWithResult()
     {
-        scrub();
-        return new ScrubResult(this);
+        List<SSTableReader> scrubbed = scrub();
+        return new ScrubResult(this, scrubbed);
     }
 
     public static final class ScrubResult
@@ -570,12 +572,14 @@ public class Scrubber implements Closeable
         public final int goodPartitions;
         public final int badPartitions;
         public final int emptyPartitions;
+        public final List<SSTableReader> scrubbed;
 
-        public ScrubResult(Scrubber scrubber)
+        public ScrubResult(Scrubber scrubber, List<SSTableReader> scrubbed)
         {
             this.goodPartitions = scrubber.goodPartitions;
             this.badPartitions = scrubber.badPartitions;
             this.emptyPartitions = scrubber.emptyPartitions;
+            this.scrubbed = scrubbed;
         }
     }
 
