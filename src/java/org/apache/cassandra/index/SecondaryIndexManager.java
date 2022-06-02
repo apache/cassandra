@@ -1756,7 +1756,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             // when reloading remote sstables, index may not be built
             SSTableListChangedNotification notice = (SSTableListChangedNotification) notification;
-            if (notice.compactionType == OperationType.REMOTE_RELOAD)
+            if (notice.operationType == OperationType.REMOTE_RELOAD)
             {
                 buildIndexesBlocking(Lists.newArrayList(notice.added),
                                      indexes.values()

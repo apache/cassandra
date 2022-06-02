@@ -54,7 +54,6 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -1274,7 +1273,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
             if (memtable.isClean() || truncate)
             {
-                cfs.replaceFlushed(memtable, Collections.emptyList());
+                cfs.replaceFlushed(memtable, Collections.emptyList(), Optional.empty());
                 reclaim(memtable);
                 return Collections.emptyList();
             }
@@ -1379,8 +1378,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                         }
                     }
                 }
+
+                cfs.replaceFlushed(memtable, sstables, Optional.of(txn.opId()));
             }
-            cfs.replaceFlushed(memtable, sstables);
             reclaim(memtable);
             cfs.strategyFactory.getCompactionLogger().flush(sstables);
             logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",
@@ -1749,9 +1749,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         maybeFail(data.dropSSTables(Predicates.in(sstables), compactionType, null));
     }
 
-    void replaceFlushed(Memtable memtable, Collection<SSTableReader> sstables)
+    void replaceFlushed(Memtable memtable, Collection<SSTableReader> sstables, Optional<UUID> operationId)
     {
-        data.replaceFlushed(memtable, sstables);
+        data.replaceFlushed(memtable, sstables, operationId);
         if (sstables != null && !sstables.isEmpty())
             CompactionManager.instance.submitBackground(this);
     }

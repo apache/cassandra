@@ -249,7 +249,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         accumulate = tracker.updateSizeTracking(logged.obsolete, logged.update, accumulate);
         accumulate = runOnCommitHooks(accumulate);
         accumulate = release(selfRefs(logged.obsolete), accumulate);
-        accumulate = tracker.notifySSTablesChanged(originals, logged.update, log.opType(), accumulate);
+        accumulate = tracker.notifySSTablesChanged(originals, logged.update, log.opType(), Optional.of(log.id()), accumulate);
 
         return accumulate;
     }
@@ -282,7 +282,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         List<SSTableReader> restored = restoreUpdatedOriginals();
         List<SSTableReader> invalid = Lists.newArrayList(Iterables.concat(logged.update, logged.obsolete));
         accumulate = tracker.apply(updateLiveSet(logged.update, restored), accumulate);
-        accumulate = tracker.notifySSTablesChanged(invalid, restored, OperationType.COMPACTION, accumulate);
+        accumulate = tracker.notifySSTablesChanged(invalid, restored, OperationType.COMPACTION, Optional.of(log.id()), accumulate);
         // setReplaced immediately preceding versions that have not been obsoleted
         accumulate = setReplaced(logged.update, accumulate);
         accumulate = runOnAbortooks(accumulate);
