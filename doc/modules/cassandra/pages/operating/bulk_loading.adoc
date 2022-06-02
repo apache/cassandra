@@ -821,12 +821,16 @@ name. Moreover, said statement must use bind variables since these
 variables will be bound to values by the resulting SSTable writer. This
 is a mandatory option.
 
-|withBufferSizeInMB(int size) |The size of the buffer to use. This
+|withBufferSizeInMiB(int size) |The size of the buffer to use. This
 defines how much data will be buffered before being written as a new
 SSTable. This corresponds roughly to the data size that will have the
 created SSTable. The default is 128MB, which should be reasonable for a
 1GB heap. If OutOfMemory exception gets generated while using the
 SSTable writer, should lower this value.
+
+|withBufferSizeInMB(int size) |Deprecated, and it will be available
+at least until next major release. Please use withBufferSizeInMiB(int size)
+which is the same method with a new name.
 
 |sorted() |Creates a CQLSSTableWriter that expects sorted inputs. If
 this option is used, the resulting SSTable writer will expect rows to be
