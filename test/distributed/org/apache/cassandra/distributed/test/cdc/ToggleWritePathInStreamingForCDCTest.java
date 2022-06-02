@@ -43,7 +43,7 @@ public class ToggleWritePathInStreamingForCDCTest extends TestBaseImpl
                                               .getActiveSegments()
                                               .stream()
                                               .anyMatch(s -> s.getCDCState() == CommitLogSegment.CDCState.CONTAINS);
-                assertTrue("Mutaion should be added to commit log when write_path_for_cdc_enabled is true",
+                assertTrue("Mutation should be added to commit log when write_path_for_cdc_enabled is true",
                            containCDCInLog);
             });
         });
@@ -58,7 +58,7 @@ public class ToggleWritePathInStreamingForCDCTest extends TestBaseImpl
                                               .getActiveSegments()
                                               .stream()
                                               .allMatch(s -> s.getCDCState() != CommitLogSegment.CDCState.CONTAINS);
-                assertTrue("No mutaion should be added to commit log when write_path_for_cdc_enabled is false",
+                assertTrue("No mutation should be added to commit log when write_path_for_cdc_enabled is false",
                            containCDCInLog);
             });
         });
@@ -92,7 +92,6 @@ public class ToggleWritePathInStreamingForCDCTest extends TestBaseImpl
             assertRows(result, row(1, 1));
 
             assertion.accept(cluster);
-
         }
     }
 }

@@ -303,9 +303,11 @@ cdc_enabled: false
 # ensure the size constraint. The default is true.
 # cdc_block_writes: true
 
-# Specify whether enable write path for CDC during internodes streaming.
+# Specify whether CDC mutations are replayed through the write path on streaming.
 # When enabled, CDC data streamed to the destination node will be written into commit log first. When setting to false,
 # the CDC data will be written into SSTables just the same as normal streaming. The default is true.
+# If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
+# (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
 # write_path_for_cdc_enabled: true
 
 # CommitLogSegments are moved to this directory on flush if cdc_enabled: true and the

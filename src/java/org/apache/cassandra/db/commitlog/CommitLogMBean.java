@@ -93,5 +93,5 @@ public interface CommitLogMBean
     boolean isWritePathForCDCEnabled();
 
     /** Set whether enable write path for CDC data during internodes streaming, e.g. repair */
-    void setWritePathForCdcEnabled(boolean value);
+    void setWritePathForCDCEnabled(boolean value);
 }
