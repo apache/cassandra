@@ -24,18 +24,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.concurrent.StageManager.NO_OP_TASK;
 
 public class MessageForwardingTest extends TestBaseImpl
 {
@@ -65,6 +72,21 @@ public class MessageForwardingTest extends TestBaseImpl
             // about the result so
             //noinspection ResultOfMethodCallIgnored
             inserts.map(IsolatedExecutor::waitOn).count();
+
+            // Tracing is async with respect to queries, just because the query has completed it does not mean
+            // all tracing updates have completed. The tracing executor serializes work, so run a task through
+            // and everthing submitted before must have completed.
+            cluster.forEach(instance -> instance.runOnInstance(() -> {
+                Future<?> result = StageManager.getStage(Stage.TRACING).submit(NO_OP_TASK);
+                try
+                {
+                    result.get(30, TimeUnit.SECONDS);
+                }
+                catch (ExecutionException | InterruptedException | TimeoutException ex)
+                {
+                    throw new RuntimeException(ex);
+                }
+            }));
 
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
             List<TracingUtil.TraceEntry> traces = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ALL);
