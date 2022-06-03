@@ -1656,9 +1656,27 @@
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
+    <condition property="withoutMethods">
+      <and>
+        <equals arg1="${test.methods}" arg2=""/>
+        <not>
+          <contains string="${test.name}" substring="*"/>
+        </not>
+      </and>
+    </condition>
+    <condition property="withMethods">
+      <and>
+        <not>
+         <equals arg1="${test.methods}" arg2=""/>
+        </not>
+        <not>
+          <contains string="${test.name}" substring="*"/>
+        </not>
+      </and>
+    </condition>
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
