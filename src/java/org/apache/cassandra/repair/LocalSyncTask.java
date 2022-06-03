@@ -116,6 +116,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
             Tracing.traceRepair(message);
 
             streamPlan = createStreamPlan();
+            logger.info("{} {} {}", previewKind.logPrefix(desc.sessionId), "Starting streaming plan with id", streamPlan.getPlanId());
             streamPlan.execute();
         }
     }
@@ -174,6 +175,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         if (active)
         {
             active = false;
+            String message = String.format("Sync failed using session %s between %s and %s on %s: %s", 
+                                           desc.sessionId, nodePair().coordinator, nodePair().peer, desc.columnFamily, t.getMessage());
+            logger.warn("[repair #{}] {}", desc.sessionId, message);
             setException(t);
             finished();
         }

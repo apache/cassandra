@@ -197,6 +197,11 @@ public class StreamPlan
         return coordinator.getPendingRepair();
     }
 
+    public UUID getPlanId()
+    {
+        return planId;
+    }
+
     public boolean getFlushBeforeTransfer()
     {
         return flushBeforeTransfer;
