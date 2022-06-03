@@ -32,44 +32,44 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertTrue;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class ToggleWritePathInStreamingForCDCTest extends TestBaseImpl
+public class ToggleCDCOnRepairEnabledTest extends TestBaseImpl
 {
     @Test
-    public void testWritePathForCDCEnabled() throws Exception
+    public void testCDCOnRepairIsEnabled() throws Exception
     {
-        testWritePathForCDC(true, cluster -> {
+        testCDCOnRepairEnabled(true, cluster -> {
             cluster.get(2).runOnInstance(() -> {
                 boolean containCDCInLog = CommitLog.instance.segmentManager
                                               .getActiveSegments()
                                               .stream()
                                               .anyMatch(s -> s.getCDCState() == CommitLogSegment.CDCState.CONTAINS);
-                assertTrue("Mutation should be added to commit log when write_path_for_cdc_enabled is true",
+                assertTrue("Mutation should be added to commit log when cdc_on_repair_enabled is true",
                            containCDCInLog);
             });
         });
     }
 
     @Test
-    public void testWritePathForCDCDisabled() throws Exception
+    public void testCDCOnRepairIsDisabled() throws Exception
     {
-        testWritePathForCDC(false, cluster -> {
+        testCDCOnRepairEnabled(false, cluster -> {
             cluster.get(2).runOnInstance(() -> {
                 boolean containCDCInLog = CommitLog.instance.segmentManager
                                               .getActiveSegments()
                                               .stream()
                                               .allMatch(s -> s.getCDCState() != CommitLogSegment.CDCState.CONTAINS);
-                assertTrue("No mutation should be added to commit log when write_path_for_cdc_enabled is false",
+                assertTrue("No mutation should be added to commit log when cdc_on_repair_enabled is false",
                            containCDCInLog);
             });
         });
     }
 
-    // test helper to repair data between nodes when write_path_for_cdc_enabled is on or off.
-    private void testWritePathForCDC(boolean enabled, Consumer<Cluster> assertion) throws Exception
+    // test helper to repair data between nodes when cdc_on_repair_enabled is on or off.
+    private void testCDCOnRepairEnabled(boolean enabled, Consumer<Cluster> assertion) throws Exception
     {
         try (Cluster cluster = init(Cluster.build(2)
                                            .withConfig(c -> c.set("cdc_enabled", true)
-                                                             .set("write_path_for_cdc_enabled", enabled)
+                                                             .set("cdc_on_repair_enabled", enabled)
                                                              .with(Feature.NETWORK)
                                                              .with(Feature.GOSSIP))
                                            .start()))

@@ -441,22 +441,22 @@ public class CommitLog implements CommitLogMBean
 
 
     @Override
-    public boolean isWritePathForCDCEnabled()
+    public boolean isCDCOnRepairEnabled()
     {
-        return DatabaseDescriptor.isWritePathForCDCEnabled();
+        return DatabaseDescriptor.isCDCOnRepairEnabled();
     }
 
     @Override
-    public void setWritePathForCDCEnabled(boolean value)
+    public void setCDCOnRepairEnabled(boolean value)
     {
-        ensureCDCEnabled("Unable to set write_path_for_CDCEnabled.");
-        DatabaseDescriptor.setWritePathForCDCEnabled(value);
-        logger.info("Set write_path_for_cdc_enabled to {}", value);
+        ensureCDCEnabled("Unable to set cdc_on_repair_enabled.");
+        DatabaseDescriptor.setCDCOnRepairEnabled(value);
+        logger.info("Set cdc_on_repair_enabled to {}", value);
     }
 
     private void ensureCDCEnabled(String hint)
     {
-        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(), "CDC is not enabled. " + hint);
+        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(), "CDC is not enabled. %s", hint);
         Preconditions.checkState(segmentManager instanceof CommitLogSegmentManagerCDC,
                                  "CDC is enabled but we have the wrong CommitLogSegmentManager type: %s. " +
                                  "Please report this as bug.", segmentManager.getClass().getName());

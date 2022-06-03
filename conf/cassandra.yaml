@@ -303,12 +303,12 @@ cdc_enabled: false
 # ensure the size constraint. The default is true.
 # cdc_block_writes: true
 
-# Specify whether CDC mutations are replayed through the write path on streaming.
+# Specify whether CDC mutations are replayed through the write path on streaming, e.g. repair.
 # When enabled, CDC data streamed to the destination node will be written into commit log first. When setting to false,
-# the CDC data will be written into SSTables just the same as normal streaming. The default is true.
+# the streamed CDC data is written into SSTables just the same as normal streaming. The default is true.
 # If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
 # (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
-# write_path_for_cdc_enabled: true
+# cdc_on_repair_enabled: true
 
 # CommitLogSegments are moved to this directory on flush if cdc_enabled: true and the
 # segment contains mutations for a CDC-enabled table. This should be placed on a

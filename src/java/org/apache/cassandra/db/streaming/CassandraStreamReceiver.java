@@ -171,10 +171,10 @@ public class CassandraStreamReceiver implements StreamReceiver
         return cfs.metadata().params.cdc;
     }
 
-    // returns true iif it is a cdc table and writepath is enabled for cdc.
+    // returns true iif it is a cdc table and cdc on repair is enabled.
     private boolean cdcRequiresWriteCommitLog(ColumnFamilyStore cfs)
     {
-        return DatabaseDescriptor.isWritePathForCDCEnabled() && hasCDC(cfs);
+        return DatabaseDescriptor.isCDCOnRepairEnabled() && hasCDC(cfs);
     }
 
     /*
