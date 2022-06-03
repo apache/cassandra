@@ -310,6 +310,7 @@ public class TombstoneCountWarningTest extends TestBaseImpl
 
         assertWarnAborts(0, 2, 0);
 
+        State.blockFor(CLUSTER.get(1).config().broadcastAddress());
         try
         {
             driverQueryAll(cql);
