@@ -415,12 +415,14 @@ public class TombstoneCountWarningTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
+        @SuppressWarnings("unused")
         public static void awaitResults(@SuperCall Runnable zuper)
         {
             State.syncAndClear();
             zuper.run();
         }
 
+        @SuppressWarnings("unused")
         public static void onFailure(InetAddressAndPort from, RequestFailureReason failureReason, @SuperCall Runnable zuper) throws Exception
         {
             State.onFailure(new InetSocketAddress(from.getAddress(), from.getPort()));
@@ -430,6 +432,7 @@ public class TombstoneCountWarningTest extends TestBaseImpl
         // make sure to schedule the task rather than running inline...
         // this is imporant as the read may block on the local version which can get the test to include it rather than
         // block waiting, so by scheduling we make sure its always fair
+        @SuppressWarnings("unused")
         public static void maybeExecuteImmediately(Runnable task, @This SEPExecutor executor)
         {
             executor.execute(task);
