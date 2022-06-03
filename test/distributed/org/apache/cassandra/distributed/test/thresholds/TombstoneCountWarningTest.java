@@ -365,21 +365,26 @@ public class TombstoneCountWarningTest extends TestBaseImpl
     @Shared
     public static class State
     {
+        // use InetSocketAddress as InetAddressAndPort is @Isolated which means equality doesn't work due to different
+        // ClassLoaders; InetSocketAddress is @Shared so safe to use between app and cluster class loaders
         public static volatile InetSocketAddress blockFor = null;
         public static volatile CompletableFuture<Void> promise = new CompletableFuture<>();
 
+        // called on main thread
         public static void blockFor(InetSocketAddress address)
         {
             blockFor = address;
             promise = new CompletableFuture<>();
         }
 
+        // called in C* threads; non-test threads
         public static void onFailure(InetSocketAddress address)
         {
             if (address.equals(blockFor))
                 promise.complete(null);
         }
 
+        // called on main thread
         public static void syncAndClear()
         {
             if (blockFor != null)
@@ -418,9 +423,7 @@ public class TombstoneCountWarningTest extends TestBaseImpl
 
         public static void onFailure(InetAddressAndPort from, RequestFailureReason failureReason, @SuperCall Runnable zuper) throws Exception
         {
-            InetSocketAddress address = new InetSocketAddress(from.getAddress(), from.getPort());
-            if (address.equals(State.blockFor))
-                State.onFailure(address);
+            State.onFailure(new InetSocketAddress(from.getAddress(), from.getPort()));
             zuper.run();
         }
 
