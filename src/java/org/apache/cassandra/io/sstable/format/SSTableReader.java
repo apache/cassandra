@@ -43,9 +43,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collector;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
@@ -138,7 +138,6 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -2290,7 +2289,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * and stash a reference to it to be released when they are. Once all such references are
      * released, this shared tidy will be performed.
      */
-    static final class GlobalTidy implements RefCounted.Tidy
+    public static final class GlobalTidy implements RefCounted.Tidy
     {
         static final WeakReference<ScheduledFuture<?>> NULL = new WeakReference<>(null);
         // keyed by descriptor, mapping to the shared GlobalTidy for that descriptor
@@ -2356,6 +2355,26 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 readMeterSyncFutureLocal.cancel(true);
                 readMeterSyncFuture = NULL;
             }
+        }
+
+        /**
+         * Used by CNDB RepairRemoteStorageHandler to abort existing tidier before reloading sstable with orphan reference
+         *
+         * @return sstable reader tidier if exists
+         */
+        @Nullable
+        public AbstractLogTransaction.ReaderTidier getTidier()
+        {
+            return obsoletion;
+        }
+
+        /**
+         * Used by CNDB RepairRemoteStorageHandler to reset reader tidier before reloading sstable with orphan reference
+         * @param tidier new reader tidier for the global tidy. could be null
+         */
+        public void setTidier(@Nullable AbstractLogTransaction.ReaderTidier tidier)
+        {
+            this.obsoletion = tidier;
         }
 
         public void tidy()

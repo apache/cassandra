@@ -118,6 +118,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
             Tracing.traceRepair(message);
 
             StreamPlan plan = createStreamPlan();
+            logger.info("{} {} {}", previewKind.logPrefix(desc.sessionId), "Starting streaming plan with id", plan.getPlanId());
             plan.execute();
             planFuture.complete(plan);
         }
