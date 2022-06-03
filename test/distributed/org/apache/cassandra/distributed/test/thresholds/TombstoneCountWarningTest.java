@@ -368,7 +368,7 @@ public class TombstoneCountWarningTest extends TestBaseImpl
         // use InetSocketAddress as InetAddressAndPort is @Isolated which means equality doesn't work due to different
         // ClassLoaders; InetSocketAddress is @Shared so safe to use between app and cluster class loaders
         public static volatile InetSocketAddress blockFor = null;
-        public static volatile CompletableFuture<Void> promise = new CompletableFuture<>();
+        public static volatile CompletableFuture<Void> promise = null;
 
         // called on main thread
         public static void blockFor(InetSocketAddress address)
@@ -391,6 +391,7 @@ public class TombstoneCountWarningTest extends TestBaseImpl
             {
                 promise.join();
                 blockFor = null;
+                promise = null;
             }
         }
     }
