@@ -378,7 +378,7 @@ public class ResultSet
 
         public ResultMetadata withOverriddenKeyspace(UnaryOperator<String> keyspaceMapper)
         {
-            if (keyspaceMapper == Constants.IDENTITY_STRING_MAPPER)
+            if ((keyspaceMapper == Constants.IDENTITY_STRING_MAPPER) || (names == null))
                 return this;
 
             boolean changed = false;
