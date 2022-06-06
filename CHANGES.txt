@@ -1,4 +1,5 @@
 4.2
+ * Option to disable CDC writes of repaired data (CASSANDRA-17666)
  * When a node is bootstrapping it gets the whole gossip state but applies in random order causing some cases where StorageService will fail causing an instance to not show up in TokenMetadata (CASSANDRA-17676)
  * Add CQLSH command SHOW REPLICAS (CASSANDRA-17577)
  * Add guardrail to allow disabling of SimpleStrategy (CASSANDRA-17647)
