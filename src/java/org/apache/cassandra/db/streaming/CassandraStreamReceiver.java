@@ -25,18 +25,16 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.io.sstable.SSTable;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.ThrottledUnfilteredIterator;
@@ -45,6 +43,7 @@ import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.streaming.IncomingStream;
@@ -172,23 +171,31 @@ public class CassandraStreamReceiver implements StreamReceiver
         return cfs.metadata().params.cdc;
     }
 
+    // returns true iif it is a cdc table and cdc on repair is enabled.
+    private boolean cdcRequiresWriteCommitLog(ColumnFamilyStore cfs)
+    {
+        return DatabaseDescriptor.isCDCOnRepairEnabled() && hasCDC(cfs);
+    }
+
     /*
      * We have a special path for views and for CDC.
      *
      * For views, since the view requires cleaning up any pre-existing state, we must put all partitions
      * through the same write path as normal mutations. This also ensures any 2is are also updated.
      *
-     * For CDC-enabled tables, we want to ensure that the mutations are run through the CommitLog so they
-     * can be archived by the CDC process on discard.
+     * For CDC-enabled tables and write path for CDC is enabled, we want to ensure that the mutations are
+     * run through the CommitLog, so they can be archived by the CDC process on discard.
      */
     private boolean requiresWritePath(ColumnFamilyStore cfs)
     {
-        return hasCDC(cfs) || cfs.streamToMemtable() || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
+        return cdcRequiresWriteCommitLog(cfs)
+               || cfs.streamToMemtable()
+               || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
     {
-        boolean hasCdc = hasCDC(cfs);
+        boolean writeCDCCommitLog = cdcRequiresWriteCommitLog(cfs);
         ColumnFilter filter = ColumnFilter.all(cfs.metadata());
         for (SSTableReader reader : readers)
         {
@@ -206,7 +213,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                     // If the CFS has CDC, however, these updates need to be written to the CommitLog
                     // so they get archived into the cdc_raw folder
                     ks.apply(new Mutation(PartitionUpdate.fromIterator(throttledPartitions.next(), filter)),
-                             hasCdc,
+                             writeCDCCommitLog,
                              true,
                              false);
                 }

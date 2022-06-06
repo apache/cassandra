@@ -57,6 +57,12 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added a new configuration cdc_on_repair_enabled to toggle whether CDC mutations are replayed through the
+      write path on streaming, e.g. repair. When enabled, CDC data streamed to the destination node will be written into
+      commit log first. When disabled, the streamed CDC data is written into SSTables just the same as normal streaming.
+      If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
+      (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
+      The default is true/enabled. The configuration can be altered via JMX.
     - Added a new CQL function, maxwritetime. It shows the largest unix timestamp that the data was written, similar to
       its sibling CQL function, writetime. Unlike writetime, maxwritetime can be applied to multi-cell data types, e.g.
       non-frozen collections and UDT, and returns the largest timestamp. One should not to use it when upgrading to 4.2.

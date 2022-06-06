@@ -3486,6 +3486,16 @@ public class DatabaseDescriptor
         conf.cdc_block_writes = val;
     }
 
+    public static boolean isCDCOnRepairEnabled()
+    {
+        return conf.cdc_on_repair_enabled;
+    }
+
+    public static void setCDCOnRepairEnabled(boolean val)
+    {
+        conf.cdc_on_repair_enabled = val;
+    }
+
     public static String getCDCLogLocation()
     {
         return conf.cdc_raw_directory;
