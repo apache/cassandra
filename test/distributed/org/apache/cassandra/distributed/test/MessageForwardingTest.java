@@ -23,7 +23,10 @@ import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -31,6 +34,7 @@ import java.util.stream.Stream;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
@@ -68,6 +72,21 @@ public class MessageForwardingTest extends TestBaseImpl
             // about the result so
             //noinspection ResultOfMethodCallIgnored
             inserts.map(IsolatedExecutor::waitOn).collect(Collectors.toList());
+
+            // Tracing is async with respect to queries, just because the query has completed it does not mean
+            // all tracing updates have completed. The tracing executor serializes work, so run a task through
+            // and everthing submitted before must have completed.
+            cluster.forEach(instance -> instance.runOnInstance(() -> {
+                Future<?> result = Stage.TRACING.submit(() -> null);
+                try
+                {
+                    result.get(30, TimeUnit.SECONDS);
+                }
+                catch (ExecutionException | InterruptedException | TimeoutException ex)
+                {
+                    throw new RuntimeException(ex);
+                }
+            }));
 
             cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddress().getAddress(), 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
