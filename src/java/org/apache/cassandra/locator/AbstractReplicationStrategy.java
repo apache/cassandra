@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -92,9 +93,13 @@ public abstract class AbstractReplicationStrategy
 
     public EndpointsForRange getNaturalReplicas(RingPosition<?> searchPosition)
     {
+        ArrayList<Token> sortedTokens = tokenMetadata.sortedTokens();
+        if (sortedTokens.isEmpty())
+            return EndpointsForRange.empty(new Range<>(tokenMetadata.partitioner.getMinimumToken(), tokenMetadata.partitioner.getMinimumToken()));
+
         Token searchToken = searchPosition.getToken();
         long currentRingVersion = tokenMetadata.getRingVersion();
-        Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
+        Token keyToken = TokenMetadata.firstToken(sortedTokens, searchToken);
         EndpointsForRange endpoints = getCachedReplicas(currentRingVersion, keyToken);
         if (endpoints == null)
         {
