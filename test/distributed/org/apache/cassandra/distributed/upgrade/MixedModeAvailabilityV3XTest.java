@@ -18,18 +18,13 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import org.junit.Test;
-
-import org.apache.cassandra.distributed.shared.Versions;
-
 /**
  * {@link MixedModeAvailabilityTestBase} for upgrades from v3X.
  */
 public class MixedModeAvailabilityV3XTest extends MixedModeAvailabilityTestBase
 {
-    @Test
-    public void testAvailability() throws Throwable
+    public MixedModeAvailabilityV3XTest()
     {
-        testAvailability(v3X);
+        super(v3X);
     }
 }
