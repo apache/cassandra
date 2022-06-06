@@ -19,17 +19,22 @@
 package org.apache.cassandra.distributed.upgrade;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.NavigableSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableList;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
 
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 
 import org.slf4j.Logger;
@@ -44,10 +49,11 @@ import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.SimpleGraph;
 
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
+import static org.apache.cassandra.utils.SimpleGraph.sortedVertices;
 
 public class UpgradeTestBase extends DistributedTestBase
 {
@@ -56,8 +62,7 @@ public class UpgradeTestBase extends DistributedTestBase
     @After
     public void afterEach()
     {
-        System.runFinalization();
-        System.gc();
+        triggerGC();
     }
 
     @BeforeClass
@@ -88,30 +93,58 @@ public class UpgradeTestBase extends DistributedTestBase
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
     public static final Semver v42 = new Semver("4.2-alpha1", SemverType.LOOSE);
 
-    protected static final List<Pair<Semver,Semver>> SUPPORTED_UPGRADE_PATHS = ImmutableList.of(
-        Pair.create(v30, v3X),
-        Pair.create(v30, v40),
-        Pair.create(v30, v41),
-        Pair.create(v30, v42),
-        Pair.create(v3X, v40),
-        Pair.create(v3X, v41),
-        Pair.create(v3X, v42),
-        Pair.create(v40, v41),
-        Pair.create(v40, v42),
-        Pair.create(v41, v42));
+    protected static final SimpleGraph<Semver> SUPPORTED_UPGRADE_PATHS = new SimpleGraph.Builder<Semver>()
+                                                                         .addEdge(v30, v3X)
+                                                                         .addEdge(v30, v40)
+                                                                         .addEdge(v30, v41)
+                                                                         .addEdge(v30, v42)
+                                                                         .addEdge(v3X, v40)
+                                                                         .addEdge(v3X, v41)
+                                                                         .addEdge(v3X, v42)
+                                                                         .addEdge(v40, v41)
+                                                                         .addEdge(v40, v42)
+                                                                         .addEdge(v41, v42)
+                                                                         .build();
 
     // the last is always the current
-    public static final Semver CURRENT = SUPPORTED_UPGRADE_PATHS.get(SUPPORTED_UPGRADE_PATHS.size() - 1).right;
+    public static final Semver CURRENT = SimpleGraph.max(SUPPORTED_UPGRADE_PATHS);
+    public static final Semver OLDEST = SimpleGraph.min(SUPPORTED_UPGRADE_PATHS);
 
     public static class TestVersions
     {
         final Version initial;
-        final Version upgrade;
+        final List<Version> upgrade;
+        final List<Semver> upgradeVersions;
 
-        public TestVersions(Version initial, Version upgrade)
+        public TestVersions(Version initial, List<Version> upgrade)
         {
             this.initial = initial;
             this.upgrade = upgrade;
+            this.upgradeVersions = upgrade.stream().map(v -> v.version).collect(Collectors.toList());
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TestVersions that = (TestVersions) o;
+            return Objects.equals(initial.version, that.initial.version) && Objects.equals(upgradeVersions, that.upgradeVersions);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(initial.version, upgradeVersions);
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append(initial.version).append(" -> ");
+            sb.append(upgradeVersions);
+            return sb.toString();
         }
     }
 
@@ -123,6 +156,7 @@ public class UpgradeTestBase extends DistributedTestBase
         private RunOnCluster setup;
         private RunOnClusterAndNode runBeforeNodeRestart;
         private RunOnClusterAndNode runAfterNodeUpgrade;
+        private RunOnCluster runBeforeClusterUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
         private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
         private Consumer<IInstanceConfig> configConsumer;
@@ -145,28 +179,77 @@ public class UpgradeTestBase extends DistributedTestBase
         }
 
         /** performs all supported upgrade paths that exist in between from and CURRENT (inclusive) **/
-        public TestCase upgradesFrom(Semver from)
+        public TestCase upgradesToCurrentFrom(Semver from)
         {
-            return upgrades(from, CURRENT);
+            return upgradesTo(from, CURRENT);
         }
 
-        /** performs all supported upgrade paths that exist in between from and to (inclusive) **/
-        public TestCase upgrades(Semver from, Semver to)
+        /**
+         * performs all supported upgrade paths to the "to" target; example
+         * {@code upgradesTo(3.0, 4.0); // produces: 3.0 -> 4.0, 3.11 -> 4.0}
+         */
+        public TestCase upgradesTo(Semver from, Semver to)
         {
-            SUPPORTED_UPGRADE_PATHS.stream()
-                .filter(upgradePath -> (upgradePath.left.compareTo(from) >= 0 && upgradePath.right.compareTo(to) <= 0))
-                .forEachOrdered(upgradePath ->
-                {
-                    this.upgrade.add(
-                            new TestVersions(versions.getLatest(upgradePath.left), versions.getLatest(upgradePath.right)));
-                });
+            List<TestVersions> upgrade = new ArrayList<>();
+            NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
+            for (Semver start : vertices.subSet(from, true, to, false))
+            {
+                // only include pairs that are allowed
+                if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to))
+                    upgrade.add(new TestVersions(versions.getLatest(start), Collections.singletonList(versions.getLatest(to))));
+            }
+            logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
+            this.upgrade.addAll(upgrade);
             return this;
         }
 
-        /** Will test this specific upgrade path **/
-        public TestCase singleUpgrade(Semver from)
+        /**
+         * performs all supported upgrade paths from the "from" target; example
+         * {@code upgradesFrom(4.0, 4.2); // produces: 4.0 -> 4.1, 4.0 -> 4.2}
+         */
+        public TestCase upgradesFrom(Semver from, Semver to)
         {
-            this.upgrade.add(new TestVersions(versions.getLatest(from), versions.getLatest(CURRENT)));
+            List<TestVersions> upgrade = new ArrayList<>();
+            NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
+            for (Semver end : vertices.subSet(from, false, to, true))
+            {
+                // only include pairs that are allowed
+                if (SUPPORTED_UPGRADE_PATHS.hasEdge(from, end))
+                    upgrade.add(new TestVersions(versions.getLatest(from), Collections.singletonList(versions.getLatest(end))));
+            }
+            logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
+            this.upgrade.addAll(upgrade);
+            return this;
+        }
+
+        /**
+         * performs all supported upgrade paths that exist in between from and to that include the current version.
+         * This call is equivilent to calling {@code upgradesTo(from, CURRENT).upgradesFrom(CURRENT, to)}.
+         **/
+        public TestCase upgrades(Semver from, Semver to)
+        {
+            Assume.assumeTrue("Unable to do upgrades(" + from + ", " + to + "); does not contain CURRENT=" + CURRENT, contains(from, to, CURRENT));
+            if (from.compareTo(CURRENT) < 0)
+                upgradesTo(from, CURRENT);
+            if (CURRENT.compareTo(to) < 0)
+                upgradesFrom(CURRENT, to);
+            return this;
+        }
+
+        private static boolean contains(Semver from, Semver to, Semver target)
+        {
+            // target >= from && target <= to
+            return target.compareTo(from) >= 0 && target.compareTo(to) <= 0;
+        }
+
+        /** Will test this specific upgrade path **/
+        public TestCase singleUpgradeToCurrentFrom(Semver from)
+        {
+            if (!SUPPORTED_UPGRADE_PATHS.hasEdge(from, CURRENT))
+                throw new AssertionError("Upgrading from " + from + " to " + CURRENT + " isn't directly supported and must go through other versions first; supported paths: " + SUPPORTED_UPGRADE_PATHS.findPaths(from, CURRENT));
+            TestVersions tests = new TestVersions(this.versions.getLatest(from), Arrays.asList(this.versions.getLatest(CURRENT)));
+            logger.info("Adding upgrade of {}", tests);
+            this.upgrade.add(tests);
             return this;
         }
 
@@ -185,6 +268,12 @@ public class UpgradeTestBase extends DistributedTestBase
         public TestCase runAfterNodeUpgrade(RunOnClusterAndNode runAfterNodeUpgrade)
         {
             this.runAfterNodeUpgrade = runAfterNodeUpgrade;
+            return this;
+        }
+
+        public TestCase runBeforeClusterUpgrade(RunOnCluster runBeforeClusterUpgrade)
+        {
+            this.runBeforeClusterUpgrade = runBeforeClusterUpgrade;
             return this;
         }
 
@@ -216,6 +305,8 @@ public class UpgradeTestBase extends DistributedTestBase
                 throw new AssertionError();
             if (runBeforeNodeRestart == null)
                 runBeforeNodeRestart = (c, n) -> {};
+            if (runBeforeClusterUpgrade == null)
+                runBeforeClusterUpgrade = (c) -> {};
             if (runAfterClusterUpgrade == null)
                 runAfterClusterUpgrade = (c) -> {};
             if (runAfterNodeUpgrade == null)
@@ -224,26 +315,44 @@ public class UpgradeTestBase extends DistributedTestBase
                 for (int n = 1; n <= nodeCount; n++)
                     nodesToUpgrade.add(n);
 
+            int offset = 0;
             for (TestVersions upgrade : this.upgrade)
             {
-                logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.upgrade.version);
+                logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.upgradeVersions);
                 try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
                 {
                     setup.run(cluster);
 
-                    for (int n : nodesToUpgrade)
+                    for (Version nextVersion : upgrade.upgrade)
                     {
-                        cluster.get(n).shutdown().get();
-                        cluster.get(n).setVersion(upgrade.upgrade);
-                        runBeforeNodeRestart.run(cluster, n);
-                        cluster.get(n).startup();
-                        runAfterNodeUpgrade.run(cluster, n);
-                    }
+                        try
+                        {
+                            runBeforeClusterUpgrade.run(cluster);
 
-                    runAfterClusterUpgrade.run(cluster);
+                            for (int n : nodesToUpgrade)
+                            {
+                                cluster.get(n).shutdown().get();
+                                triggerGC();
+                                cluster.get(n).setVersion(nextVersion);
+                                runBeforeNodeRestart.run(cluster, n);
+                                cluster.get(n).startup();
+                                runAfterNodeUpgrade.run(cluster, n);
+                            }
+
+                            runAfterClusterUpgrade.run(cluster);
+
+                            cluster.checkAndResetUncaughtExceptions();
+                        }
+                        catch (Throwable t)
+                        {
+                            throw new AssertionError(String.format("Error in test '%s' while upgrading to '%s'; successful upgrades %s", upgrade, nextVersion.version, this.upgrade.stream().limit(offset).collect(Collectors.toList())), t);
+                        }
+                    }
                 }
+                offset++;
             }
         }
+
         public TestCase nodesToUpgrade(int ... nodes)
         {
             Set<Integer> set = new HashSet<>(nodes.length);
@@ -265,10 +374,16 @@ public class UpgradeTestBase extends DistributedTestBase
         }
      }
 
+    private static void triggerGC()
+    {
+        System.runFinalization();
+        System.gc();
+    }
+
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgradesFrom(v30)
+                             .upgradesToCurrentFrom(v30)
                              .nodesToUpgrade(toUpgrade);
     }
 
