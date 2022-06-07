@@ -454,11 +454,11 @@ public class QueryProcessor implements QueryHandler
     public static Future<UntypedResultSet> executeAsync(InetAddressAndPort address, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
-        QueryOptions options = makeInternalOptions(prepared.statement, values);
+        int nowInSec = FBUtilities.nowInSeconds();
+        QueryOptions options = makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values);
         if (prepared.statement instanceof SelectStatement)
         {
             SelectStatement select = (SelectStatement) prepared.statement;
-            int nowInSec = FBUtilities.nowInSeconds();
             ReadQuery readQuery = select.getQuery(options, nowInSec);
             List<ReadCommand> commands;
             if (readQuery instanceof ReadCommand)
@@ -528,7 +528,7 @@ public class QueryProcessor implements QueryHandler
         try
         {
             Prepared prepared = prepareInternal(query);
-            ResultMessage result = prepared.statement.execute(state, makeInternalOptions(prepared.statement, values, cl), nanoTime());
+            ResultMessage result = prepared.statement.execute(state, makeInternalOptionsWithNowInSec(prepared.statement, state.getNowInSeconds(), values, cl), nanoTime());
             if (result instanceof ResultMessage.Rows)
                 return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
@@ -547,7 +547,8 @@ public class QueryProcessor implements QueryHandler
             throw new IllegalArgumentException("Only SELECTs can be paged");
 
         SelectStatement select = (SelectStatement)prepared.statement;
-        QueryPager pager = select.getQuery(makeInternalOptions(prepared.statement, values), FBUtilities.nowInSeconds()).getPager(null, ProtocolVersion.CURRENT);
+        int nowInSec = FBUtilities.nowInSeconds();
+        QueryPager pager = select.getQuery(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), nowInSec).getPager(null, ProtocolVersion.CURRENT);
         return UntypedResultSet.create(select, pager, pageSize);
     }
 
@@ -575,7 +576,7 @@ public class QueryProcessor implements QueryHandler
     {
         CQLStatement statement = parseStatement(query, queryState.getClientState());
         statement.validate(queryState.getClientState());
-        ResultMessage result = statement.executeLocally(queryState, makeInternalOptions(statement, values));
+        ResultMessage result = statement.executeLocally(queryState, makeInternalOptionsWithNowInSec(statement, queryState.getNowInSeconds(), values));
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else
@@ -592,7 +593,7 @@ public class QueryProcessor implements QueryHandler
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
         SelectStatement select = (SelectStatement)prepared.statement;
-        ResultMessage result = select.executeInternal(internalQueryState(), makeInternalOptions(prepared.statement, values), nowInSec, queryStartNanoTime);
+        ResultMessage result = select.executeInternal(internalQueryState(), makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), nowInSec, queryStartNanoTime);
         assert result instanceof ResultMessage.Rows;
         return UntypedResultSet.create(((ResultMessage.Rows)result).result);
     }
@@ -606,8 +607,8 @@ public class QueryProcessor implements QueryHandler
     {
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
-        SelectStatement select = (SelectStatement)prepared.statement;
-        return select.executeRawInternal(makeInternalOptions(prepared.statement, values), internalQueryState().getClientState(), nowInSec);
+        SelectStatement select = (SelectStatement) prepared.statement;
+        return select.executeRawInternal(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), internalQueryState().getClientState(), nowInSec);
     }
 
     public static UntypedResultSet resultify(String query, RowIterator partition)
