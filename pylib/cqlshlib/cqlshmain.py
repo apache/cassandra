@@ -2184,7 +2184,7 @@ def setup_docspath(path):
     if os.path.exists(path + '/doc/cql3/CQL.html'):
         # default location of local CQL.html
         CASSANDRA_CQL_HTML = 'file://' + path + '/doc/cql3/CQL.html'
-    elif os.path.exists('/usr/local/share/doc/cassandra/CQL.html'):
+    elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
         # fallback to package file
         CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
     else:
