@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionAggregate;
+import org.apache.cassandra.db.compaction.CompactionPick;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.compaction.CompactionStrategy;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
@@ -794,6 +795,11 @@ public abstract class Controller
     public double maxThroughput()
     {
         return env.maxThroughput();
+    }
+
+    public long getOverheadSizeInBytes(CompactionPick compactionPick)
+    {
+        return env.getOverheadSizeInBytes(compactionPick);
     }
 
     public int maxConcurrentCompactions()

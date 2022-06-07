@@ -25,6 +25,7 @@ import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionAggregate;
+import org.apache.cassandra.db.compaction.CompactionPick;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.CompressionParams;
@@ -159,6 +160,13 @@ class RealEnvironment implements Environment
         if (compactionThroughputMbPerSec <= 0)
             return Double.MAX_VALUE;
         return compactionThroughputMbPerSec * 1024.0 * 1024.0;
+    }
+
+    @Override
+    public long getOverheadSizeInBytes(CompactionPick compactionPick)
+    {
+        // The estimate the compaction overhead to be the same as the size of the input sstables
+        return compactionPick.totSizeInBytes();
     }
 
     @Override
