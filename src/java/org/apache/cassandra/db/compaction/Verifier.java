@@ -59,23 +59,23 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.function.LongPredicate;
+
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.io.util.File;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+
 public class Verifier implements Closeable
 {
-    private final CompactionRealm realm;
+    private final @Nullable CompactionRealm realm;
     private final SSTableReader sstable;
-
-    private final CompactionController controller;
 
     private final ReadWriteLock fileAccessLock;
     private final RandomAccessReader dataFile;
@@ -94,18 +94,44 @@ public class Verifier implements Closeable
     private final OutputHandler outputHandler;
     private FileDigestValidator validator;
 
-    public Verifier(CompactionRealm realm, SSTableReader sstable, boolean isOffline, Options options)
+    /**
+     * Creates an instance of Verifier without providing a CompactionRealm. This is only
+     * allowed if the provided options have {@link Options#mutateRepairStatus} set to false.
+     * @param sstable The SSTable reader used to verify the SSTable files
+     * @param isOffline if set to true reading the SSTable data file is not rate limited
+     * @param options the verification options
+     */
+    public Verifier(SSTableReader sstable, boolean isOffline, Options options)
+    {
+        this(sstable, new OutputHandler.LogOutput(), isOffline, options);
+    }
+
+    /**
+     * Creates an instance of Verifier without providing a CompactionRealm. This is only
+     * allowed if the provided options have {@link Options#mutateRepairStatus} set to false.
+     * @param sstable The SSTable reader used to verify the SSTable files
+     * @param outputHandler The output handler used for logging
+     * @param isOffline if set to true reading the SSTable data file is not rate limited
+     * @param options the verification options
+     */
+    public Verifier(SSTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
+    {
+        this(null, sstable, outputHandler, isOffline, options);
+    }
+
+    public Verifier(@Nullable CompactionRealm realm, SSTableReader sstable, boolean isOffline, Options options)
     {
         this(realm, sstable, new OutputHandler.LogOutput(), isOffline, options);
     }
 
-    public Verifier(CompactionRealm realm, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
+    public Verifier(@Nullable CompactionRealm realm, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
     {
+        checkArgument(!options.mutateRepairStatus || realm != null,
+                      "Compaction realm must be provided with option mutateRepairStatus=true");
+
         this.realm = realm;
         this.sstable = sstable;
         this.outputHandler = outputHandler;
-
-        this.controller = new VerifyController(realm);
 
         this.fileAccessLock = new ReentrantReadWriteLock();
         this.dataFile = isOffline
@@ -342,10 +368,6 @@ public class Verifier implements Closeable
         {
             throw Throwables.propagate(t);
         }
-        finally
-        {
-            controller.close();
-        }
 
         outputHandler.output("Verify of " + sstable + " succeeded. All " + goodRows + " rows read successfully");
     }
@@ -426,11 +448,11 @@ public class Verifier implements Closeable
     private void deserializeIndexSummary(SSTableReader sstable) throws IOException
     {
         File file = sstable.descriptor.fileFor(Component.SUMMARY);
-        TableMetadata metadata = realm.metadata();
+        TableMetadata metadata = sstable.metadata();
         try (DataInputStream iStream = new DataInputStream(Files.newInputStream(file.toPath())))
         {
             try (IndexSummary indexSummary = IndexSummary.serializer.deserialize(iStream,
-                                                                                 realm.getPartitioner(),
+                                                                                 sstable.getPartitioner(),
                                                                                  metadata.params.minIndexInterval,
                                                                                  metadata.params.maxIndexInterval))
             {
@@ -480,6 +502,7 @@ public class Verifier implements Closeable
     {
         if (mutateRepaired && options.mutateRepairStatus) // if we are able to mutate repaired flag, an incremental repair should be enough
         {
+            checkState(realm != null, "Cannot mutate repair status as compaction realm is null");
             try
             {
                 realm.mutateRepairedWithLock(ImmutableList.of(sstable), ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getPendingRepair(), sstable.isTransient());
@@ -541,20 +564,6 @@ public class Verifier implements Closeable
         public boolean isGlobal()
         {
             return false;
-        }
-    }
-
-    private static class VerifyController extends CompactionController
-    {
-        public VerifyController(CompactionRealm cfs)
-        {
-            super(cfs, Integer.MAX_VALUE);
-        }
-
-        @Override
-        public LongPredicate getPurgeEvaluator(DecoratedKey key)
-        {
-            return time -> false;
         }
     }
 

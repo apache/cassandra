@@ -26,15 +26,20 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
 import com.google.common.base.Charsets;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.After;
 import org.junit.Assume;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
@@ -54,8 +59,11 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
@@ -65,6 +73,7 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
@@ -75,6 +84,7 @@ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -106,6 +116,8 @@ public class VerifyTest
     public static final String CF_UUID = "UUIDKeys";
     public static final String BF_ALWAYS_PRESENT = "BfAlwaysPresent";
 
+    private String savedProp;
+
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -133,6 +145,20 @@ public class VerifyTest
                        standardCFMD(KEYSPACE, BF_ALWAYS_PRESENT).bloomFilterFpChance(1.0));
     }
 
+    @Before
+    public void before()
+    {
+        savedProp = System.getProperty(SSTableFormat.FORMAT_DEFAULT_PROP);
+    }
+
+    @After
+    public void after()
+    {
+        if (savedProp == null)
+            System.getProperties().remove(SSTableFormat.FORMAT_DEFAULT_PROP);
+        else
+            System.setProperty(SSTableFormat.FORMAT_DEFAULT_PROP, savedProp);
+    }
 
     @Test
     public void testVerifyCorrect()
@@ -758,6 +784,83 @@ public class VerifyTest
         }
     }
 
+    @Test
+    public void testVerifyWithoutRealmBTI()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+
+        fillCF(cfs, 2);
+
+        Descriptor descriptor = cfs.getLiveSSTables().iterator().next().getDescriptor();
+        Set<Component> components = SSTableReader.componentsFor(descriptor);
+        SSTableFormat trieFormat = descriptor.getFormat();
+        SSTableReader.Factory readerFactory = trieFormat.getReaderFactory();
+
+        assertTrue(trieFormat instanceof TrieIndexFormat);
+
+        SSTableReader sstable = readerFactory.openNoValidation(descriptor, components, cfs.metadata);
+        Verifier.Options options = Verifier.options().invokeDiskFailurePolicy(true).build();
+
+        try (Verifier verifier = new Verifier(sstable, true, options))
+        {
+            verifier.verify();
+        }
+        catch (CorruptSSTableException err)
+        {
+            fail("Unexpected CorruptSSTableException");
+        }
+    }
+
+    @Test
+    public void testVerifyWithoutRealmBIG()
+    {
+        System.setProperty(SSTableFormat.FORMAT_DEFAULT_PROP, SSTableFormat.Type.BIG.name);
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+
+        fillCF(cfs, 2);
+
+        Descriptor descriptor = cfs.getLiveSSTables().iterator().next().getDescriptor();
+        Set<Component> components = SSTableReader.componentsFor(descriptor);
+        SSTableFormat bigFormat = descriptor.getFormat();
+        SSTableReader.Factory readerFactory = bigFormat.getReaderFactory();
+
+        assertTrue(bigFormat instanceof BigFormat);
+
+        SSTableReader sstable = readerFactory.openNoValidation(descriptor, components, cfs.metadata);
+        OutputHandler.CustomLogOutput handler = new OutputHandler.CustomLogOutput(LoggerFactory.getLogger(Verifier.class));
+        Verifier.Options options = Verifier.options().invokeDiskFailurePolicy(true).build();
+
+        try (Verifier verifier = new Verifier(sstable, handler, true, options))
+        {
+            verifier.verify();
+        }
+        catch (CorruptSSTableException err)
+        {
+            fail("Unexpected CorruptSSTableException");
+        }
+    }
+
+    @Test
+    public void testVerifierIllegalArgument()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+
+        fillCF(cfs, 2);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+
+        // Check that is not possible to create a Verifier without passing a ColumnFamilyStore
+        // if mutateRepairStatus is true.
+        Verifier.Options optionsRepairTrue = Verifier.options().mutateRepairStatus(true).build();
+        assertThrows(IllegalArgumentException.class,
+                     () -> new Verifier(sstable, false, optionsRepairTrue));
+    }
 
 
     private DecoratedKey dk(long l)
