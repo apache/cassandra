@@ -1,4 +1,5 @@
 4.0.5
+ * Fix counter write timeouts at ONE (CASSANDRA-17411)
  * Fix NPE in getLocalPrimaryRangeForEndpoint (CASSANDRA-17680)
  * Remove SSL storage port from sstableloader (CASSANDRA-17602)
  * Allow Java 11 to satisfy RPM/Debian packaging (CASSANDRA-17669)
