@@ -20,7 +20,9 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -59,6 +61,8 @@ final class GossipInfoTable extends AbstractVirtualTable
         STATES_FOR_VALUES = applicationStates.toArray(new ApplicationState[0]);
     }
 
+    private final Supplier<Map<InetAddressAndPort, EndpointState>> endpointStateMapSupplier;
+
     /**
      * Construct a new {@link GossipInfoTable} for the given {@code keyspace}.
      *
@@ -66,7 +70,14 @@ final class GossipInfoTable extends AbstractVirtualTable
      */
     GossipInfoTable(String keyspace)
     {
+        this(keyspace, () -> Gossiper.instance.endpointStateMap);
+    }
+
+    @VisibleForTesting
+    GossipInfoTable(String keyspace, Supplier<Map<InetAddressAndPort, EndpointState>> endpointStateMapSupplier)
+    {
         super(buildTableMetadata(keyspace));
+        this.endpointStateMapSupplier = endpointStateMapSupplier;
     }
 
     /**
@@ -76,10 +87,13 @@ final class GossipInfoTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Map.Entry<InetAddressAndPort, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
+        for (Map.Entry<InetAddressAndPort, EndpointState> entry : endpointStateMapSupplier.get().entrySet())
         {
             InetAddressAndPort endpoint = entry.getKey();
-            EndpointState localState = entry.getValue();
+            // we are making a copy of endpoint state as a value of an entry of the returned map
+            // might be updated on the fly by LoadBroadcaster, and we want to be sure that
+            // the returned data are capturing a particular point in time
+            EndpointState localState = new EndpointState(entry.getValue());
 
             SimpleDataSet dataSet = result.row(endpoint.getAddress(), endpoint.getPort())
                                           .column(HOSTNAME, endpoint.getHostName())
