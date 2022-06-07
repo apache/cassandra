@@ -631,6 +631,8 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getDataSetSizeBytes()).thenReturn(topBucketMaxCompactionSize * numShards);
         when(controller.random()).thenCallRealMethod();
 
+        when(controller.getOverheadSizeInBytes(any(CompactionPick.class))).thenAnswer(inv -> ((CompactionPick)inv.getArgument(0)).totSizeInBytes());
+
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
         List<SSTableReader> allSstables = new ArrayList<>();
 

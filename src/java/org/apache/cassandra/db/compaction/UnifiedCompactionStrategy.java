@@ -477,7 +477,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             ++perLevel[level];
             ++runningCompactions;
             levelCount = Math.max(levelCount, level + 1);
-            spaceAvailable -= compaction.totSizeInBytes();
+            spaceAvailable -= controller.getOverheadSizeInBytes(compaction);
         }
 
         CompactionLimits limits = new CompactionLimits(runningCompactions, 
@@ -637,12 +637,12 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private void warnIfSizeAbove(CompactionAggregate.UnifiedAggregate aggregate, long spaceOverheadLimit)
     {
-        if (aggregate.selected.totSizeInBytes() > spaceOverheadLimit)
+        if (controller.getOverheadSizeInBytes(aggregate.selected) > spaceOverheadLimit)
             logger.warn("Compaction needs to perform an operation that is bigger than the current space overhead " +
                         "limit - size {} (compacting {} sstables in shard {}/bucket {}); limit {} = {}% of dataset size {}. " +
                         "To honor the limit, this operation will not be performed, which may result in degraded performance.\n" +
                         "Please verify the compaction parameters, specifically {} and {}.",
-                        FBUtilities.prettyPrintMemory(aggregate.selected.totSizeInBytes()),
+                        FBUtilities.prettyPrintMemory(controller.getOverheadSizeInBytes(aggregate.selected)),
                         aggregate.selected.sstables().size(),
                         aggregate.getShard().name(),
                         aggregate.bucketIndex(),
@@ -694,7 +694,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 expired.add(aggregateIndex);
                 continue;
             }
-            if (pick.totSizeInBytes() > spaceAvailable)
+            if (controller.getOverheadSizeInBytes(pick) > spaceAvailable)
                 continue;
             if (perLevel[levelOf(pick)] > perLevelCount)
                 continue;  // this level is already using up all its share + one, we can ignore candidate altogether
@@ -737,7 +737,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 if (selection.get(aggregateIndex))
                     continue; // this is a repeat
                 CompactionAggregate.UnifiedAggregate aggregate = pending.get(aggregateIndex);
-                if (aggregate.getSelected().totSizeInBytes() > spaceAvailable)
+                if (controller.getOverheadSizeInBytes(aggregate.selected) > spaceAvailable)
                     continue; // compaction is too large for current cycle
                 int level = levelOf(aggregate.getSelected());
 
@@ -752,7 +752,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
                 --remaining;
                 ++perLevel[level];
-                spaceAvailable -= aggregate.getSelected().totSizeInBytes();
+                spaceAvailable -= controller.getOverheadSizeInBytes(aggregate.selected);
                 selection.set(aggregateIndex);
             }
 

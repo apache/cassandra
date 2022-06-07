@@ -21,6 +21,7 @@ import java.util.Random;
 
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.compaction.CompactionAggregate;
+import org.apache.cassandra.db.compaction.CompactionPick;
 import org.apache.cassandra.utils.MovingAverage;
 
 /**
@@ -104,4 +105,16 @@ public interface Environment
      * @return the maximum compaction throughput
      */
     double maxThroughput();
+
+    /**
+     * This method returns the expected temporary space overhead of performing
+     * a compaction. The default implementation looks at the size of the data
+     * files of the input compaction, assuming that the output compaction will
+     * be just as large. The overhead is due to the fact that whilst compactions
+     * are in progress, both input and output sstables need to be present, since
+     * the input sstables can only be deleted after compaction has completed.
+     *
+     * @return the overhead size in bytes that results from compacting the sstables in the pick
+     */
+    long getOverheadSizeInBytes(CompactionPick compactionPick);
 }
