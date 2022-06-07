@@ -265,6 +265,12 @@ public class TrieIndexFormat implements SSTableFormat
         }
 
         @Override
+        public SSTableReader openNoValidation(Descriptor desc, Set<Component> components, TableMetadataRef metadata)
+        {
+            return TrieIndexSSTableReader.open(desc, components, metadata, false, true);
+        }
+
+        @Override
         public SSTableReader openNoValidation(Descriptor desc, Set<Component> components, ColumnFamilyStore cfs)
         {
             return TrieIndexSSTableReader.open(desc, components, cfs.metadata, false, true);
