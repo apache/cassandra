@@ -37,6 +37,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -447,10 +448,13 @@ public class FBUtilities
         }
     }
 
-    public static void waitOnFutures(List<AsyncOneResponse<?>> results, long ms) throws TimeoutException
+    public static void waitOnFutures(List<AsyncOneResponse<?>> results, long ms, MutableInt counter) throws TimeoutException
     {
         for (AsyncOneResponse<?> result : results)
+        {
             result.get(ms, TimeUnit.MILLISECONDS);
+            counter.increment();
+        }
     }
 
     public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures)
