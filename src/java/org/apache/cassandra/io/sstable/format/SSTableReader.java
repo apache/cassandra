@@ -467,6 +467,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     // use only for offline or "Standalone" operations
+    private static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
+    {
+        return open(descriptor, components, metadata, false, true);
+    }
+
+    // use only for offline or "Standalone" operations
     private static SSTableReader openNoValidation(Descriptor descriptor, TableMetadataRef metadata)
     {
         return open(descriptor, componentsFor(descriptor), metadata, false, true);
@@ -2510,6 +2516,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         SSTableReader openNoValidation(Descriptor desc, TableMetadataRef tableMetadataRef);
 
+        SSTableReader openNoValidation(Descriptor desc, Set<Component> components, TableMetadataRef metadata);
+
         SSTableReader openNoValidation(Descriptor desc, Set<Component> components, ColumnFamilyStore cfs);
 
         SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components, boolean copyData);
@@ -2559,6 +2567,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         public SSTableReader openNoValidation(Descriptor desc, TableMetadataRef tableMetadataRef)
         {
             return SSTableReader.openNoValidation(desc, tableMetadataRef);
+        }
+
+        @Override
+        public SSTableReader openNoValidation(Descriptor desc, Set<Component> components, TableMetadataRef metadata)
+        {
+            return SSTableReader.openNoValidation(desc, components, metadata);
         }
 
         @Override
