@@ -12,6 +12,15 @@ Merged from 4.1:
  * Fix missed nowInSec values in QueryProcessor (CASSANDRA-17458)
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
+Merged from 4.0:
+ * Allow Java 11 to satisfy RPM/Debian packaging (CASSANDRA-17669)
+ * Ensure FileStreamTask cannot compromise shared channel proxy for system table when interrupted (CASSANDRA-17663)
+ * silence benign SslClosedEngineException (CASSANDRA-17565)
+Merged from 3.11:
+Merged from 3.0:
+
+
+4.1-alpha1
  * Handle config parameters upper bound on startup; Fix auto_snapshot_ttl and paxos_purge_grace_period min unit validations (CASSANDRA-17571)
  * Fix leak of non-standard Java types in our Exceptions as clients using JMX are unable to handle them.
    Remove useless validation that leads to unnecessary additional read of cassandra.yaml on startup (CASSANDRA-17638)
