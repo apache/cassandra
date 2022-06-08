@@ -232,6 +232,12 @@ public class GuardrailMaximumReplicationFactorTest extends ThresholdTester
         Assertions.assertThatThrownBy(() -> guardrails().setMaximumReplicationFactorThreshold(1, 2))
                   .isInstanceOf(IllegalArgumentException.class)
                   .hasMessageContaining("maximum_replication_factor_fail_threshold to be set (2) cannot be lesser than default_keyspace_rf (3)");
+
+        DatabaseDescriptor.setDefaultKeyspaceRF(1);
+        guardrails().setMaximumReplicationFactorThreshold(1, 2);
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.setDefaultKeyspaceRF(3))
+                  .isInstanceOf(IllegalArgumentException.class)
+                  .hasMessageContaining("default_keyspace_rf to be set (3) cannot be greater than maximum_replication_factor_fail_threshold (2)");
     }
 
     private void assertWarns(String query, int rf) throws Throwable

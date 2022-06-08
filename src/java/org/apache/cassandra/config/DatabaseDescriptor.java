@@ -4089,6 +4089,10 @@ public class DatabaseDescriptor
             throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
         }
 
+        if (guardrails.getMaximumReplicationFactorFailThreshold() != -1 && value > guardrails.getMaximumReplicationFactorFailThreshold())
+        {
+            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be greater than maximum_replication_factor_fail_threshold (%d)", value, guardrails.getMaximumReplicationFactorFailThreshold()));
+        }
         conf.default_keyspace_rf = value;
     }
 
