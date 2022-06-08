@@ -46,7 +46,7 @@ BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
 
-Requires:      jre >= 1.8.0
+Requires:      (jre-1.8.0 or jre-11)
 Requires:      python(abi) >= 3.6
 Requires:      procps-ng >= 3.3
 Requires(pre): user(cassandra)
