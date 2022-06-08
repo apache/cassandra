@@ -257,7 +257,7 @@
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
     </condition>
-    <condition property="jdk11-javadoc-exports" value="${jdk11-javac-exports} --frames" else="">
+    <condition property="jdk11-javadoc-exports" value="${jdk11-javac-exports}" else="">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
