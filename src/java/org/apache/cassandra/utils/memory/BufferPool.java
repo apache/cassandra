@@ -1005,12 +1005,13 @@ public class BufferPool
 
         public void release()
         {
+            if (tinyPool != null)
+                tinyPool.release();
+
             chunks.release();
             reuseObjects.clear();
             localPoolReferences.remove(leakRef);
             leakRef.clear();
-            if (tinyPool != null)
-                tinyPool.release();
         }
 
         @VisibleForTesting
