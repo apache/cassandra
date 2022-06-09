@@ -55,6 +55,7 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -453,21 +454,25 @@ public class BatchStatement implements CQLStatement
         verifyBatchSize(mutations, queryState);
         verifyBatchType(mutations, queryState);
 
-        updatePartitionsPerBatchMetrics(mutations.size());
+        updatePerBatchMetrics(mutations);
 
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime, queryState.getClientState());
     }
 
-    private void updatePartitionsPerBatchMetrics(int updatedPartitions)
+    private void updatePerBatchMetrics(Collection<? extends IMutation> mutations)
     {
-        if (isLogged()) {
-            metrics.partitionsPerLoggedBatch.update(updatedPartitions);
-        } else if (isCounter()) {
-            metrics.partitionsPerCounterBatch.update(updatedPartitions);
-        } else {
-            metrics.partitionsPerUnloggedBatch.update(updatedPartitions);
+        int nrUpdatedPartitions = mutations.size();
+        int nrUpdatedColumns = 0;
+        for (IMutation mutation : mutations)
+        {
+            for (PartitionUpdate update : mutation.getPartitionUpdates())
+            {
+                for (Row row : update)
+                    nrUpdatedColumns += row.columns().size();
+            }
         }
+        metrics.update(type, nrUpdatedPartitions, nrUpdatedColumns);
     }
 
     private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, long queryStartNanoTime)

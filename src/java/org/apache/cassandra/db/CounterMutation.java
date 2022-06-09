@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
@@ -33,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Histogram;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.rows.*;
@@ -45,6 +47,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.DefaultNameFactory;
+import org.apache.cassandra.metrics.LatencyMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
@@ -66,7 +69,30 @@ public class CounterMutation implements IMutation
 
     public static final CounterMutationSerializer serializer = new CounterMutationSerializer();
 
+    /**
+     * This metric tracks the number of timeouts that occurred because the locks could not be
+     * acquired within DatabaseDescriptor.getCounterWriteRpcTimeout().
+     */
     public static final Counter lockTimeout = Metrics.counter(DefaultNameFactory.createMetricName("Counter", "lock_timeout", null));
+
+    /**
+     * This metric tracks how long it took to acquire all the locks
+     * that must be acquired before applying the counter mutation.
+     */
+    public static final LatencyMetrics lockAcquireTime = new LatencyMetrics("Counter", "lock_acquire_time");
+
+    /**
+     * This metric tracks the number of locks that must be acquired before applying the counter
+     * mutation. A mutation normally has one partition only, unless it comes from a batch,
+     * where the same partition key is used across different tables.
+     * For each partition, we need to acquire one lock for each column on each row.
+     * The locks are striped, see {@link CounterMutation#LOCKS} for details.
+     */
+    public static final Histogram locksPerUpdate = Metrics.histogram(DefaultNameFactory
+                                                                     .createMetricName("Counter",
+                                                                                       "locks_per_update",
+                                                                                       null),
+                                                                     false);
 
     private static final String LOCK_TIMEOUT_MESSAGE = "Failed to acquire locks for counter mutation on keyspace {} for longer than {} millis, giving up";
     private static final String LOCK_TIMEOUT_TRACE = "Failed to acquire locks for counter mutation for longer than {} millis, giving up";
@@ -164,32 +190,60 @@ public class CounterMutation implements IMutation
         applyCounterMutation();
     }
 
-    private void grabCounterLocks(Keyspace keyspace, List<Lock> locks) throws WriteTimeoutException
+    private int countDistinctLocks(Iterable<Lock> sortedLocks)
+    {
+        Lock prev = null;
+        int counter = 0;
+        for(Lock l: sortedLocks)
+        {
+            if (prev != l)
+                counter++;
+            prev = l;
+        }
+        return counter;
+    }
+
+    @VisibleForTesting
+    public void grabCounterLocks(Keyspace keyspace, List<Lock> locks) throws WriteTimeoutException
     {
         long startTime = System.nanoTime();
 
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
-        for (Lock lock : LOCKS.bulkGet(getCounterLockKeys()))
+        Iterable<Lock> sortedLocks = LOCKS.bulkGet(getCounterLockKeys());
+        locksPerUpdate.update(countDistinctLocks(sortedLocks));
+
+        try
         {
-            long timeout = getTimeout(NANOSECONDS) - (System.nanoTime() - startTime);
-            try
+            for (Lock lock : sortedLocks)
             {
-                if (!lock.tryLock(timeout, NANOSECONDS))
-                    handleLockTimeout(replicationStrategy);
-                locks.add(lock);
+                long timeout = getTimeout(NANOSECONDS) - (System.nanoTime() - startTime);
+                try
+                {
+                    if (!lock.tryLock(timeout, NANOSECONDS))
+                        handleLockTimeoutAndThrow(replicationStrategy);
+                    locks.add(lock);
+                }
+                catch (InterruptedException e)
+                {
+                    handleLockTimeoutAndThrow(replicationStrategy);
+                }
             }
-            catch (InterruptedException e)
-            {
-                handleLockTimeout(replicationStrategy);
-            }
+        }
+        finally
+        {
+            lockAcquireTime.addNano(System.nanoTime() - startTime);
         }
     }
 
-    private void handleLockTimeout(AbstractReplicationStrategy replicationStrategy)
+    private void handleLockTimeoutAndThrow(AbstractReplicationStrategy replicationStrategy)
     {
         lockTimeout.inc();
-        nospamLogger.error(LOCK_TIMEOUT_MESSAGE, getKeyspaceName(), DatabaseDescriptor.getCounterWriteRpcTimeout(MILLISECONDS));
+
+        nospamLogger.error(LOCK_TIMEOUT_MESSAGE,
+                           getKeyspaceName(),
+                           DatabaseDescriptor.getCounterWriteRpcTimeout(MILLISECONDS));
         Tracing.trace(LOCK_TIMEOUT_TRACE, DatabaseDescriptor.getCounterWriteRpcTimeout(MILLISECONDS));
+
         throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
     }
 
