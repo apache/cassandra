@@ -108,13 +108,17 @@ public interface Environment
 
     /**
      * This method returns the expected temporary space overhead of performing
-     * a compaction. The default implementation looks at the size of the data
-     * files of the input compaction, assuming that the output compaction will
-     * be just as large. The overhead is due to the fact that whilst compactions
+     * a compaction. This overhead is due to the fact that whilst compactions
      * are in progress, both input and output sstables need to be present, since
      * the input sstables can only be deleted after compaction has completed.
-     *
-     * @return the overhead size in bytes that results from compacting the sstables in the pick
+     * <p/>
+     * The default implementation looks at the size of the data files of the
+     * input compaction, assuming that the output compaction will
+     * be just as large. A future improvement could be to consider the size of
+     * metadata components too, especially when SAI indexes are present.
+     * <p/>
+     * @return the overhead size in bytes that results from compacting the sstables
+     * in the compaction pick passed in.
      */
     long getOverheadSizeInBytes(CompactionPick compactionPick);
 }

@@ -33,6 +33,7 @@ import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
@@ -500,6 +501,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     {
         for (CompactionAggregate.UnifiedAggregate aggregate : pending)
         {
+            warnIfSizeAbove(aggregate, limits.spaceAvailable);
+
             CompactionPick selected = aggregate.getSelected();
             if (selected != null)
                 limits.levelCount = Math.max(limits.levelCount, (int) selected.parent());
@@ -529,12 +532,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
         for (CompactionAggregate.UnifiedAggregate aggregate : pending)
         {
-            // The space overhead limit also applies when a single compaction is above that limit. This should
-            // prevent running out of space at the expense of several highest-level tables extra, i.e. slightly
-            // higher read amplification, which I think is a sensible tradeoff; however, operators must be warned
-            // if this happens.
-            warnIfSizeAbove(aggregate, limits.spaceAvailable);
-
             // Make sure the level count includes all levels for which we have sstables (to be ready to compact
             // as soon as the threshold is crossed)...
             limits.levelCount = Math.max(limits.levelCount, aggregate.bucketIndex() + 1);
@@ -635,6 +632,13 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         return pending;
     }
 
+    /**
+     * This method logs a warning related to the fact that the space overhead limit also applies when a
+     * single compaction is above that limit. This should prevent running out of space at the expense of ending up
+     * with several extra sstables at the highest-level (compared to the number of sstables that we should have
+     * as per config of the strategy), i.e. slightly higher read amplification. This is a sensible tradeoff but
+     * the operators must be warned if this happens, and that's the purpose of this warning.
+     */
     private void warnIfSizeAbove(CompactionAggregate.UnifiedAggregate aggregate, long spaceOverheadLimit)
     {
         if (controller.getOverheadSizeInBytes(aggregate.selected) > spaceOverheadLimit)
@@ -805,33 +809,52 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     /**
-     * Group candidate sstables (non suspect and not already compacting, and not an early version of a compaction
-     * result) into one or more compaction shards. Each compaction shard is obtained by comparing using a compound
-     * comparator for the equivalence classes.
+     * Group candidate sstables into compaction shards.
+     * Each compaction shard is obtained by comparing using a compound comparator for the equivalence classes
+     * configured in the arena selector of this strategy.
      *
-     * @return a list of shards, where each shard contains sstables that are eligible for being compacted together
+     * @param sstables a collection of the sstables to be assigned to shards
+     * @param compactionFilter a filter to exclude CompactionSSTables,
+     *                         e.g., {@link CompactionSSTable#isSuitableForCompaction()}
+     * @return a list of shards, where each shard contains sstables that belong to that shard
      */
-    @VisibleForTesting
-    public Collection<Shard> getCompactionShards()
+    public Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables,
+                                                 Predicate<CompactionSSTable> compactionFilter)
     {
-        return getCompactionShards(realm.getLiveSSTables(), true);
+        return getCompactionShards(sstables, compactionFilter, this.arenaSelector,true);
     }
 
     Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables, boolean filterUnsuitable)
     {
-        return getCompactionShards(sstables, this.arenaSelector, filterUnsuitable);
+        return getCompactionShards(sstables,
+                                   CompactionSSTable::isSuitableForCompaction,
+                                   this.arenaSelector,
+                                   filterUnsuitable);
     }
 
-    Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables, ArenaSelector arenaSelector, boolean filterUnsuitable)
+    Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables,
+                                          ArenaSelector arenaSelector,
+                                          boolean filterUnsuitable)
     {
-        Map<CompactionSSTable, Shard> tables = new TreeMap<>(arenaSelector);
-        Set<? extends CompactionSSTable> compacting = realm.getCompactingSSTables();
-        for (CompactionSSTable table : sstables)
-            if (!filterUnsuitable || table.isSuitableForCompaction() && !compacting.contains(table))
-                tables.computeIfAbsent(table, t -> new Shard(arenaSelector, realm))
-                      .add(table);
+        return getCompactionShards(sstables,
+                                   CompactionSSTable::isSuitableForCompaction,
+                                   arenaSelector,
+                                   filterUnsuitable);
+    }
 
-        return tables.values();
+    Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables,
+                                          Predicate<CompactionSSTable> compactinoFilter,
+                                          ArenaSelector arenaSelector,
+                                          boolean filterUnsuitable)
+    {
+        Map<CompactionSSTable, Shard> shardsBySSTables = new TreeMap<>(arenaSelector);
+        Set<? extends CompactionSSTable> compacting = realm.getCompactingSSTables();
+        for (CompactionSSTable sstable : sstables)
+            if (!filterUnsuitable || compactinoFilter.test(sstable) && !compacting.contains(sstable))
+                shardsBySSTables.computeIfAbsent(sstable, t -> new Shard(arenaSelector, realm))
+                      .add(sstable);
+
+        return shardsBySSTables.values();
     }
 
     // used by CNDB to deserialize aggregates
@@ -856,8 +879,24 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     @VisibleForTesting
     Map<Shard, List<Bucket>> getShardsWithBuckets()
     {
+        return getShardsWithBuckets(realm.getLiveSSTables(), CompactionSSTable::isSuitableForCompaction);
+    }
+
+    /**
+     * Groups the sstables passed in into shards and buckets. This is used by the strategy to determine
+     * new compactions, and by external tools in CNDB to analyze the strategy decisions.
+     *
+     * @param sstables a collection of the sstables to be assigned to shards
+     * @param compactionFilter a filter to exclude CompactionSSTables,
+     *                         e.g., {@link CompactionSSTable#isSuitableForCompaction()}
+     *
+     * @return a map of shards to their buckets
+     */
+    public Map<Shard, List<Bucket>> getShardsWithBuckets(Collection<? extends CompactionSSTable> sstables,
+                                                         Predicate<CompactionSSTable> compactionFilter)
+    {
         maybeUpdateSelector();
-        Collection<Shard> shards = getCompactionShards();
+        Collection<Shard> shards = getCompactionShards(sstables, compactionFilter);
         Map<Shard, List<Bucket>> ret = new LinkedHashMap<>(); // should preserve the order of shards
 
         for (Shard shard : shards)
@@ -992,7 +1031,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     /**
      * A bucket: index, sstables and some properties.
      */
-    static class Bucket
+    public static class Bucket
     {
         final List<CompactionSSTable> sstables;
         final int index;
@@ -1014,6 +1053,16 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             this.sstables = new ArrayList<>(threshold);
             this.min = minSize;
             this.max = controller.getMaxLevelSize(index, this.min);
+        }
+
+        public Collection<CompactionSSTable> getSSTables()
+        {
+            return sstables;
+        }
+
+        public int getIndex()
+        {
+            return index;
         }
 
         void add(CompactionSSTable sstable)
