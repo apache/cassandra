@@ -847,7 +847,7 @@ public class BufferPool
                 // we must also check after completely freeing if the owner has since been unset, and try to recycle
                 chunk.tryRecycle();
             }
-            else if (chunk.owner == null && chunk.recycler.canRecyclePartially() && chunk.setInUse(Chunk.Status.EVICTED))
+            else if (chunk.owner == null && chunk.recycler.canRecyclePartially() && chunk.setInUse())
             {
                 // re-cirlate partially freed normal chunk to global list
                 chunk.partiallyRecycle();
@@ -1016,7 +1016,7 @@ public class BufferPool
                     tinyPool.chunks.removeIf((child, parent) -> Chunk.getParentChunk(child.slab) == parent, evict);
                 evict.release();
                 // Mark it as evicted and will be eligible for partial recyle if recycler allows
-                evict.setEvicted(Chunk.Status.IN_USE);
+                evict.setEvicted();
             }
         }
 
@@ -1490,14 +1490,14 @@ public class BufferPool
             return statusUpdater.compareAndSet(this, current, update);
         }
 
-        boolean setInUse(Status prev)
+        private boolean setInUse()
         {
-            return setStatus(prev, Status.IN_USE);
+            return setStatus(Status.EVICTED, Status.IN_USE);
         }
 
-        boolean setEvicted(Status prev)
+        private boolean setEvicted()
         {
-            return setStatus(prev, Status.EVICTED);
+            return setStatus(Status.IN_USE, Status.EVICTED);
         }
     }
 
