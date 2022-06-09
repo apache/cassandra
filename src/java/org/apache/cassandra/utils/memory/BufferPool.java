@@ -739,6 +739,9 @@ public class BufferPool
         private final LocalPoolRef leakRef;
 
         private final MicroQueueOfChunks chunks = new MicroQueueOfChunks();
+
+        private final Thread owningThread = Thread.currentThread();
+
         /**
          * If we are on outer LocalPool, whose chunks are == NORMAL_CHUNK_SIZE, we may service allocation requests
          * for buffers much smaller than
@@ -803,7 +806,7 @@ public class BufferPool
             }
 
             // ask the free method to take exclusive ownership of the act of recycling if chunk is owned by ourselves
-            long free = chunk.free(buffer, owner == this && recycleWhenFree);
+            long free = chunk.free(buffer, owner == this && owningThread == Thread.currentThread() && recycleWhenFree);
             // free:
             // *     0L: current pool must be the owner. we can fully recyle the chunk.
             // *    -1L:
@@ -818,9 +821,23 @@ public class BufferPool
             //          * for tiny chunk: do nothing.
             if (free == 0L)
             {
+                // The chunk was fully freed, and we're the owner - let's release the chunk from this pool
+                // and give it back to the parent.
+                //
+                // We can remove the chunk from our local queue only if we're the owner of the chunk,
+                // and we're running this code on the thread that owns this local pool
+                // because the local queue is not thread safe.
+                //
+                // Please note that we may end up running `put` on a different thread when we're called
+                // from chunk.tryRecycle() on a child chunk which was previously owned by tinyPool of this pool.
+                // Such tiny chunk will point to this pool with its recycler reference. Thanks to the recycler, a thread
+                // that returns the tiny chunk can end up here in a LocalPool that's not neccessarily local to the
+                // calling thread, as there is no guarantee a child chunk is returned to the pool
+                // by the same thread that originally allocated it.
+                // It is ok we skip recycling in such case, and it does not cause
+                // a leak because those chunks are still referenced by the local pool.
                 assert owner == this;
-                // 0L => we own recycling responsibility, so must recycle;
-                // We must remove the Chunk from our local queue
+                assert owningThread == Thread.currentThread();
                 remove(chunk);
                 chunk.recycle();
             }
@@ -836,7 +853,7 @@ public class BufferPool
                 chunk.partiallyRecycle();
             }
 
-            if (owner == this)
+            if (owner == this && owningThread == Thread.currentThread())
             {
                 MemoryUtil.setAttachment(buffer, null);
                 MemoryUtil.setDirectByteBuffer(buffer, 0, 0);
