@@ -617,10 +617,11 @@ public class BufferPool
 
         private void clearForEach(Consumer<Chunk> consumer)
         {
+            int oldCount = count;
             Chunk chunk0 = this.chunk0, chunk1 = this.chunk1, chunk2 = this.chunk2;
-            this.chunk0 = this.chunk1 = this.chunk2 = null;
-            forEach(consumer, count, chunk0, chunk1, chunk2);
             count = 0;
+            this.chunk0 = this.chunk1 = this.chunk2 = null;
+            forEach(consumer, oldCount, chunk0, chunk1, chunk2);
         }
 
         private static void forEach(Consumer<Chunk> consumer, int count, Chunk chunk0, Chunk chunk1, Chunk chunk2)
