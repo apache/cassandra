@@ -20,29 +20,18 @@ import cmd
 import codecs
 import configparser
 import csv
-import errno
 import getpass
 import optparse
 import os
-import platform
 import re
-import stat
 import subprocess
 import sys
 import traceback
 import warnings
 import webbrowser
 from contextlib import contextmanager
-from glob import glob
 from io import StringIO
 from uuid import UUID
-
-if sys.version_info < (3, 6):
-    sys.exit("\ncqlsh requires Python 3.6+\n")
-
-# see CASSANDRA-10428
-if platform.python_implementation().startswith('Jython'):
-    sys.exit("\nCQL Shell does not run on Jython\n")
 
 UTF8 = 'utf-8'
 
@@ -59,21 +48,7 @@ try:
 except ImportError:
     pass
 
-CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
-
-CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
-CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cql/index.html'
-
-# default location of local CQL.html
-if os.path.exists(CASSANDRA_PATH + '/doc/cql3/CQL.html'):
-    # default location of local CQL.html
-    CASSANDRA_CQL_HTML = 'file://' + CASSANDRA_PATH + '/doc/cql3/CQL.html'
-elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
-    # fallback to package file
-    CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
-else:
-    # fallback to online version
-    CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
+warnings.filterwarnings("ignore", r".*blist.*")
 
 # On Linux, the Python webbrowser module uses the 'xdg-open' executable
 # to open a file/URL. But that only works, if the current session has been
@@ -89,47 +64,7 @@ if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ
     webbrowser._tryorder.remove('xdg-open')
     webbrowser._tryorder.append('xdg-open')
 
-# use bundled lib for python-cql if available. if there
-# is a ../lib dir, use bundled libs there preferentially.
-ZIPLIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
-
-if platform.system() == 'Linux':
-    ZIPLIB_DIRS.append('/usr/share/cassandra/lib')
-
-if os.environ.get('CQLSH_NO_BUNDLED', ''):
-    ZIPLIB_DIRS = ()
-
-
-def find_zip(libprefix):
-    for ziplibdir in ZIPLIB_DIRS:
-        zips = glob(os.path.join(ziplibdir, libprefix + '*.zip'))
-        if zips:
-            return max(zips)   # probably the highest version, if multiple
-
-
-cql_zip = find_zip(CQL_LIB_PREFIX)
-if cql_zip:
-    ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
-    sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
-
-# the driver needs dependencies
-third_parties = ('six-', 'puresasl-')
-
-for lib in third_parties:
-    lib_zip = find_zip(lib)
-    if lib_zip:
-        sys.path.insert(0, lib_zip)
-
-warnings.filterwarnings("ignore", r".*blist.*")
-try:
-    import cassandra
-except ImportError as e:
-    sys.exit("\nPython Cassandra driver not installed, or not on PYTHONPATH.\n"
-             'You might try "pip install cassandra-driver".\n\n'
-             'Python: %s\n'
-             'Module load path: %r\n\n'
-             'Error: %s\n' % (sys.executable, sys.path, e))
-
+import cassandra
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from cassandra.cqltypes import cql_typename
@@ -139,11 +74,6 @@ from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.query import SimpleStatement, ordered_dict_factory, TraceUnavailable
 from cassandra.util import datetime_from_timestamp
 
-# cqlsh should run correctly when run out of a Cassandra source tree,
-# out of an unpacked Cassandra tarball, and after a proper package install.
-cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
-if os.path.isdir(cqlshlibdir):
-    sys.path.insert(0, cqlshlibdir)
 
 from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling, authproviderhandling
 from cqlshlib.copyutil import ExportTask, ImportTask
@@ -174,6 +104,7 @@ else:
 
 cqldocs = None
 cqlruleset = None
+CASSANDRA_CQL_HTML = None
 
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
@@ -226,8 +157,10 @@ parser.add_option('-v', action="version", help='Print the current version of cql
 parser.add_option("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
                   help=optparse.SUPPRESS_HELP)
 
+# use cfoptions for config file
+
 opt_values = optparse.Values()
-(options, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
+(cfoptions, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
 
 # BEGIN history/config definition
 
@@ -258,10 +191,12 @@ try:
 except OSError:
     print('\nWarning: Cannot create directory at `%s`. Command history will not be saved. Please check what was the environment property CQL_HISTORY set to.\n' % HISTORY_DIR)
 
+# END history/config 
+
 DEFAULT_CQLSHRC = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlshrc'))
 
-if hasattr(options, 'cqlshrc'):
-    CONFIG_FILE = os.path.expanduser(options.cqlshrc)
+if hasattr(cfoptions, 'cqlshrc'):
+    CONFIG_FILE = os.path.expanduser(cfoptions.cqlshrc)
     if not os.path.exists(CONFIG_FILE):
         print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, DEFAULT_CQLSHRC))
         CONFIG_FILE = DEFAULT_CQLSHRC
@@ -383,29 +318,6 @@ def show_warning_without_quoting_line(message, category, filename, lineno, file=
 warnings.showwarning = show_warning_without_quoting_line
 warnings.filterwarnings('always', category=cql3handling.UnexpectedTableStructure)
 
-
-def insert_driver_hooks():
-
-    class DateOverFlowWarning(RuntimeWarning):
-        pass
-
-    # Native datetime types blow up outside of datetime.[MIN|MAX]_YEAR. We will fall back to an int timestamp
-    def deserialize_date_fallback_int(byts, protocol_version):
-        timestamp_ms = int64_unpack(byts)
-        try:
-            return datetime_from_timestamp(timestamp_ms / 1000.0)
-        except OverflowError:
-            warnings.warn(DateOverFlowWarning("Some timestamps are larger than Python datetime can represent. "
-                                              "Timestamps are displayed in milliseconds from epoch."))
-            return timestamp_ms
-
-    cassandra.cqltypes.DateType.deserialize = staticmethod(deserialize_date_fallback_int)
-
-    if hasattr(cassandra, 'deserializers'):
-        del cassandra.deserializers.DesDateType
-
-    # Return cassandra.cqltypes.EMPTY instead of None for empty values
-    cassandra.cqltypes.CassandraType.support_empty_values = True
 
 
 class Shell(cmd.Cmd):
@@ -1589,7 +1501,6 @@ class Shell(cmd.Cmd):
         SHOW REPLICAS <token> (<keyspace>)
 
           Lists the replica nodes by IP address for the given token. The current
-          keyspace is used if one is not specified.
         """
         showwhat = parsed.get_binding('what').lower()
         if showwhat == 'version':
@@ -1603,7 +1514,6 @@ class Shell(cmd.Cmd):
         elif showwhat.startswith('replicas'):
             token_id = parsed.get_binding('token')
             keyspace = parsed.get_binding('keyspace')
-            self.show_replicas(token_id, keyspace)
         else:
             self.printerr('Wait, how do I show %r?' % (showwhat,))
 
@@ -2099,7 +2009,7 @@ def should_use_color():
     return True
 
 
-def read_options(cmdlineargs, environment):
+def read_options(cmdlineargs, environment=os.environ):
     configs = configparser.ConfigParser()
     configs.read(CONFIG_FILE)
 
@@ -2266,6 +2176,20 @@ def setup_cqldocs(cqlmodule):
     global cqldocs
     cqldocs = cqlmodule.cqldocs
 
+def setup_docspath(path):
+    global CASSANDRA_CQL_HTML
+    CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cql/index.html'
+    #
+    # default location of local CQL.html
+    if os.path.exists(path + '/doc/cql3/CQL.html'):
+        # default location of local CQL.html
+        CASSANDRA_CQL_HTML = 'file://' + path + '/doc/cql3/CQL.html'
+    elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
+        # fallback to package file
+        CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
+    else:
+        # fallback to online version
+        CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
 
 def init_history():
     if readline is not None:
@@ -2286,8 +2210,37 @@ def save_history():
         except IOError:
             pass
 
+def insert_driver_hooks():
 
-def main(options, hostname, port):
+    class DateOverFlowWarning(RuntimeWarning):
+        pass
+
+    # Display milliseconds when datetime overflows (CASSANDRA-10625), E.g., the year 10000.
+    # Native datetime types blow up outside of datetime.[MIN|MAX]_YEAR. We will fall back to an int timestamp
+    def deserialize_date_fallback_int(byts, protocol_version):
+        timestamp_ms = int64_unpack(byts)
+        try:
+            return datetime_from_timestamp(timestamp_ms / 1000.0)
+        except OverflowError:
+            warnings.warn(DateOverFlowWarning("Some timestamps are larger than Python datetime can represent. "
+                                              "Timestamps are displayed in milliseconds from epoch."))
+            return timestamp_ms
+
+    cassandra.cqltypes.DateType.deserialize = staticmethod(deserialize_date_fallback_int)
+
+    if hasattr(cassandra, 'deserializers'):
+        del cassandra.deserializers.DesDateType
+
+    # Return cassandra.cqltypes.EMPTY instead of None for empty values
+    cassandra.cqltypes.CassandraType.support_empty_values = True
+
+def main(cmdline, pkgpath):
+
+    insert_driver_hooks()
+
+    (options, hostname, port) = read_options(cmdline)
+
+    setup_docspath(pkgpath)
     setup_cqlruleset(options.cqlmodule)
     setup_cqldocs(options.cqlmodule)
     init_history()
@@ -2394,12 +2347,3 @@ def main(options, hostname, port):
     if shell.batch_mode and shell.statement_error:
         sys.exit(2)
 
-
-# always call this regardless of module name: when a sub-process is spawned
-# on Windows then the module name is not __main__, see CASSANDRA-9304 (Windows support was dropped in CASSANDRA-16956)
-insert_driver_hooks()
-
-if __name__ == '__main__':
-    main(*read_options(sys.argv[1:], os.environ))
-
-# vim: set ft=python et ts=4 sw=4 :
