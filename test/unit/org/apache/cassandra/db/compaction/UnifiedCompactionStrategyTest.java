@@ -270,7 +270,9 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
             for (int i = 0; i < expectedTs.length; i++)
             {
                 UnifiedCompactionStrategy.Bucket bucket = buckets.get(i);
-                if (bucket.sstables.size() >= expectedTs[i])
+                assertEquals(i, bucket.getIndex());
+
+                if (bucket.getSSTables().size() >= expectedTs[i])
                     assertFalse(bucket.getCompactionAggregate(entry.getKey(), Collections.EMPTY_SET, controller, dataSetSizeBytes).isEmpty());
                 else
                     assertTrue(bucket.getCompactionAggregate(entry.getKey(), Collections.EMPTY_SET, controller, dataSetSizeBytes).isEmpty());
