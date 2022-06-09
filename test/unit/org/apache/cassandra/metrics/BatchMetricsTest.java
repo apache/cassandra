@@ -158,15 +158,28 @@ public class BatchMetricsTest
             long partitionsPerCounterBatchCountPre = metrics.partitionsPerCounterBatch.getCount();
             long expectedPartitionsPerCounterBatchCount = partitionsPerCounterBatchCountPre + (batchTypeTested == BatchStatement.Type.COUNTER ? 1 : 0);
 
+            long columnsPerLoggedBatchCountPre = metrics.columnsPerLoggedBatch.getCount();
+            long expectedColumnsPerLoggedBatchCount = columnsPerLoggedBatchCountPre + (batchTypeTested == BatchStatement.Type.LOGGED ? 1 : 0);
+            long columnsPerUnloggedBatchCountPre = metrics.columnsPerUnloggedBatch.getCount();
+            long expectedColumnsPerUnloggedBatchCount = columnsPerUnloggedBatchCountPre + (batchTypeTested == BatchStatement.Type.UNLOGGED ? 1 : 0);
+            long columnsPerCounterBatchCountPre = metrics.columnsPerCounterBatch.getCount();
+            long expectedColumnsPerCounterBatchCount = columnsPerCounterBatchCountPre + (batchTypeTested == BatchStatement.Type.COUNTER ? 1 : 0);
+
             executeLoggerBatch(batchTypeTested, distinctPartitions, rounds[ix]);
 
             assertEquals(expectedPartitionsPerUnloggedBatchCount, metrics.partitionsPerUnloggedBatch.getCount());
             assertEquals(expectedPartitionsPerLoggedBatchCount, metrics.partitionsPerLoggedBatch.getCount());
             assertEquals(expectedPartitionsPerCounterBatchCount, metrics.partitionsPerCounterBatch.getCount());
+            assertEquals(expectedColumnsPerUnloggedBatchCount, metrics.columnsPerUnloggedBatch.getCount());
+            assertEquals(expectedColumnsPerLoggedBatchCount, metrics.columnsPerLoggedBatch.getCount());
+            assertEquals(expectedColumnsPerCounterBatchCount, metrics.columnsPerCounterBatch.getCount());
 
             EstimatedHistogramReservoirSnapshot partitionsPerLoggedBatchSnapshot = (EstimatedHistogramReservoirSnapshot) metrics.partitionsPerLoggedBatch.getSnapshot();
             EstimatedHistogramReservoirSnapshot partitionsPerUnloggedBatchSnapshot = (EstimatedHistogramReservoirSnapshot) metrics.partitionsPerUnloggedBatch.getSnapshot();
             EstimatedHistogramReservoirSnapshot partitionsPerCounterBatchSnapshot = (EstimatedHistogramReservoirSnapshot) metrics.partitionsPerCounterBatch.getSnapshot();
+            EstimatedHistogramReservoirSnapshot columnsPerLoggedBatchSnapshot = (EstimatedHistogramReservoirSnapshot) metrics.columnsPerLoggedBatch.getSnapshot();
+            EstimatedHistogramReservoirSnapshot columnsPerUnloggedBatchSnapshot = (EstimatedHistogramReservoirSnapshot) metrics.columnsPerUnloggedBatch.getSnapshot();
+            EstimatedHistogramReservoirSnapshot columnsPerCounterBatchSnapshot = (EstimatedHistogramReservoirSnapshot) metrics.columnsPerCounterBatch.getSnapshot();
 
             // BatchMetrics uses DecayingEstimatedHistogramReservoir which notes that the return of getMax()
             // may be more than the actual max value recorded in the reservoir with similar but reverse properties
@@ -181,10 +194,22 @@ public class BatchMetricsTest
             Range expectedPartitionsPerCounterBatchMinMax = batchTypeTested == BatchStatement.Type.COUNTER ?
                                                             determineExpectedMinMax(partitionsPerCounterBatchSnapshot, distinctPartitions) :
                                                             new Range(0L, 0L);
+            Range expectedColumnsPerLoggedBatchMinMax = batchTypeTested == BatchStatement.Type.LOGGED ?
+                                                        determineExpectedMinMax(columnsPerLoggedBatchSnapshot, distinctPartitions) :
+                                                        new Range(0L, 0L);
+            Range expectedColumnsPerUnloggedBatchMinMax = batchTypeTested == BatchStatement.Type.UNLOGGED ?
+                                                          determineExpectedMinMax(columnsPerUnloggedBatchSnapshot, distinctPartitions) :
+                                                          new Range(0L, 0L);
+            Range expectedColumnsPerCounterBatchMinMax = batchTypeTested == BatchStatement.Type.COUNTER ?
+                                                         determineExpectedMinMax(columnsPerCounterBatchSnapshot, distinctPartitions) :
+                                                         new Range(0L, 0L);
 
             assertEquals(expectedPartitionsPerLoggedBatchMinMax, new Range(partitionsPerLoggedBatchSnapshot.getMin(), partitionsPerLoggedBatchSnapshot.getMax()));
             assertEquals(expectedPartitionsPerUnloggedBatchMinMax, new Range(partitionsPerUnloggedBatchSnapshot.getMin(), partitionsPerUnloggedBatchSnapshot.getMax()));
             assertEquals(expectedPartitionsPerCounterBatchMinMax, new Range(partitionsPerCounterBatchSnapshot.getMin(), partitionsPerCounterBatchSnapshot.getMax()));
+            assertEquals(expectedColumnsPerLoggedBatchMinMax, new Range(columnsPerLoggedBatchSnapshot.getMin(), columnsPerLoggedBatchSnapshot.getMax()));
+            assertEquals(expectedColumnsPerUnloggedBatchMinMax, new Range(columnsPerUnloggedBatchSnapshot.getMin(), columnsPerUnloggedBatchSnapshot.getMax()));
+            assertEquals(expectedColumnsPerCounterBatchMinMax, new Range(columnsPerCounterBatchSnapshot.getMin(), columnsPerCounterBatchSnapshot.getMax()));
         }
     }
 
@@ -193,6 +218,9 @@ public class BatchMetricsTest
         ((ClearableHistogram) metrics.partitionsPerLoggedBatch).clear();
         ((ClearableHistogram) metrics.partitionsPerUnloggedBatch).clear();
         ((ClearableHistogram) metrics.partitionsPerCounterBatch).clear();
+        ((ClearableHistogram) metrics.columnsPerLoggedBatch).clear();
+        ((ClearableHistogram) metrics.columnsPerUnloggedBatch).clear();
+        ((ClearableHistogram) metrics.columnsPerCounterBatch).clear();
     }
 
     private Range determineExpectedMinMax(EstimatedHistogramReservoirSnapshot snapshot, long value)
