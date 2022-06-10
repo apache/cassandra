@@ -29,6 +29,7 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -51,13 +52,14 @@ public class PagingTest
                                                     " WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 2 };";
 
     private static final String dropKsStatement = "DROP KEYSPACE IF EXISTS " + KEYSPACE;
+    private static EmbeddedCassandraService cassandra;
 
     @BeforeClass
     public static void setup() throws Exception
     {
         System.setProperty("cassandra.config", "cassandra-murmur.yaml");
-        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
-        cassandra.start();
+
+        cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
         // Currently the native server start method return before the server is fully binded to the socket, so we need
         // to wait slightly before trying to connect to it. We should fix this but in the meantime using a sleep.
@@ -75,7 +77,10 @@ public class PagingTest
     @AfterClass
     public static void tearDown()
     {
-        cluster.close();
+        if (cluster != null)
+            cluster.close();
+        if (cassandra != null)
+            cassandra.stop();
     }
 
     /**
