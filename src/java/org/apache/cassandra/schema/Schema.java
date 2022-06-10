@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -227,15 +228,15 @@ public class Schema implements SchemaProvider
         return keyspaceInstances.blockingLoadIfAbsent(keyspaceName, loadFunction);
     }
 
-    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName, boolean dropData)
+    private Keyspace maybeRemoveKeyspaceInstance(String keyspaceName, Consumer<Keyspace> unloadFunction)
     {
         try
         {
-            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, keyspace -> keyspace.unload(dropData));
+            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, unloadFunction);
         }
         catch (LoadingMap.UnloadExecutionException e)
         {
-            throw new AssertionError("Failed to unload the keyspace " + keyspaceName);
+            throw new AssertionError("Failed to unload the keyspace " + keyspaceName, e);
         }
     }
 
@@ -533,16 +534,6 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * Clear all KS/CF metadata and reset version.
-     */
-    public synchronized void clear()
-    {
-        distributedKeyspaces.forEach(this::unload);
-        updateVersion(SchemaConstants.emptyVersion);
-        SchemaDiagnostics.schemaCleared(this);
-    }
-
-    /**
      * When we receive {@link SchemaTransformationResult} in a callback invocation, the transformation result includes
      * pre-transformation and post-transformation schema metadata and versions, and a diff between them. Basically
      * we expect that the local image of the schema metadata ({@link #distributedKeyspaces}) and version ({@link #version})
@@ -617,16 +608,18 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * Clear all locally stored schema information and reset schema to initial state.
+     * Clear all locally stored schema information and fetch schema from another node.
      * Called by user (via JMX) who wants to get rid of schema disagreement.
      */
-    public void resetLocalSchema()
+    public synchronized void resetLocalSchema()
     {
         logger.debug("Clearing local schema...");
         updateHandler.clear();
 
         logger.debug("Clearing local schema keyspace instances...");
-        clear();
+        distributedKeyspaces.forEach(this::unload);
+        updateVersion(SchemaConstants.emptyVersion);
+        SchemaDiagnostics.schemaCleared(this);
 
         updateHandler.reset(false);
         logger.info("Local schema reset is complete.");
@@ -692,37 +685,40 @@ public class Schema implements SchemaProvider
         // we send mutations to the correct set of bootstrapping nodes. Refer CASSANDRA-15433.
         if (keyspace.params.replication.klass != LocalStrategy.class && Keyspace.isInitialized())
         {
-            PendingRangeCalculatorService.calculatePendingRanges(Keyspace.open(keyspace.name).getReplicationStrategy(), keyspace.name);
+            PendingRangeCalculatorService.calculatePendingRanges(Keyspace.open(keyspace.name, this, true).getReplicationStrategy(), keyspace.name);
         }
     }
 
-    private void dropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
+    private void dropKeyspace(KeyspaceMetadata keyspaceMetadata, boolean dropData)
     {
-        SchemaDiagnostics.keyspaceDropping(this, keyspace);
+        SchemaDiagnostics.keyspaceDropping(this, keyspaceMetadata);
 
         boolean initialized = Keyspace.isInitialized();
-        Keyspace ks = initialized ? getKeyspaceInstance(keyspace.name) : null;
+        Keyspace keyspace = initialized ? Keyspace.open(keyspaceMetadata.name, this, false) : null;
         if (initialized)
         {
-            if (ks == null)
+            if (keyspace == null)
                 return;
 
-            keyspace.views.forEach(v -> dropView(ks, v, dropData));
-            keyspace.tables.forEach(t -> dropTable(ks, t, dropData));
+            keyspaceMetadata.views.forEach(v -> dropView(keyspace, v, dropData));
+            keyspaceMetadata.tables.forEach(t -> dropTable(keyspace, t, dropData));
 
             // remove the keyspace from the static instances
-            maybeRemoveKeyspaceInstance(keyspace.name, dropData);
-        }
+            Keyspace unloadedKeyspace = maybeRemoveKeyspaceInstance(keyspaceMetadata.name, ks -> {
+                ks.unload(dropData);
+                unload(keyspaceMetadata);
+            });
+            assert unloadedKeyspace == keyspace;
 
-        unload(keyspace);
-
-        if (initialized)
-        {
             Keyspace.writeOrder.awaitNewBarrier();
         }
+        else
+        {
+            unload(keyspaceMetadata);
+        }
 
-        schemaChangeNotifier.notifyKeyspaceDropped(keyspace, dropData);
-        SchemaDiagnostics.keyspaceDropped(this, keyspace);
+        schemaChangeNotifier.notifyKeyspaceDropped(keyspaceMetadata, dropData);
+        SchemaDiagnostics.keyspaceDropped(this, keyspaceMetadata);
     }
 
     private void dropView(Keyspace keyspace, ViewMetadata metadata, boolean dropData)
