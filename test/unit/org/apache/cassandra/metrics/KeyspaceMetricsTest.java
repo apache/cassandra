@@ -18,19 +18,10 @@
 
 package org.apache.cassandra.metrics;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import java.io.IOException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.service.EmbeddedCassandraService;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -38,20 +29,26 @@ import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Session;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.EmbeddedCassandraService;
 
-public class KeyspaceMetricsTest extends SchemaLoader
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+public class KeyspaceMetricsTest
 {
     private static Session session;
+    private static Cluster cluster;
+    private static EmbeddedCassandraService cassandra;
 
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
-        Schema.instance.clear();
+        cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
-        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
-        cassandra.start();
-
-        Cluster cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
+        cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
     }
 
@@ -73,10 +70,13 @@ public class KeyspaceMetricsTest extends SchemaLoader
         // no metrics after drop
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
     }
-    
+
     @AfterClass
-    public static void teardown()
+    public static void tearDown()
     {
-        session.close();
+        if (cluster != null)
+            cluster.close();
+        if (cassandra != null)
+            cassandra.stop();
     }
 }
