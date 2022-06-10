@@ -33,11 +33,10 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.AuthenticationException;
 import com.datastax.driver.core.exceptions.SyntaxError;
 import com.datastax.driver.core.exceptions.UnauthorizedException;
-
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -74,11 +73,9 @@ public class AuditLoggerAuthTest
             config.audit_logging_options.enabled = true;
             config.audit_logging_options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         });
-        CQLTester.prepareServer();
 
         System.setProperty("cassandra.superuser_setup_delay_ms", "0");
-        embedded = new EmbeddedCassandraService();
-        embedded.start();
+        embedded = ServerTestUtils.startEmbeddedCassandraService();
 
         executeWithCredentials(
         Arrays.asList(getCreateRoleCql(TEST_USER, true, false, false),

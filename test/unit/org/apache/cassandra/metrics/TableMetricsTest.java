@@ -31,17 +31,16 @@ import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class TableMetricsTest extends SchemaLoader
+public class TableMetricsTest
 {
     private static Session session;
 
@@ -49,15 +48,15 @@ public class TableMetricsTest extends SchemaLoader
     private static final String TABLE = "tablemetricstest";
     private static final String COUNTER_TABLE = "tablemetricscountertest";
 
+    private static EmbeddedCassandraService cassandra;
+    private static Cluster cluster;
+
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
-        Schema.instance.clear();
+        cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
-        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
-        cassandra.start();
-
-        Cluster cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
+        cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
 
         session.execute(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };", KEYSPACE));
@@ -276,9 +275,13 @@ public class TableMetricsTest extends SchemaLoader
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
     }
 
+
     @AfterClass
-    public static void teardown()
+    public static void tearDown()
     {
-        session.close();
+        if (cluster != null)
+            cluster.close();
+        if (cassandra != null)
+            cassandra.stop();
     }
 }

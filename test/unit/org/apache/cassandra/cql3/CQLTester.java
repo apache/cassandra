@@ -421,12 +421,14 @@ public abstract class CQLTester
 
     public static List<String> buildNodetoolArgs(List<String> args)
     {
+        int port = jmxPort == 0 ? Integer.getInteger("cassandra.jmx.local.port", 7199) : jmxPort;
+        String host = jmxHost == null ? "127.0.0.1" : jmxHost;
         List<String> allArgs = new ArrayList<>();
         allArgs.add("bin/nodetool");
         allArgs.add("-p");
-        allArgs.add(Integer.toString(jmxPort));
+        allArgs.add(String.valueOf(port));
         allArgs.add("-h");
-        allArgs.add(jmxHost == null ? "127.0.0.1" : jmxHost);
+        allArgs.add(host);
         allArgs.addAll(args);
         return allArgs;
     }

@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -35,13 +36,12 @@ import com.datastax.driver.core.*;
 import com.datastax.driver.core.policies.LoggingRetryPolicy;
 import com.datastax.driver.core.policies.Policies;
 import com.datastax.driver.core.utils.Bytes;
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
-public class CorruptionTest extends SchemaLoader
+public class CorruptionTest
 {
 
     private static EmbeddedCassandraService cassandra;
@@ -59,10 +59,7 @@ public class CorruptionTest extends SchemaLoader
     @BeforeClass()
     public static void setup() throws ConfigurationException, IOException
     {
-        Schema.instance.clear();
-
-        cassandra = new EmbeddedCassandraService();
-        cassandra.start();
+        cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1")
                          .withRetryPolicy(new LoggingRetryPolicy(Policies.defaultRetryPolicy()))
@@ -100,6 +97,15 @@ public class CorruptionTest extends SchemaLoader
             s.append(x);
         }
         VALUE = s.toString();
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        if (cluster != null)
+            cluster.close();
+        if (cassandra != null)
+            cassandra.stop();
     }
 
     @Test
