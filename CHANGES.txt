@@ -1,4 +1,5 @@
 4.1-alpha2
+ * Fix a race condition where a keyspace can be oopened while it is being removed (CASSANDRA-17658)
  * DatabaseDescriptor will set the default failure detector during client initialization (CASSANDRA-17782)
  * Avoid initializing schema via SystemKeyspace.getPreferredIP() with the BulkLoader tool (CASSANDRA-17740)
  * Uncomment prepared_statements_cache_size, key_cache_size, counter_cache_size, index_summary_capacity which were
