@@ -22,15 +22,18 @@ import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
 
-public class BatchTest extends CQLTester
+public class BatchTests extends CQLTester
 {
     private static EmbeddedCassandraService cassandra;
 
@@ -44,8 +47,7 @@ public class BatchTest extends CQLTester
     @BeforeClass()
     public static void setup() throws ConfigurationException, IOException
     {
-        cassandra = new EmbeddedCassandraService();
-        cassandra.start();
+        cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
@@ -73,6 +75,15 @@ public class BatchTest extends CQLTester
         noncounter = session.prepare("insert into junit.noncounter(id, val)values(?,?)");
         counter = session.prepare("update junit.counter set val = val + ? where id = ?");
         clustering = session.prepare("insert into junit.clustering(id, clustering1, clustering2, clustering3, val) values(?,?,?,?,?)");
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        if (cluster != null)
+            cluster.close();
+        if (cassandra != null)
+            cassandra.stop();
     }
 
     @Test(expected = InvalidQueryException.class)
