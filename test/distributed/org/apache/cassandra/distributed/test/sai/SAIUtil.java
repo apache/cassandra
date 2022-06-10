@@ -124,7 +124,7 @@ public class SAIUtil
 
     public static void waitForSchemaAgreement(Cluster cluster)
     {
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(60, TimeUnit.SECONDS)
                .until(() -> schemaAgrees(cluster));
     }
 
