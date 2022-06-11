@@ -204,7 +204,7 @@ public abstract class CompactionAggregate
                 numCompactingSSTables += compaction.sstables().size();
             }
 
-            if (compaction.progress() != null)
+            if (compaction.inProgress())
             {
                 read += compaction.progress().uncompressedBytesRead();
                 written += compaction.progress().uncompressedBytesWritten();
@@ -420,7 +420,7 @@ public abstract class CompactionAggregate
             long readLevel = 0L;
 
             for (CompactionPick compaction : compactions)
-                if (!compaction.completed() && compaction.progress() != null)
+                if (!compaction.completed() && compaction.inProgress())
                     readLevel += compaction.progress().uncompressedBytesRead(level);
 
             return new LeveledCompactionStatistics(stats, level, score, pendingCompactions, readLevel);

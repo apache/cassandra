@@ -1007,6 +1007,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 bipartitionSSTables(sstables, allExpiredSSTables, liveSet, expiredSet);
             }
 
+            if (logger.isTraceEnabled())
+                logger.trace("Creating compaction aggregate with live set {}, and expired set {}", liveSet, expiredSet);
+
             List<CompactionPick> pending = ImmutableList.of();
             CompactionPick selected;
             int count = liveSet.size();
@@ -1072,6 +1075,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             else if (hasExpiredSSTables)
                 selected = selected.withExpiredSSTables(expiredSet);
 
+            if (logger.isTraceEnabled())
+                logger.trace("Returning compaction aggregate with selected compaction {}, and pending {}, for shard {}",
+                             selected, pending, shard);
             return CompactionAggregate.createUnified(sstables, selected, pending, shard, this);
         }
 
