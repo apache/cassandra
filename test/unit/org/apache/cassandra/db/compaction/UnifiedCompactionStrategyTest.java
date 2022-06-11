@@ -574,7 +574,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         assertEquals(0, strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
 
         for (CompactionPick pick : strategy.backgroundCompactions.getCompactionsInProgress())
-            if (pick.progress() == null)
+            if (!pick.inProgress())
                 strategy.backgroundCompactions.onInProgress(mockProgress(strategy, pick.id()));
 
         // and also when they do

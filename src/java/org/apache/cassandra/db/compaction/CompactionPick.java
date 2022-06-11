@@ -198,6 +198,11 @@ public class CompactionPick
         return progress;
     }
     
+    public boolean inProgress()
+    {
+        return progress != null;
+    }
+    
     public boolean completed()
     {
         return completed;
