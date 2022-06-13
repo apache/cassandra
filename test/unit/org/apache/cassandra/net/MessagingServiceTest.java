@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.AsynchronousSocketChannel;
+import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -35,31 +36,35 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.*;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.common.net.InetAddresses;
-
-import com.codahale.metrics.Timer;
-
-import org.apache.cassandra.auth.IInternodeAuthenticator;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.metrics.MessagingMetrics;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.FBUtilities;
-import org.awaitility.Awaitility;
-import org.caffinitas.ohc.histo.EstimatedHistogram;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.codahale.metrics.Timer;
+import org.apache.cassandra.auth.IInternodeAuthenticator;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.MessagingMetrics;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.awaitility.Awaitility;
+import org.caffinitas.ohc.histo.EstimatedHistogram;
+
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class MessagingServiceTest
 {
@@ -67,10 +72,30 @@ public class MessagingServiceTest
     public static AtomicInteger rejectedConnections = new AtomicInteger();
     public static final IInternodeAuthenticator ALLOW_NOTHING_AUTHENTICATOR = new IInternodeAuthenticator()
     {
-        public boolean authenticate(InetAddress remoteAddress, int remotePort)
+        public boolean authenticate(InetAddress remoteAddress, int remotePort,
+                                    Certificate[] certificates, InternodeConnectionDirection connectionType)
         {
             rejectedConnections.incrementAndGet();
             return false;
+        }
+
+        public void validateConfiguration() throws ConfigurationException
+        {
+
+        }
+    };
+
+    public static final IInternodeAuthenticator REJECT_OUTBOUND_AUTHENTICATOR = new IInternodeAuthenticator()
+    {
+        public boolean authenticate(InetAddress remoteAddress, int remotePort,
+                                    Certificate[] certificates, InternodeConnectionDirection connectionType)
+        {
+            if (connectionType == InternodeConnectionDirection.OUTBOUND)
+            {
+                rejectedConnections.incrementAndGet();
+                return false;
+            }
+            return true;
         }
 
         public void validateConfiguration() throws ConfigurationException
@@ -228,19 +253,38 @@ public class MessagingServiceTest
     @Test
     public void testFailedOutboundInternodeAuth() throws Exception
     {
-        MessagingService ms = MessagingService.instance();
-        DatabaseDescriptor.setInternodeAuthenticator(ALLOW_NOTHING_AUTHENTICATOR);
-        InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.250");
+        // Listen on serverside for connections
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
+        .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none);
 
-        //Should return null
-        int rejectedBefore = rejectedConnections.get();
-        Message<?> messageOut = Message.out(Verb.ECHO_REQ, NoPayload.noPayload);
-        ms.send(messageOut, address);
-        Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> rejectedConnections.get() > rejectedBefore);
+        DatabaseDescriptor.setInternodeAuthenticator(REJECT_OUTBOUND_AUTHENTICATOR);
+        InetAddress listenAddress = FBUtilities.getJustLocalAddress();
 
-        //Should tolerate null
-        ms.closeOutbound(address);
-        ms.send(messageOut, address);
+        InboundConnectionSettings settings = new InboundConnectionSettings().withEncryption(serverEncryptionOptions);
+        InboundSockets connections = new InboundSockets(settings);
+
+        try
+        {
+            connections.open().await();
+            Assert.assertTrue(connections.isListening());
+
+            MessagingService ms = MessagingService.instance();
+            //Should return null
+            int rejectedBefore = rejectedConnections.get();
+            Message<?> messageOut = Message.out(Verb.ECHO_REQ, NoPayload.noPayload);
+            InetAddressAndPort address = InetAddressAndPort.getByAddress(listenAddress);
+            ms.send(messageOut, address);
+            Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> rejectedConnections.get() > rejectedBefore);
+
+            //Should tolerate null
+            ms.closeOutbound(address);
+            ms.send(messageOut, address);
+        }
+        finally
+        {
+            connections.close().await();
+            Assert.assertFalse(connections.isListening());
+        }
     }
 
     @Test
@@ -262,6 +306,11 @@ public class MessagingServiceTest
 
             int rejectedBefore = rejectedConnections.get();
             Future<Void> connectFuture = testChannel.connect(new InetSocketAddress(listenAddress, DatabaseDescriptor.getStoragePort()));
+            Awaitility.await().atMost(10, TimeUnit.SECONDS).until(connectFuture::isDone);
+
+            // Since authentication doesn't happen during connect, try writing a dummy string which triggers
+            // authentication handler.
+            testChannel.write(ByteBufferUtil.bytes("dummy string"));
             Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() -> rejectedConnections.get() > rejectedBefore);
 
             connectFuture.cancel(true);
