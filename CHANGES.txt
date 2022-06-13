@@ -3,6 +3,7 @@
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
+ * Remove SSL storage port from sstableloader (CASSANDRA-17602)
  * Allow Java 11 to satisfy RPM/Debian packaging (CASSANDRA-17669)
  * Ensure FileStreamTask cannot compromise shared channel proxy for system table when interrupted (CASSANDRA-17663)
  * silence benign SslClosedEngineException (CASSANDRA-17565)

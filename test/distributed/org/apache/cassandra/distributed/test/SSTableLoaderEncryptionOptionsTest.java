@@ -37,6 +37,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.BulkLoader;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.NativeSSTableLoaderClient;
 
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -81,6 +82,7 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
         if (CLUSTER != null)
             CLUSTER.close();
     }
+
     @Test
     public void bulkLoaderSuccessfullyStreamsOverSsl() throws Throwable
     {
@@ -88,7 +90,7 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
                                                             "--nodes", NODES,
                                                             "--port", Integer.toString(NATIVE_PORT),
-                                                            "--ssl-storage-port", Integer.toString(STORAGE_PORT),
+                                                            "--storage-port", Integer.toString(STORAGE_PORT),
                                                             "--keystore", validKeyStorePath,
                                                             "--keystore-password", validKeyStorePassword,
                                                             "--truststore", validTrustStorePath,
@@ -114,7 +116,7 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
                                                             "--truststore-password", validTrustStorePassword,
                                                             "test/data/legacy-sstables/na/legacy_tables/legacy_na_clust");
         assertNotEquals(0, tool.getExitCode());
-        assertTrue(tool.getStdout().contains("SSLHandshakeException"));
+        assertTrue(tool.getStderr().contains("Unable to initialise " + NativeSSTableLoaderClient.class.getName()));
     }
 
     private static File prepareSstablesForUpload() throws IOException
