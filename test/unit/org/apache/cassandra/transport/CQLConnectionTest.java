@@ -147,7 +147,7 @@ public class CQLConnectionTest
         // Before closing, the server should send an ErrorMessage to inform the
         // client of the corrupt message.
         Function<ByteBuf, ByteBuf> corruptor = msg -> {
-            msg.setByte(msg.readableBytes() / 2, 0xffff);
+            flipBit(msg, msg.readableBytes() / 2);
             return msg;
         };
         IntFunction<Envelope> envelopeProvider = i -> randomEnvelope(i, Message.Type.OPTIONS);
@@ -195,7 +195,7 @@ public class CQLConnectionTest
                 {
                     int frameBoundary = MAX_FRAMED_PAYLOAD_SIZE - seenBytes;
                     corruptedByte = msg.readerIndex() + frameBoundary + 100;
-                    msg.setByte(corruptedByte, 0xffff);
+                    flipBit(msg, corruptedByte);
                 }
                 else
                 {
@@ -543,6 +543,11 @@ public class CQLConnectionTest
         };
     }
 
+    private void flipBit(ByteBuf buf, int index)
+    {
+        buf.setByte(index, buf.getByte(index) ^ (1 << 4));
+    }
+
     private static class MutableEnvelope extends Envelope
     {
         public MutableEnvelope(Envelope source)
@@ -603,6 +608,9 @@ public class CQLConnectionTest
             Message.Request request = new OptionsMessage();
             request.setSource(source);
             request.setStreamId(source.header.streamId);
+            Connection connection = channel.attr(Connection.attributeKey).get();
+            request.attach(connection);
+
             return request;
         }
     }
