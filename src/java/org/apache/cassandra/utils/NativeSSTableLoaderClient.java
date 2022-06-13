@@ -19,7 +19,6 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.*;
 
 import com.datastax.driver.core.*;
@@ -98,9 +97,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             // We only need the TableMetadata for the views, so we only load that.
             tables.putAll(fetchViews(keyspace, session, partitioner, types));
         }
-        catch (UnknownHostException e)
+        catch (Exception e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Unable to initialise " + NativeSSTableLoaderClient.class.getName(), e);
         }
     }
 
