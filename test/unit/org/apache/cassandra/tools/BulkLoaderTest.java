@@ -57,7 +57,7 @@ public class BulkLoaderTest extends OfflineToolUtils
         assertEquals(-1, tool.getExitCode());
         if (!(tool.getException().getCause() instanceof BulkLoadException))
             throw tool.getException();
-        if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
+        if (!(tool.getException().getCause().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
         assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread",
@@ -85,7 +85,7 @@ public class BulkLoaderTest extends OfflineToolUtils
         assertEquals(-1, tool.getExitCode());
         if (!(tool.getException().getCause() instanceof BulkLoadException))
             throw tool.getException();
-        if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
+        if (!(tool.getException().getCause().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
         assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread",
@@ -113,7 +113,7 @@ public class BulkLoaderTest extends OfflineToolUtils
         assertEquals(-1, tool.getExitCode());
         if (!(tool.getException().getCause() instanceof BulkLoadException))
             throw tool.getException();
-        if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
+        if (!(tool.getException().getCause().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
         assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread",
@@ -138,7 +138,7 @@ public class BulkLoaderTest extends OfflineToolUtils
                                                  "9041",
                                                  OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
         assertEquals(-1, tool.getExitCode());
-        throw tool.getException().getCause().getCause();
+        throw tool.getException().getCause().getCause().getCause();
     }
 
     @Test(expected = NoHostAvailableException.class)
@@ -149,6 +149,6 @@ public class BulkLoaderTest extends OfflineToolUtils
                                                  "127.9.9.1:9041",
                                                  OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
         assertEquals(-1, tool.getExitCode());
-        throw tool.getException().getCause().getCause();
+        throw tool.getException().getCause().getCause().getCause();
     }
 }
