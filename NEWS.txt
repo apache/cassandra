@@ -73,6 +73,7 @@ New features
       - Whether SimpleStrategy is allowed on keyspace creation or alteration
       - Maximum replication factor
       - Whether DROP KEYSPACE commands are allowed.
+      - Column value size
     - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
 
 Upgrading

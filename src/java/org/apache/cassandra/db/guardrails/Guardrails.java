@@ -275,15 +275,24 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail on the size of a collection.
      */
+    public static final MaxThreshold columnValueSize =
+    new MaxThreshold("column_value_size",
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnValueSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column %s has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a collection.
+     */
     public static final MaxThreshold collectionSize =
     new MaxThreshold("collection_size",
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeWarnThreshold()),
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeFailThreshold()),
                      (isWarning, what, value, threshold) ->
-                     isWarning ? format("Detected collection %s of size %s, this exceeds the warning threshold of %s.",
-                                        what, value, threshold)
-                               : format("Detected collection %s of size %s, this exceeds the failure threshold of %s.",
-                                        what, value, threshold));
+                     format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
      * Guardrail on the number of items of a collection.
@@ -293,10 +302,8 @@ public final class Guardrails implements GuardrailsMBean
                      state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionWarnThreshold(),
                      state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionFailThreshold(),
                      (isWarning, what, value, threshold) ->
-                     isWarning ? format("Detected collection %s with %s items, this exceeds the warning threshold of %s.",
-                                        what, value, threshold)
-                               : format("Detected collection %s with %s items, this exceeds the failure threshold of %s.",
-                                        what, value, threshold));
+                     format("Detected collection %s with %s items, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
      * Guardrail on the number of fields on each UDT.
@@ -717,6 +724,26 @@ public final class Guardrails implements GuardrailsMBean
     public void setPartitionKeysInSelectThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
+    }
+
+    @Override
+    @Nullable
+    public String getColumnValueSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnValueSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getColumnValueSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnValueSizeFailThreshold());
+    }
+
+    @Override
+    public void setColumnValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setColumnValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
     }
 
     @Override

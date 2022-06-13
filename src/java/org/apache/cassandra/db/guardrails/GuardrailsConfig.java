@@ -238,6 +238,18 @@ public interface GuardrailsConfig
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
 
     /**
+     * @return The threshold to warn when writing column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent writing column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnValueSizeFailThreshold();
+
+    /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */
     @Nullable
