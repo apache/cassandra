@@ -76,6 +76,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.read_consistency_levels_disallowed = validateConsistencyLevels(config.read_consistency_levels_disallowed, "read_consistency_levels_disallowed");
         config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
+        validateSizeThreshold(config.column_value_size_warn_threshold, config.column_value_size_fail_threshold, false, "column_value_size");
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
         validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
         validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
@@ -534,6 +535,33 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   validateConsistencyLevels(consistencyLevels, "write_consistency_levels_disallowed"),
                                   () -> config.write_consistency_levels_disallowed,
                                   x -> config.write_consistency_levels_disallowed = x);
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getColumnValueSizeWarnThreshold()
+    {
+        return config.column_value_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getColumnValueSizeFailThreshold()
+    {
+        return config.column_value_size_fail_threshold;
+    }
+
+    public void setColumnValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "column_value_size");
+        updatePropertyWithLogging("column_value_size_warn_threshold",
+                                  warn,
+                                  () -> config.column_value_size_warn_threshold,
+                                  x -> config.column_value_size_warn_threshold = x);
+        updatePropertyWithLogging("column_value_size_fail_threshold",
+                                  fail,
+                                  () -> config.column_value_size_fail_threshold,
+                                  x -> config.column_value_size_fail_threshold = x);
     }
 
     @Override
