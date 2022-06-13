@@ -577,7 +577,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // when the CFS is invalidated, it will call unreferenceSSTables().  However, unreferenceSSTables only deals
         // with sstables that aren't currently being compacted.  If there are ongoing compactions that finish or are
         // interrupted after the CFS is invalidated, those sstables need to be unreferenced as well, so we do that here.
-        accumulate = tracker.dropSSTablesIfInvalid(accumulate);
+        accumulate = tracker.dropOrUnloadSSTablesIfInvalid("for transaction " + log.id(), accumulate);
         return accumulate;
     }
 
