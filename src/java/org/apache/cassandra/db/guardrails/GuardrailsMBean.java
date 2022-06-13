@@ -469,6 +469,30 @@ public interface GuardrailsMBean
     void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
 
     /**
+     * @return The threshold to warn when encountering column values larger than threshold, as a string  formatted as
+     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent column values larger than threshold, as a string formatted as in, for example,
+     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnValueSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering column values larger than threshold, as a string
+     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent column values larger than threshold, as a string formatted as in, for
+     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     */
+    void setColumnValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
      * @return The threshold to warn when encountering larger size of collection data than threshold, as a string
      * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
      * means that the threshold is disabled.
