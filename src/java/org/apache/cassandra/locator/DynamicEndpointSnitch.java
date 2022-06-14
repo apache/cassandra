@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
@@ -425,5 +426,11 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
     public boolean acceptsNodesFromSameRack(int rf, int rackCount)
     {
         return subsnitch.acceptsNodesFromSameRack(rf, rackCount);
+    }
+
+    @Override
+    public Predicate<Replica> filterByAffinity(String keyspace)
+    {
+        return subsnitch.filterByAffinity(keyspace);
     }
 }
