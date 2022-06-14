@@ -22,6 +22,7 @@ import subprocess
 
 from .basecase import BaseTestCase
 from .cassconnect import (get_cassandra_connection, create_keyspace, testrun_cqlsh)
+from cqlshlib.formatting import unicode_controlchars_re
 
 
 class TestCqlshUnicode(BaseTestCase):
@@ -73,3 +74,6 @@ class TestCqlshUnicode(BaseTestCase):
             self.assertIn(v1, output)
             output = c.cmd_and_response('DESC TYPE "%s";' %(v1,))
             self.assertIn(v2, output)
+
+    def test_unicode_esc(self):  # CASSANDRA-17617
+        self.assertFalse(unicode_controlchars_re.match("01"))

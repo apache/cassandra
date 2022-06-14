@@ -37,8 +37,8 @@ from .util import UTC
 
 is_win = platform.system() == 'Windows'
 
-unicode_controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
-controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
+unicode_controlchars_re = re.compile(r'[\x00-\x1f\x7f-\xa0]')
+controlchars_re = re.compile(r'[\x00-\x1f\x7f-\xff]')
 
 
 def _show_control_chars(match):
