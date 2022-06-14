@@ -38,6 +38,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
@@ -1698,7 +1699,9 @@ public class StorageProxy implements StorageProxyMBean
         EndpointsForToken replicas = replicationStrategy.getNaturalReplicasForToken(key);
 
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
-        replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
+        // We have a keyspace, so filter by affinity too
+        replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()))
+                           .filter(snitch.filterByAffinity(keyspace.getName()));
 
         // TODO have a way to compute the consistency level
         if (replicas.isEmpty())
