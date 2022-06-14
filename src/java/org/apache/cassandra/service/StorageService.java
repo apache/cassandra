@@ -3157,6 +3157,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.info("Suppressed exception while checking isReplacingSameHostAddressAndHostId({}). Original host was probably decommissioned. ({})",
                         hostId, ex.getMessage());
+                StorageMetrics.staleHost.inc();
                 return false;
             }
             throw ex; // otherwise rethrow
