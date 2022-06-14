@@ -67,6 +67,8 @@ public class PaxosUncommittedTracker
     private static final Range<Token> FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                                                DatabaseDescriptor.getPartitioner().getMinimumToken());
 
+    private static volatile UpdateSupplier updateSupplier;
+
     private volatile boolean autoRepairsEnabled = !Boolean.getBoolean("cassandra.disable_paxos_auto_repairs");
     private volatile boolean stateFlushEnabled = !Boolean.getBoolean("cassandra.disable_paxos_state_flush");
 
@@ -83,7 +85,6 @@ public class PaxosUncommittedTracker
 
     private final File dataDirectory;
     private volatile ImmutableMap<TableId, UncommittedTableData> tableStates;
-    private volatile UpdateSupplier updateSupplier;
 
     public PaxosUncommittedTracker(File dataDirectory, ImmutableMap<TableId, UncommittedTableData> tableStates)
     {
@@ -362,15 +363,15 @@ public class PaxosUncommittedTracker
         return tableStates.keySet();
     }
 
-    public UpdateSupplier unsafGetUpdateSupplier()
+    public static UpdateSupplier unsafGetUpdateSupplier()
     {
         return updateSupplier;
     }
 
-    public void unsafSetUpdateSupplier(UpdateSupplier updateSupplier)
+    public static void unsafSetUpdateSupplier(UpdateSupplier updateSupplier)
     {
         Preconditions.checkArgument(updateSupplier != null);
-        this.updateSupplier = updateSupplier;
+        PaxosUncommittedTracker.updateSupplier = updateSupplier;
     }
 
 }
