@@ -561,12 +561,14 @@ public final class IntegerType extends NumberType<BigInteger>
     }
 
     @Override
-    public ByteBuffer abs(ByteBuffer input) {
+    public ByteBuffer abs(ByteBuffer input)
+    {
         return decompose(toBigInteger(input).abs());
     }
 
     @Override
-    public ByteBuffer exp(ByteBuffer input) {
+    public ByteBuffer exp(ByteBuffer input)
+    {
         BigInteger bi = toBigInteger(input);
         BigDecimal bd = new BigDecimal(bi);
         BigDecimal result = DecimalType.instance.exp(bd);
@@ -575,7 +577,8 @@ public final class IntegerType extends NumberType<BigInteger>
     }
 
     @Override
-    public ByteBuffer log(ByteBuffer input) {
+    public ByteBuffer log(ByteBuffer input)
+    {
         BigInteger bi = toBigInteger(input);
         BigDecimal bd = new BigDecimal(bi);
         BigDecimal result = DecimalType.instance.log(bd);
@@ -584,7 +587,8 @@ public final class IntegerType extends NumberType<BigInteger>
     }
 
     @Override
-    public ByteBuffer log10(ByteBuffer input) {
+    public ByteBuffer log10(ByteBuffer input)
+    {
         BigInteger bi = toBigInteger(input);
         BigDecimal bd = new BigDecimal(bi);
         BigDecimal result = DecimalType.instance.log10(bd);
@@ -593,7 +597,8 @@ public final class IntegerType extends NumberType<BigInteger>
     }
 
     @Override
-    public ByteBuffer round(ByteBuffer input) {
+    public ByteBuffer round(ByteBuffer input)
+    {
         return ByteBufferUtil.clone(input);
     }
 }

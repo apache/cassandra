@@ -181,27 +181,32 @@ public class DoubleType extends NumberType<Double>
     }
 
     @Override
-    public ByteBuffer abs(ByteBuffer input) {
+    public ByteBuffer abs(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes(Math.abs(toDouble(input)));
     }
 
     @Override
-    public ByteBuffer exp(ByteBuffer input) {
+    public ByteBuffer exp(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes(Math.exp(toDouble(input)));
     }
 
     @Override
-    public ByteBuffer log(ByteBuffer input) {
+    public ByteBuffer log(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes(Math.log(toDouble(input)));
     }
 
     @Override
-    public ByteBuffer log10(ByteBuffer input) {
+    public ByteBuffer log10(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes(Math.log10(toDouble(input)));
     }
 
     @Override
-    public ByteBuffer round(ByteBuffer input) {
+    public ByteBuffer round(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes((double) Math.round(toDouble(input)));
     }
 }

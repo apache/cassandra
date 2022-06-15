@@ -152,27 +152,32 @@ public class ShortType extends NumberType<Short>
     }
 
     @Override
-    public ByteBuffer abs(ByteBuffer input) {
+    public ByteBuffer abs(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes((short) Math.abs(toShort(input)));
     }
 
     @Override
-    public ByteBuffer exp(ByteBuffer input) {
+    public ByteBuffer exp(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes((short) Math.exp(toShort(input)));
     }
 
     @Override
-    public ByteBuffer log(ByteBuffer input) {
+    public ByteBuffer log(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes((short) Math.log(toShort(input)));
     }
 
     @Override
-    public ByteBuffer log10(ByteBuffer input) {
+    public ByteBuffer log10(ByteBuffer input)
+    {
         return ByteBufferUtil.bytes((short) Math.log10(toShort(input)));
     }
 
     @Override
-    public ByteBuffer round(ByteBuffer input) {
+    public ByteBuffer round(ByteBuffer input)
+    {
         return ByteBufferUtil.clone(input);
     }
 }

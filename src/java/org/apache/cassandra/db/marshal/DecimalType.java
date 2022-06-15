@@ -394,45 +394,56 @@ public class DecimalType extends NumberType<BigDecimal>
     }
 
     @Override
-    public ByteBuffer abs(ByteBuffer input) {
+    public ByteBuffer abs(ByteBuffer input)
+    {
         return decompose(toBigDecimal(input).abs());
     }
 
     @Override
-    public ByteBuffer exp(ByteBuffer input) {
+    public ByteBuffer exp(ByteBuffer input)
+    {
         return decompose(exp(toBigDecimal(input)));
     }
 
-    protected BigDecimal exp(BigDecimal input) {
-        int precission = input.precision();
-        precission = Math.max(MIN_SIGNIFICANT_DIGITS, precission);
-        return BigDecimalMath.exp(input, new MathContext(precission, RoundingMode.HALF_EVEN));
+    protected BigDecimal exp(BigDecimal input)
+    {
+        int precision = input.precision();
+        precision = Math.max(MIN_SIGNIFICANT_DIGITS, precision);
+        precision = Math.min(MAX_PRECISION.getPrecision(), precision);
+        return BigDecimalMath.exp(input, new MathContext(precision, RoundingMode.HALF_EVEN));
     }
 
     @Override
-    public ByteBuffer log(ByteBuffer input) {
+    public ByteBuffer log(ByteBuffer input)
+    {
         return decompose(log(toBigDecimal(input)));
     }
 
-    protected BigDecimal log(BigDecimal input) {
-        int precission = input.precision();
-        precission = Math.max(MIN_SIGNIFICANT_DIGITS, precission);
-        return BigDecimalMath.log(input, new MathContext(precission, RoundingMode.HALF_EVEN));
+    protected BigDecimal log(BigDecimal input)
+    {
+        int precision = input.precision();
+        precision = Math.max(MIN_SIGNIFICANT_DIGITS, precision);
+        precision = Math.min(MAX_PRECISION.getPrecision(), precision);
+        return BigDecimalMath.log(input, new MathContext(precision, RoundingMode.HALF_EVEN));
     }
 
     @Override
-    public ByteBuffer log10(ByteBuffer input) {
+    public ByteBuffer log10(ByteBuffer input)
+    {
         return decompose(log10(toBigDecimal(input)));
     }
 
-    protected BigDecimal log10(BigDecimal input) {
-        int precission = input.precision();
-        precission = Math.max(MIN_SIGNIFICANT_DIGITS, precission);
-        return BigDecimalMath.log10(input, new MathContext(precission, RoundingMode.HALF_EVEN));
+    protected BigDecimal log10(BigDecimal input)
+    {
+        int precision = input.precision();
+        precision = Math.max(MIN_SIGNIFICANT_DIGITS, precision);
+        precision = Math.min(MAX_PRECISION.getPrecision(), precision);
+        return BigDecimalMath.log10(input, new MathContext(precision, RoundingMode.HALF_EVEN));
     }
 
     @Override
-    public ByteBuffer round(ByteBuffer input) {
+    public ByteBuffer round(ByteBuffer input)
+    {
         return DecimalType.instance.decompose(
         toBigDecimal(input).setScale(0, RoundingMode.HALF_UP));
     }
