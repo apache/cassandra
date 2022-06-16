@@ -4539,6 +4539,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         TokenMetadata tokenMetadata = this.tokenMetadata.cloneOnlyTokenMap();
+        if (!tokenMetadata.isMember(referenceEndpoint))
+            return Collections.emptySet();
         String dc = snitch.getDatacenter(referenceEndpoint);
         Set<Token> tokens = new HashSet<>(tokenMetadata.getTokens(referenceEndpoint));
 
