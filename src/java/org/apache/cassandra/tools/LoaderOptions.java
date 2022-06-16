@@ -39,15 +39,20 @@ import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class LoaderOptions
 {
+    private static final Logger logger = LoggerFactory.getLogger(LoaderOptions.class);
 
     public static final String HELP_OPTION = "help";
     public static final String VERBOSE_OPTION = "verbose";
     public static final String NOPROGRESS_OPTION = "no-progress";
     public static final String NATIVE_PORT_OPTION = "port";
     public static final String STORAGE_PORT_OPTION = "storage-port";
+    @Deprecated
+    public static final String SSL_STORAGE_PORT_OPTION = "ssl-storage-port";
     public static final String USER_OPTION = "username";
     public static final String PASSWD_OPTION = "password";
     public static final String AUTH_PROVIDER_OPTION = "auth-provider";
@@ -85,6 +90,7 @@ public class LoaderOptions
     public final int entireSSTableThrottle;
     public final int entireSSTableInterDcThrottle;
     public final int storagePort;
+    public final int sslStoragePort;
     public final EncryptionOptions clientEncOptions;
     public final int connectionsPerHost;
     public final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
@@ -107,6 +113,7 @@ public class LoaderOptions
         entireSSTableThrottle = builder.entireSSTableThrottle;
         entireSSTableInterDcThrottle = builder.entireSSTableInterDcThrottle;
         storagePort = builder.storagePort;
+        sslStoragePort = builder.sslStoragePort;
         clientEncOptions = builder.clientEncOptions;
         connectionsPerHost = builder.connectionsPerHost;
         serverEncOptions = builder.serverEncOptions;
@@ -131,6 +138,7 @@ public class LoaderOptions
         int entireSSTableThrottle = 0;
         int entireSSTableInterDcThrottle = 0;
         int storagePort;
+        int sslStoragePort;
         EncryptionOptions clientEncOptions = new EncryptionOptions();
         int connectionsPerHost = 1;
         EncryptionOptions.ServerEncryptionOptions serverEncOptions = new EncryptionOptions.ServerEncryptionOptions();
@@ -243,6 +251,13 @@ public class LoaderOptions
         public Builder storagePort(int storagePort)
         {
             this.storagePort = storagePort;
+            return this;
+        }
+
+        @Deprecated
+        public Builder sslStoragePort(int sslStoragePort)
+        {
+            this.sslStoragePort = storagePort;
             return this;
         }
 
@@ -435,6 +450,11 @@ public class LoaderOptions
                 }
 
                 throttle = config.stream_throughput_outbound.toMebibytesPerSecondAsInt();
+
+                if (cmd.hasOption(SSL_STORAGE_PORT_OPTION))
+                    logger.info("ssl storage port is deprecated and not used, all communication goes though storage port " +
+                                "which is able to handle encrypted communication too.");
+
                 // Copy the encryption options and apply the config so that argument parsing can accesss isEnabled.
                 clientEncOptions = config.client_encryption_options.applyConfig();
                 serverEncOptions = config.server_encryption_options;
@@ -638,6 +658,7 @@ public class LoaderOptions
         options.addOption("d", INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "Required. try to connect to these hosts (comma separated) initially for ring information");
         options.addOption("p",  NATIVE_PORT_OPTION, "native transport port", "port used for native connection (default 9042)");
         options.addOption("sp",  STORAGE_PORT_OPTION, "storage port", "port used for internode communication (default 7000)");
+        options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001), this option is deprecated, all communication goes through storage port which handles encrypted communication as well");
         options.addOption("t", THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
         options.addOption("idct", INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbits (default unlimited)");
         options.addOption("e", ENTIRE_SSTABLE_THROTTLE_MBITS, "entire-sstable-throttle", "entire SSTable throttle speed in Mbits (default unlimited)");
