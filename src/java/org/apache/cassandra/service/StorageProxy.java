@@ -98,6 +98,7 @@ import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
@@ -1708,6 +1709,9 @@ public class StorageProxy implements StorageProxyMBean
 
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
         replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
+
+        // CASSANDRA-17411: filter out endpoints that are not alive
+        replicas = replicas.filter(replica -> FailureDetector.instance.isAlive(replica.endpoint()));
 
         // TODO have a way to compute the consistency level
         if (replicas.isEmpty())
