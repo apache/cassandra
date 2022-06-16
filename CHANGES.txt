@@ -14,6 +14,7 @@ Merged from 4.1:
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
+ * SSL storage port in sstableloader is deprecated (CASSANDRA-17602)
  * Fix counter write timeouts at ONE (CASSANDRA-17411)
  * Fix NPE in getLocalPrimaryRangeForEndpoint (CASSANDRA-17680)
  * Remove SSL storage port from sstableloader (CASSANDRA-17602)
