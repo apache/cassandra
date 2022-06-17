@@ -21,10 +21,10 @@ jobs:
   j8_jvm_upgrade_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 4
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -110,7 +110,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -131,10 +131,10 @@ jobs:
   repeated_jvm_upgrade_dtest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -292,7 +292,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -313,10 +313,10 @@ jobs:
   j8_jvm_dtests_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -402,7 +402,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -426,7 +426,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -512,7 +512,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -534,10 +534,10 @@ jobs:
   repeated_upgrade_dtest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -636,7 +636,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -657,10 +657,10 @@ jobs:
   j8_cqlsh-dtests-py38-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -732,7 +732,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -753,10 +753,10 @@ jobs:
   j11_cqlsh-dtests-py3-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -828,7 +828,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -850,10 +850,10 @@ jobs:
   j11_cqlsh-dtests-py3-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -925,7 +925,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -947,10 +947,10 @@ jobs:
   j11_cqlsh-dtests-py38-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1022,7 +1022,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1044,10 +1044,10 @@ jobs:
   j11_jvm_dtests_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1133,7 +1133,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1155,10 +1155,10 @@ jobs:
   j8_cqlsh-dtests-py3-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1230,7 +1230,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1251,10 +1251,10 @@ jobs:
   j11_repeated_dtest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1375,7 +1375,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1397,10 +1397,10 @@ jobs:
   j8_repeated_dtest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1499,7 +1499,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1520,10 +1520,10 @@ jobs:
   j11_dtests-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1598,7 +1598,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1620,10 +1620,10 @@ jobs:
   j8_dtests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1676,7 +1676,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1697,10 +1697,10 @@ jobs:
   j8_upgradetests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 100
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1753,7 +1753,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1817,7 +1817,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1841,7 +1841,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1927,7 +1927,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -1948,10 +1948,10 @@ jobs:
   j11_jvm_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2037,7 +2037,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2137,7 +2137,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2193,7 +2193,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2218,7 +2218,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2376,7 +2376,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2398,10 +2398,10 @@ jobs:
   j8_dtests-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2454,7 +2454,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2475,10 +2475,10 @@ jobs:
   j11_cqlsh-dtests-py38-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2550,7 +2550,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2572,10 +2572,10 @@ jobs:
   j8_jvm_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2661,7 +2661,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2760,7 +2760,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2781,10 +2781,10 @@ jobs:
   j8_cqlsh-dtests-py3-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2856,7 +2856,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -2877,10 +2877,10 @@ jobs:
   j8_cqlsh-dtests-py38-with-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2952,7 +2952,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -3016,7 +3016,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -3040,7 +3040,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3126,7 +3126,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -3181,7 +3181,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -3245,7 +3245,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -3266,10 +3266,10 @@ jobs:
   j11_dtests-no-vnodes:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3344,7 +3344,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -3369,7 +3369,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3455,7 +3455,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -3479,7 +3479,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3637,7 +3637,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
@@ -3733,7 +3733,7 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.validation.entities.WritetimeOrTTLTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
