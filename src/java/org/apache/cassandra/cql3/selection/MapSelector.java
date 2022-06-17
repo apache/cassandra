@@ -35,7 +35,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -194,13 +193,13 @@ final class MapSelector extends Selector
         }
     }
 
-    public void addInput(ProtocolVersion protocolVersion, InputRow input)
+    public void addInput(InputRow input)
     {
         for (int i = 0, m = elements.size(); i < m; i++)
         {
             Pair<Selector, Selector> pair = elements.get(i);
-            pair.left.addInput(protocolVersion, input);
-            pair.right.addInput(protocolVersion, input);
+            pair.left.addInput(input);
+            pair.right.addInput(input);
         }
     }
 

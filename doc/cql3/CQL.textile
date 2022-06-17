@@ -1082,10 +1082,10 @@ bc(syntax)..
 
 <selector> ::= <identifier>
              | <term>
-             | WRITETIME '(' <identifier> ')'
-             | MAXWRITETIME '(' <identifier> ')'
+             | WRITETIME '(' <selector> ')'
+             | MAXWRITETIME '(' <selector> ')'
              | COUNT '(' '*' ')'
-             | TTL '(' <identifier> ')'
+             | TTL '(' <selector> ')'
              | CAST '(' <selector> AS <type> ')'
              | <function> '(' (<selector> (',' <selector>)*)? ')'
              | <selector> '.' <identifier>

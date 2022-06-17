@@ -182,10 +182,10 @@ final class UserTypeSelector extends Selector
             field.addFetchedColumns(builder);
     }
 
-    public void addInput(ProtocolVersion protocolVersion, InputRow input)
+    public void addInput(InputRow input)
     {
         for (Selector field : fields.values())
-            field.addInput(protocolVersion, input);
+            field.addInput(input);
     }
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
