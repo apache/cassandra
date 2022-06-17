@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.Lists;
@@ -29,6 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.*;
@@ -41,7 +43,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static java.util.Arrays.*;
+import static java.util.Arrays.asList;
 
 public class CellTest
 {
@@ -101,6 +103,26 @@ public class CellTest
                 Assert.assertNotSame(b, a);
             }
         }
+    }
+
+    @Test
+    public void testUnmarshallableInMulticellCollection()
+    {
+        List<CQL3Type.Native> unmarshallableTypes = new ArrayList<>();
+        for (CQL3Type.Native nativeType : CQL3Type.Native.values())
+        {
+            ColumnMetadata c = fakeColumn("c", MapType.getInstance(Int32Type.instance, nativeType.getType(), true));
+            BufferCell cell = BufferCell.tombstone(c, 0, 4, CellPath.create(ByteBufferUtil.bytes(4)));
+            try
+            {
+                Assert.assertTrue(cell.toString().contains("tombstone"));
+            }
+            catch (MarshalException m)
+            {
+                unmarshallableTypes.add(nativeType);
+            }
+        }
+        Assert.assertTrue(unmarshallableTypes.isEmpty());
     }
 
     private void assertValid(Cell<?> cell)
