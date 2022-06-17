@@ -85,9 +85,10 @@ public abstract class Selectable
                         String.format("Cannot use selection function %s on PRIMARY KEY part %s",
                                       isWritetime ? "writeTime" : "ttl",
                                       def.name));
-            if (def.type.isCollection())
-                throw new InvalidRequestException(String.format("Cannot use selection function %s on collections",
-                                                                isWritetime ? "writeTime" : "ttl"));
+            if (def.type.isMultiCell())
+                throw new InvalidRequestException(String.format("Cannot use selection function %s on non-frozen collection %s",
+                                                                isWritetime ? "writeTime" : "ttl",
+                                                                def.name));
 
             return WritetimeOrTTLSelector.newFactory(def, addAndGetIndex(def, defs), isWritetime);
         }
