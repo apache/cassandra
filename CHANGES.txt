@@ -1,4 +1,5 @@
 4.2
+ * Add nodetool forcecompact to remove tombstoned or ttl'd data ignoring GC grace for given table and partition keys (CASSANDRA-17711)
  * Offer IF (NOT) EXISTS in cqlsh completion for CREATE TYPE, DROP TYPE, CREATE ROLE and DROP ROLE (CASSANDRA-16640)
  * Nodetool bootstrap resume will now return an error if the operation fails (CASSANDRA-16491)
  * Disable resumable bootstrap by default (CASSANDRA-17679)
