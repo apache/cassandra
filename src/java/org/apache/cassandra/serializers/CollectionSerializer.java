@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 
+import com.google.common.collect.Range;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -173,6 +175,37 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
                                                       ByteBuffer to,
                                                       AbstractType<?> comparator,
                                                       boolean frozen);
+
+    /**
+     * Returns the index of an element in a serialized collection.
+     * <p>
+     * Note that this is only supported by sets and maps, but not by lists.
+     *
+     * @param collection The serialized collection. This cannot be {@code null}.
+     * @param key The key for which the index must be found. This cannot be {@code null} nor
+     * {@link ByteBufferUtil#UNSET_BYTE_BUFFER}).
+     * @param comparator The type to use to compare the {@code key} value to those in the collection.
+     * @return The index of the element associated with {@code key} if one exists, {@code -1} otherwise.
+     */
+    public abstract int getIndexFromSerialized(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator);
+
+    /**
+     * Returns the range of indexes corresponding to the specified range of elements in the serialized collection.
+     * <p>
+     * Note that this is only supported by sets and maps, but not by lists.
+     *
+     * @param collection The serialized collection. This cannot be {@code null}.
+     * @param from  The left bound of the slice to extract. This cannot be {@code null} but if this is
+     * {@link ByteBufferUtil#UNSET_BYTE_BUFFER}, then the returned slice starts at the beginning of the collection.
+     * @param to The left bound of the slice to extract. This cannot be {@code null} but if this is
+     * {@link ByteBufferUtil#UNSET_BYTE_BUFFER}, then the returned slice ends at the end of the collection.
+     * @param comparator The type to use to compare the {@code from} and {@code to} values to those in the collection.
+     * @return The range of indexes corresponding to specified range of elements.
+     */
+    public abstract Range<Integer> getIndexesRangeFromSerialized(ByteBuffer collection,
+                                                                 ByteBuffer from,
+                                                                 ByteBuffer to,
+                                                                 AbstractType<?> comparator);
 
     /**
      * Creates a new serialized map composed from the data from {@code input} between {@code startPos}

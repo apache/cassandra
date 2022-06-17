@@ -26,21 +26,22 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.ValueComparators;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.db.marshal.ValueComparators;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
+public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
 {
     // interning instances
+    @SuppressWarnings("rawtypes")
     private static final ConcurrentMap<Pair<TypeSerializer<?>, TypeSerializer<?>>, MapSerializer> instances = new ConcurrentHashMap<>();
 
     public final TypeSerializer<K> keys;
     public final TypeSerializer<V> values;
     private final ValueComparators comparators;
 
+    @SuppressWarnings("unchecked")
     public static <K, V> MapSerializer<K, V> getInstance(TypeSerializer<K> keys, TypeSerializer<V> values, ValueComparators comparators)
     {
         Pair<TypeSerializer<?>, TypeSerializer<?>> p = Pair.create(keys, values);
@@ -52,6 +53,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 
     private MapSerializer(TypeSerializer<K> keys, TypeSerializer<V> values, ValueComparators comparators)
     {
+        super(true);
         this.keys = keys;
         this.values = values;
         this.comparators = comparators;
@@ -62,7 +64,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         List<Pair<ByteBuffer, ByteBuffer>> pairs = new ArrayList<>(map.size());
         for (Map.Entry<K, V> entry : map.entrySet())
             pairs.add(Pair.create(keys.serialize(entry.getKey()), values.serialize(entry.getValue())));
-        Collections.sort(pairs, (l, r) -> comparators.buffer.compare(l.left, r.left));
+        pairs.sort((l, r) -> comparators.buffer.compare(l.left, r.left));
         List<ByteBuffer> buffers = new ArrayList<>(pairs.size() * 2);
         for (Pair<ByteBuffer, ByteBuffer> p : pairs)
         {
@@ -83,7 +85,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         {
             // Empty values are still valid.
             if (accessor.isEmpty(input)) return;
-            
+
             int n = readCollectionSize(input, accessor, version);
             int offset = sizeOfCollectionSize(n, version);
             for (int i = 0; i < n; i++)
@@ -119,7 +121,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
             // In such a case we do not want to initialize the map with that initialCapacity as it can result
             // in an OOM when put is called (see CASSANDRA-12618). On the other hand we do not want to have to resize
             // the map if we can avoid it, so we put a reasonable limit on the initialCapacity.
-            Map<K, V> m = new LinkedHashMap<K, V>(Math.min(n, 256));
+            Map<K, V> m = new LinkedHashMap<>(Math.min(n, 256));
             for (int i = 0; i < n; i++)
             {
                 I key = readValue(input, accessor, offset, version);
@@ -171,78 +173,6 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
     }
 
-    @Override
-    public ByteBuffer getSliceFromSerialized(ByteBuffer collection,
-                                             ByteBuffer from,
-                                             ByteBuffer to,
-                                             AbstractType<?> comparator,
-                                             boolean frozen)
-    {
-        if (from == ByteBufferUtil.UNSET_BYTE_BUFFER && to == ByteBufferUtil.UNSET_BYTE_BUFFER)
-            return collection;
-
-        try
-        {
-            ByteBuffer input = collection.duplicate();
-            int n = readCollectionSize(input, ByteBufferAccessor.instance, ProtocolVersion.V3);
-            input.position(input.position() + sizeOfCollectionSize(n, ProtocolVersion.V3));
-            int startPos = input.position();
-            int count = 0;
-            boolean inSlice = from == ByteBufferUtil.UNSET_BYTE_BUFFER;
-
-            for (int i = 0; i < n; i++)
-            {
-                int pos = input.position();
-                ByteBuffer kbb = readValue(input, ByteBufferAccessor.instance, 0, ProtocolVersion.V3); // key
-                input.position(input.position() + sizeOfValue(kbb, ByteBufferAccessor.instance, ProtocolVersion.V3));
-
-                // If we haven't passed the start already, check if we have now
-                if (!inSlice)
-                {
-                    int comparison = comparator.compareForCQL(from, kbb);
-                    if (comparison <= 0)
-                    {
-                        // We're now within the slice
-                        inSlice = true;
-                        startPos = pos;
-                    }
-                    else
-                    {
-                        // We're before the slice so we know we don't care about this element
-                        skipValue(input, ProtocolVersion.V3); // value
-                        continue;
-                    }
-                }
-
-                // Now check if we're done
-                int comparison = to == ByteBufferUtil.UNSET_BYTE_BUFFER ? -1 : comparator.compareForCQL(kbb, to);
-                if (comparison > 0)
-                {
-                    // We're done and shouldn't include the key we just read
-                    input.position(pos);
-                    break;
-                }
-
-                // Otherwise, we'll include that element
-                skipValue(input, ProtocolVersion.V3); // value
-                ++count;
-
-                // But if we know if was the last of the slice, we break early
-                if (comparison == 0)
-                    break;
-            }
-
-            if (count == 0 && !frozen)
-                return null;
-
-            return copyAsNewCollection(collection, count, startPos, input.position(), ProtocolVersion.V3);
-        }
-        catch (BufferUnderflowException | IndexOutOfBoundsException e)
-        {
-            throw new MarshalException("Not enough bytes to read a map");
-        }
-    }
-
     public String toString(Map<K, V> value)
     {
         StringBuilder sb = new StringBuilder();
@@ -262,8 +192,9 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         return sb.toString();
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public Class<Map<K, V>> getType()
     {
-        return (Class)Map.class;
+        return (Class) Map.class;
     }
 }
