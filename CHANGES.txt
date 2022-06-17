@@ -25,6 +25,7 @@ Merged from 4.0:
  * silence benign SslClosedEngineException (CASSANDRA-17565)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix writetime and ttl functions forbidden for collections instead of multicell columns (CASSANDRA-17628)
 
 
 4.1-alpha1
