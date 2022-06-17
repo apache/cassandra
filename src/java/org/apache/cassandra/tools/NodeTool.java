@@ -263,7 +263,8 @@ public class NodeTool
                 Version.class,
                 ViewBuildStatus.class,
                 GetRateLimiterConfig.class,
-                SetRateLimiterConfig.class
+                SetRateLimiterConfig.class,
+                ForceCompact.class
         );
 
         Cli.CliBuilder<NodeToolCmdRunnable> builder = Cli.builder("nodetool");
@@ -521,6 +522,11 @@ public class NodeTool
         protected String[] parseOptionalTables(List<String> cmdArgs)
         {
             return cmdArgs.size() <= 1 ? EMPTY_STRING_ARRAY : toArray(cmdArgs.subList(1, cmdArgs.size()), String.class);
+        }
+
+        protected String[] parsePartitionKeys(List<String> cmdArgs)
+        {
+            return cmdArgs.size() <= 2 ? EMPTY_STRING_ARRAY : toArray(cmdArgs.subList(2, cmdArgs.size()), String.class);
         }
     }
 
