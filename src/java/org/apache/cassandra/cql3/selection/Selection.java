@@ -371,16 +371,10 @@ public abstract class Selection
         public boolean collectTTLs();
 
         /**
-         * Checks if one of the selectors collect timestamps.
-         * @return {@code true} if one of the selectors collect timestamps, {@code false} otherwise.
+         * Checks if one of the selectors collects write timestamps.
+         * @return {@code true} if one of the selectors collects write timestamps, {@code false} otherwise.
          */
-        public boolean collectTimestamps();
-
-        /**
-         * Checks if one of the selectors collects maxTimestamps.
-         * @return {@code true} if one of the selectors collect maxTimestamps, {@code false} otherwise.
-         */
-        public boolean collectMaxTimestamps();
+        public boolean collectWritetimes();
 
         /**
          * Adds the current row of the specified <code>ResultSetBuilder</code>.
@@ -507,13 +501,8 @@ public abstract class Selection
                 }
 
                 @Override
-                public boolean collectTimestamps()
+                public boolean collectWritetimes()
                 {
-                    return false;
-                }
-
-                @Override
-                public boolean collectMaxTimestamps() {
                     return false;
                 }
 
@@ -531,8 +520,8 @@ public abstract class Selection
     private static class SelectionWithProcessing extends Selection
     {
         private final SelectorFactories factories;
-        private final boolean collectTimestamps;
-        private final boolean collectMaxTimestamps;
+        private final boolean collectWritetimes;
+        private final boolean collectMaxWritetimes;
         private final boolean collectTTLs;
 
         public SelectionWithProcessing(TableMetadata table,
@@ -552,8 +541,8 @@ public abstract class Selection
                   isJson);
 
             this.factories = factories;
-            this.collectTimestamps = factories.containsWritetimeSelectorFactory();
-            this.collectMaxTimestamps = factories.containsMaxWritetimeSelectorFactory();
+            this.collectWritetimes = factories.containsWritetimeSelectorFactory();
+            this.collectMaxWritetimes = factories.containsMaxWritetimeSelectorFactory();
             this.collectTTLs = factories.containsTTLSelectorFactory();
 
             for (ColumnMetadata orderingColumn : orderingColumns)
@@ -614,7 +603,7 @@ public abstract class Selection
                 public void addInputRow(InputRow input)
                 {
                     for (Selector selector : selectors)
-                        selector.addInput(options.getProtocolVersion(), input);
+                        selector.addInput(input);
                 }
 
                 @Override
@@ -630,14 +619,9 @@ public abstract class Selection
                 }
 
                 @Override
-                public boolean collectTimestamps()
+                public boolean collectWritetimes()
                 {
-                    return collectTimestamps || collectMaxTimestamps;
-                }
-
-                @Override
-                public boolean collectMaxTimestamps() {
-                    return collectMaxTimestamps;
+                    return collectWritetimes || collectMaxWritetimes;
                 }
 
                 @Override

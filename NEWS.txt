@@ -63,9 +63,11 @@ New features
       If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
       (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
       The default is true/enabled. The configuration can be altered via JMX.
+    - Added support for reading the write times and TTLs of the elements of collections and UDTs, regardless of being
+      frozen or not. The CQL functions writetime, maxwritetime and ttl can now be applied to entire collections/UDTs,
+      single collection/UDT elements and slices of collection/UDT elements.
     - Added a new CQL function, maxwritetime. It shows the largest unix timestamp that the data was written, similar to
-      its sibling CQL function, writetime. Unlike writetime, maxwritetime can be applied to multi-cell data types, e.g.
-      non-frozen collections and UDT, and returns the largest timestamp. One should not to use it when upgrading to 4.2.
+      its sibling CQL function, writetime.
     - New Guardrails added:
       - Whether ALTER TABLE commands are allowed to mutate columns
       - Whether SimpleStrategy is allowed on keyspace creation or alteration

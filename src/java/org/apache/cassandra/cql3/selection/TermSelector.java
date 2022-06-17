@@ -101,7 +101,7 @@ public class TermSelector extends Selector
     {
     }
 
-    public void addInput(ProtocolVersion protocolVersion, InputRow input)
+    public void addInput(InputRow input)
     {
     }
 

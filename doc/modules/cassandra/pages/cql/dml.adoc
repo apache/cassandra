@@ -79,17 +79,17 @@ You must use the orignal column name instead.
 
 Selection supports three special functions that aren't allowed anywhere
 else: `WRITETIME`, `MAXWRITETIME` and `TTL`.
-All functions take only one argument, a column name.
+All functions take only one argument, a column name. If the column is a collection or UDT, it's possible to add element
+selectors, such as `WRITETTIME(phones[2..4])` or `WRITETTIME(user.name)`.
 These functions retrieve meta-information that is stored internally for each column:
 
-* `WRITETIME` stores the timestamp of the value of the column. Note that this function cannot be applied to non-frozen collection
-and UDT.
+* `WRITETIME` stores the timestamp of the value of the column.
 * `MAXWRITETIME` stores the largest timestamp of the value of the column. For non-collection and non-UDT columns, `MAXWRITETIME`
 is equivalent to `WRITETIME`. In the other cases, it returns the largest timestamp of the values in the column.
 * `TTL` stores the remaining time to live (in seconds) for the value of the column if it is set to expire; otherwise the value is `null`.
 
-The `WRITETIME` and `TTL` functions can't be used on multi-cell columns such as non-frozen
-collections or non-frozen user-defined types.
+The `WRITETIME` and `TTL` functions can be used on multi-cell columns such as non-frozen collections or non-frozen
+user-defined types. In that case, the functions will return the list of timestamps or TTLs for each selected cell.
 
 [[where-clause]]
 === The `WHERE` clause

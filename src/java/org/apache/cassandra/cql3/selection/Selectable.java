@@ -243,25 +243,27 @@ public interface Selectable extends AssignmentTestable
                 this.returnType = returnType;
             }
 
-            public boolean allowedForMultiCell()
+            public boolean aggregatesMultiCell()
             {
                 return this == MAX_WRITE_TIME;
             }
         }
 
         public final ColumnMetadata column;
+        public final Selectable selectable;
         public final Kind kind;
 
-        public WritetimeOrTTL(ColumnMetadata column, Kind kind)
+        public WritetimeOrTTL(ColumnMetadata column, Selectable selectable, Kind kind)
         {
             this.column = column;
+            this.selectable = selectable;
             this.kind = kind;
         }
 
         @Override
         public String toString()
         {
-            return kind.name + "(" + column.name + ")";
+            return kind.name + "(" + selectable + ")";
         }
 
         public Selector.Factory newSelectorFactory(TableMetadata table,
@@ -275,42 +277,42 @@ public interface Selectable extends AssignmentTestable
                                       kind.name,
                                       column.name));
 
-            // only maxwritetime is allowed for multicell types
-            if (column.type.isMultiCell() && !kind.allowedForMultiCell())
-                throw new InvalidRequestException(String.format("Cannot use selection function %s on non-frozen %s %s",
-                                                                kind.name,
-                                                                column.type.isCollection() ? "collection" : "UDT",
-                                                                column.name));
+            Selector.Factory factory = selectable.newSelectorFactory(table, expectedType, defs, boundNames);
+            boolean isMultiCell = factory.getColumnSpecification(table).type.isMultiCell();
 
-            return WritetimeOrTTLSelector.newFactory(column, addAndGetIndex(column, defs), kind);
+            return WritetimeOrTTLSelector.newFactory(factory, addAndGetIndex(column, defs), kind, isMultiCell);
         }
 
+        @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            return kind.returnType;
+            AbstractType<?> type = kind.returnType;
+            return column.type.isMultiCell() && !kind.aggregatesMultiCell() ? ListType.getInstance(type, false) : type;
         }
 
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
-            return predicate.test(column);
+            return selectable.selectColumns(predicate);
         }
 
         public static class Raw implements Selectable.Raw
         {
-            private final Selectable.RawIdentifier id;
+            private final Selectable.RawIdentifier column;
+            private final Selectable.Raw selected;
             private final Kind kind;
 
-            public Raw(Selectable.RawIdentifier id, Kind kind)
+            public Raw(Selectable.RawIdentifier column, Selectable.Raw selected, Kind kind)
             {
-                this.id = id;
+                this.column = column;
+                this.selected = selected;
                 this.kind = kind;
             }
 
             @Override
             public WritetimeOrTTL prepare(TableMetadata table)
             {
-                return new WritetimeOrTTL(id.prepare(table), kind);
+                return new WritetimeOrTTL(column.prepare(table), selected.prepare(table), kind);
             }
         }
     }

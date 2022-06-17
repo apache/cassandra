@@ -31,7 +31,10 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.aggregation.GroupMaker;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public final class ResultSetBuilder
 {
@@ -102,30 +105,14 @@ public final class ResultSetBuilder
         inputRow.add(v);
     }
 
-    public void add(ComplexColumnData complexColumnData, Function<Iterator<Cell<?>>, ByteBuffer> serializer)
-    {
-        if (complexColumnData == null)
-        {
-            inputRow.add(null);
-            return;
-        }
-
-        long timestamp = -1L;
-        if (selectors.collectMaxTimestamps())
-        {
-            Iterator<Cell<?>> cells = complexColumnData.iterator();
-            while (cells.hasNext())
-            {
-                timestamp = Math.max(timestamp, cells.next().timestamp());
-            }
-        }
-
-        inputRow.add(serializer.apply(complexColumnData.iterator()), timestamp, -1);
-    }
-
     public void add(Cell<?> c, int nowInSec)
     {
         inputRow.add(c, nowInSec);
+    }
+
+    public void add(ColumnData columnData, int nowInSec)
+    {
+        inputRow.add(columnData, nowInSec);
     }
 
     /**
@@ -134,7 +121,7 @@ public final class ResultSetBuilder
      * @param partitionKey the partition key of the new row
      * @param clustering the clustering of the new row
      */
-    public void newRow(DecoratedKey partitionKey, Clustering<?> clustering)
+    public void newRow(ProtocolVersion protocolVersion, DecoratedKey partitionKey, Clustering<?> clustering, List<ColumnMetadata> columns)
     {
         // The groupMaker needs to be called for each row
         boolean isNewAggregate = groupMaker == null || groupMaker.isNewGroup(partitionKey, clustering);
@@ -154,7 +141,10 @@ public final class ResultSetBuilder
         }
         else
         {
-            inputRow = new Selector.InputRow(selectors.numberOfFetchedColumns(), selectors.collectTimestamps(), selectors.collectTTLs());
+            inputRow = new Selector.InputRow(protocolVersion,
+                                             columns,
+                                             selectors.collectWritetimes(),
+                                             selectors.collectTTLs());
         }
     }
 

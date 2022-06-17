@@ -577,18 +577,6 @@ public class CollectionsTest extends CQLTester
         execute("ALTER TABLE %s ADD alist list<text>");
     }
 
-    /**
-     * Migrated from cql_tests.py:TestCQL.collection_function_test()
-     */
-    @Test
-    public void testFunctionsOnCollections() throws Throwable
-    {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, l set<int>)");
-
-        assertInvalid("SELECT ttl(l) FROM %s WHERE k = 0");
-        assertInvalid("SELECT writetime(l) FROM %s WHERE k = 0");
-    }
-
     @Test
     public void testInRestrictionWithCollection() throws Throwable
     {
