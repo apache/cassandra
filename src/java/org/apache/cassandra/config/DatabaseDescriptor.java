@@ -559,6 +559,7 @@ public class DatabaseDescriptor
         checkValidForByteConversion(conf.column_index_size, "column_index_size");
         checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
         checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
+        checkValidForByteConversion(conf.batch_size_fail_threshold, "batch_size_fail_threshold");
 
         if (conf.native_transport_max_negotiable_protocol_version != null)
             logger.warn("The configuration option native_transport_max_negotiable_protocol_version has been deprecated " +
@@ -1607,9 +1608,7 @@ public class DatabaseDescriptor
 
     public static void setColumnIndexSize(int val)
     {
-        DataStorageSpec.IntKibibytesBound memory = new DataStorageSpec.IntKibibytesBound(val);
-        checkValidForByteConversion(memory, "column_index_size");
-        conf.column_index_size = new DataStorageSpec.IntKibibytesBound(val);
+        conf.column_index_size =  createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size");
     }
 
     public static int getColumnIndexCacheSize()
@@ -1624,9 +1623,7 @@ public class DatabaseDescriptor
 
     public static void setColumnIndexCacheSize(int val)
     {
-        DataStorageSpec.IntKibibytesBound memory = new DataStorageSpec.IntKibibytesBound(val);
-        checkValidForByteConversion(memory, "column_index_cache_size");
-        conf.column_index_cache_size = new DataStorageSpec.IntKibibytesBound(val);
+        conf.column_index_cache_size = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_cache_size");
     }
 
     public static int getBatchSizeWarnThreshold()
@@ -1656,14 +1653,18 @@ public class DatabaseDescriptor
 
     public static void setBatchSizeWarnThresholdInKiB(int threshold)
     {
-        DataStorageSpec.IntKibibytesBound storage = new DataStorageSpec.IntKibibytesBound(threshold);
-        checkValidForByteConversion(storage, "batch_size_warn_threshold");
-        conf.batch_size_warn_threshold = new DataStorageSpec.IntKibibytesBound(threshold);
+        conf.batch_size_warn_threshold = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(threshold,"batch_size_warn_threshold");
     }
 
     public static void setBatchSizeFailThresholdInKiB(int threshold)
     {
-        conf.batch_size_fail_threshold = new DataStorageSpec.IntKibibytesBound(threshold);
+        conf.batch_size_fail_threshold = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(threshold,"batch_size_fail_threshold");
+    }
+
+    private static DataStorageSpec.IntKibibytesBound createIntKibibyteBoundAndEnsureItIsValidForByteConversion(int byteValue, String configName){
+        DataStorageSpec.IntKibibytesBound intKibibytesBound = new DataStorageSpec.IntKibibytesBound(byteValue);
+        checkValidForByteConversion(intKibibytesBound, configName);
+        return intKibibytesBound;
     }
 
     public static Collection<String> getInitialTokens()
