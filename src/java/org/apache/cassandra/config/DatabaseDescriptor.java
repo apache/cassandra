@@ -1607,9 +1607,7 @@ public class DatabaseDescriptor
 
     public static void setColumnIndexSize(int val)
     {
-        DataStorageSpec.IntKibibytesBound memory = new DataStorageSpec.IntKibibytesBound(val);
-        checkValidForByteConversion(memory, "column_index_size");
-        conf.column_index_size = new DataStorageSpec.IntKibibytesBound(val);
+        conf.column_index_size =  createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size");
     }
 
     public static int getColumnIndexCacheSize()
@@ -1624,9 +1622,7 @@ public class DatabaseDescriptor
 
     public static void setColumnIndexCacheSize(int val)
     {
-        DataStorageSpec.IntKibibytesBound memory = new DataStorageSpec.IntKibibytesBound(val);
-        checkValidForByteConversion(memory, "column_index_cache_size");
-        conf.column_index_cache_size = new DataStorageSpec.IntKibibytesBound(val);
+        conf.column_index_cache_size = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_cache_size");
     }
 
     public static int getBatchSizeWarnThreshold()
@@ -1641,7 +1637,7 @@ public class DatabaseDescriptor
 
     public static long getBatchSizeFailThreshold()
     {
-        return conf.batch_size_fail_threshold.toBytes();
+        return conf.batch_size_fail_threshold.toBytesInLong();
     }
 
     public static int getBatchSizeFailThresholdInKiB()
@@ -1656,9 +1652,7 @@ public class DatabaseDescriptor
 
     public static void setBatchSizeWarnThresholdInKiB(int threshold)
     {
-        DataStorageSpec.IntKibibytesBound storage = new DataStorageSpec.IntKibibytesBound(threshold);
-        checkValidForByteConversion(storage, "batch_size_warn_threshold");
-        conf.batch_size_warn_threshold = new DataStorageSpec.IntKibibytesBound(threshold);
+        conf.batch_size_warn_threshold = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(threshold,"batch_size_warn_threshold");
     }
 
     public static void setBatchSizeFailThresholdInKiB(int threshold)
@@ -3697,12 +3691,19 @@ public class DatabaseDescriptor
         commitLogSegmentMgrProvider = provider;
     }
 
+    private static DataStorageSpec.IntKibibytesBound createIntKibibyteBoundAndEnsureItIsValidForByteConversion(int kibibytes, String propertyName)
+    {
+        DataStorageSpec.IntKibibytesBound intKibibytesBound = new DataStorageSpec.IntKibibytesBound(kibibytes);
+        checkValidForByteConversion(intKibibytesBound, propertyName);
+        return intKibibytesBound;
+    }
+
     /**
      * Ensures passed in configuration value is positive and will not overflow when converted to Bytes
      */
     private static void checkValidForByteConversion(final DataStorageSpec.IntKibibytesBound value, String name)
     {
-        long valueInBytes = value.toBytes();
+        long valueInBytes = value.toBytesInLong();
         if (valueInBytes < 0 || valueInBytes > Integer.MAX_VALUE - 1)
         {
             throw new ConfigurationException(String.format("%s must be positive value <= %dB, but was %dB",
