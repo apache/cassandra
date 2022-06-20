@@ -42,7 +42,7 @@ uses a simpler last write wins model where every mutation is timestamped
 (including deletes) and then the latest version of data is the "winning"
 value. Formally speaking, Cassandra uses a Last-Write-Wins Element-Set
 conflict-free replicated data type for each CQL row, or 
-https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type LWW-Element-Set_(Last-Write-Wins-Element-Set)[LWW-Element-Set
+https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#LWW-Element-Set_(Last-Write-Wins-Element-Set)[LWW-Element-Set
 CRDT], to resolve conflicting mutations on replica sets.
 
 === Consistent Hashing using a Token Ring
@@ -488,7 +488,7 @@ and every additional node brings linear improvements in compute and
 storage. In contrast, scaling-up implies adding more capacity to the
 existing database nodes. Cassandra is also capable of scale-up, and in
 certain environments it may be preferable depending on the deployment.
-Cassandra gives operators the flexibility to chose either scale-out or
+Cassandra gives operators the flexibility to choose either scale-out or
 scale-up.
 
 One key aspect of Dynamo that Cassandra follows is to attempt to run on
