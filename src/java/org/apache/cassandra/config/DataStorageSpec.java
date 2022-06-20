@@ -315,6 +315,14 @@ public abstract class DataStorageSpec
         {
             return Ints.saturatedCast(unit().toKibibytes(quantity()));
         }
+
+        /**
+         * @return the amount of data storage in bytes.
+         */
+        public long toBytesInLong()
+        {
+           return unit().toBytes(quantity());
+        }
     }
 
     /**
