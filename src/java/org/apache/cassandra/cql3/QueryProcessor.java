@@ -79,7 +79,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class QueryProcessor implements QueryHandler
 {
-    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.5");
+    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.6");
 
     // See comments on QueryProcessor #prepare
     public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_30 = new CassandraVersion("3.0.26");
