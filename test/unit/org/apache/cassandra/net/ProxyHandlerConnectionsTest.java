@@ -50,6 +50,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.net.ConnectionTest.SETTINGS;
 import static org.apache.cassandra.net.OutboundConnectionSettings.Framing.CRC;
@@ -276,7 +277,7 @@ public class ProxyHandlerConnectionsTest
     {
         CompletableFuture.runAsync(() -> {
             while (!cond.get()) {}
-        }).get(30, SECONDS);
+        }).get(1, MINUTES);
     }
 
     private static void waitForCondition(Supplier<Boolean> cond, Supplier<String> s) throws Throwable
