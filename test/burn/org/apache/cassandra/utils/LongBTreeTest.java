@@ -803,7 +803,7 @@ public class LongBTreeTest
     public void testRandomRangeAndBatches() throws ExecutionException, InterruptedException
     {
         Random seedGenerator = new Random(randomSeed());
-        for (int i = 0 ; i < perThreadTrees / 10 ; i++)
+        for (int i = 0 ; i < perThreadTrees / 100 ; i++)
         {
             int treeSize = nextInt(seedGenerator, maxTreeSize / 10, maxTreeSize * 10);
             testInsertions(seedGenerator.nextLong(), threads * 10, treeSize, nextInt(seedGenerator, 1, 100) / 10f, treeSize / 100, true);
