@@ -2,6 +2,16 @@
 
 The following describes the changes in each version of CQL.
 
+== 3.4.6
+
+* Add support for IF EXISTS and IF NOT EXISTS in ALTER statements  (`16916`)
+* Allow GRANT/REVOKE multiple permissions in a single statement (`17030`)
+* Pre hashed passwords in CQL (`17334`)
+* Add support for type casting in WHERE clause components and in the values of INSERT/UPDATE statements (`14337`)
+* Add support for CONTAINS and CONTAINS KEY in conditional UPDATE and DELETE statement (`10537`)
+* Allow to grant permission for all tables in a keyspace (`17027`)
+* Allow to aggregate by time intervals (`11871`)
+
 == 3.4.5
 
 * Adds support for arithmetic operators (`11935`)
