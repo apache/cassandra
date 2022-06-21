@@ -1,5 +1,6 @@
 3.11.14
 Merged from 3.0:
+ * Supress CVE-2020-7238 (CASSANDRA-17697)
  * Fix issue where frozen maps may not be serialized in the correct order (CASSANDRA-17623)
  * Suppress CVE-2022-24823 (CASSANDRA-17633)
  * fsync TOC and digest files (CASSANDRA-10709)
