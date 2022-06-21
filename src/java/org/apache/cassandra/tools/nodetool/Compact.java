@@ -102,8 +102,5 @@ public class Compact extends NodeToolCmd
                 throw new RuntimeException("Error occurred during compaction", e);
             }
         }
-
-        // This is a test
-        // TEST TEST TEST
     }
 }

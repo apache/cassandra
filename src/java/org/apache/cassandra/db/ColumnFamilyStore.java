@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -320,6 +321,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     private final SSTableImporter sstableImporter;
 
     private volatile boolean compactionSpaceCheck = true;
+
+    // Tombtone partitions that ignore the gc_grace_seconds during compaction
+    private final Set<DecoratedKey> partitionKeySetIgnoreGcGrace = ConcurrentHashMap.newKeySet();
 
     @VisibleForTesting
     final DiskBoundaryManager diskBoundaryManager = new DiskBoundaryManager();
@@ -2405,6 +2409,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public void forceCompactionForKey(DecoratedKey key)
     {
         CompactionManager.instance.forceCompactionForKey(this, key);
+    }
+
+    public void forceCompactionForPartitionKeys(String... partitionKeysIgnoreGcGrace)
+    {
+        List<DecoratedKey> decoratedKeys = new ArrayList<>();
+        try
+        {
+            partitionKeySetIgnoreGcGrace.clear();
+
+            for (String key : partitionKeysIgnoreGcGrace) {
+                DecoratedKey dk = decorateKey(metadata().partitionKeyType.fromString(key));
+                partitionKeySetIgnoreGcGrace.add(dk);
+                decoratedKeys.add(dk);
+            }
+
+            CompactionManager.instance.forceCompactionForPartitionKeys(this, decoratedKeys);
+        } finally
+        {
+            partitionKeySetIgnoreGcGrace.clear();
+        }
+    }
+
+    public boolean shouldIgnoreGcGraceForPartition(DecoratedKey dk)
+    {
+        return partitionKeySetIgnoreGcGrace.contains(dk);
     }
 
     public static Iterable<ColumnFamilyStore> all()

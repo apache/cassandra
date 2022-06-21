@@ -31,13 +31,15 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
     private final boolean enforceStrictLiveness;
     private boolean isReverseOrder;
 
+    private boolean ignoreGcGraceSeconds;
+
     public PurgeFunction(int nowInSec, int gcBefore, int oldestUnrepairedTombstone, boolean onlyPurgeRepairedTombstones,
                          boolean enforceStrictLiveness)
     {
         this.nowInSec = nowInSec;
         this.purger = (timestamp, localDeletionTime) ->
                       !(onlyPurgeRepairedTombstones && localDeletionTime >= oldestUnrepairedTombstone)
-                      && localDeletionTime < gcBefore
+                      && (localDeletionTime < gcBefore || ignoreGcGraceSeconds)
                       && getPurgeEvaluator().test(timestamp);
         this.enforceStrictLiveness = enforceStrictLiveness;
     }
@@ -59,6 +61,13 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
     {
     }
 
+    // Called at the beginning of each new partition
+    // Return true if the current partitionKey ignores the gc_grace_seconds during compaction.
+    protected boolean shouldIgnoreGcGrace()
+    {
+        return false;
+    }
+
     protected void setReverseOrder(boolean isReverseOrder)
     {
         this.isReverseOrder = isReverseOrder;
@@ -69,6 +78,8 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
     protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
         onNewPartition(partition.partitionKey());
+
+        ignoreGcGraceSeconds = shouldIgnoreGcGrace();
 
         setReverseOrder(partition.isReverseOrder());
         UnfilteredRowIterator purged = Transformation.apply(partition, this);

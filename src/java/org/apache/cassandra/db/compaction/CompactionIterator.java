@@ -342,6 +342,18 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
 
         /*
+         * Called at the beginning of each new partition
+         * Return true if the current partitionKey ignores the gc_grace_seconds during compaction.
+         * Note that this method should be called after the onNewPartition because it depends on the currentKey
+         * which is set in the onNewPartition
+         */
+        @Override
+        protected boolean shouldIgnoreGcGrace()
+        {
+            return controller.cfs.shouldIgnoreGcGraceForPartition(currentKey);
+        }
+
+        /*
          * Evaluates whether a tombstone with the given deletion timestamp can be purged. This is the minimum
          * timestamp for any sstable containing `currentKey` outside of the set of sstables involved in this compaction.
          * This is computed lazily on demand as we only need this if there is tombstones and this a bit expensive
