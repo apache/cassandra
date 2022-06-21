@@ -1,0 +1,14 @@
+--- a/test/burn/org/apache/cassandra/utils/LongBTreeTest.java
++++ b/test/burn/org/apache/cassandra/utils/LongBTreeTest.java
+@@ -802,11 +802,7 @@
+     public void testRandomRangeAndBatches() throws ExecutionException, InterruptedException
+     {
+         Random seedGenerator = new Random(randomSeed());
+-<<<<<<<
+         for (int i = 0 ; i < 10 ; i++)
+-=======
+-        for (int i = 0 ; i < perThreadTrees / 100 ; i++)
+->>>>>>>
+         {
+             int treeSize = nextInt(seedGenerator, maxTreeSize / 10, maxTreeSize * 10);
+             testInsertions(seedGenerator.nextLong(), treeSize, nextInt(seedGenerator, 1, 100) / 10f, treeSize / 100, true);
