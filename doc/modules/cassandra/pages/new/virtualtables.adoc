@@ -124,7 +124,7 @@ cqlsh> SELECT * FROM system_views.clients;
 ------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  address          | 127.0.0.1
  port             | 50687
- client_options   | {'CQL_VERSION': '3.4.6', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'}
+ client_options   | {'CQL_VERSION': '3.4.5', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'}
  connection_stage | ready
  driver_name      | DataStax Python Driver
  driver_version   | 3.25.0
@@ -140,7 +140,7 @@ cqlsh> SELECT * FROM system_views.clients;
 ------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  address          | 127.0.0.1
  port             | 50688
- client_options   | {'CQL_VERSION': '3.4.6', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'}
+ client_options   | {'CQL_VERSION': '3.4.5', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'}
  connection_stage | ready
  driver_name      | DataStax Python Driver
  driver_version   | 3.25.0
