@@ -53,7 +53,8 @@ public class BulkLoadConnectionFactory extends NettyStreamingConnectionFactory
                                    int messagingVersion,
                                    StreamingChannel.Kind kind) throws IOException
     {
-        // Supply a preferred address to the template, which will be overwritten if encryption is configured.
+        // The preferred address is always overwritten in create(). This method override only exists so we can avoid 
+        // falling back to the NettyStreamingConnectionFactory implementation.
         OutboundConnectionSettings template = new OutboundConnectionSettings(getByAddress(to), getByAddress(preferred));
         return create(template, messagingVersion, kind);
     }
@@ -69,5 +70,10 @@ public class BulkLoadConnectionFactory extends NettyStreamingConnectionFactory
             template = template.withEncryption(encryptionOptions);
 
         return connect(template, messagingVersion, kind);
+    }
+    @Override
+    public boolean supportsPreferredIp()
+    {
+        return false; // called in a tool context, do not use getPreferredIP
     }
 }
