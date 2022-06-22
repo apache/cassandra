@@ -1001,12 +1001,15 @@ public class CompactionManager implements CompactionManagerMBean
         forceCompaction(cfStore, () -> sstablesWithKey(cfStore, key), sstable -> sstable.maybePresent(key));
     }
 
-    public void forceCompactionForPartitionKeys(ColumnFamilyStore cfStore, Collection<DecoratedKey> keys)
+    public void forceCompactionForKeys(ColumnFamilyStore cfStore, Collection<DecoratedKey> keys)
     {
-        com.google.common.base.Predicate<SSTableReader> predicate = sst -> {
+        com.google.common.base.Predicate<SSTableReader> predicate = sstable -> {
             for (DecoratedKey key : keys)
             {
-                return sst.maybePresent(key);
+                if(sstable.maybePresent(key))
+                {
+                    return true;
+                }
             }
 
             return false;

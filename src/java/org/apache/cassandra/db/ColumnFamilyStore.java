@@ -2411,7 +2411,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         CompactionManager.instance.forceCompactionForKey(this, key);
     }
 
-    public void forceCompactionForPartitionKeys(String... partitionKeysIgnoreGcGrace)
+    public void forceCompactionKeysIgnoringGcGrace(String... partitionKeysIgnoreGcGrace)
     {
         List<DecoratedKey> decoratedKeys = new ArrayList<>();
         try
@@ -2424,7 +2424,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 decoratedKeys.add(dk);
             }
 
-            CompactionManager.instance.forceCompactionForPartitionKeys(this, decoratedKeys);
+            CompactionManager.instance.forceCompactionForKeys(this, decoratedKeys);
         } finally
         {
             partitionKeySetIgnoreGcGrace.clear();

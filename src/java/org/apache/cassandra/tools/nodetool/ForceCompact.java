@@ -48,7 +48,7 @@ public class ForceCompact extends NodeToolCmd
 
         try
         {
-            probe.compactKeysIgnoringGcGrace(keyspaceName, tableName, partitionKeysIgnoreGcGrace);
+            probe.forceCompactionKeysIgnoringGcGrace(keyspaceName, tableName, partitionKeysIgnoreGcGrace);
         }
         catch (Exception e)
         {

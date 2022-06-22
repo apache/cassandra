@@ -237,7 +237,7 @@ public class ForceCompactionTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         if (cfs != null)
         {
-            cfs.forceCompactionForPartitionKeys(partitionKeysIgnoreGcGrace);
+            cfs.forceCompactionKeysIgnoringGcGrace(partitionKeysIgnoreGcGrace);
         }
     }
 

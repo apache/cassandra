@@ -213,7 +213,7 @@ JVM_ON_OUT_OF_MEMORY_ERROR_OPT="-XX:OnOutOfMemoryError=kill -9 %p"
 # jmx: metrics and administration interface
 #
 # add this if you're having trouble connecting:
-JVM_OPTS="$JVM_OPTS -Djava.rmi.server.hostname=127.0.0.1"
+#JVM_OPTS="$JVM_OPTS -Djava.rmi.server.hostname=<public name>"
 #
 # see
 # https://blogs.oracle.com/jmxetc/entry/troubleshooting_connection_problems_in_jconsole

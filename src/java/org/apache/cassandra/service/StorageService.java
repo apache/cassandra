@@ -3967,11 +3967,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @throws ExecutionException when attempting to retrieve the result of a task that aborted by throwing an exception
      * @throws InterruptedException when a thread is waiting, sleeping, or otherwise occupied, and the thread is interrupted, either before or during the activity
      */
-    public void compactKeysIgnoringGcGrace(String keyspaceName,
-                                           String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException
+    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName,
+                                                   String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException
     {
         ColumnFamilyStore cfStore = getValidKeyspace(keyspaceName).getColumnFamilyStore(tableName);
-        cfStore.forceCompactionForPartitionKeys(partitionKeysIgnoreGcGrace);
+        cfStore.forceCompactionKeysIgnoringGcGrace(partitionKeysIgnoreGcGrace);
     }
 
     /**

@@ -340,7 +340,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * The method will ignore the gc_grace_seconds for the partitionKeysIgnoreGcGrace during the comapction,
      * in order to purge the tombstones and free up space quicker.
      */
-    public void compactKeysIgnoringGcGrace(String keyspaceName, String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException;
+    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName, String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Trigger a cleanup of keys on a single keyspace
