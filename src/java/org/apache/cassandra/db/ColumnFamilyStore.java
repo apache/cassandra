@@ -2431,7 +2431,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
-    public boolean shouldIgnoreGcGraceForPartition(DecoratedKey dk)
+    public boolean shouldIgnoreGcGraceForKey(DecoratedKey dk)
     {
         return partitionKeySetIgnoreGcGrace.contains(dk);
     }

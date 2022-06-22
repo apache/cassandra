@@ -350,7 +350,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         protected boolean shouldIgnoreGcGrace()
         {
-            return controller.cfs.shouldIgnoreGcGraceForPartition(currentKey);
+            return controller.cfs.shouldIgnoreGcGraceForKey(currentKey);
         }
 
         /*

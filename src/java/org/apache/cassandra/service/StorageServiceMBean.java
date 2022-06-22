@@ -336,7 +336,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
-     * Forces major compaction of a single table
+     * Forces compaction for a list of partition keys on a table.
      * The method will ignore the gc_grace_seconds for the partitionKeysIgnoreGcGrace during the comapction,
      * in order to purge the tombstones and free up space quicker.
      */
