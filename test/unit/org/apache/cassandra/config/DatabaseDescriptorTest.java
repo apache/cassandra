@@ -328,22 +328,6 @@ public class DatabaseDescriptorTest
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
 
-        try
-        {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKiB(-1);
-            fail("Should have received a IllegalArgumentException batch_size_fail_threshold = -1");
-        }
-        catch (IllegalArgumentException ignored) { }
-        Assert.assertEquals(51200, DatabaseDescriptor.getBatchSizeFailThreshold());
-
-        try
-        {
-            DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(2 * 1024 * 1024);
-            fail("Should have received a ConfigurationException batch_size_fail_threshold = 2GiB");
-        }
-        catch (ConfigurationException ignored) { }
-        Assert.assertEquals(51200, DatabaseDescriptor.getBatchSizeFailThreshold());
-
     }
 
     @Test

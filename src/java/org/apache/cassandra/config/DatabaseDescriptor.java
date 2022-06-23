@@ -1638,7 +1638,7 @@ public class DatabaseDescriptor
 
     public static long getBatchSizeFailThreshold()
     {
-        return conf.batch_size_fail_threshold.toBytes();
+        return conf.batch_size_fail_threshold.toBytesInLong();
     }
 
     public static int getBatchSizeFailThresholdInKiB()
@@ -1658,13 +1658,7 @@ public class DatabaseDescriptor
 
     public static void setBatchSizeFailThresholdInKiB(int threshold)
     {
-        conf.batch_size_fail_threshold = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(threshold,"batch_size_fail_threshold");
-    }
-
-    private static DataStorageSpec.IntKibibytesBound createIntKibibyteBoundAndEnsureItIsValidForByteConversion(int byteValue, String configName){
-        DataStorageSpec.IntKibibytesBound intKibibytesBound = new DataStorageSpec.IntKibibytesBound(byteValue);
-        checkValidForByteConversion(intKibibytesBound, configName);
-        return intKibibytesBound;
+        conf.batch_size_fail_threshold = new DataStorageSpec.IntKibibytesBound(threshold);
     }
 
     public static Collection<String> getInitialTokens()
@@ -3708,12 +3702,19 @@ public class DatabaseDescriptor
         commitLogSegmentMgrProvider = provider;
     }
 
+    private static DataStorageSpec.IntKibibytesBound createIntKibibyteBoundAndEnsureItIsValidForByteConversion(int kibibytes, String propertyName)
+    {
+        DataStorageSpec.IntKibibytesBound intKibibytesBound = new DataStorageSpec.IntKibibytesBound(kibibytes);
+        checkValidForByteConversion(intKibibytesBound, propertyName);
+        return intKibibytesBound;
+    }
+
     /**
      * Ensures passed in configuration value is positive and will not overflow when converted to Bytes
      */
     private static void checkValidForByteConversion(final DataStorageSpec.IntKibibytesBound value, String name)
     {
-        long valueInBytes = value.toBytes();
+        long valueInBytes = value.toBytesInLong();
         if (valueInBytes < 0 || valueInBytes > Integer.MAX_VALUE - 1)
         {
             throw new ConfigurationException(String.format("%s must be positive value <= %dB, but was %dB",
