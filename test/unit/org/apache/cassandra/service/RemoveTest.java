@@ -74,7 +74,7 @@ public class RemoveTest
     public static void setupClass() throws ConfigurationException
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
-        MessagingService.instance().unsafeResetListen();
+        MessagingService.instance().listen();
     }
 
     @AfterClass

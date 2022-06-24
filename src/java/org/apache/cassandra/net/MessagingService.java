@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -254,7 +253,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     final ResourceLimits.Limit outboundGlobalReserveLimit =
         new ResourceLimits.Concurrent(DatabaseDescriptor.getInternodeApplicationSendQueueReserveGlobalCapacityInBytes());
 
-    private volatile boolean isShuttingDown;
+    private volatile boolean isShutDown;
 
     @VisibleForTesting
     MessagingService(boolean testOnly)
@@ -341,7 +340,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
             }
             catch (ClosedChannelException e)
             {
-                if (isShuttingDown)
+                if (isShutDown)
                     return; // just drop the message, and let others clean up
 
                 // remove the connection and try again
@@ -432,12 +431,12 @@ public final class MessagingService extends MessagingServiceMBeanImpl
 
     public synchronized void shutdown(long timeout, TimeUnit units, boolean shutdownGracefully, boolean shutdownExecutors)
     {
-        if (isShuttingDown)
+        if (isShutDown)
         {
             logger.info("Messaging service was already shut down.");
             return;
         }
-        isShuttingDown = true;
+        isShutDown = true;
         logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
         assert !MUTATION.executor().isShutdown();
@@ -527,16 +526,12 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public void listen()
     {
         inboundSockets.open();
-    }
-
-    public void unsafeResetListen()
-    {
-        inboundSockets.open();
-        isShuttingDown = false;
+        isShutDown = false;
     }
 
     public void waitUntilListening() throws InterruptedException
     {
         inboundSockets.open().await();
+        isShutDown = false;
     }
 }
