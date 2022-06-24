@@ -327,7 +327,13 @@ public class DatabaseDescriptorTest
         }
         catch (ConfigurationException ignored) { }
         Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
+    }
 
+    @Test
+    public void testWidenToLongInBytes() throws ConfigurationException
+    {
+        DatabaseDescriptor.setBatchSizeFailThresholdInKiB(2147483646);
+        Assert.assertEquals((2147483646L * 1024), DatabaseDescriptor.getBatchSizeFailThreshold());
     }
 
     @Test
