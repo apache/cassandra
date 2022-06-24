@@ -108,7 +108,7 @@ public class SnapshotManifestTest
 
     @Test
     public void testSerializeAndDeserialize() throws Exception {
-        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new DurationSpec.IntSecondsBound("2m"), Instant.ofEpochMilli(currentTimeMillis()));
+        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new DurationSpec.IntSecondsBound("2m"), Instant.ofEpochMilli(currentTimeMillis()), false);
         File manifestFile = new File(tempFolder.newFile("manifest.json"));
 
         manifest.serializeToJsonFile(manifestFile);

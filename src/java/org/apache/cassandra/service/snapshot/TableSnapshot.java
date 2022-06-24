@@ -45,6 +45,7 @@ public class TableSnapshot
     private final String tableName;
     private final UUID tableId;
     private final String tag;
+    private final boolean ephemeral;
 
     private final Instant createdAt;
     private final Instant expiresAt;
@@ -53,7 +54,7 @@ public class TableSnapshot
 
     public TableSnapshot(String keyspaceName, String tableName, UUID tableId,
                          String tag, Instant createdAt, Instant expiresAt,
-                         Set<File> snapshotDirs)
+                         Set<File> snapshotDirs, boolean ephemeral)
     {
         this.keyspaceName = keyspaceName;
         this.tableName = tableName;
@@ -62,6 +63,7 @@ public class TableSnapshot
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
         this.snapshotDirs = snapshotDirs;
+        this.ephemeral = ephemeral;
     }
 
     /**
@@ -122,6 +124,11 @@ public class TableSnapshot
     public boolean exists()
     {
         return snapshotDirs.stream().anyMatch(File::exists);
+    }
+
+    public boolean isEphemeral()
+    {
+        return ephemeral;
     }
 
     public boolean isExpiring()
@@ -193,13 +200,13 @@ public class TableSnapshot
         return Objects.equals(keyspaceName, snapshot.keyspaceName) && Objects.equals(tableName, snapshot.tableName) &&
                Objects.equals(tableId, snapshot.tableId) && Objects.equals(tag, snapshot.tag) &&
                Objects.equals(createdAt, snapshot.createdAt) && Objects.equals(expiresAt, snapshot.expiresAt) &&
-               Objects.equals(snapshotDirs, snapshot.snapshotDirs);
+               Objects.equals(snapshotDirs, snapshot.snapshotDirs) && Objects.equals(ephemeral, snapshot.ephemeral);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs);
+        return Objects.hash(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs, ephemeral);
     }
 
     @Override
@@ -213,6 +220,7 @@ public class TableSnapshot
                ", createdAt=" + createdAt +
                ", expiresAt=" + expiresAt +
                ", snapshotDirs=" + snapshotDirs +
+               ", ephemeral=" + ephemeral +
                '}';
     }
 
@@ -224,6 +232,7 @@ public class TableSnapshot
 
         private Instant createdAt = null;
         private Instant expiresAt = null;
+        private boolean ephemeral;
 
         private final Set<File> snapshotDirs = new HashSet<>();
 
@@ -239,12 +248,17 @@ public class TableSnapshot
         {
             snapshotDirs.add(snapshotDir);
             File manifestFile = new File(snapshotDir, "manifest.json");
-            if (manifestFile.exists() && createdAt == null && expiresAt == null) {
-                loadTimestampsFromManifest(manifestFile);
-            }
+            if (manifestFile.exists() && createdAt == null && expiresAt == null)
+                loadMetadataFromManifest(manifestFile);
+
+            // check if an ephemeral marker file exists only in case it is not already ephemeral
+            // by reading it from manifest
+            // TODO remove this on Cassandra 4.3 release, see CASSANDRA-16911
+            if (!ephemeral && new File(snapshotDir, "ephemeral.snapshot").exists())
+                ephemeral = true;
         }
 
-        private void loadTimestampsFromManifest(File manifestFile)
+        private void loadMetadataFromManifest(File manifestFile)
         {
             try
             {
@@ -252,6 +266,9 @@ public class TableSnapshot
                 SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
                 createdAt = manifest.createdAt;
                 expiresAt = manifest.expiresAt;
+                // a snapshot may be ephemeral when it has a marker file (old way) or flag in manifest (new way)
+                if (!ephemeral)
+                    ephemeral = manifest.ephemeral;
             }
             catch (IOException e)
             {
@@ -261,7 +278,7 @@ public class TableSnapshot
 
         TableSnapshot build()
         {
-            return new TableSnapshot(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs);
+            return new TableSnapshot(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs, ephemeral);
         }
     }
 

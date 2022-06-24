@@ -1,4 +1,5 @@
 4.2
+ * Remove ephemeral snapshot marker file and introduce a flag to SnapshotManifest (CASSANDRA-16911)
  * Add a virtual table that exposes currently running queries (CASSANDRA-15241)
  * Allow sstableloader to specify table without relying on path (CASSANDRA-16584)
  * Fix TestGossipingPropertyFileSnitch.test_prefer_local_reconnect_on_listen_address (CASSANDRA-17700)
