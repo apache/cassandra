@@ -70,7 +70,7 @@ public class ClientStatsTest extends CQLTester
                         "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
                         "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
                         "                [(-u <username> | --username <username>)] clientstats [--all]\n" +
-                        "                [--by-protocol] [--clear-history]\n" +
+                        "                [--by-protocol] [--clear-history] [--client-options]\n" +
                         "\n" +
                         "OPTIONS\n" +
                         "        --all\n" +
@@ -81,6 +81,9 @@ public class ClientStatsTest extends CQLTester
                         "\n" +
                         "        --clear-history\n" +
                         "            Clear the history of connected clients\n" +
+                        "\n" +
+                        "        --client-options\n" +
+                        "            Lists all connections and the client options\n" +
                         "\n" +
                         "        -h <host>, --host <host>\n" +
                         "            Node hostname or ip address\n" +
@@ -130,6 +133,19 @@ public class ClientStatsTest extends CQLTester
     public void testClientStatsAll()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("clientstats", "--all");
+        tool.assertOnCleanExit();
+        String stdout = tool.getStdout();
+        assertThat(stdout).containsPattern("Address +SSL +Cipher +Protocol +Version +User +Keyspace +Requests +Driver-Name +Driver-Version");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false undefined undefined [0-9]+ +anonymous +[0-9]+ +DataStax Java Driver 3.11.0");
+        assertThat(stdout).contains("Total connected clients: 2");
+        assertThat(stdout).contains("User      Connections");
+        assertThat(stdout).contains("anonymous 2");
+    }
+
+    @Test
+    public void testClientStatsClientOptions()
+    {
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("clientstats", "--client-options");
         tool.assertOnCleanExit();
         String stdout = tool.getStdout();
         assertThat(stdout).containsPattern("Address +SSL +Cipher +Protocol +Version +User +Keyspace +Requests +Driver-Name +Driver-Version +Client-Options");

@@ -94,7 +94,7 @@ New features
     - Support for native transport rate limiting via native_transport_rate_limiting_enabled and
       native_transport_max_requests_per_second in cassandra.yaml.
     - Support for pre hashing passwords on CQL DCL commands
-    - Expose all client options via system_views.clients and nodetool clientstats.
+    - Expose all client options via system_views.clients and nodetool clientstats --client-options.
     - Support for String concatenation has been added through the + operator.
     - New configuration max_hints_size_per_host to limit the size of local hints files per host in mebibytes. Setting to
       non-positive value disables the limit, which is the default behavior. Setting to a positive value to ensure
