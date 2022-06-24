@@ -70,9 +70,14 @@ New features
       - Whether ALTER TABLE commands are allowed to mutate columns
       - Whether SimpleStrategy is allowed on keyspace creation or alteration
       - Maximum replication factor
+    - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
 
 Upgrading
 ---------
+    - Emphemeral marker files for snapshots done by repairs are not created anymore, 
+      there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there 
+      are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots 
+      will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
 
 Deprecation
 -----------

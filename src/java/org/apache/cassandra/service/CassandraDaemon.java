@@ -291,24 +291,13 @@ public class CassandraDaemon
 
         SSTableHeaderFix.fixNonFrozenUDTIfUpgradeFrom30();
 
-        // clean up debris in the rest of the keyspaces
-        for (String keyspaceName : Schema.instance.getKeyspaces())
+        try
         {
-            // Skip system as we've already cleaned it
-            if (keyspaceName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
-                continue;
-
-            for (TableMetadata cfm : Schema.instance.getTablesAndViews(keyspaceName))
-            {
-                try
-                {
-                    ColumnFamilyStore.scrubDataDirectories(cfm);
-                }
-                catch (StartupException e)
-                {
-                    exitOrFail(e.returnCode, e.getMessage(), e.getCause());
-                }
-            }
+            scrubDataDirectories();
+        }
+        catch (StartupException e)
+        {
+            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
 
         Keyspace.setInitialized();
@@ -577,6 +566,22 @@ public class CassandraDaemon
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+    }
+
+    public void scrubDataDirectories() throws StartupException
+    {
+        // clean up debris in the rest of the keyspaces
+        for (String keyspaceName : Schema.instance.getKeyspaces())
+        {
+            // Skip system as we've already cleaned it
+            if (keyspaceName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
+                continue;
+
+            for (TableMetadata cfm : Schema.instance.getTablesAndViews(keyspaceName))
+            {
+                ColumnFamilyStore.scrubDataDirectories(cfm);
+            }
+        }
     }
 
     public synchronized void initializeClientTransports()

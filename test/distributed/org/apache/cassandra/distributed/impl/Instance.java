@@ -114,6 +114,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.MigrationCoordinator;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
@@ -618,6 +619,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 // Start up virtual table support
                 CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
+
+                // clean up debris in data directories
+                CassandraDaemon.getInstanceForTesting().scrubDataDirectories();
 
                 Keyspace.setInitialized();
 

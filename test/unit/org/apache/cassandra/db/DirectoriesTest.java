@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -97,6 +98,7 @@ public class DirectoriesTest
     public static final String TABLE_NAME = "FakeTable";
     public static final String SNAPSHOT1 = "snapshot1";
     public static final String SNAPSHOT2 = "snapshot2";
+    public static final String SNAPSHOT3 = "snapshot3";
 
     public static final String LEGACY_SNAPSHOT_NAME = "42";
     private static File tempDataDir;
@@ -105,7 +107,7 @@ public class DirectoriesTest
     private static Set<TableMetadata> CFM;
     private static Map<String, List<File>> sstablesByTableName;
 
-    @Parameterized.Parameter(0)
+    @Parameterized.Parameter
     public SSTableId.Builder<? extends SSTableId> idBuilder;
 
     @Parameterized.Parameter(1)
@@ -151,7 +153,7 @@ public class DirectoriesTest
     @AfterClass
     public static void afterClass()
     {
-        FileUtils.deleteRecursive(tempDataDir);
+        tempDataDir.deleteRecursive();
     }
 
     private static DataDirectory[] toDataDirectories(File location)
@@ -159,7 +161,7 @@ public class DirectoriesTest
         return new DataDirectory[] { new DataDirectory(location) };
     }
 
-    private void createTestFiles() throws IOException
+    private void createTestFiles()
     {
         for (TableMetadata cfm : CFM)
         {
@@ -181,25 +183,27 @@ public class DirectoriesTest
         }
     }
 
-    class FakeSnapshot {
+    static class FakeSnapshot {
         final TableMetadata table;
         final String tag;
         final File snapshotDir;
         final SnapshotManifest manifest;
+        final boolean ephemeral;
 
-        FakeSnapshot(TableMetadata table, String tag, File snapshotDir, SnapshotManifest manifest)
+        FakeSnapshot(TableMetadata table, String tag, File snapshotDir, SnapshotManifest manifest, boolean ephemeral)
         {
             this.table = table;
             this.tag = tag;
             this.snapshotDir = snapshotDir;
             this.manifest = manifest;
+            this.ephemeral = ephemeral;
         }
 
         public TableSnapshot asTableSnapshot()
         {
             Instant createdAt = manifest == null ? null : manifest.createdAt;
             Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-            return new TableSnapshot(table.keyspace, table.name, table.id.asUUID(), tag, createdAt, expiresAt, Collections.singleton(snapshotDir));
+            return new TableSnapshot(table.keyspace, table.name, table.id.asUUID(), tag, createdAt, expiresAt, Collections.singleton(snapshotDir), ephemeral);
         }
     }
 
@@ -211,7 +215,7 @@ public class DirectoriesTest
                             .build();
     }
 
-    public FakeSnapshot createFakeSnapshot(TableMetadata table, String tag, boolean createManifest) throws IOException
+    public FakeSnapshot createFakeSnapshot(TableMetadata table, String tag, boolean createManifest, boolean ephemeral) throws IOException
     {
         File tableDir = cfDir(table);
         tableDir.tryCreateDirectories();
@@ -225,11 +229,15 @@ public class DirectoriesTest
         if (createManifest)
         {
             File manifestFile = Directories.getSnapshotManifestFile(snapshotDir);
-            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new DurationSpec.IntSecondsBound("1m"), now());
+            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new DurationSpec.IntSecondsBound("1m"), now(), ephemeral);
             manifest.serializeToJsonFile(manifestFile);
         }
+        else if (ephemeral)
+        {
+            Files.createFile(snapshotDir.toPath().resolve("ephemeral.snapshot"));
+        }
 
-        return new FakeSnapshot(table, tag, snapshotDir, manifest);
+        return new FakeSnapshot(table, tag, snapshotDir, manifest, ephemeral);
     }
 
     private List<File> createFakeSSTable(File dir, String cf, int gen)
@@ -269,7 +277,7 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testStandardDirs() throws IOException
+    public void testStandardDirs()
     {
         for (TableMetadata cfm : CFM)
         {
@@ -296,22 +304,27 @@ public class DirectoriesTest
         assertThat(directories.listSnapshots()).isEmpty();
 
         // Create snapshot with and without manifest
-        FakeSnapshot snapshot1 = createFakeSnapshot(fakeTable, SNAPSHOT1, true);
-        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, false);
+        FakeSnapshot snapshot1 = createFakeSnapshot(fakeTable, SNAPSHOT1, true, false);
+        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, false, false);
+        // ephemeral without manifst
+        FakeSnapshot snapshot3 = createFakeSnapshot(fakeTable, SNAPSHOT3, false, true);
 
         // Both snapshots should be present
         Map<String, TableSnapshot> snapshots = directories.listSnapshots();
-        assertThat(snapshots.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT1, SNAPSHOT2));
+        assertThat(snapshots.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT1, SNAPSHOT2, SNAPSHOT3));
         assertThat(snapshots.get(SNAPSHOT1)).isEqualTo(snapshot1.asTableSnapshot());
         assertThat(snapshots.get(SNAPSHOT2)).isEqualTo(snapshot2.asTableSnapshot());
+        assertThat(snapshots.get(SNAPSHOT3)).isEqualTo(snapshot3.asTableSnapshot());
 
         // Now remove snapshot1
-        FileUtils.deleteRecursive(snapshot1.snapshotDir);
+        snapshot1.snapshotDir.deleteRecursive();
 
-        // Only snapshot 2 should be present
+        // Only snapshot 2 and 3 should be present
         snapshots = directories.listSnapshots();
-        assertThat(snapshots.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT2));
+        assertThat(snapshots.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT2, SNAPSHOT3));
         assertThat(snapshots.get(SNAPSHOT2)).isEqualTo(snapshot2.asTableSnapshot());
+        assertThat(snapshots.get(SNAPSHOT3)).isEqualTo(snapshot3.asTableSnapshot());
+        assertThat(snapshots.get(SNAPSHOT3).isEphemeral()).isTrue();
     }
 
     @Test
@@ -322,21 +335,23 @@ public class DirectoriesTest
         assertThat(directories.listSnapshotDirsByTag()).isEmpty();
 
         // Create snapshot with and without manifest
-        FakeSnapshot snapshot1 = createFakeSnapshot(fakeTable, SNAPSHOT1, true);
-        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, false);
+        FakeSnapshot snapshot1 = createFakeSnapshot(fakeTable, SNAPSHOT1, true, false);
+        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, false, false);
+        FakeSnapshot snapshot3 = createFakeSnapshot(fakeTable, SNAPSHOT3, false, true);
 
         // Both snapshots should be present
         Map<String, Set<File>> snapshotDirs = directories.listSnapshotDirsByTag();
-        assertThat(snapshotDirs.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT1, SNAPSHOT2));
+        assertThat(snapshotDirs.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT1, SNAPSHOT2, SNAPSHOT3));
         assertThat(snapshotDirs.get(SNAPSHOT1)).allMatch(snapshotDir -> snapshotDir.equals(snapshot1.snapshotDir));
         assertThat(snapshotDirs.get(SNAPSHOT2)).allMatch(snapshotDir -> snapshotDir.equals(snapshot2.snapshotDir));
+        assertThat(snapshotDirs.get(SNAPSHOT3)).allMatch(snapshotDir -> snapshotDir.equals(snapshot3.snapshotDir));
 
         // Now remove snapshot1
-        FileUtils.deleteRecursive(snapshot1.snapshotDir);
+        snapshot1.snapshotDir.deleteRecursive();
 
-        // Only snapshot 2 should be present
+        // Only snapshot 2 and 3 should be present
         snapshotDirs = directories.listSnapshotDirsByTag();
-        assertThat(snapshotDirs.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT2));
+        assertThat(snapshotDirs.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT2, SNAPSHOT3));
     }
 
     @Test
@@ -353,7 +368,7 @@ public class DirectoriesTest
 
             File manifestFile = directories.getSnapshotManifestFile(tag);
 
-            SnapshotManifest manifest = new SnapshotManifest(files, new DurationSpec.IntSecondsBound("1m"), now());
+            SnapshotManifest manifest = new SnapshotManifest(files, new DurationSpec.IntSecondsBound("1m"), now(), false);
             manifest.serializeToJsonFile(manifestFile);
 
             Set<File> dirs = new HashSet<>();
@@ -488,7 +503,7 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testTemporaryFile() throws IOException
+    public void testTemporaryFile()
     {
         for (TableMetadata cfm : CFM)
         {
@@ -552,11 +567,10 @@ public class DirectoriesTest
             final Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
             assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
             final String n = Long.toString(nanoTime());
-            Callable<File> directoryGetter = new Callable<File>() {
-                public File call() throws Exception {
-                    Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
-                    return Directories.getSnapshotDirectory(desc, n);
-                }
+            Callable<File> directoryGetter = () ->
+            {
+                Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
+                return Directories.getSnapshotDirectory(desc, n);
             };
             List<Future<File>> invoked = Executors.newFixedThreadPool(2).invokeAll(Arrays.asList(directoryGetter, directoryGetter));
             for(Future<File> fut:invoked) {
