@@ -115,7 +115,7 @@ public class CellTest
             BufferCell cell = BufferCell.tombstone(c, 0, 4, CellPath.create(ByteBufferUtil.bytes(4)));
             try
             {
-                Assert.assertTrue(cell.toString().contains("tombstone"));
+                Assert.assertEquals("[c[4]=<tombstone> ts=0 ldt=4]", cell.toString());
             }
             catch (MarshalException m)
             {
