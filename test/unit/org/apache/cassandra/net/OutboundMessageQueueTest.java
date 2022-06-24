@@ -65,7 +65,6 @@ public class OutboundMessageQueueTest
             try (OutboundMessageQueue.WithLock lock = queue.lockOrCallback(0, () -> {}))
             {
                 locked.countDown();
-                Uninterruptibles.awaitUninterruptibly(lockUntil);
             }
         }).start();
         Uninterruptibles.awaitUninterruptibly(locked);
@@ -85,6 +84,7 @@ public class OutboundMessageQueueTest
         Uninterruptibles.awaitUninterruptibly(start);
         lockUntil.countDown();
         Uninterruptibles.awaitUninterruptibly(finish);
+        Uninterruptibles.awaitUninterruptibly(lockUntil);
 
         try (OutboundMessageQueue.WithLock lock = queue.lockOrCallback(0, () -> {}))
         {
