@@ -41,6 +41,7 @@ import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.Flusher.FlushItem;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -79,6 +80,7 @@ public class Dispatcher
 
     public void dispatch(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
     {
+        request.startNanoTime = Clock.Global.nanoTime();
         requestExecutor.submit(() -> processRequest(channel, request, forFlusher, backpressure));
         ClientMetrics.instance.markRequestDispatched();
     }
@@ -89,7 +91,8 @@ public class Dispatcher
      */
     private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure)
     {
-        long queryStartNanoTime = nanoTime();
+        long queryStartNanoTime = Clock.Global.nanoTime();
+        request.type.metrics.delay.addNano(queryStartNanoTime - request.startNanoTime);
         if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
             ClientWarn.instance.captureWarnings();
 
@@ -128,6 +131,7 @@ public class Dispatcher
         response.setWarnings(ClientWarn.instance.getWarnings());
         response.attach(connection);
         connection.applyStateTransition(request.type, response.type);
+        request.type.metrics.process.addNano(Clock.Global.nanoTime() - queryStartNanoTime);
         return response;
     }
 
@@ -218,6 +222,7 @@ public class Dispatcher
                                                           eventMessage.encode(version),
                                                           null,
                                                           allocator,
-                                                          f -> f.response.release()));
+                                                          f -> f.response.release(),
+                                                          null));
     }
 }

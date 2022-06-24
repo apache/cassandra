@@ -86,7 +86,7 @@ public class PreV5Handlers
         // Acts as a Dispatcher.FlushItemConverter
         private Flusher.FlushItem.Unframed toFlushItem(Channel channel, Message.Request request, Message.Response response)
         {
-            return new Flusher.FlushItem.Unframed(channel, response, request.getSource(), this::releaseItem);
+            return new Flusher.FlushItem.Unframed(channel, response, request.getSource(), this::releaseItem, request);
         }
 
         private void releaseItem(Flusher.FlushItem<Message.Response> item)

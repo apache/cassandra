@@ -453,7 +453,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                           responseFrame,
                           request.getSource(),
                           payloadAllocator,
-                          this::release);
+                          this::release,
+                          request);
     }
 
     private void release(Flusher.FlushItem<Envelope> flushItem)

@@ -32,10 +32,12 @@ import org.slf4j.LoggerFactory;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
+import org.apache.cassandra.metrics.LatencyMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.FrameEncoderLZ4;
 import org.apache.cassandra.transport.Message.Response;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.BufferPool;
 
@@ -58,19 +60,33 @@ abstract class Flusher implements Runnable
         final T response;
         final Envelope request;
         final Consumer<FlushItem<T>> tidy;
+        final LatencyMetrics metrics;
+        final long requestStartNanoTime;
 
-        FlushItem(Kind kind, Channel channel, T response, Envelope request, Consumer<FlushItem<T>> tidy)
+        FlushItem(Kind kind, Channel channel, T response, Envelope request, Consumer<FlushItem<T>> tidy, Message.Request messageRequest)
         {
             this.kind = kind;
             this.channel = channel;
             this.request = request;
             this.response = response;
             this.tidy = tidy;
+            if (messageRequest != null)
+            {
+                metrics = messageRequest.type.metrics.total;
+                requestStartNanoTime = messageRequest.startNanoTime;
+            }
+            else
+            {
+                metrics = null;
+                requestStartNanoTime = 0;
+            }
         }
 
         void release()
         {
             tidy.accept(this);
+            if (metrics != null)
+                metrics.addNano(Clock.Global.nanoTime() - requestStartNanoTime);
         }
 
         static class Framed extends FlushItem<Envelope>
@@ -80,18 +96,23 @@ abstract class Flusher implements Runnable
                    Envelope response,
                    Envelope request,
                    FrameEncoder.PayloadAllocator allocator,
-                   Consumer<FlushItem<Envelope>> tidy)
+                   Consumer<FlushItem<Envelope>> tidy,
+                   Message.Request messageRequest)
             {
-                super(Kind.FRAMED, channel, response, request, tidy);
+                super(Kind.FRAMED, channel, response, request, tidy, messageRequest);
                 this.allocator = allocator;
             }
         }
 
         static class Unframed extends FlushItem<Response>
         {
-            Unframed(Channel channel, Response response, Envelope request, Consumer<FlushItem<Response>> tidy)
+            Unframed(Channel channel,
+                     Response response,
+                     Envelope request,
+                     Consumer<FlushItem<Response>> tidy,
+                     Message.Request messageRequest)
             {
-                super(Kind.UNFRAMED, channel, response, request, tidy);
+                super(Kind.UNFRAMED, channel, response, request, tidy, messageRequest);
             }
         }
     }

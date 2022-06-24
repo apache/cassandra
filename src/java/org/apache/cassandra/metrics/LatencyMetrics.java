@@ -83,6 +83,17 @@ public class LatencyMetrics
         this(factory, null, namePrefix);
     }
 
+    /**
+     * Create LatencyMetrics with given group, type and scope.
+     * Prefix to append to each metric name will be empty string.
+     *
+     * @param factory MetricName factory to use
+     */
+    public LatencyMetrics(MetricNameFactory factory)
+    {
+        this(factory, null, "");
+    }
+
     public LatencyMetrics(MetricNameFactory factory, MetricNameFactory aliasFactory, String namePrefix)
     {
         this.factory = factory;
