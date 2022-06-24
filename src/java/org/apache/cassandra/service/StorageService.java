@@ -4136,6 +4136,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
         boolean skipExpiring = options != null && Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
+        boolean includeEphemeral = options != null && Boolean.parseBoolean(options.getOrDefault("include_ephemeral", "false"));
 
         SnapshotLoader loader = new SnapshotLoader();
         Map<String, TabularData> snapshotMap = new HashMap<>();
@@ -4143,6 +4144,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (TableSnapshot snapshot : loader.loadSnapshots())
         {
             if (skipExpiring && snapshot.isExpiring())
+                continue;
+            if (!includeEphemeral && snapshot.isEphemeral())
                 continue;
 
             TabularDataSupport data = (TabularDataSupport) snapshotMap.get(snapshot.getTag());

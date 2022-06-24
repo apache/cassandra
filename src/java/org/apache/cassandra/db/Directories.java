@@ -572,17 +572,6 @@ public class Directories
         return new File(snapshotDir, "schema.cql");
     }
 
-    public File getNewEphemeralSnapshotMarkerFile(String snapshotName)
-    {
-        File snapshotDir = new File(getWriteableLocationAsFile(1L), join(SNAPSHOT_SUBDIR, snapshotName));
-        return getEphemeralSnapshotMarkerFile(snapshotDir);
-    }
-
-    private static File getEphemeralSnapshotMarkerFile(File snapshotDirectory)
-    {
-        return new File(snapshotDirectory, "ephemeral.snapshot");
-    }
-
     public static File getBackupsDirectory(Descriptor desc)
     {
         return getBackupsDirectory(desc.directory);
@@ -983,18 +972,25 @@ public class Directories
         return snapshots;
     }
 
-    protected TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs) {
+    private TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs)
+    {
+        boolean ephemeral = manifest != null ? manifest.isEphemeral() : isLegacyEphemeralSnapshot(snapshotDirs);
         Instant createdAt = manifest == null ? null : manifest.createdAt;
         Instant expiresAt = manifest == null ? null : manifest.expiresAt;
         return new TableSnapshot(metadata.keyspace, metadata.name, metadata.id.asUUID(), tag, createdAt, expiresAt,
-                                 snapshotDirs);
+                                 snapshotDirs, ephemeral);
+    }
+
+    private static boolean isLegacyEphemeralSnapshot(Set<File> snapshotDirs)
+    {
+        return snapshotDirs.stream().map(d -> new File(d, "ephemeral.snapshot")).anyMatch(File::exists);
     }
 
     @VisibleForTesting
     protected static SnapshotManifest maybeLoadManifest(String keyspace, String table, String tag, Set<File> snapshotDirs)
     {
         List<File> manifests = snapshotDirs.stream().map(d -> new File(d, "manifest.json"))
-                                           .filter(d -> d.exists()).collect(Collectors.toList());
+                                           .filter(File::exists).collect(Collectors.toList());
 
         if (manifests.isEmpty())
         {
@@ -1016,42 +1012,6 @@ public class Directories
         }
 
         return null;
-    }
-
-    public List<String> listEphemeralSnapshots()
-    {
-        final List<String> ephemeralSnapshots = new LinkedList<>();
-        for (File snapshot : listAllSnapshots())
-        {
-            if (getEphemeralSnapshotMarkerFile(snapshot).exists())
-                ephemeralSnapshots.add(snapshot.name());
-        }
-        return ephemeralSnapshots;
-    }
-
-    private List<File> listAllSnapshots()
-    {
-        final List<File> snapshots = new LinkedList<>();
-        for (final File dir : dataPaths)
-        {
-            File snapshotDir = isSecondaryIndexFolder(dir)
-                               ? new File(dir.parentPath(), SNAPSHOT_SUBDIR)
-                               : new File(dir, SNAPSHOT_SUBDIR);
-            if (snapshotDir.exists() && snapshotDir.isDirectory())
-            {
-                final File[] snapshotDirs  = snapshotDir.tryList();
-                if (snapshotDirs != null)
-                {
-                    for (final File snapshot : snapshotDirs)
-                    {
-                        if (snapshot.isDirectory())
-                            snapshots.add(snapshot);
-                    }
-                }
-            }
-        }
-
-        return snapshots;
     }
 
     @VisibleForTesting
