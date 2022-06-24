@@ -115,7 +115,7 @@ public class CellTest
             BufferCell cell = BufferCell.tombstone(c, 0, 4, CellPath.create(ByteBufferUtil.bytes(4)));
             try
             {
-                Assert.assertEquals("[c[4]=<tombstone> ts=0 ldt=4]", cell.toString());
+                Assert.assertEquals("expected #toString failed for type " + nativeType, "[c[4]=<tombstone> ts=0 ldt=4]", cell.toString());
             }
             catch (MarshalException m)
             {
