@@ -8,6 +8,7 @@
  * silence benign SslClosedEngineException (CASSANDRA-17565)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix writetime and ttl functions forbidden for collections instead of multicell columns (CASSANDRA-17628)
  * Fix issue where frozen maps may not be serialized in the correct order (CASSANDRA-17623)
  * Suppress CVE-2022-24823 (CASSANDRA-17633)
  * fsync TOC and digest files (CASSANDRA-10709)
