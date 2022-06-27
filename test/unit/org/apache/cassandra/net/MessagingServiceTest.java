@@ -148,7 +148,7 @@ public class MessagingServiceTest
     public void testDCLatency()
     {
         int latency = 100;
-        ConcurrentHashMap<String, MessagingMetrics.DCLatencyRecorder> dcLatency = MessagingService.instance().metrics.dcLatency;
+        Map<String, MessagingMetrics.DCLatencyRecorder> dcLatency = MessagingService.instance().metrics.dcLatency;
         dcLatency.clear();
 
         long now = System.currentTimeMillis();
