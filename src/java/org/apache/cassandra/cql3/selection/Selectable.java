@@ -247,9 +247,11 @@ public interface Selectable extends AssignmentTestable
                         String.format("Cannot use selection function %s on PRIMARY KEY part %s",
                                       isWritetime ? "writeTime" : "ttl",
                                       column.name));
-            if (column.type.isCollection())
-                throw new InvalidRequestException(String.format("Cannot use selection function %s on collections",
-                                                                isWritetime ? "writeTime" : "ttl"));
+            if (column.type.isMultiCell())
+                throw new InvalidRequestException(String.format("Cannot use selection function %s on non-frozen %s %s",
+                                                                isWritetime ? "writeTime" : "ttl",
+                                                                column.type.isCollection() ? "collection" : "UDT",
+                                                                column.name));
 
             return WritetimeOrTTLSelector.newFactory(column, addAndGetIndex(column, defs), isWritetime);
         }
