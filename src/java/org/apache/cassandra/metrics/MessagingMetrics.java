@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -93,16 +92,15 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
     }
 
     private final Timer allLatency;
-    public final ConcurrentHashMap<String, DCLatencyRecorder> dcLatency;
-    public final Map<Verb, Timer> internalLatency = new HashMap<>();
+    public final Map<String, DCLatencyRecorder> dcLatency = new ConcurrentHashMap<>();
+    public final Map<Verb, Timer> internalLatency = new ConcurrentHashMap<>();
 
     // total dropped message counts for server lifetime
-    private final Map<Verb, DroppedForVerb> droppedMessages = new HashMap<>();
+    private final Map<Verb, DroppedForVerb> droppedMessages = new ConcurrentHashMap<>();
 
     public MessagingMetrics()
     {
         allLatency = Metrics.timer(factory.createMetricName("CrossNodeLatency"));
-        dcLatency = new ConcurrentHashMap<>();
         for (Verb verb : Verb.getValues())
         {
             internalLatency.put(verb, Metrics.timer(factory.createMetricName(verb + "-WaitLatency")));
@@ -113,21 +111,27 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
     public DCLatencyRecorder internodeLatencyRecorder(InetAddressAndPort from)
     {
         String dcName = DatabaseDescriptor.getEndpointSnitch().getDatacenter(from);
-        DCLatencyRecorder dcUpdater = dcLatency.get(dcName);
-        if (dcUpdater == null)
-            dcUpdater = dcLatency.computeIfAbsent(dcName, k -> new DCLatencyRecorder(Metrics.timer(factory.createMetricName(dcName + "-Latency")), allLatency));
+        DCLatencyRecorder dcUpdater = dcLatency.computeIfAbsent(dcName,
+                                                                k -> new DCLatencyRecorder(Metrics.timer(factory.createMetricName(dcName + "-Latency")),
+                                                                                           allLatency));
         return dcUpdater;
     }
 
     public void recordInternalLatency(Verb verb, long timeTaken, TimeUnit units)
     {
         if (timeTaken > 0)
-            internalLatency.get(verb).update(timeTaken, units);
+        {
+            // We need to potentially compute absent entries if this is a custom verb
+            // that is not present in the Verb.getValues() list because it was
+            // instantiated after the Messaging metrics was created.
+            Timer latency = internalLatency.computeIfAbsent(verb, v -> Metrics.timer(factory.createMetricName(v + "-WaitLatency")));
+            latency.update(timeTaken, units);
+        }
     }
 
     public void recordSelfDroppedMessage(Verb verb)
     {
-        recordDroppedMessage(droppedMessages.get(verb), false);
+        recordDroppedMessage(droppedMessages.computeIfAbsent(verb, v -> new DroppedForVerb(v)), false);
     }
 
     public void recordSelfDroppedMessage(Verb verb, long timeElapsed, TimeUnit timeUnit)
@@ -147,7 +151,7 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
 
     public void recordDroppedMessage(Verb verb, long timeElapsed, TimeUnit timeUnit, boolean isCrossNode)
     {
-        recordDroppedMessage(droppedMessages.get(verb), timeElapsed, timeUnit, isCrossNode);
+        recordDroppedMessage(droppedMessages.computeIfAbsent(verb, v -> new DroppedForVerb(v)), timeElapsed, timeUnit, isCrossNode);
     }
 
     private static void recordDroppedMessage(DroppedForVerb droppedMessages, long timeTaken, TimeUnit units, boolean isCrossNode)
@@ -222,5 +226,4 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
     {
         droppedMessages.replaceAll((u, v) -> new DroppedForVerb(new DroppedMessageMetrics(u)));
     }
-
 }
