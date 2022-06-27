@@ -193,7 +193,8 @@ public abstract class Message
         this.customPayload = customPayload;
     }
 
-    public String debugString()
+    @Override
+    public String toString()
     {
         return String.format("(%s:%s:%s)", type, streamId, connection == null ? "null" :  connection.getVersion().asInt());
     }
