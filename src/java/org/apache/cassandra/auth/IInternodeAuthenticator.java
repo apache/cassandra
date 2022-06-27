@@ -82,11 +82,18 @@ public interface IInternodeAuthenticator
     }
 
     /**
-     * Enum that represents connection type of an internode connection.
+     * Enum that represents connection type of internode connection.
+     *
+     * INBOUND - called after connection established, with certificate available if present.
+     * OUTBOUND - called after connection established, with certificate available if present.
+     * OUTBOUND_PRECONNECT - called before initiating a connection, without certificate available.
+     * The outbound connection will be authenticated with the certificate once a redirected connection is established.
+     * This is an extra check that can be used to detect misconfiguration before reconnection, or ignored by returning true.
      */
     enum InternodeConnectionDirection
     {
         INBOUND,
-        OUTBOUND
+        OUTBOUND,
+        OUTBOUND_PRECONNECT
     }
 }

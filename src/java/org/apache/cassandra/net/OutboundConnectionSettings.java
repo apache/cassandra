@@ -25,7 +25,6 @@ import io.netty.channel.WriteBufferWaterMark;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -155,11 +154,6 @@ public class OutboundConnectionSettings
         this.callbacks = callbacks;
         this.debug = debug;
         this.endpointToVersion = endpointToVersion;
-    }
-
-    public boolean authenticate()
-    {
-        return authenticator.authenticate(to.getAddress(), to.getPort());
     }
 
     public boolean withEncryption()
