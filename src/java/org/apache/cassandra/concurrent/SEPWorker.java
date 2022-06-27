@@ -48,6 +48,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     long prevStopCheck = 0;
     long soleSpinnerSpinTime = 0;
 
+    private final AtomicReference<Runnable> currentTask = new AtomicReference<>();
+
     SEPWorker(ThreadGroup threadGroup, Long workerId, Work initialState, SharedExecutorPool pool)
     {
         this.pool = pool;
@@ -58,9 +60,27 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         thread.start();
     }
 
+    /**
+     * @return the current {@link DebuggableTask}, if one exists
+     */
+    public DebuggableTask currentDebuggableTask()
+    {
+        // can change after null check so go off local reference
+        Runnable task = currentTask.get();
+
+        // Local read and mutation Runnables are themselves debuggable
+        if (task instanceof DebuggableTask)
+            return (DebuggableTask) task;
+
+        if (task instanceof FutureTask)
+            return ((FutureTask<?>) task).debuggableTask();
+            
+        return null;
+    }
+
     public void run()
     {
-        /**
+        /*
          * we maintain two important invariants:
          * 1)   after exiting spinning phase, we ensure at least one more task on _each_ queue will be processed
          *      promptly after we begin, assuming any are outstanding on any pools. this is to permit producers to
@@ -101,8 +121,10 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 if (assigned == null)
                     continue;
                 if (SET_THREAD_NAME)
-                    Thread.currentThread().setName(assigned.name + "-" + workerId);
+                    Thread.currentThread().setName(assigned.name + '-' + workerId);
+
                 task = assigned.tasks.poll();
+                currentTask.lazySet(task);
 
                 // if we do have tasks assigned, nobody will change our state so we can simply set it to WORKING
                 // (which is also a state that will never be interrupted externally)
@@ -128,9 +150,12 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                         break;
 
                     task = assigned.tasks.poll();
+                    currentTask.lazySet(task);
                 }
 
                 // return our work permit, and maybe signal shutdown
+                currentTask.lazySet(null);
+
                 if (status != RETURNED_WORK_PERMIT)
                     assigned.returnWorkPermit();
 
@@ -172,6 +197,11 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             {
                 logger.error("Unexpected exception killed worker", t);
             }
+        }
+        finally
+        {
+            currentTask.lazySet(null);
+            pool.workerEnded(this);
         }
     }
 
@@ -419,5 +449,23 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         {
             return assigned != null;
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return thread.getName();
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return workerId.intValue();
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        return obj == this;
     }
 }

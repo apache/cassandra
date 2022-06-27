@@ -1,4 +1,5 @@
 4.1.3
+ * Add a virtual table that exposes currently running queries (CASSANDRA-15241)
 Merged from 4.0:
  * Fix assertion error when describing mv as table (CASSANDRA-18596)
  * Track the amount of read data per row (CASSANDRA-18513)
