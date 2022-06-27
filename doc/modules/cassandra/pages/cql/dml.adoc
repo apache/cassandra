@@ -85,6 +85,9 @@ These functions retrieve meta-information that is stored internally for each col
 * `WRITETIME` stores the timestamp of the value of the column
 * `TTL` stores the remaining time to live (in seconds) for the value of the column if it is set to expire; otherwise the value is `null`.
 
+The `WRITETIME` and `TTL` functions can't be used on multi-cell columns such as non-frozen
+collections or non-frozen user-defined types.
+
 [[where-clause]]
 === The `WHERE` clause
 
