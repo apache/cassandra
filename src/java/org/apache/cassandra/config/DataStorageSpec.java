@@ -447,6 +447,16 @@ public abstract class DataStorageSpec
         {
             return Ints.saturatedCast(unit().toMebibytes(quantity()));
         }
+
+        /**
+         * Returns the amount of data storage in bytes as {@code long}
+         *
+         * @return the amount of data storage in bytes.
+         */
+        public long toBytesInLong()
+        {
+            return unit().toBytes(quantity());
+        }
     }
 
     public enum DataStorageUnit
