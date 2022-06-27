@@ -275,10 +275,12 @@ public interface Selectable extends AssignmentTestable
                                       kind.name,
                                       column.name));
 
-            // only maxwritetime is allowed for collection
-            if (column.type.isCollection() && !kind.allowedForMultiCell())
-                throw new InvalidRequestException(String.format("Cannot use selection function %s on collections",
-                                                                kind.name));
+            // only maxwritetime is allowed for multicell types
+            if (column.type.isMultiCell() && !kind.allowedForMultiCell())
+                throw new InvalidRequestException(String.format("Cannot use selection function %s on non-frozen %s %s",
+                                                                kind.name,
+                                                                column.type.isCollection() ? "collection" : "UDT",
+                                                                column.name));
 
             return WritetimeOrTTLSelector.newFactory(column, addAndGetIndex(column, defs), kind);
         }
