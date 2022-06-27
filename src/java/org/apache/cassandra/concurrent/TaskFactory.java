@@ -20,6 +20,7 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.Callable;
 
+import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
@@ -127,6 +128,9 @@ public interface TaskFactory
         @Override
         public Runnable toExecute(Runnable runnable)
         {
+            if (runnable instanceof RunnableDebuggableTask)
+                return ExecutionFailure.suppressingDebuggable(ExecutorLocals.propagate(), (RunnableDebuggableTask) runnable);
+
             // no reason to propagate exception when it is inaccessible to caller
             return ExecutionFailure.suppressing(ExecutorLocals.propagate(), runnable);
         }

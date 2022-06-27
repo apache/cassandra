@@ -39,25 +39,25 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.service.paxos.*;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.ContentionStrategy;
 import org.apache.cassandra.service.paxos.Paxos;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
-
+import org.apache.cassandra.service.paxos.PaxosState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -140,13 +140,17 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
+import static com.google.common.collect.Iterables.concat;
+import static org.apache.commons.lang3.StringUtils.join;
+
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
-import static org.apache.cassandra.net.Message.out;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
@@ -154,8 +158,15 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetri
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.viewWriteMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetricsForLevel;
+import static org.apache.cassandra.net.Message.out;
 import static org.apache.cassandra.net.NoPayload.noPayload;
-import static org.apache.cassandra.net.Verb.*;
+import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
+import static org.apache.cassandra.net.Verb.MUTATION_REQ;
+import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
+import static org.apache.cassandra.net.Verb.PAXOS_PREPARE_REQ;
+import static org.apache.cassandra.net.Verb.PAXOS_PROPOSE_REQ;
+import static org.apache.cassandra.net.Verb.SCHEMA_VERSION_REQ;
+import static org.apache.cassandra.net.Verb.TRUNCATE_REQ;
 import static org.apache.cassandra.service.BatchlogResponseHandler.BatchlogCleanup;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
@@ -166,7 +177,6 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
-import static org.apache.commons.lang3.StringUtils.join;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -830,6 +840,12 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             @Override
+            public String description()
+            {
+                return "Paxos " + message.payload.toString();
+            }
+
+            @Override
             protected Verb verb()
             {
                 return PAXOS_COMMIT_REQ;
@@ -1264,7 +1280,7 @@ public class StorageProxy implements StorageProxyMBean
             logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
 
             if (replica.isSelf())
-                performLocally(Stage.MUTATION, replica, () -> BatchlogManager.store(batch), handler);
+                performLocally(Stage.MUTATION, replica, () -> BatchlogManager.store(batch), handler, "Batchlog store");
             else
                 MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
         }
@@ -1280,7 +1296,7 @@ public class StorageProxy implements StorageProxyMBean
                 logger.trace("Sending batchlog remove request {} to {}", uuid, target);
 
             if (target.isSelf())
-                performLocally(Stage.MUTATION, target, () -> BatchlogManager.remove(uuid));
+                performLocally(Stage.MUTATION, target, () -> BatchlogManager.remove(uuid), "Batchlog remove");
             else
                 MessagingService.instance().send(message, target.endpoint());
         }
@@ -1524,7 +1540,7 @@ public class StorageProxy implements StorageProxyMBean
         if (insertLocal)
         {
             Preconditions.checkNotNull(localReplica);
-            performLocally(stage, localReplica, mutation::apply, responseHandler);
+            performLocally(stage, localReplica, mutation::apply, responseHandler, mutation);
         }
 
         if (localDc != null)
@@ -1591,7 +1607,7 @@ public class StorageProxy implements StorageProxyMBean
         logger.trace("Sending message to {}@{}", message.id(), target);
     }
 
-    private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable)
+    private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, String description)
     {
         stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
@@ -1608,6 +1624,12 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             @Override
+            public String description()
+            {
+                return description;
+            }
+
+            @Override
             protected Verb verb()
             {
                 return Verb.MUTATION_REQ;
@@ -1615,7 +1637,7 @@ public class StorageProxy implements StorageProxyMBean
         });
     }
 
-    private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, final RequestCallback<?> handler)
+    private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, final RequestCallback<?> handler, Object description)
     {
         stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica)
         {
@@ -1632,6 +1654,14 @@ public class StorageProxy implements StorageProxyMBean
                         logger.error("Failed to apply mutation locally : ", ex);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.forException(ex));
                 }
+            }
+
+            @Override
+            public String description()
+            {
+                // description is an Object and toString() called so we do not have to evaluate the Mutation.toString()
+                // unless expliclitly checked
+                return description.toString();
             }
 
             @Override
@@ -2088,7 +2118,7 @@ public class StorageProxy implements StorageProxyMBean
         return concatAndBlockOnRepair(results, repairs);
     }
 
-    public static class LocalReadRunnable extends DroppableRunnable
+    public static class LocalReadRunnable extends DroppableRunnable implements RunnableDebuggableTask
     {
         private final ReadCommand command;
         private final ReadCallback handler;
@@ -2157,6 +2187,24 @@ public class StorageProxy implements StorageProxyMBean
                     throw t;
                 }
             }
+        }
+
+        @Override
+        public long creationTimeNanos()
+        {
+            return approxCreationTimeNanos;
+        }
+
+        @Override
+        public long startTimeNanos()
+        {
+            return approxStartTimeNanos;
+        }
+
+        @Override
+        public String description()
+        {
+            return command.toCQLString();
         }
     }
 
@@ -2468,7 +2516,9 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class DroppableRunnable implements Runnable
     {
-        final long approxCreationTimeNanos;
+        protected final long approxCreationTimeNanos;
+        protected volatile long approxStartTimeNanos;
+        
         final Verb verb;
 
         public DroppableRunnable(Verb verb)
@@ -2479,11 +2529,11 @@ public class StorageProxy implements StorageProxyMBean
 
         public final void run()
         {
-            long approxCurrentTimeNanos = MonotonicClock.Global.approxTime.now();
+            approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
             long expirationTimeNanos = verb.expiresAtNanos(approxCreationTimeNanos);
-            if (approxCurrentTimeNanos > expirationTimeNanos)
+            if (approxStartTimeNanos > expirationTimeNanos)
             {
-                long timeTakenNanos = approxCurrentTimeNanos - approxCreationTimeNanos;
+                long timeTakenNanos = approxStartTimeNanos - approxCreationTimeNanos;
                 MessagingService.instance().metrics.recordSelfDroppedMessage(verb, timeTakenNanos, NANOSECONDS);
                 return;
             }
@@ -2504,9 +2554,10 @@ public class StorageProxy implements StorageProxyMBean
      * Like DroppableRunnable, but if it aborts, it will rerun (on the mutation stage) after
      * marking itself as a hint in progress so that the hint backpressure mechanism can function.
      */
-    private static abstract class LocalMutationRunnable implements Runnable
+    private static abstract class LocalMutationRunnable implements RunnableDebuggableTask
     {
         private final long approxCreationTimeNanos = MonotonicClock.Global.approxTime.now();
+        private volatile long approxStartTimeNanos;
 
         private final Replica localReplica;
 
@@ -2518,11 +2569,12 @@ public class StorageProxy implements StorageProxyMBean
         public final void run()
         {
             final Verb verb = verb();
-            long nowNanos = MonotonicClock.Global.approxTime.now();
+            approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
             long expirationTimeNanos = verb.expiresAtNanos(approxCreationTimeNanos);
-            if (nowNanos > expirationTimeNanos)
+            
+            if (approxStartTimeNanos > expirationTimeNanos)
             {
-                long timeTakenNanos = nowNanos - approxCreationTimeNanos;
+                long timeTakenNanos = approxStartTimeNanos - approxCreationTimeNanos;
                 MessagingService.instance().metrics.recordSelfDroppedMessage(Verb.MUTATION_REQ, timeTakenNanos, NANOSECONDS);
 
                 HintRunnable runnable = new HintRunnable(EndpointsForToken.of(localReplica.range().right, localReplica))
@@ -2545,6 +2597,21 @@ public class StorageProxy implements StorageProxyMBean
                 throw new RuntimeException(e);
             }
         }
+
+        @Override
+        public long creationTimeNanos()
+        {
+            return approxCreationTimeNanos;
+        }
+
+        @Override
+        public long startTimeNanos()
+        {
+            return approxStartTimeNanos;
+        }
+
+        @Override
+        abstract public String description();
 
         abstract protected Verb verb();
         abstract protected void runMayThrow() throws Exception;
