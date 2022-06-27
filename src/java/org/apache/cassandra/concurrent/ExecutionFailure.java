@@ -21,6 +21,7 @@ package org.apache.cassandra.concurrent;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,6 +107,14 @@ public class ExecutionFailure
     }
 
     /**
+     * @see #suppressing(WithResources, Runnable)
+     */
+    static RunnableDebuggableTask suppressingDebuggable(WithResources withResources, RunnableDebuggableTask debuggable)
+    {
+        return enforceOptionsDebuggable(withResources, debuggable, false);
+    }
+
+    /**
      * Encapsulate the execution, propagating or suppressing any exceptions as requested.
      *
      * note that if {@code wrap} is a {@link java.util.concurrent.Future} its exceptions may not be captured,
@@ -119,7 +128,7 @@ public class ExecutionFailure
             @Override
             public void run()
             {
-                try (Closeable close = withResources.get())
+                try (@SuppressWarnings("unused") Closeable close = withResources.get())
                 {
                     wrap.run();
                 }
@@ -135,6 +144,54 @@ public class ExecutionFailure
             public String toString()
             {
                 return wrap.toString();
+            }
+        };
+    }
+
+    /**
+     * @see #enforceOptions(WithResources, Runnable, boolean)
+     */
+    private static RunnableDebuggableTask enforceOptionsDebuggable(WithResources withResources, RunnableDebuggableTask debuggable, boolean propagate)
+    {
+        return new RunnableDebuggableTask()
+        {
+            @Override
+            public void run()
+            {
+                try (@SuppressWarnings("unused") Closeable close = withResources.get())
+                {
+                    debuggable.run();
+                }
+                catch (Throwable t)
+                {
+                    handle(t);
+                    if (propagate)
+                        throw t;
+                }
+            }
+
+            @Override
+            public String toString()
+            {
+                return debuggable.toString();
+            }
+
+            @Override
+            public long creationTimeNanos()
+            {
+                return debuggable.creationTimeNanos();
+            }
+
+            @Override
+            public long startTimeNanos()
+            {
+                return debuggable.startTimeNanos();
+            }
+
+            @Override
+            public String description()
+            {
+                return debuggable.description();
             }
         };
     }
@@ -158,7 +215,7 @@ public class ExecutionFailure
             @Override
             public V call() throws Exception
             {
-                try (Closeable close = withResources.get())
+                try (@SuppressWarnings("unused") Closeable close = withResources.get())
                 {
                     return wrap.call();
                 }
