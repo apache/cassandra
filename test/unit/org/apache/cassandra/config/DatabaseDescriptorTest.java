@@ -326,7 +326,7 @@ public class DatabaseDescriptorTest
             fail("Should have received a ConfigurationException batch_size_warn_threshold = 2GiB");
         }
         catch (ConfigurationException ignored) { }
-        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+        Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
     }
 
     @Test
@@ -334,16 +334,20 @@ public class DatabaseDescriptorTest
     {
         Config conf = DatabaseDescriptor.getRawConfig();
         int maxInt = Integer.MAX_VALUE - 1;
-        long maxIntKibibytesAsBytes = (long) maxInt * 1024 * 1024;
+        long maxIntMebibytesAsBytes = (long) maxInt * 1024 * 1024;
+        long maxIntKibibytesAsBytes = (long) maxInt * 1024;
 
         conf.compaction_large_partition_warning_threshold = new DataStorageSpec.IntMebibytesBound(maxInt);
-        Assert.assertEquals(maxIntKibibytesAsBytes, DatabaseDescriptor.getCompactionLargePartitionWarningThreshold());
+        Assert.assertEquals(maxIntMebibytesAsBytes, DatabaseDescriptor.getCompactionLargePartitionWarningThreshold());
 
         conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(maxInt);
-        Assert.assertEquals(maxIntKibibytesAsBytes, DatabaseDescriptor.getMinFreeSpacePerDriveInBytes());
+        Assert.assertEquals(maxIntMebibytesAsBytes, DatabaseDescriptor.getMinFreeSpacePerDriveInBytes());
 
         conf.max_hints_file_size = new DataStorageSpec.IntMebibytesBound(maxInt);
-        Assert.assertEquals(maxIntKibibytesAsBytes, DatabaseDescriptor.getMaxHintsFileSize());
+        Assert.assertEquals(maxIntMebibytesAsBytes, DatabaseDescriptor.getMaxHintsFileSize());
+
+        DatabaseDescriptor.setBatchSizeFailThresholdInKiB(maxInt);
+        Assert.assertEquals((maxIntKibibytesAsBytes), DatabaseDescriptor.getBatchSizeFailThreshold());
     }
 
     @Test

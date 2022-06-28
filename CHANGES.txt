@@ -12,6 +12,7 @@
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.1:
+ * Fix widening to long in getBatchSizeFailThreshold (CASSANDRA-17650)
  * Fix widening from mebibytes to bytes in IntMebibytesBound (CASSANDRA-17716)
  * Revert breaking change in nodetool clientstats and expose cient options through nodetool clientstats --client-options. (CASSANDRA-17715)
  * Fix missed nowInSec values in QueryProcessor (CASSANDRA-17458)
