@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.utils;
 
+import io.netty.util.concurrent.FastThreadLocal;
+
 import java.nio.ByteBuffer;
 import java.util.zip.Checksum;
 import java.util.zip.CRC32;
@@ -60,4 +62,20 @@ public enum ChecksumType
     public abstract Checksum newInstance();
 
     public abstract void update(Checksum checksum, ByteBuffer buf);
+
+    private FastThreadLocal<Checksum> instances = new FastThreadLocal<Checksum>()
+    {
+        protected Checksum initialValue() throws Exception
+        {
+            return newInstance();
+        }
+    };
+
+    public long of(ByteBuffer buf)
+    {
+        Checksum checksum = instances.get();
+        checksum.reset();
+        update(checksum, buf);
+        return checksum.getValue();
+    }
 }
