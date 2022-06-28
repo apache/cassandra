@@ -330,6 +330,23 @@ public class DatabaseDescriptorTest
     }
 
     @Test
+    public void testWidenToLongInBytes() throws ConfigurationException
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        int maxInt = Integer.MAX_VALUE - 1;
+        long maxIntKibibytesAsBytes = (long) maxInt * 1024 * 1024;
+
+        conf.compaction_large_partition_warning_threshold = new DataStorageSpec.IntMebibytesBound(maxInt);
+        Assert.assertEquals(maxIntKibibytesAsBytes, DatabaseDescriptor.getCompactionLargePartitionWarningThreshold());
+
+        conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(maxInt);
+        Assert.assertEquals(maxIntKibibytesAsBytes, DatabaseDescriptor.getMinFreeSpacePerDriveInBytes());
+
+        conf.max_hints_file_size = new DataStorageSpec.IntMebibytesBound(maxInt);
+        Assert.assertEquals(maxIntKibibytesAsBytes, DatabaseDescriptor.getMaxHintsFileSize());
+    }
+
+    @Test
     public void testLowestAcceptableTimeouts() throws ConfigurationException
     {
         Config testConfig = new Config();
