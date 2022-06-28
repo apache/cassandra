@@ -118,13 +118,8 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             if (getCrcCheckChance() >= 1d ||
                     getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
-                metadata.checksumType.update(checksum, (compressed));
-
-                if (checksum(chunk) != (int) checksum.getValue())
+                if (checksum(chunk) != (int) metadata.checksumType.of(compressed))
                     throw new CorruptBlockException(getPath(), chunk);
-
-                // reset checksum object back to the original (blank) state
-                checksum.reset();
 
                 compressed.rewind();
             }
@@ -152,6 +147,8 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         }
         catch (CorruptBlockException e)
         {
+            // Make sure reader does not see stale data.
+            buffer.position(0).limit(0);
             throw new CorruptSSTableException(e, getPath());
         }
         catch (IOException e)
@@ -182,14 +179,10 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             if (getCrcCheckChance() >= 1d ||
                 getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
-                metadata.checksumType.update( checksum, compressedChunk);
-
+                int checksum = (int) metadata.checksumType.of(compressedChunk);
                 compressedChunk.limit(compressedChunk.capacity());
-                if (compressedChunk.getInt() != (int) checksum.getValue())
+                if (compressedChunk.getInt() != checksum)
                     throw new CorruptBlockException(getPath(), chunk);
-
-                // reset checksum object back to the original (blank) state
-                checksum.reset();
 
                 compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
             }
@@ -217,6 +210,8 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         }
         catch (CorruptBlockException e)
         {
+            // Make sure reader does not see stale data.
+            buffer.position(0).limit(0);
             throw new CorruptSSTableException(e, getPath());
         }
 
