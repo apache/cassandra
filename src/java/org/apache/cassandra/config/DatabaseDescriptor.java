@@ -1966,7 +1966,7 @@ public class DatabaseDescriptor
         conf.compaction_throughput = new DataRateSpec.IntMebibytesPerSecondBound(value);
     }
 
-    public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytes(); }
+    public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytesInLong(); }
 
     public static int getCompactionTombstoneWarningThreshold()
     {
@@ -2001,7 +2001,7 @@ public class DatabaseDescriptor
 
     public static long getMinFreeSpacePerDriveInBytes()
     {
-        return conf.min_free_space_per_drive.toBytes();
+        return conf.min_free_space_per_drive.toBytesInLong();
     }
 
     public static boolean getDisableSTCSInL0()
@@ -2977,7 +2977,7 @@ public class DatabaseDescriptor
 
     public static long getMaxHintsFileSize()
     {
-        return  conf.max_hints_file_size.toBytes();
+        return  conf.max_hints_file_size.toBytesInLong();
     }
 
     public static ParameterizedClass getHintsCompression()
