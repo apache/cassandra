@@ -369,7 +369,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
     CommitLogPosition getCommitLogLowerBound();
 
     /** The commit log position at the time that this memtable was switched out */
-    CommitLogPosition getCommitLogUpperBound();
+    LastCommitLogPosition getFinalCommitLogUpperBound();
 
     /** True if the memtable can contain any data that was written before the given commit log position */
     boolean mayContainDataBefore(CommitLogPosition position);
