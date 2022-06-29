@@ -278,6 +278,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 }
                 throw t;
             }
+            // This duplicates work done in Instance startup, but keeping as other Instance implementations
+            // do not, so to permit older releases to be tested, repeat the setup
             updateMessagingVersions();
         }
 
