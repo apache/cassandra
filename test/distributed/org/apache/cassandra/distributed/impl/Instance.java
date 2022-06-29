@@ -46,6 +46,9 @@ import javax.management.NotificationListener;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthCache;
@@ -163,8 +166,10 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
+    private final Logger logger = LoggerFactory.getLogger(Instance.class);
     public final IInstanceConfig config;
     private volatile boolean initialized = false;
+    private volatile boolean internodeMessagingStarted = false;
     private final AtomicLong startedAt = new AtomicLong();
 
     @Deprecated
@@ -321,6 +326,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerMockMessaging(ICluster<?> cluster)
     {
         MessagingService.instance().outboundSink.add((message, to) -> {
+            if (!internodeMessagingStarted)
+            {
+                logger.debug("Dropping outbound message {} to {} as internode messaging has not been started yet",
+                             message, to);
+                return false;
+            }
             cluster.deliverMessage(to, serializeMessage(message.from(), to, message));
             return false;
         });
@@ -469,6 +480,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private SerializableConsumer<Boolean> receiveMessageRunnable(IMessage message)
     {
         return runOnCaller -> {
+            if (!internodeMessagingStarted)
+            {
+                logger.debug("Dropping inbound message {} to {} as internode messaging has not been started yet",
+                             message, config().broadcastAddress());
+                return;
+            }
             if (message.version() > MessagingService.current_version)
             {
                 throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
@@ -499,13 +516,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public int getMessagingVersion()
     {
-        return MessagingService.current_version;
+        if (DatabaseDescriptor.isDaemonInitialized())
+            return MessagingService.current_version;
+        else
+            return 0;
     }
 
     @Override
     public void setMessagingVersion(InetSocketAddress endpoint, int version)
     {
-        MessagingService.instance().versions.set(toCassandraInetAddressAndPort(endpoint), version);
+        if (DatabaseDescriptor.isDaemonInitialized())
+            MessagingService.instance().versions.set(toCassandraInetAddressAndPort(endpoint), version);
+        else
+            logger.warn("Skipped setting messaging version for {} to {} as daemon not initialized yet. Stacktrace attached for debugging.",
+                        endpoint, version, new RuntimeException());
     }
 
     @Override
@@ -634,7 +658,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 registerInboundFilter(cluster);
                 registerOutboundFilter(cluster);
-
+                if (!config.has(NETWORK))
+                {
+                    propagateMessagingVersions(cluster); // fake messaging needs to know messaging version for filters
+                }
+                internodeMessagingStarted = true;
                 JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
 
                 // TODO: this is more than just gossip
@@ -704,6 +732,33 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
 
         initialized = true;
+    }
+
+    // Update the messaging versions for all instances
+    // that have initialized their configurations.
+    private static void propagateMessagingVersions(ICluster cluster)
+    {
+        cluster.stream().forEach(reportToObj -> {
+            IInstance reportTo = (IInstance) reportToObj;
+            if (reportTo.isShutdown())
+                return;
+
+            int reportToVersion = reportTo.getMessagingVersion();
+            if (reportToVersion == 0)
+                return;
+
+            cluster.stream().forEach(reportFromObj -> {
+                IInstance reportFrom = (IInstance) reportFromObj;
+                if (reportFrom == reportTo || reportFrom.isShutdown())
+                    return;
+
+                int reportFromVersion = reportFrom.getMessagingVersion();
+                if (reportFromVersion == 0) // has not read configuration yet, no accessing messaging version
+                    return;
+                // TODO: decide if we need to take care of the minversion
+                reportTo.setMessagingVersion(reportFrom.broadcastAddress(), reportFromVersion);
+            });
+        });
     }
 
     @Override
@@ -796,6 +851,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
 
+            internodeMessagingStarted = false;
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking,
                                 // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure
