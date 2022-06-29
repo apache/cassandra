@@ -44,6 +44,11 @@ public class CompactionStats extends NodeToolCmd
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
+    @Option(title = "vtable_output",
+            name = {"-V", "--vtable"},
+            description = "Display fields matching vtable output")
+    private boolean vtableOutput = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -70,17 +75,26 @@ public class CompactionStats extends NodeToolCmd
             }
         }
         out.println();
-        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughput(), humanReadable, out);
+        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughput(), humanReadable, vtableOutput, out);
     }
 
     public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable, PrintStream out)
+    {
+        reportCompactionTable(compactions, compactionThroughput, humanReadable, false, out);
+    }
+
+    public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable, boolean vtableOutput, PrintStream out)
     {
         if (!compactions.isEmpty())
         {
             long remainingBytes = 0;
             TableBuilder table = new TableBuilder();
 
-            table.add("keyspace", "table", "task id", "completion ratio", "kind", "progress", "sstables", "total", "unit");
+            if (vtableOutput)
+                table.add("keyspace", "table", "task id", "completion ratio", "kind", "progress", "sstables", "total", "unit");
+            else
+                table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
+
             for (Map<String, String> c : compactions)
             {
                 long total = Long.parseLong(c.get(CompactionInfo.TOTAL));
@@ -95,7 +109,11 @@ public class CompactionStats extends NodeToolCmd
                 String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
                 String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
                 String id = c.get(CompactionInfo.COMPACTION_ID);
-                table.add(keyspace, columnFamily, id, percentComplete, taskType, progressStr, String.valueOf(tables.length), totalStr, unit);
+                if (vtableOutput)
+                    table.add(keyspace, columnFamily, id, percentComplete, taskType, progressStr, String.valueOf(tables.length), totalStr, unit);
+                else
+                    table.add(id, taskType, keyspace, columnFamily, progressStr, totalStr, unit, percentComplete);
+
                 remainingBytes += total - completed;
             }
             table.printTo(out);
