@@ -45,6 +45,9 @@ import javax.management.NotificationListener;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -144,8 +147,10 @@ import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
+    private final Logger logger = LoggerFactory.getLogger(Instance.class);
     public final IInstanceConfig config;
     private volatile boolean initialized = false;
+    private volatile boolean internodeMessagingStarted = false;
     private final AtomicLong startedAt = new AtomicLong();
 
     // should never be invoked directly, so that it is instantiated on other class loader;
@@ -263,6 +268,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerMockMessaging(ICluster cluster)
     {
         MessagingService.instance().outboundSink.add((message, to) -> {
+            if (!internodeMessagingStarted)
+            {
+                logger.debug("Dropping outbound message {} to {} as internode messaging has not been started yet",
+                             message, to);
+                return false;
+            }
             InetSocketAddress toAddr = fromCassandraInetAddressAndPort(to);
             IInstance toInstance = cluster.get(toAddr);
             if (toInstance != null)
@@ -403,6 +414,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void receiveMessageWithInvokingThread(IMessage message)
     {
+        if (!internodeMessagingStarted)
+        {
+            logger.debug("Dropping inbound message {} to {} as internode messaging has not been started yet",
+                         message, config().broadcastAddress());
+            return;
+        }
         if (message.version() > MessagingService.current_version)
         {
             throw new IllegalStateException(String.format("Node%d received message version %d but current version is %d",
@@ -537,6 +554,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 registerInboundFilter(cluster);
                 registerOutboundFilter(cluster);
+                if (!config.has(NETWORK))
+                {
+                    propagateMessagingVersions(cluster); // fake messaging needs to know messaging version for filters
+                }
+                internodeMessagingStarted = true;
 
                 JVMStabilityInspector.replaceKiller(new InstanceKiller());
 
@@ -594,6 +616,32 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         initialized = true;
     }
 
+    // Update the messaging versions for all instances
+    // that have initialized their configurations.
+    private static void propagateMessagingVersions(ICluster cluster)
+    {
+        cluster.stream().forEach(reportToObj -> {
+            IInstance reportTo = (IInstance) reportToObj;
+            if (reportTo.isShutdown())
+                return;
+
+            int reportToVersion = reportTo.getMessagingVersion();
+            if (reportToVersion == 0)
+                return;
+
+            cluster.stream().forEach(reportFromObj -> {
+                IInstance reportFrom = (IInstance) reportFromObj;
+                if (reportFrom == reportTo || reportFrom.isShutdown())
+                    return;
+
+                int reportFromVersion = reportFrom.getMessagingVersion();
+                if (reportFromVersion == 0) // has not read configuration yet, no accessing messaging version
+                    return;
+                // TODO: decide if we need to take care of the minversion
+                reportTo.setMessagingVersion(reportFrom.broadcastAddress(), reportFromVersion);
+            });
+        });
+    }
 
     private void mkdirs()
     {
@@ -738,6 +786,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES));
 
+            internodeMessagingStarted = false;
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking,
                                 // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure
