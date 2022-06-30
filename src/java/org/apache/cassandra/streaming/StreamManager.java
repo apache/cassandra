@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanNotificationInfo;
@@ -71,8 +70,8 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.LIMITER,
                                      StreamRateLimiter.INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec(),
-                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec());
+                                     DatabaseDescriptor.getStreamThroughputOutboundBytesPerSec(),
+                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundBytesPerSec());
     }
 
     /**
@@ -90,8 +89,8 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.ENTIRE_SSTABLE_LIMITER,
                                      StreamRateLimiter.ENTIRE_SSTABLE_INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec(),
-                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec());
+                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundBytesPerSec(),
+                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec());
     }
 
     public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
@@ -159,25 +158,25 @@ public class StreamManager implements StreamManagerMBean
 
         private static double calculateRateInBytes()
         {
-            double throughput = DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec();
+            double throughput = DatabaseDescriptor.getStreamThroughputOutboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateInterDCRateInBytes()
         {
-            double throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec();
+            double throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableRateInBytes()
         {
-            double throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
+            double throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableInterDCRateInBytes()
         {
-            double throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec();
+            double throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
@@ -209,7 +208,7 @@ public class StreamManager implements StreamManagerMBean
         {
             // if throughput is set to 0, throttling is disabled
             return throughput > 0
-                   ? throughput * BYTES_PER_MEBIBYTE
+                   ? throughput
                    : Double.MAX_VALUE;
         }
     }

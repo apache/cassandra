@@ -31,6 +31,7 @@ import org.junit.Test;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
@@ -58,6 +59,7 @@ public class SettingsTableTest extends CQLTester
         config.server_encryption_options.applyConfig();
         config.sstable_preemptive_open_interval = null;
         config.index_summary_resize_interval = null;
+        config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
@@ -117,11 +119,17 @@ public class SettingsTableTest extends CQLTester
         q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval_in_mb';";
         assertRowsNet(executeNet(q), new Object[] {"sstable_preemptive_open_interval_in_mb", "-1"});
 
-        // test MINUTES_CUSTOM_DURATION - test to be added later whe
+        // test MINUTES_CUSTOM_DURATION converter
         q = "SELECT * FROM vts.settings WHERE name = 'index_summary_resize_interval';";
         assertRowsNet(executeNet(q), new Object[] {"index_summary_resize_interval", null});
         q = "SELECT * FROM vts.settings WHERE name = 'index_summary_resize_interval_in_minutes';";
         assertRowsNet(executeNet(q), new Object[] {"index_summary_resize_interval_in_minutes", "-1"});
+
+        // test NEGATIVE_SECONDS_DURATION converter
+        q = "SELECT * FROM vts.settings WHERE name = 'cache_load_timeout';";
+        assertRowsNet(executeNet(q), new Object[] {"cache_load_timeout", "0s"});
+        q = "SELECT * FROM vts.settings WHERE name = 'cache_load_timeout_seconds';";
+        assertRowsNet(executeNet(q), new Object[] {"cache_load_timeout_seconds", "0"});
     }
 
     private String getValue(Property prop)
