@@ -37,7 +37,7 @@ public class GetStreamThroughput extends NodeToolCmd
         probe.output().out.printf("Current %sstream throughput: %s%n",
                                   entireSSTableThroughput ? "entire SSTable " : "",
                                   throughput > 0 ? throughput +
-                                                   (entireSSTableThroughput ? " MiB/s" : " megabits per second")
+                                                   (entireSSTableThroughput ? " MiB/s" : " Mb/s")
                                                  : "unlimited");
     }
 }

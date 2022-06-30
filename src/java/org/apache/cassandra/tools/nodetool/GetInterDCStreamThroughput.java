@@ -37,7 +37,7 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
         probe.output().out.printf("Current %sinter-datacenter stream throughput: %s%n",
                                   entireSSTableThroughput ? "entire SSTable " : "",
                                   throughput > 0 ? throughput +
-                                                   (entireSSTableThroughput ? " MiB/s" : " megabits per second")
+                                                   (entireSSTableThroughput ? " MiB/s" : " Mb/s")
                                                  : "unlimited");
     }
 }

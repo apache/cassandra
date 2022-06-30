@@ -31,7 +31,7 @@ public class SetInterDCStreamThroughput extends NodeToolCmd
     private int interDCStreamThroughput;
 
     @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput")
+    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput in MiB/s")
     private boolean setEntireSSTableThroughput;
 
     @Override

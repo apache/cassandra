@@ -111,7 +111,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " megabits per second");
+            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " Mb/s");
         else
             assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: unlimited");
     }
