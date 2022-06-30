@@ -59,10 +59,12 @@ import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSucc
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
+import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND_PRECONNECT;
 import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.certificates;
@@ -136,6 +138,14 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
     {
         if (logger.isTraceEnabled())
             logger.trace("creating outbound bootstrap to {}, requestVersion: {}", settings, requestMessagingVersion);
+
+        if (!settings.authenticator.authenticate(settings.to.getAddress(), settings.to.getPort(), null, OUTBOUND_PRECONNECT))
+        {
+            // interrupt other connections, so they must attempt to re-authenticate
+            MessagingService.instance().interruptOutbound(settings.to);
+            return ImmediateFuture.failure(new IOException("authentication failed to " + settings.connectToId()));
+        }
+
 
         // this is a bit ugly, but is the easiest way to ensure that if we timeout we can propagate a suitable error message
         // and still guarantee that, if on timing out we raced with success, the successfully created channel is handled

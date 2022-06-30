@@ -71,16 +71,6 @@ public class InboundConnectionSettings
         this(null, null, null, null, null, null, null, null, null);
     }
 
-    public boolean authenticate(InetAddressAndPort endpoint)
-    {
-        return authenticator.authenticate(endpoint.getAddress(), endpoint.getPort());
-    }
-
-    public boolean authenticate(InetAddress address, int port)
-    {
-        return authenticator.authenticate(address, port);
-    }
-
     public String toString()
     {
         return format("address: (%s), nic: %s, encryption: %s",
