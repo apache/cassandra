@@ -112,7 +112,7 @@ public class SetGetStreamThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current stream throughput: " + expected + " megabits per second");
+            assertThat(tool.getStdout()).contains("Current stream throughput: " + expected + " Mb/s");
         else
             assertThat(tool.getStdout()).contains("Current stream throughput: unlimited");
     }

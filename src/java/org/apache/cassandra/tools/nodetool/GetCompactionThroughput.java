@@ -28,6 +28,6 @@ public class GetCompactionThroughput extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.output().out.println("Current compaction throughput: " + probe.getCompactionThroughput() + " MiB/s");
+        probe.output().out.println("Current compaction throughput: " + probe.getCompactionThroughput() + " MB/s");
     }
 }
