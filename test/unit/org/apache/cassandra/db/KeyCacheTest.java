@@ -74,6 +74,7 @@ public class KeyCacheTest
     private static final String COLUMN_FAMILY7 = "Standard7";
     private static final String COLUMN_FAMILY8 = "Standard8";
     private static final String COLUMN_FAMILY9 = "Standard9";
+    private static final String COLUMN_FAMILY10 = "Standard10";
 
     private static final String COLUMN_FAMILY_K2_1 = "Standard1";
 
@@ -92,7 +93,8 @@ public class KeyCacheTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY6),
                                     SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY7),
                                     SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY8),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY9));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY9),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY10));
 
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simple(1),

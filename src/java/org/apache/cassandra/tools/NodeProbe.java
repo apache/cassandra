@@ -1253,9 +1253,20 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
+    @Deprecated
     public int getCompactionThroughput()
     {
         return ssProxy.getCompactionThroughputMbPerSec();
+    }
+
+    public double getCompactionThroughputMebibytesAsDouble()
+    {
+        return ssProxy.getCompactionThroughtputMibPerSecAsDouble();
+    }
+
+    public long getCompactionThroughputBytes()
+    {
+        return ssProxy.getCompactionThroughtputBytesPerSec();
     }
 
     public void setBatchlogReplayThrottle(int value)
@@ -1327,24 +1338,46 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    @Deprecated
     public int getStreamThroughput()
     {
         return ssProxy.getStreamThroughputMbitPerSec();
     }
 
+    public double getStreamThroughputAsDouble()
+    {
+        return ssProxy.getStreamThroughputMbitPerSecAsDouble();
+    }
+
+    @Deprecated
     public int getInterDCStreamThroughput()
     {
         return ssProxy.getInterDCStreamThroughputMbitPerSec();
     }
 
-    public int getEntireSSTableStreamThroughput()
+    public double getInterDCStreamThroughputAsDouble()
     {
-        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSec();
+        return ssProxy.getInterDCStreamThroughputMbitPerSecAsDouble();
     }
 
-    public int getEntireSSTableInterDCStreamThroughput()
+    public double getStreamThroughputMibAsDouble()
     {
-        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
+        return ssProxy.getStreamThroughputMebibytesPerSecAsDouble();
+    }
+
+    public double getInterDCStreamThroughputMibAsDouble()
+    {
+        return ssProxy.getInterDCStreamThroughputMebibytesPerSecAsDouble();
+    }
+
+    public double getEntireSSTableStreamThroughput()
+    {
+        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSecAsDouble();
+    }
+
+    public double getEntireSSTableInterDCStreamThroughput()
+    {
+        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSecAsDouble();
     }
 
     public double getTraceProbability()
@@ -1445,9 +1478,19 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setStreamThroughputMbitPerSec(value);
     }
 
+    public void setStreamThroughputMiB(int value)
+    {
+        ssProxy.setStreamThroughputMebibytesPerSec(value);
+    }
+
     public void setInterDCStreamThroughput(int value)
     {
         ssProxy.setInterDCStreamThroughputMbitPerSec(value);
+    }
+
+    public void setInterDCStreamThroughputMiB(int value)
+    {
+        ssProxy.setInterDCStreamThroughputMebibytesPerSec(value);
     }
 
     public void setEntireSSTableStreamThroughput(int value)
