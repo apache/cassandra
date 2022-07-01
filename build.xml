@@ -76,8 +76,8 @@
     <property name="test.simulator-asm.src" value="${test.dir}/simulator/asm"/>
     <property name="test.simulator-bootstrap.src" value="${test.dir}/simulator/bootstrap"/>
     <property name="test.simulator-test.src" value="${test.dir}/simulator/test"/>
-    <property name="test.driver.connection_timeout_ms" value="5000"/>
-    <property name="test.driver.read_timeout_ms" value="12000"/>
+    <property name="test.driver.connection_timeout_ms" value="10000"/>
+    <property name="test.driver.read_timeout_ms" value="24000"/>
     <property name="test.jvm.args" value="" />
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
@@ -110,7 +110,7 @@
     <property name="maven-repository-url" value="https://repository.apache.org/content/repositories/snapshots"/>
     <property name="maven-repository-id" value="apache.snapshots.https"/>
 
-    <property name="test.timeout" value="240000" />
+    <property name="test.timeout" value="480000" />
     <property name="test.memory.timeout" value="480000" />
     <property name="test.long.timeout" value="600000" />
     <property name="test.burn.timeout" value="60000000" />
