@@ -21,9 +21,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,14 +46,14 @@ import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 public class StreamTransferTask extends StreamTask
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamTransferTask.class);
-    private static final ScheduledExecutorService timeoutExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("StreamingTransferTaskTimeouts"));
+    private static final ScheduledThreadPoolExecutor timeoutExecutor = createTimeoutExecutor();
 
     private final AtomicInteger sequenceNumber = new AtomicInteger(0);
     private boolean aborted = false;
 
     @VisibleForTesting
     protected final Map<Integer, OutgoingStreamMessage> streams = new HashMap<>();
-    private final Map<Integer, ScheduledFuture> timeoutTasks = new HashMap<>();
+    private final Map<Integer, ScheduledFuture<?>> timeoutTasks = new HashMap<>();
 
     private long totalSize = 0;
     private int totalFiles = 0;
@@ -84,7 +83,7 @@ public class StreamTransferTask extends StreamTask
         boolean signalComplete;
         synchronized (this)
         {
-            ScheduledFuture timeout = timeoutTasks.remove(sequenceNumber);
+            ScheduledFuture<?> timeout = timeoutTasks.remove(sequenceNumber);
             if (timeout != null)
                 timeout.cancel(false);
 
@@ -107,7 +106,7 @@ public class StreamTransferTask extends StreamTask
             return;
         aborted = true;
 
-        for (ScheduledFuture future : timeoutTasks.values())
+        for (ScheduledFuture<?> future : timeoutTasks.values())
             future.cancel(false);
         timeoutTasks.clear();
 
@@ -149,7 +148,7 @@ public class StreamTransferTask extends StreamTask
     public synchronized OutgoingStreamMessage createMessageForRetry(int sequenceNumber)
     {
         // remove previous time out task to be rescheduled later
-        ScheduledFuture future = timeoutTasks.remove(sequenceNumber);
+        ScheduledFuture<?> future = timeoutTasks.remove(sequenceNumber);
         if (future != null)
             future.cancel(false);
         return streams.get(sequenceNumber);
@@ -165,12 +164,12 @@ public class StreamTransferTask extends StreamTask
      * @param unit unit of given time
      * @return scheduled future for timeout task
      */
-    public synchronized ScheduledFuture scheduleTimeout(final int sequenceNumber, long time, TimeUnit unit)
+    public synchronized ScheduledFuture<?> scheduleTimeout(final int sequenceNumber, long time, TimeUnit unit)
     {
         if (!streams.containsKey(sequenceNumber))
             return null;
 
-        ScheduledFuture future = timeoutExecutor.schedule(new Runnable()
+        ScheduledFuture<?> future = timeoutExecutor.schedule(new Runnable()
         {
             public void run()
             {
@@ -183,9 +182,16 @@ public class StreamTransferTask extends StreamTask
             }
         }, time, unit);
 
-        ScheduledFuture prev = timeoutTasks.put(sequenceNumber, future);
+        ScheduledFuture<?> prev = timeoutTasks.put(sequenceNumber, future);
         assert prev == null;
         return future;
+    }
+
+    private static ScheduledThreadPoolExecutor createTimeoutExecutor()
+    {
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("StreamingTransferTaskTimeouts"));
+        executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        return executor;
     }
 
     @VisibleForTesting
