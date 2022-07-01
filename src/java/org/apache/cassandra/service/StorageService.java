@@ -1533,6 +1533,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
+    public void setStreamThroughputMebibytesPerSec(int value)
+    {
+        int oldValue = (int) DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec();
+        DatabaseDescriptor.setStreamThroughputOutboundMebibytesPerSecAsInt(value);
+        StreamManager.StreamRateLimiter.updateThroughput();
+        logger.info("setstreamthroughput: throttle set to {}{} MiB/s (was {} MiB/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);
+    }
+
+    public double getStreamThroughputMebibytesPerSecAsDouble()
+    {
+        return DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec();
+    }
+
+    public int getStreamThroughputMebibytesPerSec()
+    {
+        return DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSecAsInt();
+    }
+
     @Deprecated
     public int getStreamThroughputMbPerSec()
     {

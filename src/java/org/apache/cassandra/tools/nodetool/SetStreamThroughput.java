@@ -34,11 +34,20 @@ public class SetStreamThroughput extends NodeToolCmd
     @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput in MiB/s")
     private boolean setEntireSSTableThroughput;
 
+    @SuppressWarnings("UnusedDeclaration")
+    @Option(name = { "-i", "--stream_throughput_mib" }, description = "Set streaming throughput in MiB/s, if you see 1 MiB/s, " +
+                                                                      "please check for precise value in megabits/s as this might be rounded")
+    private boolean streamThroughputInMebibytes;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        if (setEntireSSTableThroughput && streamThroughputInMebibytes)
+            probe.output().out.println("You cannot use -e and -i at the same time");
         if (setEntireSSTableThroughput)
             probe.setEntireSSTableStreamThroughput(streamThroughput);
+        else if (streamThroughputInMebibytes )
+            probe.setStreamThroughputMiB(streamThroughput);
         else
             probe.setStreamThroughput(streamThroughput);
     }

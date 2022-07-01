@@ -2018,6 +2018,16 @@ public class DatabaseDescriptor
         return conf.stream_throughput_outbound.toMebibytesPerSecond();
     }
 
+    public static int getStreamThroughputOutboundMebibytesPerSecAsInt()
+    {
+        return conf.stream_throughput_outbound.toMebibytesPerSecondAsInt();
+    }
+
+    public static void setStreamThroughputOutboundMebibytesPerSecAsInt(int value)
+    {
+        conf.stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
+    }
+
     public static void setStreamThroughputOutboundMegabitsPerSec(int value)
     {
         conf.stream_throughput_outbound = DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(value);
