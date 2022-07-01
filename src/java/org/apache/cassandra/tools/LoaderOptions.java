@@ -66,6 +66,7 @@ public class LoaderOptions
     public static final String ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS = "entire-sstable-inter-dc-throttle";
     public static final String TOOL_NAME = "sstableloader";
     public static final String TARGET_KEYSPACE = "target-keyspace";
+    public static final String TARGET_TABLE = "target-table";
 
     /* client encryption options */
     public static final String SSL_TRUSTSTORE = "truststore";
@@ -97,6 +98,7 @@ public class LoaderOptions
     public final Set<InetSocketAddress> hosts;
     public final Set<InetAddressAndPort> ignores;
     public final String targetKeyspace;
+    public final String targetTable;
 
     LoaderOptions(Builder builder)
     {
@@ -120,6 +122,7 @@ public class LoaderOptions
         hosts = builder.hosts;
         ignores = builder.ignores;
         targetKeyspace = builder.targetKeyspace;
+        targetTable = builder.targetTable;
     }
 
     static class Builder
@@ -147,6 +150,7 @@ public class LoaderOptions
         Set<InetSocketAddress> hosts = new HashSet<>();
         Set<InetAddressAndPort> ignores = new HashSet<>();
         String targetKeyspace;
+        String targetTable;
 
         Builder()
         {
@@ -325,6 +329,18 @@ public class LoaderOptions
         public Builder ignoreAndInternalPorts(InetAddressAndPort ignore)
         {
             ignores.add(ignore);
+            return this;
+        }
+
+        public Builder targetKeyspace(String keyspace)
+        {
+            this.targetKeyspace = keyspace;
+            return this;
+        }
+
+        public Builder targetTable(String table)
+        {
+            this.targetKeyspace = table;
             return this;
         }
 
@@ -566,10 +582,16 @@ public class LoaderOptions
                 {
                     targetKeyspace = cmd.getOptionValue(TARGET_KEYSPACE);
                     if (StringUtils.isBlank(targetKeyspace))
-                    {
                         errorMsg("Empty keyspace is not supported.", options);
-                    }
                 }
+
+                if (cmd.hasOption(TARGET_TABLE))
+                {
+                    targetTable = cmd.getOptionValue(TARGET_TABLE);
+                    if (StringUtils.isBlank(targetTable))
+                        errorMsg("Empty table is not supported.", options);
+                }
+
                 return this;
             }
             catch (ParseException | ConfigurationException | MalformedURLException e)
@@ -678,6 +700,7 @@ public class LoaderOptions
         options.addOption("ciphers", SSL_CIPHER_SUITES, "CIPHER-SUITES", "Client SSL: comma-separated list of encryption suites to use");
         options.addOption("f", CONFIG_PATH, "path to config file", "cassandra.yaml file path for streaming throughput and client/server SSL.");
         options.addOption("k", TARGET_KEYSPACE, "target keyspace name", "target keyspace name");
+        options.addOption("tb", TARGET_TABLE, "target table name", "target table name");
         return options;
     }
 

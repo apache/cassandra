@@ -24,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 
 import com.google.common.io.Files;
 
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
@@ -40,7 +41,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamEvent;
@@ -93,16 +93,33 @@ public class SSTableLoaderTest
     @After
     public void cleanup()
     {
-        try {
-            FileUtils.deleteRecursive(tmpdir);
-        } catch (FSWriteError e) {
+        try
+        {
+            tmpdir.deleteRecursive();
+        }
+        catch (FSWriteError e)
+        {
             /*
               We force a GC here to force buffer deallocation, and then try deleting the directory again.
               For more information, see: http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4715154
               If this is not the problem, the exception will be rethrown anyway.
              */
             System.gc();
-            FileUtils.deleteRecursive(tmpdir);
+            tmpdir.deleteRecursive();
+        }
+
+        try
+        {
+            for (String[] keyspaceTable : new String[][] { {KEYSPACE1, CF_STANDARD1},
+                                                           {KEYSPACE1, CF_STANDARD2},
+                                                           {KEYSPACE1, CF_BACKUPS},
+                                                           {KEYSPACE2, CF_STANDARD1},
+                                                           {KEYSPACE2, CF_STANDARD2}})
+            StorageService.instance.truncate(keyspaceTable[0], keyspaceTable[1]);
+        }
+        catch (Exception ex)
+        {
+            throw new RuntimeException("Unable to truncate table!", ex);
         }
     }
 
@@ -150,9 +167,11 @@ public class SSTableLoaderTest
         assertEquals(1, partitions.size());
         assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
         assert metadata != null;
-        assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
-                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                                                            .buffer());
+
+        Row row = partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")));
+        assert row != null;
+
+        assertEquals(ByteBufferUtil.bytes("100"), row.getCell(metadata.getColumn(ByteBufferUtil.bytes("val"))).buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
@@ -168,7 +187,7 @@ public class SSTableLoaderTest
                                                   .inDirectory(dataDir)
                                                   .forTable(String.format(schema, KEYSPACE1, CF_STANDARD2))
                                                   .using(String.format(query, KEYSPACE1, CF_STANDARD2))
-                                                  .withBufferSizeInMB(1)
+                                                  .withBufferSizeInMiB(1)
                                                   .build();
 
         int NB_PARTITIONS = 5000; // Enough to write >1MiB and get at least one completed sstable before we've closed the writer
@@ -209,10 +228,9 @@ public class SSTableLoaderTest
     }
 
     @Test
-    public void testLoadingSSTableToDifferentKeyspace() throws Exception
+    public void testLoadingSSTableToDifferentKeyspaceAndTable() throws Exception
     {
-        File dataDir = new File(tmpdir.absolutePath() + File.pathSeparator() + KEYSPACE1 + File.pathSeparator() + CF_STANDARD1);
-        assert dataDir.tryCreateDirectories();
+        File dataDir = dataDir(CF_STANDARD1);
         TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD1);
 
         String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
@@ -230,25 +248,31 @@ public class SSTableLoaderTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         Util.flush(cfs); // wait for sstables to be on disk else we won't be able to stream them
 
-        final CountDownLatch latch = new CountDownLatch(1);
-        SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false), 1, KEYSPACE2);
-        loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
+        for (String table : new String[] { CF_STANDARD2, null })
+        {
+            final CountDownLatch latch = new CountDownLatch(1);
+            SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false), 1, KEYSPACE2, table);
+            loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
 
-        cfs = Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1);
-        Util.flush(cfs);
+            String targetTable = table == null ? CF_STANDARD1 : table;
+            cfs = Keyspace.open(KEYSPACE2).getColumnFamilyStore(targetTable);
+            Util.flush(cfs);
 
-        List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).build());
+            List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).build());
 
-        assertEquals(1, partitions.size());
-        assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
-        assert metadata != null;
-        assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
-                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                                                            .buffer());
+            assertEquals(1, partitions.size());
+            assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
+            assert metadata != null;
 
-        // The stream future is signalled when the work is complete but before releasing references. Wait for release
-        // before cleanup (CASSANDRA-10118).
-        latch.await();
+            Row row = partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")));
+            assert row != null;
+
+            assertEquals(ByteBufferUtil.bytes("100"), row.getCell(metadata.getColumn(ByteBufferUtil.bytes("val"))).buffer());
+
+            // The stream future is signalled when the work is complete but before releasing references. Wait for release
+            // before cleanup (CASSANDRA-10118).
+            latch.await();
+        }
     }
 
     @Test
@@ -278,9 +302,11 @@ public class SSTableLoaderTest
         assertEquals(1, partitions.size());
         assertEquals("key", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
         assert metadata != null;
-        assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
-                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                                                            .buffer());
+
+        Row row = partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")));
+        assert row != null;
+
+        assertEquals(ByteBufferUtil.bytes("100"), row.getCell(metadata.getColumn(ByteBufferUtil.bytes("val"))).buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
