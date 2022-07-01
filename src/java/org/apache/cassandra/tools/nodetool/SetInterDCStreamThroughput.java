@@ -34,11 +34,21 @@ public class SetInterDCStreamThroughput extends NodeToolCmd
     @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput in MiB/s")
     private boolean setEntireSSTableThroughput;
 
+    @SuppressWarnings("UnusedDeclaration")
+    @Option(name = { "-i", "--inter_dc_stream_throughput_mib" }, description = "Set streaming throughput in MiB/s, if you see 1 MiB/s, " +
+                                                                               "please check for precise value in megabits/s as this might be rounded")
+    private boolean interDCStreamThroughputInMebibytes;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        if (setEntireSSTableThroughput && interDCStreamThroughputInMebibytes)
+            probe.output().out.println("You cannot use -e and -i at the same time");
+
         if (setEntireSSTableThroughput)
             probe.setEntireSSTableInterDCStreamThroughput(interDCStreamThroughput);
+        else if (interDCStreamThroughputInMebibytes )
+            probe.setInterDCStreamThroughputMiB(interDCStreamThroughput);
         else
             probe.setInterDCStreamThroughput(interDCStreamThroughput);
     }
