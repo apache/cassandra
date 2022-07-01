@@ -1,4 +1,5 @@
 4.0.5
+ * Make sure existing delayed tasks in StreamTransferTask cannot prevent clean shutdown (CASSANDRA-17706)
  * SSL storage port in sstableloader is deprecated (CASSANDRA-17602)
  * Fix counter write timeouts at ONE (CASSANDRA-17411)
  * Fix NPE in getLocalPrimaryRangeForEndpoint (CASSANDRA-17680)
