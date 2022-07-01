@@ -631,6 +631,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setStreamThroughputMbPerSec(int value);
     @Deprecated
     public int getStreamThroughputMbPerSec();
+    public void setStreamThroughputMebibytesPerSec(int value);
+    public int getStreamThroughputMebibytesPerSec();
+    public double getStreamThroughputMebibytesPerSecAsDouble();
 
     public void setInterDCStreamThroughputMbitPerSec(int value);
     public int getInterDCStreamThroughputMbitPerSec();
