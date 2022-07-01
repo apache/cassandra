@@ -26,18 +26,36 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class GetInterDCStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput")
+    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput in MiB/s")
     private boolean entireSSTableThroughput;
+
+    @SuppressWarnings("UnusedDeclaration")
+    @Option(name = { "-i", "--inter_dc_stream_throughput_mib" }, description = "Print the throughput cap for inter-datacenter streaming in MiB/s")
+    private boolean interDCStreamThroughputMiB;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        int throughput = entireSSTableThroughput ? probe.getEntireSSTableInterDCStreamThroughput() : probe.getInterDCStreamThroughput();
+        int throughput;
 
-        probe.output().out.printf("Current %sinter-datacenter stream throughput: %s%n",
-                                  entireSSTableThroughput ? "entire SSTable " : "",
-                                  throughput > 0 ? throughput +
-                                                   (entireSSTableThroughput ? " MiB/s" : " Mb/s")
-                                                 : "unlimited");
+        if (entireSSTableThroughput)
+        {
+            throughput = probe.getEntireSSTableInterDCStreamThroughput();
+            probe.output().out.printf("Current entire SSTable inter-datacenter stream throughput: %s%n",
+                                      throughput > 0 ? throughput + " MiB/s" : "unlimited");
+        }
+        else if (interDCStreamThroughputMiB)
+        {
+            throughput = probe.getInterDCStreamThroughputMiB();
+            double throuputInDouble = probe.getInterDCStreamThroughputMibAsDouble();
+            probe.output().out.printf("Current inter-datacenter stream throughput: %s%n",
+                                      throughput > 0 ? throughput + " MiB/s" : (throuputInDouble > 0 ? "1 MiB/s" : "unlimited"));
+        }
+        else
+        {
+            throughput = probe.getInterDCStreamThroughput();
+            probe.output().out.printf("Current inter-datacenter stream throughput: %s%n",
+                                      throughput > 0 ? throughput + " Mb/s" : "unlimited");
+        }
     }
 }

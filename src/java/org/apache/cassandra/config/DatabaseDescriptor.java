@@ -2048,6 +2048,16 @@ public class DatabaseDescriptor
         return conf.inter_dc_stream_throughput_outbound.toMebibytesPerSecond();
     }
 
+    public static int getInterDCStreamThroughputOutboundMebibytesPerSecAsInt()
+    {
+        return conf.inter_dc_stream_throughput_outbound.toMebibytesPerSecondAsInt();
+    }
+
+    public static void setInterDCStreamThroughputOutboundMebibytesPerSecAsInt(int value)
+    {
+        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
+    }
+
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
     {
         conf.inter_dc_stream_throughput_outbound = DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(value);
