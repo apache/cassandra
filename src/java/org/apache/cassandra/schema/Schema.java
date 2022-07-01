@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -227,15 +228,16 @@ public class Schema implements SchemaProvider
         return keyspaceInstances.blockingLoadIfAbsent(keyspaceName, loadFunction);
     }
 
-    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName, boolean dropData)
+    @VisibleForTesting
+    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName, Consumer<Keyspace> unloadFunction)
     {
         try
         {
-            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, keyspace -> keyspace.unload(dropData));
+            return keyspaceInstances.blockingUnloadIfPresent(keyspaceName, unloadFunction);
         }
         catch (LoadingMap.UnloadExecutionException e)
         {
-            throw new AssertionError("Failed to unload the keyspace " + keyspaceName);
+            throw new AssertionError("Failed to unload the keyspace " + keyspaceName, e);
         }
     }
 
@@ -533,13 +535,13 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * Clear all KS/CF metadata and reset version.
+     * Clear all KS/CF metadata and reset version. Not to be ever used in production code
      */
-    public synchronized void clear()
+    @VisibleForTesting
+    public synchronized void clearUnsafe()
     {
-        distributedKeyspaces.forEach(this::unload);
-        updateVersion(SchemaConstants.emptyVersion);
-        SchemaDiagnostics.schemaCleared(this);
+        updateHandler.clear();
+        updateHandler.reset(true);
     }
 
     /**
@@ -626,7 +628,9 @@ public class Schema implements SchemaProvider
         updateHandler.clear();
 
         logger.debug("Clearing local schema keyspace instances...");
-        clear();
+        distributedKeyspaces.forEach(this::unload);
+        updateVersion(SchemaConstants.emptyVersion);
+        SchemaDiagnostics.schemaCleared(this);
 
         updateHandler.reset(false);
         logger.info("Local schema reset is complete.");
@@ -692,37 +696,40 @@ public class Schema implements SchemaProvider
         // we send mutations to the correct set of bootstrapping nodes. Refer CASSANDRA-15433.
         if (keyspace.params.replication.klass != LocalStrategy.class && Keyspace.isInitialized())
         {
-            PendingRangeCalculatorService.calculatePendingRanges(Keyspace.open(keyspace.name).getReplicationStrategy(), keyspace.name);
+            PendingRangeCalculatorService.calculatePendingRanges(Keyspace.open(keyspace.name, this, true).getReplicationStrategy(), keyspace.name);
         }
     }
 
-    private void dropKeyspace(KeyspaceMetadata keyspace, boolean dropData)
+    private void dropKeyspace(KeyspaceMetadata keyspaceMetadata, boolean dropData)
     {
-        SchemaDiagnostics.keyspaceDropping(this, keyspace);
+        SchemaDiagnostics.keyspaceDropping(this, keyspaceMetadata);
 
         boolean initialized = Keyspace.isInitialized();
-        Keyspace ks = initialized ? getKeyspaceInstance(keyspace.name) : null;
+        Keyspace keyspace = initialized ? Keyspace.open(keyspaceMetadata.name, this, false) : null;
         if (initialized)
         {
-            if (ks == null)
+            if (keyspace == null)
                 return;
 
-            keyspace.views.forEach(v -> dropView(ks, v, dropData));
-            keyspace.tables.forEach(t -> dropTable(ks, t, dropData));
+            keyspaceMetadata.views.forEach(v -> dropView(keyspace, v, dropData));
+            keyspaceMetadata.tables.forEach(t -> dropTable(keyspace, t, dropData));
 
             // remove the keyspace from the static instances
-            maybeRemoveKeyspaceInstance(keyspace.name, dropData);
-        }
+            Keyspace unloadedKeyspace = maybeRemoveKeyspaceInstance(keyspaceMetadata.name, ks -> {
+                ks.unload(dropData);
+                unload(keyspaceMetadata);
+            });
+            assert unloadedKeyspace == keyspace;
 
-        unload(keyspace);
-
-        if (initialized)
-        {
             Keyspace.writeOrder.awaitNewBarrier();
         }
+        else
+        {
+            unload(keyspaceMetadata);
+        }
 
-        schemaChangeNotifier.notifyKeyspaceDropped(keyspace, dropData);
-        SchemaDiagnostics.keyspaceDropped(this, keyspace);
+        schemaChangeNotifier.notifyKeyspaceDropped(keyspaceMetadata, dropData);
+        SchemaDiagnostics.keyspaceDropped(this, keyspaceMetadata);
     }
 
     private void dropView(Keyspace keyspace, ViewMetadata metadata, boolean dropData)
