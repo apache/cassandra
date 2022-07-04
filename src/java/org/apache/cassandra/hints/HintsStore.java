@@ -325,4 +325,9 @@ final class HintsStore
         if (hintsWriter != null)
             hintsWriter.fsync();
     }
+
+    public long getLastUsedTimestamp()
+    {
+        return lastUsedTimestamp;
+    }
 }

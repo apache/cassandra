@@ -17,8 +17,18 @@
  */
 package org.apache.cassandra.hints;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.StorageService;
 /**
  * A simple dispatch trigger that's being run every 10 seconds.
  *
@@ -33,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 final class HintsDispatchTrigger implements Runnable
 {
+    private static final Logger logger = LoggerFactory.getLogger(HintsDispatchTrigger.class);
     private final HintsCatalog catalog;
     private final HintsWriteExecutor writeExecutor;
     private final HintsDispatchExecutor dispatchExecutor;
@@ -59,6 +70,15 @@ final class HintsDispatchTrigger implements Runnable
                .filter(HintsStore::isLive)
                .filter(store -> store.isWriting() || store.hasFiles())
                .forEach(this::schedule);
+
+        /**
+         * The Cassandra does not clean up the orphan hint files. If a node N1's hint file
+         * say f1.hints & f1.crc is present on node N2, and if the N1 node is no longer part of the Cassandra ring,
+         * then f1.hints and f1.crc stay forever. There is no clean-up mechanism for such orphan files.
+         * This functionality is by default disabled, but if enabled on N2, and if it finds such orphan files,
+         * then it will clean up after those hint files are older than the configured number of days
+         */
+        detectAndCleanupOrphanHintStores();
     }
 
     private void schedule(HintsStore store)
@@ -75,5 +95,37 @@ final class HintsDispatchTrigger implements Runnable
     private boolean isScheduled(HintsStore store)
     {
         return dispatchExecutor.isScheduled(store);
+    }
+
+    private void detectAndCleanupOrphanHintStores()
+    {
+        Set<UUID> allValidNodesCurrentlyInRing = StorageService.instance.getTokenMetadata().getAllEndpointsUUID();
+        catalog.stores()
+               .filter(store -> !isScheduled(store))
+               .filter(store -> isOrphan(store, allValidNodesCurrentlyInRing))
+               .forEach(this::purgeOrphanHintFiles);
+    }
+
+    @VisibleForTesting
+    public boolean isOrphan(HintsStore store, Set<UUID> allValidNodesCurrentlyInRing)
+    {
+        Instant orphanWindowBoundary = Instant.now().minus(Duration.ofDays(DatabaseDescriptor.getOrphanNodeHintFilesAgeInDays()));
+        Instant hintFileCreationTime = Instant.ofEpochMilli(store.getLastUsedTimestamp() * 1000);
+        boolean orphan = !allValidNodesCurrentlyInRing.contains(store.hostId) && hintFileCreationTime.isBefore(orphanWindowBoundary);
+        if (orphan)
+        {
+            logger.info("Orphan hint store found. HostID: {}, timestamp: {}", store.hostId, store.getLastUsedTimestamp());
+        }
+        return orphan;
+    }
+
+    private void purgeOrphanHintFiles(HintsStore store)
+    {
+        if (DatabaseDescriptor.isOrphanNodeHintFilesCleanupEnabled())
+        {
+            // TODO: Add metrics
+            logger.warn("Removing all the orphan hint store files. HostID: {}, timestamp: {}", store.hostId, store.getLastUsedTimestamp());
+            store.deleteAllHints();
+        }
     }
 }

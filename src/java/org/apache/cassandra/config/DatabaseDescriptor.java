@@ -4860,4 +4860,12 @@ public class DatabaseDescriptor
     {
         return conf.auto_repair_table_max_repair_time_in_sec;
     }
+
+    public static boolean isOrphanNodeHintFilesCleanupEnabled() {
+        return conf.orphan_node_hint_files_cleanup_enabled;
+    }
+
+    public static int getOrphanNodeHintFilesAgeInDays() {
+        return conf.orphan_node_hint_files_age_in_days;
+    }
 }

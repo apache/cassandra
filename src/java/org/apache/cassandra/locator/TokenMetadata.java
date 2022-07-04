@@ -1125,6 +1125,19 @@ public class TokenMetadata
                                 .collect(Collectors.toSet());
     }
 
+    public Set<UUID> getAllEndpointsUUID()
+    {
+        lock.readLock().lock();
+        try
+        {
+            return ImmutableSet.copyOf(endpointToHostIdMap.values());
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     /** caller should not modify leavingEndpoints */
     public Set<InetAddressAndPort> getLeavingEndpoints()
     {

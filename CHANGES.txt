@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-14866] Orphan hint files are never purged
  * Implement BadQuery detection in Cassandra (T1696605)
  * Implement a pluggable interface in Cassandra to throttle read and write requests (T745738)
 </end>
