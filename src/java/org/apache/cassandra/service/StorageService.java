@@ -33,7 +33,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -6730,13 +6729,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String getMinTrackedPartitionSize()
     {
-        return DatabaseDescriptor.getMinTrackedPartitionSize().toString();
+        return DatabaseDescriptor.getMinTrackedPartitionSizeInBytes().toString();
     }
 
     @Override
     public void setMinTrackedPartitionSize(String value)
     {
-        DatabaseDescriptor.setMinTrackedPartitionSize(parseDataStorageSpec(value));
+        DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(parseDataStorageSpec(value));
     }
 
     @Override
