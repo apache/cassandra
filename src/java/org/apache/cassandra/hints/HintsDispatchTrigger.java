@@ -144,7 +144,7 @@ final class HintsDispatchTrigger implements Runnable
         {
             StorageMetrics.orphanHintStoresPurged.inc();
             logger.warn("Removing all the orphan hint store files. HostID: {}, timestamp: {}", store.hostId, store.getLastUsedTimestamp());
-            store.deleteAllHints();
+            catalog.exciseStore(store.hostId);
         }
     }
 }
