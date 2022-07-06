@@ -1137,10 +1137,10 @@ public class Config
     /** The Cassandra does not clean up the orphan hint files. If a node N1's hint file
      * say f1.hints & f1.crc is present on node N2, and if the N1 node is no longer part of the Cassandra ring,
      * then f1.hints and f1.crc stay forever. There is no clean-up mechanism for such orphan files.
-     * This functionality is by default disabled, but if enabled on N2, and if it finds such orphan files,
+     * This functionality is by default enabled. If enabled on N2, and if it finds such orphan files,
      * then it will clean up after those hint files are older than the configured number of days
      */
-    public Boolean orphan_node_hint_files_cleanup_enabled = false;
+    public Boolean orphan_node_hint_files_cleanup_enabled = true;
     // if a hint file is found orphan and older than these many days (from the current time), then it is considered safe to purge
     // there is no specific logic behind the default value - it is intentionally set higher on the conservative side
     public Integer orphan_node_hint_files_age_in_days = 15;

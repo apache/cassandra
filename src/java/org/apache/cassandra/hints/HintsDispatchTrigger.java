@@ -28,6 +28,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
 /**
  * A simple dispatch trigger that's being run every 10 seconds.
@@ -48,6 +51,7 @@ final class HintsDispatchTrigger implements Runnable
     private final HintsWriteExecutor writeExecutor;
     private final HintsDispatchExecutor dispatchExecutor;
     private final AtomicBoolean isPaused;
+    public int totalHintFiles;
 
     HintsDispatchTrigger(HintsCatalog catalog,
                          HintsWriteExecutor writeExecutor,
@@ -58,6 +62,7 @@ final class HintsDispatchTrigger implements Runnable
         this.writeExecutor = writeExecutor;
         this.dispatchExecutor = dispatchExecutor;
         this.isPaused = isPaused;
+        this.totalHintFiles = 0;
     }
 
     public void run()
@@ -78,7 +83,10 @@ final class HintsDispatchTrigger implements Runnable
          * This functionality is by default disabled, but if enabled on N2, and if it finds such orphan files,
          * then it will clean up after those hint files are older than the configured number of days
          */
+        // we also count the total hint files present on disk to emit a corresponding metrics
+        totalHintFiles = 0;
         detectAndCleanupOrphanHintStores();
+        StorageMetrics.totalHintFilesPresent.inc(totalHintFiles);
     }
 
     private void schedule(HintsStore store)
@@ -94,27 +102,38 @@ final class HintsDispatchTrigger implements Runnable
 
     private boolean isScheduled(HintsStore store)
     {
-        return dispatchExecutor.isScheduled(store);
+         return dispatchExecutor.isScheduled(store);
     }
 
     private void detectAndCleanupOrphanHintStores()
     {
         Set<UUID> allValidNodesCurrentlyInRing = StorageService.instance.getTokenMetadata().getAllEndpointsUUID();
         catalog.stores()
+                .filter(store -> countHintFiles(store))
                .filter(store -> !isScheduled(store))
                .filter(store -> isOrphan(store, allValidNodesCurrentlyInRing))
                .forEach(this::purgeOrphanHintFiles);
+    }
+
+    public boolean countHintFiles(HintsStore store)
+    {
+        totalHintFiles += store.getDispatchQueueSize();
+        return true;
     }
 
     @VisibleForTesting
     public boolean isOrphan(HintsStore store, Set<UUID> allValidNodesCurrentlyInRing)
     {
         Instant orphanWindowBoundary = Instant.now().minus(Duration.ofDays(DatabaseDescriptor.getOrphanNodeHintFilesAgeInDays()));
-        Instant hintFileCreationTime = Instant.ofEpochMilli(store.getLastUsedTimestamp() * 1000);
+        Instant hintFileCreationTime = Instant.ofEpochMilli(store.getLastUsedTimestamp());
         boolean orphan = !allValidNodesCurrentlyInRing.contains(store.hostId) && hintFileCreationTime.isBefore(orphanWindowBoundary);
         if (orphan)
         {
-            logger.info("Orphan hint store found. HostID: {}, timestamp: {}", store.hostId, store.getLastUsedTimestamp());
+            StorageMetrics.orphanHintStoresDetected.inc();
+            logger.warn("Orphan hint store found. HostID: {}, timestamp: {}, orphanWindowBoundary: {}, hintFileCreationTime: {}, allValidNodesCurrentlyInRing: {}", store.hostId, store.getLastUsedTimestamp(),
+                        orphanWindowBoundary,
+                        hintFileCreationTime,
+                        allValidNodesCurrentlyInRing);
         }
         return orphan;
     }
@@ -123,7 +142,7 @@ final class HintsDispatchTrigger implements Runnable
     {
         if (DatabaseDescriptor.isOrphanNodeHintFilesCleanupEnabled())
         {
-            // TODO: Add metrics
+            StorageMetrics.orphanHintStoresPurged.inc();
             logger.warn("Removing all the orphan hint store files. HostID: {}, timestamp: {}", store.hostId, store.getLastUsedTimestamp());
             store.deleteAllHints();
         }

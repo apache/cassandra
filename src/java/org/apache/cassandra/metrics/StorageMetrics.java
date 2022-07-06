@@ -36,4 +36,7 @@ public class StorageMetrics
     public static final Counter totalOpsForInvalidToken = Metrics.counter(factory.createMetricName("TotalOpsForInvalidToken"));
     public static final Counter startupOpsForInvalidToken = Metrics.counter(factory.createMetricName("StartupOpsForInvalidToken"));
     public static final Counter staleHost = Metrics.counter(factory.createMetricName("StaleHost"));
+    public static final Counter orphanHintStoresDetected = Metrics.counter(factory.createMetricName("OrphanHintStoresDetected"));
+    public static final Counter orphanHintStoresPurged = Metrics.counter(factory.createMetricName("OrphanHintStoresPurged"));
+    public static final Counter totalHintFilesPresent = Metrics.counter(factory.createMetricName("TotalHintFilesPresent"));
 }

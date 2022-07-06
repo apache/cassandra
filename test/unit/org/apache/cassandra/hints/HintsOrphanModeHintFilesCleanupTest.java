@@ -28,7 +28,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Table;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -42,7 +41,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static junit.framework.Assert.assertEquals;
@@ -57,6 +55,9 @@ public class HintsOrphanModeHintFilesCleanupTest
     private static final String TABLE2 = "table_2";
     static final int WRITE_BUFFER_SIZE = 256 << 10;
     private static HintsDispatchExecutor hintsDispatchExecutor;
+    private static int expectedHintFilesMetrics = 0;
+    private static int expectedHintStoresDetected = 0;
+    private static int expectedHintStoresPurged = 0;
 
     @BeforeClass
     public static void defineSchema() throws IOException
@@ -81,7 +82,7 @@ public class HintsOrphanModeHintFilesCleanupTest
         try
         {
             // set hint store expiry to 16 days (15 is the configured default limit), so hint files should get purged
-            invokeHintsDispatchTrigger(directory, Instant.now().minus(Duration.ofDays(16)).getEpochSecond(), 0, 0);
+            invokeHintsDispatchTrigger(directory, Instant.now().minus(Duration.ofDays(16)).getEpochSecond(), 0, 0, true);
         }
         finally
         {
@@ -96,7 +97,7 @@ public class HintsOrphanModeHintFilesCleanupTest
         try
         {
             // set hint store expiry to just one day old, so hint files should not be purged
-            invokeHintsDispatchTrigger(directory, Instant.now().minus(Duration.ofDays(1)).getEpochSecond(), 1, 4);
+            invokeHintsDispatchTrigger(directory, Instant.now().minus(Duration.ofDays(1)).getEpochSecond() * 1000, 1, 4, false);
         }
         finally
         {
@@ -146,8 +147,8 @@ public class HintsOrphanModeHintFilesCleanupTest
         File directory = new File(testFolder.newFolder());
         try
         {
-            long expiredHintStoreDuration = Instant.now().minus(Duration.ofDays(16)).getEpochSecond();
-            long nonExpiredHintStoreDuration = Instant.now().minus(Duration.ofDays(1)).getEpochSecond();
+            long expiredHintStoreDuration = Instant.now().minus(Duration.ofDays(16)).getEpochSecond() * 1000;
+            long nonExpiredHintStoreDuration = Instant.now().minus(Duration.ofDays(1)).getEpochSecond() * 1000;
 
             UUID hostId1 = UUID.randomUUID();
             createHintFiles(hostId1, directory, expiredHintStoreDuration);
@@ -192,7 +193,7 @@ public class HintsOrphanModeHintFilesCleanupTest
         createHintFile(directory, descriptor4);
     }
 
-    private static void invokeHintsDispatchTrigger(File directory, long timestamp, int expectedStoreCount, int expectedHintFilesCount) throws IOException
+    private static void invokeHintsDispatchTrigger(File directory, long timestamp, int expectedStoreCount, int expectedHintFilesCount, boolean purgeHintStoreExpected) throws IOException
     {
         UUID hostId = UUID.randomUUID();
         createHintFiles(hostId, directory, timestamp);
@@ -213,8 +214,18 @@ public class HintsOrphanModeHintFilesCleanupTest
         assertEquals(expectedStoreCount, catalog.stores().count());
         store = catalog.get(hostId);
 
-        //should have 0 hint files now
+        //should have <expectedHintFilesCount> hint files now
         assertEquals(expectedHintFilesCount, store.getDispatchQueueSize());
+        assertEquals(4, hintsDispatchTrigger.totalHintFiles);
+        expectedHintFilesMetrics += 4;
+        assertEquals(expectedHintFilesMetrics, StorageMetrics.totalHintFilesPresent.getCount());
+        expectedHintStoresDetected += 1;
+        if (purgeHintStoreExpected)
+        {
+            expectedHintStoresPurged += 1;
+        }
+        assertEquals(expectedHintStoresDetected, StorageMetrics.orphanHintStoresDetected.getCount());
+        assertEquals(expectedHintStoresPurged, StorageMetrics.orphanHintStoresPurged.getCount());
     }
 
     private static Mutation createMutation(String key, long now)
