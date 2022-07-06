@@ -1033,7 +1033,7 @@ public class Config
 
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
-    public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size_bytes = new DataStorageSpec.LongBytesBound("1MiB");
+    public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");
     public volatile long min_tracked_partition_tombstone_count = 5000;
     public volatile boolean top_partitions_enabled = true;
 

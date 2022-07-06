@@ -165,6 +165,7 @@ New features
 
 Upgrading
 ---------
+    - min_tracked_partition_size_bytes parameter from 4.1 alpha1 was renamed to min_tracked_partition_size.
     - Parameters of type data storage, duration and data rate cannot be set to Long.MAX_VALUE (former parameters of long type)
       and Integer.MAX_VALUE (former parameters of int type). Those numbers are used during conversion between units to prevent
       an overflow from happening. (CASSANDRA-17571)
