@@ -19,8 +19,6 @@ package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public abstract class MemtableBufferAllocator extends MemtableAllocator
@@ -30,20 +28,17 @@ public abstract class MemtableBufferAllocator extends MemtableAllocator
         super(onHeap, offHeap);
     }
 
-    public Row.Builder rowBuilder(OpOrder.Group writeOp)
-    {
-        return allocator(writeOp).cloningBTreeRowBuilder();
-    }
-
-    public DecoratedKey clone(DecoratedKey key, OpOrder.Group writeOp)
-    {
-        return new BufferDecoratedKey(key.getToken(), allocator(writeOp).clone(key.getKey()));
-    }
-
     public abstract ByteBuffer allocate(int size, OpOrder.Group opGroup);
 
-    protected AbstractAllocator allocator(OpOrder.Group writeOp)
+    protected Cloner allocator(OpOrder.Group opGroup)
     {
-        return new ContextAllocator(writeOp, this);
+        return new ByteBufferCloner()
+            {
+                @Override
+                public ByteBuffer allocate(int size)
+                {
+                    return MemtableBufferAllocator.this.allocate(size, opGroup);
+                }
+            };
     }
 }

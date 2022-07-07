@@ -27,6 +27,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Semaphore;
+import org.apache.cassandra.utils.concurrent.OpOrder.Group;
 
 import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 
@@ -98,6 +99,35 @@ public class NativeAllocator extends MemtableAllocator
     public DecoratedKey clone(DecoratedKey key, OpOrder.Group writeOp)
     {
         return new NativeDecoratedKey(key.getToken(), this, writeOp, key.getKey());
+    }
+
+    @Override
+    public Cloner cloner(Group opGroup)
+    {
+        return new Cloner()
+                {
+
+                    @Override
+                    public DecoratedKey clone(DecoratedKey key)
+                    {
+                        return NativeAllocator.this.clone(key, opGroup);
+                    }
+
+                    @Override
+                    public Clustering<?> clone(Clustering<?> clustering)
+                    {
+                        if (clustering != Clustering.STATIC_CLUSTERING)
+                            return new NativeClustering(NativeAllocator.this, opGroup, clustering);
+
+                        return Clustering.STATIC_CLUSTERING;
+                    }
+
+                    @Override
+                    public Cell<?> clone(Cell<?> cell)
+                    {
+                        return new NativeCell(NativeAllocator.this, opGroup, cell);
+                    }
+                };
     }
 
     public EnsureOnHeap ensureOnHeap()
@@ -254,5 +284,4 @@ public class NativeAllocator extends MemtableAllocator
                     "waste=" + Math.max(0, capacity - nextFreeOffset.get());
         }
     }
-
 }
