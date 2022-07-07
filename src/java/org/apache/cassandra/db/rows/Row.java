@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.*;
@@ -33,7 +34,7 @@ import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.UpdateFunction;
+import org.apache.cassandra.utils.memory.Cloner;
 
 /**
  * Storage engine representation of a row.
@@ -218,6 +219,27 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      *   4) uses {@code activeDeletion} as row deletion iff {@code setActiveDeletionToRow} and {@code activeDeletion} supersedes the row deletion.
      */
     public Row filter(ColumnFilter filter, DeletionTime activeDeletion, boolean setActiveDeletionToRow, TableMetadata metadata);
+
+    /**
+     * Requires that {@code function} returns either {@code null} or {@code ColumnData} for the same column.
+     *
+     * Returns a copy of this row that:
+     *   1) {@code function} has been applied to the members of
+     *   2) doesn't include any {@code null} results of {@code function}
+     *   3) has precisely the provided {@code LivenessInfo} and {@code Deletion}
+     */
+    public Row transformAndFilter(LivenessInfo info, Deletion deletion, Function<ColumnData, ColumnData> function);
+
+    /**
+     * Requires that {@code function} returns either {@code null} or {@code ColumnData} for the same column.
+     *
+     * Returns a copy of this row that:
+     *   1) {@code function} has been applied to the members of
+     *   2) doesn't include any {@code null} results of {@code function}
+     */
+    public Row transformAndFilter(Function<ColumnData, ColumnData> function);
+
+    public Row clone(Cloner cloner);
 
     /**
      * Returns a copy of this row without any deletion info that should be purged according to {@code purger}.

@@ -185,7 +185,7 @@ public class EmptyIterators
     {
         RegularAndStaticColumns columns = RegularAndStaticColumns.NONE;
         if (!staticRow.isEmpty())
-            columns = new RegularAndStaticColumns(Columns.from(staticRow.columns()), Columns.NONE);
+            columns = new RegularAndStaticColumns(Columns.from(staticRow), Columns.NONE);
         else
             staticRow = Rows.EMPTY_STATIC_ROW;
 

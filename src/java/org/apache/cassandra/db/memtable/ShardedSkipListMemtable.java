@@ -56,6 +56,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.Cloner;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.github.jamm.Unmetered;
 
@@ -367,12 +368,13 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
 
         public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
         {
+            Cloner cloner = allocator.cloner(opGroup);
             AtomicBTreePartition previous = partitions.get(key);
 
             long initialSize = 0;
             if (previous == null)
             {
-                final DecoratedKey cloneKey = allocator.clone(key, opGroup);
+                final DecoratedKey cloneKey = cloner.clone(key);
                 AtomicBTreePartition empty = new AtomicBTreePartition(metadata, cloneKey, allocator);
                 // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
                 previous = partitions.putIfAbsent(cloneKey, empty);
@@ -387,7 +389,7 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
                 }
             }
 
-            long[] pair = previous.addAllWithSizeDelta(update, opGroup, indexer);
+            long[] pair = previous.addAllWithSizeDelta(update, cloner, opGroup, indexer);
             updateMin(minTimestamp, update.stats().minTimestamp);
             updateMin(minLocalDeletionTime, update.stats().minLocalDeletionTime);
             liveDataSize.addAndGet(initialSize + pair[0]);

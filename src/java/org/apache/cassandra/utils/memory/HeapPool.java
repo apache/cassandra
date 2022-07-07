@@ -20,10 +20,13 @@ package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
 
 public class HeapPool extends MemtablePool
 {
@@ -39,9 +42,11 @@ public class HeapPool extends MemtablePool
         return new Allocator(this);
     }
 
-    private static class Allocator extends MemtableBufferAllocator
+    @VisibleForTesting
+    public static class Allocator extends MemtableBufferAllocator
     {
-        Allocator(HeapPool pool)
+        @VisibleForTesting
+        public Allocator(HeapPool pool)
         {
             super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
         }
@@ -55,6 +60,11 @@ public class HeapPool extends MemtablePool
         public EnsureOnHeap ensureOnHeap()
         {
             return ENSURE_NOOP;
+        }
+
+        public Cloner cloner(OpOrder.Group opGroup)
+        {
+            return allocator(opGroup);
         }
     }
 
@@ -115,6 +125,11 @@ public class HeapPool extends MemtablePool
             public EnsureOnHeap ensureOnHeap()
             {
                 return ENSURE_NOOP;
+            }
+
+            public Cloner cloner(OpOrder.Group opGroup)
+            {
+                return allocator(opGroup);
             }
         }
 

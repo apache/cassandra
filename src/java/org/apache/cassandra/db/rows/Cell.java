@@ -27,7 +27,8 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
+import org.apache.cassandra.utils.memory.Cloner;
 
 /**
  * A cell is our atomic unit for a single value of a single column.
@@ -157,7 +158,13 @@ public abstract class Cell<V> extends ColumnData
      */
     public abstract Cell<?> withSkippedValue();
 
-    public abstract Cell<?> copy(AbstractAllocator allocator);
+    @Override
+    public final Cell<?> clone(Cloner cloner)
+    {
+        return cloner.clone(this);
+    }
+
+    public abstract Cell<?> clone(ByteBufferCloner cloner);
 
     @Override
     // Overrides super type to provide a more precise return type.
