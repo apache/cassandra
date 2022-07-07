@@ -561,6 +561,7 @@
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
             <exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
             <exclusion groupId="commons-logging" artifactId="commons-logging"/>
+            <exclusion groupId="commons-lang" artifactId="commons-lang"/>
             <exclusion groupId="org.eclipse.jdt" artifactId="core"/>
             <exclusion groupId="ant" artifactId="ant"/>
             <exclusion groupId="junit" artifactId="junit"/>
