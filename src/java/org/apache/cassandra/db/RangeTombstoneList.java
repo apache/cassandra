@@ -29,7 +29,7 @@ import com.google.common.collect.Iterators;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
  * Data structure holding the range tombstones of a ColumnFamily.
@@ -105,7 +105,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                                       boundaryHeapSize, size);
     }
 
-    public RangeTombstoneList copy(AbstractAllocator allocator)
+    public RangeTombstoneList clone(ByteBufferCloner cloner)
     {
         RangeTombstoneList copy =  new RangeTombstoneList(comparator,
                                                           new ClusteringBound<?>[size],
@@ -117,18 +117,18 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
         for (int i = 0; i < size; i++)
         {
-            copy.starts[i] = clone(starts[i], allocator);
-            copy.ends[i] = clone(ends[i], allocator);
+            copy.starts[i] = clone(starts[i], cloner);
+            copy.ends[i] = clone(ends[i], cloner);
         }
 
         return copy;
     }
 
-    private static <T> ClusteringBound<ByteBuffer> clone(ClusteringBound<T> bound, AbstractAllocator allocator)
+    private static <T> ClusteringBound<ByteBuffer> clone(ClusteringBound<T> bound, ByteBufferCloner cloner)
     {
         ByteBuffer[] values = new ByteBuffer[bound.size()];
         for (int i = 0; i < values.length; i++)
-            values[i] = allocator.clone(bound.get(i), bound.accessor());
+            values[i] = cloner.clone(bound.get(i), bound.accessor());
         return new BufferClusteringBound(bound.kind(), values);
     }
 

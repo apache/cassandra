@@ -28,7 +28,7 @@ import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapCloner;
 
 public class LocalPartitioner implements IPartitioner
 {
@@ -140,7 +140,7 @@ public class LocalPartitioner implements IPartitioner
 
         public LocalToken(ByteBuffer token)
         {
-            super(HeapAllocator.instance.clone(token));
+            super(HeapCloner.instance.clone(token));
         }
 
         @Override

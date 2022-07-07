@@ -32,6 +32,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -96,8 +98,32 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         return new Columns(BTree.singleton(c), c.isComplex() ? 0 : 1);
     }
 
+   /**
+    * Returns a new {@code Columns} object holing the same columns as the provided Row.
+    *
+    * @param row the row from which to create the new {@code Columns}.
+    * @return the newly created {@code Columns} containing the columns from {@code row}.
+    */
+   public static Columns from(Row row)
+   {
+       try (BTree.FastBuilder<ColumnMetadata> builder = BTree.fastBuilder())
+       {
+           for (ColumnData cd : row)
+               builder.add(cd.column());
+           Object[] tree = builder.build();
+           return new Columns(tree, findFirstComplexIdx(tree));
+       }
+   }
+
+   public static Columns from(BTree.Builder<ColumnMetadata> builder)
+   {
+       Object[] tree = builder.build();
+       return new Columns(tree, findFirstComplexIdx(tree));
+   }
+
     /**
-     * Returns a new {@code Columns} object holing the same columns than the provided set.
+    * Returns a new {@code Columns} object holding the same columns than the provided set.
+     * This method assumes nothing about the order of {@code s}.
      *
      * @param s the set from which to create the new {@code Columns}.
      * @return the newly created {@code Columns} containing the columns from {@code s}.
@@ -446,25 +472,26 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         public Columns deserialize(DataInputPlus in, TableMetadata metadata) throws IOException
         {
             int length = (int)in.readUnsignedVInt();
-            BTree.Builder<ColumnMetadata> builder = BTree.builder(Comparator.naturalOrder());
-            builder.auto(false);
-            for (int i = 0; i < length; i++)
+            try (BTree.FastBuilder<ColumnMetadata> builder = BTree.fastBuilder())
             {
-                ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);
-                ColumnMetadata column = metadata.getColumn(name);
-                if (column == null)
+                for (int i = 0; i < length; i++)
                 {
-                    // If we don't find the definition, it could be we have data for a dropped column, and we shouldn't
-                    // fail deserialization because of that. So we grab a "fake" ColumnMetadata that ensure proper
-                    // deserialization. The column will be ignore later on anyway.
-                    column = metadata.getDroppedColumn(name);
-
+                    ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);
+                    ColumnMetadata column = metadata.getColumn(name);
                     if (column == null)
-                        throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                    {
+                        // If we don't find the definition, it could be we have data for a dropped column, and we shouldn't
+                        // fail deserialization because of that. So we grab a "fake" ColumnMetadata that ensure proper
+                        // deserialization. The column will be ignore later on anyway.
+                        column = metadata.getDroppedColumn(name);
+
+                        if (column == null)
+                            throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                    }
+                    builder.add(column);
                 }
-                builder.add(column);
+                return new Columns(builder.build());
             }
-            return new Columns(builder.build());
         }
 
         /**
@@ -532,21 +559,23 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             }
             else
             {
-                BTree.Builder<ColumnMetadata> builder = BTree.builder(Comparator.naturalOrder());
-                int firstComplexIdx = 0;
-                for (ColumnMetadata column : superset)
+                try (BTree.FastBuilder<ColumnMetadata> builder = BTree.fastBuilder())
                 {
-                    if ((encoded & 1) == 0)
+                    int firstComplexIdx = 0;
+                    for (ColumnMetadata column : superset)
                     {
-                        builder.add(column);
-                        if (column.isSimple())
-                            ++firstComplexIdx;
+                        if ((encoded & 1) == 0)
+                        {
+                            builder.add(column);
+                            if (column.isSimple())
+                                ++firstComplexIdx;
+                        }
+                        encoded >>>= 1;
                     }
-                    encoded >>>= 1;
+                    if (encoded != 0)
+                        throw new IOException("Invalid Columns subset bytes; too many bits set:" + Long.toBinaryString(encoded));
+                    return new Columns(builder.build(), firstComplexIdx);
                 }
-                if (encoded != 0)
-                    throw new IOException("Invalid Columns subset bytes; too many bits set:" + Long.toBinaryString(encoded));
-                return new Columns(builder.build(), firstComplexIdx);
             }
         }
 
@@ -615,37 +644,39 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             int supersetCount = superset.size();
             int columnCount = supersetCount - delta;
 
-            BTree.Builder<ColumnMetadata> builder = BTree.builder(Comparator.naturalOrder());
-            if (columnCount < supersetCount / 2)
+            try (BTree.FastBuilder<ColumnMetadata> builder = BTree.fastBuilder())
             {
-                for (int i = 0 ; i < columnCount ; i++)
+                if (columnCount < supersetCount / 2)
                 {
-                    int idx = (int) in.readUnsignedVInt();
-                    builder.add(BTree.findByIndex(superset.columns, idx));
-                }
-            }
-            else
-            {
-                Iterator<ColumnMetadata> iter = superset.iterator();
-                int idx = 0;
-                int skipped = 0;
-                while (true)
-                {
-                    int nextMissingIndex = skipped < delta ? (int)in.readUnsignedVInt() : supersetCount;
-                    while (idx < nextMissingIndex)
+                    for (int i = 0 ; i < columnCount ; i++)
                     {
-                        ColumnMetadata def = iter.next();
-                        builder.add(def);
-                        idx++;
+                        int idx = (int) in.readUnsignedVInt();
+                        builder.add(BTree.findByIndex(superset.columns, idx));
                     }
-                    if (idx == supersetCount)
-                        break;
-                    iter.next();
-                    idx++;
-                    skipped++;
                 }
+                else
+                {
+                    Iterator<ColumnMetadata> iter = superset.iterator();
+                    int idx = 0;
+                    int skipped = 0;
+                    while (true)
+                    {
+                        int nextMissingIndex = skipped < delta ? (int)in.readUnsignedVInt() : supersetCount;
+                        while (idx < nextMissingIndex)
+                        {
+                            ColumnMetadata def = iter.next();
+                            builder.add(def);
+                            idx++;
+                        }
+                        if (idx == supersetCount)
+                            break;
+                        iter.next();
+                        idx++;
+                        skipped++;
+                    }
+                }
+                return new Columns(builder.build());
             }
-            return new Columns(builder.build());
         }
 
         @DontInline

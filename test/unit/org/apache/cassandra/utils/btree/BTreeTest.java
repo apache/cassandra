@@ -39,7 +39,7 @@ public class BTreeTest
 
     static final UpdateFunction<Integer, Integer> updateF = new UpdateFunction<Integer, Integer>()
     {
-        public Integer apply(Integer replacing, Integer update)
+        public Integer merge(Integer replacing, Integer update)
         {
             return ints[update];
         }
@@ -48,7 +48,12 @@ public class BTreeTest
         {
         }
 
-        public Integer apply(Integer integer)
+        public Integer insert(Integer integer)
+        {
+            return ints[integer];
+        }
+
+        public Integer retain(Integer integer)
         {
             return ints[integer];
         }
@@ -423,7 +428,7 @@ public class BTreeTest
         private int[] numberOfCalls = new int[20];
 
         @Override
-        public Integer apply(Integer replacing, Integer update)
+        public Integer merge(Integer replacing, Integer update)
         {
             numberOfCalls[update] = numberOfCalls[update] + 1;
             return update;
@@ -436,7 +441,7 @@ public class BTreeTest
         }
 
         @Override
-        public Integer apply(Integer integer)
+        public Integer insert(Integer integer)
         {
             numberOfCalls[integer] = numberOfCalls[integer] + 1;
             return integer;

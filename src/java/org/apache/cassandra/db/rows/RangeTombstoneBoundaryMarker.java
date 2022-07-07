@@ -23,8 +23,10 @@ import java.util.Objects;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
+
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
+
 
 /**
  * A range tombstone marker that represents a boundary between 2 range tombstones (i.e. it closes one range and open another).
@@ -148,9 +150,10 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         return !startDeletion.validate() || !endDeletion.validate();
     }
 
-    public RangeTombstoneBoundaryMarker copy(AbstractAllocator allocator)
+    @Override
+    public RangeTombstoneBoundaryMarker clone(ByteBufferCloner cloner)
     {
-        return new RangeTombstoneBoundaryMarker((ClusteringBoundary<ByteBuffer>) clustering().copy(allocator), endDeletion, startDeletion);
+        return new RangeTombstoneBoundaryMarker((ClusteringBoundary<ByteBuffer>) clustering().clone(cloner), endDeletion, startDeletion);
     }
 
     public RangeTombstoneBoundaryMarker withNewOpeningDeletionTime(boolean reversed, DeletionTime newDeletionTime)

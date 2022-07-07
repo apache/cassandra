@@ -36,8 +36,10 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.Cloner;
+import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
+import com.google.common.annotations.VisibleForTesting;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -113,7 +115,6 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
     private long[] addAllWithSizeDeltaInternal(RowUpdater updater, PartitionUpdate update, UpdateTransaction indexer)
     {
         Holder current = ref;
-        updater.ref = current;
         updater.reset();
 
         if (!update.deletionInfo().getPartitionDeletion().isLive())
@@ -126,7 +127,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         if (update.deletionInfo().mayModify(current.deletionInfo))
         {
             if (updater.inputDeletionInfoCopy == null)
-                updater.inputDeletionInfoCopy = update.deletionInfo().copy(HeapAllocator.instance);
+                updater.inputDeletionInfoCopy = update.deletionInfo().clone(HeapCloner.instance);
 
             deletionInfo = current.deletionInfo.mutableCopy().add(updater.inputDeletionInfoCopy);
             updater.onAllocatedOnHeap(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
@@ -141,7 +142,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         Row newStatic = update.staticRow();
         Row staticRow = newStatic.isEmpty()
                         ? current.staticRow
-                        : (current.staticRow.isEmpty() ? updater.apply(newStatic) : updater.apply(current.staticRow, newStatic));
+                        : (current.staticRow.isEmpty() ? updater.insert(newStatic) : updater.merge(current.staticRow, newStatic));
         Object[] tree = BTree.update(current.tree, update.holder().tree, update.metadata().comparator, updater);
         EncodingStats newStats = current.stats.mergeWith(update.stats());
         updater.onAllocatedOnHeap(newStats.unsharedHeapSize() - current.stats.unsharedHeapSize());
@@ -162,9 +163,12 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
      * @return an array containing first the difference in size seen after merging the updates, and second the minimum
      * time detla between updates.
      */
-    public long[] addAllWithSizeDelta(final PartitionUpdate update, OpOrder.Group writeOp, UpdateTransaction indexer)
+    public long[] addAllWithSizeDelta(final PartitionUpdate update,
+                                      Cloner cloner,
+                                      OpOrder.Group writeOp,
+                                      UpdateTransaction indexer)
     {
-        RowUpdater updater = new RowUpdater(this, allocator, writeOp, indexer);
+        RowUpdater updater = new RowUpdater(allocator, cloner, writeOp, indexer);
         try
         {
             boolean shouldLock = shouldLock(writeOp);
@@ -331,15 +335,25 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         return wasteTracker;
     }
 
-    // the function we provide to the btree utilities to perform any column replacements
-    private static final class RowUpdater implements UpdateFunction<Row, Row>
+    @VisibleForTesting
+    public void unsafeSetHolder(Holder holder)
     {
-        final AtomicBTreePartition updating;
+        ref = holder;
+    }
+
+    @VisibleForTesting
+    public Holder unsafeGetHolder()
+    {
+        return ref;
+    }
+
+    // the function we provide to the btree utilities to perform any column replacements
+    private static final class RowUpdater implements UpdateFunction<Row, Row>, ColumnData.PostReconciliationFunction
+    {
         final MemtableAllocator allocator;
         final OpOrder.Group writeOp;
         final UpdateTransaction indexer;
-        Holder ref;
-        Row.Builder regularBuilder;
+        final Cloner cloner;
         long dataSize;
         long heapSize;
         long colUpdateTimeDelta = Long.MAX_VALUE;
@@ -347,29 +361,18 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
 
         DeletionInfo inputDeletionInfoCopy = null;
 
-        private RowUpdater(AtomicBTreePartition updating, MemtableAllocator allocator, OpOrder.Group writeOp, UpdateTransaction indexer)
+        private RowUpdater(MemtableAllocator allocator, Cloner cloner, OpOrder.Group writeOp, UpdateTransaction indexer)
         {
-            this.updating = updating;
             this.allocator = allocator;
             this.writeOp = writeOp;
             this.indexer = indexer;
+            this.cloner = cloner;
         }
 
-        private Row.Builder builder(Clustering<?> clustering)
+        @Override
+        public Row insert(Row insert)
         {
-            boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
-            // We know we only insert/update one static per PartitionUpdate, so no point in saving the builder
-            if (isStatic)
-                return allocator.rowBuilder(writeOp);
-
-            if (regularBuilder == null)
-                regularBuilder = allocator.rowBuilder(writeOp);
-            return regularBuilder;
-        }
-
-        public Row apply(Row insert)
-        {
-            Row data = Rows.copy(insert, builder(insert.clustering())).build();
+            Row data = insert.clone(cloner); 
             indexer.onInserted(insert);
 
             this.dataSize += data.dataSize();
@@ -380,22 +383,21 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             return data;
         }
 
-        public Row apply(Row existing, Row update)
+        public Row merge(Row existing, Row update)
         {
-            Row.Builder builder = builder(existing.clustering());
-            colUpdateTimeDelta = Math.min(colUpdateTimeDelta, Rows.merge(existing, update, builder));
-
-            Row reconciled = builder.build();
-
+            Row reconciled = Rows.merge(existing, update, this);
             indexer.onUpdated(existing, reconciled);
 
-            dataSize += reconciled.dataSize() - existing.dataSize();
-            onAllocatedOnHeap(reconciled.unsharedHeapSizeExcludingData() - existing.unsharedHeapSizeExcludingData());
             if (inserted == null)
                 inserted = new ArrayList<>();
             inserted.add(reconciled);
 
             return reconciled;
+        }
+
+        public Row retain(Row existing)
+        {
+            return existing;
         }
 
         protected void reset()
@@ -405,9 +407,36 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             if (inserted != null)
                 inserted.clear();
         }
-        public boolean abortEarly()
+
+        public Cell<?> merge(Cell<?> previous, Cell<?> insert)
         {
-            return updating.ref != ref;
+            if (insert != previous)
+            {
+                long timeDelta = Math.abs(insert.timestamp() - previous.timestamp());
+                if (timeDelta < colUpdateTimeDelta)
+                    colUpdateTimeDelta = timeDelta;
+            }
+            if (cloner != null)
+                insert = cloner.clone(insert);
+            dataSize += insert.dataSize() - previous.dataSize();
+            heapSize += insert.unsharedHeapSizeExcludingData() - previous.unsharedHeapSizeExcludingData();
+            return insert;
+        }
+
+        public ColumnData insert(ColumnData insert)
+        {
+            if (cloner != null)
+                insert = insert.clone(cloner);
+            dataSize += insert.dataSize();
+            heapSize += insert.unsharedHeapSizeExcludingData();
+            return insert;
+        }
+
+        @Override
+        public void delete(ColumnData existing)
+        {
+            dataSize -= existing.dataSize();
+            heapSize -= existing.unsharedHeapSizeExcludingData();
         }
 
         public void onAllocatedOnHeap(long heapSize)
