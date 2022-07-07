@@ -26,7 +26,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 import static org.apache.cassandra.utils.ByteArrayUtil.EMPTY_BYTE_ARRAY;
 
@@ -102,12 +102,13 @@ public class ArrayCell extends AbstractCell<byte[]>
         return new ArrayCell(column, timestamp, ttl, localDeletionTime, EMPTY_BYTE_ARRAY, path);
     }
 
-    public Cell<?> copy(AbstractAllocator allocator)
+    @Override
+    public Cell<?> clone(ByteBufferCloner cloner)
     {
         if (value.length == 0)
             return this;
 
-        return new BufferCell(column, timestamp, ttl, localDeletionTime, allocator.clone(value), path == null ? null : path.copy(allocator));
+        return super.clone(cloner);
     }
 
     @Override

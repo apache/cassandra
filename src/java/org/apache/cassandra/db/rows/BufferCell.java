@@ -26,6 +26,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 import static java.lang.String.format;
 
@@ -137,6 +138,15 @@ public class BufferCell extends AbstractCell<ByteBuffer>
     public long unsharedHeapSize()
     {
         return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(value) + (path == null ? 0 : path.unsharedHeapSize());
+    }
+
+    @Override
+    public Cell<?> clone(ByteBufferCloner cloner)
+    {
+        if (!value.hasRemaining())
+            return this;
+
+        return super.clone(cloner);
     }
 
     @Override

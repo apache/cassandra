@@ -30,7 +30,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
  * This class defines a threshold between ranges of clusterings. It can either be a start or end bound of a range, or
@@ -62,11 +62,11 @@ public interface ClusteringBoundOrBoundary<V> extends ClusteringPrefix<V>
         return kind().isClose(reversed);
     }
 
-    default ClusteringBoundOrBoundary<ByteBuffer> copy(AbstractAllocator allocator)
+    default ClusteringBoundOrBoundary<ByteBuffer> clone(ByteBufferCloner cloner)
     {
         ByteBuffer[] newValues = new ByteBuffer[size()];
         for (int i = 0; i < size(); i++)
-            newValues[i] = allocator.clone(get(i), accessor());
+            newValues[i] = cloner.clone(get(i), accessor());
         return ByteBufferAccessor.instance.factory().boundOrBoundary(kind(), newValues);
     }
 
