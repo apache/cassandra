@@ -1,4 +1,5 @@
 4.1-alpha2
+ * Remove commons-lang dependency during build runtime (CASSANDRA-17724)
  * Relax synchronization on StreamSession#onError() to avoid deadlock (CASSANDRA-17706)
  * Fix AbstractCell#toString throws MarshalException for cell in collection (CASSANDRA-17695)
  * Add new vtable output option to compactionstats (CASSANDRA-17683)
