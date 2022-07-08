@@ -129,7 +129,7 @@ public final class SystemKeyspace
     public static final String PEERS_V2 = "peers_v2";
     public static final String PEER_EVENTS_V2 = "peer_events_v2";
     public static final String COMPACTION_HISTORY = "compaction_history";
-    public static final String SSTABLE_ACTIVITY_V2 = "sstable_activity_v2"; // v2 has modified generation column type (v1 - int, v2 - blob), see CASSANDRA-17048
+    public static final String SSTABLE_ACTIVITY_V2 = "sstable_activity_v2"; // v2 has modified generation column type (v1 - int, v2 - text), see CASSANDRA-17048
     public static final String TABLE_ESTIMATES = "table_estimates";
     public static final String TABLE_ESTIMATES_TYPE_PRIMARY = "primary";
     public static final String TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY = "local_primary";

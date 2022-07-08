@@ -22,11 +22,33 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.tuple.Pair;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class SSTableIdFactory
 {
     public static final SSTableIdFactory instance = new SSTableIdFactory();
+
+    private static boolean isULIDImpl()
+    {
+        String impl = CassandraRelevantProperties.SSTABLE_UUID_IMPL.getString().toLowerCase();
+        if ("uuid".equals(impl))
+            return false;
+        else if ("ulid".equals(impl))
+            return true;
+        else
+            throw new IllegalArgumentException("Unsupported value for property " + CassandraRelevantProperties.SSTABLE_UUID_IMPL.getKey() + ": " + impl);
+    }
+
+    private Stream<SSTableId.Builder<?>> makeIdBuildersStream()
+    {
+        return isULIDImpl()
+               ? Stream.of(ULIDBasedSSTableId.Builder.instance, UUIDBasedSSTableId.Builder.instance, SequenceBasedSSTableId.Builder.instance)
+               : Stream.of(UUIDBasedSSTableId.Builder.instance, ULIDBasedSSTableId.Builder.instance, SequenceBasedSSTableId.Builder.instance);
+    }
 
     /**
      * Constructs the instance of {@link SSTableId} from the given string representation.
@@ -37,18 +59,17 @@ public class SSTableIdFactory
      */
     public SSTableId fromString(String str) throws IllegalArgumentException
     {
-        return Stream.of(UUIDBasedSSTableId.Builder.instance, SequenceBasedSSTableId.Builder.instance)
-                     .filter(b -> b.isUniqueIdentifier(str))
-                     .findFirst()
-                     .map(b -> b.fromString(str))
-                     .orElseThrow(() -> new IllegalArgumentException("String '" + str + "' does not match any SSTable identifier format"));
+        return makeIdBuildersStream().filter(b -> b.isUniqueIdentifier(str))
+                                     .findFirst()
+                                     .map(b -> b.fromString(str))
+                                     .orElseThrow(() -> new IllegalArgumentException("String '" + str + "' does not match any SSTable identifier format"));
     }
 
     /**
      * Constructs the instance of {@link SSTableId} from the given bytes.
      * It finds the right builder by verifying whether the given buffer is the representation of the related identifier
      * type using {@link SSTableId.Builder#isUniqueIdentifier(ByteBuffer)} method.
-     *
+     * <p>
      * The method expects the identifier is encoded in all remaining bytes of the buffer. The method does not move the
      * pointer of the buffer.
      *
@@ -56,42 +77,39 @@ public class SSTableIdFactory
      */
     public SSTableId fromBytes(ByteBuffer bytes)
     {
-        return Stream.of(UUIDBasedSSTableId.Builder.instance, SequenceBasedSSTableId.Builder.instance)
-                     .filter(b -> b.isUniqueIdentifier(bytes))
-                     .findFirst()
-                     .map(b -> b.fromBytes(bytes))
-                     .orElseThrow(() -> new IllegalArgumentException("Byte buffer of length " + bytes.remaining() + " does not match any SSTable identifier format"));
+        return makeIdBuildersStream().filter(b -> b.isUniqueIdentifier(bytes))
+                                     .findFirst()
+                                     .map(b -> b.fromBytes(bytes))
+                                     .orElseThrow(() -> new IllegalArgumentException("Byte buffer of length " + bytes.remaining() + " does not match any SSTable identifier format"));
     }
 
     /**
      * Returns default identifiers builder.
      */
-    @SuppressWarnings("unchecked")
-    public SSTableId.Builder<SSTableId> defaultBuilder()
+    public SSTableId.Builder<? extends SSTableId> defaultBuilder()
     {
-        SSTableId.Builder<? extends SSTableId> builder = DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled()
-                                                         ? UUIDBasedSSTableId.Builder.instance
-                                                         : SequenceBasedSSTableId.Builder.instance;
-        return (SSTableId.Builder<SSTableId>) builder;
+        if (DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled())
+            return isULIDImpl()
+                   ? ULIDBasedSSTableId.Builder.instance
+                   : UUIDBasedSSTableId.Builder.instance;
+        else
+            return SequenceBasedSSTableId.Builder.instance;
     }
 
     /**
      * Compare sstable identifiers so that UUID based identifier is always greater than sequence based identifier
      */
-    public final static Comparator<SSTableId> COMPARATOR = Comparator.nullsFirst((id1, id2) -> {
-        if (id1 instanceof UUIDBasedSSTableId)
-        {
-            UUIDBasedSSTableId uuidId1 = (UUIDBasedSSTableId) id1;
-            return (id2 instanceof UUIDBasedSSTableId) ? uuidId1.compareTo((UUIDBasedSSTableId) id2) : 1;
-        }
-        else if (id1 instanceof SequenceBasedSSTableId)
-        {
-            SequenceBasedSSTableId seqId1 = (SequenceBasedSSTableId) id1;
-            return (id2 instanceof SequenceBasedSSTableId) ? seqId1.compareTo((SequenceBasedSSTableId) id2) : -1;
-        }
+    public static final Comparator<SSTableId> COMPARATOR = Comparator.nullsFirst(Comparator.comparing(SSTableIdFactory::asTimeUUID));
+
+    private static Pair<TimeUUID, Integer> asTimeUUID(SSTableId id)
+    {
+        if (id instanceof UUIDBasedSSTableId)
+            return Pair.of(((UUIDBasedSSTableId) id).uuid, null);
+        else if (id instanceof ULIDBasedSSTableId)
+            return Pair.of(((ULIDBasedSSTableId) id).approximateTimeUUID, null);
+        else if (id instanceof SequenceBasedSSTableId)
+            return Pair.of(null, ((SequenceBasedSSTableId) id).generation);
         else
-        {
-            throw new AssertionError("Unsupported comparison between " + id1.getClass().getName() + " and  " + id2.getClass().getName());
-        }
-    });
+            throw new AssertionError("Unsupported sstable identifier type " + id.getClass().getName());
+    }
 }

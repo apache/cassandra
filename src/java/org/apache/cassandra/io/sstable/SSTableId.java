@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+
+import org.apache.cassandra.io.util.File;
 
 /**
  * Represents a unique identifier in the sstable descriptor filename.
