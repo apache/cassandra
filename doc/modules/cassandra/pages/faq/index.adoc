@@ -1,23 +1,5 @@
 = Frequently Asked Questions
 
-* `why-cant-list-all`
-* `what-ports`
-* `what-happens-on-joins`
-* `asynch-deletes`
-* `one-entry-ring`
-* `can-large-blob`
-* `nodetool-connection-refused`
-* `to-batch-or-not-to-batch`
-* `selinux`
-* `how-to-unsubscribe`
-* `cassandra-eats-all-my-memory`
-* `what-are-seeds`
-* `are-seeds-SPOF`
-* `why-message-dropped`
-* `oom-map-failed`
-* `what-on-same-timestamp-update`
-* `why-bootstrapping-stream-error`
-
 [[why-cant-list-all]]
 == Why can't I set `listen_address` to listen on 0.0.0.0 (all my addresses)?
 
