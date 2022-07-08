@@ -288,9 +288,10 @@ public enum CassandraRelevantProperties
     SYSTEM_DISTRIBUTED_NTS_RF_OVERRIDE_PROPERTY("cassandra.system_distributed_replication_per_dc"),
     SYSTEM_DISTRIBUTED_NTS_DC_OVERRIDE_PROPERTY("cassandra.system_distributed_replication_dc_names"),
 
-    ;
-
-
+    // in OSS, when UUID based SSTable generation identifiers are enabled, they use TimeUUID
+    // though, for CNDB we want to use ULID - this property allows for that
+    // valid values for this property are: uuid, ulid
+    SSTABLE_UUID_IMPL("cassandra.sstable.id.uuid_impl", "uuid");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

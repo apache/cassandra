@@ -20,26 +20,14 @@ package org.apache.cassandra.utils;
 
 import java.util.UUID;
 
+import de.huxhorn.sulky.ulid.ULID;
+
 public class TimeUUID implements Comparable<TimeUUID>
 {
     // A grand day! millis at 00:00:00.000 15 Oct 1582.
     public static final long UUID_EPOCH_UNIX_MILLIS = -12219292800000L;
     protected static final long TIMESTAMP_UUID_VERSION_IN_MSB = 0x1000L;
     protected static final long UUID_VERSION_BITS_IN_MSB = 0xf000L;
-
-    /*
-     * The min and max possible lsb for a UUID.
-     * Note that his is not 0 and all 1's because Cassandra TimeUUIDType
-     * compares the lsb parts as a signed byte array comparison. So the min
-     * value is 8 times -128 and the max is 8 times +127.
-     *
-     * Note that we ignore the uuid variant (namely, MIN_CLOCK_SEQ_AND_NODE
-     * have variant 2 as it should, but MAX_CLOCK_SEQ_AND_NODE have variant 0).
-     * I don't think that has any practical consequence and is more robust in
-     * case someone provides a UUID with a broken variant.
-     */
-    private static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
-    private static final long MAX_CLOCK_SEQ_AND_NODE = 0x7f7f7f7f7f7f7f7fL;
 
     final long uuidTimestamp, lsb;
 
@@ -50,27 +38,6 @@ public class TimeUUID implements Comparable<TimeUUID>
         this.lsb = lsb;
     }
 
-    public static TimeUUID atUnixMicrosWithLsb(long unixMicros, long uniqueLsb)
-    {
-        return new TimeUUID(unixMicrosToRawTimestamp(unixMicros), uniqueLsb);
-    }
-
-    public static UUID atUnixMicrosWithLsbAsUUID(long unixMicros, long uniqueLsb)
-    {
-        return new UUID(rawTimestampToMsb(unixMicrosToRawTimestamp(unixMicros)), uniqueLsb);
-    }
-
-    /**
-     * Returns the smaller possible type 1 UUID having the provided timestamp.
-     *
-     * <b>Warning:</b> this method should only be used for querying as this
-     * doesn't at all guarantee the uniqueness of the resulting UUID.
-     */
-    public static TimeUUID minAtUnixMillis(long unixMillis)
-    {
-        return new TimeUUID(unixMillisToRawTimestamp(unixMillis, 0), MIN_CLOCK_SEQ_AND_NODE);
-    }
-
     public static TimeUUID fromUuid(UUID uuid)
     {
         return fromBytes(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
@@ -79,6 +46,12 @@ public class TimeUUID implements Comparable<TimeUUID>
     public static TimeUUID fromBytes(long msb, long lsb)
     {
         return new TimeUUID(msbToRawTimestamp(msb), lsb);
+    }
+
+    public static TimeUUID approximateFromULID(ULID.Value ulid)
+    {
+        long rawTimestamp = unixMillisToRawTimestamp(ulid.timestamp(), (10_000L * (ulid.getMostSignificantBits() & 0xFFFF)) >> 16);
+        return new TimeUUID(rawTimestamp, ulid.getLeastSignificantBits());
     }
 
     public UUID asUUID()
@@ -110,11 +83,6 @@ public class TimeUUID implements Comparable<TimeUUID>
         return unixMillis * 10000 - (UUID_EPOCH_UNIX_MILLIS * 10000) + tenthsOfAMicro;
     }
 
-    public static long unixMicrosToRawTimestamp(long unixMicros)
-    {
-        return unixMicros * 10 - (UUID_EPOCH_UNIX_MILLIS * 10000);
-    }
-
     public static long msbToRawTimestamp(long msb)
     {
         assert (UUID_VERSION_BITS_IN_MSB & msb) == TIMESTAMP_UUID_VERSION_IN_MSB;
@@ -139,20 +107,12 @@ public class TimeUUID implements Comparable<TimeUUID>
     }
 
     @Override
-    public boolean equals(Object that)
+    public boolean equals(Object o)
     {
-        return (that instanceof UUID && equals((UUID) that))
-               || (that instanceof TimeUUID && equals((TimeUUID) that));
-    }
-
-    public boolean equals(TimeUUID that)
-    {
-        return that != null && uuidTimestamp == that.uuidTimestamp && lsb == that.lsb;
-    }
-
-    public boolean equals(UUID that)
-    {
-        return that != null && uuidTimestamp == that.timestamp() && lsb == that.getLeastSignificantBits();
+        if (this == o) return true;
+        if (!(o instanceof TimeUUID)) return false;
+        TimeUUID timeUUID = (TimeUUID) o;
+        return uuidTimestamp == timeUUID.uuidTimestamp && lsb == timeUUID.lsb;
     }
 
     @Override
@@ -167,6 +127,11 @@ public class TimeUUID implements Comparable<TimeUUID>
         return this.uuidTimestamp != that.uuidTimestamp
                ? Long.compare(this.uuidTimestamp, that.uuidTimestamp)
                : Long.compare(this.lsb, that.lsb);
+    }
+
+    public long unixMillis()
+    {
+        return (uuidTimestamp / 10_000L) + UUID_EPOCH_UNIX_MILLIS;
     }
 
     public static class Generator
