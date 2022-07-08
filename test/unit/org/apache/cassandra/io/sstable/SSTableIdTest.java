@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CyclicBarrier;
@@ -37,11 +38,16 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.UnsignedBytes;
 import org.junit.Test;
 
+import de.huxhorn.sulky.ulid.ULID;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.TimeUUID;
 import org.awaitility.Awaitility;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.SourceDSL.longs;
 
@@ -57,6 +63,12 @@ public class SSTableIdTest
     public void testUUIDBasedIdProperties()
     {
         testSSTableIdProperties(UUIDBasedSSTableId.Builder.instance);
+    }
+
+    @Test
+    public void testULIDBasedIdProperties()
+    {
+        testSSTableIdProperties(ULIDBasedSSTableId.Builder.instance);
     }
 
     private void testSSTableIdProperties(SSTableId.Builder<?> builder)
@@ -98,14 +110,38 @@ public class SSTableIdTest
         });
     }
 
+    @Test
+    public void testULIDBytesSerDe()
+    {
+        qt().forAll(longs().all(), longs().all()).checkAssert((msb, lsb) -> {
+            ULID.Value ulid = new ULID.Value(msb, lsb);
+            ULIDBasedSSTableId id = new ULIDBasedSSTableId(ulid);
+
+            testBytesSerialization(id);
+            testStringSerialization(id);
+        });
+    }
+
     private void testBytesSerialization(UUIDBasedSSTableId id)
     {
         ByteBuffer buf = id.asBytes();
         assertThat(buf.remaining()).isEqualTo(UUIDBasedSSTableId.BYTES_LEN);
         assertThat(UUIDBasedSSTableId.Builder.instance.isUniqueIdentifier(buf)).isTrue();
+        assertThat(ULIDBasedSSTableId.Builder.instance.isUniqueIdentifier(buf)).isTrue();
         assertThat(SequenceBasedSSTableId.Builder.instance.isUniqueIdentifier(buf)).isFalse();
         SSTableId fromBytes = SSTableIdFactory.instance.fromBytes(buf);
         assertThat(fromBytes).isEqualTo(id);
+    }
+
+    private void testBytesSerialization(ULIDBasedSSTableId id)
+    {
+        ByteBuffer buf = id.asBytes();
+        assertThat(buf.remaining()).isEqualTo(ULIDBasedSSTableId.BYTES_LEN);
+        assertThat(UUIDBasedSSTableId.Builder.instance.isUniqueIdentifier(buf)).isTrue();
+        assertThat(ULIDBasedSSTableId.Builder.instance.isUniqueIdentifier(buf)).isTrue();
+        assertThat(SequenceBasedSSTableId.Builder.instance.isUniqueIdentifier(buf)).isFalse();
+        SSTableId fromBytes = SSTableIdFactory.instance.fromBytes(buf);
+        assertThat(fromBytes).isInstanceOf(UUIDBasedSSTableId.class); // UUID and ULID bytes representation are indistinguishable
     }
 
     private void testStringSerialization(UUIDBasedSSTableId id)
@@ -114,6 +150,19 @@ public class SSTableIdTest
         assertThat(s).hasSize(UUIDBasedSSTableId.STRING_LEN);
         assertThat(s).matches(Pattern.compile("[0-9a-z]{4}_[0-9a-z]{4}_[0-9a-z]{18}"));
         assertThat(UUIDBasedSSTableId.Builder.instance.isUniqueIdentifier(s)).isTrue();
+        assertThat(ULIDBasedSSTableId.Builder.instance.isUniqueIdentifier(s)).isFalse();
+        assertThat(SequenceBasedSSTableId.Builder.instance.isUniqueIdentifier(s)).isFalse();
+        SSTableId fromString = SSTableIdFactory.instance.fromString(s);
+        assertThat(fromString).isEqualTo(id);
+    }
+
+    private void testStringSerialization(ULIDBasedSSTableId id)
+    {
+        String s = id.toString();
+        assertThat(s).hasSize(ULIDBasedSSTableId.STRING_LEN);
+        assertThat(s).matches(Pattern.compile("[0-9a-zA-Z]{26}"));
+        assertThat(UUIDBasedSSTableId.Builder.instance.isUniqueIdentifier(s)).isFalse();
+        assertThat(ULIDBasedSSTableId.Builder.instance.isUniqueIdentifier(s)).isTrue();
         assertThat(SequenceBasedSSTableId.Builder.instance.isUniqueIdentifier(s)).isFalse();
         SSTableId fromString = SSTableIdFactory.instance.fromString(s);
         assertThat(fromString).isEqualTo(id);
@@ -122,11 +171,14 @@ public class SSTableIdTest
     @Test
     public void testComparator()
     {
-        List<SSTableId> ids = new ArrayList<>(Collections.nCopies(300, null));
+        ULID ulid = new ULID();
+        List<SSTableId> ids = new ArrayList<>(Collections.nCopies(400, null));
         for (int i = 0; i < 100; i++)
         {
-            ids.set(i + 100, new SequenceBasedSSTableId(ThreadLocalRandom.current().nextInt(1000000)));
-            ids.set(i, new UUIDBasedSSTableId(TimeUUID.Generator.atUnixMillis(ThreadLocalRandom.current().nextLong(10000))));
+            ids.set(i + 200, new SequenceBasedSSTableId(ThreadLocalRandom.current().nextInt(1000000)));
+            long ts = System.currentTimeMillis() + ThreadLocalRandom.current().nextLong(10000);
+            ids.set(i + 100, new UUIDBasedSSTableId(TimeUUID.Generator.atUnixMillis(ts)));
+            ids.set(i, new ULIDBasedSSTableId(ulid.nextValue(ts)));
         }
 
         List<SSTableId> shuffledIds = new ArrayList<>(ids);
@@ -140,10 +192,61 @@ public class SSTableIdTest
 
         assertThat(sortedIds.subList(0, 100)).containsOnlyNulls();
         assertThat(sortedIds.subList(100, 200)).allMatch(id -> id instanceof SequenceBasedSSTableId);
-        assertThat(sortedIds.subList(200, 300)).allMatch(id -> id instanceof UUIDBasedSSTableId);
+        assertThat(sortedIds.subList(200, 400)).allMatch(id -> id instanceof UUIDBasedSSTableId || id instanceof ULIDBasedSSTableId);
 
         assertThat(sortedIds.subList(100, 200)).isSortedAccordingTo(Comparator.comparing(o -> ((SequenceBasedSSTableId) o)));
-        assertThat(sortedIds.subList(200, 300)).isSortedAccordingTo(Comparator.comparing(o -> ((UUIDBasedSSTableId) o)));
+        assertThat(sortedIds.subList(200, 400)).isSortedAccordingTo(SSTableIdFactory.COMPARATOR);
+        assertThat(sortedIds.subList(200, 400).stream().map(id -> {
+            if (id instanceof ULIDBasedSSTableId)
+            {
+                return ((ULIDBasedSSTableId) id).ulid.timestamp();
+            }
+            else
+            {
+                return ((UUIDBasedSSTableId) id).uuid.unixMillis();
+            }
+        })).isSorted();
+    }
+
+    @Test
+    public void testDefaultFactorySelection()
+    {
+        try
+        {
+            byte[] bytes = new byte[16];
+            new Random().nextBytes(bytes);
+
+            DatabaseDescriptor.clientInitialization();
+            DatabaseDescriptor.getRawConfig().enable_uuid_sstable_identifiers = false;
+            CassandraRelevantProperties.SSTABLE_UUID_IMPL.setString("uuid");
+            assertThat(SSTableIdFactory.instance.defaultBuilder()).isInstanceOf(SequenceBasedSSTableId.Builder.class);
+            assertThat(SSTableIdFactory.instance.fromBytes(ByteBuffer.wrap(bytes))).isInstanceOf(UUIDBasedSSTableId.class);
+
+            DatabaseDescriptor.getRawConfig().enable_uuid_sstable_identifiers = true;
+            CassandraRelevantProperties.SSTABLE_UUID_IMPL.setString("uuid");
+            assertThat(SSTableIdFactory.instance.defaultBuilder()).isInstanceOf(UUIDBasedSSTableId.Builder.class);
+            assertThat(SSTableIdFactory.instance.fromBytes(ByteBuffer.wrap(bytes))).isInstanceOf(UUIDBasedSSTableId.class);
+
+            DatabaseDescriptor.getRawConfig().enable_uuid_sstable_identifiers = true;
+            CassandraRelevantProperties.SSTABLE_UUID_IMPL.setString("ulid");
+            assertThat(SSTableIdFactory.instance.defaultBuilder()).isInstanceOf(ULIDBasedSSTableId.Builder.class);
+            assertThat(SSTableIdFactory.instance.fromBytes(ByteBuffer.wrap(bytes))).isInstanceOf(ULIDBasedSSTableId.class);
+
+            DatabaseDescriptor.getRawConfig().enable_uuid_sstable_identifiers = true;
+            CassandraRelevantProperties.SSTABLE_UUID_IMPL.setString("something");
+            assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(SSTableIdFactory.instance::defaultBuilder);
+            assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> SSTableIdFactory.instance.fromBytes(ByteBuffer.wrap(bytes)));
+
+            DatabaseDescriptor.getRawConfig().enable_uuid_sstable_identifiers = true;
+            System.getProperties().remove(CassandraRelevantProperties.SSTABLE_UUID_IMPL.getKey());
+            assertThat(SSTableIdFactory.instance.defaultBuilder()).isInstanceOf(UUIDBasedSSTableId.Builder.class);
+            assertThat(SSTableIdFactory.instance.fromBytes(ByteBuffer.wrap(bytes))).isInstanceOf(UUIDBasedSSTableId.class);
+        }
+        finally
+        {
+            DatabaseDescriptor.getRawConfig().enable_uuid_sstable_identifiers = new Config().enable_uuid_sstable_identifiers;
+            System.getProperties().remove(CassandraRelevantProperties.SSTABLE_UUID_IMPL.getKey());
+        }
     }
 
     private static <T extends SSTableId> void generatorFuzzTest(SSTableId.Builder<T> builder)

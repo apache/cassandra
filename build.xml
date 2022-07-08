@@ -661,6 +661,7 @@
           <dependency groupId="de.jflex" artifactId="jflex" version="${jflex.version}">
             <exclusion groupId="org.apache.ant" artifactId="ant"/>
           </dependency>
+          <dependency groupId="de.huxhorn.sulky" artifactId="de.huxhorn.sulky.ulid" version="8.2.0"/>
           <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
           <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.5.6" />
           <dependency groupId="org.jctools" artifactId="jctools-core" version="3.1.0"/>
@@ -838,6 +839,7 @@
         <!-- don't need jamm unless running a server in which case it needs to be a -javagent to be used anyway -->
         <dependency groupId="com.github.jbellis" artifactId="jamm"/>
 
+        <dependency groupId="de.huxhorn.sulky" artifactId="de.huxhorn.sulky.ulid"/>
         <dependency groupId="io.netty" artifactId="netty-bom"  type="pom"  />
         <dependency groupId="io.netty" artifactId="netty-all"/>
         <dependency groupId="net.openhft" artifactId="chronicle-queue"/>

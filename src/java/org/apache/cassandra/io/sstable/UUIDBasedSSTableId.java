@@ -41,7 +41,7 @@ public final class UUIDBasedSSTableId implements SSTableId, Comparable<UUIDBased
     public final static int STRING_LEN = 28;
     public final static int BYTES_LEN = 16;
 
-    private final TimeUUID uuid;
+    final TimeUUID uuid;
     private final String repr;
 
     public UUIDBasedSSTableId(TimeUUID uuid)
