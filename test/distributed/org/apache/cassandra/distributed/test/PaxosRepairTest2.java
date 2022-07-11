@@ -97,7 +97,6 @@ import org.apache.cassandra.utils.Pair;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
-import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBallot;
 
 import org.apache.cassandra.utils.CloseableIterator;
@@ -565,7 +564,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
                 UpdateSupplier supplier = PaxosState.uncommittedTracker().unsafGetUpdateSupplier();
                 try
                 {
-                    PaxosState.uncommittedTracker().unsafSetUpdateSupplier(new SingleUpdateSupplier(table, dk, oldBallot));
+                    PaxosUncommittedTracker.unsafSetUpdateSupplier(new SingleUpdateSupplier(table, dk, oldBallot));
                     StorageService.instance.autoRepairPaxos(table.id).get();
                 }
                 catch (Exception e)
@@ -574,7 +573,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
                 }
                 finally
                 {
-                    PaxosState.uncommittedTracker().unsafSetUpdateSupplier(supplier);
+                    PaxosUncommittedTracker.unsafSetUpdateSupplier(supplier);
                 }
             });
 
