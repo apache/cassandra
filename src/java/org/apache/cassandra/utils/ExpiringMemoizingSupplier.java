@@ -71,8 +71,7 @@ public class ExpiringMemoizingSupplier<T> implements Supplier<T>
                     else
                         return t.value();
 
-                    nanos = now + this.durationNanos;
-                    this.expirationNanos = nanos == 0L ? 1L : nanos;
+                    this.expirationNanos = now + this.durationNanos;
                     return t.value();
                 }
             }
@@ -81,7 +80,7 @@ public class ExpiringMemoizingSupplier<T> implements Supplier<T>
     }
 
     @VisibleForTesting
-    public void expire()
+    public synchronized void expire()
     {
         this.expirationNanos = 0;
     }
