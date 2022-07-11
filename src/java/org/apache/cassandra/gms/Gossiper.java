@@ -2401,11 +2401,20 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public boolean isUpgradingFromVersionLowerThan(CassandraVersion referenceVersion)
     {
+        return isUpgradingFromVersionLowerThanC17653(referenceVersion).left;
+    }
+
+    /* TODO: Aux method for debug purposes on fixing C17653. To be removed*/
+    @VisibleForTesting
+    public Pair<Boolean, CassandraVersion> isUpgradingFromVersionLowerThanC17653(CassandraVersion referenceVersion)
+    {
         CassandraVersion v = upgradeFromVersionMemoized.get();
         if (CassandraVersion.NULL_VERSION.equals(v) && scheduledGossipTask == null)
-            return false;
+            return Pair.create(false, v);
 
-        return v != null && v.compareTo(referenceVersion) < 0;
+        boolean res = v != null && v.compareTo(referenceVersion) < 0;
+
+        return Pair.create(res, v);
     }
 
     private boolean nodesAgreeOnSchema(Collection<InetAddressAndPort> nodes)
