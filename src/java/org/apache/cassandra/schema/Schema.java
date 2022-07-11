@@ -228,8 +228,7 @@ public class Schema implements SchemaProvider
         return keyspaceInstances.blockingLoadIfAbsent(keyspaceName, loadFunction);
     }
 
-    @VisibleForTesting
-    public Keyspace maybeRemoveKeyspaceInstance(String keyspaceName, Consumer<Keyspace> unloadFunction)
+    private Keyspace maybeRemoveKeyspaceInstance(String keyspaceName, Consumer<Keyspace> unloadFunction)
     {
         try
         {
@@ -535,16 +534,6 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * Clear all KS/CF metadata and reset version. Not to be ever used in production code
-     */
-    @VisibleForTesting
-    public synchronized void clearUnsafe()
-    {
-        updateHandler.clear();
-        updateHandler.reset(true);
-    }
-
-    /**
      * When we receive {@link SchemaTransformationResult} in a callback invocation, the transformation result includes
      * pre-transformation and post-transformation schema metadata and versions, and a diff between them. Basically
      * we expect that the local image of the schema metadata ({@link #distributedKeyspaces}) and version ({@link #version})
@@ -619,10 +608,10 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * Clear all locally stored schema information and reset schema to initial state.
+     * Clear all locally stored schema information and fetch schema from another node.
      * Called by user (via JMX) who wants to get rid of schema disagreement.
      */
-    public void resetLocalSchema()
+    public synchronized void resetLocalSchema()
     {
         logger.debug("Clearing local schema...");
         updateHandler.clear();

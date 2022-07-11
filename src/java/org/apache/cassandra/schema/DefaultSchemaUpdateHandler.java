@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -47,7 +46,6 @@ import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResu
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static org.apache.cassandra.schema.MigrationCoordinator.MAX_OUTSTANDING_VERSION_REQUESTS;
 
@@ -257,12 +255,11 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
     @Override
     public SchemaTransformationResult reset(boolean local)
     {
-        return local
-               ? reload()
-               : migrationCoordinator.pullSchemaFromAnyNode()
-                                     .flatMap(mutations -> ImmediateFuture.success(applyMutations(mutations)))
-                                     .awaitThrowUncheckedOnInterrupt()
-                                     .getNow();
+        if (local)
+            return reload();
+
+        Collection<Mutation> mutations = migrationCoordinator.pullSchemaFromAnyNode().awaitThrowUncheckedOnInterrupt().getNow();
+        return applyMutations(mutations);
     }
 
     @Override
