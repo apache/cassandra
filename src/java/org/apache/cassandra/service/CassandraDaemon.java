@@ -260,7 +260,7 @@ public class CassandraDaemon
 
         try
         {
-            SystemKeyspace.snapshotOnVersionChange();
+            StorageService.snapshotOnVersionChange();
         }
         catch (IOException e)
         {
@@ -269,11 +269,9 @@ public class CassandraDaemon
 
         // We need to persist this as soon as possible after startup checks.
         // This should be the first write to SystemKeyspace (CASSANDRA-11742)
-        SystemKeyspace.persistLocalMetadata();
+        Nodes.Instance.persistLocalMetadata();
 
         Thread.setDefaultUncaughtExceptionHandler(CassandraDaemon::uncaughtException);
-
-        SystemKeyspaceMigrator40.migrate();
 
         // Populate token metadata before flushing, for token-aware sstable partitioning (#6696)
         StorageService.instance.populateTokenMetadata();
@@ -360,8 +358,6 @@ public class CassandraDaemon
         {
             throw new RuntimeException(e);
         }
-
-        Nodes.getInstance().reload();
 
         // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
         StorageService.instance.populateTokenMetadata();
@@ -718,6 +714,8 @@ public class CassandraDaemon
                 logger.error("Error shutting down local JMX server: ", e);
             }
         }
+
+        Nodes.nodes().shutdown();
     }
 
     @VisibleForTesting
@@ -827,7 +825,7 @@ public class CassandraDaemon
             }
             else
             {
-                if (!SystemKeyspace.bootstrapComplete())
+                if (!StorageService.bootstrapComplete())
                 {
                     throw new IllegalStateException("Node is not yet bootstrapped completely. Use nodetool to check bootstrap" +
                                                     " state and resume. For more, see `nodetool help bootstrap`");

@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -33,6 +34,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.SchemaConstants;
 
+@Ignore("We need to think about whether we need to handle migration or not")
 public class MigrateLegacySystemDataTest
 {
     @BeforeClass

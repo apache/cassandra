@@ -533,7 +533,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 // We need to persist this as soon as possible after startup checks.
                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)
-                SystemKeyspace.persistLocalMetadata();
+                Nodes.Instance.persistLocalMetadata();
                 SystemKeyspaceMigrator40.migrate();
 
                 // Same order to populate tokenMetadata for the first time,
@@ -564,8 +564,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     throw new RuntimeException(e);
                 }
-
-                Nodes.getInstance().reload();
 
                 // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
                 StorageService.instance.populateTokenMetadata();

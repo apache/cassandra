@@ -142,7 +142,7 @@ public class StorageServiceTest
         DatabaseDescriptor.setEndpointSnitch(snitch);
 
         CommitLog.instance.start();
-        Nodes.peers().get().forEach(p -> Nodes.peers().remove(p.getPeerAddressAndPort(), false, true));
+        Nodes.peers().stream().forEach(p -> Nodes.peers().remove(p.getPeer()));
     }
 
     private AbstractReplicationStrategy simpleStrategy(TokenMetadata tmd)
@@ -282,7 +282,7 @@ public class StorageServiceTest
         // Update system.peers with a new token and check that the changes isn't visible until we call
         // populateTokenMetadata().
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        SystemKeyspace.updateTokens(cAddress, Collections.singleton(newToken));
+        StorageService.instance.updateTokens(cAddress, Collections.singleton(newToken));
         assertTrue("Original token is missing but should be present", tmd.getTokens(cAddress).contains(origToken));
         assertFalse("New token is present but should be missing", tmd.getTokens(cAddress).contains(newToken));
 
@@ -408,7 +408,7 @@ public class StorageServiceTest
         // Start new node with same hostId as us, we should win (retain the hostId).
         InetAddressAndPort newNode = InetAddressAndPort.getByName("127.0.0.100");
         InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
-        UUID localHostId = Nodes.localOrPeerInfo(localAddress).getHostId();
+        UUID localHostId = Nodes.local().get().getHostId();
         Util.joinNodeToRing(newNode, token, partitioner, localHostId, 1);
         assertEquals("Host ID not registered to local address", localAddress, tmd.getEndpointForHostId(localHostId));
         ss.onChange(newNode, ApplicationState.STATUS_WITH_PORT, valueFactory.normal(Collections.singleton(token)));

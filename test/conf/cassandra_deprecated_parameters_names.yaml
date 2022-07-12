@@ -25,6 +25,7 @@ saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data
 disk_access_mode: mmap
+metadata_directory: build/test/cassandra/metadata
 seed_provider:
     - class_name: org.apache.cassandra.locator.SimpleSeedProvider
       parameters:

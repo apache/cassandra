@@ -19,6 +19,7 @@ package org.apache.cassandra.transport;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -384,7 +385,17 @@ public class Server implements CassandraDaemon.Server
 
         private InetAddressAndPort getNativeAddress(InetAddressAndPort endpoint)
         {
-            return StorageService.instance.getNativeAddressAndPort(endpoint);
+            try
+            {
+                return InetAddressAndPort.getByName(StorageService.instance.getNativeAddress(endpoint, true));
+            }
+            catch (UnknownHostException e)
+            {
+                // That should not happen, so log an error, but return the
+                // endpoint address since there's a good change this is right
+                logger.error("Problem retrieving RPC address for {}", endpoint, e);
+                return InetAddressAndPort.getByAddressOverrideDefaults(endpoint.address, DatabaseDescriptor.getNativeTransportPort());
+            }
         }
 
         private void send(InetAddressAndPort endpoint, Event.NodeEvent event)

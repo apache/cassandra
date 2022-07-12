@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
@@ -94,7 +95,7 @@ public class RingTest extends CQLTester
         assertThat(hostRing, containsString(SimpleSnitch.RACK_NAME));
         assertThat(hostRing, containsString("Up"));
         assertThat(hostRing, containsString("Normal"));
-        assertThat(hostRing, matchesPattern(".*\\d+\\.\\d+ KiB.*"));
+        assertThat(hostRing, matchesPattern(".*0 bytes.*"));
         assertThat(hostRing, matchesPattern(".*\\d+\\.\\d+%.*"));
         assertThat(hostRing, endsWith(token));
         assertThat(hostRing, not(containsString("?")));

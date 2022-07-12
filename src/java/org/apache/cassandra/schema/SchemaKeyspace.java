@@ -346,7 +346,8 @@ public final class SchemaKeyspace
     /**
      * Add entries to system_schema.* for the hardcoded system keyspaces
      */
-    static void saveSystemKeyspacesSchema()
+    @VisibleForTesting
+    public static void saveSystemKeyspacesSchema()
     {
         KeyspaceMetadata system = Schema.instance.getKeyspaceMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         KeyspaceMetadata schema = Schema.instance.getKeyspaceMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME);

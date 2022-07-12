@@ -70,6 +70,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
@@ -135,6 +136,7 @@ public class DatabaseDescriptor
     private static File hintsDirectory;
     private static File savedCachesDirectory;
     private static File cdcRawDirectory;
+    private static File metadataDirectory;
 
     private static long preparedStatementsCacheSizeInMB;
 
@@ -613,6 +615,11 @@ public class DatabaseDescriptor
             conf.hints_directory = storagedirFor("hints");
         }
 
+        if (conf.metadata_directory == null)
+        {
+            conf.metadata_directory = storagedirFor("metadata");
+        }
+
         if (conf.native_transport_max_concurrent_requests_in_bytes <= 0)
         {
             conf.native_transport_max_concurrent_requests_in_bytes = Runtime.getRuntime().maxMemory() / 10;
@@ -689,6 +696,8 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("hints_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.saved_caches_directory))
                 throw new ConfigurationException("saved_caches_directory must not be the same as any data_file_directories", false);
+            if (datadir.equals(conf.metadata_directory))
+                throw new ConfigurationException("metadata_directory must not be the same as any data_file_directories", false);
 
             dataFreeBytes = saturatedSum(dataFreeBytes, tryGetSpace(datadir, FileStore::getUnallocatedSpace));
         }
@@ -1500,6 +1509,10 @@ public class DatabaseDescriptor
             if (conf.saved_caches_directory == null)
                 throw new ConfigurationException("saved_caches_directory must be specified", false);
             savedCachesDirectory = StorageProvider.instance.createDirectory(conf.saved_caches_directory, StorageProvider.DirectoryType.SAVED_CACHES);
+
+            if (conf.metadata_directory == null)
+                throw new ConfigurationException("metadata_directory must be specified", false);
+            metadataDirectory = StorageProvider.instance.createDirectory(conf.metadata_directory, StorageProvider.DirectoryType.METADATA);
 
             if (conf.cdc_enabled)
             {
@@ -2602,6 +2615,11 @@ public class DatabaseDescriptor
     public static File getHintsDirectory()
     {
         return hintsDirectory;
+    }
+
+    public static File getMetadataDirectory()
+    {
+        return metadataDirectory;
     }
 
     public static File getSerializedCachePath(CacheType cacheType, String version, String extension)

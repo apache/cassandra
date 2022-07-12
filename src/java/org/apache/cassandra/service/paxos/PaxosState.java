@@ -30,6 +30,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteOptions;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.UUIDGen;
@@ -144,7 +145,7 @@ public class PaxosState
             // erase the in-progress update.
             // The table may have been truncated since the proposal was initiated. In that case, we
             // don't want to perform the mutation and potentially resurrect truncated data
-            if (UUIDGen.unixTimestamp(proposal.ballot) >= SystemKeyspace.getTruncatedAt(proposal.update.metadata().id))
+            if (UUIDGen.unixTimestamp(proposal.ballot) >= Nodes.local().getTruncatedAt(proposal.update.metadata().id))
             {
                 Tracing.trace("Committing proposal {}", proposal);
                 Mutation mutation = proposal.makeMutation();

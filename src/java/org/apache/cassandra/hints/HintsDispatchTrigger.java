@@ -19,6 +19,7 @@ package org.apache.cassandra.hints;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.Schema;
 
@@ -64,7 +65,7 @@ final class HintsDispatchTrigger implements Runnable
                .filter(store -> !isScheduled(store))
                .filter(HintsStore::isLive)
                .filter(store -> store.isWriting() || store.hasFiles())
-               .filter(store -> Schema.instance.isSameVersion(Nodes.getSchemaVersion(store.address(), null)))
+               .filter(store -> Schema.instance.isSameVersion(Gossiper.instance.getSchemaVersion(store.address())))
                .forEach(this::schedule);
     }
 

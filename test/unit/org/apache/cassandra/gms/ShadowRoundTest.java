@@ -46,6 +46,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MockMessagingService;
 import org.apache.cassandra.net.MockMessagingSpy;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -174,7 +175,7 @@ public class ShadowRoundTest
         System.setProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", "false");
         try
         {
-            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+            StorageService.instance.checkForEndpointCollision(Nodes.local().get().getHostId(), Nodes.peers().getHostIds().keySet());
         }
         catch (Exception e)
         {
@@ -210,7 +211,7 @@ public class ShadowRoundTest
 
 
         System.setProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", "false");
-        StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+        StorageService.instance.checkForEndpointCollision(StorageService.instance.getLocalHostUUID(), Nodes.peers().getHostIds().keySet());
         System.clearProperty(Config.PROPERTY_PREFIX + "auto_bootstrap");
     }
 

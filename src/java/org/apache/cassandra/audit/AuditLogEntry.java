@@ -28,6 +28,8 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.nodes.virtual.NodeConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
@@ -313,7 +315,19 @@ public class AuditLogEntry
         public AuditLogEntry build()
         {
             timestamp = timestamp > 0 ? timestamp : System.currentTimeMillis();
+            filterSystemViews();
             return new AuditLogEntry(type, source, user, timestamp, batch, keyspace, scope, operation, options, state);
+        }
+
+        // We need to filter out the system_views.local_node and system_views.peer_nodes tables
+        // so that queries to system.local, system.peers_v2 and system.peers are logged correctly
+        private void filterSystemViews()
+        {
+            if (type == AuditLogEntryType.SELECT && NodeConstants.canBeMapped(keyspace, scope))
+            {
+                keyspace = SchemaConstants.SYSTEM_KEYSPACE_NAME;
+                scope = NodeConstants.mapViewToTable(scope);
+            }
         }
     }
 }

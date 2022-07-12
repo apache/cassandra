@@ -56,6 +56,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.nodes.LocalInfo;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -117,21 +119,25 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     public static CommitLogReplayer construct(CommitLog commitLog, UUID localHostId)
     {
+        // make sure the truncation records are available, even though the CL has not been replayed
+        Map<UUID, LocalInfo.TruncationRecord> truncationRecords = Nodes.local().get().getTruncationRecords();
+
         // compute per-CF and global replay intervals
         Map<TableId, IntervalSet<CommitLogPosition>> cfPersisted = new HashMap<>();
         ReplayFilter replayFilter = ReplayFilter.create();
 
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
+            LocalInfo.TruncationRecord truncationRecord = truncationRecords.get(cfs.metadata.id.asUUID());
             // but, if we've truncated the cf in question, then we need to need to start replay after the truncation
-            CommitLogPosition truncatedAt = SystemKeyspace.getTruncatedPosition(cfs.metadata.id);
+            CommitLogPosition truncatedAt = truncationRecord == null ? null : truncationRecord.position;
             if (truncatedAt != null)
             {
                 // Point in time restore is taken to mean that the tables need to be replayed even if they were
                 // deleted at a later point in time. Any truncation record after that point must thus be cleared prior
                 // to replay (CASSANDRA-9195).
                 long restoreTime = commitLog.archiver.restorePointInTime;
-                long truncatedTime = SystemKeyspace.getTruncatedAt(cfs.metadata.id);
+                long truncatedTime = truncationRecord.truncatedAt;
                 if (truncatedTime > restoreTime)
                 {
                     if (replayFilter.includes(cfs.metadata))
@@ -139,7 +145,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                         logger.info("Restore point in time is before latest truncation of table {}.{}. Clearing truncation record.",
                                     cfs.metadata.keyspace,
                                     cfs.metadata.name);
-                        SystemKeyspace.removeTruncationRecord(cfs.metadata.id);
+                        Nodes.local().removeTruncationRecord(cfs.metadata.id);
                         truncatedAt = null;
                     }
                 }

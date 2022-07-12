@@ -18,443 +18,903 @@
 
 package org.apache.cassandra.nodes;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.UnaryOperator;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.SetMultimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.LoadingMap;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.SyncUtil;
+import org.apache.cassandra.utils.Throwables;
+import org.msgpack.jackson.dataformat.MessagePackFactory;
 
 /**
- * Provides access and updates the locally stored information about this and other nodes. The information is cached in
- * memory in a thread-safe way and additionally stored using the provided implementation of {@link INodesPersistence},
- * which is {@link NodesPersistence} by default and stores everything in system keyspace.
+ * Manages information about the local node and peers.
+ *
+ * Information in memory is always consistent - i.e. an update is immediately visible.
+ *
+ * Updates for the local node can be either persisted immediately, which adds the penalty
+ * of serializing the information to disk, or asynchronously, which is pretty quick.
+ * Only a handful of changes need to be persisted synchronously. Most changes are safe to
+ * be performed asynchronously, because those can be reconstructed during a restart.
+ *
+ * Updates for peers are always persisted asynchronously. Information about peers always
+ * originates from Gossip, which does represent a "best effort" and represents potentially
+ * outdated information. Even if information about a peer is lost, it will eventually
+ * become updated via Gossip.
+ *
+ * Data is persisted using jackson using the message-pack serialization format in two
+ * files beneath the directory specified via the constructor: {@code local} + {@code peers},
+ * which holds the information in {@link LocalInfo} and {@link PeerInfo} respectively.
+ *
+ * Some performance numbers from a local test:
+ * <ul>
+ * <li>time to serialize {@link LocalInfo}: ~30µs</li>
+ * <li>time to serialize 3 {@link PeerInfo}: ~150µs</li>
+ * <li>time to serialize 100 {@link PeerInfo}: ~2.5ms</li>
+ * <li>time to serialize 1000 {@link PeerInfo}: ~25ms</li>
+ * <li>time to update {@link LocalInfo} in a blocking fashion w/ synchronous persistence: ~90µs</li>
+ * <li>time to update {@link LocalInfo}, mark as dirty and trigger async persistence: ~400ns</li>
+ * <li>time to update one {@link PeerInfo}, mark as dirty and trigger async persistence: ~400ns</li>
+ * </ul>
  */
 public class Nodes
 {
     private static final Logger logger = LoggerFactory.getLogger(Nodes.class);
 
-    @VisibleForTesting
     private final ExecutorService updateExecutor;
 
-    private final INodesPersistence nodesPersistence;
+    private final Path baseDirectory;
+    private final Path snapshotsDirectory;
 
     private final Peers peers;
     private final Local local;
 
-    private static class InstanceHolder
-    {
-        // put into subclass for lazy initialization
-        private static final Nodes instance = new Nodes();
-    }
-
     /**
-     * Returns the singleton instance
+     * Convenience method to retrieve the production code singleton.
      */
-    public static Nodes getInstance()
+    public static Nodes nodes()
     {
-        return InstanceHolder.instance;
+        return Instance.nodes();
     }
 
     /**
-     * Returns the singleton instance of {@link Peers}
-     */
-    public static Peers peers()
-    {
-        return getInstance().getPeers();
-    }
-
-    /**
-     * Returns the singleton instance of {@link Local}
+     * Convenience method to retrieve the production code singleton.
      */
     public static Local local()
     {
-        return getInstance().getLocal();
+        return nodes().local;
     }
 
     /**
-     * Returns information about the node with the given address - if the node address matches the local (broadcast)
-     * address, the returned object is a {@link LocalInfo}. Otherwise, it is {@link PeerInfo} (or {@code null} if no
-     * informatino is available).
+     * Convenience method to retrieve the production code singleton.
      */
-    @Nullable
-    public static INodeInfo<?> localOrPeerInfo(InetAddressAndPort endpoint)
+    public static Peers peers()
     {
-        return Objects.equals(endpoint, FBUtilities.getBroadcastAddressAndPort()) ? local().get() : peers().get(endpoint);
+        return nodes().peers;
     }
 
-    public static Optional<INodeInfo<?>> localOrPeerInfoOpt(InetAddressAndPort endpoint)
+    public void shutdown()
     {
-        return Optional.ofNullable(localOrPeerInfo(endpoint));
+        local.close();
+        peers.close();
+    }
+
+    public void syncToDisk()
+    {
+        local.syncToDisk();
+        peers.syncToDisk();
+    }
+
+    public void snapshot(String snapshotName) throws IOException
+    {
+        syncToDisk();
+
+        Path snapshotPath = snapshotsDirectory.resolve(snapshotName);
+        File snapshotFile = new File(snapshotPath);
+        try
+        {
+            Files.createDirectories(snapshotPath);
+            local.snapshot(snapshotPath);
+            peers.snapshot(snapshotPath);
+
+            SyncUtil.trySyncDir(snapshotFile);
+
+            logger.info("Created snapshot for local+peers in {}", snapshotPath);
+        }
+        catch (IOException e)
+        {
+            FileUtils.deleteRecursive(snapshotFile);
+            throw e;
+        }
+    }
+
+    public void clearSnapshot(String snapshotName)
+    {
+        Path snapshotPath = baseDirectory.resolve("snapshots");
+        if (snapshotName != null && !snapshotName.isEmpty())
+            snapshotPath = snapshotPath.resolve(snapshotName);
+        if (Files.isDirectory(snapshotPath))
+            FileUtils.deleteRecursive(new File(snapshotPath));
     }
 
     /**
-     * @see #updateLocalOrPeer(InetAddressAndPort, UnaryOperator, boolean, boolean)
-     */
-    public static INodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update)
-    {
-        return updateLocalOrPeer(endpoint, update, false);
-    }
-
-    /**
-     * @see #updateLocalOrPeer(InetAddressAndPort, UnaryOperator, boolean, boolean)
-     */
-    public static INodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update, boolean blocking)
-    {
-        return updateLocalOrPeer(endpoint, update, blocking, false);
-    }
-
-    /**
-     * Updates either local or peer information in a thread-safe way, depeending on whether the provided address matches
-     * the local (broadcast) address.
+     * Update information about either the local node or a peer.
      *
-     * @see Local#updateLocalOrPeer(InetAddressAndPort, UnaryOperator, boolean, boolean)
-     * @see Peers#updateLocalOrPeer(InetAddressAndPort, UnaryOperator, boolean, boolean)
+     * @param peer the peer to update. Routes to {@link Local#update(Consumer, boolean)}, if this is equal
+     * to {@link FBUtilities#getBroadcastAddressAndPort()} and to {@link Peers#update(InetAddressAndPort, Consumer)} otherwise.
+     * @param updater the update function that takes the base class {@link NodeInfo}
      */
-    public static INodeInfo<?> updateLocalOrPeer(InetAddressAndPort endpoint, UnaryOperator<NodeInfo<?>> update, boolean blocking, boolean force)
+    public void update(InetAddressAndPort peer, Consumer<NodeInfo> updater)
     {
-        if (Objects.equals(endpoint, FBUtilities.getBroadcastAddressAndPort()))
-            return local().update(info -> (LocalInfo) update.apply(info), blocking, force);
+        if (FBUtilities.getBroadcastAddressAndPort().equals(peer))
+            local.update(updater::accept, false);
         else
-            return peers().update(endpoint, info -> (PeerInfo) update.apply(info), blocking, force);
+            peers.update(peer, updater::accept);
     }
 
     /**
-     * Checks whether the provided address is local or known peer address.
+     * More convenient variant than {@link #update(InetAddressAndPort, Consumer)} when only a single attribute
+     * needs to be updated.
+     *
+     * @param peer peer addres
+     * @param value value to set
+     * @param updater setter method
+     * @param <V> value type
      */
-    public static boolean isKnownEndpoint(InetAddressAndPort endpoint)
+    public <V> void update(InetAddressAndPort peer, V value, BiConsumer<NodeInfo, V> updater)
     {
-        return localOrPeerInfo(endpoint) != null;
-    }
-
-
-    public static UUID getHostId(InetAddressAndPort endpoint, UUID defaultValue)
-    {
-        INodeInfo<?> info = localOrPeerInfo(endpoint);
-        return info != null ? info.getHostId() : defaultValue;
-    }
-
-    public static String getDataCenter(InetAddressAndPort endpoint, String defaultValue)
-    {
-        INodeInfo<?> info = localOrPeerInfo(endpoint);
-        return info != null ? info.getDataCenter() : defaultValue;
-    }
-
-    public static String getRack(InetAddressAndPort endpoint, String defaultValue)
-    {
-        INodeInfo<?> info = localOrPeerInfo(endpoint);
-        return info != null ? info.getRack() : defaultValue;
-    }
-
-    public static CassandraVersion getReleaseVersion(InetAddressAndPort endpoint, CassandraVersion defaultValue)
-    {
-        INodeInfo<?> info = localOrPeerInfo(endpoint);
-        return info != null ? info.getReleaseVersion() : defaultValue;
-    }
-
-    public static UUID getSchemaVersion(InetAddressAndPort endpoint, UUID defaultValue)
-    {
-        INodeInfo<?> info = localOrPeerInfo(endpoint);
-        return info != null ? info.getSchemaVersion() : defaultValue;
-    }
-
-    public static Collection<Token> getTokens(InetAddressAndPort endpoint, Collection<Token> defaultValue)
-    {
-        INodeInfo<?> info = localOrPeerInfo(endpoint);
-        return info != null ? info.getTokens() : defaultValue;
-    }
-
-    public static InetAddressAndPort getNativeTransportAddressAndPort(InetAddressAndPort endpoint, InetAddressAndPort defaultValue)
-    {
-        INodeInfo<?> info = localOrPeerInfo(endpoint);
-        return info != null ? info.getNativeTransportAddressAndPort() : defaultValue;
-    }
-
-    /**
-     * Initializes singleton instance of {@link Nodes}. If it is not a Cassandra server process or
-     * {@code cassandra.nodes.disablePersitingToSystemKeyspace} is set to {@code true}, the instance does not persist
-     * stored information anywhere.
-     */
-    private Nodes()
-    {
-        this(!DatabaseDescriptor.isDaemonInitialized() || Boolean.getBoolean("cassandra.nodes.disablePersitingToSystemKeyspace")
-             ? INodesPersistence.NO_NODES_PERSISTENCE
-             : new NodesPersistence(),
-             Executors.newSingleThreadExecutor(new NamedThreadFactory("nodes-info-persistence")));
+        if (FBUtilities.getBroadcastAddressAndPort().equals(peer))
+            local.update(value, updater::accept, false);
+        else
+            peers.update(peer, value, updater::accept);
     }
 
     @VisibleForTesting
-    public Nodes(INodesPersistence nodesPersistence, ExecutorService updateExecutor)
+    public void resetUnsafe()
     {
-        this.updateExecutor = updateExecutor;
-        this.nodesPersistence = nodesPersistence;
-        this.local = new Local().load();
-        this.peers = new Peers().load();
+        local.resetUnsafe();
+        peers.resetUnsafe();
+        listSnapshots().forEach(p -> FileUtils.deleteRecursive(new File(p)));
     }
 
-    public void reload()
+    /**
+     * Returns either the {@link LocalInfo} or a {@link PeerInfo}, if such a peer is known, otherwise {@code null}.
+     */
+    public NodeInfo get(InetAddressAndPort peer)
     {
-        this.local.load();
-        this.peers.load();
+        if (FBUtilities.getBroadcastAddressAndPort().equals(peer))
+            return local.get();
+        return peers.get(peer);
     }
 
-    public Peers getPeers()
+    /**
+     * Convenience function to extract some information for either the local node or a peer.
+     *
+     * @param peer the endpoint to get and map the information for
+     * @param mapper function that takes a {@link NodeInfo} and returns the mapped information
+     * @param ifNotExists value to return if the peer does not exist or the {@code mapper} function returned {@code
+     * null}
+     * @param <R> return type
+     *
+     * @return mapped value for the peer or the result of {@code ifNotExists}
+     */
+    protected <R> R map(InetAddressAndPort peer, Function<NodeInfo, R> mapper, Supplier<R> ifNotExists)
     {
-        return peers;
+        NodeInfo nodeInfo = FBUtilities.getBroadcastAddressAndPort().equals(peer) ? local.get() : peers.get(peer);
+        R r = null;
+        if (nodeInfo != null)
+            r = mapper.apply(nodeInfo);
+        if (r == null)
+            r = ifNotExists.get();
+        return r;
     }
 
-    public Local getLocal()
+    protected <R> R map(InetAddressAndPort peer, Function<NodeInfo, R> mapper)
     {
-        return local;
+        return map(peer, mapper, () -> null);
     }
 
-    private Runnable wrapPersistenceTask(String name, Runnable task)
+    private Nodes(Path storageDirectory)
     {
-        return () -> {
+        this.updateExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("nodes-info-persistence"));
+        this.baseDirectory = storageDirectory;
+        this.snapshotsDirectory = this.baseDirectory.resolve("snapshots");
+        maybeInitializeDirectories();
+
+        // setup msgpack serialization
+        MessagePackFactory messagePackFactory = new MessagePackFactory();
+        messagePackFactory.disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET);
+        ObjectMapper objectMapper = new ObjectMapper(messagePackFactory);
+        objectMapper.registerModule(SerHelper.createMsgpackModule());
+
+        this.local = new Local(objectMapper, storageDirectory);
+        this.peers = new Peers(objectMapper, storageDirectory);
+    }
+
+    private void maybeInitializeDirectories()
+    {
+        if (!Files.exists(baseDirectory))
+            initializeDirectory(baseDirectory);
+        if (!Files.exists(snapshotsDirectory))
+            initializeDirectory(snapshotsDirectory);
+    }
+
+    private void initializeDirectory(Path dir)
+    {
+        try
+        {
+            Files.createDirectories(dir);
+        }
+        catch (IOException e)
+        {
+            throw Throwables.unchecked(e);
+        }
+    }
+
+    private synchronized <T> T transactionalRead(Path originalPath, Path backupPath, Path tempPath,
+                                                 TxReader<T> reader, Supplier<T> onEmpty)
+    {
+        maybeCleanupPendingTransaction(originalPath, backupPath, tempPath);
+
+        if (!Files.exists(originalPath))
+        {
+            logger.debug("{} not found, continuing", originalPath);
+            return onEmpty.get();
+        }
+
+        logger.debug("Reading {}", originalPath);
+        try (BufferedInputStream input = new BufferedInputStream(Files.newInputStream(originalPath, StandardOpenOption.READ)))
+        {
+            return reader.read(input);
+        }
+        catch (Exception e)
+        {
+            throw new FSReadError(e, originalPath);
+        }
+    }
+
+    private synchronized void transactionalWrite(Path originalPath, Path backupPath, Path tempPath,
+                                                 TxWriter writer, Path syncDir)
+    {
+        logger.trace("Writing {}", originalPath);
+
+        // 0. cleanup aborted transaction
+        // 1. hard link current file as *.old
+        // 2. write data to temp file as *.txn
+        // 3. delete current file
+        // 4. move *.txn to current file
+        // 5. delete *.old file
+
+        try
+        {
+            maybeCleanupPendingTransaction(originalPath, backupPath, tempPath);
+            maybeInitializeDirectories();
+
+            boolean originalExists = Files.exists(originalPath);
+            if (originalExists)
+                Files.createLink(backupPath, originalPath);
+
+            try (FileChannel fc = FileChannel.open(tempPath, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                 OutputStream output = new BufferedOutputStream(Channels.newOutputStream(fc)))
+            {
+                writer.write(output);
+                output.flush();
+                SyncUtil.force(fc, true);
+            }
+            catch (IOException e)
+            {
+                throw new FSWriteError(e, tempPath.toString());
+            }
+
+            if (originalExists)
+                Files.delete(originalPath);
+            Files.move(tempPath, originalPath, StandardCopyOption.ATOMIC_MOVE);
+            if (originalExists)
+                Files.delete(backupPath);
+
+            SyncUtil.trySyncDir(new File(syncDir));
+        }
+        catch (Throwable e)
+        {
+            logger.error("Failed to perform transactional write of {}", originalPath, e);
+            // try to cleanup the probably pending transaction, but don't let that one throw an exception
+            maybeCleanupPendingTransactionNoFail(originalPath, backupPath, tempPath);
+            if (e instanceof IOException)
+                throw new FSWriteError(e, originalPath);
+            throw Throwables.cleaned(e);
+        }
+    }
+
+    private void maybeCleanupPendingTransactionNoFail(Path originalPath, Path backupPath, Path tempPath)
+    {
+        try
+        {
+            maybeCleanupPendingTransaction(originalPath, backupPath, tempPath);
+        }
+        catch (Exception e)
+        {
+            logger.error("Failed to cleanup a pending transaction after an error condition (see above)", e);
+            JVMStabilityInspector.inspectThrowable(e);
+        }
+    }
+
+    private void maybeCleanupPendingTransaction(Path originalPath, Path backupPath, Path tempPath)
+    {
+        if (Files.exists(backupPath))
+        {
+            logger.warn("{} exists - using {} for {}", backupPath, tempPath, originalPath);
             try
             {
-                task.run();
+                // aborted transaction!
+                Files.deleteIfExists(originalPath);
+                Files.move(backupPath, originalPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.deleteIfExists(tempPath);
             }
-            catch (RuntimeException ex)
+            catch (Exception e)
             {
-                logger.error("Unexpected exception - " + name, ex);
-                throw ex;
+                throw Throwables.cleaned(e);
             }
-        };
-    }
-
-    public class Peers
-    {
-        private final LoadingMap<InetAddressAndPort, PeerInfo> internalMap = new LoadingMap<>();
-
-        public IPeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update)
-        {
-            return update(peer, update, false);
-        }
-
-        public IPeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update, boolean blocking)
-        {
-            return update(peer, update, blocking, false);
-        }
-
-        /**
-         * Updates peer information in a thread-safe way.
-         *
-         * @param peer     address of a peer to be updated
-         * @param update   update function, which receives a copy of the current {@link PeerInfo} and is expected to
-         *                 return the updated {@link PeerInfo}; the function may apply updates directly on the received
-         *                 copy and return it
-         * @param blocking if set, the method will block until the changes are persisted
-         * @param force    the update will be persisted even if no changes are made
-         * @return the updated object
-         */
-        public IPeerInfo update(InetAddressAndPort peer, UnaryOperator<PeerInfo> update, boolean blocking, boolean force)
-        {
-            return internalMap.compute(peer, (key, existingPeerInfo) -> {
-                PeerInfo updated = existingPeerInfo == null
-                                   ? update.apply(new PeerInfo().setPeerAddressAndPort(peer))
-                                   : update.apply(existingPeerInfo.duplicate()); // since we operate on mutable objects, we don't want to let the update function to operate on the live object
-
-                if (updated.getPeerAddressAndPort() == null)
-                    updated.setPeerAddressAndPort(peer);
-                else
-                    Preconditions.checkArgument(Objects.equals(updated.getPeerAddressAndPort(), peer));
-
-                updated.setRemoved(false);
-                save(existingPeerInfo, updated, blocking, force);
-                return updated;
-            });
-        }
-
-        /**
-         * @param peer peer to remove
-         * @param blocking block until the removal is persisted and synced
-         * @param hard remove also the transient state instead of just setting {@link PeerInfo#isRemoved()} state
-         * @return the remove
-         */
-        public IPeerInfo remove(InetAddressAndPort peer, boolean blocking, boolean hard)
-        {
-            AtomicReference<PeerInfo> removed = new AtomicReference<>();
-            internalMap.computeIfPresent(peer, (key, existingPeerInfo) -> {
-                delete(peer, blocking);
-                existingPeerInfo.setRemoved(true);
-                removed.set(existingPeerInfo);
-                return hard ? null : existingPeerInfo;
-            });
-            return removed.get();
-        }
-
-        /**
-         * Returns a peer information for a given address if the peer is known. Otherwise, returns {@code null}.
-         * Note that you should never try to manually cast the returned object to a mutable instnace and modify it.
-         */
-        @Nullable
-        public IPeerInfo get(InetAddressAndPort peer)
-        {
-            return internalMap.get(peer);
-        }
-
-        /**
-         * Returns optional of a peer information for a given address.
-         * Note that you should never try to manually cast the returned object to a mutable instnace and modify it.
-         */
-        public Optional<IPeerInfo> getOpt(InetAddressAndPort peer)
-        {
-            return Optional.ofNullable(get(peer));
-        }
-
-        /**
-         * Returns a stream of all known peers.
-         * Note that you should never try to manually cast the returned objects to a mutable instnaces and modify it.
-         */
-        public Stream<IPeerInfo> get()
-        {
-            return internalMap.valuesStream().map(IPeerInfo.class::cast);
-        }
-
-        private void save(PeerInfo previousInfo, PeerInfo newInfo, boolean blocking, boolean force)
-        {
-            if (!force && Objects.equals(previousInfo, newInfo))
-            {
-                logger.trace("Saving peer skipped: {}", previousInfo);
-                return;
-            }
-
-            logger.trace("Saving peer: {}, blocking = {}, force = {}", newInfo, blocking, force);
-            Future<?> f = updateExecutor.submit(wrapPersistenceTask("saving peer information: " + newInfo, () -> {
-                nodesPersistence.savePeer(newInfo);
-                logger.trace("Saved peer: {}", newInfo);
-                if (blocking)
-                    nodesPersistence.syncPeers();
-            }));
-            if (blocking)
-                FBUtilities.waitOnFuture(f);
-        }
-
-        private Peers load()
-        {
-            logger.trace("Loading peers...");
-            nodesPersistence.loadPeers().forEach(info -> internalMap.compute(info.getPeerAddressAndPort(), (key, existingPeerInfo) -> info));
-            if (logger.isTraceEnabled())
-                logger.trace("Loaded peers: {}", internalMap.valuesStream().collect(Collectors.toList()));
-            return this;
-        }
-
-        private void delete(InetAddressAndPort peer, boolean blocking)
-        {
-            if (logger.isTraceEnabled())
-                logger.trace("Deleting peer " + peer + ", blocking = " + blocking, new Throwable());
-            Future<?> f = updateExecutor.submit(wrapPersistenceTask("deleting peer information: " + peer, () -> {
-                nodesPersistence.deletePeer(peer);
-                logger.trace("Deleted peer {}", peer);
-                if (blocking)
-                    nodesPersistence.syncPeers();
-            }));
-
-            if (blocking)
-                FBUtilities.waitOnFuture(f);
         }
     }
 
-    public class Local
+    private List<Path> listSnapshots()
     {
-        private final LoadingMap<InetAddressAndPort, LocalInfo> internalMap = new LoadingMap<>(1);
-        private final InetAddressAndPort localInfoKey = InetAddressAndPort.getLoopbackAddress();
+        if (!Files.isDirectory(snapshotsDirectory))
+            return Collections.emptyList();
 
-        /**
-         * @see #update(UnaryOperator, boolean, boolean)
-         */
-        public ILocalInfo update(UnaryOperator<LocalInfo> update)
+        try (Stream<Path> snapshots = Files.list(snapshotsDirectory))
         {
-            return update(update, false);
+            return snapshots.collect(Collectors.toList());
+        }
+        catch (IOException e)
+        {
+            throw Throwables.unchecked(e);
+        }
+    }
+
+    @FunctionalInterface
+    interface TxReader<T>
+    {
+        T read(InputStream inputStream) throws Exception;
+    }
+
+    @FunctionalInterface
+    interface TxWriter
+    {
+        void write(OutputStream outputStream) throws Exception;
+    }
+
+    public final class Local
+    {
+        private final ObjectReader localReader;
+        private final ObjectWriter localWriter;
+        private final Path localPath;
+        private final Path localBackupPath;
+        private final Path localTempPath;
+
+        private volatile LocalInfo localInfo;
+        private volatile boolean closed;
+
+        public Local(ObjectMapper objectMapper, Path storageDirectory)
+        {
+            localPath = storageDirectory.resolve("local");
+            localBackupPath = localPath.resolveSibling(localPath.getFileName().toString() + ".old");
+            localTempPath = localPath.resolveSibling(localPath.getFileName().toString() + ".txn");
+
+            localReader = objectMapper.readerFor(LocalInfo.class);
+            localWriter = objectMapper.writerFor(LocalInfo.class);
+
+            localInfo = transactionalRead(localPath, localBackupPath, localTempPath, localReader::readValue, LocalInfo::new);
+            getOrInitializeLocalHostId();
+        }
+
+        private synchronized void saveToDisk()
+        {
+            // called via updateExecutor
+            // This one takes about 80µs to serialize
+            transactionalWrite(localPath, localBackupPath, localTempPath, this::write, baseDirectory);
+        }
+
+        private synchronized void snapshot(Path snapshotPath) throws IOException
+        {
+            Path localSnapshot = snapshotPath.resolve(localPath.getFileName());
+            if (Files.exists(localPath) && !Files.exists(localSnapshot))
+                Files.createLink(localSnapshot, localPath);
+        }
+
+        private void write(OutputStream output) throws IOException
+        {
+            localInfo.resetDirty();
+            localWriter.writeValue(output, localInfo);
+        }
+
+        private void close()
+        {
+            closed = true;
+        }
+
+        private void syncToDisk()
+        {
+            if (localInfo.isDirty())
+                saveToDisk();
+        }
+
+        private void resetUnsafe()
+        {
+            localInfo = new LocalInfo();
+            saveToDisk();
         }
 
         /**
-         * @see #update(UnaryOperator, boolean, boolean)
-         */
-        public ILocalInfo update(UnaryOperator<LocalInfo> update, boolean blocking)
-        {
-            return update(update, blocking, false);
-        }
-
-        /**
-         * Updates local node information in a thread-safe way.
+         * Update information about the local node.
          *
-         * @param update   update function, which receives a copy of the current {@link LocalInfo} and is expected to
-         *                 return the updated {@link LocalInfo}; the function may apply updates directly on the received
-         *                 copy and return it
-         * @param blocking if set, the method will block until the changes are persisted
-         * @param force    the update will be persisted even if no changes are made
-         * @return a copy of updated object
+         * In blocking mode, exceptions throws by the actual save-to-disk operation are rethrown
+         * by this function. It is safe to consider that those exceptions are already handled by
+         * the {@link JVMStabilityInspector}.
+         *
+         * @param updater function that updates the {@link LocalInfo} instance.
+         * @param blocking whether the update must be performed in a blocking way, i.e. whether the update
          */
-        public ILocalInfo update(UnaryOperator<LocalInfo> update, boolean blocking, boolean force)
+        public void update(Consumer<LocalInfo> updater, boolean blocking)
         {
-            return internalMap.compute(localInfoKey, (key, existingLocalInfo) -> {
-                LocalInfo updated = existingLocalInfo == null
-                                    ? update.apply(new LocalInfo())
-                                    : update.apply(existingLocalInfo.duplicate()); // since we operate on mutable objects, we don't want to let the update function to operate on the live object
-                save(existingLocalInfo, updated, blocking, force);
-                return updated;
-            });
+            if (closed)
+                throw new IllegalStateException("Nodes instance already closed");
+
+            LocalInfo local = localInfo;
+            updater.accept(local);
+
+            if (local.isDirty())
+            {
+                Future future = updateExecutor.submit(() -> saveToDisk());
+                if (blocking)
+                    FBUtilities.waitOnFuture(future);
+            }
         }
 
         /**
-         * Returns information about the local node (if present).
-         * Note that you should never try to manually cast the returned object to a mutable instnace and modify it.
+         * More convenient variant than {@link #update(Consumer, boolean)} when only a single attribute
+         * needs to be updated.
+         *
+         * In blocking mode, exceptions throws by the actual save-to-disk operation are rethrown
+         * by this function. It is safe to consider that those exceptions are already handled by
+         * the {@link JVMStabilityInspector}.
+         *
+         * @param value value to set
+         * @param updater setter method
+         * @param blocking whether the update must be performed in a blocking way, i.e. whether the update
+         * must have been persisted before this method returns.
          */
-        public ILocalInfo get()
+        public <V> void update(V value, BiConsumer<LocalInfo, V> updater, boolean blocking)
         {
-            return internalMap.get(localInfoKey);
-        }
+            if (closed)
+                throw new IllegalStateException("Nodes instance already closed");
 
-        private void save(LocalInfo previousInfo, LocalInfo newInfo, boolean blocking, boolean force)
-        {
-            if (!force && Objects.equals(previousInfo, newInfo))
+            LocalInfo local = localInfo;
+            updater.accept(local, value);
+
+            if (local.isDirty())
             {
-                logger.trace("Saving local skipped: {}", previousInfo);
-                return;
-            }
-
-            Future<?> f = updateExecutor.submit(wrapPersistenceTask("saving local node information: " + newInfo, () -> {
-                nodesPersistence.saveLocal(newInfo);
-                logger.trace("Saving local: {}, blocking = {}, force = {}", newInfo, blocking, force);
+                Future future = updateExecutor.submit(() -> saveToDisk());
                 if (blocking)
-                    nodesPersistence.syncLocal();
-            }));
-
-            if (blocking)
-                FBUtilities.waitOnFuture(f);
+                    FBUtilities.waitOnFuture(future);
+            }
         }
 
-        private Local load()
+        public LocalInfo get()
         {
-            logger.trace("Loading local...");
-            internalMap.compute(localInfoKey, (key, existingLocalInfo) -> {
-                LocalInfo info = nodesPersistence.loadLocal();
-                return info != null ? info : new LocalInfo();
+            return localInfo;
+        }
+
+        public long getTruncatedAt(TableId id)
+        {
+            LocalInfo.TruncationRecord record = get().getTruncationRecords().get(id.asUUID());
+            return record == null ? Long.MIN_VALUE : record.truncatedAt;
+        }
+
+        /**
+         * This removes the truncation record for a table and assumes that such record exists on disk.
+         * This is called during CL reply, before the truncation records are loaded into memory.
+         */
+        public void removeTruncationRecord(TableId id)
+        {
+            update(l -> {
+                Map<UUID, LocalInfo.TruncationRecord> truncatedMap = new HashMap<>(l.getTruncationRecords());
+                if (truncatedMap.remove(id.asUUID()) != null)
+                    l.setTruncationRecords(truncatedMap);
+            }, true);
+        }
+
+        public void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
+        {
+            saveTruncationRecord(cfs.metadata.id.asUUID(), truncatedAt, position);
+        }
+
+        public void saveTruncationRecord(UUID tableId, long truncatedAt, CommitLogPosition position)
+        {
+            update(l -> {
+                Map<UUID, LocalInfo.TruncationRecord> truncatedMap = new HashMap<>(l.getTruncationRecords());
+
+                truncatedMap.put(tableId, new LocalInfo.TruncationRecord(position, truncatedAt));
+
+                l.setTruncationRecords(truncatedMap);
+            }, true);
+        }
+
+        public void updateTokens(Collection<Token> tokens)
+        {
+            if (tokens.isEmpty())
+                throw new IllegalStateException("removeEndpoint should be used instead");
+
+            update(l -> {
+                Collection<Token> savedTokens = l.getTokens();
+                if (savedTokens != null && tokens.containsAll(savedTokens) && tokens.size() == savedTokens.size())
+                    return;
+                l.setTokens(tokens);
+            }, true);
+        }
+
+        public Collection<Token> getSavedTokens()
+        {
+            return localInfo.getTokens() == null ? Collections.EMPTY_LIST : localInfo.getTokens();
+        }
+
+        public int incrementAndGetGeneration()
+        {
+            int generation;
+            int storedGeneration = localInfo.getGossipGeneration() + 1;
+            final int now = (int) (System.currentTimeMillis() / 1000);
+            if (storedGeneration >= now)
+            {
+                logger.warn("Using stored Gossip Generation {} as it is greater than current system time {}.  See CASSANDRA-3654 if you experience problems",
+                            storedGeneration, now);
+                generation = storedGeneration;
+            }
+            else
+            {
+                generation = now;
+            }
+            update(l -> { l.setGossipGeneration(generation); }, true);
+            return generation;
+        }
+
+        private UUID getOrInitializeLocalHostId()
+        {
+            UUID hostId = localInfo.getHostId();
+            if (hostId != null)
+                return hostId;
+            update(l -> {
+                if (l.getHostId() == null)
+                {
+                    l.setHostId(UUID.randomUUID());
+                    logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", l.getHostId());
+                }
+            }, true);
+            return localInfo.getHostId();
+        }
+    }
+
+    public final class Peers
+    {
+        private final ObjectReader peerReader;
+        private final ObjectWriter peerWriter;
+        private final Path peersPath;
+        private final Path peersBackupPath;
+        private final Path peersTempPath;
+
+        private final ConcurrentMap<InetAddressAndPort, PeerInfo> peers;
+        private volatile boolean closed;
+
+        public Peers(ObjectMapper objectMapper, Path storageDirectory)
+        {
+            peersPath = storageDirectory.resolve("peers");
+            peersBackupPath = peersPath.resolveSibling(peersPath.getFileName().toString() + ".old");
+            peersTempPath = peersPath.resolveSibling(peersPath.getFileName().toString() + ".txn");
+
+            peerReader = objectMapper.readerFor(new TypeReference<Collection<PeerInfo>>() {});
+            peerWriter = objectMapper.writerFor(new TypeReference<Collection<PeerInfo>>() {});
+
+            peers = transactionalRead(peersPath, peersBackupPath, peersTempPath, this::read, ConcurrentHashMap::new);
+        }
+
+        private synchronized void saveToDisk()
+        {
+            // called via updateExecutor
+            transactionalWrite(peersPath, peersBackupPath, peersTempPath, this::write, baseDirectory);
+        }
+
+        private synchronized void snapshot(Path snapshotPath) throws IOException
+        {
+            // Needs to be synchronized to avoid snapshotting in the middle of
+            // a write
+            Path peersSnapshot = snapshotPath.resolve(peersPath.getFileName());
+            if (Files.exists(peersPath) && !Files.exists(peersSnapshot))
+                Files.createLink(peersSnapshot, peersPath);
+        }
+
+        private void write(OutputStream output) throws IOException
+        {
+            peers.values().forEach(NodeInfo::resetDirty);
+            peerWriter.writeValue(output, peers.values());
+        }
+
+        private void close()
+        {
+            closed = true;
+        }
+
+        private void syncToDisk()
+        {
+            if (peers.values().stream().anyMatch(NodeInfo::isDirty))
+                saveToDisk();
+        }
+
+        private ConcurrentMap<InetAddressAndPort, PeerInfo> read(InputStream input) throws IOException
+        {
+            ConcurrentMap<InetAddressAndPort, PeerInfo> map = new ConcurrentHashMap<>();
+            Collection<PeerInfo> collection = peerReader.readValue(input);
+            for (PeerInfo peer : collection)
+                map.put(peer.getPeer(), peer);
+            return map;
+        }
+
+        private void resetUnsafe()
+        {
+            peers.clear();
+            saveToDisk();
+        }
+
+        /**
+         * Update information about a peer.
+         *
+         * @param peer the peer to update
+         * @param updater function that updates the {@link PeerInfo} instance.
+         */
+        public void update(InetAddressAndPort peer, Consumer<PeerInfo> updater)
+        {
+            if (closed)
+                throw new IllegalStateException("Nodes instance already closed");
+
+            PeerInfo peerInfo = peers.computeIfAbsent(peer, PeerInfo::new);
+            updater.accept(peerInfo);
+            if (peerInfo.isDirty())
+                updateExecutor.submit(() -> saveToDisk());
+        }
+
+        /**
+         * More convenient variant than {@link #update(InetAddressAndPort, Consumer)} when only a single attribute
+         * needs to be updated.
+         *
+         * @param peer peer addres
+         * @param value value to set
+         * @param updater setter method
+         */
+        public <V> void update(InetAddressAndPort peer, V value, BiConsumer<PeerInfo, V> updater)
+        {
+            if (closed)
+                throw new IllegalStateException("Nodes instance already closed");
+
+            PeerInfo peerInfo = peers.computeIfAbsent(peer, PeerInfo::new);
+            updater.accept(peerInfo, value);
+            if (peerInfo.isDirty())
+                updateExecutor.submit(() -> saveToDisk());
+        }
+
+        /**
+         * Get a {@link Stream} of all {@link PeerInfo}s.
+         */
+        public Stream<PeerInfo> stream()
+        {
+            return peers.values().stream();
+        }
+
+        public void remove(InetAddressAndPort peer)
+        {
+            if (closed)
+                throw new IllegalStateException("Nodes instance already closed");
+
+            if (peers.remove(peer) != null)
+                updateExecutor.submit(() -> saveToDisk());
+        }
+
+        /**
+         * Convenience function to extract some information for a peer.
+         *
+         * @param peer the endpoint to get and map the information for
+         * @param mapper function that takes a {@link PeerInfo} and returns the mapped information
+         * @param ifNotExists value to return if the peer does not exist or the {@code mapper} function returned {@code
+         * null}
+         *
+         * @return mapped value for the peer or the result of {@code ifNotExists}
+         */
+        public <R> R map(InetAddressAndPort peer, Function<PeerInfo, R> mapper, Supplier<R> ifNotExists)
+        {
+            PeerInfo peerInfo = peers.get(peer);
+            R r = null;
+            if (peerInfo != null)
+                r = mapper.apply(peerInfo);
+            if (r == null)
+                r = ifNotExists.get();
+            return r;
+        }
+
+        public PeerInfo get(InetAddressAndPort peer)
+        {
+            return peers.get(peer);
+        }
+
+        /**
+         * Return a map of IP addresses containing a map of dc and rack info
+         */
+        public Map<InetAddressAndPort, Map<String, String>> getDcRackInfo()
+        {
+            return stream().collect(Collectors.toMap(PeerInfo::getPeer, peerInfo -> {
+                Map<String, String> dcRack = new HashMap<>();
+                dcRack.put("data_center", peerInfo.getDataCenter());
+                dcRack.put("rack", peerInfo.getRack());
+                return dcRack;
+            }, (a, b) -> a, HashMap::new));
+        }
+
+        /**
+         * Returns true if preferred IP for given endpoint is known, otherwise false.
+         */
+        public boolean hasPreferred(InetAddressAndPort ep)
+        {
+            return map(ep, PeerInfo::getPreferred, () -> null) != null;
+        }
+
+        /**
+         * Get preferred IP for given endpoint if it is known. Otherwise this returns given endpoint itself.
+         *
+         * @param ep endpoint address to check
+         * @return Preferred IP for given endpoint if present, otherwise returns given ep
+         */
+        public InetAddressAndPort getPreferred(InetAddressAndPort ep)
+        {
+            return map(ep, PeerInfo::getPreferred, () -> ep);
+        }
+
+        public void updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferred)
+        {
+            InetAddressAndPort current = getPreferred(ep);
+            if (Objects.equals(current, preferred))
+                return;
+
+            update(ep, (peerInfo) -> peerInfo.setPreferred(preferred));
+        }
+
+        /**
+         * Return a map of stored host_ids to IP addresses
+         */
+        public Map<InetAddressAndPort, UUID> getHostIds()
+        {
+            return stream().filter(p -> p.getHostId() != null)
+                           .collect(Collectors.toMap(PeerInfo::getPeer, NodeInfo::getHostId, (a, b) -> a, HashMap::new));
+        }
+
+        public Multimap<InetAddressAndPort, Token> getTokens()
+        {
+            SetMultimap<InetAddressAndPort, Token> tokenMap = HashMultimap.create();
+            peers().stream()
+                   .filter(p -> p.getTokens() != null)
+                   .forEach(p -> tokenMap.putAll(p.getPeer(), p.getTokens()));
+            return tokenMap;
+        }
+
+        public void updateTokens(InetAddressAndPort endpoint, Collection<Token> tokens)
+        {
+            update(endpoint, (peerInfo) -> {
+                Collection<Token> savedTokens = peerInfo.getTokens();
+                if (savedTokens != null && tokens.containsAll(savedTokens) && tokens.size() == savedTokens.size())
+                    return;
+                peerInfo.setTokens(tokens);
             });
-            if (logger.isTraceEnabled())
-                logger.trace("Loaded local: {}", internalMap.get(localInfoKey));
-            return this;
+        }
+    }
+
+    /**
+     * Holds the default, runtime instance of {@link Nodes}. {@link Nodes} itself doesn'tt have a static reference
+     * to "itself" to make testing easier.
+     */
+    public static final class Instance
+    {
+        private static volatile Nodes instance;
+        private static final Object mutex = new Object();
+
+        public static Nodes nodes()
+        {
+            Nodes nodes = instance;
+            if (nodes == null)
+            {
+                synchronized (mutex)
+                {
+                    nodes = instance;
+                    if (nodes == null)
+                    {
+                        nodes = instance = new Nodes(DatabaseDescriptor.getMetadataDirectory().resolve("nodes").toPath());
+                    }
+                }
+            }
+            return nodes;
+        }
+
+        @VisibleForTesting
+        public static void unsafeSetup(Path directory)
+        {
+            if (instance != null)
+                instance.shutdown();
+
+            instance = new Nodes(directory);
+        }
+
+        public static void persistLocalMetadata()
+        {
+            nodes().local.update((local) -> {
+                local.setClusterName(DatabaseDescriptor.getClusterName());
+                local.setReleaseVersion(SystemKeyspace.CURRENT_VERSION);
+                local.setCqlVersion(QueryProcessor.CQL_VERSION);
+                local.setNativeProtocolVersion(String.valueOf(ProtocolVersion.CURRENT.asInt()));
+                local.setDataCenter(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter());
+                local.setRack(DatabaseDescriptor.getEndpointSnitch().getLocalRack());
+                local.setPartitioner(DatabaseDescriptor.getPartitioner().getClass().getName());
+                local.setBroadcastAddressAndPort(FBUtilities.getBroadcastAddressAndPort());
+                local.setListenAddressAndPort(FBUtilities.getLocalAddressAndPort());
+                local.setNativeTransportAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(DatabaseDescriptor.getRpcAddress(),
+                                                                                                       DatabaseDescriptor.getNativeTransportPort()));
+            }, true);
         }
     }
 }

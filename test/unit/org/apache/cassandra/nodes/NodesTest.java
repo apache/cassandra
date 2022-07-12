@@ -18,345 +18,284 @@
 
 package org.apache.cassandra.nodes;
 
+import java.io.File;
+import java.net.UnknownHostException;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.mockito.ArgumentCaptor;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.atMostOnce;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class NodesTest
 {
-    private final ExecutorService executor = mock(ExecutorService.class);
-    private final INodesPersistence persistence = mock(INodesPersistence.class);
-    private final Future<?> promise = mock(Future.class);
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
 
-    private final UUID newHostId = UUID.randomUUID();
-    private final UUID id1 = UUID.randomUUID();
-    private final UUID id2 = UUID.randomUUID();
-    private final UUID id3 = UUID.randomUUID();
+    private static UUID hostId = UUID.randomUUID();
 
-    private Nodes nodes;
-    private static InetAddressAndPort addr1;
-    private static InetAddressAndPort addr2;
-    private static InetAddressAndPort addr3;
-    private ArgumentCaptor<Runnable> taskCaptor;
-    private AtomicReference<NodeInfo<?>> infoRef;
+    private static Collection<Token> tokens;
+
+    private static Map<UUID, LocalInfo.TruncationRecord> truncationRecords;
+
+    private File dir;
 
     @BeforeClass
-    public static void beforeClass() throws Exception
+    public static void setup()
     {
-        addr1 = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", 7001);
-        addr2 = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", 7001);
-        addr3 = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", 7002);
+        DatabaseDescriptor.clientInitialization(false);
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+
+        tokens = Arrays.asList(DatabaseDescriptor.getPartitioner().getRandomToken(),
+                               DatabaseDescriptor.getPartitioner().getRandomToken(),
+                               DatabaseDescriptor.getPartitioner().getRandomToken(),
+                               DatabaseDescriptor.getPartitioner().getRandomToken());
+
+        truncationRecords = new HashMap<>();
+
+        truncationRecords.put(UUID.randomUUID(), new LocalInfo.TruncationRecord(new CommitLogPosition(1234, 123), 12345));
+        truncationRecords.put(UUID.randomUUID(), new LocalInfo.TruncationRecord(new CommitLogPosition(5678, 567), 56789));
+        truncationRecords.put(UUID.randomUUID(), new LocalInfo.TruncationRecord(new CommitLogPosition(1, 2), 3));
     }
 
     @Before
-    public void beforeTest()
+    public void initializeNodes() throws Throwable
     {
-        reset(persistence, executor, promise);
-        nodes = new Nodes(persistence, executor);
-        infoRef = new AtomicReference<>();
-        taskCaptor = ArgumentCaptor.forClass(Runnable.class);
-        when(executor.submit(taskCaptor.capture())).thenAnswer(inv -> promise);
+        dir = folder.newFolder();
+        Nodes.Instance.unsafeSetup(dir.toPath());
     }
 
     @After
-    public void afterTest()
+    public void shutdownNodes() throws Throwable
     {
-        verify(persistence, atMostOnce()).loadLocal();
-        verify(persistence, atMostOnce()).loadPeers();
-        verifyNoMoreInteractions(executor, persistence, promise);
+        Nodes.nodes().shutdown();
     }
 
     @Test
-    public void getEmptyLocal()
+    public void mapAndUpdateFunctionsLocalTest() throws Exception
     {
-        assertThat(nodes.getLocal().get()).isEqualTo(new LocalInfo());
+        UUID schemaVersion = UUID.randomUUID();
+
+        assertNull(Nodes.nodes().map(FBUtilities.getBroadcastAddressAndPort(), NodeInfo::getSchemaVersion));
+
+        assertEquals(hostId, Nodes.nodes().map(FBUtilities.getBroadcastAddressAndPort(), NodeInfo::getSchemaVersion, () -> hostId));
+
+        Nodes.local().update(hostId, NodeInfo::setHostId, true);
+        assertEquals(hostId, Nodes.local().get().getHostId());
+        assertEquals(hostId, Nodes.nodes().map(FBUtilities.getBroadcastAddressAndPort(), NodeInfo::getHostId));
+        assertEquals(hostId, Nodes.nodes().map(FBUtilities.getBroadcastAddressAndPort(), NodeInfo::getHostId, UUID::randomUUID));
+
+        assertNull(Nodes.local().get().getSchemaVersion());
+        Nodes.local().update(l -> l.setSchemaVersion(schemaVersion), false);
+        assertEquals(schemaVersion, Nodes.local().get().getSchemaVersion());
+        assertEquals(schemaVersion, Nodes.nodes().map(FBUtilities.getBroadcastAddressAndPort(), NodeInfo::getSchemaVersion));
+        assertEquals(schemaVersion, Nodes.nodes().map(FBUtilities.getBroadcastAddressAndPort(), NodeInfo::getSchemaVersion, UUID::randomUUID));
     }
 
     @Test
-    public void getEmptyPeer()
+    public void mapAndUpdateFunctionsPeerTest() throws Exception
     {
-        assertThat(nodes.getPeers().get(addr1)).isNull();
-        assertThat(nodes.getPeers().get(addr2)).isNull();
-        assertThat(nodes.getPeers().get(addr3)).isNull();
+        UUID schemaVersion = UUID.randomUUID();
+
+        InetAddressAndPort peer = InetAddressAndPort.getByName("127.99.99.99");
+
+        assertNull(Nodes.peers().get(peer));
+
+        Nodes.peers().update(peer, p -> {});
+
+        assertNotNull(Nodes.peers().get(peer));
+
+        assertNull(Nodes.peers().get(peer).getHostId());
+
+        assertNull(Nodes.nodes().map(peer, NodeInfo::getSchemaVersion));
+
+        assertEquals(hostId, Nodes.nodes().map(peer, NodeInfo::getSchemaVersion, () -> hostId));
+
+        Nodes.peers().update(peer, hostId, NodeInfo::setHostId);
+        assertEquals(hostId, Nodes.peers().get(peer).getHostId());
+        assertEquals(hostId, Nodes.nodes().map(peer, NodeInfo::getHostId));
+        assertEquals(hostId, Nodes.nodes().map(peer, NodeInfo::getHostId, UUID::randomUUID));
+
+        assertNull(Nodes.peers().get(peer).getSchemaVersion());
+        Nodes.peers().update(peer, l -> l.setSchemaVersion(schemaVersion));
+        assertEquals(schemaVersion, Nodes.peers().get(peer).getSchemaVersion());
+        assertEquals(schemaVersion, Nodes.nodes().map(peer, NodeInfo::getSchemaVersion));
+        assertEquals(schemaVersion, Nodes.nodes().map(peer, NodeInfo::getSchemaVersion, UUID::randomUUID));
+        assertEquals(schemaVersion, Nodes.peers().map(peer, NodeInfo::getSchemaVersion, UUID::randomUUID));
     }
 
     @Test
-    public void loadLocal()
+    public void mapAndUpdateFunctionsNodeTest() throws Exception
     {
-        when(persistence.loadLocal()).thenReturn(new LocalInfo().setHostId(newHostId));
-        clearInvocations(persistence);
-        nodes = new Nodes(persistence, executor);
+        UUID schemaVersion = UUID.randomUUID();
 
-        ILocalInfo r = nodes.getLocal().get();
-        verify(persistence).loadLocal();
-        assertThat(r.getHostId()).isEqualTo(newHostId);
+        InetAddressAndPort node = InetAddressAndPort.getByName("127.88.88.88");
+
+        assertNull(Nodes.nodes().get(node));
+
+        Nodes.nodes().update(node, p -> {});
+
+        assertNotNull(Nodes.nodes().get(node));
+
+        assertNull(Nodes.nodes().map(node, NodeInfo::getSchemaVersion));
+
+        assertEquals(hostId, Nodes.nodes().map(node, NodeInfo::getSchemaVersion, () -> hostId));
+
+        Nodes.nodes().update(node, hostId, NodeInfo::setHostId);
+        assertEquals(hostId, Nodes.peers().get(node).getHostId());
+        assertEquals(hostId, Nodes.nodes().map(node, NodeInfo::getHostId));
+        assertEquals(hostId, Nodes.peers().map(node, NodeInfo::getHostId, UUID::randomUUID));
+
+        assertNull(Nodes.peers().get(node).getSchemaVersion());
+        Nodes.peers().update(node, l -> l.setSchemaVersion(schemaVersion));
+        assertEquals(schemaVersion, Nodes.peers().get(node).getSchemaVersion());
+        assertEquals(schemaVersion, Nodes.nodes().map(node, NodeInfo::getSchemaVersion));
+        assertEquals(schemaVersion, Nodes.nodes().map(node, NodeInfo::getSchemaVersion, UUID::randomUUID));
+        assertEquals(schemaVersion, Nodes.peers().map(node, NodeInfo::getSchemaVersion, UUID::randomUUID));
     }
 
     @Test
-    public void loadPeers()
+    public void testPeersSerialization() throws Exception
     {
-        List<PeerInfo> peers = Arrays.asList(new PeerInfo().setPeerAddressAndPort(addr1).setHostId(id1),
-                                             new PeerInfo().setPeerAddressAndPort(addr2).setHostId(id2),
-                                             new PeerInfo().setPeerAddressAndPort(addr3).setHostId(id3));
-        when(persistence.loadPeers()).thenReturn(peers.stream());
-        clearInvocations(persistence);
-        nodes = new Nodes(persistence, executor);
+        Nodes.local().update(this::fakeLocal, true);
+        LocalInfo local = Nodes.local().get();
+        validateLocalInfo(local);
+        Nodes.peers().update(InetAddressAndPort.getByName("127.0.0.2"), NodesTest::fakePeer);
+        Nodes.peers().update(InetAddressAndPort.getByName("127.0.0.3"), NodesTest::fakePeer);
+        Nodes.peers().update(InetAddressAndPort.getByName("127.0.0.4"), NodesTest::fakePeer);
+        assertNull(Nodes.peers().get(InetAddressAndPort.getByName("127.42.42.42")));
+        Nodes.nodes().syncToDisk();
+        Nodes.nodes().shutdown();
 
-        Set<IPeerInfo> r = nodes.getPeers().get().collect(Collectors.toSet());
-        assertThat(r).containsExactlyInAnyOrderElementsOf(peers);
-        verify(persistence).loadPeers();
+        // Reopen the nodes to load the saved local and peer info
+        Nodes.Instance.unsafeSetup(dir.toPath());
 
-        clearInvocations(executor);
+        validateLocalInfo(Nodes.local().get());
+        validatePeer(Nodes.peers().get(InetAddressAndPort.getByName("127.0.0.2")));
+        validatePeer(Nodes.peers().get(InetAddressAndPort.getByName("127.0.0.3")));
+        validatePeer(Nodes.peers().get(InetAddressAndPort.getByName("127.0.0.4")));
+
+        Nodes.peers().remove(InetAddressAndPort.getByName("127.0.0.3"));
+        Nodes.nodes().syncToDisk();
+        Nodes.nodes().shutdown();
+
+        Nodes.Instance.unsafeSetup(dir.toPath());
+
+        validateLocalInfo(Nodes.local().get());
+        validatePeer(Nodes.peers().get(InetAddressAndPort.getByName("127.0.0.2")));
+        assertNull(Nodes.peers().get(InetAddressAndPort.getByName("127.0.0.3")));
+        validatePeer(Nodes.peers().get(InetAddressAndPort.getByName("127.0.0.4")));
     }
 
     @Test
-    public void updateLocalNoChanges() throws Exception
+    public void snapshotTest() throws Throwable
     {
-        nodes.getLocal().update(current -> current.setHostId(newHostId), false, false);
-        clearInvocations(persistence, executor, promise);
+        File snapshotsDir = new File(dir, "snapshots");
 
-        ILocalInfo r = updateLocalInfo(newHostId, false, false);
+        Nodes.nodes().snapshot("EMPTY_SNAPSHOT");
+        File expectedDir = new File(snapshotsDir, "EMPTY_SNAPSHOT");
+        assertTrue(expectedDir.isDirectory());
+        // The hostId is set during initialization so we will always have a
+        // local file
+        assertTrue(new File(expectedDir, "local").exists());
+        assertFalse(new File(expectedDir, "nodes").exists());
 
-        checkLiveObject(r, () -> nodes.getLocal().get(), newHostId);
+        Nodes.local().update(this::fakeLocal, true);
+        Nodes.peers().update(InetAddressAndPort.getByName("127.0.0.2"), NodesTest::fakePeer);
+        Nodes.peers().update(InetAddressAndPort.getByName("127.0.0.3"), NodesTest::fakePeer);
+        Nodes.peers().update(InetAddressAndPort.getByName("127.0.0.4"), NodesTest::fakePeer);
+
+        Nodes.nodes().snapshot("THAT_SNAPSHOT");
+        File expectedDir2 = new File(snapshotsDir, "THAT_SNAPSHOT");
+        assertTrue(expectedDir2.isDirectory());
+        assertTrue(new File(expectedDir2, "local").isFile());
+        assertTrue(new File(expectedDir2, "peers").isFile());
+
+        Nodes.nodes().clearSnapshot("EMPTY_SNAPSHOT");
+        assertFalse(expectedDir.isDirectory());
+        assertTrue(expectedDir2.isDirectory());
+        Nodes.nodes().clearSnapshot(null);
+        assertFalse(snapshotsDir.isDirectory());
     }
 
-    @Test
-    public void updateLocalWithSomeChange() throws Exception
+    static void fakePeer(PeerInfo p)
     {
-        ILocalInfo r = updateLocalInfo(newHostId, false, false);
-
-        verify(executor).submit(any(Runnable.class));
-
-        taskCaptor.getValue().run();
-        verify(persistence).saveLocal(argThat(info -> info.getHostId().equals(newHostId)));
-
-        checkLiveObject(r, () -> nodes.getLocal().get(), newHostId);
+        int nodeId = p.getPeer().address.getAddress()[3];
+        p.setPreferred(preferredIp(p));
+        p.setDataCenter("DC" + nodeId);
+        p.setRack("RAC" + nodeId);
+        p.setHostId(UUID.randomUUID());
     }
 
-    @Test
-    public void updateLocalWithSomeChangeBlocking() throws Exception
+    private void validatePeer(PeerInfo p)
     {
-        ILocalInfo r = updateLocalInfo(newHostId, true, false);
-
-        verify(executor).submit(any(Runnable.class));
-        verify(promise).get();
-
-        taskCaptor.getValue().run();
-        verify(persistence).saveLocal(argThat(info -> info.getHostId().equals(newHostId)));
-        verify(persistence).syncLocal();
-
-        checkLiveObject(r, () -> nodes.getLocal().get(), newHostId);
+        int nodeId = p.getPeer().address.getAddress()[3];
+        assertEquals(preferredIp(p), p.getPreferred());
+        assertEquals("DC" + nodeId, p.getDataCenter());
+        assertEquals("RAC" + nodeId, p.getRack());
     }
 
-    @Test
-    public void updateLocalWithForce() throws Exception
+    private static InetAddressAndPort preferredIp(PeerInfo p)
     {
-        nodes.getLocal().update(current -> current.setHostId(newHostId), false, false);
-        clearInvocations(persistence, executor, promise);
-
-        ILocalInfo r = updateLocalInfo(newHostId, false, true);
-
-        verify(executor).submit(any(Runnable.class));
-
-        taskCaptor.getValue().run();
-        verify(persistence).saveLocal(argThat(info -> info.getHostId().equals(newHostId)));
-
-        checkLiveObject(r, () -> nodes.getLocal().get(), newHostId);
+        try
+        {
+            return InetAddressAndPort.getByName("127.123.123." + p.getPeer().address.getAddress()[3]);
+        }
+        catch (UnknownHostException e)
+        {
+            throw Throwables.unchecked(e);
+        }
     }
 
-    @Test
-    public void updatePeersNoChanges() throws Exception
+    private void fakeLocal(LocalInfo l)
     {
-        nodes.getPeers().update(addr1, current -> current.setHostId(newHostId), false, false);
-        clearInvocations(persistence, executor, promise);
-
-        IPeerInfo r = updatePeerInfo(newHostId, false, false);
-
-        checkLiveObject(r, () -> nodes.getPeers().get(addr1), newHostId);
+        l.setClusterName("NodesTest");
+        l.setDataCenter("dataCenter");
+        l.setRack("rack");
+        l.setNativeProtocolVersion("66");
+        l.setBootstrapState(BootstrapState.COMPLETED);
+        l.setHostId(hostId);
+        l.setTokens(tokens);
+        l.setTruncationRecords(truncationRecords);
+        l.setBroadcastAddressAndPort(FBUtilities.getBroadcastAddressAndPort());
     }
 
-    @Test
-    public void updatePeersWithSomeChange() throws Exception
+    private void validateLocalInfo(LocalInfo local)
     {
-        IPeerInfo r = updatePeerInfo(newHostId, false, false);
-
-        verify(executor).submit(any(Runnable.class));
-
-        taskCaptor.getValue().run();
-        verify(persistence).savePeer(argThat(info -> info.getHostId().equals(newHostId)));
-
-        checkLiveObject(r, () -> nodes.getPeers().get(addr1), newHostId);
-    }
-
-    @Test
-    public void updatePeersWithSomeChangeBlocking() throws Exception
-    {
-        IPeerInfo r = updatePeerInfo(newHostId, true, false);
-
-        verify(executor).submit(any(Runnable.class));
-        verify(promise).get();
-
-        taskCaptor.getValue().run();
-        verify(persistence).savePeer(argThat(info -> info.getHostId().equals(newHostId)));
-        verify(persistence).syncPeers();
-
-        checkLiveObject(r, () -> nodes.getPeers().get(addr1), newHostId);
-    }
-
-    @Test
-    public void updatePeersWithForce() throws Exception
-    {
-        nodes.getPeers().update(addr1, current -> current.setHostId(newHostId), false, false);
-        clearInvocations(persistence, executor, promise);
-
-        IPeerInfo r = updatePeerInfo(newHostId, false, true);
-
-        verify(executor).submit(any(Runnable.class));
-
-        taskCaptor.getValue().run();
-        verify(persistence).savePeer(argThat(info -> info.getHostId().equals(newHostId)));
-
-        checkLiveObject(r, () -> nodes.getPeers().get(addr1), newHostId);
-    }
-
-    @Test
-    public void getAllPeers()
-    {
-        IPeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        IPeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
-        IPeerInfo p3 = nodes.getPeers().update(addr3, current -> current.setHostId(id3));
-
-        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
-        assertThat(peers).containsExactlyInAnyOrder(p1, p2, p3);
-
-        clearInvocations(executor);
-    }
-
-    @Test
-    public void removePeer() throws Exception
-    {
-        IPeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        IPeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
-
-        clearInvocations(executor);
-
-        IPeerInfo r = nodes.getPeers().remove(addr2, false, true);
-        assertThat(r).isEqualTo(p2.duplicate().setRemoved(true));
-        verify(executor).submit(any(Runnable.class));
-
-        taskCaptor.getValue().run();
-        verify(persistence).deletePeer(addr2);
-
-        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
-        assertThat(peers).containsExactlyInAnyOrder(p1);
-    }
-
-    @Test
-    public void removePeerBlocking() throws Exception
-    {
-        IPeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        IPeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
-
-        clearInvocations(executor);
-
-        IPeerInfo r = nodes.getPeers().remove(addr2, true, true);
-        assertThat(r).isEqualTo(p2.duplicate().setRemoved(true));
-        verify(executor).submit(any(Runnable.class));
-        verify(promise).get();
-
-        taskCaptor.getValue().run();
-        verify(persistence).deletePeer(addr2);
-        verify(persistence).syncPeers();
-
-        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
-        assertThat(peers).containsExactlyInAnyOrder(p1);
-    }
-
-    @Test
-    public void removeMissingPeer()
-    {
-        UUID id1 = UUID.randomUUID();
-        UUID id2 = UUID.randomUUID();
-
-        IPeerInfo r1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        IPeerInfo r2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
-
-        clearInvocations(executor);
-
-        IPeerInfo r = nodes.getPeers().remove(addr3, false, true);
-        assertThat(r).isNull();
-
-        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
-        assertThat(peers).containsExactlyInAnyOrder(r1, r2);
-    }
-
-    @Test
-    public void softRemovePeer()
-    {
-        IPeerInfo p1 = nodes.getPeers().update(addr1, current -> current.setHostId(id1));
-        IPeerInfo p2 = nodes.getPeers().update(addr2, current -> current.setHostId(id2));
-
-        clearInvocations(executor);
-
-        IPeerInfo r = nodes.getPeers().remove(addr2, false, false);
-        p2 = p2.duplicate().setRemoved(true);
-        assertThat(r).isEqualTo(p2);
-
-        verify(executor).submit(any(Runnable.class));
-
-        taskCaptor.getValue().run();
-        verify(persistence).deletePeer(addr2);
-
-        Set<IPeerInfo> peers = nodes.getPeers().get().collect(Collectors.toSet());
-        assertThat(peers).containsExactlyInAnyOrder(p1, p2);
-    }
-
-    private void checkLiveObject(INodeInfo<?> r, Callable<INodeInfo<?>> currentSupplier, UUID hostId) throws Exception
-    {
-        assertThat(r.getHostId()).isEqualTo(hostId);
-        assertThat(currentSupplier.call().getHostId()).isEqualTo(hostId);
-    }
-
-    private ILocalInfo updateLocalInfo(UUID hostId, boolean blocking, boolean force)
-    {
-        return nodes.getLocal().update(previous -> {
-            infoRef.set(previous);
-            previous.setHostId(hostId);
-            return previous;
-        }, blocking, force);
-    }
-
-    private IPeerInfo updatePeerInfo(UUID hostId, boolean blocking, boolean force)
-    {
-        return nodes.getPeers().update(addr1, previous -> {
-            infoRef.set(previous);
-            previous.setHostId(hostId);
-            return previous;
-        }, blocking, force);
+        assertEquals("NodesTest", local.getClusterName());
+        assertEquals("dataCenter", local.getDataCenter());
+        assertEquals("rack", local.getRack());
+        assertEquals("66", local.getNativeProtocolVersion());
+        assertEquals(hostId, local.getHostId());
+        assertEquals(tokens, local.getTokens());
+        assertEquals(truncationRecords, local.getTruncationRecords());
+        assertEquals(FBUtilities.getBroadcastAddressAndPort(), local.getBroadcastAddressAndPort());
+        assertNotNull(local.getGossipGeneration());
+        assertNull(local.getCqlVersion());
+        assertNull(local.getReleaseVersion());
+        assertNull(local.getPartitioner());
+        assertNull(local.getListenAddressAndPort());
+        assertNull(local.getNativeTransportAddressAndPort());
+        assertNull(local.getSchemaVersion());
     }
 }

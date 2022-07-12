@@ -745,7 +745,7 @@ public class StorageServiceServerTest
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
 
             final String hostAddress = FBUtilities.getBroadcastAddressAndPort().getHostAddress(false);
-            UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
+            UUID localHostId = StorageService.instance.getLocalHostUUID();
             Gossiper.instance.initializeNodeUnsafe(FBUtilities.getBroadcastAddressAndPort(), localHostId, 1);
 
             // Check detects replacing the same host address with the same hostid

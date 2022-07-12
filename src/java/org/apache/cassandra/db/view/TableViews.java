@@ -65,6 +65,7 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -152,7 +153,7 @@ public class TableViews extends AbstractCollection<View>
         for (ColumnFamilyStore viewCfs : allViewsCfs())
         {
             viewCfs.discardSSTables(truncatedAt);
-            SystemKeyspace.saveTruncationRecord(viewCfs.metadata.id, truncatedAt, replayAfter);
+            Nodes.local().saveTruncationRecord(viewCfs, truncatedAt, replayAfter);
         }
     }
 
