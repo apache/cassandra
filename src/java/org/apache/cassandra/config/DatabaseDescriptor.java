@@ -3688,4 +3688,9 @@ public class DatabaseDescriptor
         Preconditions.checkArgument(pageSize.bytes() >= 1024);
         conf.aggregation_subpage_size_in_kb = pageSize.bytes() / 1024;
     }
+
+    public static ParameterizedClass getDefaultCompaction()
+    {
+        return conf != null ? conf.default_compaction : null;
+    }
 }

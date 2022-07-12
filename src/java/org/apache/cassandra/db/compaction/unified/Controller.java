@@ -16,6 +16,8 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,13 +28,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +46,9 @@ import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -60,6 +61,7 @@ public abstract class Controller
     protected static final Logger logger = LoggerFactory.getLogger(Controller.class);
     private static final ConcurrentMap<TableMetadata, Controller.Metrics> allMetrics = new ConcurrentHashMap<>();
 
+    //TODO: Remove some options, add deprecation messages
     static final String PREFIX = "unified_compaction.";
 
     /** The data size in GB, it will be assumed that the node will have on disk roughly this size of data when it
@@ -101,16 +103,30 @@ public abstract class Controller
      * tier) compaction, while on the other hand limiting such compactions too much might lead to compaction lagging
      * behind, higher read amplification, and other problems of that nature.
      */
-    static public final String MAX_SPACE_OVERHEAD_OPTION = "max_space_overhead";
+    public static final String MAX_SPACE_OVERHEAD_OPTION = "max_space_overhead";
     static final double DEFAULT_MAX_SPACE_OVERHEAD = Double.parseDouble(System.getProperty(PREFIX + MAX_SPACE_OVERHEAD_OPTION, "0.2"));
     static final double MAX_SPACE_OVERHEAD_LOWER_BOUND = 0.01;
     static final double MAX_SPACE_OVERHEAD_UPPER_BOUND = 1.0;
+
+    static final String BASE_SHARD_COUNT_OPTION = "base_shard_count";
+    /**
+     * Default base shard count, used when a base count is not explicitly supplied. This value applies as long as the
+     * table is not a system one, and directories are not defined.
+     *
+     * For others a base count of 1 is used as system tables are usually small and do not need as much compaction
+     * parallelism, while having directories defined provides for parallelism in a different way.
+     */
+    public static final int DEFAULT_BASE_SHARD_COUNT = Integer.parseInt(System.getProperty(PREFIX + BASE_SHARD_COUNT_OPTION, "4"));
+
+    static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
+    public static final double DEFAULT_TARGET_SSTABLE_SIZE = FBUtilities.parseHumanReadable(System.getProperty(PREFIX + TARGET_SSTABLE_SIZE_OPTION, "1GiB"), null, "B");
+    static final double MIN_TARGET_SSTABLE_SIZE = 1L << 20;
 
     /**
      * This parameter is intended to modify the shape of the LSM by taking into account the survival ratio of data, for now it is fixed to one.
      */
     static final double DEFAULT_SURVIVAL_FACTOR = Double.parseDouble(System.getProperty(PREFIX + "survival_factor", "1"));
-    final static double[] DEFAULT_SURVIVAL_FACTORS = new double[] { DEFAULT_SURVIVAL_FACTOR };
+    static final double[] DEFAULT_SURVIVAL_FACTORS = new double[] { DEFAULT_SURVIVAL_FACTOR };
 
     /**
      * Either true or false. This parameter determines which controller will be used.
@@ -145,18 +161,32 @@ public abstract class Controller
      * - the arena selector disregards the first token of L0 sstables, placing
      *   them all in a unique shard.
      */
-    final static String L0_SHARDS_ENABLED_OPTION = "l0_shards_enabled";
-    final static boolean DEFAULT_L0_SHARDS_ENABLED = System.getProperty(PREFIX + L0_SHARDS_ENABLED_OPTION) == null
+    static final String L0_SHARDS_ENABLED_OPTION = "l0_shards_enabled";
+    static final boolean DEFAULT_L0_SHARDS_ENABLED = System.getProperty(PREFIX + L0_SHARDS_ENABLED_OPTION) == null
                                                      || Boolean.getBoolean(PREFIX + L0_SHARDS_ENABLED_OPTION);
 
     /**
      * True if L0 data may be coming from different replicas.
      */
-    public final static String SHARED_STORAGE = "shared_storage";
-    private final static Pattern SCALING_PARAMETER_PATTERN = Pattern.compile("(N)|L(\\d+)|T(\\d+)|([+-]?\\d+)");
-    private final static String SCALING_PARAMETER_PATTERN_SIMPLIFIED = SCALING_PARAMETER_PATTERN.pattern()
-                                                                                                .replaceAll("[()]", "")
-                                                                                                .replaceAll("\\\\d", "[0-9]");
+    public static final String SHARED_STORAGE = "shared_storage";
+
+    /** The maximum splitting factor for shards. The maximum number of shards is this number multiplied by the base count. */
+    static final double MAX_SHARD_SPLIT = 1048576;
+
+    public enum OverlapInclusionMethod
+    {
+        NONE, SINGLE, TRANSITIVE;
+    }
+
+    /**
+     * Overlap inclusion method. NONE for participating sstables only (not recommended), SINGLE to only include sstables
+     * that overlap with participating (LCS-like, higher concurrency during upgrades but some double compaction),
+     * TRANSITIVE to include overlaps of overlaps (likely to trigger whole level compactions, safest).
+     */
+    static final String OVERLAP_INCLUSION_METHOD_OPTION = "overlap_inclusion_method";
+    static final OverlapInclusionMethod DEFAULT_OVERLAP_INCLUSION_METHOD =
+        OverlapInclusionMethod.valueOf(System.getProperty(PREFIX + OVERLAP_INCLUSION_METHOD_OPTION,
+                                                          OverlapInclusionMethod.TRANSITIVE.toString()).toUpperCase());
 
     protected final MonotonicClock clock;
     protected final Environment env;
@@ -173,8 +203,14 @@ public abstract class Controller
     protected final boolean ignoreOverlapsInExpirationCheck;
     protected final boolean l0ShardsEnabled;
 
+    protected final int baseShardCount;
+
+    protected final double targetSSTableSizeMin;
+
     @Nullable protected volatile CostsCalculator calculator;
     @Nullable private volatile Metrics metrics;
+
+    protected final OverlapInclusionMethod overlapInclusionMethod;
 
     Controller(MonotonicClock clock,
                Environment env,
@@ -187,7 +223,10 @@ public abstract class Controller
                int maxSSTablesToCompact,
                long expiredSSTableCheckFrequency,
                boolean ignoreOverlapsInExpirationCheck,
-               boolean l0ShardsEnabled)
+               boolean l0ShardsEnabled,
+               int baseShardCount,
+               double targetSStableSize,
+               OverlapInclusionMethod overlapInclusionMethod)
     {
         this.clock = clock;
         this.env = env;
@@ -199,6 +238,9 @@ public abstract class Controller
         this.flushSizeOverrideMB = flushSizeOverrideMB;
         this.currentFlushSize = flushSizeOverrideMB << 20;
         this.expiredSSTableCheckFrequency = TimeUnit.MILLISECONDS.convert(expiredSSTableCheckFrequency, TimeUnit.SECONDS);
+        this.baseShardCount = baseShardCount;
+        this.targetSSTableSizeMin = targetSStableSize * Math.sqrt(0.5);
+        this.overlapInclusionMethod = overlapInclusionMethod;
 
         double maxSpaceOverheadLowerBound = 1.0d / numShards;
         if (maxSpaceOverhead < maxSpaceOverheadLowerBound)
@@ -246,31 +288,47 @@ public abstract class Controller
     public abstract int getMaxAdaptiveCompactions();
 
     public int getFanout(int index) {
-        int scalingParameter = getScalingParameter(index);
-        return scalingParameter < 0 ? 2 - scalingParameter : 2 + scalingParameter; // see formula in design doc
-    }
-
-    public int getPreviousFanout(int index) {
-        int scalingParameter = getPreviousScalingParameter(index);
-        return scalingParameter < 0 ? 2 - scalingParameter : 2 + scalingParameter; // see formula in design doc
+        return UnifiedCompactionStrategy.fanoutFromScalingParameter(getScalingParameter(index));
     }
 
     public int getThreshold(int index) {
-        int scalingParameter = getScalingParameter(index);
-        return scalingParameter < 0 ? 2 : getFanout(index); // see formula in design doc
+        return UnifiedCompactionStrategy.thresholdFromScalingParameter(getScalingParameter(index));
+    }
+
+    public int getPreviousFanout(int index) {
+        return UnifiedCompactionStrategy.fanoutFromScalingParameter(getPreviousScalingParameter(index));
     }
 
     public int getPreviousThreshold(int index) {
-        int scalingParameter = getPreviousScalingParameter(index);
-        return scalingParameter < 0 ? 2 : getPreviousFanout(index); // see formula in design doc
+        return UnifiedCompactionStrategy.thresholdFromScalingParameter(getPreviousScalingParameter(index));
     }
 
     /**
-     * @return the number of shards according to the dataset and shard sizes set by the user
+     * Calculate the number of shards to split the local token space in for the given sstable density.
+     * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting sstables
+     * is between targetSSTableSizeMin and 2*targetSSTableSizeMin (in other words, sqrt(0.5) * targetSSTableSize and
+     * sqrt(2) * targetSSTableSize), with a minimum of baseShardCount shards for smaller sstables.
      */
-    public int getNumShards()
+    public int getNumShards(double density)
     {
-        return numShards;
+        // How many we would have to aim for the target size. Divided by the base shard count, so that we can ensure
+        // the result is a multiple of it by multiplying back below.
+        double count = density / (targetSSTableSizeMin * baseShardCount);
+        if (count > MAX_SHARD_SPLIT)
+            count = MAX_SHARD_SPLIT;
+        assert !(count < 0);    // Must be positive, 0 or NaN, which should translate to baseShardCount
+
+        // Make it a power of two multiple of the base count so that split points for lower levels remain split points for higher.
+        // The conversion to int and highestOneBit round down, for which we compensate by using the sqrt(0.5) multiplier
+        // already applied in targetSSTableSizeMin.
+        // Setting the bottom bit to 1 ensures the result is at least baseShardCount.
+        int shards = baseShardCount * Integer.highestOneBit((int) count | 1);
+        logger.debug("Shard count {} for density {}, {} times target {}",
+                     shards,
+                     FBUtilities.prettyPrintBinary(density, "B", " "),
+                     density / targetSSTableSizeMin,
+                     FBUtilities.prettyPrintBinary(targetSSTableSizeMin, "B", " "));
+        return shards;
     }
 
     /**
@@ -477,8 +535,8 @@ public abstract class Controller
         double o = getSurvivalFactor(0);
         long m = getFlushSizeBytes();
 
-        int F = scalingParameter < 0 ? 2 - scalingParameter : 2 + scalingParameter;
-        int T = scalingParameter < 0 ? 2 : F;
+        int F = UnifiedCompactionStrategy.fanoutFromScalingParameter(scalingParameter);
+        int T = UnifiedCompactionStrategy.thresholdFromScalingParameter(scalingParameter);
         int maxIndex = maxBucketIndex(length, F);
 
         int ret = 0;
@@ -507,7 +565,7 @@ public abstract class Controller
         double o = getSurvivalFactor(0);
         long m = getFlushSizeBytes();
 
-        int F = scalingParameter < 0 ? 2 - scalingParameter : 2 + scalingParameter;
+        int F = UnifiedCompactionStrategy.fanoutFromScalingParameter(scalingParameter);
         int maxIndex = maxBucketIndex(length, F);
 
         int ret = 0;
@@ -579,6 +637,23 @@ public abstract class Controller
                                   ? Boolean.parseBoolean(options.get(L0_SHARDS_ENABLED_OPTION))
                                   : DEFAULT_L0_SHARDS_ENABLED;
 
+        int baseShardCount;
+        if (options.containsKey(BASE_SHARD_COUNT_OPTION))
+        {
+            baseShardCount = Integer.parseInt(options.get(BASE_SHARD_COUNT_OPTION));
+        }
+        else
+        {
+            if (SchemaConstants.isSystemKeyspace(realm.getKeyspaceName()) || realm.getDiskBoundaries().getNumBoundaries() > 1)
+                baseShardCount = 1;
+            else
+                baseShardCount = DEFAULT_BASE_SHARD_COUNT;
+        }
+
+        double targetSStableSize = options.containsKey(TARGET_SSTABLE_SIZE_OPTION)
+                                   ? FBUtilities.parseHumanReadable(options.get(TARGET_SSTABLE_SIZE_OPTION), null, "B")
+                                   : DEFAULT_TARGET_SSTABLE_SIZE;
+
         // Multiple data directories normally indicate multiple disks and we cannot compact sstables together if they belong to
         // different disks (or else loosing a disk may result in resurrected data due to lost tombstones). Because UCS sharding
         // subsumes disk sharding, it is not safe to disable shards on L0 if there are multiple data directories.
@@ -593,6 +668,10 @@ public abstract class Controller
                                    ? DEFAULT_SURVIVAL_FACTORS
                                    : new double[] { DEFAULT_SURVIVAL_FACTOR / realm.getKeyspaceReplicationStrategy().getReplicationFactor().allReplicas, DEFAULT_SURVIVAL_FACTOR };
 
+        OverlapInclusionMethod overlapInclusionMethod = options.containsKey(OVERLAP_INCLUSION_METHOD_OPTION)
+                                                        ? OverlapInclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
+                                                        : DEFAULT_OVERLAP_INCLUSION_METHOD;
+
         return adaptive
                ? AdaptiveController.fromOptions(env,
                                                 survivalFactors,
@@ -605,6 +684,9 @@ public abstract class Controller
                                                 expiredSSTableCheckFrequency,
                                                 ignoreOverlapsInExpirationCheck,
                                                 l0ShardsEnabled,
+                                                baseShardCount,
+                                                targetSStableSize,
+                                                overlapInclusionMethod,
                                                 options)
                : StaticController.fromOptions(env,
                                               survivalFactors,
@@ -617,6 +699,9 @@ public abstract class Controller
                                               expiredSSTableCheckFrequency,
                                               ignoreOverlapsInExpirationCheck,
                                               l0ShardsEnabled,
+                                              baseShardCount,
+                                              targetSStableSize,
+                                              overlapInclusionMethod,
                                               options);
     }
 
@@ -778,6 +863,59 @@ public abstract class Controller
                                                            ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION, s));
         }
 
+        s = options.remove(BASE_SHARD_COUNT_OPTION);
+        if (s != null)
+        {
+            try
+            {
+                int numShards = Integer.parseInt(s);
+                if (numShards <= 0)
+                    throw new ConfigurationException(String.format(nonPositiveErr,
+                                                                   BASE_SHARD_COUNT_OPTION,
+                                                                   numShards));
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format(intParseErr, s, BASE_SHARD_COUNT_OPTION), e);
+            }
+        }
+
+        s = options.remove(TARGET_SSTABLE_SIZE_OPTION);
+        if (s != null)
+        {
+            try
+            {
+                long targetSSTableSize = (long) FBUtilities.parseHumanReadable(s, null, "B");
+                if (targetSSTableSize < MIN_TARGET_SSTABLE_SIZE)
+                    throw new ConfigurationException(String.format("%s %s is not acceptable, size must be at least %s",
+                                                                   TARGET_SSTABLE_SIZE_OPTION,
+                                                                   s,
+                                                                   FBUtilities.prettyPrintBinary(MIN_TARGET_SSTABLE_SIZE, "B", "")));
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format("%s is not a valid size in bytes: %s",
+                                                               TARGET_SSTABLE_SIZE_OPTION,
+                                                               e.getMessage()),
+                                                 e);
+            }
+        }
+
+        s = options.remove(OVERLAP_INCLUSION_METHOD_OPTION);
+        if (s != null)
+        {
+            try
+            {
+                OverlapInclusionMethod.valueOf(s.toUpperCase());
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new ConfigurationException(String.format("Invalid overlap inclusion method %s. The valid options are %s.",
+                                                               s,
+                                                               Arrays.toString(OverlapInclusionMethod.values())));
+            }
+        }
+
         return adaptive ? AdaptiveController.validateOptions(options) : StaticController.validateOptions(options);
     }
 
@@ -793,23 +931,12 @@ public abstract class Controller
         // fixed and positive W this should not hurt us, as the hierarchy will be in multiples of F and will still
         // result in the same buckets, but for negative W or hybrid strategies this may cause temporary overcompaction.
         // If this is a concern, the flush size override should be used to avoid it until DB-4401.
-        return Math.max(1 << 20, getFlushSizeBytes()) * (1.0 - 0.9 / F) / getNumShards();
+        return Math.max(1 << 20, getFlushSizeBytes()) * (1.0 - 0.9 / F);
     }
 
-    public long getMaxLevelSize(int index, long minSize)
+    public double getMaxLevelDensity(int index, double minSize)
     {
-        int fanout = getFanout(index);
-        double survivalFactor = getSurvivalFactor(index);
-        double baseSize = minSize;
-        if (minSize == 0)
-            baseSize = getBaseSstableSize(fanout);
-
-        return (long) Math.floor(baseSize * fanout * survivalFactor);
-    }
-
-    public long getMaxL0Size()
-    {
-        return getMaxLevelSize(0, 0);
+        return Math.floor(minSize * getFanout(index) * getSurvivalFactor(index));
     }
 
     public double maxThroughput()
@@ -849,6 +976,26 @@ public abstract class Controller
         return ThreadLocalRandom.current();
     }
 
+    /**
+     * Return the overlap inclusion method to use when combining overlap sections into a bucket. For example, with
+     * SSTables A(0, 5), B(2, 9), C(6, 12), D(10, 12) whose overlap sections calculation returns [AB, BC, CD],
+     *   - NONE means no sections are to be merged. AB, BC and CD will be separate buckets, compactions AB, BC and CD
+     *     will be added separately, thus some SSTables will be partially used / single-source compacted, likely
+     *     to be recompacted again with the next selected bucket.
+     *   - SINGLE means only overlaps of the sstables in the selected bucket will be added. AB+BC will be one bucket,
+     *     and CD will be another (as BC is already used). A middle ground of sorts, should reduce overcompaction but
+     *     still has some.
+     *   - TRANSITIVE means a transitive closure of overlapping sstables will be selected. AB+BC+CD will be in the same
+     *     bucket, selected compactions will apply to all overlapping sstables and no overcompaction will be done, at
+     *     the cost of reduced compaction parallelism and increased length of the operation.
+     * TRANSITIVE is the default and makes most sense. NONE is a closer approximation to operation of legacy UCS.
+     * The option is exposed for experimentation.
+     */
+    public OverlapInclusionMethod overlapInclusionMethod()
+    {
+        return overlapInclusionMethod;
+    }
+
     public static int[] parseScalingParameters(String str)
     {
         String[] vals = str.split(",");
@@ -856,34 +1003,11 @@ public abstract class Controller
         for (int i = 0; i < vals.length; i++)
         {
             String value = vals[i].trim();
-            int W = parseScalingParameter(value);
+            int W = UnifiedCompactionStrategy.parseScalingParameter(value);
             ret[i] = W;
         }
 
         return ret;
-    }
-
-    public static int parseScalingParameter(String value)
-    {
-        Matcher m = SCALING_PARAMETER_PATTERN.matcher(value);
-        if (!m.matches())
-            throw new ConfigurationException("Scaling parameter " + value + " must match " + SCALING_PARAMETER_PATTERN_SIMPLIFIED);
-
-        if (m.group(1) != null)
-            return 0;
-        else if (m.group(2) != null)
-            return 2 - atLeast2(Integer.parseInt(m.group(2)), value);
-        else if (m.group(3) != null)
-            return atLeast2(Integer.parseInt(m.group(3)), value) - 2;
-        else
-            return Integer.parseInt(m.group(4));
-    }
-
-    private static int atLeast2(int value, String str)
-    {
-        if (value < 2)
-            throw new ConfigurationException("Fan factor cannot be lower than 2 in " + str);
-        return value;
     }
 
     public static String printScalingParameters(int[] parameters)
@@ -892,31 +1016,27 @@ public abstract class Controller
         int i;
         for (i = 0; i < parameters.length - 1; ++i)
         {
-            builder.append(printScalingParameter(parameters[i]));
+            builder.append(UnifiedCompactionStrategy.printScalingParameter(parameters[i]));
             builder.append(", ");
         }
-        builder.append(printScalingParameter(parameters[i]));
+        builder.append(UnifiedCompactionStrategy.printScalingParameter(parameters[i]));
         return builder.toString();
     }
 
-    public static String printScalingParameter(int W)
+    /**
+     * Prioritize the given aggregates. Because overlap is the primary measure we aim to control, reducing the max
+     * overlap of the aggregates is the primary goal. We do this by sorting the aggregates by max overlap, so that
+     * the ones with the highest overlap are chosen first.
+     * Among choices with matching overlap, we order randomly to give each level and bucket a good chance to run.
+     */
+    public List<CompactionAggregate.UnifiedAggregate> prioritize(List<CompactionAggregate.UnifiedAggregate> aggregates)
     {
-        if (W < 0)
-            return "L" + Integer.toString(2 - W);
-        else if (W > 0)
-            return "T" + Integer.toString(W + 2);
-        else
-            return "N";
-    }
-
-    public List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending)
-    {
-        return env.maybeSort(pending);
-    }
-
-    public IntArrayList maybeRandomize(IntArrayList aggregateIndexes)
-    {
-        return env.maybeRandomize(aggregateIndexes, random());
+        // Randomize the list.
+        Collections.shuffle(aggregates, random());
+        // Sort the array so that aggregates with the highest overlap come first. Because this is a stable sort,
+        // entries with the same overlap will remain randomly ordered.
+        aggregates.sort((a1, a2) -> Long.compare(a2.maxOverlap(), a1.maxOverlap()));
+        return aggregates;
     }
 
     static final class Metrics

@@ -51,9 +51,9 @@ import org.mockito.Mockito;
 import static org.apache.cassandra.db.compaction.LeveledManifest.MAX_COMPACTING_L0;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 /**
@@ -98,11 +98,10 @@ public class CompactionStrategyStatisticsTest extends BaseCompactionStrategyTest
         when(controller.getMinSstableSizeBytes()).thenReturn(minSstableSizeBytes);
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minSstableSizeBytes);
-        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
         when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
-        when(controller.maybeSort(anyList())).thenAnswer(answ -> answ.getArgument(0));
-        when(controller.maybeRandomize(any(IntArrayList.class))).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.random()).thenCallRealMethod();
@@ -162,11 +161,10 @@ public class CompactionStrategyStatisticsTest extends BaseCompactionStrategyTest
         when(controller.getMinSstableSizeBytes()).thenReturn(minSize);
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minSize);
-        when(controller.getMaxLevelSize(anyInt(), anyLong())).thenCallRealMethod();
+        when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
         when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
-        when(controller.maybeSort(anyList())).thenAnswer(answ -> answ.getArgument(0));
-        when(controller.maybeRandomize(any(IntArrayList.class))).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.random()).thenCallRealMethod();

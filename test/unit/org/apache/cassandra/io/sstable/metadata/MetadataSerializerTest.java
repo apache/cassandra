@@ -171,7 +171,7 @@ public class MetadataSerializerTest
     public void testNVersions() throws Throwable
     {
         Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
-        testVersions("na", "nb");
+        testVersions("na", "nb", "nc");
     }
 
     @Test
@@ -192,7 +192,7 @@ public class MetadataSerializerTest
     public void testCVersions() throws Throwable
     {
         Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
-        testVersions("ca");
+        testVersions("ca", "cb");
     }
 
     public void testOldReadsNew(String oldV, String newV) throws IOException

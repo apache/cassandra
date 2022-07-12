@@ -283,7 +283,8 @@ public class BackgroundCompactionRunner implements Runnable
                 compactionTasks.handle((ignored, throwable) -> {
                     if (throwable != null)
                     {
-                        logger.warn(String.format("Aborting compaction of %s due to error", cfs), throwable);
+                        logger.warn(String.format("Aborting compaction of %s due to error", cfs),
+                                    Throwables.unwrapped(throwable));
                         handleCompactionError(throwable, cfs);
                         promise.completeExceptionallyInternal(throwable);
                     }

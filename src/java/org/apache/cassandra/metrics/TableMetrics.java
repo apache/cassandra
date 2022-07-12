@@ -1019,8 +1019,7 @@ public class TableMetrics
             return cnt;
         });
     }
-    
-    @VisibleForTesting
+
     public MovingAverage flushSizeOnDisk()
     {
         return flushSizeOnDisk;

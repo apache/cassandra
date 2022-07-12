@@ -284,11 +284,12 @@ public class CompactionsBytemanTest extends CQLTester
 
             // This is probably already started when we flushed the 4th sstable, but let's make sure.
             CompactionManager.instance.submitBackground(cfs);
+            STARTED.acquireUninterruptibly();
             List<CompactionStrategyStatistics> statistics = cfs.getCompactionStrategy().getStatistics();
             assertEquals(1, statistics.size());
             assertEquals(1, statistics.get(0).aggregates().size());
 
-            execute("ALTER TABLE %s WITH COMPACTION={'class': 'UnifiedCompactionStrategy', 'num_shards': '2'}");
+            execute("ALTER TABLE %s WITH COMPACTION={'class': 'UnifiedCompactionStrategy', 'scaling_parameters': '4'}");
             statistics = cfs.getCompactionStrategy().getStatistics();
             assertEquals(1, statistics.size());
             assertEquals(1, statistics.get(0).aggregates().size());
@@ -331,7 +332,7 @@ public class CompactionsBytemanTest extends CQLTester
                      "org.apache.cassandra.db.compaction.CompactionsBytemanTest.PROCEED.acquireUninterruptibly();")
     public void testTotalCompactionsUCS() throws Throwable
     {
-        testTotalCompactions("{'class': 'UnifiedCompactionStrategy', 'scaling_parameters': 1}");
+        testTotalCompactions("{'class': 'UnifiedCompactionStrategy', 'scaling_parameters': 1, 'base_shard_count': 1}");
     }
 
     private void testTotalCompactions(String compactionOption) throws Throwable
@@ -347,7 +348,10 @@ public class CompactionsBytemanTest extends CQLTester
             int numSSTables = 10;
             for (int i = 0; i < numSSTables; i++)
             {
+                // Write more than one key to ensure overlap.
                 execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", i, 1, 1);
+                execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", i + 1, 1, 1);
+                execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", i + 2, 1, 1);
                 cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
             }
             assertEquals(numSSTables, cfs.getLiveSSTables().size());

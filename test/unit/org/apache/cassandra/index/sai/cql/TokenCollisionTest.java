@@ -17,29 +17,21 @@
  */
 package org.apache.cassandra.index.sai.cql;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Row;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.LengthPartitioner;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 
 public class TokenCollisionTest extends SAITester
 {
-    @BeforeClass
-    public static void setupCQLTester()
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(LengthPartitioner.instance);
-        StorageService.instance.setPartitionerUnsafe(LengthPartitioner.instance);
-    }
-
     @Before
     public void setup()
     {
@@ -49,21 +41,24 @@ public class TokenCollisionTest extends SAITester
     @Test
     public void testSkippingWhenTokensCollide() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk text, value text, PRIMARY KEY (pk))");
+        createTable("CREATE TABLE %s (pk blob, value text, PRIMARY KEY (pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
+        ByteBuffer prefix = ByteBufferUtil.bytes("key");
         final int numRows = 640; // 5 blocks x 128 postings, so skip table will contain 5 entries
         for (int i = 0; i < numRows; i++)
         {
-            final String pk = String.format("%3d", i);
+            ByteBuffer pk = Util.generateMurmurCollision(prefix, (byte) (i / 64), (byte) (i % 64));
             execute("INSERT INTO %s (pk, value) VALUES (?, ?)", pk, "abc");
         }
+        // sanity check, all should have the same partition key
+        assertEquals(numRows, execute("SELECT pk FROM %s WHERE token(pk) = token(?)", prefix).size());
         flush();
 
         // A storage-attached index will advance token flow to the token that is shared between all indexed rows,
         // and cause binary search on the postings skip table that looks like this [3, 3, 3, 3, 3].
-        List<Row> rows = executeNet("SELECT * FROM %s WHERE token(pk) >= token('000') AND value = 'abc'").all();
+        List<Row> rows = executeNet("SELECT * FROM %s WHERE token(pk) >= token(?) AND value = 'abc'", prefix).all();
         // we should match all the rows
         assertEquals(numRows, rows.size());
     }

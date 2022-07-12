@@ -30,7 +30,7 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy.Shard;
+import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy.Arena;
 import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.consistent.LocalSession;
@@ -865,7 +865,7 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
             UnifiedCompactionStrategy ucs = ((UnifiedCompactionStrategy) cs);
             assertEquals("Expecting number of shards in the strategy.",
                          expectedNumberOfShards,
-                         ucs.getShardsWithBuckets().keySet().size());
+                         ucs.getLevels().keySet().size());
         });
     }
 
@@ -891,12 +891,12 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
 
             assertEquals("Expecting strategy contains sstable.", expectedContainsSstable, ucsSstables.size() == 1);
 
-            Map<Shard, List<UnifiedCompactionStrategy.Bucket>> shardListMap = ucs.getShardsWithBuckets();
-            Set<Shard> shards = shardListMap.keySet();
+            Map<Arena, List<UnifiedCompactionStrategy.Level>> shardListMap = ucs.getLevels();
+            Set<Arena> arenas = shardListMap.keySet();
 
             if (expectedRepairStatus)
             {
-                Set<Shard> shardsWithPrefix = shards.stream()
+                Set<Arena> shardsWithPrefix = arenas.stream()
                                                     .filter(shard -> {
                                                         if (shard.getSSTables().isEmpty())
                                                             return false;
@@ -916,7 +916,7 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
                              1,
                              shardsWithPrefix.size());
 
-                Shard shardWithPrefix = shardsWithPrefix.iterator().next();
+                Arena shardWithPrefix = shardsWithPrefix.iterator().next();
                 assertEquals(String.format("Expecting a shard with repair status: %s contains the sstable is %s.",
                                            expectedRepairStatus,
                                            expectedContainsSstable),
@@ -926,7 +926,7 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
             else
             {
                 // not expecting any shard would contain the sstable
-                Set<Shard> shardsContainsSstable = shards.stream()
+                Set<Arena> shardsContainsSstable = arenas.stream()
                                                          .filter(shard -> shard.getSSTables().contains(sstable))
                                                          .collect(Collectors.toSet());
 

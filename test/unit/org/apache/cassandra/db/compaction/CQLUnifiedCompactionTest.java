@@ -116,7 +116,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
         createTable("create table %s (id int primary key, val text) with compaction = " +
                     "{'class':'UnifiedCompactionStrategy', 'adaptive' : 'false', " +
                     String.format("'dataset_size_in_gb' : '%d', ", dataSetSizeGB) +
-                    String.format("'num_shards' : '%d', ", numShards) +
+                    String.format("'base_shard_count' : '%d', ", numShards) +
                     String.format("'min_sstable_size_in_mb' : '%d', ", minSstableSizeMB) +
                     String.format("'scaling_parameters' : '%s'}", scalingParametersStr));
 
@@ -126,7 +126,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
         UnifiedCompactionStrategy unifiedCompactionStrategy = (UnifiedCompactionStrategy) strategy;
         Controller controller = unifiedCompactionStrategy.getController();
         assertEquals((long) dataSetSizeGB << 30, controller.getDataSetSizeBytes());
-        assertEquals(numShards, controller.getNumShards());
+        assertEquals(numShards, controller.getNumShards(1));
         assertEquals((long) minSstableSizeMB << 20, controller.getMinSstableSizeBytes());
 
         assertTrue(unifiedCompactionStrategy.getController() instanceof StaticController);
@@ -147,7 +147,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
         createTable("create table %s (id int primary key, val text) with compaction = " +
                     "{'class':'UnifiedCompactionStrategy', 'adaptive' : 'true', " +
                     String.format("'dataset_size_in_gb' : '%d', ", dataSetSizeGB) +
-                    String.format("'num_shards' : '%d', ", numShards) +
+                    String.format("'base_shard_count' : '%d', ", numShards) +
                     String.format("'min_sstable_size_in_mb' : '%d', ", sstableSizeMB) +
                     String.format("'adaptive_starting_scaling_parameter' : '%s', ", w) +
                     String.format("'adaptive_min_scaling_parameter' : '%s', ", -6) +
@@ -169,7 +169,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
 
         AdaptiveController controller = (AdaptiveController) unifiedCompactionStrategy.getController();
         assertEquals((long) dataSetSizeGB << 30, controller.getDataSetSizeBytes());
-        assertEquals(numShards, controller.getNumShards());
+        assertEquals(numShards, controller.getNumShards(1));
         assertEquals((long) sstableSizeMB << 20, controller.getMinSstableSizeBytes());
         assertEquals(-6, controller.getMinScalingParameter());
         assertEquals(16, controller.getMaxScalingParameter());
@@ -211,7 +211,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
         int valSize = 1024;
 
         createTable("create table %s (id int primary key, val blob) with compaction = {'class':'UnifiedCompactionStrategy', 'adaptive' : 'false', " +
-                    String.format("'scaling_parameters' : '%d', 'min_sstable_size_in_mb' : '1', 'num_shards': '1', 'log_all' : 'true'}", W));
+                    String.format("'scaling_parameters' : '%d', 'min_sstable_size_in_mb' : '1', 'base_shard_count': '1', 'log_all' : 'true'}", W));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -284,7 +284,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
 
         createTable("create table %s (id int primary key, val blob) with compression = { 'enabled' : false } AND " +
                     "compaction = {'class':'UnifiedCompactionStrategy', 'adaptive' : 'false', " +
-                    String.format("'scaling_parameters' : '%s', 'min_sstable_size_in_mb' : '1', 'num_shards': '%d', 'log_all' : 'true'}",
+                    String.format("'scaling_parameters' : '%s', 'min_sstable_size_in_mb' : '1', 'base_shard_count': '%d', 'log_all' : 'true'}",
                                   scalingParamsStr, numShards));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();

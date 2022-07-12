@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableList;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
@@ -117,8 +118,7 @@ public class IndexesSystemViewTest extends SAITester
                                         row(v2IndexName, "v2", true, false, true, 3, 5L));
 
         // compact and verify that the cell count decreases
-        compact();
-        waitForCompactionsFinished();
+        Util.forceFullCompaction(getCurrentColumnFamilyStore(), 30);
 
         System.out.println(makeRowStrings(execute("SELECT * FROM %s")));
 

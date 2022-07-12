@@ -81,6 +81,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -332,6 +333,39 @@ public class Util
             for (AbstractCompactionTask task : tasks)
                 task.execute();
         }
+    }
+
+    /**
+     * Checks that the provided SSTable set does not overlap. The result of a major compaction should satisfy this.
+     */
+    public static void assertNoOverlap(Collection<? extends CompactionSSTable> liveSet)
+    {
+        for (CompactionSSTable rdr1 : liveSet)
+        {
+            for (CompactionSSTable rdr2 : liveSet)
+            {
+                if (rdr1 == rdr2)
+                    continue;
+
+                assertFalse(rdr1.getBounds().intersects(rdr2.getBounds()));
+            }
+        }
+    }
+
+    /**
+     * Perform full compaction, everything in the given CFS to one file. Unlike major compaction, this must also compact
+     * non-overlapping files, and should try to not split output.
+     */
+    public static void forceFullCompaction(ColumnFamilyStore cfs, int timeoutInSeconds)
+    {
+        FBUtilities.await(
+            CompactionManager.instance.submitUserDefined(cfs,
+                                                         cfs.getLiveSSTables()
+                                                            .stream()
+                                                            .map(s -> s.getDescriptor())
+                                                            .collect(Collectors.toList()),
+                                                         FBUtilities.nowInSeconds()),
+            Duration.ofSeconds(timeoutInSeconds));
     }
 
     public static void expectEOF(Callable<?> callable)

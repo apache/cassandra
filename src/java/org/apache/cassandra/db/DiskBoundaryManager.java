@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -78,7 +77,7 @@ public class DiskBoundaryManager
         if (localRanges == null || localRanges.getRanges().isEmpty())
             return new DiskBoundaries(cfs, dirs, null, localRanges, directoriesVersion);
 
-        List<PartitionPosition> positions = getDiskBoundaries(localRanges.getRanges(), cfs.getPartitioner(), dirs);
+        List<Token> positions = getDiskBoundaries(localRanges.getRanges(), cfs.getPartitioner(), dirs);
         return new DiskBoundaries(cfs, dirs, positions, localRanges, directoriesVersion);
     }
 
@@ -91,7 +90,7 @@ public class DiskBoundaryManager
      *
      * The final entry in the returned list will always be the partitioner maximum tokens upper key bound
      */
-    private static List<PartitionPosition> getDiskBoundaries(List<Splitter.WeightedRange> weightedRanges, IPartitioner partitioner, Directories.DataDirectory[] dataDirectories)
+    private static List<Token> getDiskBoundaries(List<Splitter.WeightedRange> weightedRanges, IPartitioner partitioner, Directories.DataDirectory[] dataDirectories)
     {
         assert partitioner.splitter().isPresent();
 
@@ -100,11 +99,6 @@ public class DiskBoundaryManager
 
         List<Token> boundaries = splitter.splitOwnedRanges(dataDirectories.length, weightedRanges, splitType).boundaries;
         assert boundaries.size() == dataDirectories.length : "Wrong number of boundaries for directories: " + boundaries.size();
-
-        List<PartitionPosition> diskBoundaries = new ArrayList<>();
-        for (int i = 0; i < boundaries.size() - 1; i++)
-            diskBoundaries.add(boundaries.get(i).maxKeyBound());
-        diskBoundaries.add(partitioner.getMaximumToken().maxKeyBound());
-        return diskBoundaries;
+        return boundaries;
     }
 }

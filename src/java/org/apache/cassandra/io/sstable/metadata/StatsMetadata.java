@@ -74,6 +74,7 @@ public class StatsMetadata extends MetadataComponent
     public final int sstableLevel;
     public final Slice coveredClustering;
     public final boolean hasLegacyCounterShards;
+    public final double tokenSpaceCoverage;
     /**
      * This boolean is used as an approximation of whether a given key can be guaranteed not to have partition
      * deletions in this sstable. Obviously, this is pretty imprecise: a single partition deletion in the sstable
@@ -118,6 +119,7 @@ public class StatsMetadata extends MetadataComponent
                          long repairedAt,
                          long totalColumnsSet,
                          long totalRows,
+                         double tokenSpaceCoverage,
                          UUID originatingHostId,
                          UUID pendingRepair,
                          boolean isTransient,
@@ -142,6 +144,7 @@ public class StatsMetadata extends MetadataComponent
         this.repairedAt = repairedAt;
         this.totalColumnsSet = totalColumnsSet;
         this.totalRows = totalRows;
+        this.tokenSpaceCoverage = tokenSpaceCoverage;
         this.originatingHostId = originatingHostId;
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
@@ -199,6 +202,7 @@ public class StatsMetadata extends MetadataComponent
                                  repairedAt,
                                  totalColumnsSet,
                                  totalRows,
+                                 tokenSpaceCoverage,
                                  originatingHostId,
                                  pendingRepair,
                                  isTransient,
@@ -226,6 +230,7 @@ public class StatsMetadata extends MetadataComponent
                                  newRepairedAt,
                                  totalColumnsSet,
                                  totalRows,
+                                 tokenSpaceCoverage,
                                  originatingHostId,
                                  newPendingRepair,
                                  newIsTransient,
@@ -258,6 +263,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasPartitionLevelDeletions, that.hasPartitionLevelDeletions)
                        .append(totalColumnsSet, that.totalColumnsSet)
                        .append(totalRows, that.totalRows)
+                       .append(tokenSpaceCoverage, that.tokenSpaceCoverage)
                        .append(originatingHostId, that.originatingHostId)
                        .append(pendingRepair, that.pendingRepair)
                        .append(maxColumnValueLengths, that.maxColumnValueLengths)
@@ -286,6 +292,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasPartitionLevelDeletions)
                        .append(totalColumnsSet)
                        .append(totalRows)
+                       .append(tokenSpaceCoverage)
                        .append(originatingHostId)
                        .append(pendingRepair)
                        .append(maxColumnValueLengths)
@@ -373,6 +380,11 @@ public class StatsMetadata extends MetadataComponent
                 size += 1; // boolean: is originatingHostId present
                 if (component.originatingHostId != null)
                     size += UUIDSerializer.serializer.serializedSize(component.originatingHostId, version.correspondingMessagingVersion());
+            }
+
+            if (version.hasTokenSpaceCoverage())
+            {
+                size += Double.BYTES;
             }
 
             return size;
@@ -488,6 +500,11 @@ public class StatsMetadata extends MetadataComponent
                 {
                     out.writeByte(0);
                 }
+            }
+
+            if (version.hasTokenSpaceCoverage())
+            {
+                out.writeDouble(component.tokenSpaceCoverage);
             }
         }
 
@@ -617,6 +634,12 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasOriginatingHostId() && in.readByte() != 0)
                 originatingHostId = UUIDSerializer.serializer.deserialize(in, 0);
 
+            double tokenSpaceCoverage = Double.NaN;
+            if (version.hasTokenSpaceCoverage())
+            {
+                tokenSpaceCoverage = in.readDouble();
+            }
+
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
                                      commitLogIntervals,
@@ -636,6 +659,7 @@ public class StatsMetadata extends MetadataComponent
                                      repairedAt,
                                      totalColumnsSet,
                                      totalRows,
+                                     tokenSpaceCoverage,
                                      originatingHostId,
                                      pendingRepair,
                                      isTransient,

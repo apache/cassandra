@@ -36,6 +36,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Mutation;
@@ -647,12 +648,12 @@ public class CompactionsCQLTest extends CQLTester
             return new MaxSSTableSizeWriter(realm, directories, txn, nonExpiredSSTables, 1 << 20, 1)
             {
                 int switchCount = 0;
-                public void switchCompactionWriter(Directories.DataDirectory directory)
+                public void switchCompactionWriter(Directories.DataDirectory directory, DecoratedKey nextKey)
                 {
                     switchCount++;
                     if (switchCount > 5)
                         throw new RuntimeException("Throw after a few sstables have had their starts moved");
-                    super.switchCompactionWriter(directory);
+                    super.switchCompactionWriter(directory, nextKey);
                 }
             };
         }

@@ -21,9 +21,9 @@ import java.util.Set;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.compaction.CompactionSSTable;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -93,17 +93,17 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
-    public void switchCompactionWriter(Directories.DataDirectory location)
+    public void switchCompactionWriter(Directories.DataDirectory location, DecoratedKey nextKey)
     {
         averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
         partitionsWritten = 0;
         sstablesWritten = 0;
-        super.switchCompactionWriter(location);
+        super.switchCompactionWriter(location, nextKey);
     }
 
     @Override
     @SuppressWarnings("resource")
-    protected SSTableWriter sstableWriter(Directories.DataDirectory directory, PartitionPosition diskBoundary)
+    protected SSTableWriter sstableWriter(Directories.DataDirectory directory, Token diskBoundary)
     {
         return SSTableWriter.create(realm.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
                                     keysPerSSTable,

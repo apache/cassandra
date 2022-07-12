@@ -59,3 +59,7 @@ write_request_timeout_in_ms: 20000
 counter_write_request_timeout_in_ms: 20000
 cas_contention_timeout_in_ms: 20000
 request_timeout_in_ms: 20000
+default_compaction:
+    class_name: UnifiedCompactionStrategy
+    parameters:
+        base_shard_count: 1
