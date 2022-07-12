@@ -17,40 +17,21 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
+
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.openhft.chronicle.core.util.ThrowingConsumer;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.nodes.LocalInfo;
-import org.apache.cassandra.nodes.NodeInfo;
 import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Throwables;
-
-import static org.apache.cassandra.gms.ApplicationState.SCHEMA;
-import static org.apache.cassandra.gms.ApplicationState.TOKENS;
 
 /**
  * This abstraction represents both the HeartBeatState and the ApplicationState in an EndpointState
@@ -70,11 +51,10 @@ public class EndpointState
     /* fields below do not get serialized */
     private volatile long updateTimestamp;
     private volatile boolean isAlive;
-    private volatile Consumer<UnaryOperator<NodeInfo<?>>> updater;
 
     public EndpointState(HeartBeatState initialHbState)
     {
-        this(initialHbState, new EnumMap<>(ApplicationState.class));
+        this(initialHbState, new EnumMap<ApplicationState, VersionedValue>(ApplicationState.class));
     }
 
     public EndpointState(EndpointState other)
@@ -85,56 +65,9 @@ public class EndpointState
     EndpointState(HeartBeatState initialHbState, Map<ApplicationState, VersionedValue> states)
     {
         hbState = initialHbState;
-        applicationState = new AtomicReference<>(new EnumMap<>(states));
+        applicationState = new AtomicReference<Map<ApplicationState, VersionedValue>>(new EnumMap<>(states));
         updateTimestamp = System.nanoTime();
         isAlive = true;
-    }
-
-    public synchronized void maybeSetUpdater(Consumer<UnaryOperator<NodeInfo<?>>> updater)
-    {
-        Preconditions.checkNotNull(updater);
-        if (this.updater == null)
-            this.updater = updater;
-    }
-
-    public synchronized void maybeUpdate()
-    {
-        if (this.updater != null)
-            update(states());
-    }
-
-    public synchronized void maybeRemoveUpdater()
-    {
-        this.updater = null;
-    }
-
-    public void update(Set<Map.Entry<ApplicationState, VersionedValue>> entries)
-    {
-        Consumer<UnaryOperator<NodeInfo<?>>> updater = this.updater;
-        if (updater == null)
-            return;
-
-        List<ThrowingConsumer<NodeInfo<?>, UnknownHostException>> allUpdates = entries.stream()
-                                                                                      .map(e -> updateNodeInfo(e.getKey(), e.getValue()))
-                                                                                      .filter(Objects::nonNull)
-                                                                                      .collect(Collectors.toList());
-
-        if (!allUpdates.isEmpty())
-        {
-            updater.accept(info -> {
-                allUpdates.forEach(update -> {
-                    try
-                    {
-                        update.accept(info);
-                    }
-                    catch (UnknownHostException e)
-                    {
-                        throw Throwables.cleaned(e);
-                    }
-                });
-                return info;
-            });
-        }
     }
 
     HeartBeatState getHeartBeatState()
@@ -173,7 +106,7 @@ public class EndpointState
         addApplicationStates(values.entrySet());
     }
 
-    public synchronized void addApplicationStates(Set<Map.Entry<ApplicationState, VersionedValue>> values)
+    public void addApplicationStates(Set<Map.Entry<ApplicationState, VersionedValue>> values)
     {
         while (true)
         {
@@ -184,16 +117,7 @@ public class EndpointState
                 copy.put(value.getKey(), value.getValue());
 
             if (applicationState.compareAndSet(orig, copy))
-            {
-                EnumMap<ApplicationState, VersionedValue> diff = new EnumMap<>(copy);
-                for (Map.Entry<ApplicationState, VersionedValue> entry : copy.entrySet())
-                {
-                    if (Objects.equals(entry.getValue(), orig.get(entry.getKey())))
-                        diff.remove(entry.getKey());
-                }
-                update(diff.entrySet());
                 return;
-            }
         }
     }
 
@@ -223,23 +147,22 @@ public class EndpointState
     private static Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
     {
         return states.entrySet().stream().filter(entry -> {
-            // Filter out pre-4.0 versions of data for more complete 4.0 versions
-            switch (entry.getKey())
-            {
-                case INTERNAL_IP:
-                    return !states.containsKey(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
-                case STATUS:
-                    return !states.containsKey(ApplicationState.STATUS_WITH_PORT);
-                case RPC_ADDRESS:
-                    return !states.containsKey(ApplicationState.NATIVE_ADDRESS_AND_PORT);
-                default:
-                    return true;
-            }
-        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                // Filter out pre-4.0 versions of data for more complete 4.0 versions
+                switch (entry.getKey())
+                {
+                    case INTERNAL_IP:
+                        return !states.containsKey(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
+                    case STATUS:
+                        return !states.containsKey(ApplicationState.STATUS_WITH_PORT);
+                    case RPC_ADDRESS:
+                        return !states.containsKey(ApplicationState.NATIVE_ADDRESS_AND_PORT);
+                    default:
+                        return true;
+                }
+            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /* getters and setters */
-
     /**
      * @return System.nanoTime() when state was updated last time.
      */
@@ -308,65 +231,19 @@ public class EndpointState
     @Nullable
     public UUID getSchemaVersion()
     {
-        VersionedValue applicationState = getApplicationState(SCHEMA);
+        VersionedValue applicationState = getApplicationState(ApplicationState.SCHEMA);
         return applicationState != null
                ? UUID.fromString(applicationState.value)
                : null;
     }
 
     @Nullable
-    public Collection<Token> getTokens(IPartitioner partitioner)
+    public CassandraVersion getReleaseVersion()
     {
-        VersionedValue value = getApplicationState(TOKENS);
-        return value != null ? getTokens(partitioner, value) : null;
-    }
-
-    @Nonnull
-    private static Collection<Token> getTokens(IPartitioner partitioner, @Nonnull VersionedValue value)
-    {
-        try
-        {
-            return TokenSerializer.deserialize(partitioner, new DataInputStream(new ByteArrayInputStream(value.toBytes())));
-        }
-        catch (IOException e)
-        {
-            throw Throwables.unchecked(e);
-        }
-    }
-
-    private static ThrowingConsumer<NodeInfo<?>, UnknownHostException> updateNodeInfo(ApplicationState state, VersionedValue value)
-    {
-        switch (state)
-        {
-            case TOKENS:
-                return info -> info.setTokens(getTokens(DatabaseDescriptor.getPartitioner(), value));
-            case HOST_ID:
-                return info -> info.setHostId(UUID.fromString(value.value));
-            case RELEASE_VERSION:
-                return info -> info.setReleaseVersion(new CassandraVersion(value.value));
-            case DC:
-                return info -> info.setDataCenter(value.value);
-            case RACK:
-                return info -> info.setRack(value.value);
-            case SCHEMA:
-                return info -> info.setSchemaVersion(UUID.fromString(value.value));
-            case INTERNAL_IP:
-                return info -> {
-                    if (info instanceof LocalInfo)
-                        ((LocalInfo) info).setListenAddressOnly(InetAddress.getByName(value.value), FBUtilities.getLocalAddressAndPort().port);
-                };
-            case INTERNAL_ADDRESS_AND_PORT:
-                return info -> {
-                    if (info instanceof LocalInfo)
-                        ((LocalInfo) info).setListenAddressAndPort(InetAddressAndPort.getByName(value.value));
-                };
-            case RPC_ADDRESS:
-                return info -> info.setNativeTransportAddressOnly(InetAddress.getByName(value.value), DatabaseDescriptor.getNativeTransportPort());
-            case NATIVE_ADDRESS_AND_PORT:
-                return info -> info.setNativeTransportAddressAndPort(InetAddressAndPort.getByName(value.value));
-            default:
-                return null;
-        }
+        VersionedValue applicationState = getApplicationState(ApplicationState.RELEASE_VERSION);
+        return applicationState != null
+               ? new CassandraVersion(applicationState.value)
+               : null;
     }
 
     public String toString()

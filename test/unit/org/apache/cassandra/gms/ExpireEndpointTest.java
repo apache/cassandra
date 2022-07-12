@@ -37,7 +37,6 @@ public class ExpireEndpointTest
     @BeforeClass
     public static void setup()
     {
-        System.setProperty("cassandra.nodes.disablePersitingToSystemKeyspace", "true");
         DatabaseDescriptor.daemonInitialization();
     }
 

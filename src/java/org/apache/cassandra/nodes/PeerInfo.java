@@ -19,60 +19,54 @@ package org.apache.cassandra.nodes;
 
 import java.util.Objects;
 
-import org.apache.commons.lang3.builder.ToStringBuilder;
-
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.Throwables;
 
-public final class PeerInfo extends NodeInfo<PeerInfo> implements IPeerInfo
+public final class PeerInfo extends NodeInfo
 {
-    private volatile InetAddressAndPort peerAddressAndPort;
-    private volatile InetAddressAndPort preferredAddressAndPort;
-    private volatile boolean removed;
+    private final InetAddressAndPort peer;
 
-    @Override
-    public InetAddressAndPort getPeerAddressAndPort()
+    private volatile InetAddressAndPort preferred;
+
+    @JsonCreator
+    public PeerInfo(@JsonProperty("peer") InetAddressAndPort peer)
     {
-        return peerAddressAndPort;
+        this.peer = peer;
     }
 
-    public PeerInfo setPeerAddressAndPort(InetAddressAndPort peerAddressAndPort)
+    public InetAddressAndPort getPeer()
     {
-        this.peerAddressAndPort = peerAddressAndPort;
-        return this;
+        return peer;
     }
 
-    @Override
-    public InetAddressAndPort getPreferredAddressAndPort()
+    @JsonProperty("preferred_ip")
+    public InetAddressAndPort getPreferred()
     {
-        return preferredAddressAndPort;
+        return preferred;
     }
 
-    public PeerInfo setPreferredAddressAndPort(InetAddressAndPort preferredAddressAndPort)
+    public void setPreferred(InetAddressAndPort preferred)
     {
-        this.preferredAddressAndPort = preferredAddressAndPort;
-        return this;
-    }
-
-    @Override
-    public boolean isRemoved()
-    {
-        return removed;
+        if (Objects.equals(preferred, this.preferred))
+            return;
+        this.preferred = preferred;
+        dirty();
     }
 
     @Override
-    public boolean isExisting()
+    public String toString()
     {
-        return !isRemoved();
-    }
-
-    PeerInfo setRemoved(boolean removed)
-    {
-        this.removed = removed;
-        return this;
+        return "PeerInfo{" +
+               "peer=" + peer +
+               ", preferred=" + preferred +
+               ", " + super.toString() +
+               '}';
     }
 
     @Override
-    public PeerInfo duplicate()
+    public PeerInfo copy()
     {
         try
         {
@@ -80,39 +74,7 @@ public final class PeerInfo extends NodeInfo<PeerInfo> implements IPeerInfo
         }
         catch (CloneNotSupportedException e)
         {
-            throw new AssertionError(e);
+            throw Throwables.unchecked(e);
         }
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (!(o instanceof PeerInfo)) return false;
-        if (!super.equals(o)) return false;
-        PeerInfo peerInfo = (PeerInfo) o;
-        return isRemoved() == peerInfo.isRemoved()
-               && Objects.equals(getPeerAddressAndPort(), peerInfo.getPeerAddressAndPort())
-               && Objects.equals(getPreferredAddressAndPort(), peerInfo.getPreferredAddressAndPort());
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(super.hashCode(),
-                            getPeerAddressAndPort(),
-                            getPreferredAddressAndPort(),
-                            isRemoved());
-    }
-
-    @Override
-    public String toString()
-    {
-        return new ToStringBuilder(this)
-        .appendSuper(super.toString())
-        .append("peer", getPeerAddressAndPort())
-        .append("preferredIp", getPreferredAddressAndPort())
-        .append("isRemoved", isRemoved())
-        .toString();
     }
 }

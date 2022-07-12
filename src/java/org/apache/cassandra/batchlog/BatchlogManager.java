@@ -70,6 +70,7 @@ import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
@@ -416,7 +417,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         private void addMutation(Mutation mutation)
         {
             for (TableId tableId : mutation.getTableIds())
-                if (writtenAt <= SystemKeyspace.getTruncatedAt(tableId))
+                if (writtenAt <= Nodes.local().getTruncatedAt(tableId))
                     mutation = mutation.without(tableId);
 
             if (!mutation.isEmpty())

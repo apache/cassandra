@@ -45,6 +45,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -67,7 +68,7 @@ class ViewBuilder
     private final ColumnFamilyStore baseCfs;
     private final View view;
     private final String ksName;
-    private final UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
+    private final UUID localHostId = Nodes.local().get().getHostId();
     private final Set<Range<Token>> builtRanges = Sets.newConcurrentHashSet();
     private final Map<Range<Token>, Pair<Token, Long>> pendingRanges = Maps.newConcurrentMap();
     private final Set<ViewBuilderTask> tasks = Sets.newConcurrentHashSet();

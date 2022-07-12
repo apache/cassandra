@@ -33,6 +33,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -99,7 +100,7 @@ public final class Hint
             // filter out partition update for tables that have been truncated since hint's creation
             Mutation filtered = mutation;
             for (TableId id : mutation.getTableIds())
-                if (creationTime <= SystemKeyspace.getTruncatedAt(id))
+                if ( creationTime <= Nodes.local().getTruncatedAt(id))
                     filtered = filtered.without(id);
 
             if (!filtered.isEmpty())

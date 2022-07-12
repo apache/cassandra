@@ -25,6 +25,7 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,6 +45,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.assertEquals;
 
+@Ignore("In Converged Cassandra we are never going to migrate from an older version")
 public class SystemKeyspaceMigrator40Test extends CQLTester
 {
     @Test

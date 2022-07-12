@@ -32,6 +32,7 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
@@ -459,7 +460,7 @@ public class OutboundConnectionSettings
     {
         InetAddressAndPort connectTo = this.connectTo;
         if (connectTo == null)
-            connectTo = SystemKeyspace.getPreferredIP(to);
+            connectTo = Nodes.peers().getPreferred(to);
         if (FBUtilities.getBroadcastAddressAndPort().equals(connectTo))
             return FBUtilities.getLocalAddressAndPort();
         return connectTo;

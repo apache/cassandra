@@ -111,7 +111,7 @@ public class StatusTest extends CQLTester
         String hostStatus = lines[lines.length-1].trim();
         assertThat(hostStatus, startsWith("UN"));
         assertThat(hostStatus, containsString(hostForm));
-        assertThat(hostStatus, matchesPattern(".*\\d+\\.?\\d+ KiB.*"));
+        assertThat(hostStatus, matchesPattern(".*0 bytes.*"));
         assertThat(hostStatus, matchesPattern(".*\\d+\\.\\d+%.*"));
         assertThat(hostStatus, containsString(localHostId));
         assertThat(hostStatus, containsString(token));

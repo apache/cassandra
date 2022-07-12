@@ -29,21 +29,26 @@ import java.util.stream.Collectors;
 import javax.management.openmbean.CompositeData;
 
 import com.google.common.collect.Lists;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.service.StorageService;
 
-import static java.lang.String.format;
-import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.junit.Assert.assertEquals;
 
 public class TopPartitionsTest extends CQLTester
 {
+    @Before
+    public void setup() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int primary key, value int)");
+        execute("INSERT INTO %s (pk, value) VALUES (1, 1)");
+    }
+
     @Test
-    public void testServiceTopPartitionsNoArg() throws Exception
+    public void testServiceTopPartitionsNoArg() throws Throwable
     {
         BlockingQueue<Map<String, List<CompositeData>>> q = new ArrayBlockingQueue<>(1);
         ColumnFamilyStore.all();
@@ -58,19 +63,18 @@ public class TopPartitionsTest extends CQLTester
             }
         });
         Thread.sleep(100);
-        SystemKeyspace.persistLocalMetadata();
+        execute("INSERT INTO %s (pk, value) VALUES (2, 2)");
         Map<String, List<CompositeData>> result = q.poll(5, TimeUnit.SECONDS);
-        List<CompositeData> cds = result.get("WRITES").stream().filter(cd -> Objects.equals(cd.get("table"), "system." + SystemKeyspace.LOCAL)).collect(Collectors.toList());
+        List<CompositeData> cds = result.get("WRITES").stream().filter(cd -> Objects.equals(cd.get("table"), KEYSPACE + "." + currentTable())).collect(Collectors.toList());
         assertEquals(1, cds.size());
     }
 
     @Test
-    public void testServiceTopPartitionsSingleTable() throws Exception
+    public void testServiceTopPartitionsSingleTable() throws Throwable
     {
-        ColumnFamilyStore.getIfExists("system", "local").beginLocalSampling("READS", 5, 240000);
-        String req = "SELECT * FROM system.%s WHERE key='%s'";
-        executeInternal(format(req, SystemKeyspace.LOCAL, SystemKeyspace.LOCAL));
-        List<CompositeData> result = ColumnFamilyStore.getIfExists("system", "local").finishLocalSampling("READS", 5);
+        getCurrentColumnFamilyStore().beginLocalSampling("READS", 5, 100000);
+        execute("SELECT * FROM %s WHERE pk=1");
+        List<CompositeData> result = getCurrentColumnFamilyStore().finishLocalSampling("READS", 5);
         assertEquals("If this failed you probably have to raise the beginLocalSampling duration", 1, result.size());
     }
 }

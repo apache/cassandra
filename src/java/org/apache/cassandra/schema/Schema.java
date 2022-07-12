@@ -55,6 +55,9 @@ import org.apache.cassandra.exceptions.UnknownKeyspaceException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.nodes.LocalInfo;
+import org.apache.cassandra.nodes.Nodes;
+import org.apache.cassandra.nodes.virtual.NodeConstants;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
@@ -462,6 +465,14 @@ public class Schema implements SchemaProvider
         if (tableName.isEmpty())
             throw new InvalidRequestException("non-empty table is required");
 
+        if (NodeConstants.canBeMapped(keyspaceName, tableName))
+        {
+            KeyspaceMetadata systemViews = VirtualKeyspaceRegistry.instance.getKeyspaceMetadataNullable(SchemaConstants.SYSTEM_VIEWS_KEYSPACE_NAME);
+            if (systemViews == null)
+                throw new InvalidRequestException(String.format("The %s keyspace is not available", SchemaConstants.SYSTEM_VIEWS_KEYSPACE_NAME));
+            return systemViews.getTableOrViewNullable(NodeConstants.mapTableToView(tableName));
+        }
+
         KeyspaceMetadata keyspace = getKeyspaceMetadata(keyspaceName);
         if (keyspace == null)
             throw new KeyspaceNotDefinedException(format("keyspace %s does not exist", keyspaceName));
@@ -622,7 +633,7 @@ public class Schema implements SchemaProvider
     public synchronized void mergeAndUpdateVersion(SchemaTransformationResult result, boolean dropData)
     {
         if (online)
-            SystemKeyspace.updateSchemaVersion(result.after.getVersion());
+            Nodes.local().update(result.after.getVersion(), LocalInfo::setSchemaVersion, false);
         result = localDiff(result);
         schemaChangeNotifier.notifyPreChanges(result);
         merge(result.diff, dropData);

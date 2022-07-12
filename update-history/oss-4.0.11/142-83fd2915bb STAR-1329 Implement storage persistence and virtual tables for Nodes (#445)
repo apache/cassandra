@@ -1,0 +1,441 @@
+--- a/src/java/org/apache/cassandra/db/ColumnFamilyStore.java
++++ b/src/java/org/apache/cassandra/db/ColumnFamilyStore.java
+@@ -757,14 +757,10 @@
+         }
+ 
+         strategyContainer.shutdown();
+-<<<<<<<
+ 
+         // Do not remove truncation records for index CFs, given they have the same ID as their backing/base tables.
+         if (!metadata.get().isIndex())
+-            SystemKeyspace.removeTruncationRecord(metadata.id);
+-=======
+-        Nodes.local().removeTruncationRecord(metadata.id);
+->>>>>>>
++            Nodes.local().removeTruncationRecord(metadata.id);
+ 
+         storageHandler.runWithReloadingDisabled(() -> {
+             if (status.isInvalidAndShouldDropData())
+--- a/src/java/org/apache/cassandra/db/SystemKeyspace.java
++++ b/src/java/org/apache/cassandra/db/SystemKeyspace.java
+@@ -40,11 +40,8 @@
+ import javax.management.openmbean.TabularData;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+-<<<<<<<
+-=======
+ import com.google.common.base.Preconditions;
+ import com.google.common.collect.HashMultimap;
+->>>>>>>
+ import com.google.common.collect.ImmutableMap;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.common.collect.Sets;
+@@ -435,50 +432,7 @@
+                         .build();
+     }
+ 
+-<<<<<<<
+-    public enum BootstrapState
+-    {
+-        NEEDS_BOOTSTRAP,
+-        COMPLETED,
+-        IN_PROGRESS,
+-        DECOMMISSIONED
+-    }
+-
+-    public static void persistLocalMetadata()
+-    {
+-        persistLocalMetadata(UUID::randomUUID);
+-    }
+-
+-    @VisibleForTesting
+-    public static void persistLocalMetadata(Supplier<UUID> nodeIdSupplier)
+-    {
+-        Nodes.local().update(info -> {
+-            info.setClusterName(DatabaseDescriptor.getClusterName());
+-            info.setReleaseVersion(SystemKeyspace.CURRENT_VERSION);
+-            info.setCqlVersion(QueryProcessor.CQL_VERSION);
+-            info.setNativeProtocolVersion(ProtocolVersion.CURRENT);
+-            info.setBroadcastAddressAndPort(FBUtilities.getBroadcastAddressAndPort());
+-            info.setDataCenter(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter());
+-            info.setRack(DatabaseDescriptor.getEndpointSnitch().getLocalRack());
+-            info.setPartitionerClass(DatabaseDescriptor.getPartitioner().getClass());
+-            info.setNativeTransportAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(DatabaseDescriptor.getRpcAddress(), DatabaseDescriptor.getNativeTransportPort()));
+-            info.setBroadcastAddressAndPort(FBUtilities.getBroadcastAddressAndPort());
+-            info.setListenAddressAndPort(FBUtilities.getLocalAddressAndPort());
+-            return info;
+-        }, true, true);
+-
+-        // We should store host ID as soon as possible in the system.local table and flush that table to disk so that
+-        // we can be sure that those changes are stored in sstable and not in the commit log (see CASSANDRA-18153).
+-        // It is very unlikely that when upgrading the host id is not flushed to disk, but if that's the case, we limit
+-        // this change only to the new installations or the user should just flush system.local table.
+-        if (!CommitLog.instance.hasFilesToReplay())
+-            SystemKeyspace.getOrInitializeLocalHostId(nodeIdSupplier);
+-    }
+-
+     public static void updateCompactionHistory(UUID taskId,
+-=======
+-    public static void updateCompactionHistory(UUID id,
+->>>>>>>
+                                                String ksname,
+                                                String cfname,
+                                                long compactedAt,
+@@ -624,184 +578,6 @@
+         }
+     }
+ 
+-<<<<<<<
+-=======
+-    /**
+-     * Return a map of stored tokens to IP addresses
+-     *
+-     */
+-    public static SetMultimap<InetAddressAndPort, Token> loadTokens()
+-    {
+-        SetMultimap<InetAddressAndPort, Token> tokenMap = HashMultimap.create();
+-        Nodes.peers().get().filter(IPeerInfo::isExisting).forEach(info -> tokenMap.putAll(info.getPeerAddressAndPort(), info.getTokens()));
+-        return tokenMap;
+-    }
+-
+-    /**
+-     * Return a map of store host_ids to IP addresses
+-     *
+-     */
+-    public static Map<InetAddressAndPort, UUID> loadHostIds()
+-    {
+-        return Nodes.peers().get().filter(IPeerInfo::isExisting).collect(Collectors.toMap(IPeerInfo::getPeerAddressAndPort, INodeInfo::getHostId));
+-    }
+-
+-    /**
+-     * Get preferred IP for given endpoint if it is known. Otherwise this returns given endpoint itself.
+-     *
+-     * @param ep endpoint address to check
+-     * @return Preferred IP for given endpoint if present, otherwise returns given ep
+-     */
+-    public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
+-    {
+-        Preconditions.checkState(DatabaseDescriptor.isDaemonInitialized()); // Make sure being used as a daemon, not a tool
+-        
+-        IPeerInfo info = Nodes.peers().get(ep);
+-        if (info != null && info.getPreferredAddressAndPort() != null && info.isExisting())
+-            return info.getPreferredAddressAndPort();
+-        else
+-            return ep;
+-    }
+-
+-    /**
+-     * Return a map of IP addresses containing a map of dc and rack info
+-     */
+-    public static Map<InetAddressAndPort, Map<String, String>> loadDcRackInfo()
+-    {
+-        return Nodes.peers()
+-                    .get()
+-                    .filter(p -> p.getDataCenter() != null && p.getRack() != null && p.isExisting())
+-                    .collect(Collectors.toMap(IPeerInfo::getPeerAddressAndPort, p -> {
+-                        Map<String, String> dcRack = new HashMap<>();
+-                        dcRack.put("data_center", p.getDataCenter());
+-                        dcRack.put("rack", p.getRack());
+-                        return dcRack;
+-                    }));
+-    }
+-
+-    /**
+-     * Get release version for given endpoint.
+-     * If release version is unknown, then this returns null.
+-     *
+-     * @param ep endpoint address to check
+-     * @return Release version or null if version is unknown.
+-     */
+-    public static CassandraVersion getReleaseVersion(InetAddressAndPort ep)
+-    {
+-        if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
+-            return CURRENT_VERSION;
+-        else
+-        {
+-            IPeerInfo peer = Nodes.peers().get(ep);
+-            return peer != null && peer.isExisting() ? peer.getReleaseVersion() : null;
+-        }
+-    }
+-
+-    /**
+-     * One of three things will happen if you try to read the system keyspace:
+-     * 1. files are present and you can read them: great
+-     * 2. no files are there: great (new node is assumed)
+-     * 3. files are present but you can't read them: bad
+-     * @throws ConfigurationException
+-     */
+-    public static void checkHealth() throws ConfigurationException
+-    {
+-        Keyspace keyspace;
+-        try
+-        {
+-            keyspace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+-        }
+-        catch (AssertionError err)
+-        {
+-            // this happens when a user switches from OPP to RP.
+-            ConfigurationException ex = new ConfigurationException("Could not read system keyspace!");
+-            ex.initCause(err);
+-            throw ex;
+-        }
+-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(LOCAL);
+-
+-        String savedClusterName = Nodes.local().get().getClusterName();
+-        if (savedClusterName == null) {
+-            // this is a brand new node
+-            if (!cfs.getLiveSSTables().isEmpty())
+-                throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
+-
+-            // no system files.  this is a new node.
+-            return;
+-        }
+-        if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
+-            throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
+-    }
+-
+-    public static Collection<Token> getSavedTokens()
+-    {
+-        return Nodes.local().get().getTokens();
+-    }
+-
+-    public static int incrementAndGetGeneration()
+-    {
+-        // gossip generation is specific to Gossip thus it is not handled by Nodes.Local
+-        String req = "SELECT gossip_generation FROM system.%s WHERE key='%s'";
+-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
+-
+-        int generation;
+-        if (result.isEmpty() || !result.one().has("gossip_generation"))
+-        {
+-            // seconds-since-epoch isn't a foolproof new generation
+-            // (where foolproof is "guaranteed to be larger than the last one seen at this ip address"),
+-            // but it's as close as sanely possible
+-            generation = (int) (System.currentTimeMillis() / 1000);
+-        }
+-        else
+-        {
+-            // Other nodes will ignore gossip messages about a node that have a lower generation than previously seen.
+-            final int storedGeneration = result.one().getInt("gossip_generation") + 1;
+-            final int now = (int) (System.currentTimeMillis() / 1000);
+-            if (storedGeneration >= now)
+-            {
+-                logger.warn("Using stored Gossip Generation {} as it is greater than current system time {}.  See CASSANDRA-3654 if you experience problems",
+-                            storedGeneration, now);
+-                generation = storedGeneration;
+-            }
+-            else
+-            {
+-                generation = now;
+-            }
+-        }
+-
+-        req = "INSERT INTO system.%s (key, gossip_generation) VALUES ('%s', ?)";
+-        executeInternal(format(req, LOCAL, LOCAL), generation);
+-        forceBlockingFlush(LOCAL);
+-
+-        return generation;
+-    }
+-
+-    public static BootstrapState getBootstrapState()
+-    {
+-        return ObjectUtils.firstNonNull(Nodes.local().get().getBootstrapState(), BootstrapState.NEEDS_BOOTSTRAP);
+-    }
+-
+-    public static boolean bootstrapComplete()
+-    {
+-        return getBootstrapState() == BootstrapState.COMPLETED;
+-    }
+-
+-    public static boolean bootstrapInProgress()
+-    {
+-        return getBootstrapState() == BootstrapState.IN_PROGRESS;
+-    }
+-
+-    public static boolean wasDecommissioned()
+-    {
+-        return getBootstrapState() == BootstrapState.DECOMMISSIONED;
+-    }
+-
+-    public static void setBootstrapState(BootstrapState state)
+-    {
+-        Nodes.local().update(info -> info.setBootstrapState(state), true);
+-    }
+-
+->>>>>>>
+     public static boolean isIndexBuilt(String keyspaceName, String indexName)
+     {
+         String req = "SELECT index_name FROM %s.\"%s\" WHERE table_name=? AND index_name=?";
+@@ -833,70 +609,6 @@
+                             .collect(Collectors.toList());
+     }
+ 
+-<<<<<<<
+-=======
+-    /**
+-     * Read the host ID from the system keyspace.
+-     */
+-    public static UUID getLocalHostId()
+-    {
+-        return Nodes.local().get().getHostId();
+-    }
+-
+-    /**
+-     * Read the host ID from the system keyspace, creating (and storing) one if
+-     * none exists.
+-     */
+-    public static synchronized UUID getOrInitializeLocalHostId()
+-    {
+-        return getOrInitializeLocalHostId(UUID::randomUUID);
+-    }
+-
+-    private static synchronized UUID getOrInitializeLocalHostId(Supplier<UUID> nodeIdSupplier)
+-    {
+-        UUID hostId = getLocalHostId();
+-        if (hostId != null)
+-            return hostId;
+-
+-        // ID not found, generate a new one, persist, and then return it.
+-        hostId = nodeIdSupplier.get();
+-        logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
+-        return setLocalHostId(hostId);
+-    }
+-
+-    /**
+-     * Sets the local host ID explicitly.  Should only be called outside of SystemTable when replacing a node.
+-     */
+-    public static UUID setLocalHostId(UUID hostId)
+-    {
+-        return Nodes.local().update(info -> info.setHostId(hostId), false).getHostId();
+-    }
+-
+-    /**
+-     * Gets the schema version or null if missing
+-     */
+-    public static UUID getSchemaVersion()
+-    {
+-        return Nodes.local().get().getSchemaVersion();
+-    }
+-
+-    /**
+-     * Gets the stored rack for the local node, or null if none have been set yet.
+-     */
+-    public static String getRack()
+-    {
+-        return Nodes.local().get().getRack();
+-    }
+-
+-    /**
+-     * Gets the stored data center for the local node, or null if none have been set yet.
+-     */
+-    public static String getDatacenter()
+-    {
+-        return Nodes.local().get().getDataCenter();
+-    }
+-
+->>>>>>>
+     public static PaxosState loadPaxosState(DecoratedKey key, TableMetadata metadata, int nowInSec)
+     {
+         String req = "SELECT * FROM system.%s WHERE row_key = ? AND cf_id = ?";
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+@@ -266,14 +266,6 @@
+         replayer.blockForWrites(STARTUP);
+     }
+ 
+-<<<<<<<
+-=======
+-    private static UUID getLocalHostId()
+-    {
+-        return StorageService.instance.getLocalHostUUID();
+-    }
+-
+->>>>>>>
+     /**
+      * Perform recovery on a single commit log. Kept w/sub-optimal name due to coupling w/MBean / JMX
+      */
+--- a/src/java/org/apache/cassandra/locator/Ec2Snitch.java
++++ b/src/java/org/apache/cassandra/locator/Ec2Snitch.java
+@@ -26,13 +26,9 @@
+ import org.slf4j.LoggerFactory;
+ 
+ import org.apache.cassandra.exceptions.ConfigurationException;
+-<<<<<<<
+-=======
+ import org.apache.cassandra.gms.ApplicationState;
+ import org.apache.cassandra.gms.EndpointState;
+ import org.apache.cassandra.gms.Gossiper;
+-import org.apache.cassandra.io.util.FileUtils;
+->>>>>>>
+ import org.apache.cassandra.nodes.Nodes;
+ import org.apache.cassandra.utils.FBUtilities;
+ 
+--- a/src/java/org/apache/cassandra/service/StorageService.java
++++ b/src/java/org/apache/cassandra/service/StorageService.java
+@@ -2373,29 +2373,21 @@
+ 
+     public String getLocalHostId()
+     {
+-<<<<<<<
+         UUID id = getLocalHostUUID();
+         return id != null ? id.toString() : null;
+-=======
+-        return getLocalHostUUID().toString();
+->>>>>>>
+     }
+ 
+     public UUID getLocalHostUUID()
+     {
+-<<<<<<<
+         UUID id = getTokenMetadata().getHostId(FBUtilities.getBroadcastAddressAndPort());
+         if (id != null)
+             return id;
+         // this condition is to prevent accessing the tables when the node is not started yet, and in particular,
+         // when it is not going to be started at all (e.g. when running some unit tests or client tools).
+         else if (CommitLog.instance.isStarted())
+-            return SystemKeyspace.getLocalHostId();
++            return Nodes.local().get().getHostId();
+ 
+         return null;
+-=======
+-        return Nodes.local().get().getHostId();
+->>>>>>>
+     }
+ 
+     public Map<String, String> getHostIdMap()
+@@ -3871,7 +3863,7 @@
+         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
+             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
+ 
+-        if (tokenMetadata.getPendingRanges(keyspaceName, getBroadcastAddressAndPort()).size() > 0)
++        if (getTokenMetadata().getPendingRanges(keyspaceName, getBroadcastAddressAndPort()).size() > 0)
+             throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
+ 
+         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
+--- a/test/distributed/org/apache/cassandra/distributed/impl/Instance.java
++++ b/test/distributed/org/apache/cassandra/distributed/impl/Instance.java
+@@ -551,11 +551,7 @@
+ 
+                 // We need to persist this as soon as possible after startup checks.
+                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)
+-<<<<<<<
+                 Nodes.Instance.persistLocalMetadata();
+-=======
+-                SystemKeyspace.persistLocalMetadata(config::hostId);
+->>>>>>>
+                 SystemKeyspaceMigrator40.migrate();
+ 
+                 // Same order to populate tokenMetadata for the first time,
+diff --git a/src/java/org/apache/cassandra/service/StorageService.java b/src/java/org/apache/cassandra/service/StorageService.java
+index 59e5620d4a..1676bc1ff4 100644
+--- a/src/java/org/apache/cassandra/service/StorageService.java
++++ b/src/java/org/apache/cassandra/service/StorageService.java
+@@ -3863,7 +3863,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
+         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
+             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
+ 
+-        if (tokenMetadata.getPendingRanges(keyspaceName, getBroadcastAddressAndPort()).size() > 0)
++        if (getTokenMetadata().getPendingRanges(keyspaceName, getBroadcastAddressAndPort()).size() > 0)
+             throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
+ 
+         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;

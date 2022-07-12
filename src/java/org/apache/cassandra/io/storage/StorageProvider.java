@@ -52,6 +52,7 @@ public interface StorageProvider
     {
         DATA("data_file_directories"),
         LOCAL_SYSTEM_DATA("local_system_data_file_directories"),
+        METADATA("metadata_directory"),
         COMMITLOG("commit_log_directory"),
         HINTS("hints_directory"),
         SAVED_CACHES("saved_caches_directory"),

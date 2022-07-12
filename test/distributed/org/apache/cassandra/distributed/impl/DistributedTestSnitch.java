@@ -32,6 +32,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -116,7 +117,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
         if (epState == null || epState.getApplicationState(state) == null)
         {
             if (savedEndpoints == null)
-                savedEndpoints = SystemKeyspace.loadDcRackInfo();
+                savedEndpoints = Nodes.peers().getDcRackInfo();
             if (savedEndpoints.containsKey(endpoint))
                 return savedEndpoints.get(endpoint).get("data_center");
 

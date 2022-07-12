@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.google.common.collect.Lists;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -29,6 +30,7 @@ import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.GCInspector;
@@ -66,6 +68,17 @@ public class JMXCompatabilityTest extends CQLTester
     public static void setup() throws Exception
     {
         startJMXServer();
+    }
+
+    @Before
+    public void initialize() throws Throwable
+    {
+        // We need this here because we no longer flush system.local at
+        // startup so the CompactionManager and associated classes aren't
+        // initialised.
+        createTable("CREATE TABLE %s (pk int primary key, val int)");
+        execute("INSERT INTO %s (pk, val) VALUES (1, 1)");
+        flush();
     }
 
     private void setupStandardTables() throws Throwable
