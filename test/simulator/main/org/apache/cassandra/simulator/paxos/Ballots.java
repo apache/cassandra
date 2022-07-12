@@ -72,14 +72,16 @@ public class Ballots
     public static class LatestBallots
     {
         public final long promise;
-        public final long accept;
+        public final long accept; // the ballot actually accepted
+        public final long acceptOf; // the original ballot (i.e. if a reproposal accept != acceptOf)
         public final long commit;
         public final long persisted;
 
-        public LatestBallots(long promise, long accept, long commit, long persisted)
+        public LatestBallots(long promise, long accept, long acceptOf, long commit, long persisted)
         {
             this.promise = promise;
             this.accept = accept;
+            this.acceptOf = acceptOf;
             this.commit = commit;
             this.persisted = persisted;
         }
@@ -111,7 +113,8 @@ public class Ballots
             long baseTable = latestBallotFromBaseTable(key, metadata);
             return new LatestBallots(
                 promised.unixMicros(),
-                accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update.iterator()),
+                accepted == null || accepted.update.isEmpty() ? 0L : accepted.ballot.unixMicros(),
+                accepted == null || accepted.update.isEmpty() ? 0L : accepted.update.stats().minTimestamp,
                 latestBallot(committed.update.iterator()),
                 baseTable
             );
