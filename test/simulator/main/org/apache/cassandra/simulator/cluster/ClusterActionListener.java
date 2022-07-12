@@ -34,4 +34,42 @@ public interface ClusterActionListener
 
     TopologyChangeValidator newTopologyChangeValidator(Object id);
     RepairValidator newRepairValidator(Object id);
+
+    class NoOpListener implements ClusterActionListener
+    {
+
+        @Override
+        public TopologyChangeValidator newTopologyChangeValidator(Object id)
+        {
+            return new TopologyChangeValidator()
+            {
+                @Override
+                public void before(Topology before, int[] participatingKeys)
+                {
+                }
+
+                @Override
+                public void after(Topology after)
+                {
+                }
+            };
+        }
+
+        @Override
+        public RepairValidator newRepairValidator(Object id)
+        {
+            return new RepairValidator()
+            {
+                @Override
+                public void before(Topology topology, boolean repairPaxos, boolean repairOnlyPaxos)
+                {
+                }
+
+                @Override
+                public void after()
+                {
+                }
+            };
+        }
+    }
 }
