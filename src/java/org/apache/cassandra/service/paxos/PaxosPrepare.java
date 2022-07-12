@@ -596,7 +596,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             // presence of an incomplete proposal can be ignored, as either the proposal is a re-proposal of the same
             // commit or the commit has already reached a quorum
             else if (hasInProgressProposal())
-                signalDone(FOUND_INCOMPLETE_ACCEPTED);
+                signalDone(hasOnlyPromises ? FOUND_INCOMPLETE_ACCEPTED : SUPERSEDED);
 
             else if (withLatest() >= participants.sizeOfConsensusQuorum)
                 signalDone(hasOnlyPromises ? PROMISED : READ_PERMITTED);

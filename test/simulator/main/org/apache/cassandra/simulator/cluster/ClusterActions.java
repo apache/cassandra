@@ -28,6 +28,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +62,7 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChan
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.LEAVE;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.REPLACE;
 import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
+import static org.apache.cassandra.simulator.utils.KindOfSequence.UNIFORM;
 
 
 // TODO (feature): add Gossip failures (up to some acceptable number)
@@ -123,6 +125,12 @@ public class ClusterActions extends SimulatedSystems
             this.changePaxosVariantTo = changePaxosVariantTo;
         }
 
+        public static Options noActions(int clusterSize)
+        {
+            int[] rf = new int[]{clusterSize};
+            return new Options(0, UNIFORM.period(null, null), Choices.uniform(), rf, rf, rf, null);
+        }
+
         public Options changePaxosVariantTo(PaxosVariant newVariant)
         {
             return new Options(this, newVariant);
@@ -141,6 +149,10 @@ public class ClusterActions extends SimulatedSystems
                           Debug debug)
     {
         super(simulated);
+        Preconditions.checkNotNull(cluster);
+        Preconditions.checkNotNull(options);
+        Preconditions.checkNotNull(listener);
+        Preconditions.checkNotNull(debug);
         this.cluster = cluster;
         this.options = options;
         this.listener = listener;

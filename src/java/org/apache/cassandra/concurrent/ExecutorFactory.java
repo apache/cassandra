@@ -183,14 +183,25 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
         // deliberately not volatile to ensure zero overhead outside of testing;
         // depend on other memory visibility primitives to ensure visibility
         private static ExecutorFactory FACTORY = new ExecutorFactory.Default(Global.class.getClassLoader(), null, JVMStabilityInspector::uncaughtException);
+        private static boolean modified;
+
         public static ExecutorFactory executorFactory()
         {
             return FACTORY;
         }
 
-        public static void unsafeSet(ExecutorFactory executorFactory)
+        public static synchronized void unsafeSet(ExecutorFactory executorFactory)
         {
             FACTORY = executorFactory;
+            modified = true;
+        }
+
+        public static synchronized boolean tryUnsafeSet(ExecutorFactory executorFactory)
+        {
+            if (modified)
+                return false;
+            unsafeSet(executorFactory);
+            return true;
         }
     }
 

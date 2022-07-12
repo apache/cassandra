@@ -82,10 +82,11 @@ public class PaxosTopologyChangeVerifier implements TopologyChangeValidator
                 // note that we will not always witness something newer than the latest accepted proposal,
                 // because if we don't witness it during repair, we will simply invalidate it with the low bound
                 long acceptedBefore = stream(before).mapToLong(n -> n.accept).max().orElse(0L);
+                long acceptedOfBefore = stream(before).filter(n -> n.accept == acceptedBefore).mapToLong(n -> n.acceptOf).findAny().orElse(0L);
                 int countBefore = (int) stream(before).filter(n -> n.accept == acceptedBefore).count();
                 int countAfter = countBefore < quorumAfter
                                  ? (int) stream(after).filter(n -> n.any() >= acceptedBefore).count()
-                                 : (int) stream(after).filter(n -> n.permanent() >= acceptedBefore).count();
+                                 : (int) stream(after).filter(n -> n.permanent() >= acceptedOfBefore).count();
 
                 if (countBefore >= quorumBefore && countAfter < quorumAfter)
                 {
