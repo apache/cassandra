@@ -37,6 +37,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.MessagingMetrics;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -428,8 +429,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
     @SuppressWarnings("UnusedReturnValue")
     public Future<Void> maybeReconnectWithNewIp(InetAddressAndPort address, InetAddressAndPort preferredAddress)
     {
-        if (!SystemKeyspace.updatePreferredIP(address, preferredAddress))
-            return null;
+        Nodes.peers().updatePreferredIP(address, preferredAddress);
 
         OutboundConnections messagingPool = channelManagers.get(address);
         if (messagingPool != null)

@@ -699,9 +699,9 @@ public class LeaveAndBootstrapTest
         Util.createInitialRing(ss, partitioner, endpointTokens, new ArrayList<Token>(), hosts, new ArrayList<UUID>(), 2);
 
         InetAddressAndPort toRemove = hosts.get(1);
-        Nodes.peers().update(toRemove, info -> info.setDataCenter("dc42"), false);
-        Nodes.peers().update(toRemove, info -> info.setRack("rack42"), false);
-        assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
+        Nodes.peers().update(toRemove, info -> info.setDataCenter("dc42"));
+        Nodes.peers().update(toRemove, info -> info.setRack("rack42"));
+        assertEquals("rack42", Nodes.peers().getDcRackInfo().get(toRemove).get("rack"));
 
         // mark the node as removed
         Gossiper.instance.injectApplicationState(toRemove, ApplicationState.STATUS,
@@ -711,7 +711,7 @@ public class LeaveAndBootstrapTest
         // state changes made after the endpoint has left should be ignored
         ss.onChange(hosts.get(1), ApplicationState.RACK,
                 valueFactory.rack("rack9999"));
-        assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
+        assertEquals("rack42", Nodes.peers().getDcRackInfo().get(toRemove).get("rack"));
     }
 
     @Test

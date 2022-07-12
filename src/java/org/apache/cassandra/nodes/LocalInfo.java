@@ -17,148 +17,186 @@
  */
 package org.apache.cassandra.nodes;
 
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.commons.lang3.builder.ToStringBuilder;
 
-import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
-import org.apache.cassandra.dht.IPartitioner;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.ImmutableUtils;
+import org.apache.cassandra.utils.Throwables;
 
-@NotThreadSafe
-public final class LocalInfo extends NodeInfo<LocalInfo> implements ILocalInfo
+public final class LocalInfo extends NodeInfo
 {
+    private final String key = "local";
     private volatile InetAddressAndPort broadcastAddressAndPort;
-    private volatile BootstrapState bootstrapState;
+    private volatile BootstrapState bootstrapState = BootstrapState.NEEDS_BOOTSTRAP;
     private volatile String clusterName;
     private volatile CassandraVersion cqlVersion;
+    private volatile Integer gossipGeneration = (int) System.currentTimeMillis() / 1000;
     private volatile InetAddressAndPort listenAddressAndPort;
-    private volatile ProtocolVersion nativeProtocolVersion;
-    private volatile Class<? extends IPartitioner> partitionerClass;
-    private volatile ImmutableMap<UUID, TruncationRecord> truncationRecords = ImmutableMap.of();
+    private volatile String nativeProtocolVersion;
+    private volatile String partitioner;
+    private volatile Map<UUID, TruncationRecord> truncationRecords = ImmutableMap.of();
 
-    @Override
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public String getKey()
+    {
+        return key;
+    }
+
+    @JsonProperty("broadcast_address_and_port")
     public InetAddressAndPort getBroadcastAddressAndPort()
     {
         return broadcastAddressAndPort;
     }
 
-    public LocalInfo setBroadcastAddressAndPort(InetAddressAndPort broadcastAddressAndPort)
+    public void setBroadcastAddressAndPort(InetAddressAndPort broadcastAddressAndPort)
     {
+        if (Objects.equals(broadcastAddressAndPort, this.broadcastAddressAndPort))
+            return;
         this.broadcastAddressAndPort = broadcastAddressAndPort;
-        return this;
+        dirty();
     }
 
-    @Override
+    @JsonProperty("bootstrapped")
     public BootstrapState getBootstrapState()
     {
         return bootstrapState;
     }
 
-    public LocalInfo setBootstrapState(BootstrapState bootstrapState)
+    public void setBootstrapState(BootstrapState bootstrapState)
     {
+        if (Objects.equals(bootstrapState, this.bootstrapState))
+            return;
         this.bootstrapState = bootstrapState;
-        return this;
+        dirty();
     }
 
-    @Override
+    @JsonProperty("cluster_name")
     public String getClusterName()
     {
         return clusterName;
     }
 
-    public LocalInfo setClusterName(String clusterName)
+    public void setClusterName(String clusterName)
     {
+        if (Objects.equals(clusterName, this.clusterName))
+            return;
         this.clusterName = clusterName;
-        return this;
+        dirty();
     }
 
-    @Override
+    @JsonProperty("cql_version")
     public CassandraVersion getCqlVersion()
     {
         return cqlVersion;
     }
 
-    public LocalInfo setCqlVersion(CassandraVersion cqlVersion)
+    public void setCqlVersion(CassandraVersion cqlVersion)
     {
+        if (Objects.equals(cqlVersion, this.cqlVersion))
+            return;
         this.cqlVersion = cqlVersion;
-        return this;
+        dirty();
     }
 
-    @Override
+    @JsonProperty("gossip_generation")
+    public Integer getGossipGeneration()
+    {
+        return gossipGeneration;
+    }
+
+    public void setGossipGeneration(Integer gossipGeneration)
+    {
+        if (Objects.equals(gossipGeneration, this.gossipGeneration))
+            return;
+        this.gossipGeneration = gossipGeneration;
+        dirty();
+    }
+
+    @JsonProperty("listen_address_and_port")
     public InetAddressAndPort getListenAddressAndPort()
     {
         return listenAddressAndPort;
     }
 
-    public LocalInfo setListenAddressAndPort(InetAddressAndPort listenAddressAndPort)
+    public void setListenAddressAndPort(InetAddressAndPort listenAddressAndPort)
     {
+        if (Objects.equals(listenAddressAndPort, this.listenAddressAndPort))
+            return;
         this.listenAddressAndPort = listenAddressAndPort;
-        return this;
+        dirty();
     }
 
-    public LocalInfo setListenAddressOnly(InetAddress address, int defaultPort)
-    {
-        this.listenAddressAndPort = getAddressAndPort(getListenAddressAndPort(), address, defaultPort);
-        return this;
-    }
-
-    @Override
-    public ProtocolVersion getNativeProtocolVersion()
+    @JsonProperty("native_protocol_version")
+    public String getNativeProtocolVersion()
     {
         return nativeProtocolVersion;
     }
 
-    public LocalInfo setNativeProtocolVersion(ProtocolVersion nativeProtocolVersion)
+    public void setNativeProtocolVersion(String nativeProtocolVersion)
     {
+        if (Objects.equals(nativeProtocolVersion, this.nativeProtocolVersion))
+            return;
         this.nativeProtocolVersion = nativeProtocolVersion;
-        return this;
+        dirty();
     }
 
-    @Override
-    public Class<? extends IPartitioner> getPartitionerClass()
+    public String getPartitioner()
     {
-        return partitionerClass;
+        return partitioner;
     }
 
-    public LocalInfo setPartitionerClass(Class<? extends IPartitioner> partitionerClass)
+    public void setPartitioner(String partitioner)
     {
-        this.partitionerClass = partitionerClass;
-        return this;
+        if (Objects.equals(partitioner, this.partitioner))
+            return;
+        this.partitioner = partitioner;
+        dirty();
     }
 
-    @Override
-    public ImmutableMap<UUID, TruncationRecord> getTruncationRecords()
+    @JsonProperty("truncated_at")
+    public Map<UUID, TruncationRecord> getTruncationRecords()
     {
         return truncationRecords;
     }
 
-    public LocalInfo setTruncationRecords(Map<UUID, TruncationRecord> truncationRecords)
+    public void setTruncationRecords(Map<UUID, TruncationRecord> truncationRecords)
     {
-        this.truncationRecords = ImmutableMap.copyOf(truncationRecords);
-        return this;
+        if (Objects.equals(truncationRecords, this.truncationRecords))
+            return;
+        truncationRecords.forEach((k, v) -> {
+            if (k == null || v == null)
+                throw new IllegalArgumentException();
+        });
+        this.truncationRecords = truncationRecords;
+        dirty();
     }
 
-    public LocalInfo removeTruncationRecord(UUID tableId)
-    {
-        return setTruncationRecords(ImmutableUtils.without(getTruncationRecords(), tableId));
-    }
 
-    public LocalInfo addTruncationRecord(UUID tableId, TruncationRecord truncationRecord)
+    @Override
+    public String toString()
     {
-        return setTruncationRecords(ImmutableUtils.withAddedOrUpdated(getTruncationRecords(), tableId, truncationRecord));
+        return "LocalInfo{" +
+               "broadcastAddressAndPort=" + broadcastAddressAndPort +
+               ", bootstrapState=" + bootstrapState +
+               ", clusterName='" + clusterName + '\'' +
+               ", cqlVersion=" + cqlVersion +
+               ", gossipGeneration=" + gossipGeneration +
+               ", listenAddressAndPort=" + listenAddressAndPort +
+               ", nativeProtocolVersion=" + nativeProtocolVersion +
+               ", partitioner='" + partitioner + '\'' +
+               ", truncationRecords=" + truncationRecords +
+               ", " + super.toString() +
+               '}';
     }
 
     @Override
-    public LocalInfo duplicate()
+    public LocalInfo copy()
     {
         try
         {
@@ -166,54 +204,35 @@ public final class LocalInfo extends NodeInfo<LocalInfo> implements ILocalInfo
         }
         catch (CloneNotSupportedException e)
         {
-            throw new AssertionError(e);
+            throw Throwables.unchecked(e);
         }
     }
 
-    @Override
-    public boolean equals(Object o)
+    public static final class TruncationRecord
     {
-        if (this == o) return true;
-        if (!(o instanceof LocalInfo)) return false;
-        if (!super.equals(o)) return false;
-        LocalInfo localInfo = (LocalInfo) o;
-        return Objects.equals(getBroadcastAddressAndPort(), localInfo.getBroadcastAddressAndPort())
-               && getBootstrapState() == localInfo.getBootstrapState()
-               && Objects.equals(getClusterName(), localInfo.getClusterName())
-               && Objects.equals(getCqlVersion(), localInfo.getCqlVersion())
-               && Objects.equals(getListenAddressAndPort(), localInfo.getListenAddressAndPort())
-               && Objects.equals(getNativeProtocolVersion(), localInfo.getNativeProtocolVersion())
-               && Objects.equals(getPartitionerClass(), localInfo.getPartitionerClass())
-               && Objects.equals(getTruncationRecords(), localInfo.getTruncationRecords());
-    }
+        public final CommitLogPosition position;
+        public final long truncatedAt;
 
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(super.hashCode(),
-                            getBroadcastAddressAndPort(),
-                            getBootstrapState(),
-                            getClusterName(),
-                            getCqlVersion(),
-                            getListenAddressAndPort(),
-                            getNativeProtocolVersion(),
-                            getPartitionerClass(),
-                            getTruncationRecords());
-    }
+        public TruncationRecord(CommitLogPosition position, long truncatedAt)
+        {
+            this.position = position;
+            this.truncatedAt = truncatedAt;
+        }
 
-    @Override
-    public String toString()
-    {
-        return new ToStringBuilder(this)
-        .appendSuper(super.toString())
-        .append("broadcastAddress", getBroadcastAddressAndPort())
-        .append("bootstrapState", getBootstrapState())
-        .append("clusterName", getClusterName())
-        .append("cqlVersion", getCqlVersion())
-        .append("listenAddress", getListenAddressAndPort())
-        .append("nativeProtocolVersion", getNativeProtocolVersion())
-        .append("partitioner", getPartitionerClass())
-        .append("truncationRecords", getTruncationRecords())
-        .toString();
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TruncationRecord that = (TruncationRecord) o;
+            return truncatedAt == that.truncatedAt &&
+                   Objects.equals(position, that.position);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(position, truncatedAt);
+        }
     }
 }

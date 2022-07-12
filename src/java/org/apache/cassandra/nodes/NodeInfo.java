@@ -17,177 +17,163 @@
  */
 package org.apache.cassandra.nodes;
 
-import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Objects;
+import java.util.SortedSet;
 import java.util.UUID;
-import javax.annotation.Nonnull;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.CassandraVersion;
 
-@SuppressWarnings("unchecked")
-public abstract class NodeInfo<T extends NodeInfo<T>> implements INodeInfo<T>
+public abstract class NodeInfo implements Cloneable
 {
     private volatile UUID hostId;
     private volatile String dataCenter;
     private volatile String rack;
     private volatile CassandraVersion releaseVersion;
     private volatile UUID schemaVersion;
-
-    @Nonnull
-    private volatile ImmutableSet<Token> tokens = ImmutableSet.of();
-
+    private volatile Collection<Token> tokens;
     private volatile InetAddressAndPort nativeTransportAddressAndPort;
+    private volatile boolean dirty;
 
-    @Override
+    @JsonIgnore
+    public boolean isDirty()
+    {
+        return dirty;
+    }
+
+    protected void dirty()
+    {
+        dirty = true;
+    }
+
+    public void resetDirty()
+    {
+        dirty = false;
+    }
+
+    @JsonProperty("host_id")
     public UUID getHostId()
     {
         return hostId;
     }
 
-    public T setHostId(UUID hostId)
+    public void setHostId(UUID hostId)
     {
         this.hostId = hostId;
-        return (T) this;
+        dirty();
     }
 
-    @Override
+    @JsonProperty("data_center")
     public String getDataCenter()
     {
         return dataCenter;
     }
 
-    public T setDataCenter(String dataCenter)
+    public void setDataCenter(String dataCenter)
     {
+        if (Objects.equals(dataCenter, this.dataCenter))
+            return;
         this.dataCenter = dataCenter;
-        return (T) this;
+        dirty();
     }
 
-    @Override
     public String getRack()
     {
         return rack;
     }
 
-    public T setRack(String rack)
+    public void setRack(String rack)
     {
+        if (Objects.equals(rack, this.rack))
+            return;
         this.rack = rack;
-        return (T) this;
+        dirty();
     }
 
-    @Override
+    @JsonProperty("release_version")
     public CassandraVersion getReleaseVersion()
     {
         return releaseVersion;
     }
 
-    public T setReleaseVersion(CassandraVersion releaseVersion)
+    public void setReleaseVersion(CassandraVersion releaseVersion)
     {
+        if (Objects.equals(releaseVersion, this.releaseVersion))
+            return;
         this.releaseVersion = releaseVersion;
-        return (T) this;
+        dirty();
     }
 
-    @Override
+    @JsonProperty("schema_version")
     public UUID getSchemaVersion()
     {
         return schemaVersion;
     }
 
-    public T setSchemaVersion(UUID schemaVersion)
+    public void setSchemaVersion(UUID schemaVersion)
     {
+        if (Objects.equals(schemaVersion, this.schemaVersion))
+            return;
         this.schemaVersion = schemaVersion;
-        return (T) this;
+        dirty();
     }
 
-    @Override
-    public @Nonnull
-    Collection<Token> getTokens()
+    public Collection<Token> getTokens()
     {
         return tokens;
     }
 
-    public T setTokens(@Nonnull Iterable<Token> tokens)
+    public boolean hasTokens()
     {
-        Preconditions.checkNotNull(tokens);
-        this.tokens = ImmutableSet.copyOf(tokens);
-        return (T) this;
+        return tokens != null && !tokens.isEmpty();
     }
 
-    @Override
+    public void setTokens(Collection<Token> tokens)
+    {
+        if (Objects.equals(tokens, this.tokens))
+            return;
+        if (tokens instanceof SortedSet)
+        {
+            ArrayList<Token> t = new ArrayList<>(tokens);
+            t.sort(Comparator.naturalOrder());
+            tokens = t;
+        }
+        this.tokens = tokens;
+        dirty();
+    }
+
+    @JsonProperty("native_transport_address_and_port")
     public InetAddressAndPort getNativeTransportAddressAndPort()
     {
         return nativeTransportAddressAndPort;
     }
 
-    public T setNativeTransportAddressAndPort(InetAddressAndPort nativeTransportAddressAndPort)
+    public void setNativeTransportAddressAndPort(InetAddressAndPort nativeTransportAddressAndPort)
     {
+        if (Objects.equals(nativeTransportAddressAndPort, this.nativeTransportAddressAndPort))
+            return;
         this.nativeTransportAddressAndPort = nativeTransportAddressAndPort;
-        return (T) this;
-    }
-
-    public T setNativeTransportAddressOnly(InetAddress address, int defaultPort)
-    {
-        this.nativeTransportAddressAndPort = getAddressAndPort(getNativeTransportAddressAndPort(), address, defaultPort);
-        return (T) this;
-    }
-
-    InetAddressAndPort getAddressAndPort(InetAddressAndPort current, InetAddress newAddress, int defaultPort)
-    {
-        if (newAddress == null)
-        {
-            return null;
-        }
-        else
-        {
-            int port = current != null && current.port > 0 ? current.port : defaultPort;
-            return InetAddressAndPort.getByAddressOverrideDefaults(newAddress, port);
-        }
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (!(o instanceof NodeInfo<?>)) return false;
-        NodeInfo<?> nodeInfo = (NodeInfo<?>) o;
-        return Objects.equals(getHostId(), nodeInfo.getHostId())
-               && Objects.equals(getDataCenter(), nodeInfo.getDataCenter())
-               && Objects.equals(getRack(), nodeInfo.getRack())
-               && Objects.equals(getReleaseVersion(), nodeInfo.getReleaseVersion())
-               && Objects.equals(getSchemaVersion(), nodeInfo.getSchemaVersion())
-               && Objects.equals(getTokens(), nodeInfo.getTokens())
-               && Objects.equals(getNativeTransportAddressAndPort(), nodeInfo.getNativeTransportAddressAndPort());
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(getHostId(),
-                            getDataCenter(),
-                            getRack(),
-                            getReleaseVersion(),
-                            getSchemaVersion(),
-                            getTokens(),
-                            getNativeTransportAddressAndPort());
+        dirty();
     }
 
     @Override
     public String toString()
     {
-        return new ToStringBuilder(this)
-        .append("hostId", getHostId())
-        .append("dataCenter", getDataCenter())
-        .append("rack", getRack())
-        .append("releaseVersion", getReleaseVersion())
-        .append("schemaVersion", getSchemaVersion())
-        .append("tokens", getTokens())
-        .append("nativeTransportAddress", getNativeTransportAddressAndPort())
-        .toString();
+        return "hostId=" + hostId +
+               ", dataCenter='" + dataCenter + '\'' +
+               ", rack='" + rack + '\'' +
+               ", releaseVersion=" + releaseVersion +
+               ", schemaVersion=" + schemaVersion +
+               ", tokens=" + tokens +
+               ", nativeTransportAddressAndPort=" + nativeTransportAddressAndPort +
+               ", dirty=" + dirty;
     }
+
+    public abstract NodeInfo copy();
 }

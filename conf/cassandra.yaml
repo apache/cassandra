@@ -207,6 +207,11 @@ partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # data_file_directories:
 #     - /var/lib/cassandra/data
 
+# Metadata directory that holds information about the cluster, local node and its peers.
+# Currently, only a single subdirectory called 'nodes' will be used.
+# If not set, the default directory is $CASSANDRA_HOME/data/metadata.
+# metadata_directory: /var/lib/cassandra/metadata
+
 # Directory were Cassandra should store the data of the local system keyspaces.
 # By default Cassandra will store the data of the local system keyspaces in the first of the data directories specified
 # by data_file_directories.

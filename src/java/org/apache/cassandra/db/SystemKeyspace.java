@@ -39,14 +39,11 @@ import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
-import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,18 +68,14 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.nodes.INodeInfo;
-import org.apache.cassandra.nodes.IPeerInfo;
-import org.apache.cassandra.nodes.Nodes;
-import org.apache.cassandra.nodes.TruncationRecord;
+import org.apache.cassandra.nodes.virtual.NodeConstants;
+import org.apache.cassandra.nodes.virtual.NodesSystemViews;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -96,7 +89,6 @@ import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.streaming.StreamOperation;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
@@ -109,8 +101,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
-import static org.apache.cassandra.utils.CassandraVersion.UNREADABLE_VERSION;
 
 public final class SystemKeyspace
 {
@@ -125,8 +115,8 @@ public final class SystemKeyspace
     public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
     public static final String BUILT_INDEXES = "IndexInfo";
-    public static final String LOCAL = "local";
-    public static final String PEERS_V2 = "peers_v2";
+    public static final String LOCAL = NodeConstants.LOCAL;
+    public static final String PEERS_V2 = NodeConstants.PEERS_V2;
     public static final String PEER_EVENTS_V2 = "peer_events_v2";
     public static final String COMPACTION_HISTORY = "compaction_history";
     public static final String SSTABLE_ACTIVITY_V2 = "sstable_activity_v2"; // v2 has modified generation column type (v1 - int, v2 - text), see CASSANDRA-17048
@@ -151,7 +141,7 @@ public final class SystemKeyspace
                                                                                          PREPARED_STATEMENTS,
                                                                                          REPAIRS);
 
-    @Deprecated public static final String LEGACY_PEERS = "peers";
+    @Deprecated public static final String LEGACY_PEERS = NodeConstants.LEGACY_PEERS;
     @Deprecated public static final String LEGACY_PEER_EVENTS = "peer_events";
     @Deprecated public static final String LEGACY_TRANSFERRED_RANGES = "transferred_ranges";
     @Deprecated public static final String LEGACY_AVAILABLE_RANGES = "available_ranges";
@@ -198,52 +188,9 @@ public final class SystemKeyspace
               + "PRIMARY KEY ((table_name), index_name)) ")
               .build();
 
-    private static final TableMetadata Local =
-        parse(LOCAL,
-                "information about the local node",
-                "CREATE TABLE %s ("
-                + "key text,"
-                + "bootstrapped text,"
-                + "broadcast_address inet,"
-                + "broadcast_port int,"
-                + "cluster_name text,"
-                + "cql_version text,"
-                + "data_center text,"
-                + "gossip_generation int,"
-                + "host_id uuid,"
-                + "listen_address inet,"
-                + "listen_port int,"
-                + "native_protocol_version text,"
-                + "partitioner text,"
-                + "rack text,"
-                + "release_version text,"
-                + "rpc_address inet,"
-                + "rpc_port int,"
-                + "schema_version uuid,"
-                + "tokens set<varchar>,"
-                + "truncated_at map<uuid, blob>,"
-                + "PRIMARY KEY ((key)))"
-                ).recordDeprecatedSystemColumn("thrift_version", UTF8Type.instance)
-                .build();
+    private static final TableMetadata LocalMetadata = NodesSystemViews.LocalMetadata;
 
-    private static final TableMetadata PeersV2 =
-        parse(PEERS_V2,
-                "information about known peers in the cluster",
-                "CREATE TABLE %s ("
-                + "peer inet,"
-                + "peer_port int,"
-                + "data_center text,"
-                + "host_id uuid,"
-                + "preferred_ip inet,"
-                + "preferred_port int,"
-                + "rack text,"
-                + "release_version text,"
-                + "native_address inet,"
-                + "native_port int,"
-                + "schema_version uuid,"
-                + "tokens set<varchar>,"
-                + "PRIMARY KEY ((peer), peer_port))")
-                .build();
+    private static final TableMetadata PeersV2Metadata = NodesSystemViews.PeersV2Metadata;
 
     private static final TableMetadata PeerEventsV2 =
         parse(PEER_EVENTS_V2,
@@ -395,21 +342,7 @@ public final class SystemKeyspace
           + "PRIMARY KEY (parent_id))").build();
 
     @Deprecated
-    private static final TableMetadata LegacyPeers =
-        parse(LEGACY_PEERS,
-            "information about known peers in the cluster",
-            "CREATE TABLE %s ("
-            + "peer inet,"
-            + "data_center text,"
-            + "host_id uuid,"
-            + "preferred_ip inet,"
-            + "rack text,"
-            + "release_version text,"
-            + "rpc_address inet,"
-            + "schema_version uuid,"
-            + "tokens set<varchar>,"
-            + "PRIMARY KEY ((peer)))")
-            .build();
+    private static final TableMetadata LegacyPeers = NodesSystemViews.LegacyPeersMetadata;
 
     @Deprecated
     private static final TableMetadata LegacyPeerEvents =
@@ -462,8 +395,8 @@ public final class SystemKeyspace
         return Tables.of(BuiltIndexes,
                          Batches,
                          Paxos,
-                         Local,
-                         PeersV2,
+                         LocalMetadata,
+                         PeersV2Metadata,
                          LegacyPeers,
                          PeerEventsV2,
                          LegacyPeerEvents,
@@ -492,32 +425,6 @@ public final class SystemKeyspace
                         .add(CastFcts.all())
                         .add(OperationFcts.all())
                         .build();
-    }
-
-    public enum BootstrapState
-    {
-        NEEDS_BOOTSTRAP,
-        COMPLETED,
-        IN_PROGRESS,
-        DECOMMISSIONED
-    }
-
-    public static void persistLocalMetadata()
-    {
-        Nodes.local().update(info -> {
-            info.setClusterName(DatabaseDescriptor.getClusterName());
-            info.setReleaseVersion(SystemKeyspace.CURRENT_VERSION);
-            info.setCqlVersion(QueryProcessor.CQL_VERSION);
-            info.setNativeProtocolVersion(ProtocolVersion.CURRENT);
-            info.setBroadcastAddressAndPort(FBUtilities.getBroadcastAddressAndPort());
-            info.setDataCenter(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter());
-            info.setRack(DatabaseDescriptor.getEndpointSnitch().getLocalRack());
-            info.setPartitionerClass(DatabaseDescriptor.getPartitioner().getClass());
-            info.setNativeTransportAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(DatabaseDescriptor.getRpcAddress(), DatabaseDescriptor.getNativeTransportPort()));
-            info.setBroadcastAddressAndPort(FBUtilities.getBroadcastAddressAndPort());
-            info.setListenAddressAndPort(FBUtilities.getLocalAddressAndPort());
-            return info;
-        }, true, true);
     }
 
     public static void updateCompactionHistory(UUID id,
@@ -641,60 +548,6 @@ public final class SystemKeyspace
         return status;
     }
 
-    public static void saveTruncationRecord(TableId tableId, long truncatedAt, CommitLogPosition position)
-    {
-        Nodes.local().update(info -> info.addTruncationRecord(tableId.asUUID(), new TruncationRecord(position, truncatedAt)), true);
-    }
-
-    /**
-     * This method is used to remove information about truncation time for specified column family
-     */
-    public static void removeTruncationRecord(TableId id)
-    {
-        Nodes.local().update(info -> info.removeTruncationRecord(id.asUUID()), true);
-    }
-
-    public static CommitLogPosition getTruncatedPosition(TableId id)
-    {
-        TruncationRecord record = Nodes.local().get().getTruncationRecords().get(id.asUUID());
-        return record != null ? record.position : null;
-    }
-
-    public static long getTruncatedAt(TableId id)
-    {
-        TruncationRecord record = Nodes.local().get().getTruncationRecords().get(id.asUUID());
-        return record != null ? record.truncatedAt : Long.MIN_VALUE;
-    }
-
-    /**
-     * Record tokens being used by another node
-     */
-    public static void updateTokens(InetAddressAndPort ep, Collection<Token> tokens)
-    {
-        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return;
-
-        Nodes.peers().update(ep, peer -> peer.setTokens(tokens), false);
-    }
-
-    public static boolean updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferredIP)
-    {
-        if (preferredIP.equals(getPreferredIP(ep)))
-            return false;
-
-        Nodes.peers().update(ep, info -> info.setPreferredAddressAndPort(preferredIP), true);
-        return true;
-    }
-
-    public static void updatePeerNativeAddress(InetAddressAndPort ep, InetAddressAndPort address)
-    {
-        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return;
-
-        Nodes.peers().update(ep, info -> info.setNativeTransportAddressAndPort(address), false);
-    }
-
-
     public static synchronized void updateHintsDropped(InetAddressAndPort ep, UUID timePeriod, int value)
     {
         // with 30 day TTL
@@ -702,28 +555,6 @@ public final class SystemKeyspace
         executeInternal(String.format(req, LEGACY_PEER_EVENTS), timePeriod, value, ep.address);
         req = "UPDATE system.%s USING TTL 2592000 SET hints_dropped[ ? ] = ? WHERE peer = ? AND peer_port = ?";
         executeInternal(String.format(req, PEER_EVENTS_V2), timePeriod, value, ep.address, ep.port);
-    }
-
-    public static void updateSchemaVersion(UUID version)
-    {
-        Nodes.local().update(info -> info.setSchemaVersion(version), false);
-    }
-
-    /**
-     * Remove stored tokens being used by another node
-     */
-    public static void removeEndpoint(InetAddressAndPort ep)
-    {
-        Nodes.peers().remove(ep, true, false);
-    }
-
-    /**
-     * This method is used to update the System Keyspace with the new tokens for this node
-     */
-    public static void updateTokens(Collection<Token> tokens)
-    {
-        assert !tokens.isEmpty() : "removeEndpoint should be used instead";
-        Nodes.getInstance().getLocal().update(info -> info.setTokens(tokens), true);
     }
 
     public static void forceBlockingFlush(String ...cfnames)
@@ -740,179 +571,6 @@ public final class SystemKeyspace
             }
             FBUtilities.waitOnFutures(futures);
         }
-    }
-
-    /**
-     * Return a map of stored tokens to IP addresses
-     *
-     */
-    public static SetMultimap<InetAddressAndPort, Token> loadTokens()
-    {
-        SetMultimap<InetAddressAndPort, Token> tokenMap = HashMultimap.create();
-        Nodes.peers().get().filter(IPeerInfo::isExisting).forEach(info -> tokenMap.putAll(info.getPeerAddressAndPort(), info.getTokens()));
-        return tokenMap;
-    }
-
-    /**
-     * Return a map of store host_ids to IP addresses
-     *
-     */
-    public static Map<InetAddressAndPort, UUID> loadHostIds()
-    {
-        return Nodes.peers().get().filter(IPeerInfo::isExisting).collect(Collectors.toMap(IPeerInfo::getPeerAddressAndPort, INodeInfo::getHostId));
-    }
-
-    /**
-     * Get preferred IP for given endpoint if it is known. Otherwise this returns given endpoint itself.
-     *
-     * @param ep endpoint address to check
-     * @return Preferred IP for given endpoint if present, otherwise returns given ep
-     */
-    public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
-    {
-        IPeerInfo info = Nodes.peers().get(ep);
-        if (info != null && info.getPreferredAddressAndPort() != null && info.isExisting())
-            return info.getPreferredAddressAndPort();
-        else
-            return ep;
-    }
-
-    /**
-     * Return a map of IP addresses containing a map of dc and rack info
-     */
-    public static Map<InetAddressAndPort, Map<String, String>> loadDcRackInfo()
-    {
-        return Nodes.peers()
-                    .get()
-                    .filter(p -> p.getDataCenter() != null && p.getRack() != null && p.isExisting())
-                    .collect(Collectors.toMap(IPeerInfo::getPeerAddressAndPort, p -> {
-                        Map<String, String> dcRack = new HashMap<>();
-                        dcRack.put("data_center", p.getDataCenter());
-                        dcRack.put("rack", p.getRack());
-                        return dcRack;
-                    }));
-    }
-
-    /**
-     * Get release version for given endpoint.
-     * If release version is unknown, then this returns null.
-     *
-     * @param ep endpoint address to check
-     * @return Release version or null if version is unknown.
-     */
-    public static CassandraVersion getReleaseVersion(InetAddressAndPort ep)
-    {
-        if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
-            return CURRENT_VERSION;
-        else
-        {
-            IPeerInfo peer = Nodes.peers().get(ep);
-            return peer != null && peer.isExisting() ? peer.getReleaseVersion() : null;
-        }
-    }
-
-    /**
-     * One of three things will happen if you try to read the system keyspace:
-     * 1. files are present and you can read them: great
-     * 2. no files are there: great (new node is assumed)
-     * 3. files are present but you can't read them: bad
-     * @throws ConfigurationException
-     */
-    public static void checkHealth() throws ConfigurationException
-    {
-        Keyspace keyspace;
-        try
-        {
-            keyspace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
-        }
-        catch (AssertionError err)
-        {
-            // this happens when a user switches from OPP to RP.
-            ConfigurationException ex = new ConfigurationException("Could not read system keyspace!");
-            ex.initCause(err);
-            throw ex;
-        }
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(LOCAL);
-
-        String savedClusterName = Nodes.local().get().getClusterName();
-        if (savedClusterName == null) {
-            // this is a brand new node
-            if (!cfs.getLiveSSTables().isEmpty())
-                throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
-
-            // no system files.  this is a new node.
-            return;
-        }
-        if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
-            throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
-    }
-
-    public static Collection<Token> getSavedTokens()
-    {
-        return Nodes.local().get().getTokens();
-    }
-
-    public static int incrementAndGetGeneration()
-    {
-        // gossip generation is specific to Gossip thus it is not handled by Nodes.Local
-        String req = "SELECT gossip_generation FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
-
-        int generation;
-        if (result.isEmpty() || !result.one().has("gossip_generation"))
-        {
-            // seconds-since-epoch isn't a foolproof new generation
-            // (where foolproof is "guaranteed to be larger than the last one seen at this ip address"),
-            // but it's as close as sanely possible
-            generation = (int) (System.currentTimeMillis() / 1000);
-        }
-        else
-        {
-            // Other nodes will ignore gossip messages about a node that have a lower generation than previously seen.
-            final int storedGeneration = result.one().getInt("gossip_generation") + 1;
-            final int now = (int) (System.currentTimeMillis() / 1000);
-            if (storedGeneration >= now)
-            {
-                logger.warn("Using stored Gossip Generation {} as it is greater than current system time {}.  See CASSANDRA-3654 if you experience problems",
-                            storedGeneration, now);
-                generation = storedGeneration;
-            }
-            else
-            {
-                generation = now;
-            }
-        }
-
-        req = "INSERT INTO system.%s (key, gossip_generation) VALUES ('%s', ?)";
-        executeInternal(format(req, LOCAL, LOCAL), generation);
-        forceBlockingFlush(LOCAL);
-
-        return generation;
-    }
-
-    public static BootstrapState getBootstrapState()
-    {
-        return ObjectUtils.firstNonNull(Nodes.local().get().getBootstrapState(), BootstrapState.NEEDS_BOOTSTRAP);
-    }
-
-    public static boolean bootstrapComplete()
-    {
-        return getBootstrapState() == BootstrapState.COMPLETED;
-    }
-
-    public static boolean bootstrapInProgress()
-    {
-        return getBootstrapState() == BootstrapState.IN_PROGRESS;
-    }
-
-    public static boolean wasDecommissioned()
-    {
-        return getBootstrapState() == BootstrapState.DECOMMISSIONED;
-    }
-
-    public static void setBootstrapState(BootstrapState state)
-    {
-        Nodes.local().update(info -> info.setBootstrapState(state), true);
     }
 
     public static boolean isIndexBuilt(String keyspaceName, String indexName)
@@ -944,62 +602,6 @@ public final class SystemKeyspace
         return StreamSupport.stream(results.spliterator(), false)
                             .map(r -> r.getString("index_name"))
                             .collect(Collectors.toList());
-    }
-
-    /**
-     * Read the host ID from the system keyspace.
-     */
-    public static UUID getLocalHostId()
-    {
-        return Nodes.local().get().getHostId();
-    }
-
-    /**
-     * Read the host ID from the system keyspace, creating (and storing) one if
-     * none exists.
-     */
-    public static synchronized UUID getOrInitializeLocalHostId()
-    {
-        UUID hostId = getLocalHostId();
-        if (hostId != null)
-            return hostId;
-
-        // ID not found, generate a new one, persist, and then return it.
-        hostId = UUID.randomUUID();
-        logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
-        return setLocalHostId(hostId);
-    }
-
-    /**
-     * Sets the local host ID explicitly.  Should only be called outside of SystemTable when replacing a node.
-     */
-    public static UUID setLocalHostId(UUID hostId)
-    {
-        return Nodes.local().update(info -> info.setHostId(hostId), false).getHostId();
-    }
-
-    /**
-     * Gets the schema version or null if missing
-     */
-    public static UUID getSchemaVersion()
-    {
-        return Nodes.local().get().getSchemaVersion();
-    }
-
-    /**
-     * Gets the stored rack for the local node, or null if none have been set yet.
-     */
-    public static String getRack()
-    {
-        return Nodes.local().get().getRack();
-    }
-
-    /**
-     * Gets the stored data center for the local node, or null if none have been set yet.
-     */
-    public static String getDatacenter()
-    {
-        return Nodes.local().get().getDataCenter();
     }
 
     public static PaxosState loadPaxosState(DecoratedKey key, TableMetadata metadata, int nowInSec)
@@ -1298,69 +900,6 @@ public final class SystemKeyspace
             result.put(peer, ranges);
         }
         return ImmutableMap.copyOf(result);
-    }
-
-    /**
-     * Compare the release version in the system.local table with the one included in the distro.
-     * If they don't match, snapshot all tables in the system and schema keyspaces. This is intended
-     * to be called at startup to create a backup of the system tables during an upgrade
-     *
-     * @throws IOException
-     */
-    public static void snapshotOnVersionChange() throws IOException
-    {
-        String previous = getPreviousVersionString();
-        String next = FBUtilities.getReleaseVersionString();
-
-        FBUtilities.setPreviousReleaseVersionString(previous);
-
-        // if we're restarting after an upgrade, snapshot the system and schema keyspaces
-        if (!previous.equals(NULL_VERSION.toString()) && !previous.equals(next))
-
-        {
-            logger.info("Detected version upgrade from {} to {}, snapshotting system keyspaces", previous, next);
-            String snapshotName = Keyspace.getTimestampedSnapshotName(format("upgrade-%s-%s",
-                                                                             previous,
-                                                                             next));
-            for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
-                Keyspace.open(keyspace).snapshot(snapshotName, null, false, null);
-        }
-    }
-
-    /**
-     * Try to determine what the previous version, if any, was installed on this node.
-     * Primary source of truth is the release version in system.local. If the previous
-     * version cannot be determined by looking there then either:
-     * * the node never had a C* install before
-     * * the node was at very old version (pre 1.2), which did not include system.local
-     *
-     * @return either a version read from the system.local table or one of two special values
-     * indicating either no previous version (SystemUpgrade.NULL_VERSION) or an unreadable,
-     * legacy version (SystemUpgrade.UNREADABLE_VERSION).
-     */
-    private static String getPreviousVersionString()
-    {
-        CassandraVersion version = Nodes.local().get().getReleaseVersion();
-        if (version == null)
-        {
-            // it isn't inconceivable that one might try to upgrade a node straight from <= 1.1 to whatever
-            // the current version is. If we couldn't read a previous version from system.local we check for
-            // the existence of the legacy system.Versions table. We don't actually attempt to read a version
-            // from there, but it informs us that this isn't a completely new node.
-            for (File dataDirectory : Directories.getKSChildDirectories(SchemaConstants.SYSTEM_KEYSPACE_NAME))
-            {
-                if (dataDirectory.name().equals("Versions") && dataDirectory.tryList().length > 0)
-                {
-                    logger.trace("Found unreadable versions info in pre 1.2 system.Versions table");
-                    return UNREADABLE_VERSION.toString();
-                }
-            }
-
-            // no previous version information found, we can assume that this is a new node
-            return NULL_VERSION.toString();
-        }
-        // report back whatever we found in the system table
-        return version.toString();
     }
 
     @VisibleForTesting

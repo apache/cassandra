@@ -15,37 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.nodes;
 
-import java.util.UUID;
-
-import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.CassandraVersion;
-
-public interface ILocalInfo extends INodeInfo<LocalInfo>
+public enum BootstrapState
 {
-    InetAddressAndPort getBroadcastAddressAndPort();
-
-    SystemKeyspace.BootstrapState getBootstrapState();
-
-    String getClusterName();
-
-    CassandraVersion getCqlVersion();
-
-    InetAddressAndPort getListenAddressAndPort();
-
-    ProtocolVersion getNativeProtocolVersion();
-
-    Class<? extends IPartitioner> getPartitionerClass();
-
-    ImmutableMap<UUID, TruncationRecord> getTruncationRecords();
-
-    @Override
-    LocalInfo duplicate();
+    NEEDS_BOOTSTRAP,
+    COMPLETED,
+    IN_PROGRESS,
+    DECOMMISSIONED
 }

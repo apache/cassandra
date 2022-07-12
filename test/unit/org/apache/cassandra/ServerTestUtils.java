@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 
 /**
@@ -125,7 +126,6 @@ public final class ServerTestUtils
         ThreadAwareSecurityManager.install();
 
         Keyspace.setInitialized();
-        SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
         isServerPrepared = true;
     }
@@ -155,6 +155,7 @@ public final class ServerTestUtils
         if (cdcDir != null)
             cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
+        cleanupDirectory(DatabaseDescriptor.getMetadataDirectory());
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files

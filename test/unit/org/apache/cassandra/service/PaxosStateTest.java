@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.service.paxos.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
 import org.junit.AfterClass;
@@ -81,7 +83,7 @@ public class PaxosStateTest
         assertNoDataPresent(cfs, Util.dk(key));
 
         // Now try again with a ballot created after the truncation
-        long timestamp = SystemKeyspace.getTruncatedAt(update.metadata().id) + 1;
+        long timestamp = Nodes.local().getTruncatedAt(update.metadata().id) + 1;
         Commit afterTruncate = newProposal(timestamp, update);
         PaxosState.commit(afterTruncate);
         assertDataPresent(cfs, Util.dk(key), "val", value);

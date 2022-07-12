@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -312,11 +313,14 @@ public class DescribeStatementTest extends CQLTester
                                                   row(DISTRIBUTED_KEYSPACE_NAME, "keyspace", DISTRIBUTED_KEYSPACE_NAME),
                                                   row(SCHEMA_KEYSPACE_NAME, "keyspace", SCHEMA_KEYSPACE_NAME),
                                                   row(TRACE_KEYSPACE_NAME, "keyspace", TRACE_KEYSPACE_NAME),
+                                                  row(SYSTEM_VIEWS_KEYSPACE_NAME, "keyspace", SYSTEM_VIEWS_KEYSPACE_NAME),
                                                   row(VIRTUAL_SCHEMA, "keyspace", VIRTUAL_SCHEMA),
                                                   row("test", "keyspace", "test"));
 
             for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
             {
+                List<Row> rows = executeDescribeNet(describeKeyword + " KEYSPACES").all();
+                rows.stream().forEach(row -> System.out.println(row.get(0, String.class)));
                 assertRowsNet(executeDescribeNet(describeKeyword + " KEYSPACES"), testKeyspacesOutput);
                 assertRowsNet(executeDescribeNet("test", describeKeyword + " KEYSPACES"), testKeyspacesOutput);
 

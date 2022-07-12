@@ -60,6 +60,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
@@ -462,7 +463,12 @@ public class StartupChecks
 
             try
             {
-                SystemKeyspace.checkHealth();
+                String savedClusterName = Nodes.local().get().getClusterName();
+                if (savedClusterName == null)
+                    return;
+
+                if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
+                    throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
             }
             catch (ConfigurationException e)
             {
@@ -477,7 +483,7 @@ public class StartupChecks
         {
             if (!Boolean.getBoolean("cassandra.ignore_dc"))
             {
-                String storedDc = SystemKeyspace.getDatacenter();
+                String storedDc = Nodes.local().get().getDataCenter();
                 if (storedDc != null)
                 {
                     String currentDc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
@@ -499,7 +505,7 @@ public class StartupChecks
         {
             if (!Boolean.getBoolean("cassandra.ignore_rack"))
             {
-                String storedRack = SystemKeyspace.getRack();
+                String storedRack = Nodes.local().get().getRack();
                 if (storedRack != null)
                 {
                     String currentRack = DatabaseDescriptor.getEndpointSnitch().getLocalRack();
