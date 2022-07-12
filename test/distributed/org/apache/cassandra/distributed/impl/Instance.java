@@ -574,7 +574,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
                 // so extract it to populate ExecutorFactory.Global
-                ExecutorFactory.Global.unsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
+                ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky

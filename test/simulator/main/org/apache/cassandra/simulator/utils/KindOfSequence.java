@@ -344,8 +344,6 @@ public enum KindOfSequence
         }
     }
 
-
-
     public LinkLatency linkLatency(int nodes, LongRange nanos, RandomSource random)
     {
         switch (this)
@@ -361,7 +359,7 @@ public enum KindOfSequence
     {
         switch (this)
         {
-            default:throw new AssertionError();
+            default: throw new AssertionError();
             case UNIFORM: return new UniformPeriod(nanos);
             case UNIFORM_STEP: return new UniformStepPeriod(nanos, random);
             case RANDOMWALK: return new RandomWalkPeriod(nanos, random);

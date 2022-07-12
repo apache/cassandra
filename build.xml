@@ -115,6 +115,7 @@
     <property name="test.long.timeout" value="600000" />
     <property name="test.burn.timeout" value="60000000" />
     <property name="test.distributed.timeout" value="900000" />
+    <property name="test.simulation.timeout" value="1800000" />
 
     <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
     <property name="cassandra.test.use_prepared" value="true" />
@@ -2022,11 +2023,16 @@
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
     </testmacro>
-    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.distributed.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
+  </target>
+
+  <target name="test-simulator-dtest" depends="build-test" description="Execute simulator dtests">
+    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <jvmarg value="-Dcassandra.debugrefcount=false"/>
+      <jvmarg value="-Dcassandra.test.simulator.determinismcheck=strict"/>
       <!-- Support Simulator Tests -->
       <jvmarg line="-javaagent:${test.lib}/jars/simulator-asm.jar"/>
       <jvmarg line="-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar"/>
@@ -2034,6 +2040,7 @@
       <jvmarg line="-XX:-TieredCompilation"/>
       <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
       <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
+      <jvmarg line="-Xmx8G"/>
     </testmacro>
   </target>
 

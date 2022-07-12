@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.io.util;
 
-import java.io.*;
+import java.io.DataOutput;
+import java.io.IOError;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32;
@@ -26,8 +28,6 @@ import java.util.zip.CRC32;
 import javax.annotation.Nonnull;
 
 import org.apache.cassandra.io.FSWriteError;
-
-import org.apache.cassandra.io.util.File;
 
 public class ChecksumWriter
 {
@@ -90,12 +90,11 @@ public class ChecksumWriter
 
     public void writeFullChecksum(@Nonnull File digestFile)
     {
-        try (FileOutputStream fos = new FileOutputStream(digestFile.toJavaIOFile());
-             DataOutputStream out = new DataOutputStream(new BufferedOutputStream(fos)))
+        try (FileOutputStreamPlus fos = new FileOutputStreamPlus(digestFile))
         {
-            out.write(String.valueOf(fullChecksum.getValue()).getBytes(StandardCharsets.UTF_8));
-            out.flush();
-            fos.getFD().sync();
+            fos.write(String.valueOf(fullChecksum.getValue()).getBytes(StandardCharsets.UTF_8));
+            fos.flush();
+            fos.getChannel().force(true);
         }
         catch (IOException e)
         {
