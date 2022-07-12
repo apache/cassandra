@@ -23,7 +23,11 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.utils.Nemesis;
+import org.apache.cassandra.utils.Simulate;
 
+import static org.apache.cassandra.utils.Simulate.With.MONITORS;
+
+@Simulate(with = MONITORS)
 public class ClassWithSynchronizedMethods
 {
     @Nemesis

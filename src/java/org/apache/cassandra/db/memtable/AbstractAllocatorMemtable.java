@@ -202,7 +202,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
                     ((AbstractAllocatorMemtable) current).flushIfPeriodExpired();
             }
         };
-        ScheduledExecutors.scheduledTasks.schedule(runnable, period, TimeUnit.MILLISECONDS);
+        ScheduledExecutors.scheduledTasks.scheduleSelfRecurring(runnable, period, TimeUnit.MILLISECONDS);
     }
 
     private void flushIfPeriodExpired()

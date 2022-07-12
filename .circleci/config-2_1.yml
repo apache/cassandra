@@ -200,6 +200,10 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
         requires:
           - start_j8_jvm_dtests
           - j8_build
+    - j8_simulator_dtests:
+        requires:
+          - start_j8_jvm_dtests
+          - j8_build
     - j8_jvm_dtests_vnode:
         requires:
           - start_j8_jvm_dtests
@@ -379,6 +383,9 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
           - start_pre-commit_tests
     # Java 8 unit tests
     - j8_unit_tests:
+        requires:
+          - j8_build
+    - j8_simulator_dtests:
         requires:
           - j8_build
     - j8_jvm_dtests:
@@ -737,6 +744,15 @@ jobs:
       - create_junit_containers
       - log_environment
       - run_parallel_junit_tests
+
+  j8_simulator_dtests:
+    <<: *j8_small_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_simulator_tests
 
   j8_jvm_dtests:
     <<: *j8_small_par_executor
@@ -1311,6 +1327,33 @@ commands:
           cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
 
         no_output_timeout: 15m
+
+  run_simulator_tests:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 30m
+    steps:
+    - run:
+        name: Run Simulator Tests 
+        command: |
+          set -x
+          export PATH=$JAVA_HOME/bin:$PATH
+          time mv ~/cassandra /tmp
+          cd /tmp/cassandra
+          if [ -d ~/dtest_jars ]; then
+            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+          fi
+          ant test-simulator-dtest
+        no_output_timeout: <<parameters.no_output_timeout>>
+    - store_test_results:
+        path: /tmp/cassandra/build/test/output/
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/output
+        destination: junitxml
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/logs
+        destination: logs
 
   run_junit_tests:
     parameters:
