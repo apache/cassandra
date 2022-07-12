@@ -15,7 +15,7 @@
   limitations under the License.
 -->
 <project basedir="." default="jar" name="apache-cassandra"
-         xmlns:artifact="antlib:org.apache.maven.artifact.ant"
+         xmlns:resolver="antlib:org.apache.maven.resolver.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
 
@@ -90,15 +90,15 @@
     <property name="version" value="${base.version}-SNAPSHOT"/>
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
-    <property name="final.name" value="${ant.project.name}-${version}"/>
+    <property name="final.name" value="${ant.project.name}"/>
 
     <property name="local.repository" value="${user.home}/.m2/repository" />
 
-    <!-- details of what version of Maven ANT Tasks to fetch -->
-    <property name="maven-ant-tasks.version" value="2.1.3" />
-    <property name="maven-ant-tasks.local" value="${local.repository}/org/apache/maven/maven-ant-tasks"/>
-    <property name="maven-ant-tasks.url"
-              value="https://repo.maven.apache.org/maven2/org/apache/maven/maven-ant-tasks" />
+    <property name="maven-artifact-resolver-ant-tasks.version" value="1.4.0" />
+    <property name="maven-artifact-resolver-ant-tasks.local" value="${local.repository}/org/apache/maven/resolver/maven-resolver-ant-tasks"/>
+    <property name="maven-artifact-resolver-ant-tasks.url"
+              value="https://repo.maven.apache.org/maven2/org/apache/maven/resolver/maven-resolver-ant-tasks" />
+
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
     <condition property="maven-repository-url" value="https://repository.apache.org/service/local/staging/deploy/maven2">
@@ -147,14 +147,6 @@
     <property name="chronicle-threads.version" value="2.20.111" />
 
     <property name="dtest-api.version" value="0.0.13" />
-
-    <condition property="maven-ant-tasks.jar.exists">
-      <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
-    </condition>
-
-    <condition property="maven-ant-tasks.jar.local">
-      <available file="${maven-ant-tasks.local}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
-    </condition>
 
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
@@ -278,7 +270,6 @@
     <!--
          Add all the dependencies.
     -->
-    <path id="maven-ant-tasks.classpath" path="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
     <path id="cassandra.classpath">
         <pathelement location="${build.classes.main}" />
         <fileset dir="${build.dir.lib}">
@@ -456,426 +447,6 @@
         <taskdef classname="jflex.anttask.JFlexTask" classpathref="jflex.classpath" name="jflex" />
         <jflex file="${build.src.java}/org/apache/cassandra/index/sasi/analyzer/StandardTokenizerImpl.jflex" destdir="${build.src.gen-java}/" />
     </target>
-
-    <!--
-       Fetch Maven Ant Tasks and Cassandra's dependencies
-       These targets are intentionally free of dependencies so that they
-       can be run stand-alone from a binary release artifact.
-    -->
-    <target name="maven-ant-tasks-localrepo" unless="maven-ant-tasks.jar.exists" if="maven-ant-tasks.jar.local"
-            depends="init" description="Fetch Maven ANT Tasks from Maven Local Repository">
-      <copy file="${maven-ant-tasks.local}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar"
-           tofile="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar"/>
-      <property name="maven-ant-tasks.jar.exists" value="true"/>
-    </target>
-
-    <target name="maven-ant-tasks-download" depends="init,maven-ant-tasks-localrepo" unless="maven-ant-tasks.jar.exists"
-            description="Fetch Maven ANT Tasks from Maven Central Repositroy">
-      <echo>Downloading Maven ANT Tasks...</echo>
-      <get src="${maven-ant-tasks.url}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar"
-           dest="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" usetimestamp="true" />
-      <copy file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar"
-            tofile="${maven-ant-tasks.local}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar"/>
-    </target>
-
-    <target name="maven-ant-tasks-init" depends="maven-ant-tasks-download,resolver-init" unless="maven-ant-tasks.initialized"
-            description="Initialize Maven ANT Tasks">
-      <typedef uri="antlib:org.apache.maven.artifact.ant" classpathref="maven-ant-tasks.classpath" />
-      <property name="maven-ant-tasks.initialized" value="true"/>
-    </target>
-
-    <!-- this task defines the dependencies that will be fetched by Maven ANT Tasks
-         the dependencies are re-used for publishing artifacts to Maven Central
-         in order to keep everything consistent -->
-    <target name="maven-declare-dependencies" depends="maven-ant-tasks-init"
-            description="Define dependencies and dependency versions">
-      <!-- The parent pom defines the versions of all dependencies -->
-      <artifact:pom id="parent-pom"
-                    groupId="org.apache.cassandra"
-                    artifactId="cassandra-parent"
-                    packaging="pom"
-                    version="${version}"
-                    url="https://cassandra.apache.org"
-                    name="Apache Cassandra"
-                    inceptionYear="2009"
-                    description="The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.">
-
-        <!-- Inherit from the ASF template pom file, ref http://maven.apache.org/pom/asf/ -->
-        <parent groupId="org.apache" artifactId="apache" version="22"/>
-        <license name="The Apache Software License, Version 2.0" url="https://www.apache.org/licenses/LICENSE-2.0.txt"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
-        <dependencyManagement>
-          <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.1.8.4"/>
-          <dependency groupId="org.lz4" artifactId="lz4-java" version="1.8.0"/>
-          <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4" scope="provided"/>
-          <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.5.0-4"/>
-          <dependency groupId="com.google.guava" artifactId="guava" version="27.0-jre">
-            <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
-            <exclusion groupId="org.codehaus.mojo" artifactId="animal-sniffer-annotations" />
-            <exclusion groupId="com.google.guava" artifactId="listenablefuture" />
-            <exclusion groupId="com.google.guava" artifactId="failureaccess" />
-            <exclusion groupId="org.checkerframework" artifactId="checker-qual" />
-            <exclusion groupId="com.google.errorprone" artifactId="error_prone_annotations" />
-          </dependency>
-          <dependency groupId="com.google.jimfs" artifactId="jimfs" version="1.1"/>
-          <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
-          <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
-          <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
-          <dependency groupId="commons-io" artifactId="commons-io" version="2.6"/>
-          <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.11"/>
-          <dependency groupId="org.apache.commons" artifactId="commons-math3" version="3.2"/>
-          <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2" scope="provided">
-            <exclusion groupId="org.antlr" artifactId="stringtemplate"/>
-          </dependency>
-          <dependency groupId="org.antlr" artifactId="ST4" version="4.0.8"/>
-          <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2">
-            <exclusion groupId="org.antlr" artifactId="stringtemplate"/>
-          </dependency>
-          <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.25"/>
-          <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.25"/>
-          <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.25" />
-          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.9"/>
-          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.9"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.13.2"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.13.2.2"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.13.2"/>
-          <dependency groupId="com.fasterxml.jackson.datatype" artifactId="jackson-datatype-jsr310" version="2.13.2"/>
-          <dependency groupId="com.fasterxml.jackson.dataformat" artifactId="jackson-dataformat-yaml" version="2.13.2"  scope="test">
-            <exclusion groupId="org.yaml" artifactId="snakeyaml"/>
-          </dependency>
-          <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
-          <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
-          <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
-          <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.26"/>
-          <dependency groupId="junit" artifactId="junit" version="4.12" scope="test">
-            <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
-          </dependency>
-          <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
-          <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.26" scope="test"/>
-          <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test">
-            <exclusion groupId="com.google.guava" artifactId="guava"/>
-          </dependency>
-          <dependency groupId="org.apache.cassandra" artifactId="harry-core" version="0.0.1" scope="test"/>
-          <dependency groupId="org.reflections" artifactId="reflections" version="0.10.2" scope="test"/>
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="${dtest-api.version}" scope="test"/>
-          <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="8.40" scope="test"/>
-          <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
-            <exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
-            <exclusion groupId="commons-logging" artifactId="commons-logging"/>
-            <exclusion groupId="commons-lang" artifactId="commons-lang"/>
-            <exclusion groupId="org.eclipse.jdt" artifactId="core"/>
-            <exclusion groupId="ant" artifactId="ant"/>
-            <exclusion groupId="junit" artifactId="junit"/>
-            <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
-            <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
-          </dependency>
-          <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3" scope="provided">
-            <exclusion groupId="asm" artifactId="asm"/> <!-- this is the outdated version 3.1 -->
-            <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
-            <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
-          </dependency>
-          <dependency groupId="net.java.dev.jna" artifactId="jna" version="5.9.0"/>
-
-          <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}" scope="test"/>
-          <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" scope="test">
-            <exclusion groupId="org.ow2.asm" artifactId="asm"/>
-          </dependency>
-
-          <dependency groupId="org.jboss.byteman" artifactId="byteman-install" version="${byteman.version}" scope="provided"/>
-          <dependency groupId="org.jboss.byteman" artifactId="byteman" version="${byteman.version}" scope="provided"/>
-          <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" version="${byteman.version}" scope="provided"/>
-          <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}" scope="provided"/>
-
-          <dependency groupId="net.bytebuddy" artifactId="byte-buddy" version="${bytebuddy.version}" />
-          <dependency groupId="net.bytebuddy" artifactId="byte-buddy-agent" version="${bytebuddy.version}" />
-
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.21" scope="test"/>
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.21" scope="test"/>
-
-          <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.10.12" scope="test"/>
-
-          <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
-          <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.5" />
-          <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm" version="3.1.5" />
-          <dependency groupId="io.dropwizard.metrics" artifactId="metrics-logback" version="3.1.5" />
-          <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.3">
-            <exclusion groupId="org.hibernate" artifactId="hibernate-validator" />
-           </dependency>
-          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.4" />
-          <dependency groupId="io.airlift" artifactId="airline" version="0.8">
-            <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
-           </dependency>
-          <dependency groupId="io.netty" artifactId="netty-bom" version="4.1.58.Final" type="pom" scope="provided"/>
-          <dependency groupId="io.netty" artifactId="netty-all" version="4.1.58.Final" />
-          <dependency groupId="io.netty" artifactId="netty-tcnative-boringssl-static" version="2.0.36.Final"/>
-          <dependency groupId="net.openhft" artifactId="chronicle-queue" version="${chronicle-queue.version}">
-            <exclusion groupId="com.sun" artifactId="tools" />
-          </dependency>
-          <dependency groupId="net.openhft" artifactId="chronicle-core" version="${chronicle-core.version}">
-            <exclusion groupId="net.openhft" artifactId="chronicle-analytics" />
-            <exclusion groupId="org.jetbrains" artifactId="annotations" />
-          </dependency>
-          <dependency groupId="net.openhft" artifactId="chronicle-bytes" version="${chronicle-bytes.version}">
-            <exclusion groupId="org.jetbrains" artifactId="annotations" />
-          </dependency>
-          <dependency groupId="net.openhft" artifactId="chronicle-wire" version="${chronicle-wire.version}">
-            <exclusion groupId="net.openhft" artifactId="compiler" />
-          </dependency>
-          <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}">
-            <exclusion groupId="net.openhft" artifactId="affinity" />
-            <!-- Exclude JNA here, as we want to avoid breaking consumers of the cassandra-all jar -->
-            <exclusion groupId="net.java.dev.jna" artifactId="jna" />
-            <exclusion groupId="net.java.dev.jna" artifactId="jna-platform" />
-          </dependency>
-          <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" scope="provided"/>
-          <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2">
-            <exclusion groupId="it.unimi.dsi" artifactId="fastutil" />
-          </dependency>
-          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.11.0" classifier="shaded">
-            <exclusion groupId="io.netty" artifactId="netty-buffer"/>
-            <exclusion groupId="io.netty" artifactId="netty-codec"/>
-            <exclusion groupId="io.netty" artifactId="netty-handler"/>
-            <exclusion groupId="io.netty" artifactId="netty-transport"/>
-            <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
-            <exclusion groupId="com.github.jnr" artifactId="jnr-ffi"/>
-            <exclusion groupId="com.github.jnr" artifactId="jnr-posix"/>
-          </dependency>
-          <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj" version="${ecj.version}" />
-          <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="${ohc.version}">
-            <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
-          </dependency>
-          <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8" version="${ohc.version}" />
-          <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" version="1.2.0" scope="provided"/>
-          <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4">
-            <exclusion groupId="log4j" artifactId="log4j"/>
-          </dependency>
-          <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.8.1" />
-          <dependency groupId="de.jflex" artifactId="jflex" version="${jflex.version}">
-            <exclusion groupId="org.apache.ant" artifactId="ant"/>
-          </dependency>
-          <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
-          <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
-          <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.9.2" />
-          <dependency groupId="org.jctools" artifactId="jctools-core" version="3.1.0"/>
-          <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}"/>
-          <dependency groupId="org.ow2.asm" artifactId="asm-tree" version="${asm.version}" scope="test"/>
-          <dependency groupId="org.ow2.asm" artifactId="asm-commons" version="${asm.version}" scope="test"/>
-          <dependency groupId="org.ow2.asm" artifactId="asm-util" version="${asm.version}" scope="test"/>
-          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-cli" version="0.14"/>
-          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-core" version="0.14">
-            <exclusion groupId="org.gridkit.jvmtool" artifactId="sjk-hflame"/>
-            <exclusion groupId="org.perfkit.sjk.parsers" artifactId="sjk-hflame"/>
-            <exclusion groupId="org.perfkit.sjk.parsers" artifactId="sjk-jfr-standalone"/>
-            <exclusion groupId="org.perfkit.sjk.parsers" artifactId="sjk-nps"/>
-            <exclusion groupId="org.perfkit.sjk.parsers" artifactId="sjk-jfr5"/>
-            <exclusion groupId="org.perfkit.sjk.parsers" artifactId="sjk-jfr6"/>
-          </dependency>
-          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-stacktrace" version="0.14"/>
-          <dependency groupId="org.gridkit.jvmtool" artifactId="mxdump" version="0.14"/>
-          <dependency groupId="org.gridkit.lab" artifactId="jvm-attach-api" version="1.5"/>
-          <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-json" version="0.14"/>
-          <dependency groupId="com.beust" artifactId="jcommander" version="1.30"/>
-          <dependency groupId="org.psjava" artifactId="psjava" version="0.1.19"/>
-          <dependency groupId="javax.inject" artifactId="javax.inject" version="1"/>
-          <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations" version="1.3"/>
-          <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
-             this that the new assertj's `assertj-parent-pom` depends on. -->
-          <dependency groupId="org.junit" artifactId="junit-bom" version="5.6.0" type="pom" scope="test"/>
-          <!-- when updating assertj, make sure to also update the corresponding junit-bom dependency -->
-          <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0" scope="provided"/>
-          <dependency groupId="org.awaitility" artifactId="awaitility" version="4.0.3"  scope="test">
-            <exclusion groupId="org.hamcrest" artifactId="hamcrest"/>
-          </dependency>
-          <dependency groupId="org.hamcrest" artifactId="hamcrest" version="2.2" scope="test"/>
-          <dependency groupId="com.github.seancfoley" artifactId="ipaddress" version="5.3.3" />
-        </dependencyManagement>
-        <developer id="adelapena" name="Andres de la Peña"/>
-        <developer id="alakshman" name="Avinash Lakshman"/>
-        <developer id="aleksey" name="Aleksey Yeschenko"/>
-        <developer id="amorton" name="Aaron Morton"/>
-        <developer id="aweisberg" name="Ariel Weisberg"/>
-        <developer id="bdeggleston" name="Blake Eggleston"/>
-        <developer id="benedict" name="Benedict Elliott Smith"/>
-        <developer id="benjamin" name="Benjamin Lerer"/>
-        <developer id="blambov" name="Branimir Lambov"/>
-        <developer id="brandonwilliams" name="Brandon Williams"/>
-        <developer id="carl" name="Carl Yeksigian"/>
-        <developer id="dbrosius" name="David Brosiusd"/>
-        <developer id="dikang" name="Dikang Gu"/>
-        <developer id="eevans" name="Eric Evans"/>
-        <developer id="edimitrova" name="Ekaterina Dimitrova"/>
-        <developer id="gdusbabek" name="Gary Dusbabek"/>
-        <developer id="goffinet" name="Chris Goffinet"/>
-        <developer id="ifesdjeen" name="Alex Petrov"/>
-        <developer id="jaakko" name="Laine Jaakko Olavi"/>
-        <developer id="jake" name="T Jake Luciani"/>
-        <developer id="jasonbrown" name="Jason Brown"/>
-        <developer id="jbellis" name="Jonathan Ellis"/>
-        <developer id="jfarrell" name="Jake Farrell"/>
-        <developer id="jjirsa" name="Jeff Jirsa"/>
-        <developer id="jkni" name="Joel Knighton"/>
-        <developer id="jmckenzie" name="Josh McKenzie"/>
-        <developer id="johan" name="Johan Oskarsson"/>
-        <developer id="junrao" name="Jun Rao"/>
-        <developer id="jzhuang" name="Jay Zhuang"/>
-        <developer id="kohlisankalp" name="Sankalp Kohli"/>
-        <developer id="marcuse" name="Marcus Eriksson"/>
-        <developer id="mck" name="Michael Semb Wever"/>
-        <developer id="mishail" name="Mikhail Stepura"/>
-        <developer id="mshuler" name="Michael Shuler"/>
-        <developer id="paulo" name="Paulo Motta"/>
-        <developer id="pmalik" name="Prashant Malik"/>
-        <developer id="rstupp" name="Robert Stupp"/>
-        <developer id="scode" name="Peter Schuller"/>
-        <developer id="beobal" name="Sam Tunnicliffe"/>
-        <developer id="slebresne" name="Sylvain Lebresne"/>
-        <developer id="stefania" name="Stefania Alborghetti"/>
-        <developer id="tylerhobbs" name="Tyler Hobbs"/>
-        <developer id="vijay" name="Vijay Parthasarathy"/>
-        <developer id="xedin" name="Pavel Yaskevich"/>
-        <developer id="yukim" name="Yuki Morishita"/>
-        <developer id="zznate" name="Nate McCall"/>
-      </artifact:pom>
-
-      <!-- each dependency set then defines the subset of the dependencies for that dependency set -->
-      <artifact:pom id="build-deps-pom"
-                    artifactId="cassandra-build-deps">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"
-                relativePath="${final.name}-parent.pom"/>
-        <dependency groupId="junit" artifactId="junit" scope="test"/>
-        <dependency groupId="commons-io" artifactId="commons-io" scope="test"/>
-        <dependency groupId="org.mockito" artifactId="mockito-core" scope="test"/>
-        <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}"/>
-        <dependency groupId="org.ow2.asm" artifactId="asm-tree" version="${asm.version}" scope="test"/>
-        <dependency groupId="org.ow2.asm" artifactId="asm-commons" version="${asm.version}" scope="test"/>
-        <dependency groupId="org.ow2.asm" artifactId="asm-util" version="${asm.version}" scope="test"/>
-        <dependency groupId="com.google.jimfs" artifactId="jimfs" version="1.1" scope="test"/>
-        <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" scope="test"/>
-        <dependency groupId="org.quicktheories" artifactId="quicktheories" scope="test"/>
-        <dependency groupId="org.reflections" artifactId="reflections" scope="test"/>
-        <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test"/>
-        <dependency groupId="org.apache.cassandra" artifactId="dtest-api" scope="test"/>
-        <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" scope="test"/>
-        <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" scope="test"/>
-        <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="test"/>
-        <dependency groupId="org.apache.ant" artifactId="ant-junit" scope="test"/>
-        <dependency groupId="org.apache.cassandra" artifactId="harry-core"/>
-        <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
-             this that the new assertj's `assertj-parent-pom` depends on. -->
-        <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
-        <dependency groupId="org.awaitility" artifactId="awaitility"/>
-        <dependency groupId="org.hamcrest" artifactId="hamcrest"/>
-        <!-- coverage debs -->
-        <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
-        <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
-
-        <dependency groupId="com.fasterxml.jackson.dataformat" artifactId="jackson-dataformat-yaml"/>
-      </artifact:pom>
-
-      <!-- now the pom's for artifacts being deployed to Maven Central -->
-      <artifact:pom id="all-pom"
-                    artifactId="cassandra-all"
-                    url="https://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"
-                relativePath="${final.name}-parent.pom"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
-        <dependency groupId="org.xerial.snappy" artifactId="snappy-java"/>
-        <dependency groupId="org.lz4" artifactId="lz4-java"/>
-        <dependency groupId="com.ning" artifactId="compress-lzf"/>
-        <dependency groupId="com.google.guava" artifactId="guava"/>
-        <dependency groupId="commons-cli" artifactId="commons-cli"/>
-        <dependency groupId="commons-codec" artifactId="commons-codec"/>
-        <dependency groupId="org.apache.commons" artifactId="commons-lang3"/>
-        <dependency groupId="org.apache.commons" artifactId="commons-math3"/>
-        <dependency groupId="org.antlr" artifactId="antlr" scope="provided"/>
-        <dependency groupId="org.antlr" artifactId="ST4"/>
-        <dependency groupId="org.antlr" artifactId="antlr-runtime"/>
-        <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
-        <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j"/>
-        <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j"/>
-        <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core"/>
-        <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind"/>
-        <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations"/>
-        <dependency groupId="com.fasterxml.jackson.datatype" artifactId="jackson-datatype-jsr310"/>
-        <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
-        <dependency groupId="com.boundary" artifactId="high-scale-lib"/>
-        <dependency groupId="org.yaml" artifactId="snakeyaml"/>
-        <dependency groupId="org.mindrot" artifactId="jbcrypt"/>
-        <dependency groupId="io.airlift" artifactId="airline"/>
-        <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core"/>
-        <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm"/>
-        <dependency groupId="io.dropwizard.metrics" artifactId="metrics-logback"/>
-        <dependency groupId="com.addthis.metrics" artifactId="reporter-config3"/>
-        <dependency groupId="com.clearspring.analytics" artifactId="stream"/>
-
-        <dependency groupId="ch.qos.logback" artifactId="logback-core"/>
-        <dependency groupId="ch.qos.logback" artifactId="logback-classic"/>
-
-        <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
-        <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
-        <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
-
-        <!-- don't need the Java Driver to run, but if you use the hadoop stuff or UDFs -->
-        <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded" optional="true"/>
-          <!-- don't need jna to run, but nice to have -->
-        <dependency groupId="net.java.dev.jna" artifactId="jna"/>
-
-        <!-- don't need jamm unless running a server in which case it needs to be a -javagent to be used anyway -->
-        <dependency groupId="com.github.jbellis" artifactId="jamm"/>
-
-        <dependency groupId="io.netty" artifactId="netty-bom"  type="pom"  />
-        <dependency groupId="io.netty" artifactId="netty-all"/>
-        <dependency groupId="net.openhft" artifactId="chronicle-queue"/>
-        <dependency groupId="net.openhft" artifactId="chronicle-core"/>
-        <dependency groupId="net.openhft" artifactId="chronicle-bytes"/>
-        <dependency groupId="net.openhft" artifactId="chronicle-wire"/>
-        <dependency groupId="net.openhft" artifactId="chronicle-threads"/>
-        <dependency groupId="org.fusesource" artifactId="sigar"/>
-        <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
-        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
-        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8"/>
-        <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" />
-        <dependency groupId="org.jctools" artifactId="jctools-core"/>
-        <dependency groupId="org.ow2.asm" artifactId="asm" />
-        <dependency groupId="com.carrotsearch" artifactId="hppc" />
-        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-cli" />
-        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-core" />
-        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-stacktrace" />
-        <dependency groupId="org.gridkit.jvmtool" artifactId="mxdump" />
-        <dependency groupId="org.gridkit.lab" artifactId="jvm-attach-api" />
-        <dependency groupId="com.beust" artifactId="jcommander" />
-        <dependency groupId="org.gridkit.jvmtool" artifactId="sjk-json"/>
-        <dependency groupId="com.github.luben" artifactId="zstd-jni"/>
-        <dependency groupId="org.psjava" artifactId="psjava"/>
-        <dependency groupId="io.netty" artifactId="netty-tcnative-boringssl-static"/>
-        <dependency groupId="javax.inject" artifactId="javax.inject"/>
-        <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations"/>
-        <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
-
-        <!-- sasi deps -->
-        <dependency groupId="de.jflex" artifactId="jflex" />
-        <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" />
-        <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" />
-
-        <!-- compile tools -->
-        <dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
-        <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
-        <dependency groupId="org.assertj" artifactId="assertj-core"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-install"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-submit"/>
-        <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit"/>
-        <dependency groupId="com.github.seancfoley" artifactId="ipaddress" />
-      </artifact:pom>
-    </target>
-
-    <!-- deprecated: legacy compatibility for build scripts in other repositories -->
-    <target name="maven-ant-tasks-retrieve-build" depends="resolver-retrieve-build"/>
 
     <target name="echo-base-version">
         <echo message="${base.version}" />
@@ -1094,16 +665,6 @@
         </javac>
     </target>
 
-	<target name="_write-poms" depends="maven-declare-dependencies">
-	    <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
-	    <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
-	    <artifact:writepom pomRefId="build-deps-pom" file="${build.dir}/tmp-${final.name}-deps.pom"/>
-	</target>
-
-	<target name="write-poms" unless="without.maven">
-	    <antcall target="_write-poms" />
-	</target>
-
     <!--
         The jar target makes cassandra.jar output.
     -->
@@ -1198,7 +759,7 @@
     </target>
 
     <target name="jar"
-            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,write-poms"
+            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars"
             description="Assemble Cassandra JAR files">
     </target>
 
@@ -2122,7 +1683,7 @@
   </target>
 
   <!-- Generate IDEA project description files -->
-  <target name="generate-idea-files" depends="init,maven-ant-tasks-init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,createVersionPropFile" description="Generate IDEA files">
+  <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,createVersionPropFile" description="Generate IDEA files">
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
     <copy todir=".idea" overwrite="true">
@@ -2256,7 +1817,7 @@
         </java>
   </target>
 
-  <target name="init-checkstyle" depends="maven-ant-tasks-retrieve-build,build-project">
+  <target name="init-checkstyle" depends="build-project">
       <path id="checkstyle.lib.path">
           <fileset dir="${test.lib}/jars" includes="*.jar"/>
       </path>
@@ -2266,7 +1827,7 @@
                classpathref="checkstyle.lib.path"/>
   </target>
 
-  <target name="checkstyle" depends="init-checkstyle,maven-ant-tasks-retrieve-build,build-project" description="Run custom checkstyle code analysis" if="java.version.8">
+  <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" if="java.version.8">
       <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
       <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
       <mkdir  dir="${checkstyle.log.dir}" />
@@ -2282,7 +1843,7 @@
       </checkstyle>
   </target>
 
-  <target name="checkstyle-test" depends="init-checkstyle,maven-ant-tasks-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" if="java.version.8">
+  <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" if="java.version.8">
       <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
       <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
       <mkdir  dir="${checkstyle.log.dir}" />
@@ -2300,7 +1861,7 @@
 
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
-          depends="maven-declare-dependencies,jar,sources-jar,javadoc-jar"
+          depends="jar,sources-jar,javadoc-jar"
           description="Installs the artifacts in the Maven Local Repository">
 
     <!-- the parent -->
@@ -2309,12 +1870,12 @@
              packaging="pom"/>
 
     <!-- the cassandra-all jar -->
-    <install pomFile="${build.dir}/${final.name}.pom"
+    <install pomFile="${basedir}/${final.name}.pom"
              file="${build.dir}/${final.name}.jar"/>
-    <install pomFile="${build.dir}/${final.name}.pom"
+    <install pomFile="${basedir}/${final.name}.pom"
              file="${build.dir}/${final.name}-sources.jar"
              classifier="sources"/>
-    <install pomFile="${build.dir}/${final.name}.pom"
+    <install pomFile="${basedir}/${final.name}.pom"
              file="${build.dir}/${final.name}-javadoc.jar"
              classifier="javadoc"/>
   </target>
@@ -2325,17 +1886,17 @@
           description="Publishes the artifacts to the Maven repository">
 
     <!-- the parent -->
-    <deploy pomFile="${build.dir}/${final.name}-parent.pom"
+    <deploy pomFile="${basedir}/${final.name}-parent.pom"
             file="${build.dir}/${final.name}-parent.pom"
             packaging="pom"/>
 
     <!-- the cassandra-all jar -->
-    <deploy pomFile="${build.dir}/${final.name}.pom"
+    <deploy pomFile="${basedir}/${final.name}.pom"
             file="${build.dir}/${final.name}.jar"/>
-    <deploy pomFile="${build.dir}/${final.name}.pom"
+    <deploy pomFile="${basedir}/${final.name}.pom"
             file="${build.dir}/${final.name}-sources.jar"
             classifier="sources"/>
-    <deploy pomFile="${build.dir}/${final.name}.pom"
+    <deploy pomFile="${basedir}/${final.name}.pom"
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
 

@@ -165,9 +165,9 @@
         <property name="resolver-ant-tasks.initialized" value="true"/>
     </target>
 
-    <target name="resolver-retrieve-build" depends="resolver-init,write-poms">
-        <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
-        <resolvepom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps" />
+    <target name="resolver-retrieve-build" depends="resolver-init">
+        <resolvepom file="${basedir}/apache-cassandra.pom" id="all-pom" />
+        <resolvepom file="${basedir}/apache-cassandra-build-deps.pom" id="pom-deps" />
 
         <resolve>
             <dependencies pomRef="all-pom"/>
@@ -175,7 +175,8 @@
         </resolve>
         <resolve>
             <dependencies pomRef="pom-deps"/>
-            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
+            <!-- Needed to include compile here, so ant _build-test would not fail on missing jimfs dependency -->
+            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,test,!provide,!system"/>
         </resolve>
 
 
@@ -188,8 +189,8 @@
         </unzip>
     </target>
 
-    <target name="resolver-dist-lib" depends="resolver-retrieve-build,write-poms">
-        <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
+    <target name="resolver-dist-lib" depends="resolver-retrieve-build">
+        <resolvepom file="${basedir}/apache-cassandra.pom" id="all-pom" />
 
         <resolve failOnMissingAttachments="true">
             <dependencies pomRef="all-pom"/>
