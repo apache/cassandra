@@ -31,7 +31,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
@@ -142,7 +141,7 @@ public class BackgroundCompactionsTest
             if (prev != null)
             {
                 CompactionAggregate combinedAggregate = mockAggregate(1, i + 1, 0);
-                when(prev.withAdditionalCompactions(anyCollection())).thenReturn(combinedAggregate);
+                when(prev.mergeWith(any())).thenReturn(combinedAggregate);
             }
 
 

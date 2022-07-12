@@ -957,13 +957,14 @@ public class FBUtilities
 
     /**
      * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
-     * For example, 1.000kiB, 2.100GiB etc., up to 8.000 EiB.
+     * For example, 1.000kiB, 212.100GiB etc., up to 8.000 EiB.
      * @param size      Number to convert.
      * @param separator Separator between the number and the (modified) unit.
      */
     public static String prettyPrintMemory(long size, String separator)
     {
         int prefixIndex = (63 - Long.numberOfLeadingZeros(Math.abs(size))) / 10;
+        // Note: if size is 0 we get prefixIndex=0 because the division truncates towards 0 (i.e. -1/10 = 0).
         if (prefixIndex == 0)
             return String.format("%d%sB", size, separator);
         else
@@ -977,7 +978,7 @@ public class FBUtilities
      * Convert the given value to a human-readable string using binary (i.e. 2^10-based) modifiers.
      * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as v*2^e where e is a
      * multiple of 10 with sign.
-     * For example, 1.000kiB, 2.100 miB/s, 7.006*2^+150, -Infinity.
+     * For example, 1.000kiB, 1022.100 miB/s, 7.006*2^+150, -Infinity.
      * @param value     Number to convert.
      * @param separator Separator between the number and the (modified) unit.
      */
@@ -1002,9 +1003,9 @@ public class FBUtilities
 
     /**
      * Convert the given value to a human-readable string using decimal (i.e. 10^3-based) modifiers.
-     * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as vEe where e is a
+     * If the number is outside the modifier range (i.e. < 1 q or > 1 Q), it will be printed as vEe where e is a
      * multiple of 3 with sign.
-     * For example, 1.000km, 2.100 ms, 10E+45, NaN.
+     * For example, 1.000km, 215.100 ms, 10.000E+45, NaN.
      * @param value     Number to convert.
      * @param separator Separator between the number and the (modified) unit.
      */
@@ -1035,13 +1036,7 @@ public class FBUtilities
 
     public static String prettyPrintMemoryPerSecond(long bytes, long timeInNano)
     {
-        // We can't sanely calculate a rate over 0 nanoseconds
-        if (timeInNano == 0)
-            return "NaN  KiB/s";
-
-        long rate = (long) (((double) bytes / timeInNano) * 1000 * 1000 * 1000);
-
-        return prettyPrintMemoryPerSecond(rate);
+        return prettyPrintBinary(bytes * 1.0e9 / timeInNano, "B/s", "");
     }
 
     /**
@@ -1050,7 +1045,8 @@ public class FBUtilities
      *
      * @param datum     The human-readable number.
      * @param separator Expected separator, null to accept any amount of whitespace.
-     * @param unit      Expected unit.
+     * @param unit      Expected unit. If null, the method will accept any string as unit, i.e. it will parse the number
+     *                  at the start of the supplied string and ignore any remainder.
      * @return The parsed value.
      */
     public static double parseHumanReadable(String datum, String separator, String unit)

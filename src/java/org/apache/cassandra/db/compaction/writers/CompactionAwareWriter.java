@@ -31,13 +31,13 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -66,7 +66,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     protected final SSTableRewriter sstableWriter;
     protected final LifecycleTransaction txn;
     private final List<Directories.DataDirectory> locations;
-    private final List<PartitionPosition> diskBoundaries;
+    private final List<Token> diskBoundaries;
     private int locationIndex;
     protected Directories.DataDirectory currentDirectory;
 
@@ -187,7 +187,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
             return;
 
         if (shouldSwitchWriterInCurrentLocation(key))
-            switchCompactionWriter(currentDirectory);
+            switchCompactionWriter(currentDirectory, key);
     }
 
     /**
@@ -201,23 +201,23 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
             if (locationIndex < 0)
             {
                 Directories.DataDirectory defaultLocation = getWriteDirectory(nonExpiredSSTables, getExpectedWriteSize());
-                switchCompactionWriter(defaultLocation);
+                switchCompactionWriter(defaultLocation, key);
                 locationIndex = 0;
                 return true;
             }
             return false;
         }
 
-        if (locationIndex > -1 && key.compareTo(diskBoundaries.get(locationIndex)) < 0)
+        if (locationIndex > -1 && key.getToken().compareTo(diskBoundaries.get(locationIndex)) < 0)
             return false;
 
         int prevIdx = locationIndex;
-        while (locationIndex == -1 || key.compareTo(diskBoundaries.get(locationIndex)) > 0)
+        while (locationIndex == -1 || key.getToken().compareTo(diskBoundaries.get(locationIndex)) > 0)
             locationIndex++;
         Directories.DataDirectory newLocation = locations.get(locationIndex);
         if (prevIdx >= 0)
             logger.debug("Switching write location from {} to {}", locations.get(prevIdx), newLocation);
-        switchCompactionWriter(newLocation);
+        switchCompactionWriter(newLocation, key);
         return true;
     }
 
@@ -229,21 +229,20 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
 
     /**
      * Implementations of this method should finish the current sstable writer and start writing to this directory.
-     *
+     * <p>
      * Called once before starting to append and then whenever we see a need to start writing to another directory.
+     *
      * @param directory
+     * @param nextKey
      */
-    protected void switchCompactionWriter(Directories.DataDirectory directory)
+    protected void switchCompactionWriter(Directories.DataDirectory directory, DecoratedKey nextKey)
     {
         currentDirectory = directory;
-        PartitionPosition diskBoundary = diskBoundaries != null && locationIndex > -1
-                                         ? diskBoundaries.get(locationIndex)
-                                         : null;
-        sstableWriter.switchWriter(sstableWriter(directory, diskBoundary));
+        sstableWriter.switchWriter(sstableWriter(directory, nextKey != null ? nextKey.getToken() : null));
     }
 
     @SuppressWarnings("resource")
-    protected SSTableWriter sstableWriter(Directories.DataDirectory directory, PartitionPosition diskBoundary)
+    protected SSTableWriter sstableWriter(Directories.DataDirectory directory, Token diskBoundary)
     {
         return SSTableWriter.create(realm.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
                                     estimatedTotalKeys,

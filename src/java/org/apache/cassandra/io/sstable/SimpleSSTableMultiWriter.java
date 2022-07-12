@@ -23,7 +23,6 @@ import java.util.UUID;
 
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -45,10 +44,9 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         this.writer = writer;
     }
 
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
-        RowIndexEntry indexEntry = writer.append(partition);
-        return indexEntry != null;
+        writer.append(partition);
     }
 
     public Collection<SSTableReader> finish(long repairedAt, long maxDataAge, boolean openResult)

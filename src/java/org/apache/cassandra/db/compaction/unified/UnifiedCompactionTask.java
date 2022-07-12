@@ -16,13 +16,12 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
-import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.compaction.CompactionTask;
+import org.apache.cassandra.db.compaction.ShardManager;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -33,19 +32,18 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  */
 public class UnifiedCompactionTask extends CompactionTask
 {
-    private final long minSstableSizeInBytes;
-    private final List<PartitionPosition> boundaries;
+    private final ShardManager shardManager;
+    private final Controller controller;
 
     public UnifiedCompactionTask(CompactionRealm cfs,
                                  UnifiedCompactionStrategy strategy,
                                  LifecycleTransaction txn,
                                  int gcBefore,
-                                 long minSstableSizeInBytes,
-                                 List<PartitionPosition> boundaries)
+                                 ShardManager shardManager)
     {
         super(cfs, txn, gcBefore, strategy.getController().getIgnoreOverlapsInExpirationCheck(), strategy);
-        this.minSstableSizeInBytes = minSstableSizeInBytes;
-        this.boundaries = boundaries;
+        this.controller = strategy.getController();
+        this.shardManager = shardManager;
     }
 
     @Override
@@ -54,6 +52,8 @@ public class UnifiedCompactionTask extends CompactionTask
                                                           LifecycleTransaction txn,
                                                           Set<SSTableReader> nonExpiredSSTables)
     {
-        return new ShardedCompactionWriter(realm, directories, txn, nonExpiredSSTables, keepOriginals, minSstableSizeInBytes, boundaries);
+        double density = shardManager.calculateCombinedDensity(nonExpiredSSTables);
+        int numShards = controller.getNumShards(density);
+        return new ShardedCompactionWriter(realm, directories, txn, nonExpiredSSTables, keepOriginals, shardManager.boundaries(numShards));
     }
 }

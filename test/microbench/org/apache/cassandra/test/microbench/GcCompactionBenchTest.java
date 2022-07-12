@@ -54,6 +54,7 @@ public class GcCompactionBenchTest extends CQLTester
 {
     private static final String SIZE_TIERED_STRATEGY = "SizeTieredCompactionStrategy', 'min_sstable_size' : '0";
     private static final String LEVELED_STRATEGY = "LeveledCompactionStrategy', 'sstable_size_in_mb' : '16";
+    private static final String UNIFIED_STRATEGY = "UnifiedCompactionStrategy', 'min_sstable_size_in_mb' : '16";
 
     private static final int DEL_SECTIONS = 1000;
     private static final int FLUSH_FREQ = 10000;
@@ -303,6 +304,12 @@ public class GcCompactionBenchTest extends CQLTester
     public void testCopyCompaction() throws Throwable
     {
         testGcCompaction(TombstoneOption.NONE, TombstoneOption.NONE, LEVELED_STRATEGY);
+    }
+
+    @Test
+    public void testCopyCompactionUCS() throws Throwable
+    {
+        testGcCompaction(TombstoneOption.NONE, TombstoneOption.NONE, UNIFIED_STRATEGY);
     }
 
     @Test

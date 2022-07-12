@@ -220,10 +220,11 @@ public abstract class Splitter
         {
             BigInteger currentRangeWidth = weightedRange.totalTokens(this);
             BigInteger left = valueForToken(weightedRange.left());
+            BigInteger currentRangeFactor = BigInteger.valueOf(Math.max(1, (long) (1 / weightedRange.weight())));
             while (sum.add(currentRangeWidth).compareTo(perPart) >= 0)
             {
                 BigInteger withinRangeBoundary = perPart.subtract(sum);
-                left = left.add(withinRangeBoundary);
+                left = left.add(withinRangeBoundary.multiply(currentRangeFactor));
                 boundaries.add(tokenForValue(left));
                 tokensLeft = tokensLeft.subtract(perPart);
                 currentRangeWidth = currentRangeWidth.subtract(withinRangeBoundary);
@@ -360,6 +361,14 @@ public abstract class Splitter
             BigInteger factor = BigInteger.valueOf(Math.max(1, (long) (1 / weight)));
             BigInteger size = right.subtract(left);
             return size.abs().divide(factor);
+        }
+
+        /**
+         * A less precise version of the above, returning the size of the span as a double approximation.
+         */
+        public double size()
+        {
+            return left().size(right()) * weight;
         }
 
         public Token left()

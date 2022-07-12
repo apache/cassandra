@@ -45,7 +45,7 @@ import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.lifecycle.Tracker;
-import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
@@ -447,9 +447,9 @@ public abstract class SSTable
         }
     }
 
-    public AbstractBounds<Token> getBounds()
+    public Bounds<Token> getBounds()
     {
-        return AbstractBounds.bounds(first.getToken(), true, last.getToken(), true);
+        return new Bounds(first.getToken(), last.getToken());
     }
 
     public static void validateRepairedMetadata(long repairedAt, UUID pendingRepair, boolean isTransient)

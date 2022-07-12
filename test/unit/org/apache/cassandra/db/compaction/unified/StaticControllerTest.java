@@ -25,8 +25,10 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
+import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicationFactor;
+import org.apache.cassandra.schema.SchemaConstants;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -37,21 +39,57 @@ import static org.mockito.Mockito.when;
 
 public class StaticControllerTest extends ControllerTest
 {
-    static final int[] Ws = new int[] { 30, 2, -6};
+    static final int[] Ws = new int[] { 30, 2, 0, -6};
 
     @Test
     public void testFromOptions()
     {
         Map<String, String> options = new HashMap<>();
-        Map<String, String> options2 = new HashMap<>();
-        String wStr = Arrays.stream(Ws).mapToObj(Integer::toString).collect(Collectors.joining(","));
-        options.put(StaticController.STATIC_SCALING_PARAMETERS_OPTION, wStr);
-        options2.put(StaticController.STATIC_SCALING_FACTORS_OPTION, wStr);
+        addOptions(false, options);
 
         Controller controller = testFromOptions(false, options);
         assertTrue(controller instanceof StaticController);
-        Controller controller2 = testFromOptions(false, options2);
-        assertTrue(controller2 instanceof StaticController);
+
+        for (int i = 0; i < Ws.length; i++)
+            assertEquals(Ws[i], controller.getScalingParameter(i));
+
+        assertEquals(Ws[Ws.length-1], controller.getScalingParameter(Ws.length));
+    }
+
+    private static void addOptions(boolean useIntegers, Map<String, String> options)
+    {
+        String wStr = Arrays.stream(Ws)
+                            .mapToObj(useIntegers ? Integer::toString : UnifiedCompactionStrategy::printScalingParameter)
+                            .collect(Collectors.joining(","));
+        options.put(StaticController.STATIC_SCALING_PARAMETERS_OPTION, wStr);
+    }
+
+    @Test
+    public void testFromOptionsIntegers()
+    {
+        Map<String, String> options = new HashMap<>();
+        addOptions(true, options);
+
+        Controller controller = testFromOptions(false, options);
+        assertTrue(controller instanceof StaticController);
+
+
+        for (int i = 0; i < Ws.length; i++)
+            assertEquals(Ws[i], controller.getScalingParameter(i));
+
+        assertEquals(Ws[Ws.length-1], controller.getScalingParameter(Ws.length));
+    }
+
+    @Test
+    public void testFromOptionsIntegersDeprecatedName()
+    {
+        Map<String, String> options = new HashMap<>();
+        addOptions(true, options);
+        options.put(StaticController.STATIC_SCALING_FACTORS_OPTION,
+                    options.remove(StaticController.STATIC_SCALING_PARAMETERS_OPTION));
+
+        Controller controller = testFromOptions(false, options);
+        assertTrue(controller instanceof StaticController);
 
 
         for (int i = 0; i < Ws.length; i++)
@@ -64,13 +102,29 @@ public class StaticControllerTest extends ControllerTest
     public void testValidateOptions()
     {
         Map<String, String> options = new HashMap<>();
-        Map<String, String> options2 = new HashMap<>();
-        String wStr = Arrays.stream(Ws).mapToObj(Integer::toString).collect(Collectors.joining(","));
-        options.put(StaticController.STATIC_SCALING_PARAMETERS_OPTION, wStr);
-        options2.put(StaticController.STATIC_SCALING_FACTORS_OPTION, wStr);
+        addOptions(false, options);
 
         super.testValidateOptions(options, false);
-        super.testValidateOptions(options2, false);
+    }
+
+    @Test
+    public void testValidateOptionsIntegers()
+    {
+        Map<String, String> options = new HashMap<>();
+        addOptions(true, options);
+
+        super.testValidateOptions(options, false);
+    }
+
+    @Test
+    public void testValidateOptionsIntegersDeprecatedName()
+    {
+        Map<String, String> options = new HashMap<>();
+        addOptions(true, options);
+        options.put(StaticController.STATIC_SCALING_FACTORS_OPTION,
+                    options.remove(StaticController.STATIC_SCALING_PARAMETERS_OPTION));
+
+        super.testValidateOptions(options, false);
     }
 
     @Test
@@ -108,21 +162,63 @@ public class StaticControllerTest extends ControllerTest
     @Test
     public void testStartShutdown()
     {
-        StaticController controller = new StaticController(env, Ws, Controller.DEFAULT_SURVIVAL_FACTORS, dataSizeGB << 10, numShards, sstableSizeMB, 0, Controller.DEFAULT_MAX_SPACE_OVERHEAD, 0, Controller.DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS, Controller.DEFAULT_ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION, Controller.DEFAULT_L0_SHARDS_ENABLED);
+        StaticController controller = new StaticController(env,
+                                                           Ws,
+                                                           Controller.DEFAULT_SURVIVAL_FACTORS,
+                                                           dataSizeGB << 10,
+                                                           numShards,
+                                                           sstableSizeMB,
+                                                           0,
+                                                           Controller.DEFAULT_MAX_SPACE_OVERHEAD,
+                                                           0,
+                                                           Controller.DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS,
+                                                           Controller.DEFAULT_ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION,
+                                                           Controller.DEFAULT_L0_SHARDS_ENABLED,
+                                                           Controller.DEFAULT_BASE_SHARD_COUNT,
+                                                           Controller.DEFAULT_TARGET_SSTABLE_SIZE,
+                                                           Controller.DEFAULT_OVERLAP_INCLUSION_METHOD);
         super.testStartShutdown(controller);
     }
 
     @Test
     public void testShutdownNotStarted()
     {
-        StaticController controller = new StaticController(env, Ws, Controller.DEFAULT_SURVIVAL_FACTORS, dataSizeGB << 10, numShards, sstableSizeMB, 0, Controller.DEFAULT_MAX_SPACE_OVERHEAD, 0, Controller.DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS, Controller.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION, Controller.DEFAULT_L0_SHARDS_ENABLED);
+        StaticController controller = new StaticController(env,
+                                                           Ws,
+                                                           Controller.DEFAULT_SURVIVAL_FACTORS,
+                                                           dataSizeGB << 10,
+                                                           numShards,
+                                                           sstableSizeMB,
+                                                           0,
+                                                           Controller.DEFAULT_MAX_SPACE_OVERHEAD,
+                                                           0,
+                                                           Controller.DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS,
+                                                           Controller.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION,
+                                                           Controller.DEFAULT_L0_SHARDS_ENABLED,
+                                                           Controller.DEFAULT_BASE_SHARD_COUNT,
+                                                           Controller.DEFAULT_TARGET_SSTABLE_SIZE,
+                                                           Controller.DEFAULT_OVERLAP_INCLUSION_METHOD);
         super.testShutdownNotStarted(controller);
     }
 
     @Test(expected = IllegalStateException.class)
     public void testStartAlreadyStarted()
     {
-        StaticController controller = new StaticController(env, Ws, Controller.DEFAULT_SURVIVAL_FACTORS, dataSizeGB << 10, numShards, sstableSizeMB, 0, Controller.DEFAULT_MAX_SPACE_OVERHEAD, 0, Controller.DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS, Controller.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION, Controller.DEFAULT_L0_SHARDS_ENABLED);
+        StaticController controller = new StaticController(env,
+                                                           Ws,
+                                                           Controller.DEFAULT_SURVIVAL_FACTORS,
+                                                           dataSizeGB << 10,
+                                                           numShards,
+                                                           sstableSizeMB,
+                                                           0,
+                                                           Controller.DEFAULT_MAX_SPACE_OVERHEAD,
+                                                           0,
+                                                           Controller.DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS,
+                                                           Controller.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION,
+                                                           Controller.DEFAULT_L0_SHARDS_ENABLED,
+                                                           Controller.DEFAULT_BASE_SHARD_COUNT,
+                                                           Controller.DEFAULT_TARGET_SSTABLE_SIZE,
+                                                           Controller.DEFAULT_OVERLAP_INCLUSION_METHOD);
         super.testStartAlreadyStarted(controller);
     }
 
@@ -229,5 +325,33 @@ public class StaticControllerTest extends ControllerTest
         controller = testFromOptions(false, options);
         assertTrue(controller instanceof StaticController);
         assertEquals(Controller.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION, controller.getIgnoreOverlapsInExpirationCheck());
+    }
+
+    @Test
+    public void testBaseShardCountDefault()
+    {
+        Map<String, String> options = new HashMap<>();
+        Controller controller = Controller.fromOptions(cfs, options);
+        assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
+
+        String prevKS = keyspaceName;
+        try
+        {
+            keyspaceName = SchemaConstants.SYSTEM_KEYSPACE_NAME;
+            controller = controller.fromOptions(cfs, options);
+            assertEquals(1, controller.baseShardCount);
+        }
+        finally
+        {
+            keyspaceName = prevKS;
+        }
+
+        numDirectories = 3;
+        controller = controller.fromOptions(cfs, options);
+        assertEquals(1, controller.baseShardCount);
+
+        numDirectories = 1;
+        controller = controller.fromOptions(cfs, options);
+        assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
     }
 }

@@ -110,7 +110,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     }
 
     @Override
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
         throw new UnsupportedOperationException("Operation not supported by BigTableBlockWriter");
     }

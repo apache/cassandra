@@ -34,8 +34,8 @@ import org.json.simple.JSONObject;
 
 public class CompactionLogAnalyzerTest
 {
-    private final String UNREPAIRED_SHARD_NAME = "0-Unrepaired-shard_0";
-    private final String REPAIRED_SHARD_NAME = "0-Repaired-shard_1";
+    private final String UNREPAIRED_SHARD_NAME = "2-unrepaired";
+    private final String REPAIRED_SHARD_NAME = "2-repaired";
 
     private File[] logFiles;
 

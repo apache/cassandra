@@ -24,9 +24,8 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -62,19 +61,19 @@ import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
 
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.unified.AdaptiveController;
 import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.CostsCalculator;
 import org.apache.cassandra.db.compaction.unified.StaticController;
 import org.apache.cassandra.db.compaction.unified.Environment;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -213,6 +212,15 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
 
     @Option(name= {"-l0-shards-enabed"}, description = "Whether to use shards on L0, true by default")
     boolean l0ShardsEnabled = true;
+
+    @Option(name= {"-base-shard-count"}, description = "Base shard count, 4 by default")
+    int baseShardCount = 4;
+
+    @Option(name= {"-target_sstable_size_mb"}, description = "Target sstable size in mb, 1024 by default")
+    long targetSSTableSizeMB = 1024;
+
+    @Option(name= {"-overlap-inclusion-method"}, description = "Overlap inclusion method, NONE, SINGLE or TRANSITIVE")
+    Controller.OverlapInclusionMethod overlapInclusionMethod = Controller.OverlapInclusionMethod.TRANSITIVE;
 
     @BeforeClass
     public static void setUpClass()
@@ -386,7 +394,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                 ? new AdaptiveController(MonotonicClock.preciseTime,
                                                          new SimulatedEnvironment(counters, valueSize), Ws, previousWs,
                                                          new double[] { o },
-                                                         datasetSizeGB << 10,  // MB
+                                                         datasetSizeGB << 13,  // MB, leave some room
                                                          numShards,
                                                          sstableSize >> 20, // MB
                                                          0,
@@ -395,6 +403,9 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                          expiredSSTableCheckFrequency,
                                                          ignoreOverlaps,
                                                          l0ShardsEnabled,
+                                                         baseShardCount,
+                                                         Math.scalb(targetSSTableSizeMB, 20),
+                                                         overlapInclusionMethod,
                                                          updateTimeSec,
                                                          minW,
                                                          maxW,
@@ -404,7 +415,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                 : new StaticController(new SimulatedEnvironment(counters, valueSize),
                                                        Ws,
                                                        new double[] { o },
-                                                       datasetSizeGB << 10,  // MB
+                                                       datasetSizeGB << 13,  // MB
                                                        numShards,
                                                        sstableSize >> 20,
                                                        0,
@@ -412,7 +423,10 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                        0,
                                                        expiredSSTableCheckFrequency,
                                                        ignoreOverlaps,
-                                                       l0ShardsEnabled);
+                                                       l0ShardsEnabled,
+                                                       baseShardCount,
+                                                       Math.scalb(targetSSTableSizeMB, 20),
+                                                       overlapInclusionMethod);
 
         return new UnifiedCompactionStrategy(strategyFactory, controller);
     }
@@ -425,8 +439,8 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
 
         private CsvWriter(String fileName) throws IOException
         {
-            this.updateWriter =  new OutputStreamWriter(Files.newOutputStream(Paths.get(logDirectory, fileName + ".csv"), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
-            this.averagesWriter =  new OutputStreamWriter(Files.newOutputStream(Paths.get(logDirectory, fileName + "-avg.csv"), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
+            this.updateWriter =  new OutputStreamWriter(Files.newOutputStream(Paths.get(logDirectory, fileName + ".csv"), StandardOpenOption.CREATE, StandardOpenOption.WRITE));
+            this.averagesWriter =  new OutputStreamWriter(Files.newOutputStream(Paths.get(logDirectory, fileName + "-avg.csv"), StandardOpenOption.CREATE, StandardOpenOption.WRITE));
             this.headerWritten = false;
         }
 
@@ -620,19 +634,6 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
         public double flushSize()
         {
             return uniqueKeysPerSStable * valueSize; // a rough estimation should be fine
-        }
-
-        @Override
-        public List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending)
-        {
-            return pending;
-        }
-
-        @Override
-        public IntArrayList maybeRandomize(IntArrayList aggregateIndexes, Random random)
-        {
-            Collections.shuffle(aggregateIndexes, random);
-            return aggregateIndexes;
         }
 
         @Override
@@ -967,7 +968,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                 strategy.getController().startup(strategy, ScheduledExecutors.scheduledTasks);
                 this.output = new SimulationOutput(start, csvWriter, strategy);
 
-                int numShards = strategy.getController().getNumShards();
+                int numThreads = strategy.getController().maxConcurrentCompactions();
 
                 CountDownLatch settingUpDone = new CountDownLatch(1);
                 CountDownLatch runningDone = new CountDownLatch(2);
@@ -976,7 +977,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                 threadFactory.newThread(new RunAndCountDown(settingUpDone, "preload", this::preloadData)).start();
                 threadFactory.newThread(new RunAndCountDown(tearingDownDone, "report", this::reportOutput)).start();
 
-                for (int i = 0; i < numShards; i++)
+                for (int i = 0; i < numThreads; i++)
                     threadFactory.newThread(new RunAndCountDown(tearingDownDone, "compact " + i, this::compactData)).start();
 
                 settingUpDone.await();
@@ -1169,7 +1170,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                     {
                         counters.numFlushed.addAndGet(numToFlush);
                         lastFlushed = i;
-                        generateSSTables(cardinality, numToFlush, "preload", true);
+                        generateSSTables(cardinality, numToFlush, partitioner.getMinimumToken(), partitioner.getMaximumToken(), "preload", true);
 
                         cardinality = newCardinality();
                     }
@@ -1184,7 +1185,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                 if ((numToFlush = cardinality.cardinality()) > 0)
                 {
                     counters.numFlushed.addAndGet(numToFlush);
-                    generateSSTables(cardinality, numToFlush, "preload", true);
+                    generateSSTables(cardinality, numToFlush, partitioner.getMinimumToken(), partitioner.getMaximumToken(), "preload", true);
                 }
             }
             catch (Exception e)
@@ -1314,7 +1315,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
 
                     long numToFlush = cardinality.cardinality();
                     counters.numFlushed.addAndGet(numToFlush);
-                    generateSSTables(cardinality, numToFlush, "flushing", true);
+                    generateSSTables(cardinality, numToFlush, partitioner.getMinimumToken(), partitioner.getMaximumToken(), "flushing", true);
                 }
             }
             catch (InterruptedException e)
@@ -1340,7 +1341,10 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                 {
                     AbstractCompactionTask task = compactions.poll(1, TimeUnit.SECONDS);
                     if (task == null)
+                    {
+                        logger.info("no task");
                         continue;
+                    }
 
                     LifecycleTransaction txn = task.transaction();
                     Set<SSTableReader> candidates = txn.originals();
@@ -1359,7 +1363,10 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                     dataTracker.removeCompactingUnsafe(candidates);
 
                     // first create the new merged sstable
-                    generateSSTables(merged, merged.cardinality(), "compacting", false);
+                    generateSSTables(merged, merged.cardinality(),
+                                     candidates.stream().map(x -> x.getFirst().getToken()).min(Comparator.naturalOrder()).get(),
+                                     candidates.stream().map(x -> x.getLast().getToken()).max(Comparator.naturalOrder()).get(),
+                                     "compacting", false);
                     //Thread.sleep(5);
 
                     // then remove the old sstables
@@ -1428,56 +1435,61 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
          * @param reason - the reason (flushing, compacting, etc)
          * @param checkForCompaction- if true we check if a compaction needs to be submitted
          */
-        private void generateSSTables(ICardinality cardinality, long numEntries, String reason, boolean checkForCompaction) throws InterruptedException
+        private void generateSSTables(ICardinality cardinality, long numEntries, Token minToken, Token maxToken, String reason, boolean checkForCompaction) throws InterruptedException
         {
             // The theoretical sstable size that is being mocked
             long sstableSize = numEntries * valueSize;
+            IPartitioner partitioner = minToken.getPartitioner();
 
-            // The minimum sstable size and the compaction boundaries as dictated by the strategy
-            long minSStableSize = strategy.getController().getMinSstableSizeBytes();
-            List<PartitionPosition> boundaries = strategy.getShardBoundaries();
+            int shards = strategy.getController().getNumShards(valueSize * numEntries / minToken.size(maxToken));
+            ShardTracker boundaries = strategy.getShardManager().boundaries(shards);
 
-            // If we didn't have a minimum sstable size, each shard would get an sstable segment of this size and the number of
-            // sstables would be the number of shards, but because we have a minimum sstable size, we need to put a cap of minSStableSize
-            long sizeAssignableToEachShard = Math.max(minSStableSize, (int) Math.ceil((double) sstableSize / boundaries.size()));
+            int numSStables = 0;
+            boundaries.advanceTo(minToken);
+            while (true)
+            {
+                ++numSStables;
+                if (boundaries.shardEnd() == null || boundaries.shardEnd().compareTo(maxToken) > 0)
+                    break;
+                boundaries.advanceTo(boundaries.shardEnd().nextValidToken());
+            }
 
-            // How many sstables to compose the original sstable size, by rounding down we disregard the final segment which would be < minSStableSize
-            int numSStables = Math.min(boundaries.size(), Math.max(1, (int) (sstableSize / sizeAssignableToEachShard)));
-
-            // spread the sstables over the boundaries
-            int numShardsCoveredByEachSStable = boundaries.size() / numSStables;
+            boundaries = strategy.getShardManager().boundaries(shards);
+            //sstableSize / strategy.getShardManager().rangeSpanned(new Range<>(minToken, maxToken)));
 
             List<SSTableReader> sstables = new ArrayList<>(numSStables);
             long keyCount = (long) Math.ceil(numEntries / (double) numSStables);
             long bytesOnDisk = valueSize * keyCount;
             long timestamp = System.currentTimeMillis();
 
-            Token min = partitioner.getMinimumToken();
-            int max = numShardsCoveredByEachSStable - 1;
-            for (int i = 0; i < numSStables; i++)
+            boundaries.advanceTo(minToken);
+            while (true)
             {
-                // use the max token for the last sstable, this is because we rounded down when calculating numShardsCoveredByEachSStable
-                if (i == numSStables -1)
-                    max = boundaries.size() - 1;
-                else
-                    assertTrue(max < boundaries.size());
-
-                DecoratedKey first = new BufferDecoratedKey(min, ByteBuffer.allocate(0));
-                DecoratedKey last = new BufferDecoratedKey(boundaries.get(max).getToken(), ByteBuffer.allocate(0));
+                Range<Token> span = boundaries.shardSpan();
+                Token firstToken = span.left;
+                if (minToken.compareTo(firstToken) > 0)
+                    firstToken = minToken;
+                Token lastToken = partitioner.split(span.left, span.right, 1 - Math.scalb(1, -24)); // something that is < span.right
+                if (maxToken.compareTo(lastToken) < 0)
+                    lastToken = maxToken;
+                DecoratedKey first = new BufferDecoratedKey(boundaries.shardStart(), ByteBuffer.allocate(0));
+                DecoratedKey last = new BufferDecoratedKey(lastToken, ByteBuffer.allocate(0));
 
                 SSTableReader sstable = mockSSTable(0, bytesOnDisk, timestamp, 0, first, last, 0, true, null, 0);
                 when(sstable.keyCardinalityEstimator()).thenReturn(cardinality);
+                when(sstable.estimatedKeys()).thenReturn(keyCount);
                 sstables.add(sstable);
 
-                min = boundaries.get(max).getToken().nextValidToken();
-                max += numShardsCoveredByEachSStable;
+                if (boundaries.shardEnd() == null || boundaries.shardEnd().compareTo(maxToken) > 0)
+                    break;
+                boundaries.advanceTo(boundaries.shardEnd().nextValidToken());
             }
 
             counters.numWritten.addAndGet(numEntries);
             dataTracker.addInitialSSTablesWithoutUpdatingSize(sstables);
-            logger.debug("Generated {} new sstables for {}, live: {}, compacting: {}, tot sstable size {}, min sstable size {}, sizeAssignableToEachShard {}",
+            logger.debug("Generated {} new sstables for {}, live: {}, compacting: {}, tot sstable size {}",
                          sstables.size(), reason, dataTracker.getLiveSSTables().size(), dataTracker.getCompacting().size(),
-                         sstableSize, minSStableSize, sizeAssignableToEachShard);
+                         sstableSize);
 
             if (checkForCompaction)
                 maybeSubmitCompaction();

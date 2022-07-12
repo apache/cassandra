@@ -26,6 +26,8 @@ import java.util.Optional;
 
 import org.apache.commons.lang.StringUtils;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.compaction.CompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionStrategyOptions;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
@@ -72,10 +74,23 @@ public final class CompactionParams
     public static final TombstoneOption DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES =
             TombstoneOption.valueOf(System.getProperty("default.provide.overlapping.tombstones", TombstoneOption.NONE.toString()).toUpperCase());
 
-    public static final CompactionParams DEFAULT = new CompactionParams(UnifiedCompactionStrategy.class,
-                                                                        Collections.emptyMap(),
-                                                                        DEFAULT_ENABLED,
-                                                                        DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES);
+    public static final CompactionParams DEFAULT;
+    static
+    {
+        ParameterizedClass defaultCompaction = DatabaseDescriptor.getDefaultCompaction();
+        if (defaultCompaction == null)
+        {
+            DEFAULT = new CompactionParams(UnifiedCompactionStrategy.class,
+                                           Collections.emptyMap(),
+                                           DEFAULT_ENABLED,
+                                           DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES);
+        }
+        else
+        {
+            DEFAULT = create(classFromName(defaultCompaction.class_name),
+                             defaultCompaction.parameters);
+        }
+    }
 
     private final CompactionStrategyOptions strategyOptions;
     private final boolean isEnabled;

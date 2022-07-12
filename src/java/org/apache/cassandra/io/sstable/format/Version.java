@@ -74,6 +74,11 @@ public abstract class Version
     public abstract boolean hasImprovedMinMax();
 
     /**
+     * If the sstable has token space coverage data.
+     */
+    public abstract boolean hasTokenSpaceCoverage();
+
+    /**
      * Records in th stats if the sstable has any partition deletions.
      */
     public abstract boolean hasPartitionLevelDeletionsPresenceMarker();

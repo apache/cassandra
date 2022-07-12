@@ -38,6 +38,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -53,7 +54,7 @@ import static org.junit.Assert.assertNull;
 @BMUnitConfig(debug = true)
 public class FlushingTest extends CQLTester
 {
-    List<PartitionPosition> ranges;
+    List<Token> ranges;
     List<Directories.DataDirectory> locations;
     ColumnFamilyStore cfs;
     Memtable memtable;
@@ -85,7 +86,7 @@ public class FlushingTest extends CQLTester
             // split the range to ensure there are partitions to write
             ranges.add(cfs.getPartitioner().split(cfs.getPartitioner().getMinimumToken(),
                                                   cfs.getPartitioner().getMaximumToken(),
-                                                  (i+1) * 1.0 / rangeCount).minKeyBound());
+                                                  (i+1) * 1.0 / rangeCount));
             locations.add(null);
         }
         nThreads = locations.size() / 2;

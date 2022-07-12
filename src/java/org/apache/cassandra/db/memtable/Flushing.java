@@ -41,6 +41,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.AtomicBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
@@ -67,7 +68,7 @@ public class Flushing
                                  cfs.name);
 
         DiskBoundaries diskBoundaries = cfs.getDiskBoundaries();
-        List<PartitionPosition> boundaries = diskBoundaries.getPositions();
+        List<Token> boundaries = diskBoundaries.getPositions();
         List<Directories.DataDirectory> locations = diskBoundaries.directories;
         return flushRunnables(cfs, memtable, boundaries, locations, txn);
     }
@@ -75,7 +76,7 @@ public class Flushing
     @VisibleForTesting
     static List<FlushRunnable> flushRunnables(ColumnFamilyStore cfs,
                                               Memtable memtable,
-                                              List<PartitionPosition> boundaries,
+                                              List<Token> boundaries,
                                               List<Directories.DataDirectory> locations,
                                               LifecycleTransaction txn)
     {
@@ -91,7 +92,7 @@ public class Flushing
         {
             for (int i = 0; i < boundaries.size(); i++)
             {
-                PartitionPosition t = boundaries.get(i);
+                PartitionPosition t = boundaries.get(i).maxKeyBound();
                 FlushRunnable runnable = flushRunnable(cfs, memtable, rangeStart, t, txn, locations.get(i));
 
                 runnables.add(runnable);

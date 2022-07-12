@@ -86,6 +86,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
                                  -1,
+                                 Double.NaN,
                                  null,
                                  null,
                                  false,
@@ -123,6 +124,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
     private boolean hasPartitionLevelDeletions = false;
     protected long totalColumnsSet;
     protected long totalRows;
+
+    protected double tokenSpaceCoverage = Double.NaN;
 
     private final AbstractType<?>[] comparators;
     /**
@@ -279,6 +282,12 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return this;
     }
 
+    public MetadataCollector tokenSpaceCoverage(double coverage)
+    {
+        tokenSpaceCoverage = coverage;
+        return this;
+    }
+
     public void updateClusteringValues(Clustering<?> clustering)
     {
         if (clustering == Clustering.STATIC_CLUSTERING)
@@ -354,6 +363,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              repairedAt,
                                                              totalColumnsSet,
                                                              totalRows,
+                                                             tokenSpaceCoverage,
                                                              originatingHostId,
                                                              pendingRepair,
                                                              isTransient,

@@ -87,16 +87,6 @@ public interface Environment
     double flushSize();
 
     /**
-     * Maybe sort the provided pending compaction aggregates
-     */
-    List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending);
-
-    /**
-     * Maybe reshuffle the provided aggregate indexes
-     */
-    IntArrayList maybeRandomize(IntArrayList aggregateIndexes, Random random);
-
-    /**
      * @return the maximum number of concurrent compactions that can be running at any one time
      */
     int maxConcurrentCompactions();

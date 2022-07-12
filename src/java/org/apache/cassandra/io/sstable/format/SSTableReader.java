@@ -1586,6 +1586,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return dfile.dataLength();
     }
 
+    public double tokenSpaceCoverage()
+    {
+        return sstableMetadata.tokenSpaceCoverage;
+    }
+
     /**
      * @return The length in bytes of the on disk size for this SSTable. For
      * compressed files, this is not the same thing as the data length (see

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -30,7 +29,7 @@ import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -53,6 +52,7 @@ public interface CompactionSSTable
     Comparator<CompactionSSTable> maxTimestampDescending = (o1, o2) -> Long.compare(o2.getMaxTimestamp(), o1.getMaxTimestamp());
     Comparator<CompactionSSTable> maxTimestampAscending = (o1, o2) -> Long.compare(o1.getMaxTimestamp(), o2.getMaxTimestamp());
     Comparator<CompactionSSTable> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
+    Comparator<CompactionSSTable> lastKeyComparator = (o1, o2) -> o1.getLast().compareTo(o2.getLast());
     Ordering<CompactionSSTable> firstKeyOrdering = Ordering.from(firstKeyComparator);
     Comparator<CompactionSSTable> sizeComparator = (o1, o2) -> Long.compare(o1.onDiskLength(), o2.onDiskLength());
     Comparator<CompactionSSTable> idComparator = (o1, o2) -> SSTableIdFactory.COMPARATOR.compare(o1.getId(), o2.getId());
@@ -71,7 +71,7 @@ public interface CompactionSSTable
     /**
      * @return the bounds spanned by this sstable, from first to last keys.
      */
-    AbstractBounds<Token> getBounds();
+    Bounds<Token> getBounds();
 
     /**
      * @return the length in bytes of the on disk size for this SSTable. For compressed files, this is not the same
@@ -84,6 +84,16 @@ public interface CompactionSSTable
      * on disk size (see {@link #onDiskLength})
      */
     long uncompressedLength();
+
+    /**
+     * @return the fraction of the token space for which this sstable has content. In the simplest case this is just the
+     * size of the interval returned by {@link #getBounds()}, but the sstable may contain "holes" when the locally-owned
+     * range is not contiguous (e.g. with vnodes).
+     * As this is affected by the local ranges which can change, the token space fraction is calculated at the time of
+     * writing the sstable and stored with its metadata.
+     * For older sstables that do not contain this metadata field, this method returns NaN.
+     */
+    double tokenSpaceCoverage();
 
     /**
      * @return the sum of the on-disk size of the given sstables.

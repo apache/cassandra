@@ -96,10 +96,12 @@ public class IndexViewManagerTest extends SAITester
 
         execute("INSERT INTO %s(k, v) VALUES (1, 10)");
         execute("INSERT INTO %s(k, v) VALUES (2, 20)");
+        execute("INSERT INTO %s(k, v) VALUES (3, 30)");
         flush();
 
-        execute("INSERT INTO %s(k, v) VALUES (3, 30)");
         execute("INSERT INTO %s(k, v) VALUES (4, 40)");
+        execute("INSERT INTO %s(k, v) VALUES (5, 50)");
+        execute("INSERT INTO %s(k, v) VALUES (6, 60)");
         flush();
 
         View initialView = columnContext.getView();
@@ -132,11 +134,13 @@ public class IndexViewManagerTest extends SAITester
         // create sstable 1 from flush
         execute("INSERT INTO %s(k, v) VALUES (1, 10)");
         execute("INSERT INTO %s(k, v) VALUES (2, 20)");
+        execute("INSERT INTO %s(k, v) VALUES (3, 30)");
         flush();
 
         // create sstable 2 from flush
-        execute("INSERT INTO %s(k, v) VALUES (3, 30)");
         execute("INSERT INTO %s(k, v) VALUES (4, 40)");
+        execute("INSERT INTO %s(k, v) VALUES (5, 50)");
+        execute("INSERT INTO %s(k, v) VALUES (6, 60)");
         flush();
 
         // save sstables 1 and 2 and create sstable 3 from compaction

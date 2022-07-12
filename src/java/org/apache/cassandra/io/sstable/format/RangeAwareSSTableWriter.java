@@ -27,12 +27,12 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.schema.TableId;
@@ -40,10 +40,10 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeAwareSSTableWriter implements SSTableMultiWriter
 {
-    private final List<PartitionPosition> boundaries;
+    private final List<Token> boundaries;
     private final List<Directories.DataDirectory> directories;
     private final int sstableLevel;
-    private final IntervalSet commitLogIntervals;
+    private final IntervalSet<CommitLogPosition> commitLogIntervals;
     private final long estimatedKeys;
     private final long repairedAt;
     private final UUID pendingRepair;
@@ -89,7 +89,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
             return;
 
         boolean switched = false;
-        while (currentIndex < 0 || key.compareTo(boundaries.get(currentIndex)) > 0)
+        while (currentIndex < 0 || key.getToken().compareTo(boundaries.get(currentIndex)) > 0)
         {
             switched = true;
             currentIndex++;
@@ -105,10 +105,10 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         }
     }
 
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
         maybeSwitchWriter(partition.partitionKey());
-        return currentWriter.append(partition);
+        currentWriter.append(partition);
     }
 
     @Override

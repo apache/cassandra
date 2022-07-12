@@ -16,20 +16,14 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.compaction.CompactionAggregate;
 import org.apache.cassandra.db.compaction.CompactionPick;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MovingAverage;
@@ -126,25 +120,6 @@ class RealEnvironment implements Environment
     public double flushSize()
     {
         return metrics() == null ? 0.0 : metrics().flushSizeOnDisk().get();
-    }
-
-    /**
-     * Maybe sort the provided pending compaction aggregates
-     */
-    @Override
-    public List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending)
-    {
-        return pending;
-    }
-
-    /**
-     * Maybe reshuffle the provided aggregate indexes
-     */
-    @Override
-    public IntArrayList maybeRandomize(IntArrayList aggregateIndexes, Random random)
-    {
-        Collections.shuffle(aggregateIndexes, random);
-        return aggregateIndexes;
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -97,9 +98,14 @@ public abstract class AbstractPendingRepairTest extends AbstractRepairTest
      */
     SSTableReader makeSSTable(boolean orphan)
     {
-        int pk = nextSSTableKey++;
+        // store a few shuffled keys to avoid non-overlap
         Set<SSTableReader> pre = cfs.getLiveSSTables();
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES(?, ?)", ks, tbl), pk, pk);
+        Random rand = new Random(nextSSTableKey++);
+        for (int i = 0; i < 10; ++i)
+        {
+            int pk = rand.nextInt();
+            QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES(?, ?)", ks, tbl), pk, pk);
+        }
         cfs.forceBlockingFlush(UNIT_TESTS);
         Set<SSTableReader> post = cfs.getLiveSSTables();
         Set<SSTableReader> diff = new HashSet<>(post);
