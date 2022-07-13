@@ -215,7 +215,8 @@ public class CompactionsBytemanTest extends CQLTester
 
     public void testStopCompactionRepaired(Consumer<ColumnFamilyStore> compactionRunner) throws Throwable
     {
-        String table = createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c))");
+        String table = createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c)) WITH COMPACTION={'class':'SizeTieredCompactionStrategy'}");
+//        String table = createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c))");
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(table);
         cfs.disableAutoCompaction();
         for (int i = 0; i < 5; i++)

@@ -116,12 +116,44 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     public Collection<Collection<CompactionSSTable>> groupSSTablesForAntiCompaction(Collection<? extends CompactionSSTable> sstablesToGroup)
     {
         Collection<Collection<CompactionSSTable>> groups = new ArrayList<>();
-        for (Shard shard : getCompactionShards(sstablesToGroup))
+        for (Shard shard : getCompactionShards(sstablesToGroup, false))
         {
             groups.addAll(super.groupSSTablesForAntiCompaction(shard.sstables));
         }
 
         return groups;
+    }
+
+    @Override
+    public synchronized CompactionTasks getUserDefinedTasks(Collection<? extends CompactionSSTable> sstables, int gcBefore)
+    {
+        // The tasks need to be split by repair status and disk, but we permit cross-shard user compactions.
+        // See also getMaximalTasks below.
+        List<AbstractCompactionTask> tasks = new ArrayList<>();
+        for (Shard shard : getCompactionShards(sstables, arenaSelector.nonShardingSelector(), true))
+            tasks.addAll(super.getUserDefinedTasks(shard.sstables, gcBefore));
+        return CompactionTasks.create(tasks);
+    }
+
+    @Override
+    public synchronized CompactionTasks getMaximalTasks(int gcBefore, boolean splitOutput)
+    {
+        maybeUpdateSelector();
+        // The tasks need to be split by repair status and disk, but we perform the maximal compaction across all shards.
+        // The result will be split across shards, but the operation cannot be parallelized and does require 100% extra
+        // space to complete.
+        // The reason for this is to ensure that shard-spanning sstables get compacted with everything they overlap with.
+        // For example, if an sstable on L0 covers shards 0 to 3, a sharded maximal compaction will compact that with
+        // higher-level sstables in shard 0 and will leave a low-level sstable containing the non-shard-0 data from that
+        // L0 sstable. This is a non-expected and non-desirable outcome.
+        List<AbstractCompactionTask> tasks = new ArrayList<>();
+        for (Shard shard : getCompactionShards(realm.getLiveSSTables(), arenaSelector.nonShardingSelector(), true))
+        {
+            LifecycleTransaction txn = realm.tryModify(shard.sstables, OperationType.COMPACTION);
+            if (txn != null)
+                tasks.add(createCompactionTask(gcBefore, txn, true, splitOutput));
+        }
+        return CompactionTasks.create(tasks);
     }
 
     @Override
@@ -782,16 +814,20 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     @VisibleForTesting
     Collection<Shard> getCompactionShards()
     {
-        return getCompactionShards(realm.getLiveSSTables());
+        return getCompactionShards(realm.getLiveSSTables(), true);
     }
 
-    Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables)
+    Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables, boolean filterUnsuitable)
     {
-        final ArenaSelector arenaSelector = this.arenaSelector;
+        return getCompactionShards(sstables, this.arenaSelector, filterUnsuitable);
+    }
+
+    Collection<Shard> getCompactionShards(Collection<? extends CompactionSSTable> sstables, ArenaSelector arenaSelector, boolean filterUnsuitable)
+    {
         Map<CompactionSSTable, Shard> tables = new TreeMap<>(arenaSelector);
         Set<? extends CompactionSSTable> compacting = realm.getCompactingSSTables();
         for (CompactionSSTable table : sstables)
-            if (table.isSuitableForCompaction() && !compacting.contains(table))
+            if (!filterUnsuitable || table.isSuitableForCompaction() && !compacting.contains(table))
                 tables.computeIfAbsent(table, t -> new Shard(arenaSelector, realm))
                       .add(table);
 

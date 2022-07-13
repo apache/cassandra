@@ -52,9 +52,7 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
     @Override
     public String createTableCql()
     {
-        return String.format("CREATE TABLE %s.%s (k INT PRIMARY KEY, v INT) " +
-                             "WITH COMPACTION={'class': 'UnifiedCompactionStrategy'} ",
-                             ks, tbl);
+        return String.format("CREATE TABLE %s.%s (k INT PRIMARY KEY, v INT)", ks, tbl);
     }
 
     @Override
