@@ -27,7 +27,6 @@ import com.google.common.collect.*;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 
 import org.slf4j.Logger;
@@ -126,7 +125,7 @@ import static org.apache.cassandra.net.MessagingService.current_version;
  *</pre>
  *
  * All messages which derive from {@link StreamMessage} are sent by the standard internode messaging
- * (via {@link org.apache.cassandra.net.MessagingService}, while the actual files themselves are sent by a special
+ * (via {@link org.apache.cassandra.net.MessagingService}), while the actual files themselves are sent by a special
  * "streaming" connection type. See {@link NettyStreamingMessageSender} for details. Because of the asynchronous
  */
 public class StreamSession implements IEndpointStateChangeSubscriber
@@ -227,12 +226,18 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     /**
      * Create new streaming session with the peer.
      */
-    public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamConnectionFactory factory,
-                         boolean isFollower, int index, UUID pendingRepair, PreviewKind previewKind)
+    public StreamSession(StreamOperation streamOperation,
+                         InetAddressAndPort peer,
+                         OutboundConnectionSettings template,
+                         StreamConnectionFactory factory,
+                         boolean isFollower,
+                         int index,
+                         UUID pendingRepair,
+                         PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
         this.peer = peer;
-        this.template = new OutboundConnectionSettings(peer);
+        this.template = template;
         this.isFollower = isFollower;
         this.index = index;
 
@@ -242,6 +247,30 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         this.previewKind = previewKind;
 
         logger.debug("Creating stream session to {} as {}", template, isFollower ? "follower" : "initiator");
+    }
+    public StreamSession(StreamOperation streamOperation,
+                         InetAddressAndPort peer,
+                         StreamConnectionFactory factory,
+                         boolean isFollower,
+                         int index,
+                         UUID pendingRepair,
+                         PreviewKind previewKind)
+    {
+        this(streamOperation, peer, new OutboundConnectionSettings(peer),
+             factory, isFollower, index, pendingRepair, previewKind);
+    }
+
+    public StreamSession(StreamOperation streamOperation,
+                         InetAddressAndPort peer,
+                         InetAddressAndPort preferred,
+                         StreamConnectionFactory factory,
+                         boolean isFollower,
+                         int index,
+                         UUID pendingRepair,
+                         PreviewKind previewKind)
+    {
+        this(streamOperation, peer, new OutboundConnectionSettings(peer, preferred),
+             factory, isFollower, index, pendingRepair, previewKind);
     }
 
     public boolean isFollower()

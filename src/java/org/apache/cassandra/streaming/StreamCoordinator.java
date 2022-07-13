@@ -158,9 +158,9 @@ public class StreamCoordinator
         return getOrCreateHostData(peer).getOrCreateNextSession(peer);
     }
 
-    public synchronized StreamSession getOrCreateSessionById(InetAddressAndPort peer, int id)
+    public synchronized StreamSession getOrCreateSessionById(InetAddressAndPort peer, int id, InetAddressAndPort preferred)
     {
-        return getOrCreateHostData(peer).getOrCreateSessionById(peer, id);
+        return getOrCreateHostData(peer).getOrCreateSessionById(peer, id, preferred);
     }
 
     public StreamSession getSessionById(InetAddressAndPort peer, int id)
@@ -315,12 +315,12 @@ public class StreamCoordinator
             return Collections.unmodifiableCollection(streamSessions.values());
         }
 
-        public StreamSession getOrCreateSessionById(InetAddressAndPort peer, int id)
+        public StreamSession getOrCreateSessionById(InetAddressAndPort peer, int id, InetAddressAndPort preferred)
         {
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(streamOperation, peer, factory, isFollower(), id, pendingRepair, previewKind);
+                session = new StreamSession(streamOperation, peer, preferred, factory, isFollower(), id, pendingRepair, previewKind);
                 streamSessions.put(id, session);
                 sessionInfos.put(id, session.getSessionInfo());
             }

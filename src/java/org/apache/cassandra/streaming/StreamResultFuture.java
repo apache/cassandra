@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -119,9 +120,12 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
             future = new StreamResultFuture(planId, streamOperation, pendingRepair, previewKind);
             StreamManager.instance.registerFollower(future);
         }
-        future.attachConnection(from, sessionIndex);
-        logger.info("[Stream #{}, ID#{}] Received streaming plan for {} from {} channel.remote {} channel.local {} channel.id {}",
-                    planId, sessionIndex, streamOperation.getDescription(), from, channel.remoteAddress(), channel.localAddress(), channel.id());
+        InetAddressAndPort preferred = Nodes.peers().getPreferred(from);
+        future.attachConnection(from, sessionIndex, preferred);
+        logger.info("[Stream #{}, ID#{}] Received streaming plan for {} from {} with preferred address {}, " +
+                    "channel.remote {} channel.local {} channel.id {}",
+                    planId, sessionIndex, streamOperation.getDescription(), from, preferred,
+                    channel.remoteAddress(), channel.localAddress(), channel.id());
         return future;
     }
 
@@ -137,9 +141,9 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return coordinator;
     }
 
-    private void attachConnection(InetAddressAndPort from, int sessionIndex)
+    private void attachConnection(InetAddressAndPort from, int sessionIndex, InetAddressAndPort preferred)
     {
-        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex);
+        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex, preferred);
         session.init(this);
     }
 
