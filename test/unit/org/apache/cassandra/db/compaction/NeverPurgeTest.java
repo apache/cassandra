@@ -63,9 +63,9 @@ public class NeverPurgeTest extends CQLTester
     }
 
     @Test
-    public void minorNeverPurgeTombstonesTest() throws Throwable
+    public void minorNeverPurgeTombstonesWithSizeTieredCompactionTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (a int, b int, c text, PRIMARY KEY (a, b)) WITH gc_grace_seconds = 0");
+        createTable("CREATE TABLE %s (a int, b int, c text, PRIMARY KEY (a, b)) WITH gc_grace_seconds = 0 AND COMPACTION={'class':'SizeTieredCompactionStrategy'}");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         cfs.disableAutoCompaction();
         for (int i = 0; i < 4; i++)

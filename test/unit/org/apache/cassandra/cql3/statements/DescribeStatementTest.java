@@ -870,7 +870,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
+               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.UnifiedCompactionStrategy'}\n" +
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = {}\n" +
                "    AND crc_check_chance = 1.0\n" +
@@ -891,7 +891,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
+               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.UnifiedCompactionStrategy'}\n" +
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = {}\n" +
                "    AND crc_check_chance = 1.0\n" +

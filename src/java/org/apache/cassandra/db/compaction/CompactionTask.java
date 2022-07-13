@@ -697,6 +697,8 @@ public class CompactionTask extends AbstractCompactionTask
                 writeLoop:
                 while (true)
                 {
+                    if (op.isStopRequested())
+                        throw new CompactionInterruptedException(op.getProgress());
                     switch (compactionCursor.copyOne(writer))
                     {
                         case EXHAUSTED:
