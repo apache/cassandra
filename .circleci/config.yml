@@ -115,7 +115,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -297,7 +297,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -407,7 +407,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -517,7 +517,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -641,7 +641,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -737,7 +737,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -833,7 +833,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -930,7 +930,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1027,7 +1027,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1138,7 +1138,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1245,7 +1245,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1341,7 +1341,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1486,7 +1486,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1610,7 +1610,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1709,7 +1709,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1787,7 +1787,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1864,7 +1864,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -1928,7 +1928,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2038,7 +2038,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2148,7 +2148,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2248,7 +2248,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2304,7 +2304,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2487,7 +2487,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2565,7 +2565,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2661,7 +2661,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2772,7 +2772,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2871,7 +2871,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -2967,7 +2967,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3063,7 +3063,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3127,7 +3127,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3237,7 +3237,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3292,7 +3292,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3356,7 +3356,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3455,7 +3455,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3566,7 +3566,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3748,7 +3748,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
@@ -3844,7 +3844,7 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 1000
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: read_repair_test.py::TestSpeculativeReadRepair::test_speculative_data_request
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
     - REPEATED_DTEST_STOP_ON_FAILURE: false
