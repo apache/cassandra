@@ -465,7 +465,7 @@ public class CancelCompactionsTest extends CQLTester
         createTable("create table %s (id int primary key, something int)");
         getCurrentColumnFamilyStore().disableAutoCompaction();
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 15; i++)
         {
             execute("insert into %s (id, something) values (?,?)", i, i);
             flush();

@@ -25,11 +25,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.unified.Controller;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.assertj.core.util.Lists;
 
 /**
  * Arena selector, used by UnifiedCompactionStrategy to distribute SSTables to separate compaction arenas.
@@ -72,6 +71,14 @@ public class ArenaSelector implements Comparator<CompactionSSTable>
             ret.add(new ShardEquivClassSplitter());
 
         classSplitters = ret.toArray(new EquivClassSplitter[0]);
+    }
+
+    public ArenaSelector nonShardingSelector()
+    {
+        return new ArenaSelector(controller,
+                                 diskBoundaries,
+                                 diskBoundaries.getPositions() == null ? Collections.EMPTY_LIST
+                                                                       : diskBoundaries.getPositions());
     }
 
     @Override

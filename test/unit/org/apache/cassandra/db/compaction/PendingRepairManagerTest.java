@@ -38,7 +38,9 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     @Override
     public String createTableCql()
     {
-        return String.format("CREATE TABLE %s.%s (k INT PRIMARY KEY, v INT)",
+        // Note: This test is tightly coupled to the LegacyAbstractCompactionStrategy so cannot use the default UCS
+        // UCS is tested in UnifiedCompactionContainerPendingRepairTest
+        return String.format("CREATE TABLE %s.%s (k INT PRIMARY KEY, v INT) WITH COMPACTION={'class':'SizeTieredCompactionStrategy'}",
                              ks, tbl);
     }
 

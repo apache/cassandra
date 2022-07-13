@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.utils.units.SizeUnit;
 
 import static java.lang.String.format;
@@ -198,7 +199,8 @@ public class GuardrailsConfig
                        Collections.<String>emptySet(),
                        new LinkedHashSet<>(TableAttributes.allKeywords().stream()
                                                           .sorted()
-                                                          .filter(p -> !p.equals("default_time_to_live"))
+                                                          .filter(p -> !p.equals(TableParams.Option.DEFAULT_TIME_TO_LIVE.name()) &&
+                                                                       !p.equals(TableParams.Option.COMMENT.name()))
                                                           .collect(Collectors.toList())));
 
         // for node status

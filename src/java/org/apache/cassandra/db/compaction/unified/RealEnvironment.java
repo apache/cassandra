@@ -71,7 +71,7 @@ class RealEnvironment implements Environment
     @Override
     public double bloomFilterFpRatio()
     {
-        return metrics().bloomFilterFalseRatio.getValue();
+        return metrics() == null ? 0.0 : metrics().bloomFilterFalseRatio.getValue();
     }
 
     @Override
@@ -87,31 +87,31 @@ class RealEnvironment implements Environment
     @Override
     public long partitionsRead()
     {
-        return metrics().readRequests.getCount();
+        return metrics() == null ? 0 : metrics().readRequests.getCount();
     }
 
     @Override
     public double sstablePartitionReadLatencyNanos()
     {
-        return metrics().sstablePartitionReadLatency.get();
+        return metrics() == null ? 0.0 : metrics().sstablePartitionReadLatency.get();
     }
 
     @Override
     public double compactionTimePerKbInNanos()
     {
-        return metrics().compactionTimePerKb.get();
+        return metrics() == null ? 0.0 : metrics().compactionTimePerKb.get();
     }
 
     @Override
     public double flushTimePerKbInNanos()
     {
-        return metrics().flushTimePerKb.get();
+        return metrics() == null ? 0.0 : metrics().flushTimePerKb.get();
     }
 
     @Override
     public long bytesInserted()
     {
-        return metrics().bytesInserted.getCount();
+        return metrics() == null ? 0 : metrics().bytesInserted.getCount();
     }
 
     @Override
@@ -123,7 +123,7 @@ class RealEnvironment implements Environment
     @Override
     public double flushSize()
     {
-        return metrics().flushSizeOnDisk().get();
+        return metrics() == null ? 0.0 : metrics().flushSizeOnDisk().get();
     }
 
     /**
@@ -163,6 +163,8 @@ class RealEnvironment implements Environment
     @Override
     public String toString()
     {
+        if (metrics() == null)
+            return "Uninitialized environment";
         return String.format("Read latency: %d us / partition, flush latency: %d us / KiB, compaction latency: %d us / KiB, bfpr: %f, measured WA: %.2f, flush size %s",
                              TimeUnit.NANOSECONDS.toMicros((long) sstablePartitionReadLatencyNanos()),
                              TimeUnit.NANOSECONDS.toMicros((long) flushTimePerKbInNanos()),

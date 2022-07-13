@@ -686,7 +686,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
                 AND cdc = false
                 AND comment = ''
-                AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+                AND compaction = {'class': 'org.apache.cassandra.db.compaction.UnifiedCompactionStrategy'}
                 AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
                 AND memtable = {}
                 AND crc_check_chance = 1.0
