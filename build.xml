@@ -2020,6 +2020,8 @@
       <jvmarg line="-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar"/>
       <jvmarg line="-XX:ActiveProcessorCount=4"/>
       <jvmarg line="-XX:-TieredCompilation"/>
+      <jvmarg line="-XX:-BackgroundCompilation"/>
+      <jvmarg line="-XX:CICompilerCount=1"/>
       <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
       <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
       <jvmarg line="-Xmx8G"/>
