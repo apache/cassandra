@@ -131,12 +131,12 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     }
 
     @Override
-    public synchronized byte[] apply(String name, byte[] bytes)
+    public byte[] apply(String name, byte[] bytes)
     {
         return transformTransitiveClosure(name, bytes, null);
     }
 
-    private byte[] transformTransitiveClosure(String externalName, byte[] input, Map<String, byte[]> isolatedCache)
+    private synchronized byte[] transformTransitiveClosure(String externalName, byte[] input, Map<String, byte[]> isolatedCache)
     {
         if (input == null)
             return maybeSynthetic(externalName);
