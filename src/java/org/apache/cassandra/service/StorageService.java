@@ -459,6 +459,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private boolean replacing;
 
     private boolean autoRepairStarted = true;
+    private volatile boolean hasDecommissionFailed = false;
     private final StreamStateStore streamStateStore = new StreamStateStore();
 
     public final SSTablesGlobalTracker sstablesTracker;
@@ -5040,99 +5041,113 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void decommission(boolean force) throws InterruptedException
     {
-        TokenMetadata metadata = tokenMetadata.cloneAfterAllLeft();
-        if (operationMode != Mode.LEAVING)
-        {
-            if (!tokenMetadata.isMember(FBUtilities.getBroadcastAddressAndPort()))
-                throw new UnsupportedOperationException("local node is not a member of the token ring yet");
-            if (metadata.getAllEndpoints().size() < 2)
-                    throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
-            if (operationMode != Mode.NORMAL)
-                throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
-        }
-        if (!isDecommissioning.compareAndSet(false, true))
-            throw new IllegalStateException("Node is still decommissioning. Check nodetool netstats.");
-
-        if (logger.isDebugEnabled())
-            logger.debug("DECOMMISSIONING");
-
         try
         {
-            PendingRangeCalculatorService.instance.blockUntilFinished();
-
-            String dc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
-
-            if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
+            hasDecommissionFailed = false;
+            TokenMetadata metadata = tokenMetadata.cloneAfterAllLeft();
+            if (operationMode != Mode.LEAVING)
             {
-                int rf, numNodes;
-                for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
-                {
-                    if (!force)
-                    {
-                        Keyspace keyspace = Keyspace.open(keyspaceName);
-                        if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-                        {
-                            NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
-                            rf = strategy.getReplicationFactor(dc).allReplicas;
-                            numNodes = metadata.getTopology().getDatacenterEndpoints().get(dc).size();
-                        }
-                        else
-                        {
-                            numNodes = metadata.getAllEndpoints().size();
-                            rf = keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
-                        }
-
-                        if (numNodes <= rf)
-                            throw new UnsupportedOperationException("Not enough live nodes to maintain replication factor in keyspace "
-                                                                    + keyspaceName + " (RF = " + rf + ", N = " + numNodes + ")."
-                                                                    + " Perform a forceful decommission to ignore.");
-                    }
-                    // TODO: do we care about fixing transient/full self-movements here? probably
-                    if (tokenMetadata.getPendingRanges(keyspaceName, FBUtilities.getBroadcastAddressAndPort()).size() > 0)
-                        throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
-                }
+                if (!tokenMetadata.isMember(FBUtilities.getBroadcastAddressAndPort()))
+                    throw new UnsupportedOperationException("local node is not a member of the token ring yet");
+                if (metadata.getAllEndpoints().size() < 2)
+                        throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
+                if (operationMode != Mode.NORMAL)
+                    throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
             }
+            if (!isDecommissioning.compareAndSet(false, true))
+                throw new IllegalStateException("Node is still decommissioning. Check nodetool netstats.");
 
-            startLeaving();
-            long timeout = Math.max(RING_DELAY_MILLIS, BatchlogManager.instance.getBatchlogTimeout());
-            setMode(Mode.LEAVING, "sleeping " + timeout + " ms for batch processing and pending range setup", true);
-            Thread.sleep(timeout);
+            if (logger.isDebugEnabled())
+                logger.debug("DECOMMISSIONING");
 
-            Runnable finishLeaving = new Runnable()
+            try
             {
-                public void run()
-                {
-                    shutdownClientServers();
-                    Gossiper.instance.stop();
-                    try
-                    {
-                        MessagingService.instance().shutdown();
-                    }
-                    catch (IOError ioe)
-                    {
-                        logger.info("failed to shutdown message service: {}", ioe);
-                    }
+                PendingRangeCalculatorService.instance.blockUntilFinished();
 
-                    Stage.shutdownNow();
-                    SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
-                    setMode(Mode.DECOMMISSIONED, true);
-                    // let op be responsible for killing the process
+                String dc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+
+                if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
+                {
+                    int rf, numNodes;
+                    for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
+                    {
+                        if (!force)
+                        {
+                            Keyspace keyspace = Keyspace.open(keyspaceName);
+                            if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                            {
+                                NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
+                                rf = strategy.getReplicationFactor(dc).allReplicas;
+                                numNodes = metadata.getTopology().getDatacenterEndpoints().get(dc).size();
+                            }
+                            else
+                            {
+                                numNodes = metadata.getAllEndpoints().size();
+                                rf = keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
+                            }
+
+                            if (numNodes <= rf)
+                                throw new UnsupportedOperationException("Not enough live nodes to maintain replication factor in keyspace "
+                                                                        + keyspaceName + " (RF = " + rf + ", N = " + numNodes + ")."
+                                                                        + " Perform a forceful decommission to ignore.");
+                        }
+                        // TODO: do we care about fixing transient/full self-movements here? probably
+                        if (tokenMetadata.getPendingRanges(keyspaceName, FBUtilities.getBroadcastAddressAndPort()).size() > 0)
+                            throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
+                    }
                 }
-            };
-            unbootstrap(finishLeaving);
+
+                startLeaving();
+                long timeout = Math.max(RING_DELAY_MILLIS, BatchlogManager.instance.getBatchlogTimeout());
+                setMode(Mode.LEAVING, "sleeping " + timeout + " ms for batch processing and pending range setup", true);
+                Thread.sleep(timeout);
+
+                Runnable finishLeaving = new Runnable()
+                {
+                    public void run()
+                    {
+                        shutdownClientServers();
+                        Gossiper.instance.stop();
+                        try
+                        {
+                            MessagingService.instance().shutdown();
+                        }
+                        catch (IOError ioe)
+                        {
+                            logger.info("failed to shutdown message service: {}", ioe);
+                        }
+
+                        Stage.shutdownNow();
+                        SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
+                        setMode(Mode.DECOMMISSIONED, true);
+                        // let op be responsible for killing the process
+                    }
+                };
+                unbootstrap(finishLeaving);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException e)
+            {
+                logger.error("Error while decommissioning node ", e.getCause());
+                throw new RuntimeException("Error while decommissioning node: " + e.getCause().getMessage());
+            }
+            finally
+            {
+                isDecommissioning.set(false);
+            }
         }
-        catch (InterruptedException e)
+        catch (Exception e)
         {
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException e)
-        {
-            logger.error("Error while decommissioning node ", e.getCause());
-            throw new RuntimeException("Error while decommissioning node: " + e.getCause().getMessage());
-        }
-        finally
-        {
-            isDecommissioning.set(false);
+            // Node's decommission could fail due to various reasons. One of the primary reasons is
+            // streaming failure. In such a case, Cassandra is left in UL state, which makes it harder for the caller
+            // to determine what is going on. This flag would be exposed via NodeTool and JMX, so a caller can
+            // determine a genuine UL in which a node is being decommissioned vs. failure UL in which decommissioning is not in progress
+            hasDecommissionFailed = true;
+            logger.error("Decommission failed {}", e);
+            throw e;
         }
     }
 
@@ -7257,5 +7272,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean isAutoRepairEnabled()
     {
         return DatabaseDescriptor.isAutoRepairEnabled();
+    }
+
+    public boolean isDecommissionFailed()
+    {
+        if (operationMode == Mode.LEAVING && hasDecommissionFailed)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    @VisibleForTesting
+    public void setOperationMode(Mode operationMode)
+    {
+        this.operationMode = operationMode;
     }
 }

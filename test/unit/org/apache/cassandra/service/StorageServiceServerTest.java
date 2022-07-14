@@ -56,6 +56,7 @@ import org.assertj.core.api.Assertions;
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class StorageServiceServerTest
@@ -658,5 +659,25 @@ public class StorageServiceServerTest
         {
             System.clearProperty("cassandra.replace_address");
         }
+    }
+
+    @Test
+    public void testIsDecommissionNotFailed()
+    {
+        assertFalse(StorageService.instance.isDecommissionFailed());
+    }
+
+    @Test
+    public void testIsDecommissionFailed()
+    {
+        try
+        {
+            StorageService.instance.decommission(false);
+        }
+        catch (Exception e)
+        {
+            StorageService.instance.setOperationMode(StorageService.Mode.LEAVING);
+        }
+        assertTrue(StorageService.instance.isDecommissionFailed());
     }
 }

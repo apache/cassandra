@@ -1116,4 +1116,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Check if AutoRepair is enabled for this node */
     public boolean isAutoRepairEnabled();
+
+    /** Indicates whether this node's decommission failed. */
+    public boolean isDecommissionFailed();
 }
