@@ -11,6 +11,7 @@
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
+ * Clean up ScheduledExecutors, CommitLog, and MessagingService shutdown for in-JVM dtests (CASSANDRA-17731)
  * Utilise BTree improvements to reduce garbage and improve throughput (CASSANDRA-15511)
  * SSL storage port in sstableloader is deprecated (CASSANDRA-17602)
  * Fix counter write timeouts at ONE (CASSANDRA-17411)
