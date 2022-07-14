@@ -194,6 +194,9 @@ public class SimulationTestBase
     {
         Failures failures = new Failures();
         RandomSource random = new RandomSource.Default();
+        long seed = System.currentTimeMillis();
+        System.out.println("Using seed: " + seed);
+        random.reset(seed);
         SimulatedTime time = new SimulatedTime(1, random, 1577836800000L /*Jan 1st UTC*/, new LongRange(1, 100, MILLISECONDS, NANOSECONDS),
                                                UNIFORM, UNIFORM.period(new LongRange(10L, 60L, SECONDS, NANOSECONDS), random), (i1, i2) -> {});
         SimulatedExecution execution = new SimulatedExecution();
