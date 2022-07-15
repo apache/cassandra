@@ -339,6 +339,24 @@ public class KeyCacheTest
     }
 
     @Test
+    public void testKeyCacheLoadZeroCacheLoadTimeBackwardCompatibility() throws Exception
+    {
+        // Pre-4.1 users were asked to use negatives to disable. This test validates the backward compatibility
+        // in case a user still uses their old yaml format and negative values for this property.
+        DatabaseDescriptor.setCacheLoadTimeout(-1);
+        String cf = COLUMN_FAMILY7;
+
+        createAndInvalidateCache(Collections.singletonList(Pair.create(KEYSPACE1, cf)), 100);
+
+        CacheService.instance.keyCache.loadSaved();
+
+        // Here max time to load cache is zero which means no time left to load cache. So the keyCache size should
+        // be zero after loadSaved().
+        assertKeyCacheSize(0, KEYSPACE1, cf);
+        assertEquals(0, CacheService.instance.keyCache.size());
+    }
+
+    @Test
     public void testKeyCacheLoadZeroCacheLoadTime() throws Exception
     {
         DatabaseDescriptor.setCacheLoadTimeout(0);
