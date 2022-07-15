@@ -98,7 +98,7 @@ public enum Converters
                                    DataRateSpec.IntMebibytesPerSecondBound::toMebibytesPerSecondAsInt),
     /**
      * This converter is a custom one to support backward compatibility for stream_throughput_outbound and
-     * inter_dc_stream_throughput_outbound which were provided in megatibs per second prior CASSANDRA-15234.
+     * inter_dc_stream_throughput_outbound which were provided in megabits per second prior CASSANDRA-15234.
      */
     MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.IntMebibytesPerSecondBound.class,
                                                i -> DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(i),

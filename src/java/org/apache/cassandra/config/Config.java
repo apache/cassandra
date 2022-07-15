@@ -448,7 +448,7 @@ public class Config
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
 
-    @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.SECONDS_DURATION, deprecated = true)
+    @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.NEGATIVE_SECONDS_DURATION, deprecated = true)
     public DurationSpec.IntSecondsBound cache_load_timeout = new DurationSpec.IntSecondsBound("30s");
 
     private static boolean isClientMode = false;

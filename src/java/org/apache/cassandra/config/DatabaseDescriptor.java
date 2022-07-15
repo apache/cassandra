@@ -93,6 +93,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
+import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
@@ -2025,6 +2026,9 @@ public class DatabaseDescriptor
 
     public static void setStreamThroughputOutboundMebibytesPerSecAsInt(int value)
     {
+        if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Invalid value of stream_throughput_outbound: " + value);
+
         conf.stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
     }
 
@@ -2065,6 +2069,9 @@ public class DatabaseDescriptor
 
     public static void setInterDCStreamThroughputOutboundMebibytesPerSecAsInt(int value)
     {
+        if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Invalid value of inter_dc_stream_throughput_outbound: " + value);
+
         conf.inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
     }
 
@@ -3203,7 +3210,10 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void setCacheLoadTimeout(int seconds)
     {
-        conf.cache_load_timeout = new DurationSpec.IntSecondsBound(seconds);
+        if (seconds < 0)
+            conf.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
+        else
+            conf.cache_load_timeout = new DurationSpec.IntSecondsBound(seconds);
     }
 
     public static int getCounterCacheKeysToSave()

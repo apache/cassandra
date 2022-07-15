@@ -30,7 +30,7 @@ public class GetStreamThroughput extends NodeToolCmd
     private boolean entireSSTableThroughput;
 
     @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-i", "--stream_throughput_mib" }, description = "Print the throughput cap for streaming in MiB/s")
+    @Option(name = { "-m", "--mib" }, description = "Print the throughput cap for streaming in MiB/s")
     private boolean streamThroughputMiB;
 
     @Override
