@@ -30,7 +30,7 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
     private boolean entireSSTableThroughput;
 
     @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-i", "--inter_dc_stream_throughput_mib" }, description = "Print the throughput cap for inter-datacenter streaming in MiB/s")
+    @Option(name = { "-m", "--mib" }, description = "Print the throughput cap for inter-datacenter streaming in MiB/s")
     private boolean interDCStreamThroughputMiB;
 
     @Override

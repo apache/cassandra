@@ -285,7 +285,7 @@ public abstract class DataRateSpec
         /**
          * Creates a {@code DataRateSpec.IntMebibytesPerSecondBound} of the specified amount in mebibytes per second.
          *
-         * @param mebibytesPerSecond where mebibytesPerSecond shouldn't be bigger than Long.MAX_VALUE-1
+         * @param mebibytesPerSecond where mebibytesPerSecond shouldn't be bigger than Integer.MAX_VALUE-1
          */
         public IntMebibytesPerSecondBound(long mebibytesPerSecond)
         {
