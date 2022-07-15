@@ -4213,14 +4213,14 @@ public class DatabaseDescriptor
         conf.max_top_tombstone_partition_count = value;
     }
 
-    public static DataStorageSpec.LongBytesBound getMinTrackedPartitionSize()
+    public static DataStorageSpec.LongBytesBound getMinTrackedPartitionSizeInBytes()
     {
-        return conf.min_tracked_partition_size_bytes;
+        return conf.min_tracked_partition_size;
     }
 
-    public static void setMinTrackedPartitionSize(DataStorageSpec.LongBytesBound spec)
+    public static void setMinTrackedPartitionSizeInBytes(DataStorageSpec.LongBytesBound spec)
     {
-        conf.min_tracked_partition_size_bytes = spec;
+        conf.min_tracked_partition_size = spec;
     }
 
     public static long getMinTrackedPartitionTombstoneCount()

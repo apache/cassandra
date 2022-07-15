@@ -74,7 +74,7 @@ public class TopPartitionsTest extends TestBaseImpl
     public static void setup() throws IOException
     {
         CLUSTER = init(Cluster.build(2).withConfig(config ->
-                                                   config.set("min_tracked_partition_size_bytes", "0MiB")
+                                                   config.set("min_tracked_partition_size", "0MiB")
                                                          .set("min_tracked_partition_tombstone_count", 0)
                                                          .with(GOSSIP, NETWORK))
                               .start());
