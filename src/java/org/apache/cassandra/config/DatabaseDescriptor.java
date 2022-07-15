@@ -2868,6 +2868,11 @@ public class DatabaseDescriptor
         return conf.index_summary_resize_interval_in_minutes;
     }
 
+    public static void setIndexSummaryResizeIntervalInMinutes(int value)
+    {
+        conf.index_summary_resize_interval_in_minutes = value;
+    }
+
     public static boolean hasLargeAddressSpace()
     {
         // currently we just check if it's a 64bit arch, but any we only really care if the address space is large
