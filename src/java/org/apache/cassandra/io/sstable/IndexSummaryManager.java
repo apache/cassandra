@@ -100,6 +100,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     {
         int oldInterval = this.resizeIntervalInMinutes;
         this.resizeIntervalInMinutes = resizeIntervalInMinutes;
+        DatabaseDescriptor.setIndexSummaryResizeIntervalInMinutes(resizeIntervalInMinutes);
 
         long initialDelay;
         if (future != null)
