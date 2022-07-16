@@ -5,7 +5,6 @@
 * xref:operating/topo_changes.adoc[Topology changes]
 * xref:operating/hints.adoc[Hints]
 * xref:operating/repair.adoc[Repair]
-* xref:operating/read_repair.adoc[Read repair]
 * xref:operating/backups.adoc[Backups]
 * xref:operating/compression.adoc[Compression]
 * xref:operating/compaction/index.adoc[Compaction]
