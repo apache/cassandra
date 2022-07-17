@@ -39,4 +39,6 @@ public class StorageMetrics
     public static final Counter orphanHintStoresDetected = Metrics.counter(factory.createMetricName("OrphanHintStoresDetected"));
     public static final Counter orphanHintStoresPurged = Metrics.counter(factory.createMetricName("OrphanHintStoresPurged"));
     public static final Counter totalHintFilesPresent = Metrics.counter(factory.createMetricName("TotalHintFilesPresent"));
+    public static final Counter errorDecommissiong = Metrics.counter(factory.createMetricName("ErrorDecommissioning"));
+    public static final Counter errorBootstraping = Metrics.counter(factory.createMetricName("ErrorBootstraping"));
 }

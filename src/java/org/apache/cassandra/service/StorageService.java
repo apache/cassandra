@@ -2145,6 +2145,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         catch (Throwable e)
         {
             logger.error("Error while waiting on bootstrap to complete. Bootstrap will have to be restarted.", e);
+            StorageMetrics.errorBootstraping.inc();
             return false;
         }
     }
@@ -5147,6 +5148,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // determine a genuine UL in which a node is being decommissioned vs. failure UL in which decommissioning is not in progress
             hasDecommissionFailed = true;
             logger.error("Decommission failed {}", e);
+            StorageMetrics.errorDecommissiong.inc();
             throw e;
         }
     }

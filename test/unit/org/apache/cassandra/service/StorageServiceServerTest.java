@@ -34,6 +34,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -665,6 +667,7 @@ public class StorageServiceServerTest
     public void testIsDecommissionNotFailed()
     {
         assertFalse(StorageService.instance.isDecommissionFailed());
+        assertEquals(0, StorageMetrics.errorDecommissiong.getCount());
     }
 
     @Test
@@ -679,5 +682,6 @@ public class StorageServiceServerTest
             StorageService.instance.setOperationMode(StorageService.Mode.LEAVING);
         }
         assertTrue(StorageService.instance.isDecommissionFailed());
+        assertEquals(1, StorageMetrics.errorDecommissiong.getCount());
     }
 }
