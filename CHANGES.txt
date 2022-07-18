@@ -1,5 +1,8 @@
-4.0.5
+4.0.6
  * Clean up ScheduledExecutors, CommitLog, and MessagingService shutdown for in-JVM dtests (CASSANDRA-17731)
+
+
+4.0.5
  * Utilise BTree improvements to reduce garbage and improve throughput (CASSANDRA-15511)
  * Make sure existing delayed tasks in StreamTransferTask cannot prevent clean shutdown (CASSANDRA-17706)
  * SSL storage port in sstableloader is deprecated (CASSANDRA-17602)
