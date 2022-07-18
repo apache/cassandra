@@ -1119,4 +1119,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Indicates whether this node's decommission failed. */
     public boolean isDecommissionFailed();
+
+    /** Indicates whether this node's bootstrap failed. */
+    public boolean isBootstrapFailed();
 }

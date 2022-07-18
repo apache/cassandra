@@ -684,4 +684,11 @@ public class StorageServiceServerTest
         assertTrue(StorageService.instance.isDecommissionFailed());
         assertEquals(1, StorageMetrics.errorDecommissiong.getCount());
     }
+
+    @Test
+    public void testIsBootstrapNotFailed()
+    {
+        assertFalse(StorageService.instance.isBootstrapFailed());
+        assertEquals(0, StorageMetrics.errorBootstraping.getCount());
+    }
 }

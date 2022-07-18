@@ -460,6 +460,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private boolean autoRepairStarted = true;
     private volatile boolean hasDecommissionFailed = false;
+    private volatile boolean hasBootstrapFailed = false;
     private final StreamStateStore streamStateStore = new StreamStateStore();
 
     public final SSTablesGlobalTracker sstablesTracker;
@@ -2095,6 +2096,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean bootstrap(final Collection<Token> tokens, long bootstrapTimeoutMillis)
     {
         isBootstrapMode = true;
+        hasBootstrapFailed = false;
         SystemKeyspace.updateTokens(tokens); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
 
         if (!replacing || !isReplacingSameAddress())
@@ -2146,6 +2148,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.error("Error while waiting on bootstrap to complete. Bootstrap will have to be restarted.", e);
             StorageMetrics.errorBootstraping.inc();
+            hasBootstrapFailed = true;
             return false;
         }
     }
@@ -7289,5 +7292,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setOperationMode(Mode operationMode)
     {
         this.operationMode = operationMode;
+    }
+
+    public boolean isBootstrapFailed()
+    {
+        if (operationMode == Mode.JOINING && hasBootstrapFailed)
+        {
+            return true;
+        }
+        return false;
     }
 }

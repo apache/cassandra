@@ -2394,6 +2394,11 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.isDecommissionFailed();
     }
+
+    public boolean isBootstrapFailed()
+    {
+        return ssProxy.isBootstrapFailed();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

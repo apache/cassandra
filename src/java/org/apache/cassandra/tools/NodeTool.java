@@ -167,6 +167,7 @@ public class NodeTool
                 InvalidatePermissionsCache.class,
                 InvalidateRolesCache.class,
                 InvalidateRowCache.class,
+                IsBootstrapFailed.class,
                 IsDecommissionFailed.class,
                 Join.class,
                 ListPendingHints.class,
