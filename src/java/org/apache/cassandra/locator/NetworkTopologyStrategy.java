@@ -233,7 +233,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         if (!SchemaConstants.isLocalSystemKeyspace(keyspaceName) && !SchemaConstants.isReplicatedSystemKeyspace(keyspaceName))
         {
-            ImmutableMultimap<String, InetAddress> dcsNodes = Multimaps.index(StorageService.instance.getTokenMetadata().getAllEndpoints(), snitch::getDatacenter);
+            ImmutableMultimap<String, InetAddress> dcsNodes = Multimaps.index(StorageService.instance.getTokenMetadata().getAllMembers(), snitch::getDatacenter);
 
             for (Entry<String, String> e : this.configOptions.entrySet())
             {
