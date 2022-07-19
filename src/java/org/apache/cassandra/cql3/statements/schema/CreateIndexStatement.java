@@ -107,6 +107,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             return schema;
         }
 
+        attrs.maybeApplyDefaultIndex();
         attrs.validate();
 
         if (attrs.isCustom && attrs.customClass.equals(SASIIndex.class.getName()) && !DatabaseDescriptor.getEnableSASIIndexes())
