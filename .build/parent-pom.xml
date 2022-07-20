@@ -35,6 +35,9 @@
       <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
     </license>
   </licenses>
+  <properties>
+    <asm.version>9.1</asm.version>
+  </properties>
   <developers>
     <developer>
       <id>adelapena</id>
@@ -880,24 +883,24 @@
       <dependency>
         <groupId>org.ow2.asm</groupId>
         <artifactId>asm</artifactId>
-        <version>9.1</version>
+        <version>${asm.version}</version>
       </dependency>
       <dependency>
         <groupId>org.ow2.asm</groupId>
         <artifactId>asm-tree</artifactId>
-        <version>9.1</version>
+        <version>${asm.version}</version>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.ow2.asm</groupId>
         <artifactId>asm-commons</artifactId>
-        <version>9.1</version>
+        <version>${asm.version}</version>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.ow2.asm</groupId>
         <artifactId>asm-util</artifactId>
-        <version>9.1</version>
+        <version>${asm.version}</version>
         <scope>test</scope>
       </dependency>
       <dependency>
