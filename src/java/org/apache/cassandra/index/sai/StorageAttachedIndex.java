@@ -523,7 +523,7 @@ public class StorageAttachedIndex implements Index
     @Override
     public boolean isQueryable(Status status)
     {
-        return status == Status.BUILD_SUCCEEDED;
+        return status == Status.BUILD_SUCCEEDED || status == Status.UNKNOWN;
     }
 
     @Override
