@@ -166,8 +166,8 @@
     </target>
 
     <target name="resolver-retrieve-build" depends="resolver-init">
-        <resolvepom file="${basedir}/apache-cassandra.pom" id="all-pom" />
-        <resolvepom file="${basedir}/apache-cassandra-build-deps.pom" id="pom-deps" />
+        <resolvepom file="${basedir}/.build/cassandra-deps.xml" id="all-pom" />
+        <resolvepom file="${basedir}/.build/cassandra-build-deps.xml" id="pom-deps" />
 
         <resolve>
             <dependencies pomRef="all-pom"/>
@@ -190,7 +190,7 @@
     </target>
 
     <target name="resolver-dist-lib" depends="resolver-retrieve-build">
-        <resolvepom file="${basedir}/apache-cassandra.pom" id="all-pom" />
+        <resolvepom file="${basedir}/.build/cassandra-deps.xml" id="all-pom" />
 
         <resolve failOnMissingAttachments="true">
             <dependencies pomRef="all-pom"/>
