@@ -64,7 +64,6 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=IndexSummaries";
     public static final IndexSummaryManager instance;
 
-    private int resizeIntervalInMinutes = 0;
     private long memoryPoolBytes;
 
     private final ScheduledExecutorPlus executor;
@@ -93,13 +92,12 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
 
     public int getResizeIntervalInMinutes()
     {
-        return resizeIntervalInMinutes;
+        return DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes();
     }
 
     public void setResizeIntervalInMinutes(int resizeIntervalInMinutes)
     {
-        int oldInterval = this.resizeIntervalInMinutes;
-        this.resizeIntervalInMinutes = resizeIntervalInMinutes;
+        int oldInterval = getResizeIntervalInMinutes();
         DatabaseDescriptor.setIndexSummaryResizeIntervalInMinutes(resizeIntervalInMinutes);
 
         long initialDelay;
@@ -115,7 +113,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
             initialDelay = resizeIntervalInMinutes;
         }
 
-        if (this.resizeIntervalInMinutes < 0)
+        if (resizeIntervalInMinutes < 0)
         {
             future = null;
             return;
