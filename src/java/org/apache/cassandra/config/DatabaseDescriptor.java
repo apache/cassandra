@@ -729,6 +729,9 @@ public class DatabaseDescriptor
 
             if (preparedStatementsCacheSizeInMiB == 0)
                 throw new NumberFormatException(); // to escape duplicating error message
+
+            // we need this assignment for the Settings virtual table - CASSANDRA-17734
+            conf.prepared_statements_cache_size = new DataStorageSpec.LongMebibytesBound(preparedStatementsCacheSizeInMiB);
         }
         catch (NumberFormatException e)
         {
@@ -745,6 +748,9 @@ public class DatabaseDescriptor
 
             if (keyCacheSizeInMiB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
+
+            // we need this assignment for the Settings Virtual Table - CASSANDRA-17734
+            conf.key_cache_size = new DataStorageSpec.LongMebibytesBound(keyCacheSizeInMiB);
         }
         catch (NumberFormatException e)
         {
@@ -783,6 +789,9 @@ public class DatabaseDescriptor
             throw new ConfigurationException("paxos_cache_size option was set incorrectly to '"
                     + conf.paxos_cache_size + "', supported values are <integer> >= 0.", false);
         }
+
+        // we need this assignment for the Settings virtual table - CASSANDRA-17735
+        conf.counter_cache_size = new DataStorageSpec.LongMebibytesBound(counterCacheSizeInMiB);
 
         // if set to empty/"auto" then use 5% of Heap size
         indexSummaryCapacityInMiB = (conf.index_summary_capacity == null)
@@ -3463,6 +3472,11 @@ public class DatabaseDescriptor
         return conf.gc_log_threshold.toMilliseconds();
     }
 
+    public static void setGCLogThreshold(int gcLogThreshold)
+    {
+        conf.gc_log_threshold = new DurationSpec.IntMillisecondsBound(gcLogThreshold);
+    }
+
     public static EncryptionContext getEncryptionContext()
     {
         return encryptionContext;
@@ -3471,6 +3485,11 @@ public class DatabaseDescriptor
     public static long getGCWarnThreshold()
     {
         return conf.gc_warn_threshold.toMilliseconds();
+    }
+
+    public static void setGCWarnThreshold(int threshold)
+    {
+        conf.gc_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
 
     public static boolean isCDCEnabled()
