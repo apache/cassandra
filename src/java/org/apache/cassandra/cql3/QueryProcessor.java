@@ -685,7 +685,6 @@ public class QueryProcessor implements QueryHandler
         if (previous == prepared)
             SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
 
-        SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
         ResultSet.PreparedMetadata preparedMetadata = ResultSet.PreparedMetadata.fromPrepared(prepared.statement);
         ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.fromPrepared(prepared.statement);
         return new ResultMessage.Prepared(statementId, resultMetadata.getResultMetadataId(), preparedMetadata, resultMetadata);
