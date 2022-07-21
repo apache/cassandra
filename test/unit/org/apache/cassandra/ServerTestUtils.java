@@ -29,13 +29,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
