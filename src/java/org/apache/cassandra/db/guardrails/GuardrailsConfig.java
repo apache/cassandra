@@ -168,6 +168,13 @@ public interface GuardrailsConfig
     boolean getDropTruncateTableEnabled();
 
     /**
+     * Returns whether DROP on keyspaces is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDropKeyspaceEnabled();
+
+    /**
      * @return The threshold to warn when page size exceeds given size.
      */
     int getPageSizeWarnThreshold();

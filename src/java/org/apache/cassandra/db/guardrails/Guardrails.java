@@ -153,10 +153,21 @@ public final class Guardrails implements GuardrailsMBean
                     state -> CONFIG_PROVIDER.getOrCreate(state).getAlterTableEnabled(),
                     "User access to ALTER TABLE statement for column mutation");
 
+    /**
+     * Guardrail disabling DROP / TRUNCATE TABLE behavior
+     */
     public static final EnableFlag dropTruncateTableEnabled =
     new EnableFlag("drop_truncate_table_enabled",
                    state -> CONFIG_PROVIDER.getOrCreate(state).getDropTruncateTableEnabled(),
                    "DROP and TRUNCATE TABLE functionality");
+
+    /**
+     * Guardrail disabling DROP KEYSPACE behavior
+     */
+    public static final EnableFlag dropKeyspaceEnabled =
+    new EnableFlag("drop_keyspace_enabled",
+                    state -> CONFIG_PROVIDER.getOrCreate(state).getDropKeyspaceEnabled(),
+                    "DROP KEYSPACE functionality");
 
     /**
      * Guardrail disabling user's ability to turn off compression
@@ -646,6 +657,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setDropTruncateTableEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setDropTruncateTableEnabled(enabled);
+    }
+
+    @Override
+    public boolean getDropKeyspaceEnabled()
+    {
+        return DEFAULT_CONFIG.getDropKeyspaceEnabled();
+    }
+
+    @Override
+    public void setDropKeyspaceEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDropKeyspaceEnabled(enabled);
     }
 
     @Override

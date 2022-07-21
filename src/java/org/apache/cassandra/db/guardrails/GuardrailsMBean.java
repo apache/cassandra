@@ -305,6 +305,18 @@ public interface GuardrailsMBean
     void setDropTruncateTableEnabled(boolean enabled);
 
     /**
+     * Returns whether users can DROP a keyspace
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDropKeyspaceEnabled();
+
+    /**
+     * Sets whether users can DROP a keyspace
+     */
+    void setDropKeyspaceEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when requested page size greater than threshold.
      * -1 means disabled.
      */
