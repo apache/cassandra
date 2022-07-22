@@ -1,4 +1,6 @@
 4.1-alpha2
+ * Fix Settings Virtual Table to update paxos_variant after startup and rename enable_uuid_sstable_identifiers to
+   uuid_sstable_identifiers_enabled as per our config naming conventions (CASSANDRA-17738)
  * index_summary_resize_interval_in_minutes = -1 is equivalent to index_summary_resize_interval being set to null or
    disabled. JMX MBean IndexSummaryManager, setResizeIntervalInMinutes method still takes resizeIntervalInMinutes = -1 for disabled (CASSANDRA-17735)
  * min_tracked_partition_size_bytes parameter from 4.1 alpha1 was renamed to min_tracked_partition_size (CASSANDRA-17733)

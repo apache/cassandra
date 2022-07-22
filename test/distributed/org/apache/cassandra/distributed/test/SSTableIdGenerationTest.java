@@ -71,7 +71,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class SSTableIdGenerationTest extends TestBaseImpl
 {
-    private final static String ENABLE_UUID_FIELD_NAME = "enable_uuid_sstable_identifiers";
+    private final static String ENABLE_UUID_FIELD_NAME = "uuid_sstable_identifiers_enabled";
     private final static String SNAPSHOT_TAG = "test";
 
     private int v;
