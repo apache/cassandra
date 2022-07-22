@@ -264,8 +264,9 @@ public class YamlConfigurationLoaderTest
 
         // SECONDS_CUSTOM_DURATION already tested in type change
 
-        // MINUTES_DURATION
+        // MINUTES_CUSTOM_DURATION
         assertThat(from("index_summary_resize_interval_in_minutes", "42").index_summary_resize_interval.toMinutes()).isEqualTo(42);
+        assertThat(from("index_summary_resize_interval_in_minutes", "-1").index_summary_resize_interval).isNull();
         assertThatThrownBy(() -> from("index_summary_resize_interval_in_minutes", -2).index_summary_resize_interval.toMinutes())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid duration: value must be non-negative");

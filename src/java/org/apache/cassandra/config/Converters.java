@@ -70,9 +70,13 @@ public enum Converters
     SECONDS_CUSTOM_DURATION(String.class, DurationSpec.IntSecondsBound.class,
                             DurationSpec.IntSecondsBound::inSecondsString,
                             o -> Long.toString(o.toSeconds())),
-    MINUTES_DURATION(Integer.class, DurationSpec.IntMinutesBound.class,
-                     DurationSpec.IntMinutesBound::new,
-                     DurationSpec.IntMinutesBound::toMinutes),
+    /**
+     * This converter is used to support backward compatibility for parameters where in the past -1 was used as a value
+     * Example:  index_summary_resize_interval_in_minutes = -1 and  index_summary_resize_interval = null are equal.
+     */
+    MINUTES_CUSTOM_DURATION(Integer.class, DurationSpec.IntMinutesBound.class,
+                     o -> o == -1 ? null : new DurationSpec.IntMinutesBound(o),
+                     o -> o == null ? -1 : o.toMinutes()),
     MEBIBYTES_DATA_STORAGE_LONG(Long.class, DataStorageSpec.LongMebibytesBound.class,
                                 DataStorageSpec.LongMebibytesBound::new,
                                 DataStorageSpec.LongMebibytesBound::toMebibytes),
