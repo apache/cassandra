@@ -238,8 +238,10 @@ public class ChunkCache
             }
             catch (Throwable t)
             {
-                Throwables.propagateIfInstanceOf(t.getCause(), CorruptSSTableException.class);
-                throw Throwables.propagate(t);
+                if (t.getCause() instanceof CorruptSSTableException)
+                    throw (CorruptSSTableException)t.getCause();
+                Throwables.throwIfUnchecked(t);
+                throw new RuntimeException(t);
             }
         }
 

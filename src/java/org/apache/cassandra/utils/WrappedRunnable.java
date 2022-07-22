@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import com.google.common.base.Throwables;
-
 public abstract class WrappedRunnable implements Runnable
 {
     public final void run()
@@ -27,9 +25,13 @@ public abstract class WrappedRunnable implements Runnable
         {
             runMayThrow();
         }
+        catch (RuntimeException e) 
+        {
+            throw e;
+        }
         catch (Exception e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
