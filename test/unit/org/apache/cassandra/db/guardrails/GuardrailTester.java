@@ -67,6 +67,18 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+/**
+ * This class provides specific utility methods for testing Guardrails that should be used instead of the provided
+ * {@link CQLTester} methods. Many of the methods in CQLTester don't respect the {@link ClientState} provided for a query
+ * and instead use {@link ClientState#forInternalCalls()} which flags as an internal query and thus bypasses auth and
+ * guardrail checks.
+ *
+ * Some GuardrailTester methods and their usage is as follows:
+ *      {@link GuardrailTester#assertValid(String)} to confirm the query as structured is valid given the state of the db
+ *      {@link GuardrailTester#assertWarns(String, String)} to confirm a query succeeds but warns the text provided
+ *      {@link GuardrailTester#assertFails(String, String)} to confirm a query fails with the message provided
+ *      {@link GuardrailTester#testExcludedUsers} to confirm superusers are excluded from application of the guardrail
+ */
 public abstract class GuardrailTester extends CQLTester
 {
     // Name used when testing CREATE TABLE that should be aborted (we need to provide it as assertFails, which
@@ -318,6 +330,10 @@ public abstract class GuardrailTester extends CQLTester
         assertFails(function, true, messages, redactedMessages);
     }
 
+    /**
+     * Unlike {@link CQLTester#assertInvalidThrowMessage}, the chain of methods ending here in {@link GuardrailTester}
+     * respect the input ClientState so guardrails permissions will be correctly checked.
+     */
     protected void assertFails(CheckedFunction function, boolean thrown, List<String> messages, List<String> redactedMessages) throws Throwable
     {
         ClientWarn.instance.captureWarnings();
@@ -478,6 +494,10 @@ public abstract class GuardrailTester extends CQLTester
         return execute(state, query, options);
     }
 
+    /**
+     * Performs execution of query using the input {@link ClientState} (i.e. unlike {@link ClientState#forInternalCalls()}
+     * which may not) to ensure guardrails are approprieately applied to the query provided.
+     */
     protected ResultMessage execute(ClientState state, String query, QueryOptions options)
     {
         QueryState queryState = new QueryState(state);
