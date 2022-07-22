@@ -619,7 +619,7 @@ public class ResultSet
                 if (newColumnSpecification != cs)
                     changed = true;
             }
-            return changed ? new PreparedMetadata(EnumSet.copyOf(flags), newNames, Arrays.copyOf(partitionKeyBindIndexes, partitionKeyBindIndexes.length)) : this;
+            return changed ? new PreparedMetadata(EnumSet.copyOf(flags), newNames, partitionKeyBindIndexes == null ? null : Arrays.copyOf(partitionKeyBindIndexes, partitionKeyBindIndexes.length)) : this;
         }
 
         private static class Codec implements CBCodec<PreparedMetadata>
