@@ -340,7 +340,8 @@ public class Verifier implements Closeable
         }
         catch (Throwable t)
         {
-            throw Throwables.propagate(t);
+            Throwables.throwIfUnchecked(t);
+            throw new RuntimeException(t);
         }
         finally
         {

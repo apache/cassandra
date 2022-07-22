@@ -85,7 +85,9 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         }
         catch (Throwable t)
         {
-            throw Throwables.propagate(writer == null ? t : writer.abort(t));
+            Throwable e = writer == null ? t : writer.abort(t);
+            Throwables.throwIfUnchecked(e);
+            throw new RuntimeException(e);
         }
     }
 

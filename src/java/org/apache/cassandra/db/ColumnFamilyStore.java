@@ -174,7 +174,6 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static com.google.common.base.Throwables.propagate;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
@@ -1111,7 +1110,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             metric.pendingFlushes.dec();
 
             if (flushFailure != null)
-                throw propagate(flushFailure);
+            {
+                Throwables.throwIfUnchecked(flushFailure);
+                throw new RuntimeException(flushFailure);
+            }
 
             return commitLogUpperBound;
         }
@@ -1272,7 +1274,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 {
                     t = Flushing.abortRunnables(flushRunnables, t);
                     t = txn.abort(t);
-                    throw Throwables.propagate(t);
+                    Throwables.throwIfUnchecked(t);
+                    throw new RuntimeException(t);
                 }
 
                 try
@@ -1298,7 +1301,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                     for (SSTableMultiWriter writer : flushResults)
                         t = writer.abort(t);
                     t = txn.abort(t);
-                    Throwables.propagate(t);
+                    Throwables.throwIfUnchecked(t);
+                    throw new RuntimeException(t);
                 }
 
                 txn.prepareToCommit();
@@ -2451,7 +2455,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             catch (Throwable t)
             {
                 memtableContent.close();
-                Throwables.propagate(t);
+                Throwables.throwIfUnchecked(t);
+                throw new RuntimeException(t);
             }
         }
     }

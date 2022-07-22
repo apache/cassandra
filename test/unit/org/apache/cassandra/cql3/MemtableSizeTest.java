@@ -150,7 +150,8 @@ public class MemtableSizeTest extends CQLTester
         }
         catch (Throwable throwable)
         {
-            Throwables.propagate(throwable);
+            Throwables.throwIfUnchecked(throwable);
+            throw new RuntimeException(throwable);
         }
     }
 }

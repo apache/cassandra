@@ -21,8 +21,6 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.net.ServerSocket;
 
-import com.google.common.base.Throwables;
-
 public class SocketUtils
 {
     public static synchronized int findAvailablePort() throws RuntimeException
@@ -37,7 +35,7 @@ public class SocketUtils
         }
         catch (IOException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
         finally
         {
@@ -49,7 +47,7 @@ public class SocketUtils
                 }
                 catch (IOException e)
                 {
-                    Throwables.propagate(e);
+                    throw new RuntimeException(e);
                 }
             }
         }

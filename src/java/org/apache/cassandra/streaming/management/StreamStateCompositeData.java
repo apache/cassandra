@@ -21,7 +21,6 @@ import java.util.*;
 import javax.management.openmbean.*;
 
 import com.google.common.base.Function;
-import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -67,8 +66,7 @@ public class StreamStateCompositeData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
-        }
+            throw new RuntimeException(e);        }
     }
 
     public static CompositeData toCompositeData(final StreamState streamState)
@@ -114,8 +112,7 @@ public class StreamStateCompositeData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
-        }
+            throw new RuntimeException(e);        }
     }
 
     public static StreamState fromCompositeData(CompositeData cd)

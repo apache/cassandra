@@ -26,7 +26,6 @@ import java.net.*;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.google.common.base.Throwables;
 import com.google.common.net.HostAndPort;
 
 import org.apache.cassandra.config.*;
@@ -174,9 +173,9 @@ public class LoaderOptions
             }
             catch (UnknownHostException e)
             {
-                Throwables.propagate(e);
+                throw new RuntimeException(e);
             }
-
+            
             return new LoaderOptions(this);
         }
 

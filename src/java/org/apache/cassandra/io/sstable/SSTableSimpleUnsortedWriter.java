@@ -182,7 +182,8 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             if (diskWriter.exception instanceof IOException)
                 throw (IOException) diskWriter.exception;
             else
-                throw Throwables.propagate(diskWriter.exception);
+                Throwables.throwIfUnchecked(diskWriter.exception);
+                throw new RuntimeException(diskWriter.exception);
         }
     }
 

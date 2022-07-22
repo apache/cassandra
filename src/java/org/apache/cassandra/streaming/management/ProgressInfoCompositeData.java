@@ -22,8 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.management.openmbean.*;
 
-import com.google.common.base.Throwables;
-
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.utils.TimeUUID;
@@ -68,7 +66,7 @@ public class ProgressInfoCompositeData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);           
         }
     }
 
@@ -89,7 +87,7 @@ public class ProgressInfoCompositeData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -107,7 +105,7 @@ public class ProgressInfoCompositeData
         }
         catch (UnknownHostException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 }

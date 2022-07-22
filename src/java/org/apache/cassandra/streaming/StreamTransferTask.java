@@ -144,7 +144,8 @@ public class StreamTransferTask extends StreamTask
         }
         streams.clear();
         if (fail != null)
-            Throwables.propagate(fail);
+            Throwables.throwIfUnchecked(fail);
+            throw new RuntimeException(fail);
     }
 
     public synchronized int getTotalNumberOfFiles()
