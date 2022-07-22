@@ -30,8 +30,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
-import com.google.common.base.Throwables;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -434,7 +432,7 @@ public class ByteSourceTestBase
         }
         catch (UnknownHostException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 

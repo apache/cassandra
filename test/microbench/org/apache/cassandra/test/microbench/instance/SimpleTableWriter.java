@@ -138,7 +138,8 @@ public abstract class SimpleTableWriter extends CQLTester
                                                    }
                                                    catch (Throwable throwable)
                                                    {
-                                                       throw Throwables.propagate(throwable);
+                                                       Throwables.throwIfUnchecked(throwable);
+                                                       throw new RuntimeException(throwable);
                                                    }
                                                }));
         }
@@ -169,7 +170,8 @@ public abstract class SimpleTableWriter extends CQLTester
                                                    }
                                                    catch (Throwable throwable)
                                                    {
-                                                       throw Throwables.propagate(throwable);
+                                                       Throwables.throwIfUnchecked(throwable);
+                                                       throw new RuntimeException(throwable);
                                                    }
                                                }));
         }
