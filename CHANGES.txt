@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-15181] Add a metric that tracks the progress of the clean up job
  * [SO-15008] A new nodetool/JMX command that tells whether node's bootstrap has failed or not
  * [SO-15008] Decommission/bootstrap failure metrics
  * [SO-15008] A new nodetool/JMX command that tells whether node's decommission failed or not

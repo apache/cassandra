@@ -1452,6 +1452,7 @@ public class CompactionManager implements CompactionManagerMBean
             double ratio = (double) endsize / (double) startsize;
             logger.info(String.format(format, finished.get(0).getFilename(), FBUtilities.prettyPrintMemory(startsize),
                                       FBUtilities.prettyPrintMemory(endsize), (int) (ratio * 100), totalkeysWritten, dTime));
+            metrics.successfulCleanup.inc();
         }
 
     }

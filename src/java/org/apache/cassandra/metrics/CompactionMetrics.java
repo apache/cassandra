@@ -54,7 +54,8 @@ public class CompactionMetrics
     public final Counter bytesCompacted;
     /** Time spent redistributing index summaries */
     public final Timer indexSummaryRedistributionTime;
-
+    /** Successful cleanup of an SSTable */
+    public final Counter successfulCleanup;
     /** Total number of compactions that have had sstables drop out of them */
     public final Counter compactionsReduced;
 
@@ -146,6 +147,7 @@ public class CompactionMetrics
         });
         totalCompactionsCompleted = Metrics.meter(factory.createMetricName("TotalCompactionsCompleted"));
         bytesCompacted = Metrics.counter(factory.createMetricName("BytesCompacted"));
+        successfulCleanup = Metrics.counter(factory.createMetricName("SuccessfulCleanup"));
 
         // compaction failure metrics
         compactionsReduced = Metrics.counter(factory.createMetricName("CompactionsReduced"));
