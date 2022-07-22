@@ -120,7 +120,8 @@ public final class Hint
         }
         catch (Exception e)
         {
-            throw Throwables.propagate(e.getCause());
+            Throwables.throwIfUnchecked(e.getCause());
+            throw new RuntimeException(e.getCause());
         }
     }
 

@@ -59,7 +59,7 @@ public class CompactionHistoryTabularData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 

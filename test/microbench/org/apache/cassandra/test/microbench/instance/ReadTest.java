@@ -109,7 +109,8 @@ public abstract class ReadTest extends SimpleTableWriter
                                                    }
                                                    catch (Throwable throwable)
                                                    {
-                                                       throw Throwables.propagate(throwable);
+                                                       Throwables.throwIfUnchecked(throwable);
+                                                       throw new RuntimeException(throwable);
                                                    }
                                                }));
         }
@@ -142,7 +143,8 @@ public abstract class ReadTest extends SimpleTableWriter
                                                    }
                                                    catch (Throwable throwable)
                                                    {
-                                                       throw Throwables.propagate(throwable);
+                                                       Throwables.throwIfUnchecked(throwable);
+                                                       throw new RuntimeException(throwable);
                                                    }
                                                }));
         }

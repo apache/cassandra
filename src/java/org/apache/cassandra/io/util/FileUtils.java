@@ -65,7 +65,6 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
 
-import static com.google.common.base.Throwables.propagate;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
@@ -479,7 +478,7 @@ public final class FileUtils
     public static void handleFSErrorAndPropagate(FSError e)
     {
         JVMStabilityInspector.inspectThrowable(e);
-        throw propagate(e);
+        throw e;
     }
 
     /**

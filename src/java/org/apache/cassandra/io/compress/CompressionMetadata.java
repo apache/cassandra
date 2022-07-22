@@ -32,7 +32,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
 import com.google.common.primitives.Longs;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -412,7 +411,7 @@ public class CompressionMetadata
             }
             catch (FileNotFoundException | NoSuchFileException fnfe)
             {
-                throw Throwables.propagate(fnfe);
+                throw new RuntimeException(fnfe);
             }
             catch (IOException e)
             {
