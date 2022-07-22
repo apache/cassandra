@@ -723,7 +723,7 @@ memtable_allocation_type: heap_buffers
 
 # How frequently index summaries should be resampled.  This is done
 # periodically to redistribute memory from the fixed-size pool to sstables
-# proportional their recent read rates.  Setting to -1 will disable this
+# proportional their recent read rates.  Setting to null value will disable this
 # process, leaving existing index summaries at their current sampling level.
 # Min unit: m
 index_summary_resize_interval: 60m

@@ -793,6 +793,9 @@ public class DatabaseDescriptor
             throw new ConfigurationException("index_summary_capacity option was set incorrectly to '"
                                              + conf.index_summary_capacity.toString() + "', it should be a non-negative integer.", false);
 
+        // we need this assignment for the Settings virtual table - CASSANDRA-17735
+        conf.index_summary_capacity = new DataStorageSpec.LongMebibytesBound(indexSummaryCapacityInMiB);
+
         if (conf.user_defined_functions_fail_timeout.toMilliseconds() < conf.user_defined_functions_warn_timeout.toMilliseconds())
             throw new ConfigurationException("user_defined_functions_warn_timeout must less than user_defined_function_fail_timeout", false);
 
@@ -3309,7 +3312,18 @@ public class DatabaseDescriptor
 
     public static int getIndexSummaryResizeIntervalInMinutes()
     {
+        if (conf.index_summary_resize_interval == null)
+            return -1;
+
         return conf.index_summary_resize_interval.toMinutes();
+    }
+
+    public static void setIndexSummaryResizeIntervalInMinutes(int value)
+    {
+        if (value == -1)
+            conf.index_summary_resize_interval = null;
+        else
+            conf.index_summary_resize_interval = new DurationSpec.IntMinutesBound(value);
     }
 
     public static boolean hasLargeAddressSpace()
