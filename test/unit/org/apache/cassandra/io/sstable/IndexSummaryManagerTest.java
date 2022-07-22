@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -545,13 +546,16 @@ public class IndexSummaryManagerTest
 
         // resize interval
         manager.setResizeIntervalInMinutes(-1);
+        assertEquals(-1, DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
         assertNull(manager.getTimeToNextResize(TimeUnit.MINUTES));
 
         manager.setResizeIntervalInMinutes(10);
         assertEquals(10, manager.getResizeIntervalInMinutes());
+        assertEquals(10, DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
         assertEquals(10, manager.getTimeToNextResize(TimeUnit.MINUTES), 1);
         manager.setResizeIntervalInMinutes(15);
         assertEquals(15, manager.getResizeIntervalInMinutes());
+        assertEquals(15, DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
         assertEquals(15, manager.getTimeToNextResize(TimeUnit.MINUTES), 2);
 
         // memory pool capacity
