@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import com.google.common.math.DoubleMath;
+
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
@@ -37,6 +39,10 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         int throughput;
+        double throughputInDouble;
+
+        if (entireSSTableThroughput && interDCStreamThroughputMiB)
+            throw new IllegalArgumentException("You cannot use -e and -m at the same time");
 
         if (entireSSTableThroughput)
         {
@@ -46,16 +52,24 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
         }
         else if (interDCStreamThroughputMiB)
         {
-            throughput = probe.getInterDCStreamThroughputMiB();
-            double throuputInDouble = probe.getInterDCStreamThroughputMibAsDouble();
+            throughputInDouble = probe.getInterDCStreamThroughputMibAsDouble();
             probe.output().out.printf("Current inter-datacenter stream throughput: %s%n",
-                                      throughput > 0 ? throughput + " MiB/s" : (throuputInDouble > 0 ? "1 MiB/s" : "unlimited"));
+                                      throughputInDouble > 0 ? throughputInDouble + " MiB/s" : "unlimited");
+
         }
         else
         {
+            throughputInDouble = probe.getInterDCStreamThroughputMbitAsDouble();
             throughput = probe.getInterDCStreamThroughput();
             probe.output().out.printf("Current inter-datacenter stream throughput: %s%n",
                                       throughput > 0 ? throughput + " Mb/s" : "unlimited");
+
+            if (throughput <= 0)
+                probe.output().out.printf("Current inter-datacenter stream throughput: unlimited%n");
+            else if (DoubleMath.isMathematicalInteger(throughputInDouble))
+                probe.output().out.printf(throughputInDouble + "Current inter-datacenter stream throughput: %s%n", throughput + " Mb/s");
+            else
+                throw new RuntimeException("The current inter-datacenter stream throughput was set in MiB/s. You should use -m to get it");
         }
     }
 }

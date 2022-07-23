@@ -96,6 +96,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
         assertSetInvalidThroughput("1.2", "inter_dc_stream_throughput: can not convert \"1.2\" to a int");
         assertSetInvalidThroughput("value", "inter_dc_stream_throughput: can not convert \"value\" to a int");
         assertSetBothFlagsIsInvalid();
+        assertMiBFlagNeeded();
     }
 
     private static void assertSetGetValidThroughput(int throughput, double rateInBytes)
@@ -107,6 +108,17 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
         assertGetThroughput(throughput);
 
         assertThat(StreamRateLimiter.getInterDCRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.04));
+    }
+
+    private static void assertMiBFlagNeeded()
+    {
+        ToolResult tool = invokeNodetool("setstreamthroughput", "-m", String.valueOf(1));
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEmpty();
+
+        tool = invokeNodetool("getstreamthroughput");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("The current stream throughput was set in MiB/s. You should use -m to get it");
     }
 
     private static void assertSetGetValidThroughputMiB(int throughput, double rateInBytes)
@@ -138,7 +150,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     private static void assertSetBothFlagsIsInvalid()
     {
         ToolResult tool = invokeNodetool("setinterdcstreamthroughput", "-m", "5", "-e", "5");
-        assertThat(tool.getExitCode()).isEqualTo(0);
+        assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).contains("You cannot use -e and -m at the same time");
     }
 
@@ -153,7 +165,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
             assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: unlimited");
     }
 
-    private static void assertGetThroughputMiB(int expected)
+    private static void assertGetThroughputMiB(double expected)
     {
         ToolResult tool = invokeNodetool("getinterdcstreamthroughput", "-m");
         tool.assertOnCleanExit();

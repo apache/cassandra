@@ -97,6 +97,7 @@ public class SetGetStreamThroughputTest extends CQLTester
         assertSetInvalidThroughput("1.2", "stream_throughput: can not convert \"1.2\" to a int");
         assertSetInvalidThroughput("value", "stream_throughput: can not convert \"value\" to a int");
         assertSetBothFlagsIsInvalid();
+        assertMiBFlagNeeded();
     }
 
     private static void assertSetGetValidThroughput(int throughput, double rateInBytes)
@@ -121,6 +122,17 @@ public class SetGetStreamThroughputTest extends CQLTester
         assertThat(StreamRateLimiter.getRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.01));
     }
 
+    private static void assertMiBFlagNeeded()
+    {
+        ToolResult tool = invokeNodetool("setstreamthroughput", "-m", String.valueOf(1));
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEmpty();
+
+        tool = invokeNodetool("getstreamthroughput");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("The current stream throughput was set in MiB/s. You should use -m to get it");
+    }
+
     private static void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)
     {
         ToolResult tool = throughput == null ? invokeNodetool("setstreamthroughput")
@@ -139,7 +151,7 @@ public class SetGetStreamThroughputTest extends CQLTester
     private static void assertSetBothFlagsIsInvalid()
     {
         ToolResult tool = invokeNodetool("setstreamthroughput", "-m", "5", "-e", "5");
-        assertThat(tool.getExitCode()).isEqualTo(0);
+        assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).contains("You cannot use -e and -m at the same time");
     }
 
@@ -154,7 +166,7 @@ public class SetGetStreamThroughputTest extends CQLTester
             assertThat(tool.getStdout()).contains("Current stream throughput: unlimited");
     }
 
-    private static void assertGetThroughputMiB(int expected)
+    private static void assertGetThroughputMiB(double expected)
     {
         ToolResult tool = invokeNodetool("getstreamthroughput", "-m");
         tool.assertOnCleanExit();

@@ -2017,6 +2017,11 @@ public class DatabaseDescriptor
         return conf.stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
+    public static double getStreamThroughputOutboundMegabitsPerSecAsDouble()
+    {
+        return conf.stream_throughput_outbound.toMegabitsPerSecond();
+    }
+
     public static double getStreamThroughputOutboundMebibytesPerSec()
     {
         return conf.stream_throughput_outbound.toMebibytesPerSecond();
@@ -2058,6 +2063,11 @@ public class DatabaseDescriptor
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
     {
         return conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecondAsInt();
+    }
+
+    public static double getInterDCStreamThroughputOutboundMegabitsPerSecAsDouble()
+    {
+        return conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond();
     }
 
     public static double getInterDCStreamThroughputOutboundMebibytesPerSec()

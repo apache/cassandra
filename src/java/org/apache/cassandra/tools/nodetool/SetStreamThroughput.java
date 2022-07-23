@@ -42,7 +42,8 @@ public class SetStreamThroughput extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         if (setEntireSSTableThroughput && streamThroughputInMebibytes)
-            probe.output().out.println("You cannot use -e and -m at the same time");
+            throw new IllegalArgumentException("You cannot use -e and -m at the same time");
+
         if (setEntireSSTableThroughput)
             probe.setEntireSSTableStreamThroughput(streamThroughput);
         else if (streamThroughputInMebibytes )

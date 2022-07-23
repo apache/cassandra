@@ -42,7 +42,7 @@ public class SetInterDCStreamThroughput extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         if (setEntireSSTableThroughput && interDCStreamThroughputInMebibytes)
-            probe.output().out.println("You cannot use -e and -m at the same time");
+            throw new IllegalArgumentException("You cannot use -e and -m at the same time");
 
         if (setEntireSSTableThroughput)
             probe.setEntireSSTableInterDCStreamThroughput(interDCStreamThroughput);
