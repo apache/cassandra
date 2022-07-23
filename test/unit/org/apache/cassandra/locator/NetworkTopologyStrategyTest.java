@@ -478,6 +478,7 @@ public class NetworkTopologyStrategyTest
 
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", new TokenMetadata(), snitch, configOptions);
         StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
+        StorageService.instance.getTokenMetadata().updateNormalToken(new LongToken(1), FBUtilities.getBroadcastAddressAndPort());
         
         ClientWarn.instance.captureWarnings();
         strategy.maybeWarnOnOptions(null);
