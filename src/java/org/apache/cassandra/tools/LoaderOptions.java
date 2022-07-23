@@ -413,15 +413,25 @@ public class LoaderOptions
                     {
                         throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + config.inter_dc_stream_throughput_outbound.toString(), false);
                     }
+
+                    if (config.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+                    {
+                        throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + config.entire_sstable_stream_throughput_outbound.toString(), false);
+                    }
+
+                    if (config.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+                    {
+                        throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + config.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
+                    }
                 }
                 else
                 {
                     config = new Config();
                     // unthrottle stream by default
-                    config.stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
-                    config.inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
-                    config.entire_sstable_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
-                    config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
+                    config.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(0);
+                    config.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(0);
+                    config.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(0);
+                    config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(0);
                 }
 
                 if (cmd.hasOption(STORAGE_PORT_OPTION))

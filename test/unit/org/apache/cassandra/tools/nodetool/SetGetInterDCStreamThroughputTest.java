@@ -35,12 +35,12 @@ import static org.assertj.core.api.Assertions.withPrecision;
  */
 public class SetGetInterDCStreamThroughputTest extends CQLTester
 {
-    private static final int MAX_INT_CONFIG_VALUE = Integer.MAX_VALUE - 1;
-    private static final double MEBIBYTES_PER_MEGABIT = 0.119209289550781;
-    private static final int MAX_INT_CONFIG_VALUE_MIB = (int) (MAX_INT_CONFIG_VALUE * MEBIBYTES_PER_MEGABIT);
-    private static final double INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES = DataRateSpec.IntMebibytesPerSecondBound
-                                                                          .megabitsPerSecondInMebibytesPerSecond(MAX_INT_CONFIG_VALUE)
-                                                                          .toMebibytesPerSecond();
+    private static final int MAX_INT_CONFIG_VALUE_IN_MBIT = Integer.MAX_VALUE - 1;
+    private static final double BYTES_PER_MEGABIT = 125_000;
+    private static final int MAX_INT_CONFIG_VALUE_MIB = (int) (MAX_INT_CONFIG_VALUE_IN_MBIT * BYTES_PER_MEGABIT) / 1024 / 1024;
+    private static final double INTEGER_MAX_VALUE_MEGABITS_IN_BYTES = DataRateSpec.LongBytesPerSecondBound
+                                                                      .megabitsPerSecondInBytesPerSecond(MAX_INT_CONFIG_VALUE_IN_MBIT)
+                                                                      .toBytesPerSecond();
 
     @BeforeClass
     public static void setup() throws Exception
@@ -57,7 +57,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testPositive()
     {
-        assertSetGetValidThroughput(7, 7 * MEBIBYTES_PER_MEGABIT * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(7, 7 * BYTES_PER_MEGABIT);
         assertSetGetValidThroughputMiB(7, 7 * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
@@ -67,13 +67,13 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
         // As part of CASSANDRA-15234 we had to do some tweaks with precision. This test has to ensure no regressions
         // happen, hopefully. Internally data rate parameters values and rate limitter are set in double. Users can set
         // and get only integers
-        assertSetGetValidThroughput(1, 1 * MEBIBYTES_PER_MEGABIT * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(1, 1 * BYTES_PER_MEGABIT);
     }
 
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(MAX_INT_CONFIG_VALUE, INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(MAX_INT_CONFIG_VALUE_IN_MBIT, INTEGER_MAX_VALUE_MEGABITS_IN_BYTES);
         assertSetGetValidThroughputMiB(MAX_INT_CONFIG_VALUE_MIB, MAX_INT_CONFIG_VALUE_MIB * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
@@ -118,7 +118,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
 
         tool = invokeNodetool("getstreamthroughput");
         assertThat(tool.getExitCode()).isEqualTo(1);
-        assertThat(tool.getStdout()).contains("The current stream throughput was set in MiB/s. You should use -m to get it");
+        assertThat(tool.getStdout()).contains("The current stream throughput was set in MiB/s. You should get it in MiB");
     }
 
     private static void assertSetGetValidThroughputMiB(int throughput, double rateInBytes)

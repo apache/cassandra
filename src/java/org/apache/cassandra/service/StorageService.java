@@ -1525,7 +1525,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setStreamThroughputMbitPerSec(int value)
     {
-        int oldValue = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
+        double oldValue = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSecAsDouble();
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);
         StreamManager.StreamRateLimiter.updateThroughput();
         logger.info("setstreamthroughput: throttle set to {}{} megabits per second (was approximately {} megabits per second)",
@@ -1561,11 +1561,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
     }
 
-    public double getStreamThroughputMbitPerSecAsDouble()
-    {
-        return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSecAsDouble();
-    }
-
     public void setEntireSSTableStreamThroughputMebibytesPerSec(int value)
     {
         int oldValue = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSecAsInt();
@@ -1588,7 +1583,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setInterDCStreamThroughputMbitPerSec(int value)
     {
-        int oldValue = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
+        double oldValue = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSecAsDouble();
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(value);
         StreamManager.StreamRateLimiter.updateInterDCThroughput();
         logger.info("setinterdcstreamthroughput: throttle set to {}{} megabits per second (was {} megabits per second)", value, value <= 0 ? " (unlimited)" : "", oldValue);
@@ -1603,11 +1598,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public int getInterDCStreamThroughputMbitPerSec()
     {
         return DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
-    }
-
-    public double getInterDCStreamThroughputMbitPerSecAsDouble()
-    {
-        return DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSecAsDouble();
     }
 
     public void setInterDCStreamThroughputMebibytesPerSec(int value)
@@ -1630,7 +1620,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setEntireSSTableInterDCStreamThroughputMebibytesPerSec(int value)
     {
-        int oldValue = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSecAsInt();
+        double oldValue = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSecAsInt();
         DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(value);
         StreamManager.StreamRateLimiter.updateEntireSSTableInterDCThroughput();
         logger.info("setinterdcstreamthroughput (entire SSTable): throttle set to {}{} MiB/s (was {} MiB/s)", value, value <= 0 ? " (unlimited)" : "", oldValue);

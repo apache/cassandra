@@ -252,6 +252,21 @@ public abstract class DataRateSpec
         {
             this(bytesPerSecond, BYTES_PER_SECOND);
         }
+
+        // this one should be used only for backward compatibility for stream_throughput_outbound and inter_dc_stream_throughput_outbound
+        // which were in megabits per second in 4.0. Do not start using it for any new properties
+        public static LongBytesPerSecondBound megabitsPerSecondInBytesPerSecond(long megabitsPerSecond)
+        {
+            final double BYTES_PER_MEGABIT = 125_000;
+            double bytesPerSecond = (double) megabitsPerSecond * BYTES_PER_MEGABIT;
+
+            if (megabitsPerSecond >= Integer.MAX_VALUE)
+                throw new IllegalArgumentException("Invalid data rate: " + megabitsPerSecond + " megabits per second; " +
+                                                   "stream_throughput_outbound and inter_dc_stream_throughput_outbound" +
+                                                   " should be between 0 and " + Integer.MAX_VALUE + " in megabits per second");
+
+            return new LongBytesPerSecondBound(bytesPerSecond, BYTES_PER_SECOND);
+        }
     }
 
     /**
@@ -290,21 +305,6 @@ public abstract class DataRateSpec
         public IntMebibytesPerSecondBound(long mebibytesPerSecond)
         {
             this (mebibytesPerSecond, MEBIBYTES_PER_SECOND);
-        }
-
-        // this one should be used only for backward compatibility for stream_throughput_outbound and inter_dc_stream_throughput_outbound
-        // which were in megabits per second in 4.0. Do not start using it for any new properties
-        public static IntMebibytesPerSecondBound megabitsPerSecondInMebibytesPerSecond(long megabitsPerSecond)
-        {
-            final double MEBIBYTES_PER_MEGABIT = 0.119209289550781;
-            double mebibytesPerSecond = (double) megabitsPerSecond * MEBIBYTES_PER_MEGABIT;
-
-            if (megabitsPerSecond >= Integer.MAX_VALUE)
-                throw new IllegalArgumentException("Invalid data rate: " + megabitsPerSecond + " megabits per second; " +
-                                                 "stream_throughput_outbound and inter_dc_stream_throughput_outbound" +
-                                                 " should be between 0 and " + Integer.MAX_VALUE + " in megabits per second");
-
-            return new IntMebibytesPerSecondBound(mebibytesPerSecond, MEBIBYTES_PER_SECOND);
         }
     }
 
@@ -385,7 +385,7 @@ public abstract class DataRateSpec
             {
                 if (d > MAX / (MEGABITS_PER_MEBIBYTE))
                     return MAX;
-                return Math.round(d * MEGABITS_PER_MEBIBYTE);
+                return d * MEGABITS_PER_MEBIBYTE;
             }
 
             public double convert(double source, DataRateUnit sourceUnit)

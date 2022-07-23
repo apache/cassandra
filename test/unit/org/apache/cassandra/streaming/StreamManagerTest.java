@@ -32,27 +32,27 @@ import static org.junit.Assert.assertEquals;
 
 public class StreamManagerTest
 {
-    private static double defaultStreamThroughputMebibytesPerSec;
-    private static double defaultInterDCStreamThroughputMebibytesPerSec;
+    private static double defaultStreamThroughputBytesPerSec;
+    private static double defaultInterDCStreamThroughputBytesPerSec;
     private static final int MAX_INT_CONFIG_VALUE = Integer.MAX_VALUE - 1;
-    private static final double INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES = DataRateSpec.IntMebibytesPerSecondBound
-                                                                          .megabitsPerSecondInMebibytesPerSecond(MAX_INT_CONFIG_VALUE)
-                                                                          .toMebibytesPerSecond();
+    private static final double INTEGER_MAX_VALUE_MEGABITS_IN_BYTES = DataRateSpec.LongBytesPerSecondBound
+                                                                          .megabitsPerSecondInBytesPerSecond(MAX_INT_CONFIG_VALUE)
+                                                                          .toBytesPerSecond();
 
-    private static double defaultEntireSSTableStreamThroughputMebibytesPerSec;
-    private static double defaultEntireSSTableInterDCStreamThroughputMebibytesPerSec;
+    private static double defaultEntireSSTableStreamThroughputBytesPerSec;
+    private static double defaultEntireSSTableInterDCStreamThroughputBytesPerSec;
 
-    private static final double MEBIBYTES_PER_MEGABIT = 0.119209289550781;
+    private static final double BYTES_PER_MEGABIT = 125_000;
 
     @BeforeClass
     public static void setupClass()
     {
         Config c = DatabaseDescriptor.loadConfig();
 
-        defaultStreamThroughputMebibytesPerSec = c.stream_throughput_outbound.toMebibytesPerSecond();
-        defaultInterDCStreamThroughputMebibytesPerSec = c.inter_dc_stream_throughput_outbound.toMebibytesPerSecond();
-        defaultEntireSSTableStreamThroughputMebibytesPerSec = c.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond();
-        defaultEntireSSTableInterDCStreamThroughputMebibytesPerSec = c.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond();
+        defaultStreamThroughputBytesPerSec = c.stream_throughput_outbound.toBytesPerSecond();
+        defaultInterDCStreamThroughputBytesPerSec = c.inter_dc_stream_throughput_outbound.toBytesPerSecond();
+        defaultEntireSSTableStreamThroughputBytesPerSec = c.entire_sstable_stream_throughput_outbound.toBytesPerSecond();
+        defaultEntireSSTableInterDCStreamThroughputBytesPerSec = c.entire_sstable_inter_dc_stream_throughput_outbound.toBytesPerSecond();
 
         DatabaseDescriptor.daemonInitialization(() -> c);
     }
@@ -61,15 +61,15 @@ public class StreamManagerTest
     public void testUpdateStreamThroughput()
     {
         // Initialized value check
-        assertEquals(defaultStreamThroughputMebibytesPerSec * BYTES_PER_MEBIBYTE, StreamRateLimiter.getRateLimiterRateInBytes(), 0);
+        assertEquals(defaultStreamThroughputBytesPerSec, StreamRateLimiter.getRateLimiterRateInBytes(), 0);
 
         // Positive value check
         StorageService.instance.setStreamThroughputMbitPerSec(500); //60MiB/s
-        assertEquals(500 * MEBIBYTES_PER_MEGABIT * BYTES_PER_MEBIBYTE, StreamRateLimiter.getRateLimiterRateInBytes(), 0);
+        assertEquals(500 * BYTES_PER_MEGABIT, StreamRateLimiter.getRateLimiterRateInBytes(), 0);
 
         // Max positive value check
         StorageService.instance.setStreamThroughputMbitPerSec(MAX_INT_CONFIG_VALUE);
-        assertEquals(INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * BYTES_PER_MEBIBYTE, StreamRateLimiter.getRateLimiterRateInBytes(), 0.04);
+        assertEquals(INTEGER_MAX_VALUE_MEGABITS_IN_BYTES, StreamRateLimiter.getRateLimiterRateInBytes(), 0);
 
         // Zero value check
         StorageService.instance.setStreamThroughputMbitPerSec(0);
@@ -80,11 +80,11 @@ public class StreamManagerTest
     public void testUpdateEntireSSTableStreamThroughput()
     {
         // Initialized value check (defaults to StreamRateLimiter.getRateLimiterRateInBytes())
-        assertEquals(defaultEntireSSTableStreamThroughputMebibytesPerSec * BYTES_PER_MEBIBYTE, StreamRateLimiter.getEntireSSTableRateLimiterRateInBytes(), 0);
+        assertEquals(defaultEntireSSTableStreamThroughputBytesPerSec, StreamRateLimiter.getEntireSSTableRateLimiterRateInBytes(), 0);
 
         // Positive value check
         StorageService.instance.setEntireSSTableStreamThroughputMebibytesPerSec(1500);
-        assertEquals(1500d * BYTES_PER_MEBIBYTE, Math.round(StreamRateLimiter.getEntireSSTableRateLimiterRateInBytes()), 0);
+        assertEquals(1500d * BYTES_PER_MEBIBYTE, StreamRateLimiter.getEntireSSTableRateLimiterRateInBytes(), 0);
 
         // Max positive value check
         StorageService.instance.setEntireSSTableStreamThroughputMebibytesPerSec(MAX_INT_CONFIG_VALUE);
@@ -99,15 +99,15 @@ public class StreamManagerTest
     public void testUpdateInterDCStreamThroughput()
     {
         // Initialized value check
-        assertEquals(defaultInterDCStreamThroughputMebibytesPerSec * BYTES_PER_MEBIBYTE, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
+        assertEquals(defaultInterDCStreamThroughputBytesPerSec, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
 
         // Positive value check
         StorageService.instance.setInterDCStreamThroughputMbitPerSec(200); //approximately 24MiB/s
-        assertEquals(200 * MEBIBYTES_PER_MEGABIT * BYTES_PER_MEBIBYTE, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
+        assertEquals(200 * BYTES_PER_MEGABIT, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
 
         // Max positive value check
         StorageService.instance.setInterDCStreamThroughputMbitPerSec(MAX_INT_CONFIG_VALUE);
-        assertEquals(INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * BYTES_PER_MEBIBYTE, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0.04);
+        assertEquals(INTEGER_MAX_VALUE_MEGABITS_IN_BYTES, StreamRateLimiter.getInterDCRateLimiterRateInBytes(), 0);
 
         // Zero value check
         StorageService.instance.setInterDCStreamThroughputMbitPerSec(0);
@@ -118,7 +118,7 @@ public class StreamManagerTest
     public void testUpdateEntireSSTableInterDCStreamThroughput()
     {
         // Initialized value check (Defaults to StreamRateLimiter.getInterDCRateLimiterRateInBytes())
-        assertEquals(defaultEntireSSTableInterDCStreamThroughputMebibytesPerSec * BYTES_PER_MEBIBYTE, StreamRateLimiter.getEntireSSTableInterDCRateLimiterRateInBytes(), 0);
+        assertEquals(defaultEntireSSTableInterDCStreamThroughputBytesPerSec, StreamRateLimiter.getEntireSSTableInterDCRateLimiterRateInBytes(), 0);
 
         // Positive value check
         StorageService.instance.setEntireSSTableInterDCStreamThroughputMebibytesPerSec(1200);
@@ -126,7 +126,7 @@ public class StreamManagerTest
 
         // Max positive value check
         StorageService.instance.setEntireSSTableInterDCStreamThroughputMebibytesPerSec(MAX_INT_CONFIG_VALUE);
-        assertEquals((MAX_INT_CONFIG_VALUE) * BYTES_PER_MEBIBYTE, StreamRateLimiter.getEntireSSTableInterDCRateLimiterRateInBytes(), 0);
+        assertEquals(MAX_INT_CONFIG_VALUE * BYTES_PER_MEBIBYTE, StreamRateLimiter.getEntireSSTableInterDCRateLimiterRateInBytes(), 0);
 
         // Zero value check
         StorageService.instance.setEntireSSTableInterDCStreamThroughputMebibytesPerSec(0);

@@ -43,6 +43,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.math.DoubleMath;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -408,6 +409,16 @@ public class DatabaseDescriptor
         if (conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
         {
             throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + conf.inter_dc_stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + conf.entire_sstable_stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + conf.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
         }
 
         if (conf.auto_snapshot_ttl != null)
@@ -2014,6 +2025,9 @@ public class DatabaseDescriptor
 
     public static int getStreamThroughputOutboundMegabitsPerSec()
     {
+        if (!DoubleMath.isMathematicalInteger(conf.stream_throughput_outbound.toMegabitsPerSecond()))
+            throw new IllegalArgumentException("The current stream throughput was set in MiB/s. You should get it in MiB");
+
         return conf.stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
@@ -2027,6 +2041,11 @@ public class DatabaseDescriptor
         return conf.stream_throughput_outbound.toMebibytesPerSecond();
     }
 
+    public static double getStreamThroughputOutboundBytesPerSec()
+    {
+        return conf.stream_throughput_outbound.toBytesPerSecond();
+    }
+
     public static int getStreamThroughputOutboundMebibytesPerSecAsInt()
     {
         return conf.stream_throughput_outbound.toMebibytesPerSecondAsInt();
@@ -2037,12 +2056,13 @@ public class DatabaseDescriptor
         if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
             throw new IllegalArgumentException("Invalid value of stream_throughput_outbound: " + value);
 
-        conf.stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
+        long valueInBytes = value * 1024L * 1024L;
+        conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(valueInBytes);
     }
 
     public static void setStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        conf.stream_throughput_outbound = DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(value);
+        conf.stream_throughput_outbound = DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value);
     }
 
     public static int getEntireSSTableStreamThroughputOutboundMebibytesPerSecAsInt()
@@ -2050,18 +2070,22 @@ public class DatabaseDescriptor
         return conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecondAsInt();
     }
 
-    public static double getEntireSSTableStreamThroughputOutboundMebibytesPerSec()
+    public static double getEntireSSTableStreamThroughputOutboundBytesPerSec()
     {
-        return conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond();
+        return conf.entire_sstable_stream_throughput_outbound.toBytesPerSecond();
     }
 
     public static void setEntireSSTableStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        conf.entire_sstable_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
+        long valueInBytes = value * 1024L * 1024L;
+        conf.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(valueInBytes);
     }
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
     {
+        if (!DoubleMath.isMathematicalInteger(conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond()))
+            throw new IllegalArgumentException("The current inter-datacenter stream throughput was set in MiB/s. You should get in MiB");
+
         return conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
@@ -2075,6 +2099,11 @@ public class DatabaseDescriptor
         return conf.inter_dc_stream_throughput_outbound.toMebibytesPerSecond();
     }
 
+    public static double getInterDCStreamThroughputOutboundBytesPerSec()
+    {
+        return conf.inter_dc_stream_throughput_outbound.toBytesPerSecond();
+    }
+
     public static int getInterDCStreamThroughputOutboundMebibytesPerSecAsInt()
     {
         return conf.inter_dc_stream_throughput_outbound.toMebibytesPerSecondAsInt();
@@ -2085,17 +2114,18 @@ public class DatabaseDescriptor
         if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
             throw new IllegalArgumentException("Invalid value of inter_dc_stream_throughput_outbound: " + value);
 
-        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
+        long valueInBytes = value * 1024L * 1024L;
+        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(valueInBytes);
     }
 
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        conf.inter_dc_stream_throughput_outbound = DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(value);
+        conf.inter_dc_stream_throughput_outbound = DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value);
     }
 
-    public static double getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec()
+    public static double getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec()
     {
-        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond();
+        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toBytesPerSecond();
     }
 
     public static int getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSecAsInt()
@@ -2105,7 +2135,8 @@ public class DatabaseDescriptor
 
     public static void setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        conf.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
+        long valueInBytes = value * 1024L * 1024L;
+        conf.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(valueInBytes);
     }
 
     /**

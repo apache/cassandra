@@ -34,6 +34,8 @@ import static org.assertj.core.api.Assertions.withPrecision;
  */
 public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
 {
+    private static final int MAX_INT_CONFIG_VALUE_MIB = Integer.MAX_VALUE - 1;
+
     @BeforeClass
     public static void setup() throws Exception
     {
@@ -55,7 +57,7 @@ public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(Integer.MAX_VALUE - 1, (Integer.MAX_VALUE - 1) * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(MAX_INT_CONFIG_VALUE_MIB, MAX_INT_CONFIG_VALUE_MIB * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test

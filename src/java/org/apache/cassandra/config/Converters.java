@@ -104,9 +104,9 @@ public enum Converters
      * This converter is a custom one to support backward compatibility for stream_throughput_outbound and
      * inter_dc_stream_throughput_outbound which were provided in megabits per second prior CASSANDRA-15234.
      */
-    MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.IntMebibytesPerSecondBound.class,
-                                               i -> DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(i),
-                                               DataRateSpec.IntMebibytesPerSecondBound::toMegabitsPerSecondAsInt);
+    MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.LongBytesPerSecondBound.class,
+                                           i -> DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(i),
+                                           DataRateSpec.LongBytesPerSecondBound::toMegabitsPerSecondAsInt);
     private final Class<?> oldType;
     private final Class<?> newType;
     private final Function<Object, Object> convert;

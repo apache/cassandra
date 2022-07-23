@@ -306,7 +306,7 @@ public class YamlConfigurationLoaderTest
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data rate: value must be non-negative");
 
-        // MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE
+        // MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE
         assertThat(from("stream_throughput_outbound_megabits_per_sec", "42").stream_throughput_outbound.toMegabitsPerSecondAsInt()).isEqualTo(42);
         assertThatThrownBy(() -> from("stream_throughput_outbound_megabits_per_sec", -2).stream_throughput_outbound.toMegabitsPerSecondAsInt())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
