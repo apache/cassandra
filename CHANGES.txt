@@ -16,6 +16,8 @@
 Merged from 4.0:
  * Clean up ScheduledExecutors, CommitLog, and MessagingService shutdown for in-JVM dtests (CASSANDRA-17731)
  * Remove extra write to system table for prepared statements (CASSANDRA-17764)
+Merged from 3.11:
+ * Creating of a keyspace on insufficient number of replicas should filter out gosspping-only members (CASSANDRA-17759)
 
 
 4.0.5

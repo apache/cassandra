@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.GuardedBy;
 
@@ -1107,6 +1108,13 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
+    }
+
+    public Set<InetAddressAndPort> getAllMembers()
+    {
+        return getAllEndpoints().stream()
+                                .filter(this::isMember)
+                                .collect(Collectors.toSet());
     }
 
     /** caller should not modify leavingEndpoints */
