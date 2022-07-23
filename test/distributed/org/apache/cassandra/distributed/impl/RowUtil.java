@@ -53,7 +53,13 @@ public class RowUtil
         }
         else
         {
-            return QueryResults.empty();
+            if (res != null)
+            {
+                List<String> warnings = res.getWarnings();
+                return new SimpleQueryResult(new String[0], null, warnings == null ? Collections.emptyList() : warnings);
+            }
+            else
+                return QueryResults.empty();
         }
     }
 
