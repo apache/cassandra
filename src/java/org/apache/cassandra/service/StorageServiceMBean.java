@@ -625,32 +625,71 @@ public interface StorageServiceMBean extends NotificationEmitter
     public long getTruncateRpcTimeout();
 
     public void setStreamThroughputMbitPerSec(int value);
+    /**
+     * Please use the new getStreamThroughputMbitPerSecAsDouble method as this one will provide a rounded value
+     * @return stream_throughput_outbound in megabits
+     */
+    @Deprecated
     public int getStreamThroughputMbitPerSec();
+    public double getStreamThroughputMbitPerSecAsDouble();
 
     @Deprecated
     public void setStreamThroughputMbPerSec(int value);
+
+    /**
+     * Please use the new getStreamThroughputMebibytesPerSecAsDouble method as this one will provide a rounded value
+     * @return stream_throughput_outbound in MiB
+     */
     @Deprecated
     public int getStreamThroughputMbPerSec();
     public void setStreamThroughputMebibytesPerSec(int value);
+    /**
+     * Below method returns stream_throughput_outbound rounded, for precise number, please, use getStreamThroughputMebibytesPerSecAsDouble
+     * @return stream_throughput_outbound in MiB
+     */
     public int getStreamThroughputMebibytesPerSec();
     public double getStreamThroughputMebibytesPerSecAsDouble();
 
     public void setInterDCStreamThroughputMbitPerSec(int value);
+
+    /**
+     * Please use the new getInterDCStreamThroughputMbitPerSecAsDouble method as this one will provide a rounded value
+     * @return inter_dc_stream_throughput_outbound in megabits
+     */
+    @Deprecated
     public int getInterDCStreamThroughputMbitPerSec();
+    public double getInterDCStreamThroughputMbitPerSecAsDouble();
+
     @Deprecated
     public void setInterDCStreamThroughputMbPerSec(int value);
+
+    /**
+     * Please use the new getInterDCStreamThroughputMebibytesPerSecAsDouble method as this one will provide a rounded value
+     * @return inter_dc_stream_throughput_outbound in MiB
+     */
     @Deprecated
     public int getInterDCStreamThroughputMbPerSec();
     public void setInterDCStreamThroughputMebibytesPerSec(int value);
+    /**
+     * Below method returns Inter_dc_stream_throughput_outbound rounded, for precise number, please, use getInterDCStreamThroughputMebibytesPerSecAsDouble
+     * @return inter_dc_stream_throughput_outbound in MiB
+     */
     public int getInterDCStreamThroughputMebibytesPerSec();
     public double getInterDCStreamThroughputMebibytesPerSecAsDouble();
 
     public void setEntireSSTableStreamThroughputMebibytesPerSec(int value);
-    public int getEntireSSTableStreamThroughputMebibytesPerSec();
+    public double getEntireSSTableStreamThroughputMebibytesPerSecAsDouble();
 
     public void setEntireSSTableInterDCStreamThroughputMebibytesPerSec(int value);
-    public int getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
+    public double getEntireSSTableInterDCStreamThroughputMebibytesPerSecAsDouble();
 
+    public double getCompactionThroughtputMibPerSecAsDouble();
+    public long getCompactionThroughtputBytesPerSec();
+    /**
+     * Please use the new getCompactionThroughtputMibPerSecAsDouble method as this one will provide a rounded value
+     * @return  compaction_throughgput in MiB
+     */
+    @Deprecated
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
 

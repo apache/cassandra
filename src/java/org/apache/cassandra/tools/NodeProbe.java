@@ -1253,9 +1253,20 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
+    @Deprecated
     public int getCompactionThroughput()
     {
         return ssProxy.getCompactionThroughputMbPerSec();
+    }
+
+    public double getCompactionThroughputMebibytesAsDouble()
+    {
+        return ssProxy.getCompactionThroughtputMibPerSecAsDouble();
+    }
+
+    public long getCompactionThroughputBytes()
+    {
+        return ssProxy.getCompactionThroughtputBytesPerSec();
     }
 
     public void setBatchlogReplayThrottle(int value)
@@ -1327,19 +1338,26 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    @Deprecated
     public int getStreamThroughput()
     {
         return ssProxy.getStreamThroughputMbitPerSec();
     }
 
+    public double getStreamThroughputAsDouble()
+    {
+        return ssProxy.getStreamThroughputMbitPerSecAsDouble();
+    }
+
+    @Deprecated
     public int getInterDCStreamThroughput()
     {
         return ssProxy.getInterDCStreamThroughputMbitPerSec();
     }
 
-    public int getStreamThroughputMiB()
+    public double getInterDCStreamThroughputAsDouble()
     {
-        return ssProxy.getStreamThroughputMebibytesPerSec();
+        return ssProxy.getInterDCStreamThroughputMbitPerSecAsDouble();
     }
 
     public double getStreamThroughputMibAsDouble()
@@ -1347,24 +1365,19 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getStreamThroughputMebibytesPerSecAsDouble();
     }
 
-    public int getInterDCStreamThroughputMiB()
-    {
-        return ssProxy.getInterDCStreamThroughputMebibytesPerSec();
-    }
-
     public double getInterDCStreamThroughputMibAsDouble()
     {
         return ssProxy.getInterDCStreamThroughputMebibytesPerSecAsDouble();
     }
 
-    public int getEntireSSTableStreamThroughput()
+    public double getEntireSSTableStreamThroughput()
     {
-        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSec();
+        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSecAsDouble();
     }
 
-    public int getEntireSSTableInterDCStreamThroughput()
+    public double getEntireSSTableInterDCStreamThroughput()
     {
-        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
+        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSecAsDouble();
     }
 
     public double getTraceProbability()
