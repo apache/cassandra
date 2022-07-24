@@ -1761,6 +1761,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                                                               Gossiper.intervalInMillis,
                                                               Gossiper.intervalInMillis,
                                                               TimeUnit.MILLISECONDS);
+
+        for (IEndpointStateChangeSubscriber subscriber : subscribers)
+            subscriber.onJoin(FBUtilities.getBroadcastAddressAndPort(), localState);
+        for (IEndpointStateChangeSubscriber subscriber : subscribers)
+            subscriber.onAlive(FBUtilities.getBroadcastAddressAndPort(), localState);
     }
 
     public synchronized Map<InetAddressAndPort, EndpointState> doShadowRound()
@@ -2023,6 +2028,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.info("Announcing shutdown");
             addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
+            for (IEndpointStateChangeSubscriber subscriber : subscribers)
+                subscriber.onDead(FBUtilities.getBroadcastAddressAndPort(), mystate);
             Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);
