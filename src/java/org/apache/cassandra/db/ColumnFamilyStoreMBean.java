@@ -218,6 +218,12 @@ public interface ColumnFamilyStoreMBean
     public long[] getPerLevelSizeBytes();
 
     /**
+     * @return sstable count for each bucket in TWCS. null unless time window compaction is used.
+     *         array index corresponds to bucket(int[0] is for most recent, ...).
+     */
+    public int[] getSSTableCountPerTWCSBucket();
+
+    /**
      * @return sstable fanout size for level compaction strategy.
      */
     public int getLevelFanoutSize();

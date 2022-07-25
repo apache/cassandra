@@ -22,7 +22,6 @@ import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -609,6 +608,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return directories;
     }
 
+    @Override
     public List<String> getDataPaths() throws IOException
     {
         List<String> dataPaths = new ArrayList<>();
@@ -1925,12 +1925,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
+    @Override
     public void beginLocalSampling(String sampler, int capacity, int durationMillis)
     {
         metric.samplers.get(SamplerType.valueOf(sampler)).beginSampling(capacity, durationMillis);
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
+    @Override
     public List<CompositeData> finishLocalSampling(String sampler, int count) throws OpenDataException
     {
         Sampler samplerImpl = metric.samplers.get(SamplerType.valueOf(sampler));
@@ -1949,11 +1951,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return result;
     }
 
+    @Override
     public boolean isCompactionDiskSpaceCheckEnabled()
     {
         return compactionSpaceCheck;
     }
 
+    @Override
     public void compactionDiskSpaceCheck(boolean enable)
     {
         compactionSpaceCheck = enable;
@@ -2964,21 +2968,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return indexManager.getBuiltIndexNames();
     }
 
+    @Override
     public int getUnleveledSSTables()
     {
         return compactionStrategyManager.getUnleveledSSTables();
     }
 
+    @Override
     public int[] getSSTableCountPerLevel()
     {
         return compactionStrategyManager.getSSTableCountPerLevel();
     }
 
+    @Override
     public long[] getPerLevelSizeBytes()
     {
         return compactionStrategyManager.getPerLevelSizeBytes();
     }
 
+    @Override
+    public int[] getSSTableCountPerTWCSBucket()
+    {
+        return compactionStrategyManager.getSSTableCountPerTWCSBucket();
+    }
+
+    @Override
     public int getLevelFanoutSize()
     {
         return compactionStrategyManager.getLevelFanoutSize();
@@ -3074,6 +3088,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
+    @Override
     public double getDroppableTombstoneRatio()
     {
         double allDroppable = 0;
@@ -3088,6 +3103,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return allColumns > 0 ? allDroppable / allColumns : 0;
     }
 
+    @Override
     public long trueSnapshotsSize()
     {
         return getDirectories().trueSnapshotsSize();
