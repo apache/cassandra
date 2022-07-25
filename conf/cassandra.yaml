@@ -1012,7 +1012,7 @@ sstable_preemptive_open_interval: 50MiB
 # set to true, each newly created sstable will have a UUID based generation identifier and such files are
 # not readable by previous Cassandra versions. At some point, this option will become true by default
 # and eventually get removed from the configuration.
-enable_uuid_sstable_identifiers: false
+uuid_sstable_identifiers_enabled: false
 
 # When enabled, permits Cassandra to zero-copy stream entire eligible
 # SSTables between nodes, including every component.
