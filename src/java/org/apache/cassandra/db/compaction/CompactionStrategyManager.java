@@ -23,14 +23,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -140,6 +145,8 @@ public class CompactionStrategyManager implements INotificationConsumer
     private volatile int fanout;
     private volatile long maxSSTableSizeBytes;
     private volatile String name;
+
+    public static int TWCS_BUCKET_COUNT_MAX = 128;
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {
@@ -608,6 +615,32 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             readLock.unlock();
         }
+    }
+
+    public int[] getSSTableCountPerTWCSBucket()
+    {
+        readLock.lock();
+        try
+        {
+            List<Map<Long, Integer>> countsByBucket = Stream.concat(
+                                                                StreamSupport.stream(repaired.allStrategies().spliterator(), false),
+                                                                StreamSupport.stream(unrepaired.allStrategies().spliterator(), false))
+                                                            .filter((TimeWindowCompactionStrategy.class)::isInstance)
+                                                            .map(s -> ((TimeWindowCompactionStrategy)s).getSSTableCountByBuckets())
+                                                            .collect(Collectors.toList());
+            return countsByBucket.isEmpty() ? null : sumCountsByBucket(countsByBucket, TWCS_BUCKET_COUNT_MAX);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+    }
+
+    static int[] sumCountsByBucket(List<Map<Long, Integer>> countsByBucket, int max)
+    {
+        TreeMap<Long, Integer> merged = new TreeMap<>(Comparator.reverseOrder());
+        countsByBucket.stream().flatMap(e -> e.entrySet().stream()).forEach(e -> merged.merge(e.getKey(), e.getValue(), Integer::sum));
+        return merged.values().stream().limit(max).mapToInt(i -> i).toArray();
     }
 
     static int[] sumArrays(int[] a, int[] b)

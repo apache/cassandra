@@ -241,6 +241,7 @@ public class TableStatsHolder implements StatsHolder
                         statsTable.sstablesInEachLevel.add(count + ((count > maxCount) ? "/" + maxCount : ""));
                     }
                 }
+                statsTable.sstableCountPerTWCSBucket = table.getSSTableCountPerTWCSBucket();
 
                 long[] leveledSSTablesBytes = table.getPerLevelSizeBytes();
                 if (leveledSSTablesBytes != null)
