@@ -72,7 +72,7 @@ will install the binaries and configuration files as the `cassandra` OS user.
 include::example$BASH/docker_pull.sh[]
 ----
 
-This `docker pull` command will get the specified version of the official
+This `docker pull` command will get the specified version of the 'Docker Official'
 Apache Cassandra image available from the https://hub.docker.com/_/cassandra[Dockerhub].
 
 [arabic, start=2]
