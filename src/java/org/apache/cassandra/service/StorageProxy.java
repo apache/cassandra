@@ -1823,7 +1823,7 @@ public class StorageProxy implements StorageProxyMBean
     public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
-        if (StorageService.instance.isBootstrapMode() && !systemKeyspaceQuery(group.queries))
+        if (!isSafeToPerformRead(group.queries))
         {
             readMetrics.unavailables.mark();
             readMetricsForLevel(consistencyLevel).unavailables.mark();
@@ -1848,6 +1848,16 @@ public class StorageProxy implements StorageProxyMBean
         return consistencyLevel.isSerialConsistency()
              ? readWithPaxos(group, consistencyLevel, queryStartNanoTime)
              : readRegular(group, consistencyLevel, queryStartNanoTime);
+    }
+
+    public static boolean isSafeToPerformRead(List<SinglePartitionReadCommand> queries)
+    {
+        return isSafeToPerformRead() || systemKeyspaceQuery(queries);
+    }
+
+    public static boolean isSafeToPerformRead()
+    {
+        return !StorageService.instance.isBootstrapMode();
     }
 
     private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
@@ -2619,8 +2629,13 @@ public class StorageProxy implements StorageProxyMBean
 
     public static void logRequestException(Exception exception, Collection<? extends ReadCommand> commands)
     {
+        // Multiple different types of errors can happen, so by dedupping on the error type we can see each error
+        // case rather than just exposing the first error seen; this should make sure more rare issues are exposed
+        // rather than being hidden by more common errors such as timeout or unavailable
+        // see CASSANDRA-17754
+        String msg = exception.getClass().getSimpleName() + " \"{}\" while executing {}";
         NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, FAILURE_LOGGING_INTERVAL_SECONDS, TimeUnit.SECONDS,
-                         "\"{}\" while executing {}",
+                         msg,
                          () -> new Object[]
                                {
                                    exception.getMessage(),
