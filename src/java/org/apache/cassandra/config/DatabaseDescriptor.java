@@ -4171,7 +4171,7 @@ public class DatabaseDescriptor
 
     public static boolean isUUIDSSTableIdentifiersEnabled()
     {
-        return conf.enable_uuid_sstable_identifiers;
+        return conf.uuid_sstable_identifiers_enabled;
     }
 
     public static DurationSpec.LongNanosecondsBound getRepairStateExpires()

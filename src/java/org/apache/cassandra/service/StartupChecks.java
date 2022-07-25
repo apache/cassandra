@@ -605,7 +605,7 @@ public class StartupChecks
                                            "UUID sstable identifiers are disabled but some sstables have been " +
                                            "created with UUID identifiers. You have to either delete those " +
                                            "sstables or enable UUID based sstable identifers in cassandra.yaml " +
-                                           "(enable_uuid_sstable_identifiers). The list of affected sstables is: " +
+                                           "(uuid_sstable_identifiers_enabled). The list of affected sstables is: " +
                                            Joiner.on(", ").join(withIllegalGenId) + ". If you decide to delete sstables, " +
                                            "and have that data replicated over other healthy nodes, those will be brought" +
                                            "back during repair");

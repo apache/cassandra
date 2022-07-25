@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -50,6 +51,19 @@ public class StorageProxyTest
     {
         DatabaseDescriptor.daemonInitialization();
         ServerTestUtils.mkdirs();
+    }
+
+    @Test
+    public void testSetGetPaxosVariant()
+    {
+        Assert.assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
+        Assert.assertEquals("v1", StorageProxy.instance.getPaxosVariant());
+        StorageProxy.instance.setPaxosVariant("v2");
+        Assert.assertEquals("v2", StorageProxy.instance.getPaxosVariant());
+        Assert.assertEquals(Config.PaxosVariant.v2, DatabaseDescriptor.getPaxosVariant());
+        DatabaseDescriptor.setPaxosVariant(Config.PaxosVariant.v1);
+        Assert.assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
+        Assert.assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
     }
 
     @Test
