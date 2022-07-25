@@ -78,7 +78,7 @@ public class GetStreamThroughput extends NodeToolCmd
             if (throughput <= 0)
                 probe.output().out.printf("Current stream throughput: unlimited%n");
             else if (DoubleMath.isMathematicalInteger(throughputInDouble))
-                probe.output().out.printf(throughputInDouble + "Current stream throughput: %s%n", throughput + " Mb/s");
+                probe.output().out.printf("Current stream throughput: %s%n", throughput + " Mb/s");
             else
                 throw new RuntimeException("The current stream throughput was set in MiB/s. You should use -m to get it");
         }

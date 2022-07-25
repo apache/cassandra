@@ -23,6 +23,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.google.common.math.DoubleMath;
 import com.google.common.primitives.Ints;
 
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
@@ -212,7 +213,7 @@ public abstract class DataRateSpec
     @Override
     public String toString()
     {
-        return Math.round(quantity) + unit.symbol;
+        return DoubleMath.isMathematicalInteger(quantity) ? ((long)quantity + unit.symbol) : (quantity + unit.symbol);
     }
 
     /**
