@@ -1776,11 +1776,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (!isReplacingSameAddress())
             {
+                // Historically BROADCAST_INTERVAL was used, but this is unrelated to ring_delay, so using it to know
+                // how long to sleep only works with the default settings (ring_delay=30s, broadcast=60s).  For users
+                // who are aware of this relationship, this coupling should not be broken, but for most users this
+                // relationship isn't known and instead we should rely on the ring_delay.
+                // See CASSANDRA-17776
+                long sleepDelayMillis = Math.max(LoadBroadcaster.BROADCAST_INTERVAL, ringTimeoutMillis * 2);
                 try
                 {
                     // Sleep additionally to make sure that the server actually is not alive
                     // and giving it more time to gossip if alive.
-                    Thread.sleep(LoadBroadcaster.BROADCAST_INTERVAL);
+                    logger.info("Sleeping for {}ms waiting to make sure no new updates happen for {}", sleepDelayMillis, DatabaseDescriptor.getReplaceAddress());
+                    Thread.sleep(sleepDelayMillis);
                 }
                 catch (InterruptedException e)
                 {
