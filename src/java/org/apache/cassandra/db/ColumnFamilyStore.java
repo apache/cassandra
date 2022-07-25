@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -317,6 +318,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final TopPartitionTracker topPartitions;
 
     private final SSTableImporter sstableImporter;
+
+    public volatile AtomicInteger pendingCleanups = new AtomicInteger(0);
 
     private volatile boolean compactionSpaceCheck = true;
 

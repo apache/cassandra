@@ -426,6 +426,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return AllSSTableOpStatus.SUCCESSFUL;
             }
 
+            cfs.pendingCleanups.set(Iterables.size(sstables));
             for (final SSTableReader sstable : sstables)
             {
                 final LifecycleTransaction txn = compacting.split(singleton(sstable));
@@ -661,6 +662,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, transientRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
                 doCleanupOne(cfStore, txn, cleanupStrategy, replicas.ranges(), hasIndexes);
+                cfStore.pendingCleanups.decrementAndGet();
             }
         }, jobs, OperationType.CLEANUP);
     }

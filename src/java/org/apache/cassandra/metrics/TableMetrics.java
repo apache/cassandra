@@ -217,6 +217,9 @@ public class TableMetrics
     @Deprecated
     public final Counter droppedMutations;
 
+    /** Estimate of number of pending cleanups for this table */
+    public final Gauge<Integer> pendingCleanups;
+
     private final MetricNameFactory factory;
     private final MetricNameFactory aliasFactory;
 
@@ -861,6 +864,14 @@ public class TableMetrics
         coordinatorScanLatency = createTableTimer("CoordinatorScanLatency");
         coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency");
         waitingOnFreeMemtableSpace = createTableHistogram("WaitingOnFreeMemtableSpace", false);
+
+        pendingCleanups = createTableGauge("PendingCleanups", new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return cfs.pendingCleanups.get();
+            }
+        });
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table

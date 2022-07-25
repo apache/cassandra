@@ -180,6 +180,8 @@ public class KeyspaceMetrics
     public final Counter rangeReadThrottles;
     public final Counter serialMutationThrottles;
     public final Counter singleMutationThrottles;
+    /** Estimate of number of pending SSTable cleanup for this Keyspace */
+    public final Gauge<Long> pendingCleanups;
 
     public final MetricNameFactory factory;
     private Keyspace keyspace;
@@ -260,6 +262,7 @@ public class KeyspaceMetrics
 
         confirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesConfirmed");
         unconfirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesUnconfirmed");
+        pendingCleanups = createKeyspaceGauge("PendingCleanups", metric -> metric.pendingCleanups.getValue());
 
         repairedDataTrackingOverreadRows = createKeyspaceHistogram("RepairedDataTrackingOverreadRows", false);
         repairedDataTrackingOverreadTime = createKeyspaceTimer("RepairedDataTrackingOverreadTime");

@@ -182,7 +182,9 @@ public class CleanupTest
         tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
 
+        assertEquals(0, cfs.pendingCleanups.get());
         CompactionManager.instance.performCleanup(cfs, 2);
+        assertEquals(0, cfs.pendingCleanups.get());
 
         // row data should be gone
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
@@ -213,7 +215,9 @@ public class CleanupTest
         tk2[0] = 1;
         tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+        assertEquals(0, cfs.pendingCleanups.get());
         CompactionManager.instance.performCleanup(cfs, 2);
+        assertEquals(0, cfs.pendingCleanups.get());
 
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
     }
