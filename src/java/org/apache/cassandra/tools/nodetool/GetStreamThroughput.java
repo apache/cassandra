@@ -24,7 +24,8 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "getstreamthroughput", description = "Print the throughput cap for streaming and entire SSTable streaming in the system")
+@Command(name = "getstreamthroughput", description = "Print the throughput cap for streaming and entire SSTable streaming in the system in rounded megabits. " +
+                                                     "For precise number, please, use option -d")
 public class GetStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
@@ -35,32 +36,51 @@ public class GetStreamThroughput extends NodeToolCmd
     @Option(name = { "-m", "--mib" }, description = "Print the throughput cap for streaming in MiB/s")
     private boolean streamThroughputMiB;
 
+    @SuppressWarnings("UnusedDeclaration")
+    @Option(name = { "-d", "--double-mbit" }, description = "Print the throughput cap for streaming in precise Mbits")
+    private boolean streamThroughputDoubleMbit;
+
     @Override
     public void execute(NodeProbe probe)
     {
         int throughput;
         double throughputInDouble;
 
-        if (entireSSTableThroughput && streamThroughputMiB)
-            throw new IllegalArgumentException("You cannot use -e and -m at the same time");
-
         if (entireSSTableThroughput)
         {
-            throughput = probe.getEntireSSTableStreamThroughput();
+            if(streamThroughputDoubleMbit || streamThroughputMiB)
+                throw new IllegalArgumentException("You cannot use more than one flag with this command");
+
+            throughputInDouble = probe.getEntireSSTableStreamThroughput();
             probe.output().out.printf("Current entire SSTable stream throughput: %s%n",
-                                      throughput > 0 ? throughput + " MiB/s" : "unlimited");
+                                      throughputInDouble > 0 ? throughputInDouble + " MiB/s" : "unlimited");
         }
         else if (streamThroughputMiB)
         {
+            if(streamThroughputDoubleMbit)
+                throw new IllegalArgumentException("You cannot use more than one flag with this command");
+
             throughputInDouble = probe.getStreamThroughputMibAsDouble();
             probe.output().out.printf("Current stream throughput: %s%n",
                                       throughputInDouble > 0 ? throughputInDouble + " MiB/s" : "unlimited");
         }
+        else if(streamThroughputDoubleMbit)
+        {
+            throughputInDouble = probe.getStreamThroughputAsDouble();
+            probe.output().out.printf("Current stream throughput: %s%n",
+                                      throughputInDouble > 0 ? throughputInDouble + " Mb/s" : "unlimited");
+        }
         else
         {
+            throughputInDouble = probe.getStreamThroughputAsDouble();
             throughput = probe.getStreamThroughput();
-            probe.output().out.printf("Current stream throughput: %s%n",
-                                      throughput > 0 ? throughput + " Mb/s" : "unlimited");
+
+            if (throughput <= 0)
+                probe.output().out.printf("Current stream throughput: unlimited%n");
+            else if (DoubleMath.isMathematicalInteger(throughputInDouble))
+                probe.output().out.printf(throughputInDouble + "Current stream throughput: %s%n", throughput + " Mb/s");
+            else
+                throw new RuntimeException("The current stream throughput was set in MiB/s. You should use -m to get it");
         }
     }
 }

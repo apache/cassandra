@@ -92,7 +92,7 @@ public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
         assertThat(tool.getStdout()).contains(expectedErrorMessage);
     }
 
-    private static void assertGetThroughput(int expected)
+    private static void assertGetThroughput(double expected)
     {
         ToolResult tool = invokeNodetool("getinterdcstreamthroughput", "-e");
         tool.assertOnCleanExit();

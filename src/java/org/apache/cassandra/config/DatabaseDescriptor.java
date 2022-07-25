@@ -2025,9 +2025,6 @@ public class DatabaseDescriptor
 
     public static int getStreamThroughputOutboundMegabitsPerSec()
     {
-        if (!DoubleMath.isMathematicalInteger(conf.stream_throughput_outbound.toMegabitsPerSecond()))
-            throw new IllegalArgumentException("The current stream throughput was set in MiB/s. You should get it in MiB");
-
         return conf.stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
@@ -2065,9 +2062,9 @@ public class DatabaseDescriptor
         conf.stream_throughput_outbound = DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value);
     }
 
-    public static int getEntireSSTableStreamThroughputOutboundMebibytesPerSecAsInt()
+    public static double getEntireSSTableStreamThroughputOutboundMebibytesPerSec()
     {
-        return conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecondAsInt();
+        return conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond();
     }
 
     public static double getEntireSSTableStreamThroughputOutboundBytesPerSec()
@@ -2083,9 +2080,6 @@ public class DatabaseDescriptor
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
     {
-        if (!DoubleMath.isMathematicalInteger(conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond()))
-            throw new IllegalArgumentException("The current inter-datacenter stream throughput was set in MiB/s. You should get in MiB");
-
         return conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
@@ -2128,9 +2122,9 @@ public class DatabaseDescriptor
         return conf.entire_sstable_inter_dc_stream_throughput_outbound.toBytesPerSecond();
     }
 
-    public static int getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSecAsInt()
+    public static double getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec()
     {
-        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecondAsInt();
+        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond();
     }
 
     public static void setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(int value)
