@@ -66,7 +66,8 @@ public class StreamStateCompositeData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);        }
+            throw new RuntimeException(e);        
+        }
     }
 
     public static CompositeData toCompositeData(final StreamState streamState)
@@ -112,7 +113,8 @@ public class StreamStateCompositeData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);        }
+            throw new RuntimeException(e);
+        }
     }
 
     public static StreamState fromCompositeData(CompositeData cd)

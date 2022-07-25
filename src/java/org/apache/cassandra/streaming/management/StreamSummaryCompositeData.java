@@ -51,7 +51,8 @@ public class StreamSummaryCompositeData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);        }
+            throw new RuntimeException(e);
+        }
     }
 
     public static CompositeData toCompositeData(StreamSummary streamSummary)
@@ -66,7 +67,8 @@ public class StreamSummaryCompositeData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);        }
+            throw new RuntimeException(e);
+        }
     }
 
     public static StreamSummary fromCompositeData(CompositeData cd)

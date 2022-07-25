@@ -123,7 +123,8 @@ public class SSTableOfflineRelevel
                 {
                     out.println("Couldn't open sstable: "+sstable.getKey().filenameFor(Component.DATA));
                     Throwables.throwIfUnchecked(t);
-                    throw new RuntimeException(t);                }
+                    throw new RuntimeException(t);
+                }
             }
         }
         if (sstableMultimap.isEmpty())

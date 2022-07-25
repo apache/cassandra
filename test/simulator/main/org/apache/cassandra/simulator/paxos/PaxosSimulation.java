@@ -262,15 +262,9 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
         }
 
         log(causedByPrimaryKey);
-        if (causedByPrimaryKey != null) {
-            Throwables.throwIfUnchecked(causedByThrowable);
-            throw new RuntimeException(causedByThrowable);
-        }
-        else 
-        {
-            Throwables.throwIfUnchecked(simulated.failures.get().get(0));
-            throw new RuntimeException(simulated.failures.get().get(0));
-        }
+        Throwable t = (causedByPrimaryKey != null) ? causedByThrowable : simulated.failures.get().get(0);
+        Throwables.throwIfUnchecked(t);
+        throw new RuntimeException(t);
     }
 
     public void close()
