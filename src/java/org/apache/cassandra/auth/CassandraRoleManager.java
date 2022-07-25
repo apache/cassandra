@@ -43,6 +43,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -386,6 +387,12 @@ public class CassandraRoleManager implements IRoleManager
     {
         // The delay is to give the node a chance to see its peers before attempting the operation
         ScheduledExecutors.optionalTasks.scheduleSelfRecurring(() -> {
+            if (!StorageProxy.isSafeToPerformRead())
+            {
+                logger.trace("Setup task may not run due to it not being safe to perform reads... rescheduling");
+                scheduleSetupTask(setupTask);
+                return;
+            }
             try
             {
                 setupTask.call();
