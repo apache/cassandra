@@ -419,7 +419,7 @@ public class LoaderOptions
                         throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + config.entire_sstable_stream_throughput_outbound.toString(), false);
                     }
 
-                    if (config.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+                    if (config.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
                     {
                         throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + config.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
                     }

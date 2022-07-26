@@ -399,31 +399,7 @@ public class DatabaseDescriptor
         //InetAddressAndPort and get the right defaults
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
-        // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
-        if (conf.stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + conf.stream_throughput_outbound.toString(), false);
-        }
-
-        if (conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + conf.inter_dc_stream_throughput_outbound.toString(), false);
-        }
-
-        if (conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + conf.entire_sstable_stream_throughput_outbound.toString(), false);
-        }
-
-        if (conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + conf.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
-        }
-
-        if (conf.compaction_throughput.toMebibytesPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of compaction_throughput: " + conf.compaction_throughput.toString(), false);
-        }
+        validateUpperBoundStreamingConfig();
 
         if (conf.auto_snapshot_ttl != null)
         {
@@ -929,6 +905,36 @@ public class DatabaseDescriptor
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
         logInitializationOutcome(logger);
+    }
+
+    @VisibleForTesting
+    static void validateUpperBoundStreamingConfig() throws ConfigurationException
+    {
+        // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
+        if (conf.stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + conf.stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + conf.inter_dc_stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + conf.entire_sstable_stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + conf.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.compaction_throughput.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of compaction_throughput: " + conf.compaction_throughput.toString(), false);
+        }
     }
 
     @VisibleForTesting

@@ -193,6 +193,13 @@ public class DataRateSpecTest
     }
 
     @Test
+    public void testToString()
+    {
+        DataRateSpec testProperty = new DataRateSpec.LongBytesPerSecondBound("5B/s");
+        assertEquals("5B/s", testProperty.toString());
+    }
+
+    @Test
     public void eq()
     {
         qt().forAll(gen(), gen()).check((a, b) -> a.equals(b) == b.equals(a));
