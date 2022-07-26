@@ -112,8 +112,8 @@ public class ParseAndConvertUnitsTest
         assertEquals(new DataStorageSpec.IntBytesBound(1, MEBIBYTES), config.native_transport_receive_queue_capacity);
 
         //Confirm rate parameters were successfully parsed with the default values in cassandra.yaml
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(0), config.compaction_throughput);
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(23841858), config.stream_throughput_outbound);
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(24), config.inter_dc_stream_throughput_outbound);
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound(0), config.compaction_throughput);
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound(23841858), config.stream_throughput_outbound);
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound(24), config.inter_dc_stream_throughput_outbound);
     }
 }

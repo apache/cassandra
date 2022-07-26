@@ -72,7 +72,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(new DataStorageSpec.IntKibibytesBound(4), config.column_index_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(2), config.column_index_cache_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(5), config.batch_size_warn_threshold);
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(64), config.compaction_throughput);
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound(64), config.compaction_throughput);
         assertEquals(new DataStorageSpec.IntMebibytesBound(50), config.min_free_space_per_drive);
         assertEquals(new DataRateSpec.LongBytesPerSecondBound(25000000000000L).toString(), config.stream_throughput_outbound.toString());
         assertEquals(DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200000000), config.stream_throughput_outbound);

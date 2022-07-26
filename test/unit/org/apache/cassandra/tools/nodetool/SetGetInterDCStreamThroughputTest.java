@@ -125,7 +125,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
 
         tool = invokeNodetool("getstreamthroughput");
         assertThat(tool.getExitCode()).isEqualTo(2);
-        assertThat(tool.getStderr()).contains("The current stream throughput was set in MiB/s. You should use -m to get it");
+        assertThat(tool.getStderr()).contains("You should use -m to get exact throughput in MiB/s");
     }
 
     private static void assertSetGetValidThroughputMiB(int throughput, double rateInBytes)

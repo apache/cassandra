@@ -315,7 +315,7 @@ public class Config
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
-    public volatile DataRateSpec.IntMebibytesPerSecondBound compaction_throughput = new DataRateSpec.IntMebibytesPerSecondBound("16MiB/s");
+    public volatile DataRateSpec.LongBytesPerSecondBound compaction_throughput = new DataRateSpec.LongBytesPerSecondBound("16MiB/s");
     @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound compaction_large_partition_warning_threshold = new DataStorageSpec.IntMebibytesBound("100MiB");
     @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)

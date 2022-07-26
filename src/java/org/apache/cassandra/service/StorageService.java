@@ -1643,6 +1643,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec();
     }
 
+    public double getCompactionThroughtputMibPerSecAsDouble()
+    {
+        return DatabaseDescriptor.getCompactionThroughputBytesPerSec();
+    }
+
+    @Deprecated
     public int getCompactionThroughputMbPerSec()
     {
         return DatabaseDescriptor.getCompactionThroughputMebibytesPerSecAsInt();
@@ -1650,9 +1656,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setCompactionThroughputMbPerSec(int value)
     {
-        int oldValue = DatabaseDescriptor.getCompactionThroughputMebibytesPerSecAsInt();
+        double oldValue = DatabaseDescriptor.getCompactionThroughputMebibytesPerSec();
         DatabaseDescriptor.setCompactionThroughputMebibytesPerSec(value);
-        CompactionManager.instance.setRate(value);
+        double valueInBytes = value * 1024.0 * 1024.0;
+        CompactionManager.instance.setRate(valueInBytes);
         logger.info("compactionthroughput: throttle set to {} mebibytes per second (was {} mebibytes per second)",
                     value, oldValue);
     }

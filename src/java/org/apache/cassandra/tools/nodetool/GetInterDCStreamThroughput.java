@@ -81,7 +81,7 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
             else if (DoubleMath.isMathematicalInteger(throughputInDouble))
                 probe.output().out.printf(throughputInDouble + "Current inter-datacenter stream throughput: %s%n", throughput + " Mb/s");
             else
-                throw new RuntimeException("The current inter-datacenter stream throughput was set in MiB/s. You should use -m to get it");
+                throw new RuntimeException("You should use -m to get exact throughput in MiB/s");
         }
     }
 }

@@ -39,41 +39,41 @@ public class DataRateSpecTest
         assertEquals(10485760, new DataRateSpec.LongBytesPerSecondBound("10MiB/s").toBytesPerSecond(), 0);
         assertEquals(new DataRateSpec.LongBytesPerSecondBound("25000000B/s").toString(), DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200L).toString());
 
-        assertEquals(10, new DataRateSpec.IntMebibytesPerSecondBound("10B/s").toBytesPerSecond(), 0);
-        assertEquals(10240, new DataRateSpec.IntMebibytesPerSecondBound("10KiB/s").toBytesPerSecond(), 0);
-        assertEquals(0, new DataRateSpec.IntMebibytesPerSecondBound("10KiB/s").toMebibytesPerSecond(), 0.1);
-        assertEquals(10240, new DataRateSpec.IntMebibytesPerSecondBound("10MiB/s").toKibibytesPerSecond(), 0);
-        assertEquals(10485760, new DataRateSpec.IntMebibytesPerSecondBound("10MiB/s").toBytesPerSecond(), 0);
-        assertEquals(10485760, new DataRateSpec.IntMebibytesPerSecondBound("10MiB/s").toBytesPerSecond(), 0);
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("25000000B/s").toString(), DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200L).toString());
+        assertEquals(10, new DataRateSpec.LongMebibytesPerSecondBound("10B/s").toBytesPerSecond(), 0);
+        assertEquals(10240, new DataRateSpec.LongMebibytesPerSecondBound("10KiB/s").toBytesPerSecond(), 0);
+        assertEquals(0, new DataRateSpec.LongMebibytesPerSecondBound("10KiB/s").toMebibytesPerSecond(), 0.1);
+        assertEquals(10240, new DataRateSpec.LongMebibytesPerSecondBound("10MiB/s").toKibibytesPerSecond(), 0);
+        assertEquals(10485760, new DataRateSpec.LongMebibytesPerSecondBound("10MiB/s").toBytesPerSecond(), 0);
+        assertEquals(10485760, new DataRateSpec.LongMebibytesPerSecondBound("10MiB/s").toBytesPerSecond(), 0);
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("25000000B/s").toString(), DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200L).toString());
     }
 
     @Test
     public void testOverflowingDuringConversion()
     {
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec.IntMebibytesPerSecondBound("2147483649B/s").toBytesPerSecondAsInt(), 0);
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec.IntMebibytesPerSecondBound(2147483649L / 1024L + "KiB/s").toBytesPerSecondAsInt(), 0);
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec.IntMebibytesPerSecondBound(2147483649L / 1024L / 1024 + "MiB/s").toBytesPerSecondAsInt(), 0);
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec.LongMebibytesPerSecondBound("2147483649B/s").toBytesPerSecondAsInt(), 0);
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec.LongMebibytesPerSecondBound(2147483649L / 1024L + "KiB/s").toBytesPerSecondAsInt(), 0);
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec.LongMebibytesPerSecondBound(2147483649L / 1024L / 1024 + "MiB/s").toBytesPerSecondAsInt(), 0);
 
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec.IntMebibytesPerSecondBound(2147483646L + "MiB/s").toMegabitsPerSecondAsInt());
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec.LongMebibytesPerSecondBound(2147483646L + "MiB/s").toMegabitsPerSecondAsInt());
 
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec.IntMebibytesPerSecondBound(2147483647L + "KiB/s").toKibibytesPerSecondAsInt());
-        assertEquals(Integer.MAX_VALUE, new DataRateSpec.IntMebibytesPerSecondBound(2147483649L / 1024L + "MiB/s").toKibibytesPerSecondAsInt());
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec.LongMebibytesPerSecondBound(2147483647L + "KiB/s").toKibibytesPerSecondAsInt());
+        assertEquals(Integer.MAX_VALUE, new DataRateSpec.LongMebibytesPerSecondBound(2147483649L / 1024L + "MiB/s").toKibibytesPerSecondAsInt());
 
-        assertEquals(Integer.MAX_VALUE-1, new DataRateSpec.IntMebibytesPerSecondBound(2147483646L + "MiB/s").toMebibytesPerSecondAsInt());
+        assertEquals(Integer.MAX_VALUE-1, new DataRateSpec.LongMebibytesPerSecondBound(2147483646L + "MiB/s").toMebibytesPerSecondAsInt());
 
-        assertThatThrownBy(() -> new DataRateSpec.IntMebibytesPerSecondBound("2147483648MiB/s")).isInstanceOf(IllegalArgumentException.class)
-                                                                                                .hasMessageContaining("Invalid data rate: 2147483648MiB/s. " +
+        assertThatThrownBy(() -> new DataRateSpec.LongMebibytesPerSecondBound("2147483648MiB/s")).isInstanceOf(IllegalArgumentException.class)
+                                                                                                 .hasMessageContaining("Invalid data rate: 2147483648MiB/s. " +
                                                                                                                       "It shouldn't be more than 2147483646 in mebibytes_per_second");
-        assertThatThrownBy(() -> new DataRateSpec.IntMebibytesPerSecondBound(2147483648L)).isInstanceOf(IllegalArgumentException.class)
-                                                                                          .hasMessageContaining("Invalid data rate: 2.147483648E9 mebibytes_per_second. " +
+        assertThatThrownBy(() -> new DataRateSpec.LongMebibytesPerSecondBound(2147483648L)).isInstanceOf(IllegalArgumentException.class)
+                                                                                           .hasMessageContaining("Invalid data rate: 2.147483648E9 mebibytes_per_second. " +
                                                                                                                 "It shouldn't be more than 2147483646 in mebibytes_per_second");
 
-        assertThatThrownBy(() -> new DataRateSpec.IntMebibytesPerSecondBound((Integer.MAX_VALUE * 1024L + 1L) + "KiB/s")).isInstanceOf(IllegalArgumentException.class)
-                                                                                                                         .hasMessageContaining("Invalid data rate: 2199023254529KiB/s. " +
+        assertThatThrownBy(() -> new DataRateSpec.LongMebibytesPerSecondBound((Integer.MAX_VALUE * 1024L + 1L) + "KiB/s")).isInstanceOf(IllegalArgumentException.class)
+                                                                                                                          .hasMessageContaining("Invalid data rate: 2199023254529KiB/s. " +
                                                                                                                                                "It shouldn't be more than 2147483646 in mebibytes_per_second");
-        assertThatThrownBy(() -> new DataRateSpec.IntMebibytesPerSecondBound((Integer.MAX_VALUE * 1024L * 1024 + 1L) + "B/s")).isInstanceOf(IllegalArgumentException.class)
-                                                                                                                              .hasMessageContaining("Invalid data rate: 2251799812636673B/s. " +
+        assertThatThrownBy(() -> new DataRateSpec.LongMebibytesPerSecondBound((Integer.MAX_VALUE * 1024L * 1024 + 1L) + "B/s")).isInstanceOf(IllegalArgumentException.class)
+                                                                                                                               .hasMessageContaining("Invalid data rate: 2251799812636673B/s. " +
                                                                                                                                                     "It shouldn't be more than 2147483646 in mebibytes_per_second");
         assertThatThrownBy(() -> DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(2147483648L)).isInstanceOf(IllegalArgumentException.class)
                                                                                                                             .hasMessageContaining("Invalid data rate: 2147483648 megabits per second; " +
@@ -115,7 +115,7 @@ public class DataRateSpecTest
         assertThatThrownBy(() -> new DataRateSpec.LongBytesPerSecondBound("9223372036854775809MiB/s")
                                  .toBytesPerSecond()).isInstanceOf(NumberFormatException.class)
                                                      .hasMessageContaining("For input string: \"9223372036854775809\"");
-        assertThatThrownBy(() -> new DataRateSpec.IntMebibytesPerSecondBound("2147483648MiB/s")
+        assertThatThrownBy(() -> new DataRateSpec.LongMebibytesPerSecondBound("2147483648MiB/s")
                                  .toBytesPerSecond()).isInstanceOf(IllegalArgumentException.class)
                                                      .hasMessageContaining("Invalid data rate: 2147483648MiB/s. It shouldn't be more" +
                                                                            " than 2147483646 in mebibytes_per_second");
@@ -141,8 +141,8 @@ public class DataRateSpecTest
     @Test
     public void testValidUnits()
     {
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("25000000B/s"), DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200));
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("24MiB/s"), new DataRateSpec.IntMebibytesPerSecondBound("25165824B/s"));
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("25000000B/s"), DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200));
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("24MiB/s"), new DataRateSpec.LongMebibytesPerSecondBound("25165824B/s"));
     }
 
     @SuppressWarnings("AssertBetweenInconvertibleTypes")
@@ -154,15 +154,15 @@ public class DataRateSpecTest
         assertEquals(new DataRateSpec.LongBytesPerSecondBound("10240B/s"), new DataRateSpec.LongBytesPerSecondBound("10KiB/s"));
         assertNotEquals(new DataRateSpec.LongBytesPerSecondBound("0KiB/s"), new DataRateSpec.LongBytesPerSecondBound("10MiB/s"));
 
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("10B/s"), new DataRateSpec.IntMebibytesPerSecondBound("10B/s"));
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("10KiB/s"), new DataRateSpec.IntMebibytesPerSecondBound("10240B/s"));
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("10240B/s"), new DataRateSpec.IntMebibytesPerSecondBound("10KiB/s"));
-        assertNotEquals(new DataRateSpec.IntMebibytesPerSecondBound("0KiB/s"), new DataRateSpec.IntMebibytesPerSecondBound("10MiB/s"));
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("10B/s"), new DataRateSpec.LongMebibytesPerSecondBound("10B/s"));
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("10KiB/s"), new DataRateSpec.LongMebibytesPerSecondBound("10240B/s"));
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("10240B/s"), new DataRateSpec.LongMebibytesPerSecondBound("10KiB/s"));
+        assertNotEquals(new DataRateSpec.LongMebibytesPerSecondBound("0KiB/s"), new DataRateSpec.LongMebibytesPerSecondBound("10MiB/s"));
 
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("10B/s"), new DataRateSpec.LongBytesPerSecondBound("10B/s"));
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("10KiB/s"), new DataRateSpec.LongBytesPerSecondBound("10240B/s"));
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("10240B/s"), new DataRateSpec.LongBytesPerSecondBound("10KiB/s"));
-        assertNotEquals(new DataRateSpec.IntMebibytesPerSecondBound("0KiB/s"), new DataRateSpec.LongBytesPerSecondBound("10MiB/s"));
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("10B/s"), new DataRateSpec.LongBytesPerSecondBound("10B/s"));
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("10KiB/s"), new DataRateSpec.LongBytesPerSecondBound("10240B/s"));
+        assertEquals(new DataRateSpec.LongMebibytesPerSecondBound("10240B/s"), new DataRateSpec.LongBytesPerSecondBound("10KiB/s"));
+        assertNotEquals(new DataRateSpec.LongMebibytesPerSecondBound("0KiB/s"), new DataRateSpec.LongBytesPerSecondBound("10MiB/s"));
     }
 
     @Test
@@ -186,8 +186,8 @@ public class DataRateSpecTest
         Gen<DataRateSpec.DataRateUnit> unitGen = SourceDSL.arbitrary().enumValues(DataRateSpec.DataRateUnit.class);
         Gen<Long> valueGen = SourceDSL.longs().between(0, Integer.MAX_VALUE-1); // max MiB/s
         qt().forAll(valueGen, unitGen).check((value, unit) -> {
-            DataRateSpec.IntMebibytesPerSecondBound there = new DataRateSpec.IntMebibytesPerSecondBound(value, unit);
-            DataRateSpec.IntMebibytesPerSecondBound back = new DataRateSpec.IntMebibytesPerSecondBound(there.toString());
+            DataRateSpec.LongMebibytesPerSecondBound there = new DataRateSpec.LongMebibytesPerSecondBound(value, unit);
+            DataRateSpec.LongMebibytesPerSecondBound back = new DataRateSpec.LongMebibytesPerSecondBound(there.toString());
             return there.equals(back) && back.equals(there);
         });
     }

@@ -43,7 +43,6 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.math.DoubleMath;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -1965,14 +1964,25 @@ public class DatabaseDescriptor
         return conf.compaction_throughput.toMebibytesPerSecondAsInt();
     }
 
+    public static double getCompactionThroughputBytesPerSec()
+    {
+        return conf.compaction_throughput.toBytesPerSecond();
+    }
+
     public static double getCompactionThroughputMebibytesPerSec()
     {
         return conf.compaction_throughput.toMebibytesPerSecond();
     }
 
+    @VisibleForTesting // only for testing!
+    public static void setCompactionThroughputBytesPerSec(int value)
+    {
+        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value);
+    }
+
     public static void setCompactionThroughputMebibytesPerSec(int value)
     {
-        conf.compaction_throughput = new DataRateSpec.IntMebibytesPerSecondBound(value);
+        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value * 1024L * 1024L);
     }
 
     public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytesInLong(); }

@@ -1253,9 +1253,20 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
+    @Deprecated
     public int getCompactionThroughput()
     {
         return ssProxy.getCompactionThroughputMbPerSec();
+    }
+
+    public double getCompactionThroughputMebibytesAsDouble()
+    {
+        return ssProxy.getCompactionThroughtputMibPerSecAsDouble();
+    }
+
+    public double getCompactionThroughputBytesAsDouble()
+    {
+        return ssProxy.getCompactionThroughtputMibPerSecAsDouble();
     }
 
     public void setBatchlogReplayThrottle(int value)

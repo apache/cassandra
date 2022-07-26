@@ -153,18 +153,18 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public RateLimiter getRateLimiter()
     {
-        setRate(DatabaseDescriptor.getCompactionThroughputMebibytesPerSec());
+        setRate(DatabaseDescriptor.getCompactionThroughputBytesPerSec());
         return compactionRateLimiter;
     }
 
     /**
      * Sets the rate for the rate limiter. When compaction_throughput is 0 or node is bootstrapping,
      * this sets the rate to Double.MAX_VALUE bytes per second.
-     * @param throughPutMiBPerSec throughput to set in MiB/s
+     * @param throughputBytesPerSec throughput to set in B/s
      */
-    public void setRate(final double throughPutMiBPerSec)
+    public void setRate(final double throughputBytesPerSec)
     {
-        double throughput = throughPutMiBPerSec * 1024.0 * 1024.0;
+        double throughput = throughputBytesPerSec;
         // if throughput is set to 0, throttling is disabled
         if (throughput == 0 || StorageService.instance.isBootstrapMode())
             throughput = Double.MAX_VALUE;

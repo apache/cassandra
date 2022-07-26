@@ -275,35 +275,35 @@ public abstract class DataRateSpec
      * If the user sets a different unit - we still validate that converted to mebibytes per second the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)
      */
-    public final static class IntMebibytesPerSecondBound extends DataRateSpec
+    public final static class LongMebibytesPerSecondBound extends DataRateSpec
     {
         /**
-         * Creates a {@code DataRateSpec.IntMebibytesPerSecondBound} of the specified amount with bound [0, Integer.MAX_VALUE) mebibytes per second.
+         * Creates a {@code DataRateSpec.LongMebibytesPerSecondBound} of the specified amount with bound [0, Integer.MAX_VALUE) mebibytes per second.
          *
          * @param value the data rate
          */
-        public IntMebibytesPerSecondBound(String value)
+        public LongMebibytesPerSecondBound(String value)
         {
             super(value, MEBIBYTES_PER_SECOND, Integer.MAX_VALUE);
         }
 
         /**
-         * Creates a {@code DataRateSpec.IntMebibytesPerSecondBound} of the specified amount in the specified unit.
+         * Creates a {@code DataRateSpec.LongMebibytesPerSecondBound} of the specified amount in the specified unit.
          *
          * @param quantity where quantity shouldn't be bigger than Integer.MAX_VALUE - 1 in mebibytes per second
          * @param unit     in which the provided quantity is
          */
-        public IntMebibytesPerSecondBound(double quantity, DataRateUnit unit)
+        public LongMebibytesPerSecondBound(double quantity, DataRateUnit unit)
         {
             super(quantity, unit, MEBIBYTES_PER_SECOND, Integer.MAX_VALUE);
         }
 
         /**
-         * Creates a {@code DataRateSpec.IntMebibytesPerSecondBound} of the specified amount in mebibytes per second.
+         * Creates a {@code DataRateSpec.LongMebibytesPerSecondBound} of the specified amount in mebibytes per second.
          *
          * @param mebibytesPerSecond where mebibytesPerSecond shouldn't be bigger than Integer.MAX_VALUE-1
          */
-        public IntMebibytesPerSecondBound(long mebibytesPerSecond)
+        public LongMebibytesPerSecondBound(long mebibytesPerSecond)
         {
             this (mebibytesPerSecond, MEBIBYTES_PER_SECOND);
         }
