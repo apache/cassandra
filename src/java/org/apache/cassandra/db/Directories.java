@@ -1197,6 +1197,11 @@ public class Directories
         return dir.name().startsWith(SECONDARY_INDEX_NAME_SEPARATOR);
     }
 
+    public static boolean isSecondaryIndexFolder(Path dir)
+    {
+        return PathUtils.filename(dir).startsWith(SECONDARY_INDEX_NAME_SEPARATOR);
+    }
+
     public List<File> getCFDirectories()
     {
         List<File> result = new ArrayList<>();

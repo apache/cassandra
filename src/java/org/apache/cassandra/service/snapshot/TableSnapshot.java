@@ -299,7 +299,7 @@ public class TableSnapshot
     {
         // Snapshot directory structure format is {data_dir}/snapshots/{snapshot_name}/{snapshot_file}
         Path liveDir = snapshotFilePath.getParent().getParent().getParent();
-        if (Directories.isSecondaryIndexFolder(new File(snapshotFilePath.getParent().toFile())))
+        if (Directories.isSecondaryIndexFolder(snapshotFilePath.getParent()))
         {
             // Snapshot file structure format is {data_dir}/snapshots/{snapshot_name}/.{index}/{sstable-component}.db
             liveDir = Paths.get(liveDir.getParent().toString(), snapshotFilePath.getParent().getFileName().toString());

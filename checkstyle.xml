@@ -54,6 +54,12 @@
        <property name="idFormat" value="blockSystemClock"/>
        <property name="influenceFormat" value="0"/>
     </module>
+
+    <module name="SuppressWithNearbyCommentFilter">
+      <property name="commentFormat" value="checkstyle: permit this invocation"/>
+      <property name="idFormat" value="blockPathToFile"/>
+      <property name="influenceFormat" value="0"/>
+    </module>
  
     <module name="RegexpSinglelineJava">
       <!-- block system time -->
@@ -91,6 +97,13 @@
     </module>
     <module name="IllegalInstantiation">
       <property name="classes" value="java.io.File,java.lang.Thread,java.util.concurrent.FutureTask,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.ScheduledThreadPoolExecutor,java.util.concurrent.ThreadPoolExecutor,java.util.concurrent.ForkJoinPool,java.lang.OutOfMemoryError"/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <!-- block Path#toFile() -->
+      <property name="id" value="blockPathToFile"/>
+      <property name="format" value="toFile\(\)"/>
+      <property name="message" value="Avoid Path#toFile(), as some implementations may not support it." />
     </module>
   </module>
 
