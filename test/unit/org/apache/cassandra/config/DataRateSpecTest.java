@@ -141,8 +141,8 @@ public class DataRateSpecTest
     @Test
     public void testValidUnits()
     {
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("25000000B/s"), DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200));
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound("24MiB/s"), new DataRateSpec.IntMebibytesPerSecondBound("25165824B/s"));
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound("25000000B/s"), DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200));
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound("24MiB/s"), new DataRateSpec.LongBytesPerSecondBound("25165824B/s"));
     }
 
     @SuppressWarnings("AssertBetweenInconvertibleTypes")
