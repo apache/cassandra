@@ -301,7 +301,7 @@ public abstract class SSTableHeaderFix
               .filter(p -> {
                   try
                   {
-                      return Descriptor.fromFilenameWithComponent(new File(p.toFile())).right.type == Component.Type.DATA;
+                      return Descriptor.fromFilenameWithComponent(new File(p)).right.type == Component.Type.DATA;
                   }
                   catch (IllegalArgumentException t)
                   {
