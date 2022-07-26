@@ -150,6 +150,7 @@ public final class SystemKeyspace
     public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
     public static final String PAXOS_REPAIR_HISTORY = "paxos_repair_history";
+    public static final String PAXOS_REPAIR_STATE = "_paxos_repair_state";
     public static final String BUILT_INDEXES = "IndexInfo";
     public static final String LOCAL = "local";
     public static final String PEERS_V2 = "peers_v2";
@@ -185,6 +186,14 @@ public final class SystemKeyspace
     @Deprecated public static final String LEGACY_SIZE_ESTIMATES = "size_estimates";
     @Deprecated public static final String LEGACY_SSTABLE_ACTIVITY = "sstable_activity";
 
+    // Names of all tables that could have been a part of a system keyspace. Useful for pre-flight checks.
+    // For details, see CASSANDRA-17777
+    public static final Set<String> ALL_TABLE_NAMES = ImmutableSet.of(
+        BATCHES, PAXOS, PAXOS_REPAIR_HISTORY, PAXOS_REPAIR_STATE, BUILT_INDEXES, LOCAL, PEERS_V2, PEER_EVENTS_V2,
+        COMPACTION_HISTORY, SSTABLE_ACTIVITY_V2, TABLE_ESTIMATES, TABLE_ESTIMATES_TYPE_PRIMARY,
+        TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS,
+        BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS,
+        LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY);
 
     public static final TableMetadata Batches =
         parse(BATCHES,
