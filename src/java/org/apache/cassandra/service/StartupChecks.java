@@ -165,7 +165,7 @@ public class StartupChecks
 
     /**
      * Run the configured tests and return a report detailing the results.
-     * @throws org.apache.cassandra.exceptions.StartupException if any test determines that the
+     * @throws StartupException if any test determines that the
      * system is not in an valid state to startup
      * @param options options to pass to respective checks for their configration
      */
@@ -571,6 +571,38 @@ public class StartupChecks
 
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException
                 {
+                    String[] nameParts = dir.toFile().getCanonicalPath().split(java.io.File.separator);
+                    if (nameParts.length >= 2)
+                    {
+                        String tablePart = nameParts[nameParts.length - 1];
+                        String ksPart = nameParts[nameParts.length - 2];
+
+                        if (tablePart.contains("-"))
+                            tablePart = tablePart.split("-")[0];
+
+                        // In very old versions of Cassandra, we wouldn't necessarily delete sstables from dropped system tables
+                        // which were removed in various major version upgrades (e.g system.Versions in 1.2)
+                        if (ksPart.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) && !SystemKeyspace.ALL_TABLE_NAMES.contains(tablePart))
+                        {
+                            // We can have snapshots of our system tables or snapshots created with a -t tag of "system" that would trigger
+                            // this potential warning, so we warn more softly in the case that it's probably a snapshot.
+                            if (dir.toFile().getCanonicalPath().contains("snapshot"))
+                            {
+                                logger.info("Found unknown system directory {}.{} at {} that contains the word snapshot. " +
+                                            "This may be left over from a previous version of Cassandra or may be normal. " +
+                                            " Consider removing after inspection if determined to be unnecessary.",
+                                            ksPart, tablePart, dir.toFile().getCanonicalPath());
+                            }
+                            else
+                            {
+                                logger.warn("Found unknown system directory {}.{} at {} - this is likely left over from a previous " +
+                                            "version of Cassandra and should be removed after inspection.",
+                                            ksPart, tablePart, dir.toFile().getCanonicalPath());
+                            }
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
+                    }
+
                     String name = dir.getFileName().toString();
                     return (name.equals(Directories.SNAPSHOT_SUBDIR)
                             || name.equals(Directories.BACKUPS_SUBDIR)

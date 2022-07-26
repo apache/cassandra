@@ -1,4 +1,5 @@
 4.2
+ * Warn on unknown directories found in system keyspace directory rather than kill node during startup checks (CASSANDRA-17777)
  * Log duplicate rows sharing a partition key found in verify and scrub (CASSANDRA-17789)
  * Add separate thread pool for Secondary Index building so it doesn't block compactions (CASSANDRA-17781)
  * Added JMX call to getSSTableCountPerTWCSBucket for TWCS (CASSANDRA-17774)

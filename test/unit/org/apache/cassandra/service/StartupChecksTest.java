@@ -36,13 +36,10 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.service.DataResurrectionCheck.Heartbeat;
 import org.apache.cassandra.utils.Clock;
 
-import static java.time.Instant.ofEpochMilli;
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.io.util.FileUtils.createTempFile;
-import static org.apache.cassandra.io.util.FileUtils.write;
 import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -114,6 +111,14 @@ public class StartupChecksTest
         Path backupDir = sstableDir.resolve("backups");
         Files.createDirectories(backupDir);
         copyInvalidLegacySSTables(backupDir);
+        startupChecks.verify(options);
+
+        // and in the system directory as of CASSANDRA-17777
+        new File(backupDir).deleteRecursive();
+        File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
+        Path systemDir = Paths.get(dataDir.absolutePath(), "system", "InvalidSystemDirectory");
+        Files.createDirectories(systemDir);
+        copyInvalidLegacySSTables(systemDir);
         startupChecks.verify(options);
     }
 
