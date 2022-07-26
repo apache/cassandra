@@ -199,8 +199,8 @@ public class GuardrailsConfig
                        Collections.<String>emptySet(),
                        new LinkedHashSet<>(TableAttributes.allKeywords().stream()
                                                           .sorted()
-                                                          .filter(p -> !p.equals(TableParams.Option.DEFAULT_TIME_TO_LIVE.name()) &&
-                                                                       !p.equals(TableParams.Option.COMMENT.name()))
+                                                          .filter(p -> !p.equals(TableParams.Option.DEFAULT_TIME_TO_LIVE.toString()) &&
+                                                                       !p.equals(TableParams.Option.COMMENT.toString()))
                                                           .collect(Collectors.toList())));
 
         // for node status
