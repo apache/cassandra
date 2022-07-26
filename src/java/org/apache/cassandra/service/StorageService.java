@@ -1786,7 +1786,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     // Sleep additionally to make sure that the server actually is not alive
                     // and giving it more time to gossip if alive.
-                    logger.info("Sleeping for {}ms waiting to make sure no new updates happen for {}", sleepDelayMillis, DatabaseDescriptor.getReplaceAddress());
+                    logger.info("Sleeping for {}ms waiting to make sure no new gossip updates happen for {}", sleepDelayMillis, DatabaseDescriptor.getReplaceAddress());
                     Thread.sleep(sleepDelayMillis);
                 }
                 catch (InterruptedException e)
