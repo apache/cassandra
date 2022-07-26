@@ -224,6 +224,39 @@ public class AuthCacheTest
         }
     }
 
+    @Test
+    public void testMaybeInvalidateByFilter()
+    {
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        // Load cache
+        int result = authCache.get("10");
+        assertEquals(10, result);
+        assertEquals(1, loadCounter);
+        
+        result = authCache.get("20");
+        assertEquals(20, result);
+        assertEquals(2, loadCounter);
+        
+        // Additional reads are from cache
+        assertEquals(10, authCache.get("10").longValue());
+        assertEquals(20, authCache.get("20").longValue());
+        assertEquals(2, loadCounter);
+
+        // Invalidate using a filter
+        authCache.maybeInvalidateByFilter(s -> s.equals("10"));
+
+        // Getting invalidated value requires loading
+        result = authCache.get("10");
+        assertEquals(10, result);
+        assertEquals(3, loadCounter);
+        
+        // Other values are still cached
+        result = authCache.get("20");
+        assertEquals(20, result);
+        assertEquals(3, loadCounter);
+    }
+
     private void setValidity(int validity)
     {
         this.validity = validity;
