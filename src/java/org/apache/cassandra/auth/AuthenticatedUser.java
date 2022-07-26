@@ -24,7 +24,6 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Datacenters;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * Returned from IAuthenticator#authenticate(), represents an authenticated user everywhere internally.
@@ -118,16 +117,30 @@ public class AuthenticatedUser
         return permissionsCache.getPermissions(this, resource);
     }
 
+    /**
+     * Clears all entries from the permissions cache.
+     * 
+     * Used by CNDB Authorizer to clear all entries from the cache.
+     */
     @VisibleForTesting
     public static void clearCache()
     {
         permissionsCache.invalidate();
     }
 
+    /**
+     * Clears all entries belonging to the given {@link RoleResource}
+     * from the permissions cache.
+     * 
+     * Used by CNDB Authorizer to clear entries after permissions are granted
+     * or revoked.
+     * 
+     * @param roleResource the {@link RoleResource} to clear from the cache 
+     */
     @VisibleForTesting
     public static void clearCache(RoleResource roleResource)
     {
-        permissionsCache.invalidate(Pair.create(new AuthenticatedUser(roleResource.getRoleName()), roleResource));
+        permissionsCache.maybeInvalidateByFilter(key -> key.left.equals(new AuthenticatedUser(roleResource.getRoleName())));
     }
 
 
