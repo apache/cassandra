@@ -27,17 +27,6 @@ options {
     private final List<ErrorListener> listeners = new ArrayList<ErrorListener>();
     protected final List<ColumnIdentifier> bindVariables = new ArrayList<ColumnIdentifier>();
 
-    public static final Set<String> reservedTypeNames = new HashSet<String>()
-    {{
-        add("byte");
-        add("complex");
-        add("enum");
-        add("date");
-        add("interval");
-        add("macaddr");
-        add("bitstring");
-    }};
-
     public AbstractMarker.Raw newBindVariables(ColumnIdentifier name)
     {
         AbstractMarker.Raw marker = new AbstractMarker.Raw(bindVariables.size());
@@ -1845,7 +1834,7 @@ mbean
 // Basically the same as cident, but we need to exlude existing CQL3 types
 // (which for some reason are not reserved otherwise)
 non_type_ident returns [ColumnIdentifier id]
-    : t=IDENT                    { if (reservedTypeNames.contains($t.text)) addRecognitionError("Invalid (reserved) user type name " + $t.text); $id = new ColumnIdentifier($t.text, false); }
+    : t=IDENT                    { if (ReservedTypeNames.isReserved($t.text)) addRecognitionError("Invalid (reserved) user type name " + $t.text); $id = new ColumnIdentifier($t.text, false); }
     | t=QUOTED_NAME              { $id = new ColumnIdentifier($t.text, true); }
     | k=basic_unreserved_keyword { $id = new ColumnIdentifier(k, false); }
     | kk=K_KEY                   { $id = new ColumnIdentifier($kk.text, false); }

@@ -1,0 +1,14 @@
+--- a/src/java/org/apache/cassandra/db/marshal/UserType.java
++++ b/src/java/org/apache/cassandra/db/marshal/UserType.java
+@@ -495,11 +495,7 @@
+                 builder.append(",")
+                        .newLine();
+ 
+-<<<<<<<
+-            builder.append(ColumnIdentifier.maybeQuote(fieldNameAsString(i)))
+-=======
+             builder.appendQuotingIfNeeded(fieldNameAsString(i))
+->>>>>>>
+                    .append(' ')
+                    .append(fieldType(i));
+         }

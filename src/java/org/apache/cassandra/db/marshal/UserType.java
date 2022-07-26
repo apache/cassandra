@@ -484,7 +484,7 @@ public class UserType extends TupleType implements SchemaElement
 
         builder.appendQuotingIfNeeded(keyspace)
                .append('.')
-               .appendQuotingIfNeeded(getNameAsString())
+               .appendTypeQuotingIfNeeded(getNameAsString())
                .append(" (")
                .newLine()
                .increaseIndent();

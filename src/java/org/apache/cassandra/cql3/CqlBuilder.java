@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -64,6 +66,19 @@ public final class CqlBuilder
         indentIfNeeded();
         builder.append(str);
         return this;
+    }
+
+    public CqlBuilder appendTypeQuotingIfNeeded(String str)
+    {
+        return append(maybeQuoteTypeName(str));
+    }
+
+    @VisibleForTesting
+    public static String maybeQuoteTypeName(String nameAsString)
+    {
+        return ReservedTypeNames.isReserved(nameAsString)
+               ? ColumnIdentifier.quote(nameAsString)
+               : ColumnIdentifier.maybeQuote(nameAsString);
     }
 
     public CqlBuilder appendQuotingIfNeeded(String str)
