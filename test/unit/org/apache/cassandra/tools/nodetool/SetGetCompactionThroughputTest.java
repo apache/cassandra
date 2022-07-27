@@ -92,8 +92,8 @@ public class SetGetCompactionThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current compaction throughput: " + expected + " MiB/s");
+            assertThat(tool.getStdout()).contains("Current compaction throughput: " + expected + " MB/s");
         else
-            assertThat(tool.getStdout()).contains("Current compaction throughput: 0 MiB/s");
+            assertThat(tool.getStdout()).contains("Current compaction throughput: 0 MB/s");
     }
 }

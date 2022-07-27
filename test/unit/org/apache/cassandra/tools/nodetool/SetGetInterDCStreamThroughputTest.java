@@ -36,6 +36,8 @@ import static org.assertj.core.api.Assertions.withPrecision;
 public class SetGetInterDCStreamThroughputTest extends CQLTester
 {
     private static final int MAX_INT_CONFIG_VALUE = Integer.MAX_VALUE - 1;
+    private static final double MEBIBYTES_PER_MEGABIT = 0.119209289550781;
+    private static final int MAX_INT_CONFIG_VALUE_MIB = (int) (MAX_INT_CONFIG_VALUE * MEBIBYTES_PER_MEGABIT);
     private static final double INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES = DataRateSpec.IntMebibytesPerSecondBound
                                                                           .megabitsPerSecondInMebibytesPerSecond(MAX_INT_CONFIG_VALUE)
                                                                           .toMebibytesPerSecond();
@@ -55,7 +57,8 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testPositive()
     {
-        assertSetGetValidThroughput(7, 0.834465026855467 * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(7, 7 * MEBIBYTES_PER_MEGABIT * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughputMiB(7, 7 * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test
@@ -64,19 +67,27 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
         // As part of CASSANDRA-15234 we had to do some tweaks with precision. This test has to ensure no regressions
         // happen, hopefully. Internally data rate parameters values and rate limitter are set in double. Users can set
         // and get only integers
-        assertSetGetValidThroughput(1, 0.119209289550781 * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(1, 1 * MEBIBYTES_PER_MEGABIT * StreamRateLimiter.BYTES_PER_MEBIBYTE);
     }
 
     @Test
     public void testMaxValue()
     {
         assertSetGetValidThroughput(MAX_INT_CONFIG_VALUE, INTEGER_MAX_VALUE_MEGABITS_IN_MEBIBYTES * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughputMiB(MAX_INT_CONFIG_VALUE_MIB, MAX_INT_CONFIG_VALUE_MIB * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+    }
+
+    @Test
+    public void testMibUpperBound()
+    {
+        assertSetInvalidThroughputMib(String.valueOf(Integer.MAX_VALUE));
     }
 
     @Test
     public void testZero()
     {
         assertSetGetValidThroughput(0, Double.MAX_VALUE);
+        assertSetGetValidThroughputMiB(0, Double.MAX_VALUE);
     }
 
     @Test
@@ -84,6 +95,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     {
         assertSetInvalidThroughput("1.2", "inter_dc_stream_throughput: can not convert \"1.2\" to a int");
         assertSetInvalidThroughput("value", "inter_dc_stream_throughput: can not convert \"value\" to a int");
+        assertSetBothFlagsIsInvalid();
     }
 
     private static void assertSetGetValidThroughput(int throughput, double rateInBytes)
@@ -97,6 +109,17 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
         assertThat(StreamRateLimiter.getInterDCRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.04));
     }
 
+    private static void assertSetGetValidThroughputMiB(int throughput, double rateInBytes)
+    {
+        ToolResult tool = invokeNodetool("setinterdcstreamthroughput", "-m", String.valueOf(throughput));
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEmpty();
+
+        assertGetThroughputMiB(throughput);
+
+        assertThat(StreamRateLimiter.getInterDCRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.01));
+    }
+
     private static void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)
     {
         ToolResult tool = throughput == null ? invokeNodetool("setinterdcstreamthroughput")
@@ -105,13 +128,38 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
         assertThat(tool.getStdout()).contains(expectedErrorMessage);
     }
 
+    private static void assertSetInvalidThroughputMib(String throughput)
+    {
+        ToolResult tool = invokeNodetool("setinterdcstreamthroughput", "-m", throughput);
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("Invalid value of inter_dc_stream_throughput_outbound: 2147483647");
+    }
+
+    private static void assertSetBothFlagsIsInvalid()
+    {
+        ToolResult tool = invokeNodetool("setinterdcstreamthroughput", "-m", "5", "-e", "5");
+        assertThat(tool.getExitCode()).isEqualTo(0);
+        assertThat(tool.getStdout()).contains("You cannot use -e and -m at the same time");
+    }
+
     private static void assertGetThroughput(int expected)
     {
         ToolResult tool = invokeNodetool("getinterdcstreamthroughput");
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " megabits per second");
+            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " Mb/s");
+        else
+            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: unlimited");
+    }
+
+    private static void assertGetThroughputMiB(int expected)
+    {
+        ToolResult tool = invokeNodetool("getinterdcstreamthroughput", "-m");
+        tool.assertOnCleanExit();
+
+        if (expected > 0)
+            assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: " + expected + " MiB/s");
         else
             assertThat(tool.getStdout()).contains("Current inter-datacenter stream throughput: unlimited");
     }

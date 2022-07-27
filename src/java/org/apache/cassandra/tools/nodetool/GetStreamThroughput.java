@@ -26,18 +26,37 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class GetStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput")
+    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput in MiB/s")
     private boolean entireSSTableThroughput;
+
+    @SuppressWarnings("UnusedDeclaration")
+    @Option(name = { "-m", "--mib" }, description = "Print the throughput cap for streaming in MiB/s")
+    private boolean streamThroughputMiB;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        int throughput = entireSSTableThroughput ? probe.getEntireSSTableStreamThroughput() : probe.getStreamThroughput();
+        int throughput;
 
-        probe.output().out.printf("Current %sstream throughput: %s%n",
-                                  entireSSTableThroughput ? "entire SSTable " : "",
-                                  throughput > 0 ? throughput +
-                                                   (entireSSTableThroughput ? " MiB/s" : " megabits per second")
-                                                 : "unlimited");
+        if (entireSSTableThroughput)
+        {
+            throughput = probe.getEntireSSTableStreamThroughput();
+            probe.output().out.printf("Current entire SSTable stream throughput: %s%n",
+                                      throughput > 0 ? throughput + " MiB/s" : "unlimited");
+        }
+        else if (streamThroughputMiB)
+        {
+            throughput = probe.getStreamThroughputMiB();
+            double throuputInDouble = probe.getStreamThroughputMibAsDouble();
+            probe.output().out.printf("Current stream throughput: %s%n",
+                                      throughput > 0 ? throughput + " MiB/s" : (throuputInDouble > 0 ? "1 MiB/s" : "unlimited"));
+        }
+        else
+        {
+            throughput = probe.getStreamThroughput();
+            probe.output().out.printf("Current stream throughput: %s%n",
+                                      throughput > 0 ? throughput + " Mb/s" : "unlimited");
+
+        }
     }
 }
