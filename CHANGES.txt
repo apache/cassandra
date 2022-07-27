@@ -2,6 +2,7 @@
  * Creating of a keyspace on insufficient number of replicas should filter out gosspping-only members (CASSANDRA-17759)
  * Only use statically defined subcolumns when determining column definition for supercolumn cell (CASSANDRA-14113)
 Merged from 3.0:
+ * Fix restarting of services on gossipping-only member (CASSANDRA-17752)
  * Fix writetime and ttl functions forbidden for collections instead of multicell columns (CASSANDRA-17628)
  * Supress CVE-2020-7238 (CASSANDRA-17697)
  * Fix issue where frozen maps may not be serialized in the correct order (CASSANDRA-17623)
