@@ -165,9 +165,13 @@ New features
 
 Upgrading
 ---------
+    - `sstable_preemptive_open_interval_in_mb` being negative for disabled is equivalent to `sstable_preemptive_open_interval`
+      being null again. In the JMX MBean `org.apache.cassandra.db:type=StorageService`, the setter method
+      `setSSTablePreemptiveOpenIntervalInMB`still takes `intervalInMB` negative numbers for disabled.
     - `enable_uuid_sstable_identifiers` parameter from 4.1 alpha1 was renamed to `uuid_sstable_identifiers_enabled`.
     - `index_summary_resize_interval_in_minutes = -1` is equivalent to index_summary_resize_interval being set to `null` or
-      disabled. JMX MBean `IndexSummaryManager`, `setResizeIntervalInMinutes` method still takes `resizeIntervalInMinutes = -1` for disabled.
+      disabled. In the JMX MBean `org.apache.cassandra.db:type=IndexSummaryManager`, the setter method `setResizeIntervalInMinutes` still takes
+      `resizeIntervalInMinutes = -1` for disabled.
     - min_tracked_partition_size_bytes parameter from 4.1 alpha1 was renamed to min_tracked_partition_size.
     - Parameters of type data storage, duration and data rate cannot be set to Long.MAX_VALUE (former parameters of long type)
       and Integer.MAX_VALUE (former parameters of int type). Those numbers are used during conversion between units to prevent

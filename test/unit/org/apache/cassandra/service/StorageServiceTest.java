@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -166,6 +167,13 @@ public class StorageServiceTest
         expectedResult.put(new Replica(aAddress, eRange, true), new Replica(cAddress, eRange, false));
         expectedResult.put(new Replica(aAddress, dRange, false), new Replica(bAddress, dRange, false));
         assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
+    }
+
+    @Test
+    public void testSetGetSSTablePreemptiveOpenIntervalInMB()
+    {
+        StorageService.instance.setSSTablePreemptiveOpenIntervalInMB(-1);
+        Assert.assertEquals(-1, StorageService.instance.getSSTablePreemptiveOpenIntervalInMB());
     }
 
     @Test
