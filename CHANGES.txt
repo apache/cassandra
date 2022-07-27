@@ -6,6 +6,8 @@
  * Fix Settings Virtual Table - index_summary_resize_interval and index_summary_capacity were not updated after startup (CASSANDRA-17735)
  * Clean up ScheduledExecutors, CommitLog, and MessagingService shutdown for in-JVM dtests (CASSANDRA-17731)
  * Remove extra write to system table for prepared statements (CASSANDRA-17764)
+Merged from 3.11:
+ * Document usage of closed token intervals in manual compaction (CASSANDRA-17575)
 Merged from 3.0:
  * Fix restarting of services on gossipping-only member (CASSANDRA-17752)
 
