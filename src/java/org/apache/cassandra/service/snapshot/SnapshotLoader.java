@@ -85,7 +85,7 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
         {
             try
             {
-                if (dataDir.toFile().exists())
+                if (new File(dataDir).exists())
                 {
                     Files.walkFileTree(dataDir, Collections.EMPTY_SET, 5, this);
                 }

@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,7 +63,7 @@ public class DisallowedDirectories implements DisallowedDirectoriesMBean
 
     private static Set<java.io.File> toJmx(Set<File> set)
     {
-        return set.stream().map(f -> f.toPath().toFile()).collect(Collectors.toSet());
+        return set.stream().map(f -> f.toPath().toFile()).collect(Collectors.toSet()); // checkstyle: permit this invocation
     }
 
     public void markUnreadable(String path)
