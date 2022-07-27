@@ -426,7 +426,7 @@ public class Config
     @Replaces(oldName = "trickle_fsync_interval_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntKibibytesBound trickle_fsync_interval = new DataStorageSpec.IntKibibytesBound("10240KiB");
 
-    @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
+    @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converters.NEGATIVE_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;

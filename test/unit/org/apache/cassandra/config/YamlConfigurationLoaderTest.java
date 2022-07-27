@@ -311,6 +311,10 @@ public class YamlConfigurationLoaderTest
         assertThatThrownBy(() -> from("stream_throughput_outbound_megabits_per_sec", -2).stream_throughput_outbound.toMegabitsPerSecondAsInt())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data rate: value must be non-negative");
+
+        // NEGATIVE_DATA_STORAGE_INT
+        assertThat(from("sstable_preemptive_open_interval_in_mb", "1").sstable_preemptive_open_interval.toMebibytes()).isEqualTo(1);
+        assertThat(from("sstable_preemptive_open_interval_in_mb", -2).sstable_preemptive_open_interval).isNull();
     }
 
     private static Config from(Object... values)
