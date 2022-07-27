@@ -2033,6 +2033,11 @@ public class DatabaseDescriptor
         return conf.concurrent_validations;
     }
 
+    public static int getConcurrentIndexBuilders()
+    {
+        return conf.concurrent_index_builders;
+    }
+
     public static void setConcurrentValidations(int value)
     {
         value = value > 0 ? value : Integer.MAX_VALUE;
