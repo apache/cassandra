@@ -385,12 +385,10 @@ public class LeveledCompactionStrategyTest
         assertFalse(repaired.manifest.getLevel(1).contains(sstable2));
     }
 
-
-
     @Test
     public void testTokenRangeCompaction() throws Exception
     {
-        // Remove any existing data so we can start out clean with predictable number of sstables
+        // Remove any existing data, so we can start out clean with predictable number of sstables
         cfs.truncateBlocking();
 
         // Disable auto compaction so cassandra does not compact
@@ -400,15 +398,17 @@ public class LeveledCompactionStrategyTest
 
         DecoratedKey key1 = Util.dk(String.valueOf(1));
         DecoratedKey key2 = Util.dk(String.valueOf(2));
-        List<DecoratedKey> keys = new ArrayList<>(Arrays.asList(key1, key2));
+        List<DecoratedKey> keys = Arrays.asList(key1, key2);
         int numIterations = 10;
         int columns = 2;
 
         // Add enough data to trigger multiple sstables.
 
         // create 10 sstables that contain data for both key1 and key2
-        for (int i = 0; i < numIterations; i++) {
-            for (DecoratedKey key : keys) {
+        for (int i = 0; i < numIterations; i++)
+        {
+            for (DecoratedKey key : keys)
+            {
                 UpdateBuilder update = UpdateBuilder.create(cfs.metadata, key);
                 for (int c = 0; c < columns; c++)
                     update.newRow("column" + c).add("val", value);
@@ -418,8 +418,10 @@ public class LeveledCompactionStrategyTest
         }
 
         // create 20 more sstables with 10 containing data for key1 and other 10 containing data for key2
-        for (int i = 0; i < numIterations; i++) {
-            for (DecoratedKey key : keys) {
+        for (int i = 0; i < numIterations; i++)
+        {
+            for (DecoratedKey key : keys)
+            {
                 UpdateBuilder update = UpdateBuilder.create(cfs.metadata, key);
                 for (int c = 0; c < columns; c++)
                     update.newRow("column" + c).add("val", value);
@@ -431,13 +433,14 @@ public class LeveledCompactionStrategyTest
         // We should have a total of 30 sstables by now
         assertEquals(30, cfs.getLiveSSTables().size());
 
-        // Compact just the tables with key2
-        // Bit hackish to use the key1.token as the prior key but works in BytesToken
+        // Compact just the tables with key2. The token ranges for compaction are interpreted as closed intervals,
+        // so we can use [token, token] to select a single token.
         Range<Token> tokenRange = new Range<>(key2.getToken(), key2.getToken());
-        Collection<Range<Token>> tokenRanges = new ArrayList<>(Arrays.asList(tokenRange));
+        Collection<Range<Token>> tokenRanges = singleton(tokenRange);
         cfs.forceCompactionForTokenRange(tokenRanges);
 
-        while(CompactionManager.instance.isCompacting(Arrays.asList(cfs))) {
+        while (CompactionManager.instance.isCompacting(singleton(cfs)))
+        {
             Thread.sleep(100);
         }
 
@@ -446,11 +449,11 @@ public class LeveledCompactionStrategyTest
 
         // Compact just the tables with key1. At this point all 11 tables should have key1
         Range<Token> tokenRange2 = new Range<>(key1.getToken(), key1.getToken());
-        Collection<Range<Token>> tokenRanges2 = new ArrayList<>(Arrays.asList(tokenRange2));
+        Collection<Range<Token>> tokenRanges2 = new ArrayList<>(singleton(tokenRange2));
         cfs.forceCompactionForTokenRange(tokenRanges2);
 
-
-        while(CompactionManager.instance.isCompacting(Arrays.asList(cfs))) {
+        while (CompactionManager.instance.isCompacting(singleton(cfs)))
+        {
             Thread.sleep(100);
         }
 
