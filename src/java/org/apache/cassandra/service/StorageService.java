@@ -399,7 +399,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (gossipActive)
         {
-            if (!isNormal())
+            if (!isNormal() && joinRing)
                 throw new IllegalStateException("Unable to stop gossip because the node is not in the normal state. Try to stop the node instead.");
 
             logger.warn("Stopping gossip by operator request");
@@ -5452,7 +5452,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (isShutdown()) // do not rely on operationMode in case it gets changed to decomissioned or other
             throw new IllegalStateException(String.format("Unable to start %s because the node was drained.", service));
 
-        if (!isNormal())
+        if (!isNormal() && joinRing) // if the node is not joining the ring, it is gossipping-only member which is in STARTING state forever
             throw new IllegalStateException(String.format("Unable to start %s because the node is not in the normal state.", service));
     }
 
