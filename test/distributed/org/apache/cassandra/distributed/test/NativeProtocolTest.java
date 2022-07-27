@@ -34,14 +34,24 @@ import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.impl.RowUtil;
+import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNetworkTopology;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class NativeProtocolTest extends TestBaseImpl
@@ -84,6 +94,37 @@ public class NativeProtocolTest extends TestBaseImpl
             Assert.assertEquals(3, cluster.getMetadata().getAllHosts().size());
             session.close();
             cluster.close();
+        }
+    }
+
+    @Test
+    public void restartTransportOnGossippingOnlyMember() throws Throwable
+    {
+        int originalNodeCount = 1;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount, 1))
+                                        .withNodeIdTopology(singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
+                                        .start())
+        {
+            IInstanceConfig config = cluster.newInstanceConfig();
+            IInvokableInstance gossippingOnlyMember = cluster.bootstrap(config);
+            withProperty("cassandra.join_ring", Boolean.toString(false), () -> gossippingOnlyMember.startup(cluster));
+
+            assertTrue(gossippingOnlyMember.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>)
+                                                           () -> StorageService.instance.isNativeTransportRunning()));
+
+            gossippingOnlyMember.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> StorageService.instance.stopNativeTransport());
+
+            assertFalse(gossippingOnlyMember.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>)
+                                                            () -> StorageService.instance.isNativeTransportRunning()));
+
+            gossippingOnlyMember.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> StorageService.instance.startNativeTransport());
+
+            assertTrue(gossippingOnlyMember.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>)
+                                                           () -> StorageService.instance.isNativeTransportRunning()));
         }
     }
 }
