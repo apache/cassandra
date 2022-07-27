@@ -580,12 +580,12 @@ public class StartupChecks
                         if (tablePart.contains("-"))
                             tablePart = tablePart.split("-")[0];
 
-                        // In very old versions of cassandra, we wouldn't necessarily delete sstables from dropped system tables
+                        // In very old versions of Cassandra, we wouldn't necessarily delete sstables from dropped system tables
                         // which were removed in various major version upgrades (e.g system.Versions in 1.2)
                         if (ksPart.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) && !SystemKeyspace.ALL_TABLE_NAMES.contains(tablePart))
                         {
                             logger.warn("Found unknown system directory {}.{} at {} - this is likely left over from a previous " +
-                                        "version of cassandra and should be removed after inspection." , ksPart, tablePart, dir.toFile().getCanonicalPath());
+                                        "version of Cassandra and should be removed after inspection." , ksPart, tablePart, dir.toFile().getCanonicalPath());
                             return FileVisitResult.SKIP_SUBTREE;
                         }
                     }
