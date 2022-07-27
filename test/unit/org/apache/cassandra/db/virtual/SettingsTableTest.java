@@ -56,6 +56,8 @@ public class SettingsTableTest extends CQLTester
         config = new Config();
         config.client_encryption_options.applyConfig();
         config.server_encryption_options.applyConfig();
+        config.sstable_preemptive_open_interval = null;
+        config.index_summary_resize_interval = null;
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
@@ -104,6 +106,22 @@ public class SettingsTableTest extends CQLTester
         assertRowsNet(executeNet(q), new Object[] {"server_encryption_options_enabled", "false"});
         q = "SELECT * FROM vts.settings WHERE name = 'server_encryption_options_XYZ'";
         assertRowsNet(executeNet(q));
+    }
+
+    @Test
+    public void virtualTableBackwardCompatibility() throws Throwable
+    {
+        // test NEGATIVE_DATA_STORAGE_INT converter
+        String q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval';";
+        assertRowsNet(executeNet(q), new Object[] {"sstable_preemptive_open_interval", null});
+        q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval_in_mb';";
+        assertRowsNet(executeNet(q), new Object[] {"sstable_preemptive_open_interval_in_mb", "-1"});
+
+        // test MINUTES_CUSTOM_DURATION - test to be added later whe
+        q = "SELECT * FROM vts.settings WHERE name = 'index_summary_resize_interval';";
+        assertRowsNet(executeNet(q), new Object[] {"index_summary_resize_interval", null});
+        q = "SELECT * FROM vts.settings WHERE name = 'index_summary_resize_interval_in_minutes';";
+        assertRowsNet(executeNet(q), new Object[] {"index_summary_resize_interval_in_minutes", "-1"});
     }
 
     private String getValue(Property prop)

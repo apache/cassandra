@@ -366,7 +366,10 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 @Override
                 public void set(Object object, Object value) throws Exception
                 {
-                    if (value == null && get(object) != null)
+                    if (value == null && get(object) != null &&
+                        // below two properties do not have default value of Null but we should be able to assign them null
+                        // for legacy reasons; For more information, please, check Converters.NEGATIVE_DATA_STORAGE_INT
+                        !getName().equals("sstable_preemptive_open_interval") && !getName().equals("index_summary_resize_interval"))
                         nullProperties.add(getName());
 
                     result.set(object, value);

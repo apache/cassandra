@@ -111,6 +111,32 @@ public class YamlConfigurationLoaderTest
     }
 
     @Test
+    public void readConvertersSpecialCasesFromConfig()
+    {
+        Config c = load("test/conf/cassandra-converters-special-cases.yaml");
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.index_summary_resize_interval).isNull();
+
+        c = load("test/conf/cassandra-converters-special-cases-old-names.yaml");
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.index_summary_resize_interval).isNull();
+    }
+
+    @Test
+    public void readConvertersSpecialCasesFromMap()
+    {
+        // currently fromMap doesn't work with ("sstable_preemptive_open_interval", "null") and ("index_summary_resize_interval" and "null")
+        Map<String, Object> map = ImmutableMap.of(
+        "sstable_preemptive_open_interval_in_mb", "-1",
+        "index_summary_resize_interval_in_minutes", "-1"
+        );
+        Config c = YamlConfigurationLoader.fromMap(map, Config.class);
+
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.index_summary_resize_interval).isNull();
+    }
+
+    @Test
     public void readThresholdsFromConfig()
     {
         Config c = load("test/conf/cassandra.yaml");

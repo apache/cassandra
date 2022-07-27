@@ -3081,7 +3081,7 @@ public class DatabaseDescriptor
 
     public static void setSSTablePreemptiveOpenIntervalInMiB(int mib)
     {
-        if (mib == -1)
+        if (mib < 0)
             conf.sstable_preemptive_open_interval = null;
         else
             conf.sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound(mib);
