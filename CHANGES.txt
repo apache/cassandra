@@ -41,6 +41,8 @@ Merged from 4.0:
  * Remove extra write to system table for prepared statements (CASSANDRA-17764)
 Merge from 3.11:
  * Creating of a keyspace on insufficient number of replicas should filter out gosspping-only members (CASSANDRA-17759)
+Merge from 3.0:
+ * Fix restarting of services on gossipping-only member (CASSANDRA-17752)
 
 
 4.0.5
