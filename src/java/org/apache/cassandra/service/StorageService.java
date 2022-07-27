@@ -6010,6 +6010,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getPartitionerName();
     }
 
+    /** Negative number for disabled */
     public void setSSTablePreemptiveOpenIntervalInMB(int intervalInMB)
     {
         DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMiB(intervalInMB);

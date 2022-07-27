@@ -165,6 +165,9 @@ New features
 
 Upgrading
 ---------
+    - `sstable_preemptive_open_interval_in_mb` being negatve for disabled is equivalent to `sstable_preemptive_open_interval`
+      being null again. JMX MBean `StorageService`, `setSSTablePreemptiveOpenIntervalInMB` method still takes `intervalInMB`
+      negative numbers for disabled.
     - `enable_uuid_sstable_identifiers` parameter from 4.1 alpha1 was renamed to `uuid_sstable_identifiers_enabled`.
     - `index_summary_resize_interval_in_minutes = -1` is equivalent to index_summary_resize_interval being set to `null` or
       disabled. JMX MBean `IndexSummaryManager`, `setResizeIntervalInMinutes` method still takes `resizeIntervalInMinutes = -1` for disabled.

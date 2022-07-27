@@ -992,6 +992,8 @@ compaction_throughput: 64MiB/s
 # are completely written, and used in place of the prior sstables for
 # any range that has been written. This helps to smoothly transfer reads 
 # between the sstables, reducing page cache churn and keeping hot rows hot
+# Set sstable_preemptive_open_interval to null for disabled which is equivalent to the sstable_preemptive_open_interval_in_mb
+# being negative
 # Min unit: MiB
 sstable_preemptive_open_interval: 50MiB
 
