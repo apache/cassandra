@@ -129,7 +129,13 @@ public class CompactionManager implements CompactionManagerMBean
     private final CompactionExecutor cacheCleanupExecutor = new CacheCleanupExecutor();
     private final CompactionExecutor viewBuildExecutor = new ViewBuildExecutor();
 
-    private final CompactionMetrics metrics = new CompactionMetrics(executor, validationExecutor, viewBuildExecutor);
+    // We can't house 2i builds in SecondaryIndexManagement because it could cause deadlocks with itself, and can cause
+    // massive to indefinite pauses if prioritized either before or after normal compactions so we instead put it in its
+    // own pool to prevent either scenario.
+    private final SecondaryIndexExecutor secondaryIndexExecutor = new SecondaryIndexExecutor();
+
+    private final CompactionMetrics metrics = new CompactionMetrics(executor, validationExecutor, viewBuildExecutor, secondaryIndexExecutor);
+
     @VisibleForTesting
     final Multiset<ColumnFamilyStore> compactingCF = ConcurrentHashMultiset.create();
 
@@ -232,6 +238,7 @@ public class CompactionManager implements CompactionManagerMBean
         validationExecutor.shutdown();
         viewBuildExecutor.shutdown();
         cacheCleanupExecutor.shutdown();
+        secondaryIndexExecutor.shutdown();
 
         // interrupt compactions and validations
         for (Holder compactionHolder : active.getCompactions())
@@ -242,7 +249,8 @@ public class CompactionManager implements CompactionManagerMBean
         // wait for tasks to terminate
         // compaction tasks are interrupted above, so it shuold be fairy quick
         // until not interrupted tasks to complete.
-        for (ExecutorService exec : Arrays.asList(executor, validationExecutor, viewBuildExecutor, cacheCleanupExecutor))
+        for (ExecutorService exec : Arrays.asList(executor, validationExecutor, viewBuildExecutor,
+                                                  cacheCleanupExecutor, secondaryIndexExecutor))
         {
             try
             {
@@ -1760,7 +1768,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
         };
 
-        return executor.submitIfRunning(runnable, "index build");
+        return secondaryIndexExecutor.submitIfRunning(runnable, "index build");
     }
 
     /**
@@ -2003,6 +2011,13 @@ public class CompactionManager implements CompactionManagerMBean
         metrics.sstablesDropppedFromCompactions.inc(num);
     }
 
+    private static class SecondaryIndexExecutor extends CompactionExecutor
+    {
+        public SecondaryIndexExecutor()
+        {
+            super(DatabaseDescriptor.getConcurrentIndexBuilds(), "SecondaryIndexExecutor", Integer.MAX_VALUE);
+        }
+    }
 
     public List<Map<String, String>> getCompactions()
     {
