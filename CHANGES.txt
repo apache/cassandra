@@ -1,4 +1,6 @@
 4.1-alpha2
+ * Fix sstable_preemptive_open_interval disabled value. sstable_preemptive_open_interval = null backward compatible with
+   sstable_preemptive_open_interval_in_mb = -1 (CASSANDRA-17737)
  * Remove usages of Path#toFile() in the snapshot apparatus (CASSANDRA-17769)
  * Fix Settings Virtual Table to update paxos_variant after startup and rename enable_uuid_sstable_identifiers to
    uuid_sstable_identifiers_enabled as per our config naming conventions (CASSANDRA-17738)
