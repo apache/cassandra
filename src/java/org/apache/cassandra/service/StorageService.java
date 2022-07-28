@@ -6016,6 +6016,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMiB(intervalInMB);
     }
 
+    /** This method can return negative number for disabled */
     public int getSSTablePreemptiveOpenIntervalInMB()
     {
         return DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMiB();

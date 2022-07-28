@@ -3072,6 +3072,7 @@ public class DatabaseDescriptor
         conf.key_cache_migrate_during_compaction = migrateCacheEntry;
     }
 
+    /** This method can return negative number for disabled */
     public static int getSSTablePreemptiveOpenIntervalInMiB()
     {
         if (conf.sstable_preemptive_open_interval == null)
@@ -3079,6 +3080,7 @@ public class DatabaseDescriptor
         return conf.sstable_preemptive_open_interval.toMebibytes();
     }
 
+    /** Negative number for disabled */
     public static void setSSTablePreemptiveOpenIntervalInMiB(int mib)
     {
         if (mib < 0)

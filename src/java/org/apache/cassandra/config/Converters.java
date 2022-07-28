@@ -83,7 +83,7 @@ public enum Converters
     MEBIBYTES_DATA_STORAGE_INT(Integer.class, DataStorageSpec.IntMebibytesBound.class,
                                DataStorageSpec.IntMebibytesBound::new,
                                o -> o == null ? null : o.toMebibytes()),
-    NEGATIVE_DATA_STORAGE_INT(Integer.class, DataStorageSpec.IntMebibytesBound.class,
+    NEGATIVE_MEBIBYTES_DATA_STORAGE_INT(Integer.class, DataStorageSpec.IntMebibytesBound.class,
                               o -> o < 0 ? null : new DataStorageSpec.IntMebibytesBound(o),
                               o -> o == null ? -1 : o.toMebibytes()),
     KIBIBYTES_DATASTORAGE(Integer.class, DataStorageSpec.IntKibibytesBound.class,

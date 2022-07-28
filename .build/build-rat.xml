@@ -58,7 +58,7 @@
                  <exclude NAME="**/doc/antora.yml"/>
                  <exclude name="**/test/conf/cassandra.yaml"/>
                  <exclude name="**/test/conf/cassandra-old.yaml"/>
-                 <exclude name="**/cassandra-converters-special-cases-old-names.yaml"/>
+                 <exclude name="**/test/conf/cassandra-converters-special-cases-old-names.yaml"/>
                  <exclude name="**/test/conf/cassandra-converters-special-cases.yaml"/>
                  <exclude name="**/test/conf/cassandra_encryption.yaml"/>
                  <exclude name="**/test/conf/cdc.yaml"/>

@@ -346,7 +346,7 @@ public class YamlConfigurationLoaderTest
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data rate: value must be non-negative");
 
-        // NEGATIVE_DATA_STORAGE_INT
+        // NEGATIVE_MEBIBYTES_DATA_STORAGE_INT
         assertThat(from("sstable_preemptive_open_interval_in_mb", "1").sstable_preemptive_open_interval.toMebibytes()).isEqualTo(1);
         assertThat(from("sstable_preemptive_open_interval_in_mb", -2).sstable_preemptive_open_interval).isNull();
     }

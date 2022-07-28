@@ -111,7 +111,7 @@ public class SettingsTableTest extends CQLTester
     @Test
     public void virtualTableBackwardCompatibility() throws Throwable
     {
-        // test NEGATIVE_DATA_STORAGE_INT converter
+        // test NEGATIVE_MEBIBYTES_DATA_STORAGE_INT converter
         String q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval';";
         assertRowsNet(executeNet(q), new Object[] {"sstable_preemptive_open_interval", null});
         q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval_in_mb';";
