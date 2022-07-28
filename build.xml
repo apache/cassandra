@@ -627,7 +627,7 @@
             <exclusion groupId="net.java.dev.jna" artifactId="jna" />
             <exclusion groupId="net.java.dev.jna" artifactId="jna-platform" />
           </dependency>
-          <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" scope="provided"/>
+          <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2"/>
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2">
             <exclusion groupId="it.unimi.dsi" artifactId="fastutil" />
           </dependency>
