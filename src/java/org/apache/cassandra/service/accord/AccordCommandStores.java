@@ -44,6 +44,7 @@ public class AccordCommandStores extends CommandStores
             int index = i;
             executors[i] = Executors.newSingleThreadExecutor(r -> {
                 Thread thread = new Thread(r);
+                thread.setDaemon(true);
                 thread.setName(NamedThreadFactory.globalPrefix() + CommandStore.class.getSimpleName() + '[' + node + ':' + index + ']');
                 return thread;
             });
