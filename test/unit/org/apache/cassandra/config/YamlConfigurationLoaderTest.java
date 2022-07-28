@@ -24,6 +24,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -125,12 +126,19 @@ public class YamlConfigurationLoaderTest
     @Test
     public void readConvertersSpecialCasesFromMap()
     {
-        // currently fromMap doesn't work with ("sstable_preemptive_open_interval", "null") and ("index_summary_resize_interval" and "null")
-        Map<String, Object> map = ImmutableMap.of(
+        Map<String, Object> map = new HashMap<>();
+        map.put("sstable_preemptive_open_interval", null);
+        map.put("index_summary_resize_interval", null);
+
+        Config c = YamlConfigurationLoader.fromMap(map, true, Config.class);
+        assert c.sstable_preemptive_open_interval == null;
+        assert c.index_summary_resize_interval == null;
+
+        map = ImmutableMap.of(
         "sstable_preemptive_open_interval_in_mb", "-1",
         "index_summary_resize_interval_in_minutes", "-1"
         );
-        Config c = YamlConfigurationLoader.fromMap(map, Config.class);
+        c = YamlConfigurationLoader.fromMap(map, Config.class);
 
         assertThat(c.sstable_preemptive_open_interval).isNull();
         assertThat(c.index_summary_resize_interval).isNull();

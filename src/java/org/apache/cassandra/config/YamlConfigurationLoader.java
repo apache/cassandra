@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -363,13 +365,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
             return new ForwardingProperty(result.getName(), result)
             {
+                boolean allowsNull = result.getAnnotation(Nullable.class) != null;
+
                 @Override
                 public void set(Object object, Object value) throws Exception
                 {
-                    if (value == null && get(object) != null &&
-                        // below two properties do not have default value of Null but we should be able to assign them null
-                        // for legacy reasons; For more information, please, check Converters.NEGATIVE_DATA_STORAGE_INT
-                        !getName().equals("sstable_preemptive_open_interval") && !getName().equals("index_summary_resize_interval"))
+                    if (value == null && get(object) != null && !allowsNull)
                         nullProperties.add(getName());
 
                     result.set(object, value);
