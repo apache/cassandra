@@ -2015,7 +2015,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public SecondaryIndexExecutor()
         {
-            super(DatabaseDescriptor.getConcurrentIndexBuilds(), "SecondaryIndexExecutor", Integer.MAX_VALUE);
+            super(DatabaseDescriptor.getConcurrentIndexBuilders(), "SecondaryIndexExecutor", Integer.MAX_VALUE);
         }
     }
 
