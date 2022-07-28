@@ -14,7 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Pylexotron uses Python's re.Scanner module as a simple regex-based tokenizer for BNF production rules"""
+
 import re
+import inspect
+import sys
+from typing import Union
 
 from cqlshlib.saferscanner import SaferScanner
 
@@ -56,8 +61,8 @@ class Hint:
         return '%s(%r)' % (self.__class__, self.text)
 
 
-def is_hint(x):
-    return isinstance(x, Hint)
+def is_hint(obj):
+    return isinstance(obj, Hint)
 
 
 class ParseContext:
@@ -115,7 +120,7 @@ class ParseContext:
                % (self.__class__.__name__, self.matched, self.remainder, self.productionname, self.bindings)
 
 
-class matcher:
+class Matcher:
 
     def __init__(self, arg):
         self.arg = arg
@@ -155,38 +160,38 @@ class matcher:
         return '%s(%r)' % (self.__class__.__name__, self.arg)
 
 
-class choice(matcher):
+class Choice(Matcher):
 
     def match(self, ctxt, completions):
         foundctxts = []
-        for a in self.arg:
-            subctxts = a.match(ctxt, completions)
+        for each in self.arg:
+            subctxts = each.match(ctxt, completions)
             foundctxts.extend(subctxts)
         return foundctxts
 
 
-class one_or_none(matcher):
+class OneOrNone(Matcher):
 
     def match(self, ctxt, completions):
         return [ctxt] + list(self.arg.match(ctxt, completions))
 
 
-class repeat(matcher):
+class Repeat(Matcher):
 
     def match(self, ctxt, completions):
         found = [ctxt]
         ctxts = [ctxt]
         while True:
             new_ctxts = []
-            for c in ctxts:
-                new_ctxts.extend(self.arg.match(c, completions))
+            for each in ctxts:
+                new_ctxts.extend(self.arg.match(each, completions))
             if not new_ctxts:
                 return found
             found.extend(new_ctxts)
             ctxts = new_ctxts
 
 
-class rule_reference(matcher):
+class RuleReference(Matcher):
 
     def match(self, ctxt, completions):
         prevname = ctxt.productionname
@@ -198,24 +203,24 @@ class rule_reference(matcher):
         return [c.with_production_named(prevname) for c in output]
 
 
-class rule_series(matcher):
+class RuleSeries(Matcher):
 
     def match(self, ctxt, completions):
         ctxts = [ctxt]
         for patpiece in self.arg:
             new_ctxts = []
-            for c in ctxts:
-                new_ctxts.extend(patpiece.match(c, completions))
+            for each in ctxts:
+                new_ctxts.extend(patpiece.match(each, completions))
             if not new_ctxts:
                 return ()
             ctxts = new_ctxts
         return ctxts
 
 
-class named_symbol(matcher):
+class NamedSymbol(Matcher):
 
     def __init__(self, name, arg):
-        matcher.__init__(self, arg)
+        Matcher.__init__(self, arg)
         self.name = name
 
     def match(self, ctxt, completions):
@@ -224,13 +229,14 @@ class named_symbol(matcher):
             # don't collect other completions under this; use a dummy
             pass_in_compls = set()
         results = self.arg.match_with_results(ctxt, pass_in_compls)
-        return [c.with_binding(self.name, ctxt.extract_orig(matchtoks)) for (c, matchtoks) in results]
+        return [c.with_binding(self.name, ctxt.extract_orig(matchtoks))
+                for (c, matchtoks) in results]
 
     def __repr__(self):
         return '%s(%r, %r)' % (self.__class__.__name__, self.name, self.arg)
 
 
-class named_collector(named_symbol):
+class NamedCollector(NamedSymbol):
 
     def match(self, ctxt, completions):
         pass_in_compls = completions
@@ -244,18 +250,21 @@ class named_collector(named_symbol):
         return output
 
 
-class terminal_matcher(matcher):
+class TerminalMatcher(Matcher):
+
+    def match(self, ctxt, completions):
+        raise NotImplementedError
 
     def pattern(self):
         raise NotImplementedError
 
 
-class regex_rule(terminal_matcher):
+class RegexRule(TerminalMatcher):
 
     def __init__(self, pat):
-        terminal_matcher.__init__(self, pat)
+        TerminalMatcher.__init__(self, pat)
         self.regex = pat
-        self.re = re.compile(pat + '$', re.I | re.S)
+        self.re = re.compile(pat + '$', re.IGNORECASE | re.DOTALL)
 
     def match(self, ctxt, completions):
         if ctxt.remainder:
@@ -269,12 +278,12 @@ class regex_rule(terminal_matcher):
         return self.regex
 
 
-class text_match(terminal_matcher):
+class TextMatch(TerminalMatcher):
     alpha_re = re.compile(r'[a-zA-Z]')
 
     def __init__(self, text):
         try:
-            terminal_matcher.__init__(self, eval(text))
+            TerminalMatcher.__init__(self, eval(text))
         except SyntaxError:
             print("bad syntax %r" % (text,))
 
@@ -289,12 +298,13 @@ class text_match(terminal_matcher):
     def pattern(self):
         # can't use (?i) here- Scanner component regex flags won't be applied
         def ignorecaseify(matchobj):
-            c = matchobj.group(0)
-            return '[%s%s]' % (c.upper(), c.lower())
+            val = matchobj.group(0)
+            return '[%s%s]' % (val.upper(), val.lower())
+
         return self.alpha_re.sub(ignorecaseify, re.escape(self.arg))
 
 
-class case_match(text_match):
+class CaseMatch(TextMatch):
 
     def match(self, ctxt, completions):
         if ctxt.remainder:
@@ -308,22 +318,22 @@ class case_match(text_match):
         return re.escape(self.arg)
 
 
-class word_match(text_match):
+class WordMatch(TextMatch):
 
     def pattern(self):
-        return r'\b' + text_match.pattern(self) + r'\b'
+        return r'\b' + TextMatch.pattern(self) + r'\b'
 
 
-class case_word_match(case_match):
+class CaseWordMatch(CaseMatch):
 
     def pattern(self):
-        return r'\b' + case_match.pattern(self) + r'\b'
+        return r'\b' + CaseMatch.pattern(self) + r'\b'
 
 
-class terminal_type_matcher(matcher):
+class TerminalTypeMatcher(Matcher):
 
     def __init__(self, tokentype, submatcher):
-        matcher.__init__(self, tokentype)
+        Matcher.__init__(self, tokentype)
         self.tokentype = tokentype
         self.submatcher = submatcher
 
@@ -340,18 +350,24 @@ class terminal_type_matcher(matcher):
 
 
 class ParsingRuleSet:
+    """Define the BNF tokenization rules for cql3handling.syntax_rules. Backus-Naur Form consists of
+       - Production rules in the form: Left-Hand-Side ::= Right-Hand-Side.  The LHS is a non-terminal.
+       - Productions or non-terminal symbols
+       - Terminal symbols.  Every terminal is a single token.
+    """
+
     RuleSpecScanner = SaferScanner([
-        (r'::=', lambda s, t: t),
+        (r'::=', lambda s, t: t),                   # BNF rule definition
         (r'\[[a-z0-9_]+\]=', lambda s, t: ('named_collector', t[1:-2])),
         (r'[a-z0-9_]+=', lambda s, t: ('named_symbol', t[:-1])),
         (r'/(\[\^?.[^]]*\]|[^/]|\\.)*/', lambda s, t: ('regex', t[1:-1].replace(r'\/', '/'))),
-        (r'"([^"]|\\.)*"', lambda s, t: ('litstring', t)),
+        (r'"([^"]|\\.)*"', lambda s, t: ('string_literal', t)),
         (r'<[^>]*>', lambda s, t: ('reference', t[1:-1])),
         (r'\bJUNK\b', lambda s, t: ('junk', t)),
         (r'[@()|?*;]', lambda s, t: t),
-        (r'\s+', None),
+        (r'\s+', None),                             # whitespace
         (r'#[^\n]*', None),
-    ], re.I | re.S | re.U)
+    ], re.IGNORECASE | re.DOTALL | re.UNICODE)
 
     def __init__(self):
         self.ruleset = {}
@@ -368,7 +384,7 @@ class ParsingRuleSet:
     def parse_rules(cls, rulestr):
         tokens, unmatched = cls.RuleSpecScanner.scan(rulestr)
         if unmatched:
-            raise LexingError.from_text(rulestr, unmatched, msg="Syntax rules unparseable")
+            raise LexingError.from_text(rulestr, unmatched, msg="Syntax rules are unparseable")
         rules = {}
         terminals = []
         tokeniter = iter(tokens)
@@ -379,9 +395,9 @@ class ParsingRuleSet:
                     raise ValueError('Unexpected token %r; expected "::="' % (assign,))
                 name = t[1]
                 production = cls.read_rule_tokens_until(';', tokeniter)
-                if isinstance(production, terminal_matcher):
+                if isinstance(production, TerminalMatcher):
                     terminals.append((name, production))
-                    production = terminal_type_matcher(name, production)
+                    production = TerminalTypeMatcher(name, production)
                 rules[name] = production
             else:
                 raise ValueError('Unexpected token %r; expected name' % (t,))
@@ -392,11 +408,11 @@ class ParsingRuleSet:
         if isinstance(pieces, (tuple, list)):
             if len(pieces) == 1:
                 return pieces[0]
-            return rule_series(pieces)
+            return RuleSeries(pieces)
         return pieces
 
     @classmethod
-    def read_rule_tokens_until(cls, endtoks, tokeniter):
+    def read_rule_tokens_until(cls, endtoks: Union[str, int], tokeniter):
         if isinstance(endtoks, str):
             endtoks = (endtoks,)
         counttarget = None
@@ -411,32 +427,32 @@ class ParsingRuleSet:
             if t in endtoks:
                 if len(mybranches) == 1:
                     return cls.mkrule(mybranches[0])
-                return choice(list(map(cls.mkrule, mybranches)))
+                return Choice(list(map(cls.mkrule, mybranches)))
             if isinstance(t, tuple):
                 if t[0] == 'reference':
-                    t = rule_reference(t[1])
-                elif t[0] == 'litstring':
+                    t = RuleReference(t[1])
+                elif t[0] == 'string_literal':
                     if t[1][1].isalnum() or t[1][1] == '_':
-                        t = word_match(t[1])
+                        t = WordMatch(t[1])
                     else:
-                        t = text_match(t[1])
+                        t = TextMatch(t[1])
                 elif t[0] == 'regex':
-                    t = regex_rule(t[1])
+                    t = RegexRule(t[1])
                 elif t[0] == 'named_collector':
-                    t = named_collector(t[1], cls.read_rule_tokens_until(1, tokeniter))
+                    t = NamedCollector(t[1], cls.read_rule_tokens_until(1, tokeniter))
                 elif t[0] == 'named_symbol':
-                    t = named_symbol(t[1], cls.read_rule_tokens_until(1, tokeniter))
+                    t = NamedSymbol(t[1], cls.read_rule_tokens_until(1, tokeniter))
             elif t == '(':
                 t = cls.read_rule_tokens_until(')', tokeniter)
             elif t == '?':
-                t = one_or_none(myrules.pop(-1))
+                t = OneOrNone(myrules.pop(-1))
             elif t == '*':
-                t = repeat(myrules.pop(-1))
+                t = Repeat(myrules.pop(-1))
             elif t == '@':
-                x = next(tokeniter)
-                if not isinstance(x, tuple) or x[0] != 'litstring':
-                    raise ValueError("Unexpected token %r following '@'" % (x,))
-                t = case_match(x[1])
+                val = next(tokeniter)
+                if not isinstance(val, tuple) or val[0] != 'string_literal':
+                    raise ValueError("Unexpected token %r following '@'" % (val,))
+                t = CaseMatch(val[1])
             elif t == '|':
                 myrules = []
                 mybranches.append(myrules)
@@ -447,7 +463,7 @@ class ParsingRuleSet:
             if countsofar == counttarget:
                 if len(mybranches) == 1:
                     return cls.mkrule(mybranches[0])
-                return choice(list(map(cls.mkrule, mybranches)))
+                return Choice(list(map(cls.mkrule, mybranches)))
         raise ValueError('Unexpected end of rule tokens')
 
     def append_rules(self, rulestr):
@@ -465,8 +481,9 @@ class ParsingRuleSet:
             if name == 'JUNK':
                 return None
             return lambda s, t: (name, t, s.match.span())
+
         regexes = [(p.pattern(), make_handler(name)) for (name, p) in self.terminals]
-        return SaferScanner(regexes, re.I | re.S | re.U).scan
+        return SaferScanner(regexes, re.IGNORECASE | re.DOTALL | re.UNICODE).scan
 
     def lex(self, text):
         if self.scanner is None:
@@ -487,9 +504,9 @@ class ParsingRuleSet:
         bindings = {}
         if srcstr is not None:
             bindings['*SRC*'] = srcstr
-        for c in self.parse(startsymbol, tokens, init_bindings=bindings):
-            if not c.remainder:
-                return c
+        for val in self.parse(startsymbol, tokens, init_bindings=bindings):
+            if not val.remainder:
+                return val
 
     def lex_and_parse(self, text, startsymbol='Start'):
         return self.parse(startsymbol, self.lex(text), init_bindings={'*SRC*': text})
@@ -511,9 +528,6 @@ class ParsingRuleSet:
         return completions
 
 
-import sys
-
-
 class Debugotron(set):
     depth = 10
 
@@ -525,9 +539,9 @@ class Debugotron(set):
         self._note_addition(item)
         set.add(self, item)
 
-    def _note_addition(self, foo):
-        self.stream.write("\nitem %r added by:\n" % (foo,))
-        frame = sys._getframe().f_back.f_back
+    def _note_addition(self, item):
+        self.stream.write("\nitem %r added by:\n" % (item,))
+        frame = inspect.currentframe().f_back.f_back
         for i in range(self.depth):
             name = frame.f_code.co_name
             filename = frame.f_code.co_filename
