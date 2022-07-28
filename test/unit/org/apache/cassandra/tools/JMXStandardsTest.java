@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
@@ -50,6 +52,8 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.BreaksJMX;
 import org.assertj.core.api.Assertions;
 import org.reflections.Reflections;
@@ -98,8 +102,11 @@ public class JMXStandardsTest
                                                        .add(IllegalStateException.class)
                                                        .add(ClassNotFoundException.class)
                                                        .add(OpenDataException.class)
-                                                       // regex.Pattern is used in AutoRepairService
+                                                       // used in AutoRepairService
                                                        .add(Pattern.class)
+                                                       .add(TreeSet.class)
+                                                       .add(UUID.class)
+                                                       .add(InetAddressAndPort.class)
                                                        .build();
     /**
      * This list is a set of types under java.* and javax.*, but are too vague that could cause issues; this does not

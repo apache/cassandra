@@ -21,6 +21,8 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.AutoRepairUtils;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -30,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -86,12 +89,12 @@ public class SetAutoRepairConfig extends NodeToolCmd
         }
         else if (paramType.equals("priorityhost"))
         {
-            Set<InetAddress> hosts = new HashSet<>();
+            Set<InetAddressAndPort> hosts = new HashSet<>();
             for (String host : Splitter.on(',').split(paramVal))
             {
                 try
                 {
-                    hosts.add(InetAddress.getByName(host));
+                    hosts.add(InetAddressAndPort.getByName(host));
                 }
                 catch (UnknownHostException e)
                 {
@@ -99,9 +102,29 @@ public class SetAutoRepairConfig extends NodeToolCmd
                     continue;
                 }
             }
-            if (hosts.size() > 0)
+            // We can only set priority list for local group
+            Set<InetAddressAndPort> hostsInCurrentRing = AutoRepairUtils.processNodesByGroup(hosts);
+            if (hostsInCurrentRing.size() != hosts.size()) {
+                for (String host : Splitter.on(',').split(paramVal))
+                {
+                    InetAddress address;
+                    try
+                    {
+                        address = InetAddress.getByName(host);
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        continue;
+                    }
+                    if (!hostsInCurrentRing.contains(address)) {
+                        System.out.println(host + " doesn't belong to this group, please add this host on another node" +
+                                           "which is located in the same DC.");
+                    }
+                }
+            }
+            if (hostsInCurrentRing.size() > 0)
             {
-                probe.setRepairPriorityForHosts(hosts);
+                probe.setRepairPriorityForHosts(hostsInCurrentRing);
             }
         }
         else if (paramType.equals("ignoredcs"))

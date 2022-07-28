@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AutoRepair;
 import org.apache.cassandra.repair.AutoRepairUtils;
 
@@ -103,7 +104,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public void setRepairPriorityForHosts(Set<InetAddress> host)
+    public void setRepairPriorityForHosts(Set<InetAddressAndPort> host)
     {
         AutoRepairUtils.addPriorityHost(host);
     }

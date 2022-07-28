@@ -89,6 +89,7 @@ import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.HintsServiceMBean;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
@@ -2310,7 +2311,7 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.getRepairThreads();
     }
 
-    public void setRepairPriorityForHosts(Set<InetAddress> hosts)
+    public void setRepairPriorityForHosts(Set<InetAddressAndPort> hosts)
     {
         autoRepairProxy.setRepairPriorityForHosts(hosts);
     }

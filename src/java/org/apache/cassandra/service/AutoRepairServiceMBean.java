@@ -21,6 +21,8 @@ import java.net.InetAddress;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
+
 public interface AutoRepairServiceMBean
 {
     /**
@@ -67,7 +69,7 @@ public interface AutoRepairServiceMBean
     /**
      * Set repair priority for hosts
      */
-    public void setRepairPriorityForHosts(Set<InetAddress> host);
+    public void setRepairPriorityForHosts(Set<InetAddressAndPort> host);
 
     /**
      * Get repair priority

@@ -227,7 +227,7 @@ public class AutoRepairUtils
     }
 
     // if dc groups is empty(not set), return the input value. If groups are set, only return the nodes in the same group
-    private static Set<InetAddressAndPort> processNodesByGroup(Set<InetAddressAndPort> allNodesInRing) {
+    public static Set<InetAddressAndPort> processNodesByGroup(Set<InetAddressAndPort> allNodesInRing) {
         if (AutoRepairService.instance.getDCGroups().isEmpty()) {
             logger.info("No data center groups is defined, will use all nodes in ring as one group.");
             return allNodesInRing;
@@ -310,7 +310,16 @@ public class AutoRepairUtils
                 UUID priorityHostId = null;
                 if (currentRepairStatus.priority != null)
                 {
-                    priorityHostId = Iterables.getFirst(currentRepairStatus.priority, null);
+                    for (UUID priorityID : currentRepairStatus.priority) {
+                        // remove ids doesn't belong to this ring
+                        if (!hostIdsInCurrentRing.contains(priorityID)) {
+                            logger.info("{} is not part of the current ring, will be removed from priority list.", priorityID);
+                            removePriorityStatus(priorityID);
+                        } else {
+                            priorityHostId = priorityID;
+                            break;
+                        }
+                    }
                 }
 
                 if (!hostIdsInCurrentRing.contains(currentRepairStatus.hostIdWithOnGoingRepair))
@@ -323,6 +332,12 @@ public class AutoRepairUtils
                     delStatementRepairStatus.execute(QueryState.forInternalCalls(),
                             QueryOptions.forInternalCalls(internalQueryCL,
                                     Lists.newArrayList(ByteBufferUtil.bytes(getLocalDCGroup().hashCode()))), Dispatcher.RequestTime.forImmediateExecution());
+                    return NOT_MY_TURN;
+                }
+
+                if (priorityHostId != null && !myId.equals(priorityHostId)) {
+                    logger.info("Priority list is not empty and I'm not the first node in the list, not my turn." +
+                                "First node in priority list is {}", StorageService.instance.getTokenMetadata().getEndpointForHostId(priorityHostId));
                     return NOT_MY_TURN;
                 }
 
@@ -394,13 +409,13 @@ public class AutoRepairUtils
 
     }
 
-    public static void addPriorityHost(Set<InetAddress> hosts)
+    public static void addPriorityHost(Set<InetAddressAndPort> hosts)
     {
         Set<UUID> hostIds = new HashSet<>();
-        for (InetAddress host : hosts)
+        for (InetAddressAndPort host : hosts)
         {
             //find hostId from IP address
-            UUID hostId = StorageService.instance.getTokenMetadata().getHostId(InetAddressAndPort.getByAddress(host));
+            UUID hostId = StorageService.instance.getTokenMetadata().getHostId(host);
             hostIds.add(hostId);
             if (hostId != null)
             {

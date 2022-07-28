@@ -163,7 +163,7 @@ public class AutoRepairTest extends CQLTester
         Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) !=
                 NOT_MY_TURN);
         AutoRepair.repair(0);
-        AutoRepairUtils.addPriorityHost(Sets.newHashSet(FBUtilities.getBroadcastAddressAndPort().getAddress()));
+        AutoRepairUtils.addPriorityHost(Sets.newHashSet(FBUtilities.getBroadcastAddressAndPort()));
         AutoRepair.repair(0);
         Assert.assertSame(String.format("Priority host count is not same actual value %d, expected value %d", AutoRepairUtils
                 .getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
