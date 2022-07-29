@@ -3081,14 +3081,21 @@ public class DatabaseDescriptor
         conf.key_cache_migrate_during_compaction = migrateCacheEntry;
     }
 
+    /** This method can return negative number for disabled */
     public static int getSSTablePreemptiveOpenIntervalInMiB()
     {
+        if (conf.sstable_preemptive_open_interval == null)
+            return -1;
         return conf.sstable_preemptive_open_interval.toMebibytes();
     }
 
+    /** Negative number for disabled */
     public static void setSSTablePreemptiveOpenIntervalInMiB(int mib)
     {
-        conf.sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound(mib);
+        if (mib < 0)
+            conf.sstable_preemptive_open_interval = null;
+        else
+            conf.sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound(mib);
     }
 
     public static boolean getTrickleFsync()
