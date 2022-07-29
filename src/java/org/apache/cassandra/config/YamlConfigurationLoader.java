@@ -370,6 +370,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 @Override
                 public void set(Object object, Object value) throws Exception
                 {
+                    // TODO: CASSANDRA-17785, add @Nullable to all nullable Config properties and remove value == null
                     if (value == null && get(object) != null && !allowsNull)
                         nullProperties.add(getName());
 
