@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -363,10 +365,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
             return new ForwardingProperty(result.getName(), result)
             {
+                boolean allowsNull = result.getAnnotation(Nullable.class) != null;
+
                 @Override
                 public void set(Object object, Object value) throws Exception
                 {
-                    if (value == null && get(object) != null)
+                    // TODO: CASSANDRA-17785, add @Nullable to all nullable Config properties and remove value == null
+                    if (value == null && get(object) != null && !allowsNull)
                         nullProperties.add(getName());
 
                     result.set(object, value);
