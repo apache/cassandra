@@ -101,7 +101,7 @@ public enum Converters
      */
     BYTES_CUSTOM_DATASTORAGE(Long.class, DataStorageSpec.LongBytesBound.class,
                              o -> o == -1 ? null : new DataStorageSpec.LongBytesBound(o),
-                             DataStorageSpec.LongBytesBound::toBytes),
+                             o -> o == null ? null : o.toBytes()),
     MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.LongBytesPerSecondBound.class,
                                    i -> new DataRateSpec.LongBytesPerSecondBound(i, MEBIBYTES_PER_SECOND),
                                    o -> o == null ? null : o.toMebibytesPerSecondAsInt()),

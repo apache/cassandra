@@ -48,7 +48,7 @@ public class GetStreamThroughput extends NodeToolCmd
 
         if (entireSSTableThroughput)
         {
-            if(streamThroughputDoubleMbit || streamThroughputMiB)
+            if (streamThroughputDoubleMbit || streamThroughputMiB)
                 throw new IllegalArgumentException("You cannot use more than one flag with this command");
 
             throughputInDouble = probe.getEntireSSTableStreamThroughput();
@@ -57,14 +57,14 @@ public class GetStreamThroughput extends NodeToolCmd
         }
         else if (streamThroughputMiB)
         {
-            if(streamThroughputDoubleMbit)
+            if (streamThroughputDoubleMbit)
                 throw new IllegalArgumentException("You cannot use more than one flag with this command");
 
             throughputInDouble = probe.getStreamThroughputMibAsDouble();
             probe.output().out.printf("Current stream throughput: %s%n",
                                       throughputInDouble > 0 ? throughputInDouble + " MiB/s" : "unlimited");
         }
-        else if(streamThroughputDoubleMbit)
+        else if (streamThroughputDoubleMbit)
         {
             throughputInDouble = probe.getStreamThroughputAsDouble();
             probe.output().out.printf("Current stream throughput: %s%n",
@@ -80,7 +80,7 @@ public class GetStreamThroughput extends NodeToolCmd
             else if (DoubleMath.isMathematicalInteger(throughputInDouble))
                 probe.output().out.printf("Current stream throughput: %s%n", throughput + " Mb/s");
             else
-                throw new RuntimeException("You should use -m to get exact throughput in MiB/s");
+                throw new RuntimeException("Use the -d flag to quiet this error and get the exact throughput in megabits/s");
         }
     }
 }

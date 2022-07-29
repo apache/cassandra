@@ -104,7 +104,7 @@ public class SetGetStreamThroughputTest extends CQLTester
         assertSetInvalidThroughput("1.2", "stream_throughput: can not convert \"1.2\" to a int");
         assertSetInvalidThroughput("value", "stream_throughput: can not convert \"value\" to a int");
         assertSetGetMoreFlagsIsInvalid();
-        assertMiBFlagNeeded();
+        assertDFlagNeeded();
         assertSetGetMoreFlagsIsInvalid();
     }
 
@@ -130,7 +130,7 @@ public class SetGetStreamThroughputTest extends CQLTester
         assertThat(StreamRateLimiter.getRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.01));
     }
 
-    private static void assertMiBFlagNeeded()
+    private static void assertDFlagNeeded()
     {
         ToolResult tool = invokeNodetool("setstreamthroughput", "-m", String.valueOf(1));
         tool.assertOnCleanExit();
@@ -138,7 +138,7 @@ public class SetGetStreamThroughputTest extends CQLTester
 
         tool = invokeNodetool("getstreamthroughput");
         assertThat(tool.getExitCode()).isEqualTo(2);
-        assertThat(tool.getStderr()).contains("You should use -m to get exact throughput in MiB/s");
+        assertThat(tool.getStderr()).contains("Use the -d flag to quiet this error and get the exact throughput in megabits/s");
     }
 
     private static void assertSetMbitGetMibValidThroughput(int throughput, double rateInBytes)
@@ -164,7 +164,8 @@ public class SetGetStreamThroughputTest extends CQLTester
     {
         ToolResult tool = invokeNodetool("setstreamthroughput", "-m", throughput);
         assertThat(tool.getExitCode()).isEqualTo(1);
-        assertThat(tool.getStdout()).contains("Invalid value of stream_throughput_outbound: 2147483647");
+        assertThat(tool.getStdout()).contains("stream_throughput_outbound: 2147483647 is too large; it should be less " +
+                                              "than 2147483647 in megabits/s");
     }
 
     private static void assertSetInvalidThroughputMbit(String throughput)
@@ -172,7 +173,7 @@ public class SetGetStreamThroughputTest extends CQLTester
         ToolResult tool = invokeNodetool("setstreamthroughput", throughput);
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).contains("Invalid data rate: 2147483647 megabits per second; stream_throughput_outbound " +
-                                              "and inter_dc_stream_throughput_outbound should be between 0 and 2147483647 in megabits per second");
+                                              "and inter_dc_stream_throughput_outbound should be between 0 and 2147483646 in megabits per second");
     }
 
     private static void assertSetGetMoreFlagsIsInvalid()

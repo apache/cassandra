@@ -42,7 +42,7 @@ public class GetCompactionThroughput extends NodeToolCmd
         else
         {
             if (!DoubleMath.isMathematicalInteger(throughput))
-                throw new RuntimeException("You should use -d to get exact throughput in MiB/s");
+                throw new RuntimeException("Use the -d flag to quiet this error and get the exact throughput in MiB/s");
 
             probe.output().out.println("Current compaction throughput: " + probe.getCompactionThroughput() + " MB/s");
         }

@@ -106,7 +106,6 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.DataStorageSpec$LongBytesBound",
     "org.apache.cassandra.config.DataStorageSpec$LongMebibytesBound",
     "org.apache.cassandra.config.DurationSpec",
-    "org.apache.cassandra.config.DataRateSpec$IntMebibytesPerSecondBound",
     "org.apache.cassandra.config.DataRateSpec$LongBytesPerSecondBound",
     "org.apache.cassandra.config.DurationSpec$LongMillisecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongNanosecondsBound",

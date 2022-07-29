@@ -99,7 +99,8 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
     {
         ToolResult tool = invokeNodetool("setstreamthroughput", "-e", throughput);
         assertThat(tool.getExitCode()).isEqualTo(1);
-        assertThat(tool.getStdout()).contains("Invalid value of entire_sstable_stream_throughput_outbound: 2147483647");
+        assertThat(tool.getStdout()).contains("entire_sstable_stream_throughput_outbound: 2147483647 is too large; it " +
+                                              "should be less than 2147483647 in MiB/s");
     }
 
     private static void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)

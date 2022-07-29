@@ -1664,7 +1664,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         double oldValue = DatabaseDescriptor.getCompactionThroughputMebibytesPerSec();
         DatabaseDescriptor.setCompactionThroughputMebibytesPerSec(value);
         double valueInBytes = value * 1024.0 * 1024.0;
-        CompactionManager.instance.setRate(valueInBytes);
+        CompactionManager.instance.setRateInBytes(valueInBytes);
         logger.info("compactionthroughput: throttle set to {} mebibytes per second (was {} mebibytes per second)",
                     value, oldValue);
     }

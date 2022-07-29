@@ -48,7 +48,7 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
 
         if (entireSSTableThroughput)
         {
-            if(interDCStreamThroughputDoubleMbit || interDCStreamThroughputMiB)
+            if (interDCStreamThroughputDoubleMbit || interDCStreamThroughputMiB)
                 throw new IllegalArgumentException("You cannot use more than one flag with this command");
 
             throughputInDouble = probe.getEntireSSTableInterDCStreamThroughput();
@@ -57,7 +57,7 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
         }
         else if (interDCStreamThroughputMiB)
         {
-            if(interDCStreamThroughputDoubleMbit)
+            if (interDCStreamThroughputDoubleMbit)
                 throw new IllegalArgumentException("You cannot use more than one flag with this command");
 
             throughputInDouble = probe.getInterDCStreamThroughputMibAsDouble();
@@ -65,7 +65,7 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
                                       throughputInDouble > 0 ? throughputInDouble + " MiB/s" : "unlimited");
 
         }
-        else if(interDCStreamThroughputDoubleMbit)
+        else if (interDCStreamThroughputDoubleMbit)
         {
             throughputInDouble = probe.getInterDCStreamThroughputAsDouble();
             probe.output().out.printf("Current stream throughput: %s%n",
@@ -81,7 +81,7 @@ public class GetInterDCStreamThroughput extends NodeToolCmd
             else if (DoubleMath.isMathematicalInteger(throughputInDouble))
                 probe.output().out.printf(throughputInDouble + "Current inter-datacenter stream throughput: %s%n", throughput + " Mb/s");
             else
-                throw new RuntimeException("You should use -m to get exact throughput in MiB/s");
+                throw new RuntimeException("Use the -d flag to quiet this error and get the exact throughput in megabits/s");
         }
     }
 }

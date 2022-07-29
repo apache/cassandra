@@ -93,6 +93,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
+import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
@@ -1997,18 +1998,22 @@ public class DatabaseDescriptor
     @VisibleForTesting // only for testing!
     public static void setCompactionThroughputBytesPerSec(int value)
     {
-        if (MEBIBYTES_PER_SECOND.toMebibytesPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Invalid value of compaction_throughput: " + value);
+        if (BYTES_PER_SECOND.toMebibytesPerSecond(value) >= Integer.MAX_VALUE)
+            throw new IllegalArgumentException("compaction_throughput: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in MiB/s");
 
         conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value);
     }
 
     public static void setCompactionThroughputMebibytesPerSec(int value)
     {
-        if (MEBIBYTES_PER_SECOND.toMebibytesPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Invalid value of compaction_throughput: " + value);
+        if (value == Integer.MAX_VALUE)
+            throw new IllegalArgumentException("compaction_throughput: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in MiB/s");
 
-        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value * 1024L * 1024L);
+        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
     public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytesInLong(); }
@@ -2087,10 +2092,11 @@ public class DatabaseDescriptor
     public static void setStreamThroughputOutboundMebibytesPerSecAsInt(int value)
     {
         if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Invalid value of stream_throughput_outbound: " + value);
+            throw new IllegalArgumentException("stream_throughput_outbound: " + value  +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in megabits/s");
 
-        long valueInBytes = value * 1024L * 1024L;
-        conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(valueInBytes);
+        conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
     public static void setStreamThroughputOutboundMegabitsPerSec(int value)
@@ -2110,11 +2116,12 @@ public class DatabaseDescriptor
 
     public static void setEntireSSTableStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        if (MEBIBYTES_PER_SECOND.toMebibytesPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Invalid value of entire_sstable_stream_throughput_outbound: " + value);
+        if (value == Integer.MAX_VALUE)
+            throw new IllegalArgumentException("entire_sstable_stream_throughput_outbound: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in MiB/s");
 
-        long valueInBytes = value * 1024L * 1024L;
-        conf.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(valueInBytes);
+        conf.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
@@ -2145,10 +2152,11 @@ public class DatabaseDescriptor
     public static void setInterDCStreamThroughputOutboundMebibytesPerSecAsInt(int value)
     {
         if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Invalid value of inter_dc_stream_throughput_outbound: " + value);
+            throw new IllegalArgumentException("inter_dc_stream_throughput_outbound: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in megabits/s");
 
-        long valueInBytes = value * 1024L * 1024L;
-        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(valueInBytes);
+        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
@@ -2168,11 +2176,12 @@ public class DatabaseDescriptor
 
     public static void setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        if (MEBIBYTES_PER_SECOND.toMebibytesPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + value);
+        if (value == Integer.MAX_VALUE)
+            throw new IllegalArgumentException("entire_sstable_inter_dc_stream_throughput_outbound: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in MiB/s");
 
-        long valueInBytes = value * 1024L * 1024L;
-        conf.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(valueInBytes);
+        conf.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
     /**
@@ -3297,7 +3306,7 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void setCacheLoadTimeout(int seconds)
     {
-        if (seconds < 0)
+        if (seconds <= 0)
             conf.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
         else
             conf.cache_load_timeout = new DurationSpec.IntSecondsBound(seconds);

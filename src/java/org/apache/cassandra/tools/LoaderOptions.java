@@ -406,22 +406,22 @@ public class LoaderOptions
                     // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
                     if (config.stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
                     {
-                        throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + config.stream_throughput_outbound.toString(), false);
+                        throw new ConfigurationException("stream_throughput_outbound: " + config.stream_throughput_outbound.toString() + " is too large", false);
                     }
 
                     if (config.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
                     {
-                        throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + config.inter_dc_stream_throughput_outbound.toString(), false);
+                        throw new ConfigurationException("inter_dc_stream_throughput_outbound: " + config.inter_dc_stream_throughput_outbound.toString() + " is too large", false);
                     }
 
                     if (config.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
                     {
-                        throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + config.entire_sstable_stream_throughput_outbound.toString(), false);
+                        throw new ConfigurationException("entire_sstable_stream_throughput_outbound: " + config.entire_sstable_stream_throughput_outbound.toString() + " is too large", false);
                     }
 
                     if (config.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
                     {
-                        throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + config.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
+                        throw new ConfigurationException("entire_sstable_inter_dc_stream_throughput_outbound: " + config.entire_sstable_inter_dc_stream_throughput_outbound.toString() + " is too large", false);
                     }
                 }
                 else

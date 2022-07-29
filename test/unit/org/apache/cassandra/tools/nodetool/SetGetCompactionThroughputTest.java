@@ -103,14 +103,15 @@ public class SetGetCompactionThroughputTest extends CQLTester
         DatabaseDescriptor.setCompactionThroughputBytesPerSec(500);
         ToolResult tool = invokeNodetool("getstreamthroughput");
         assertThat(tool.getExitCode()).isEqualTo(2);
-        assertThat(tool.getStderr()).contains("You should use -m to get exact throughput in MiB/s");
+        assertThat(tool.getStderr()).contains("Use the -d flag to quiet this error and get the exact throughput in megabits/s");
     }
 
     private static void assertSetInvalidThroughputMib(String throughput)
     {
         ToolResult tool = invokeNodetool("setcompactionthroughput", throughput);
         assertThat(tool.getExitCode()).isEqualTo(1);
-        assertThat(tool.getStdout()).contains("Invalid value of compaction_throughput: 2147483647");
+        assertThat(tool.getStdout()).contains("compaction_throughput: 2147483647 is too large; it should be less than" +
+                                              " 2147483647 in MiB/s");
     }
 
     private static void assertPreciseMibFlagNeeded()
@@ -118,7 +119,7 @@ public class SetGetCompactionThroughputTest extends CQLTester
         DatabaseDescriptor.setCompactionThroughputBytesPerSec(15);
         ToolResult tool = invokeNodetool("getcompactionthroughput");
         assertThat(tool.getExitCode()).isEqualTo(2);
-        assertThat(tool.getStderr()).contains("You should use -d to get exact throughput in MiB/s");
+        assertThat(tool.getStderr()).contains("Use the -d flag to quiet this error and get the exact throughput in MiB/s");
     }
 
     private static void assertGetThroughput(int expected)

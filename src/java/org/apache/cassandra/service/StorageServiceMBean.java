@@ -626,8 +626,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setStreamThroughputMbitPerSec(int value);
     /**
-     * Please use the new getStreamThroughputMbitPerSecAsDouble method as this one will provide a rounded value
      * @return stream_throughput_outbound in megabits
+     * @deprecated Use getStreamThroughputMbitPerSecAsDouble instead as this one will provide a rounded value
      */
     @Deprecated
     public int getStreamThroughputMbitPerSec();
@@ -637,8 +637,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setStreamThroughputMbPerSec(int value);
 
     /**
-     * Please use the new getStreamThroughputMebibytesPerSecAsDouble method as this one will provide a rounded value
      * @return stream_throughput_outbound in MiB
+     * @deprecated Use getStreamThroughputMebibytesPerSecAsDouble instead as this one will provide a rounded value
      */
     @Deprecated
     public int getStreamThroughputMbPerSec();
@@ -653,8 +653,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setInterDCStreamThroughputMbitPerSec(int value);
 
     /**
-     * Please use the new getInterDCStreamThroughputMbitPerSecAsDouble method as this one will provide a rounded value
      * @return inter_dc_stream_throughput_outbound in megabits
+     * @deprecated Use getInterDCStreamThroughputMbitPerSecAsDouble instead as this one will provide a rounded value
      */
     @Deprecated
     public int getInterDCStreamThroughputMbitPerSec();
@@ -664,8 +664,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setInterDCStreamThroughputMbPerSec(int value);
 
     /**
-     * Please use the new getInterDCStreamThroughputMebibytesPerSecAsDouble method as this one will provide a rounded value
      * @return inter_dc_stream_throughput_outbound in MiB
+     * @deprecated Use getInterDCStreamThroughputMebibytesPerSecAsDouble instead as this one will provide a rounded value
      */
     @Deprecated
     public int getInterDCStreamThroughputMbPerSec();
@@ -686,8 +686,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public double getCompactionThroughtputMibPerSecAsDouble();
     public long getCompactionThroughtputBytesPerSec();
     /**
-     * Please use the new getCompactionThroughtputMibPerSecAsDouble method as this one will provide a rounded value
      * @return  compaction_throughgput in MiB
+     * @deprecated Use getCompactionThroughtputMibPerSecAsDouble instead as this one will provide a rounded value
      */
     @Deprecated
     public int getCompactionThroughputMbPerSec();
