@@ -117,6 +117,8 @@ public class CompactionLogAnalyzer
         int bucketsAboveT;
         // number of buckets above T*T sstables (excl compacting)
         int bucketsAboveT2;
+        // value of scaling parameter W
+        int scalingParameter;
 
         /**
          * Called to aggregate data in response to a new data point for a bucket.
@@ -136,6 +138,7 @@ public class CompactionLogAnalyzer
             remainingReadBytes += toAdd.remainingReadBytes - toRemove.remainingReadBytes;
             bucketsAboveT += toAdd.bucketsAboveT - toRemove.bucketsAboveT;
             bucketsAboveT2 += toAdd.bucketsAboveT2 - toRemove.bucketsAboveT2;
+            scalingParameter = toAdd.scalingParameter;
         }
     }
 
@@ -159,6 +162,7 @@ public class CompactionLogAnalyzer
     static int writePerSecIndex;
     static int sizesIndex;
     static int Tindex;
+    static int Windex;
 
     private static void initializeIndexes(String header)
     {
@@ -184,6 +188,7 @@ public class CompactionLogAnalyzer
                     sizesIndex = indexMap.getOrDefault("Tot/Read/Written", -1);
                     sizesIndex = indexMap.get("Tot. comp. size/Read/Written (bytes)");
                     Tindex = indexMap.get("T");
+                    Windex = indexMap.get("W");
                 }
             }
     }
@@ -207,6 +212,7 @@ public class CompactionLogAnalyzer
         dp.totalBytes = parseHumanReadable(sizes[0]);
         dp.remainingReadBytes = dp.totalBytes - parseHumanReadable(sizes[1]);
         int T = Integer.parseInt(data[Tindex]);
+        dp.scalingParameter = Integer.parseInt(data[Windex]);
         int compactingSSTables = Integer.parseInt(data[compactingSstablesIndex].split("/")[1]);
         int nonCompacting = dp.sstables - compactingSSTables;
         dp.bucketsAboveT = nonCompacting > T ? 1 : 0;
@@ -482,10 +488,10 @@ public class CompactionLogAnalyzer
         metrics.add("Remaining GB to compact");
         metrics.add("Number of buckets above T sstables");
         metrics.add("Number of buckets above T^2 sstables");
-
         metrics.add("Max SSTables in bucket");
         metrics.add("90th percentile SSTables in bucket");
         metrics.add("50th percentile SSTables in bucket");
+        metrics.add("Scaling parameter W");
 
         metrics.add("time");
         return metrics;
@@ -524,6 +530,8 @@ public class CompactionLogAnalyzer
         metrics.add(hist.max());
         metrics.add(hist.percentile(0.90));
         metrics.add(hist.percentile(0.50));
+
+        metrics.add(totals.scalingParameter);
 
         metrics.add((totals.timestamp - startTimestamp) / 1000.0);
         intervals.add(metrics);

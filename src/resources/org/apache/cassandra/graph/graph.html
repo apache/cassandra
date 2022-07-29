@@ -12,7 +12,7 @@
   distributed under the License is distributed on an "AS IS" BASIS,
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
-  limitatins under the License.
+  limitations under the License.
 -->
 <!-- cstar_perf (https://github.com/datastax/cstar_perf) graphing
 utility adapted for use directly with command line cassandra-stress -->
@@ -238,7 +238,11 @@ var drawGraph = function() {
                     return d.intervals[d.intervals.length-1][time_index];
                 }
             }) * 1.1 * 100) / 100;
-            query.ymin = ymin = query.ymin ? query.ymin : 0;
+            query.ymin = ymin = query.ymin ? query.ymin : Math.min(0, d3.min(data, function(d) {
+                return d3.min(d.intervals, function(i) {
+                    return getMetricValue(i);
+                });
+            }) * 1.1);
             query.ymax = ymax = query.ymax ? query.ymax : Math.round(d3.max(data, function(d) {
                 return d3.max(d.intervals, function(i) {
                     return getMetricValue(i);
