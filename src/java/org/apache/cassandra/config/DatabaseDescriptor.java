@@ -3083,12 +3083,17 @@ public class DatabaseDescriptor
 
     public static int getSSTablePreemptiveOpenIntervalInMiB()
     {
+        if (conf.sstable_preemptive_open_interval == null)
+            return -1;
         return conf.sstable_preemptive_open_interval.toMebibytes();
     }
 
     public static void setSSTablePreemptiveOpenIntervalInMiB(int mib)
     {
-        conf.sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound(mib);
+        if (mib == -1)
+            conf.sstable_preemptive_open_interval = null;
+        else
+            conf.sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound(mib);
     }
 
     public static boolean getTrickleFsync()
