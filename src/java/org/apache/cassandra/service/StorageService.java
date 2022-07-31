@@ -456,7 +456,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public static final boolean useStrictConsistency = Boolean.parseBoolean(System.getProperty("cassandra.consistent.rangemovement", "true"));
     private static final boolean allowSimultaneousMoves = Boolean.parseBoolean(System.getProperty("cassandra.consistent.simultaneousmoves.allow","false"));
     private static final boolean joinRing = Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true"));
-    private boolean replacing;
+    public boolean replacing;
 
     private boolean autoRepairStarted = true;
     private volatile boolean hasDecommissionFailed = false;
@@ -3126,7 +3126,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (InetAddressAndPort ep : endpointsToRemove)
         {
             removeEndpoint(ep);
-            if (replacing && ep.equals(DatabaseDescriptor.getReplaceAddress()))
+            if (isRemovingSameHostAsBeingReplaced(ep))
                 Gossiper.instance.replacementQuarantine(ep); // quarantine locally longer than normally; see CASSANDRA-8260
         }
         if (!tokensToUpdateInSystemKeyspace.isEmpty())
@@ -3162,6 +3162,37 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.info("Suppressed exception while checking isReplacingSameHostAddressAndHostId({}). Original host was probably decommissioned. ({})",
                         hostId, ex.getMessage());
+                StorageMetrics.staleHost.inc();
+                return false;
+            }
+            throw ex; // otherwise rethrow
+        }
+    }
+
+    @VisibleForTesting
+    public boolean isRemovingSameHostAsBeingReplaced(InetAddressAndPort ep)
+    {
+        try
+        {
+            return replacing && DatabaseDescriptor.getReplaceAddress().equals(ep);
+        }
+        catch (RuntimeException ex)
+        {
+            // If a host is decomissioned and the DNS entry is removed before the
+            // bootstrap completes, when it completes and advertises NORMAL state to other nodes, they will be unable
+            // to resolve it to an InetAddress unless it happens to be cached. This could happen on nodes
+            // storing large amounts of data or with long index rebuild times or if new instances have been added
+            // to the cluster through expansion or additional host replacement.
+            //
+            // The original host replacement must have been able to resolve the replacing address on startup
+            // when setting StorageService.replacing, so if it is impossible to resolve now it is probably
+            // decommissioned and did not have the same IP address or host id.  Allow the handleStateNormal
+            // handling to proceed, otherwise gossip state will be inconistent with some nodes believing the
+            // replacement host to be normal, and nodes unable to resolve the hostname will be left in JOINING.
+            if (ex.getCause() != null && ex.getCause().getClass() == UnknownHostException.class)
+            {
+                logger.info("Suppressed exception while checking isRemovingSameHostAsBeingReplaced({}). Original host was probably decommissioned. ({})",
+                            ep, ex.getMessage());
                 StorageMetrics.staleHost.inc();
                 return false;
             }

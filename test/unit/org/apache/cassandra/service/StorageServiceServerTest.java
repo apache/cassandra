@@ -664,6 +664,34 @@ public class StorageServiceServerTest
     }
 
     @Test
+    public void isRemovingSameHostAsBeingReplacedTest()
+    {
+        boolean originalState = StorageService.instance.replacing;
+        try
+        {
+            final String hostAddress = FBUtilities.getBroadcastAddressAndPort().getHostAddress(false);
+            UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
+            Gossiper.instance.initializeNodeUnsafe(FBUtilities.getBroadcastAddressAndPort(), localHostId, 1);
+
+            StorageService.instance.replacing = true;
+
+            // replacing the same address being removed should return it true
+            System.setProperty("cassandra.replace_address", hostAddress);
+            Assert.assertTrue(StorageService.instance.isRemovingSameHostAsBeingReplaced(FBUtilities.getBroadcastAddressAndPort()));
+
+            // the address being replaced cannot be resolved hence it should return false instead of an exception
+            System.setProperty("cassandra.replace_address", "unresolvable.host.local.");
+            Assert.assertFalse(StorageService.instance.isRemovingSameHostAsBeingReplaced(FBUtilities.getBroadcastAddressAndPort()));
+        }
+        finally
+        {
+            System.clearProperty("cassandra.replace_address");
+            StorageService.instance.replacing = originalState;
+        }
+    }
+
+
+    @Test
     public void testIsDecommissionNotFailed()
     {
         assertFalse(StorageService.instance.isDecommissionFailed());

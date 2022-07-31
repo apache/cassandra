@@ -177,6 +177,8 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-14119] Handle stale DNS entry while checking the node being removed
+ * [SO-14580] Auto repair priority list should be honored and setting priority list using nodetool can only set local group.
  * [SO-15181] Add a few metrics that tracks the progress of the clean up job
  * [SO-15181] Add a metric that tracks the progress of the clean up job
  * [SO-15008] A new nodetool/JMX command that tells whether node's bootstrap has failed or not
