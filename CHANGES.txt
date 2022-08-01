@@ -1,4 +1,5 @@
 4.2
+ * Removed Python < 2.7 support from formatting.py (CASSANDRA-17694)
  * Cleanup pylint issues with pylexotron.py (CASSANDRA-17779)
  * NPE bug in streaming checking if SSTable is being repaired (CASSANDRA-17801)
  * Users of NativeLibrary should handle lack of JNA appropriately when running in client mode (CASSANDRA-17794)
