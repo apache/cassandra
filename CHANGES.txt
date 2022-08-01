@@ -1,4 +1,5 @@
 4.0.6
+ * Fix default value for compaction_throughput_mb_per_sec in Config class to match  the one in cassandra.yaml (CASSANDRA-17790)
  * Fix Setting Virtual Table - update after startup config properties gc_log_threshold_in_ms, gc_warn_threshold_in_ms,
    conf.index_summary_capacity_in_mb, prepared_statements_cache_size_mb, key_cache_size_in_mb, counter_cache_size_in_mb
    (CASSANDRA-17737)

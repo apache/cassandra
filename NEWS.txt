@@ -51,6 +51,23 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+4.0.6
+=====
+
+New features
+------------
+
+
+Upgrading
+---------
+    - If you haven't set the compaction_thoroughput_mb_per_sec in your 4.0 cassandra.yaml file but you relied on the internal
+     default value,then compaction_throughput_mb_per_sec was equal to an old default value of 16MiB/s in Cassandra 4.0.
+     After CASSANDRA-17790 this is changed to 64MiB/s to match the default value in cassandra.yaml. If you prefer the old
+     one of 16MiB/s, you need to set it explicitly in your cassandra.yaml file.
+
+Deprecation
+---------
+
 4.0.3
 =====
 
