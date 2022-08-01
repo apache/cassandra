@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pylexotron uses Python's re.Scanner module as a simple regex-based tokenizer for input"""
+"""Pylexotron uses Python's re.Scanner module as a simple regex-based tokenizer for BNF production rules"""
 
 import re
 import inspect
@@ -350,8 +350,13 @@ class TerminalTypeMatcher(Matcher):
 
 
 class ParsingRuleSet:
+    "Define the BNF tokenization rules for cql3handling.syntax_rules. Backus-Naur Form consists of
+       - Production rules in the form: Left-Hand-Side ::= Right-Hand-Side.  The LHS is a non-terminal.
+       - Productions or non-terminal symbols
+       - Terminal symbols.  Every terminal is a single token.
+
     RuleSpecScanner = SaferScanner([
-        (r'::=', lambda s, t: t),
+        (r'::=', lambda s, t: t),                   # BNF rule definition 
         (r'\[[a-z0-9_]+\]=', lambda s, t: ('named_collector', t[1:-2])),
         (r'[a-z0-9_]+=', lambda s, t: ('named_symbol', t[:-1])),
         (r'/(\[\^?.[^]]*\]|[^/]|\\.)*/', lambda s, t: ('regex', t[1:-1].replace(r'\/', '/'))),
