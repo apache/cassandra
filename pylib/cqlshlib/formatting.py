@@ -326,19 +326,8 @@ def format_integer_type(val, colormap, thousands_sep=None, **_):
     return colorme(bval, colormap, 'int')
 
 
-# We can get rid of this in cassandra-2.2
-if sys.version_info >= (2, 7):
-    def format_integer_with_thousands_sep(val, thousands_sep=','):
-        return "{:,.0f}".format(val).replace(',', thousands_sep)
-else:
-    def format_integer_with_thousands_sep(val, thousands_sep=','):
-        if val < 0:
-            return '-' + format_integer_with_thousands_sep(-val, thousands_sep)
-        result = ''
-        while val >= 1000:
-            val, r = divmod(val, 1000)
-            result = "%s%03d%s" % (thousands_sep, r, result)
-        return "%d%s" % (val, result)
+def format_integer_with_thousands_sep(val, thousands_sep=','):
+    return "{:,.0f}".format(val).replace(',', thousands_sep)
 
 formatter_for('long')(format_integer_type)
 formatter_for('int')(format_integer_type)
