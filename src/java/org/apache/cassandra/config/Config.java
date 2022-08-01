@@ -220,7 +220,7 @@ public class Config
     public volatile int batch_size_fail_threshold_in_kb = 50;
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
-    public volatile int compaction_throughput_mb_per_sec = 16;
+    public volatile int compaction_throughput_mb_per_sec = 64;
     public volatile int compaction_large_partition_warning_threshold_mb = 100;
     public int min_free_space_per_drive_in_mb = 50;
 
