@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -137,7 +136,7 @@ public class AsyncLoader
                 readFuture = referenceAndDispatchReads(context);
                 state = State.LOADING;
             case LOADING:
-                if (readFuture != null && (!readFuture.isDone() || !readFuture.isSuccess()))
+                if (readFuture != null && !readFuture.isSuccess())
                 {
                     readFuture.addCallback(callback, commandStore.executor());
                     break;
