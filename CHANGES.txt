@@ -1,4 +1,5 @@
 4.2
+ * Users of NativeLibrary should handle lack of JNA appropriately when running in client mode (CASSANDRA-17794)
  * Added JMX call to getSSTableCountPerTWCSBucket for TWCS (CASSANDRA-17774)
  * When doing a host replacement, -Dcassandra.broadcast_interval_ms is used to know when to check the ring but checks that the ring wasn't changed in -Dcassandra.ring_delay_ms, changes to ring delay should not depend on when we publish load stats (CASSANDRA-17776)
  * When bootstrap fails, CassandraRoleManager may attempt to do read queries that fail with "Cannot read from a bootstrapping node", and increments unavailables counters (CASSANDRA-17754)

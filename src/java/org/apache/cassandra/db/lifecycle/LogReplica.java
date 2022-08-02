@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.io.IOException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +59,16 @@ final class LogReplica implements AutoCloseable
     {
         int folderFD = NativeLibrary.tryOpenDirectory(directory.path());
         if (folderFD == -1  && REQUIRE_FD)
-            throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", directory.path())), directory.path());
+        {
+            if (DatabaseDescriptor.isClientInitialized())
+            {
+                logger.warn("Invalid folder descriptor trying to create log replica {}. Continuing without Native I/O support.", directory.path());
+            }
+            else
+            {
+                throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", directory.path())), directory.path());
+            }
+        }
 
         return new LogReplica(new File(fileName), folderFD);
     }
@@ -67,7 +77,16 @@ final class LogReplica implements AutoCloseable
     {
         int folderFD = NativeLibrary.tryOpenDirectory(file.parent().path());
         if (folderFD == -1)
-            throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", file.parent().path())), file.parent().path());
+        {
+            if (DatabaseDescriptor.isClientInitialized())
+            {
+                logger.warn("Invalid folder descriptor trying to create log replica {}. Continuing without Native I/O support.", file.parentPath());
+            }
+            else
+            {
+                throw new FSReadError(new IOException(String.format("Invalid folder descriptor trying to create log replica %s", file.parent().path())), file.parent().path());
+            }
+        }
 
         return new LogReplica(file, folderFD);
     }
