@@ -4,4 +4,5 @@
 #
 sstable_preemptive_open_interval_in_mb: -1
 index_summary_resize_interval_in_minutes: -1
+cache_load_timeout_seconds: -1
 

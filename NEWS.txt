@@ -198,6 +198,7 @@ New features
 
 Upgrading
 ---------
+    - `cache_load_timeout_seconds` being negative for disabled is equivalent to `cache_load_timeout` = 0 for disabled.
     - `sstable_preemptive_open_interval_in_mb` being negative for disabled is equivalent to `sstable_preemptive_open_interval`
       being null again. In the JMX MBean `org.apache.cassandra.db:type=StorageService`, the setter method
       `setSSTablePreemptiveOpenIntervalInMB`still takes `intervalInMB` negative numbers for disabled.
@@ -266,7 +267,21 @@ Upgrading
 
 Deprecation
 -----------
-    - `withBufferSizeInMB(int size)` in CQLSSTableWriter.Builder class is deprecated in favor of withBufferSizeInMiB(int size)
+    - In the JMX MBean `org.apache.cassandra.db:type=StorageService`: deprecate getter method `getStreamThroughputMbitPerSec`
+      in favor of getter method `getStreamThroughputMbitPerSecAsDouble`; deprecate getter method `getStreamThroughputMbPerSec`
+      in favor of getter methods `getStreamThroughputMebibytesPerSec` and `getStreamThroughputMebibytesPerSecAsDouble`;
+      deprecate getter method `getInterDCStreamThroughputMbitPerSec` in favor of getter method `getInterDCStreamThroughputMbitPerSecAsDouble`;
+      deprecate getter method `getInterDCStreamThroughputMbPerSec` in favor of getter methods `getInterDCStreamThroughputMebibytesPerSecAsDouble`;
+      deprecate getter method `getCompactionThroughputMbPerSec` in favor of getter methods `getCompactionThroughtputMibPerSecAsDouble`
+      and `getCompactionThroughtputBytesPerSec`; deprecate setter methods `setStreamThroughputMbPerSec` and `setStreamThroughputMbitPerSec`
+      in favor of `setStreamThroughputMebibytesPerSec`; deprecate setter methods `setInterDCStreamThroughputMbitPerSec` and
+      `setInterDCStreamThroughputMbPerSec` in favor of `setInterDCStreamThroughputMebibytesPerSec`. See CASSANDRA-17725 for further details.
+    - Deprecate public method `setRate(final double throughputMbPerSec)` in `Compaction Manager` in favor of
+      `setRateInBytes(final double throughputBytesPerSec)`
+    - `withBufferSizeInMB(int size)` in `StressCQLSSTableWriter.Builder` class is deprecated in favor of `withBufferSizeInMiB(int size)`
+      No change of functionality in the new one, only name change for clarity in regards to units and to follow naming
+      standartization.
+    - `withBufferSizeInMB(int size)` in `CQLSSTableWriter.Builder` class is deprecated in favor of `withBufferSizeInMiB(int size)`
       No change of functionality in the new one, only name change for clarity in regards to units and to follow naming
       standartization.
     - The properties `keyspace_count_warn_threshold` and `table_count_warn_threshold` in cassandra.yaml have been

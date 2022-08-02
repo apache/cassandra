@@ -117,10 +117,12 @@ public class YamlConfigurationLoaderTest
         Config c = load("test/conf/cassandra-converters-special-cases.yaml");
         assertThat(c.sstable_preemptive_open_interval).isNull();
         assertThat(c.index_summary_resize_interval).isNull();
+        assertThat(c.cache_load_timeout).isEqualTo(new DurationSpec.IntSecondsBound("0s"));
 
         c = load("test/conf/cassandra-converters-special-cases-old-names.yaml");
         assertThat(c.sstable_preemptive_open_interval).isNull();
         assertThat(c.index_summary_resize_interval).isNull();
+        assertThat(c.cache_load_timeout).isEqualTo(new DurationSpec.IntSecondsBound("0s"));
     }
 
     @Test
@@ -131,17 +133,19 @@ public class YamlConfigurationLoaderTest
         map.put("index_summary_resize_interval", null);
 
         Config c = YamlConfigurationLoader.fromMap(map, true, Config.class);
-        assert c.sstable_preemptive_open_interval == null;
-        assert c.index_summary_resize_interval == null;
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.index_summary_resize_interval).isNull();
 
         map = ImmutableMap.of(
         "sstable_preemptive_open_interval_in_mb", "-1",
-        "index_summary_resize_interval_in_minutes", "-1"
+        "index_summary_resize_interval_in_minutes", "-1",
+        "cache_load_timeout_seconds", "-1"
         );
         c = YamlConfigurationLoader.fromMap(map, Config.class);
 
         assertThat(c.sstable_preemptive_open_interval).isNull();
         assertThat(c.index_summary_resize_interval).isNull();
+        assertThat(c.cache_load_timeout).isEqualTo(new DurationSpec.IntSecondsBound("0s"));
     }
 
     @Test
@@ -340,7 +344,7 @@ public class YamlConfigurationLoaderTest
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data rate: value must be non-negative");
 
-        // MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE
+        // MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE
         assertThat(from("stream_throughput_outbound_megabits_per_sec", "42").stream_throughput_outbound.toMegabitsPerSecondAsInt()).isEqualTo(42);
         assertThatThrownBy(() -> from("stream_throughput_outbound_megabits_per_sec", -2).stream_throughput_outbound.toMegabitsPerSecondAsInt())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
