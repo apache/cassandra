@@ -18,6 +18,8 @@
 package org.apache.cassandra.config;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -25,6 +27,8 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.FileStore;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -32,11 +36,13 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
@@ -906,6 +912,9 @@ public class DatabaseDescriptor
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
         logInitializationOutcome(logger);
+
+        if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
+            throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
     }
 
     @VisibleForTesting
@@ -1581,6 +1590,13 @@ public class DatabaseDescriptor
                 if (conf.cdc_raw_directory == null)
                     throw new ConfigurationException("cdc_raw_directory must be specified", false);
                 FileUtils.createDirectory(conf.cdc_raw_directory);
+            }
+
+            boolean created = maybeCreateHeapDumpPath();
+            if (!created && conf.dump_heap_on_uncaught_exception)
+            {
+                logger.error(String.format("conf.dump_heap_on_uncaught_exception is enabled but unable to create heap dump path %s. Disabling.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+                conf.dump_heap_on_uncaught_exception = false;
             }
         }
         catch (ConfigurationException e)
@@ -4380,5 +4396,69 @@ public class DatabaseDescriptor
     public static void setMinTrackedPartitionTombstoneCount(long value)
     {
         conf.min_tracked_partition_tombstone_count = value;
+    }
+
+    public static boolean getDumpHeapOnUncaughtException()
+    {
+        return conf.dump_heap_on_uncaught_exception;
+    }
+
+    /**
+     * @return Whether the path exists (be it created now or already prior)
+     */
+    private static boolean maybeCreateHeapDumpPath()
+    {
+        if (!conf.dump_heap_on_uncaught_exception)
+            return false;
+
+        Path heap_dump_path = getHeapDumpPath();
+        if (heap_dump_path == null)
+        {
+            logger.warn("Neither -XX:HeapDumpPath nor cassandra.yaml:heap_dump_path are set; unable to create a directory to hold the output.");
+            return false;
+        }
+        if (PathUtils.exists(Paths.get(conf.heap_dump_path)))
+            return true;
+        return PathUtils.createDirectoryIfNotExists(Paths.get(conf.heap_dump_path));
+    }
+
+    /**
+     * As this is at its heart a debug operation (getting a one-shot heapdump from an uncaught exception), we support
+     * both the more evolved cassandra.yaml approach but also the -XX param to override it on a one-off basis so you don't
+     * have to change the full config of a node or a cluster in order to get a heap dump from a single node that's
+     * misbehaving.
+     * @return the absolute path of the -XX param if provided, else the heap_dump_path in cassandra.yaml
+     */
+    public static Path getHeapDumpPath()
+    {
+        RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
+        Optional<String> pathArg = runtimeMxBean.getInputArguments().stream().filter(s -> s.startsWith("-XX:HeapDumpPath=")).findFirst();
+
+        if (pathArg.isPresent())
+        {
+            Pattern HEAP_DUMP_PATH_SPLITTER = Pattern.compile("HeapDumpPath=");
+            String fullHeapPathString = HEAP_DUMP_PATH_SPLITTER.split(pathArg.get())[1];
+            Path absolutePath = Paths.get(fullHeapPathString).toAbsolutePath();
+            Path basePath = fullHeapPathString.endsWith(".hprof") ? absolutePath.subpath(0, absolutePath.getNameCount() - 1) : absolutePath;
+            return Paths.get("/").resolve(basePath);
+        }
+        if (conf.heap_dump_path == null)
+            throw new ConfigurationException("Attempted to get heap dump path without -XX:HeapDumpPath or cassandra.yaml:heap_dump_path set.");
+        return Paths.get(conf.heap_dump_path);
+    }
+
+    public static void setDumpHeapOnUncaughtException(boolean enabled)
+    {
+        conf.dump_heap_on_uncaught_exception = enabled;
+        boolean pathExists = maybeCreateHeapDumpPath();
+
+        // In the good case, we're either disabling or we're enabled and the path exists on disk just fine.
+        if (!enabled || pathExists)
+            logger.info("Setting dump_heap_on_uncaught_exception to {}", enabled);
+        else
+        {
+            logger.error("Attempted to enable heap dump but cannot create the requested path. Disabling.");
+            conf.dump_heap_on_uncaught_exception = false;
+        }
     }
 }

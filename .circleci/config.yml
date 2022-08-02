@@ -128,6 +128,7 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    - HeapDumpPath: test/output/
   repeated_jvm_upgrade_dtest:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
