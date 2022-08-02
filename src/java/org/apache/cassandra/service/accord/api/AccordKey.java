@@ -238,7 +238,7 @@ public interface AccordKey extends Key<AccordKey>
         }
 
         @Override
-        public PartitionPosition partitionKey()
+        public T partitionKey()
         {
             return key;
         }
@@ -262,12 +262,6 @@ public interface AccordKey extends Key<AccordKey>
         public Kind kind()
         {
             return Kind.PARTITION;
-        }
-
-        @Override
-        public DecoratedKey partitionKey()
-        {
-            return (DecoratedKey) super.partitionKey();
         }
 
         @Override
@@ -366,12 +360,6 @@ public interface AccordKey extends Key<AccordKey>
         public Kind kind()
         {
             return Kind.TOKEN;
-        }
-
-        @Override
-        public Token.KeyBound partitionKey()
-        {
-            return (Token.KeyBound) super.partitionKey();
         }
 
         @Override
