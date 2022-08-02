@@ -3167,4 +3167,16 @@ public class StorageProxy implements StorageProxyMBean
     {
         return PaxosState.getDisableCoordinatorLocking();
     }
+
+    @Override
+    public boolean getDumpHeapOnUncaughtException()
+    {
+        return DatabaseDescriptor.getDumpHeapOnUncaughtException();
+    }
+
+    @Override
+    public void setDumpHeapOnUncaughtException(boolean enabled)
+    {
+        DatabaseDescriptor.setDumpHeapOnUncaughtException(enabled);
+    }
 }

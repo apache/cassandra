@@ -107,6 +107,16 @@ auto_hints_cleanup_enabled: false
 #     parameters:
 #         -
 
+# Directory where Cassandra should store results of a One-Shot troubleshooting heapdump for uncaught exceptions.
+# Note: this value can be overridden by the -XX:HeapDumpPath JVM env param with a relative local path for testing if
+# so desired.
+# If not set, the default directory is $CASSANDRA_HOME/heapdump
+# heap_dump_path: /var/lib/cassandra/heapdump
+
+# Enable / disable automatic dump of heap on first uncaught exception
+# If not set, the default value is false
+# dump_heap_on_uncaught_exception: true
+
 # Enable / disable persistent hint windows.
 #
 # If set to false, a hint will be stored only in case a respective node
