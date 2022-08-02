@@ -192,6 +192,7 @@ public class AccordIntegrationTest extends TestBaseImpl
             List<String> tokens = cluster.stream()
                                          .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
                                          .collect(Collectors.toList());
+            // needs to be byte[] because ByteBuffer isn't serializable so can't pass into the coordinator ClassLoader
             List<byte[]> keys = tokens.stream().map(t -> (Murmur3Partitioner.LongToken) Murmur3Partitioner.instance.getTokenFactory().fromString(t))
                                       .map(Murmur3Partitioner.LongToken::keyForToken)
                                       .map(ByteBufferUtil::getArray)
@@ -199,11 +200,12 @@ public class AccordIntegrationTest extends TestBaseImpl
 
             cluster.get(1).runOnInstance(() -> {
                 AccordTxnBuilder txn = txn();
+                int i = 0;
                 for (byte[] data : keys)
                 {
                     ByteBuffer key = ByteBuffer.wrap(data);
                     txn = txn.withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=? and c=0", key)
-                          .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (?, 0, 0)", key)
+                          .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (?, 0, ?)", key, i++)
                           .withCondition(keyspace, "tbl", key, 0, NOT_EXISTS);
                 }
                 Keys keySet = txn.build().keys();
@@ -219,7 +221,8 @@ public class AccordIntegrationTest extends TestBaseImpl
             SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT * FROM " + keyspace + ".tbl", ConsistencyLevel.ALL);
             QueryResults.Builder expected = QueryResults.builder()
                                                        .columns("k", "c", "v");
-            keys.forEach(k -> expected.row(k, 0, 0));
+            for (int i = 0; i < keys.size(); i++)
+                expected.row(ByteBuffer.wrap(keys.get(i)), 0, i);
             AssertUtils.assertRows(result, expected.build());
         }
     }
