@@ -45,7 +45,7 @@ public class Crc
         }
     }
 
-    static CRC32 crc32()
+    public static CRC32 crc32()
     {
         CRC32 crc = crc32.get();
         crc.reset();

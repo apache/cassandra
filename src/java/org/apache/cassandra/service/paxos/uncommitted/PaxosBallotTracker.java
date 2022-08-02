@@ -25,6 +25,7 @@ import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.service.ClientState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 
 import static org.apache.cassandra.io.util.SequentialWriterOption.FINISH_ON_CLOSE;
+import static org.apache.cassandra.net.Crc.crc32;
 
 /**
  * Tracks the highest paxos ballot we've seen, and the lowest ballot we can accept.
@@ -66,9 +68,6 @@ public class PaxosBallotTracker
         this.lowBound = lowBound;
     }
 
-    /**
-     * creates a new crc32 instance seeded with a non-zero value
-     */
     private static void serializeBallot(SequentialWriter writer, CRC32 crc, Ballot ballot) throws IOException
     {
         ByteBuffer bytes = ballot.toBytes();
@@ -105,7 +104,7 @@ public class PaxosBallotTracker
                 throw new IOException("Unsupported ballot file version: " + version);
 
             byte[] bytes = new byte[16];
-            CRC32 crc = new CRC32();
+            CRC32 crc = crc32();
             Ballot highBallot = deserializeBallot(reader, crc, bytes);
             Ballot lowBallot = deserializeBallot(reader, crc, bytes);
             int checksum = Integer.reverseBytes(reader.readInt());
@@ -129,7 +128,7 @@ public class PaxosBallotTracker
 
         try(SequentialWriter writer = new SequentialWriter(file, FINISH_ON_CLOSE))
         {
-            CRC32 crc = new CRC32();
+            CRC32 crc = crc32();
             writer.writeInt(FILE_VERSION);
             serializeBallot(writer, crc, getHighBound());
             serializeBallot(writer, crc, getLowBound());
