@@ -171,6 +171,15 @@ public interface AccordKey extends Key<AccordKey>
             return isMin ? -1 : 1;
         }
 
+        @Override
+        public String toString()
+        {
+            return "SentinelKey{" +
+                   "tableId=" + tableId +
+                   ", key=" + (isMin ? "min": "max") +
+                   '}';
+        }
+
         public static final IVersionedSerializer<SentinelKey> serializer = new IVersionedSerializer<SentinelKey>()
         {
             @Override

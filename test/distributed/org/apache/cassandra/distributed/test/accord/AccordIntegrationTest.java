@@ -20,27 +20,34 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import com.google.common.base.Splitter;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.topology.Topologies;
+import accord.txn.Keys;
 import accord.txn.Txn;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.impl.RowUtil;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.net.Verb;
@@ -49,6 +56,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTxnBuilder;
 import org.apache.cassandra.service.accord.db.AccordData;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.EQUAL;
 import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.NOT_EXISTS;
@@ -165,6 +174,53 @@ public class AccordIntegrationTest extends TestBaseImpl
                                                        .withCondition(keyspace, "tbl", 0, 0, NOT_EXISTS)));
 
             assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 1);
+        }
+    }
+
+    @Test
+    public void multipleShards() throws Throwable
+    {
+        String keyspace = "ks" + System.currentTimeMillis();
+
+        try (Cluster cluster = init(Cluster.build(2).start()))
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
+            cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k blob, c int, v int, primary key (k, c))");
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
+
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
+            List<String> tokens = cluster.stream()
+                                         .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
+                                         .collect(Collectors.toList());
+            List<byte[]> keys = tokens.stream().map(t -> (Murmur3Partitioner.LongToken) Murmur3Partitioner.instance.getTokenFactory().fromString(t))
+                                      .map(Murmur3Partitioner.LongToken::keyForToken)
+                                      .map(ByteBufferUtil::getArray)
+                                      .collect(Collectors.toList());
+
+            cluster.get(1).runOnInstance(() -> {
+                AccordTxnBuilder txn = txn();
+                for (byte[] data : keys)
+                {
+                    ByteBuffer key = ByteBuffer.wrap(data);
+                    txn = txn.withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=? and c=0", key)
+                          .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (?, 0, 0)", key)
+                          .withCondition(keyspace, "tbl", key, 0, NOT_EXISTS);
+                }
+                Keys keySet = txn.build().keys();
+                Topologies topology = AccordService.instance.node.topology().forKeys(keySet);
+                // currently we don't detect out-of-bounds read/write, so need this logic to validate we reach different
+                // shards
+                Assertions.assertThat(topology.totalShards()).isEqualTo(2);
+                execute(txn);
+            });
+
+            awaitAsyncApply(cluster);
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT * FROM " + keyspace + ".tbl", ConsistencyLevel.ALL);
+            QueryResults.Builder expected = QueryResults.builder()
+                                                       .columns("k", "c", "v");
+            keys.forEach(k -> expected.row(k, 0, 0));
+            AssertUtils.assertRows(result, expected.build());
         }
     }
 
