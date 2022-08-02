@@ -64,7 +64,7 @@ hinted_handoff_enabled: true
 # Min unit: ms
 max_hint_window: 3h
 
-# Maximum throttle in KBs per second, per delivery thread.  This will be
+# Maximum throttle in KiBs per second, per delivery thread.  This will be
 # reduced proportionally to the number of nodes in the cluster.  (If there
 # are two nodes in the cluster, each delivery thread will use the maximum
 # rate; if there are three, each will throttle to half of the maximum,
@@ -86,7 +86,7 @@ max_hints_delivery_threads: 2
 # Min unit: ms
 hints_flush_period: 10000ms
 
-# Maximum size for a single hints file, in megabytes.
+# Maximum size for a single hints file, in mebibytes.
 # Min unit: MiB
 max_hints_file_size: 128MiB
 
@@ -121,7 +121,7 @@ auto_hints_cleanup_enabled: false
 #
 # hint_window_persistent_enabled: true
 
-# Maximum throttle in KBs per second, total. This will be
+# Maximum throttle in KiBs per second, total. This will be
 # reduced proportionally to the number of nodes in the cluster.
 # Min unit: KiB
 batchlog_replay_throttle: 1024KiB
@@ -374,7 +374,7 @@ commit_failure_policy: stop
 #
 # Default value ("auto") is 1/256th of the heap or 10MiB, whichever is greater
 # Min unit: MiB
-# prepared_statements_cache_size:
+prepared_statements_cache_size:
 
 # Maximum size of the key cache in memory.
 #
@@ -389,7 +389,7 @@ commit_failure_policy: stop
 #
 # Default value is empty to make it "auto" (min(5% of Heap (in MiB), 100MiB)). Set to 0 to disable key cache.
 # Min unit: MiB
-# key_cache_size:
+key_cache_size:
 
 # Duration in seconds after which Cassandra should
 # save the key cache. Caches are saved to saved_caches_directory as
@@ -457,7 +457,7 @@ row_cache_save_period: 0s
 # Default value is empty to make it "auto" (min(2.5% of Heap (in MiB), 50MiB)). Set to 0 to disable counter cache.
 # NOTE: if you perform counter deletes and rely on low gcgs, you should disable the counter cache.
 # Min unit: MiB
-# counter_cache_size:
+counter_cache_size:
 
 # Duration in seconds after which Cassandra should
 # save the counter cache (keys only). Caches are saved to saved_caches_directory as
@@ -659,7 +659,7 @@ memtable_allocation_type: heap_buffers
 # is 1/16th of the available heap. The main tradeoff is that smaller trees
 # have less resolution, which can lead to over-streaming data. If you see heap
 # pressure during repairs, consider lowering this, but you cannot go below
-# one megabyte. If you see lots of over-streaming, consider raising
+# one mebibyte. If you see lots of over-streaming, consider raising
 # this or using subrange repair.
 #
 # For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
@@ -731,7 +731,7 @@ memtable_allocation_type: heap_buffers
 # is a best-effort process. In extreme conditions Cassandra may need to use
 # more than this amount of memory.
 # Min unit: KiB
-# index_summary_capacity:
+index_summary_capacity:
 
 # How frequently index summaries should be resampled.  This is done
 # periodically to redistribute memory from the fixed-size pool to sstables

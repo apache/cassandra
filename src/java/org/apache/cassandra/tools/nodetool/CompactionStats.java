@@ -75,15 +75,15 @@ public class CompactionStats extends NodeToolCmd
             }
         }
         out.println();
-        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughput(), humanReadable, vtableOutput, out);
+        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughputBytes(), humanReadable, vtableOutput, out);
     }
 
-    public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable, PrintStream out)
+    public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, PrintStream out)
     {
-        reportCompactionTable(compactions, compactionThroughput, humanReadable, false, out);
+        reportCompactionTable(compactions, compactionThroughputInBytes, humanReadable, false, out);
     }
 
-    public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable, boolean vtableOutput, PrintStream out)
+    public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, boolean vtableOutput, PrintStream out)
     {
         if (!compactions.isEmpty())
         {
@@ -119,9 +119,9 @@ public class CompactionStats extends NodeToolCmd
             table.printTo(out);
 
             String remainingTime = "n/a";
-            if (compactionThroughput != 0)
+            if (compactionThroughputInBytes != 0)
             {
-                long remainingTimeInSecs = remainingBytes / (1024L * 1024L * compactionThroughput);
+                long remainingTimeInSecs = remainingBytes / compactionThroughputInBytes;
                 remainingTime = format("%dh%02dm%02ds", remainingTimeInSecs / 3600, (remainingTimeInSecs % 3600) / 60, (remainingTimeInSecs % 60));
             }
             out.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
