@@ -59,12 +59,12 @@ public class AccordTopologyUtils
 
     private static TokenRange maxRange(TableId tableId, Token token)
     {
-        return new TokenRange(TokenKey.min(tableId, token), SentinelKey.max(tableId));
+        return new TokenRange(TokenKey.max(tableId, token), SentinelKey.max(tableId));
     }
 
     private static TokenRange range(TableId tableId, Token left, Token right)
     {
-        return new TokenRange(TokenKey.min(tableId, left), TokenKey.max(tableId, right));
+        return new TokenRange(TokenKey.max(tableId, left), TokenKey.max(tableId, right));
     }
 
     public static List<Shard> createShards(TableMetadata tableMetadata, TokenMetadata tokenMetadata)
@@ -127,7 +127,7 @@ public class AccordTopologyUtils
         for (TableId tableId : tableIds)
         {
             TableMetadata tableMetadata = Schema.instance.getTableMetadata(tableId);
-            Preconditions.checkNotNull(tableId);
+            Preconditions.checkNotNull(tableMetadata);
             shards.addAll(createShards(tableMetadata, tokenMetadata));
         }
 
