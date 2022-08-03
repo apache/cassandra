@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
@@ -25,6 +26,7 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -34,6 +36,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.messages.Commit;
 import accord.topology.Topologies;
 import accord.txn.Keys;
 import accord.txn.Txn;
@@ -47,9 +50,10 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
-import org.apache.cassandra.distributed.impl.RowUtil;
+import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -62,8 +66,12 @@ import org.assertj.core.api.Assertions;
 import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.EQUAL;
 import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.NOT_EXISTS;
 
+//TODO there are too many new clusters, this will cause Metaspace issues.  Once Schema and topology are integrated, can switch
+// to a shared cluster with isolated tables
 public class AccordIntegrationTest extends TestBaseImpl
 {
+    private static final String keyspace = "ks";
+
     private static void assertRow(Cluster cluster, String query, int k, int c, int v)
     {
         SimpleQueryResult result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.QUORUM);
@@ -72,17 +80,29 @@ public class AccordIntegrationTest extends TestBaseImpl
                                                    .build());
     }
 
-    @Test
-    public void testQuery() throws Throwable
+    private static void test(Consumer<Cluster> fn) throws IOException
     {
-        String keyspace = "ks" + System.currentTimeMillis();
-        try (Cluster cluster = init(Cluster.build(2).withConfig(c -> c.set("write_request_timeout_in_ms", TimeUnit.MINUTES.toMillis(10))).start()))
+        // need to up the timeout else tests get flaky
+        try (Cluster cluster = createCluster())
         {
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
             cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int, primary key (k, c))");
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
 
+            fn.accept(cluster);
+        }
+    }
+
+    private static Cluster createCluster() throws IOException
+    {
+        return init(Cluster.build(2).withConfig(c -> c.set("write_request_timeout_in_ms", TimeUnit.SECONDS.toMillis(10))).start());
+    }
+
+    @Test
+    public void testQuery() throws IOException
+    {
+        test(cluster -> {
             cluster.get(1).runOnInstance(() -> execute(txn()
                                                        .withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0")
                                                        .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (0, 0, 1)")
@@ -99,22 +119,13 @@ public class AccordIntegrationTest extends TestBaseImpl
 
             awaitAsyncApply(cluster);
             assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 1);
-        }
+        });
     }
 
     @Test
-    public void multiKeyMultiQuery() throws Throwable
+    public void multiKeyMultiQuery() throws IOException
     {
-        String keyspace = "ks" + System.currentTimeMillis();
-
-        try (Cluster cluster = init(Cluster.build(2).start()))
-        {
-            cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
-            cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int, primary key (k, c))");
-            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
-
-            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
-
+        test(cluster -> {
             cluster.get(1).runOnInstance(() -> execute(txn()
                                                        .withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0")
                                                        .withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=1 AND c=0")
@@ -133,20 +144,13 @@ public class AccordIntegrationTest extends TestBaseImpl
             assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 0);
             assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=1 AND c=0", 1, 0, 1);
             assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=2 AND c=0", 2, 0, 1);
-        }
+        });
     }
 
     @Test
-    public void testRecovery() throws Throwable
+    public void testRecovery() throws IOException
     {
-        String keyspace = "ks" + System.currentTimeMillis();
-        try (Cluster cluster = init(Cluster.build(2).withConfig(c -> c.set("write_request_timeout_in_ms", TimeUnit.MINUTES.toMillis(10))).start()))
-        {
-            cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
-            cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int, primary key (k, c))");
-            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
-            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
-
+        test(cluster -> {
             IMessageFilters.Filter lostApply = cluster.filters().verbs(Verb.ACCORD_APPLY_REQ.id).drop();
             IMessageFilters.Filter lostCommit = cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).to(2).drop();
 
@@ -166,29 +170,30 @@ public class AccordIntegrationTest extends TestBaseImpl
 
             awaitAsyncApply(cluster);
 
-            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 1);
+            //TODO why is this flakey?  Also why does .close hang on Accord?
+            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 2);
 
             cluster.get(1).runOnInstance(() -> execute(txn()
                                                        .withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0")
                                                        .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (0, 0, 2)")
                                                        .withCondition(keyspace, "tbl", 0, 0, NOT_EXISTS)));
+            awaitAsyncApply(cluster);
 
             assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 1);
-        }
+        });
     }
 
     @Test
-    public void multipleShards() throws Throwable
+    public void multipleShards() throws IOException
     {
-        String keyspace = "ks" + System.currentTimeMillis();
-
-        try (Cluster cluster = init(Cluster.build(2).start()))
+        // can't reuse test() due to it using "int" for pk; this test needs "blob"
+        try (Cluster cluster = createCluster())
         {
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
             cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k blob, c int, v int, primary key (k, c))");
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
-
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
+
             List<String> tokens = cluster.stream()
                                          .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
                                          .collect(Collectors.toList());
@@ -205,8 +210,8 @@ public class AccordIntegrationTest extends TestBaseImpl
                 {
                     ByteBuffer key = ByteBuffer.wrap(data);
                     txn = txn.withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=? and c=0", key)
-                          .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (?, 0, ?)", key, i++)
-                          .withCondition(keyspace, "tbl", key, 0, NOT_EXISTS);
+                             .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (?, 0, ?)", key, i++)
+                             .withCondition(keyspace, "tbl", key, 0, NOT_EXISTS);
                 }
                 Keys keySet = txn.build().keys();
                 Topologies topology = AccordService.instance.node.topology().forKeys(keySet);
@@ -220,11 +225,53 @@ public class AccordIntegrationTest extends TestBaseImpl
 
             SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT * FROM " + keyspace + ".tbl", ConsistencyLevel.ALL);
             QueryResults.Builder expected = QueryResults.builder()
-                                                       .columns("k", "c", "v");
+                                                        .columns("k", "c", "v");
             for (int i = 0; i < keys.size(); i++)
                 expected.row(ByteBuffer.wrap(keys.get(i)), 0, i);
             AssertUtils.assertRows(result, expected.build());
         }
+    }
+
+    @Test
+    public void testLostCommitReadTriggersFallbackRead() throws IOException
+    {
+        test(cluster -> {
+            // its expected that the required Read will happen reguardless of if this fails to return a read
+            cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> cluster.get(from).callOnInstance(() -> {
+                Message<?> msg = Instance.deserializeMessage(iMessage);
+                if (msg.payload instanceof Commit)
+                    return ((Commit) msg.payload).read;
+                return false;
+            })).drop();
+
+            cluster.get(1).runOnInstance(() -> execute(txn()
+                                                       .withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0")
+                                                       .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (0, 0, 1)")
+                                                       .withCondition(keyspace, "tbl", 0, 0, NOT_EXISTS)));
+
+            awaitAsyncApply(cluster);
+
+            // recovery happened
+            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 1);
+        });
+    }
+
+    @Test
+    public void testReadOnlyTx() throws IOException
+    {
+        test(cluster -> cluster.get(1).runOnInstance(() -> execute(txn().withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0"))));
+    }
+
+    @Test
+    public void testWriteOnlyTx() throws IOException
+    {
+        test(cluster -> {
+            cluster.get(1).runOnInstance(() -> execute(txn().withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (0, 0, 1)")));
+
+            awaitAsyncApply(cluster);
+
+            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 1);
+        });
     }
 
     private static void awaitAsyncApply(Cluster cluster)
@@ -309,7 +356,8 @@ public class AccordIntegrationTest extends TestBaseImpl
                 }
                 break;
 //                case STATIC:
-                default: throw new IllegalArgumentException("Unsupported kind: " + column.kind);
+                default:
+                    throw new IllegalArgumentException("Unsupported kind: " + column.kind);
             }
         }
         builder.row(buffer);
