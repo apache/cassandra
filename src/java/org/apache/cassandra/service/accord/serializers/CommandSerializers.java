@@ -225,7 +225,10 @@ public class CommandSerializers
         {
             timestamp.serialize(writes.executeAt, out, version);
             KeySerializers.keys.serialize(writes.keys, out, version);
-            AccordWrite.serializer.serialize((AccordWrite) writes.write, out, version);
+            boolean hasWrites = writes.write != null;
+            out.writeBoolean(hasWrites);
+            if (hasWrites)
+                AccordWrite.serializer.serialize((AccordWrite) writes.write, out, version);
         }
 
         @Override
@@ -233,7 +236,7 @@ public class CommandSerializers
         {
             return new Writes(timestamp.deserialize(in, version),
                               KeySerializers.keys.deserialize(in, version),
-                              AccordWrite.serializer.deserialize(in, version));
+                              in.readBoolean() ? AccordWrite.serializer.deserialize(in, version) : null);
         }
 
         @Override
@@ -241,7 +244,10 @@ public class CommandSerializers
         {
             long size = timestamp.serializedSize(writes.executeAt, version);
             size += KeySerializers.keys.serializedSize(writes.keys, version);
-            size += AccordWrite.serializer.serializedSize((AccordWrite) writes.write, version);
+            boolean hasWrites = writes.write != null;
+            size += TypeSizes.sizeof(hasWrites);
+            if (hasWrites)
+                size += AccordWrite.serializer.serializedSize((AccordWrite) writes.write, version);
             return size;
         }
     };
