@@ -30,16 +30,18 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class InvalidConfiguration extends BadQueryTypes
 {
+    private static Map<ConsistencyLevel, ConsistencyLevel> incorrectConsistencyLevelMap = new HashMap<>();
+    static {
+        incorrectConsistencyLevelMap.put(ConsistencyLevel.QUORUM, ConsistencyLevel.LOCAL_QUORUM);
+        incorrectConsistencyLevelMap.put(ConsistencyLevel.EACH_QUORUM, ConsistencyLevel.LOCAL_QUORUM);
+        incorrectConsistencyLevelMap.put(ConsistencyLevel.SERIAL, ConsistencyLevel.LOCAL_SERIAL);
+        incorrectConsistencyLevelMap.put(ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_ONE);
+    }
     String problemText;
     private static final Map<String, Integer> visitedTablesInvalidCompactionType = new ConcurrentHashMap<>();
     private static final Map<String, Integer> visitedTablesInvalidConsistency = new ConcurrentHashMap<>();
-    public final static Set<ConsistencyLevel> INCORRECT_CONSISTENCY_LEVELS = Collections.unmodifiableSet(
-            new HashSet<ConsistencyLevel>(Arrays.asList(
-                    ConsistencyLevel.QUORUM,
-                    ConsistencyLevel.EACH_QUORUM,
-                    ConsistencyLevel.SERIAL,
-                    ConsistencyLevel.ONE
-            )));
+
+    public final static Map<ConsistencyLevel, ConsistencyLevel> INCORRECT_CONSISTENCY_LEVELS = Collections.unmodifiableMap(incorrectConsistencyLevelMap);
 
 
     public InvalidConfiguration(String keySpace,
@@ -97,13 +99,13 @@ public class InvalidConfiguration extends BadQueryTypes
                                            ConsistencyLevel cl)
     {
         Keyspace ks = Schema.instance.getKeyspaceInstance(tableMetadata.keyspace);
-        if (ks !=null && ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class && INCORRECT_CONSISTENCY_LEVELS.contains(cl))
+        if (ks !=null && ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class && INCORRECT_CONSISTENCY_LEVELS.containsKey(cl))
         {
             if (!visitedTablesInvalidConsistency.containsKey(tableMetadata.name))
             {
                 visitedTablesInvalidConsistency.put(tableMetadata.name, 0);
                 BadQuery.report(BadQuery.BadQueryCategory.INCORRECT_CONSISTENCY_LEVEL,
-                        new InvalidConfiguration(tableMetadata.keyspace, tableMetadata.name, String.format("found %s, it should have been LOCAL_%s", cl.name(), cl.name())));
+                        new InvalidConfiguration(tableMetadata.keyspace, tableMetadata.name, String.format("found %s, it should have been %s", cl.name(), INCORRECT_CONSISTENCY_LEVELS.get(cl).name())));
             }
         }
     }
