@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.metrics.ClientMetrics;
@@ -82,6 +83,7 @@ public class AuthResponse extends Message.Request
                 ClientMetrics.instance.markAuthSuccess();
                 AuthEvents.instance.notifyAuthSuccess(queryState);
                 // authentication is complete, send a ready message to the client
+                AuthMetrics.successes.inc();
                 return new AuthSuccess(challenge);
             }
             else
@@ -93,6 +95,7 @@ public class AuthResponse extends Message.Request
         {
             ClientMetrics.instance.markAuthFailure();
             AuthEvents.instance.notifyAuthFailure(queryState, e);
+            AuthMetrics.failures.inc();
             return ErrorMessage.fromException(e);
         }
     }
