@@ -82,7 +82,6 @@ public class AccordIntegrationTest extends TestBaseImpl
 
     private static void test(Consumer<Cluster> fn) throws IOException
     {
-        // need to up the timeout else tests get flaky
         try (Cluster cluster = createCluster())
         {
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
@@ -96,6 +95,7 @@ public class AccordIntegrationTest extends TestBaseImpl
 
     private static Cluster createCluster() throws IOException
     {
+        // need to up the timeout else tests get flaky
         return init(Cluster.build(2).withConfig(c -> c.set("write_request_timeout_in_ms", TimeUnit.SECONDS.toMillis(10))).start());
     }
 
