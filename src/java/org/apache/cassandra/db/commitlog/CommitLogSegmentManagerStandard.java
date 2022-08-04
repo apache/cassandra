@@ -59,7 +59,8 @@ public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentMan
         return alloc;
     }
 
-   public CommitLogSegment createSegment()
+    @Override
+    public CommitLogSegment createSegment()
     {
         return CommitLogSegment.createSegment(commitLog, this);
     }
