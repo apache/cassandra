@@ -211,7 +211,7 @@ public class StreamingMultiplexedChannel
             if (logger.isDebugEnabled())
                 logger.debug("{} Sending {}", createLogTag(session), message);
 
-            InetAddressAndPort connectTo = SystemKeyspace.getPreferredIP(to);
+            InetAddressAndPort connectTo = factory.supportsPreferredIp() ? SystemKeyspace.getPreferredIP(to) : to;
             return fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage) message, connectTo));
         }
 
