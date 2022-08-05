@@ -1855,14 +1855,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
 
                 // check for operator errors...
+                long nanoDelay = MILLISECONDS.toNanos(ringTimeoutMillis);
                 for (Token token : bootstrapTokens)
                 {
                     InetAddressAndPort existing = tokenMetadata.getEndpoint(token);
                     if (existing != null)
                     {
-                        long nanoDelay = ringTimeoutMillis * 1000000L;
-                        if (Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp() > (nanoTime() - nanoDelay))
+                        EndpointState endpointStateForExisting = Gossiper.instance.getEndpointStateForEndpoint(existing);
+                        long updateTimestamp = endpointStateForExisting.getUpdateTimestamp();
+                        long allowedDelay = nanoTime() - nanoDelay;
+                        if (updateTimestamp > allowedDelay && endpointStateForExisting.isAlive())
+                        {
+                            logger.error("Unable to replace node for token={}. The node is reporting as alive with updateTimestamp={} which exceeds the allowedDelay={}",
+                                         token, updateTimestamp, allowedDelay);
                             throw new UnsupportedOperationException("Cannot replace a live node... ");
+                        }
                         collisions.add(existing);
                     }
                     else
