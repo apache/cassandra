@@ -1864,7 +1864,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         EndpointState endpointStateForExisting = Gossiper.instance.getEndpointStateForEndpoint(existing);
                         long updateTimestamp = endpointStateForExisting.getUpdateTimestamp();
                         long allowedDelay = nanoTime() - nanoDelay;
-                        if (updateTimestamp > allowedDelay && endpointStateForExisting.isAlive())
+
+                        // if the node was updated within the ring delay or the node is alive, we should fail
+                        if (updateTimestamp > allowedDelay || endpointStateForExisting.isAlive())
                         {
                             logger.error("Unable to replace node for token={}. The node is reporting as alive with updateTimestamp={} which exceeds the allowedDelay={}",
                                          token, updateTimestamp, allowedDelay);
