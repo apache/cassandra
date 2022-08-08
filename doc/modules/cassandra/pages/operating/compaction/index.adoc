@@ -297,8 +297,7 @@ to compaction:
 `disableautocompaction`::
   Disable compaction.
 `setcompactionthroughput`::
-  How fast compaction should run at most - defaults to 16MB/s, but note
-  that it is likely not possible to reach this throughput.
+  How fast compaction should run at most - defaults to 64MiB/s.
 `compactionstats`::
   Statistics about current and pending compactions.
 `compactionhistory`::
