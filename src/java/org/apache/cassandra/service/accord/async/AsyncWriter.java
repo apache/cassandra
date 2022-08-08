@@ -212,8 +212,8 @@ public class AsyncWriter
         }
 
         Map<PartitionKey, AccordCommandsForKey> addCfkToCtx = new HashMap<>();
-        // NotWitnessed has 0 state, and doesn't know about the tx keys, so unable to populate summary
-        if (command.status() != Status.NotWitnessed && CommandSummaries.commandsPerKey.needsUpdate(command))
+        // There won't be a txn to denormalize against until the command has been preaccepted
+        if (command.status().hasBeen(Status.PreAccepted) && CommandSummaries.commandsPerKey.needsUpdate(command))
         {
             for (Key key : command.txn().keys())
             {
