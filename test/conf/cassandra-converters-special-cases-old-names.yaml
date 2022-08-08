@@ -5,4 +5,6 @@
 sstable_preemptive_open_interval_in_mb: -1
 index_summary_resize_interval_in_minutes: -1
 cache_load_timeout_seconds: -1
+commitlog_sync_group_window_in_ms: NaN
+credentials_update_interval_in_ms: -1
 

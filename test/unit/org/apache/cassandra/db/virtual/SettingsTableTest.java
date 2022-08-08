@@ -60,6 +60,8 @@ public class SettingsTableTest extends CQLTester
         config.sstable_preemptive_open_interval = null;
         config.index_summary_resize_interval = null;
         config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
+        config.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
+        config.credentials_update_interval = null;
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
@@ -130,6 +132,18 @@ public class SettingsTableTest extends CQLTester
         assertRowsNet(executeNet(q), new Object[] {"cache_load_timeout", "0s"});
         q = "SELECT * FROM vts.settings WHERE name = 'cache_load_timeout_seconds';";
         assertRowsNet(executeNet(q), new Object[] {"cache_load_timeout_seconds", "0"});
+
+        // test MILLIS_DURATION_DOUBLE converter
+        q = "SELECT * FROM vts.settings WHERE name = 'commitlog_sync_group_window';";
+        assertRowsNet(executeNet(q), new Object[] {"commitlog_sync_group_window", "0ms"});
+        q = "SELECT * FROM vts.settings WHERE name = 'commitlog_sync_group_window_in_ms';";
+        assertRowsNet(executeNet(q), new Object[] {"commitlog_sync_group_window_in_ms", "0.0"});
+
+        //test MILLIS_CUSTOM_DURATION converter
+        q = "SELECT * FROM vts.settings WHERE name = 'credentials_update_interval';";
+        assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval", null});
+        q = "SELECT * FROM vts.settings WHERE name = 'credentials_update_interval_in_ms';";
+        assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval_in_ms", "-1"});
     }
 
     private String getValue(Property prop)
