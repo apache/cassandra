@@ -28,6 +28,8 @@ import com.google.common.base.Preconditions;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.Config;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_BUFFER_ALLOCATE_TYPE;
+
 /**
  * An implementation of the DataOutputStream interface using a FastByteArrayOutputStream and exposing
  * its buffer so copies can be avoided.
@@ -45,11 +47,13 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      * Only recycle OutputBuffers up to 1Mb. Larger buffers will be trimmed back to this size.
      */
     private static final int MAX_RECYCLE_BUFFER_SIZE = Integer.getInteger(Config.PROPERTY_PREFIX + "dob_max_recycle_bytes", 1024 * 1024);
+    private enum AllocationType { DIRECT, ONHEAP }
+    private static final AllocationType ALLOCATION_TYPE = DATA_OUTPUT_BUFFER_ALLOCATE_TYPE.getEnum(AllocationType.DIRECT);
 
     private static final int DEFAULT_INITIAL_BUFFER_SIZE = 128;
 
     /**
-     * Scratch buffers used mostly for serializing in memory. It's important to call #recycle() when finished
+     * Scratch buffers used mostly for serializing in memory. It's important to call #close() when finished
      * to keep the memory overhead from being too large in the system.
      */
     public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<DataOutputBuffer>()
@@ -59,16 +63,25 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         {
             return new DataOutputBuffer()
             {
+                @Override
                 public void close()
                 {
-                    if (buffer.capacity() <= MAX_RECYCLE_BUFFER_SIZE)
+                    if (buffer != null && buffer.capacity() <= MAX_RECYCLE_BUFFER_SIZE)
                     {
                         buffer.clear();
                     }
                     else
                     {
-                        buffer = ByteBuffer.allocate(DEFAULT_INITIAL_BUFFER_SIZE);
+                        setBuffer(allocate(DEFAULT_INITIAL_BUFFER_SIZE));
                     }
+                }
+
+                @Override
+                protected ByteBuffer allocate(int size)
+                {
+                    return ALLOCATION_TYPE == AllocationType.DIRECT ?
+                           ByteBuffer.allocateDirect(size) :
+                           ByteBuffer.allocate(size);
                 }
             };
         }
@@ -76,12 +89,12 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public DataOutputBuffer()
     {
-        this(DEFAULT_INITIAL_BUFFER_SIZE);
+        super(DEFAULT_INITIAL_BUFFER_SIZE);
     }
 
     public DataOutputBuffer(int size)
     {
-        super(ByteBuffer.allocate(size));
+        super(size);
     }
 
     public DataOutputBuffer(ByteBuffer buffer)
@@ -158,9 +171,15 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     {
         if (count <= 0)
             return;
-        ByteBuffer newBuffer = ByteBuffer.allocate(checkedArraySizeCast(calculateNewSize(count)));
+        ByteBuffer newBuffer = allocate(checkedArraySizeCast(calculateNewSize(count)));
         buffer.flip();
         newBuffer.put(buffer);
+        setBuffer(newBuffer);
+    }
+
+    protected void setBuffer(ByteBuffer newBuffer)
+    {
+        FileUtils.clean(buffer); // free if direct
         buffer = newBuffer;
     }
 
@@ -219,6 +238,17 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         ByteBuffer result = buffer.duplicate();
         result.flip();
         return result;
+    }
+
+    /**
+     * Gets the underlying ByteBuffer and calls {@link ByteBuffer#flip()}.  This method is "unsafe" in the sense that
+     * it returns the underlying buffer, which may be modified by other methods after calling this method.  If the calling
+     * logic knows that no new calls to this object will happen after calling this method, then this method can avoid the
+     * copying done in {@link #getData()} and {@link #asNewBuffer()}.
+     */
+    public ByteBuffer unsafeGetBufferAndFlip() {
+        buffer.flip();
+        return buffer;
     }
 
     public byte[] getData()
