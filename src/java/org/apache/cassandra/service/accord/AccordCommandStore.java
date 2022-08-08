@@ -44,6 +44,7 @@ import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 public class AccordCommandStore extends CommandStore
 {
@@ -209,6 +210,22 @@ public class AccordCommandStore extends CommandStore
             }
         });
         return promise;
+    }
+
+    public void processBlocking(Runnable runnable)
+    {
+        try
+        {
+            executor.submit(runnable).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

@@ -125,27 +125,29 @@ public class AccordTestUtils
     public static void processCommandResult(Command command)
     {
 
-        Txn txn = command.txn();
-        AccordRead read = (AccordRead) txn.read();
-        Data readData = read.keys().stream()
-                            .map(key -> {
-                                try
-                                {
-                                    return read.read(key, command.commandStore(), command.executeAt(), null).get();
-                                }
-                                catch (InterruptedException e)
-                                {
-                                    throw new UncheckedInterruptedException(e);
-                                }
-                                catch (ExecutionException e)
-                                {
-                                    throw new RuntimeException(e);
-                                }
-                            })
-                            .reduce(null, AccordData::merge);
-        Write write = txn.update().apply(readData);
-        command.writes(new Writes(command.executeAt(), txn.keys(), write));
-        command.result(txn.query().compute(readData));
+        ((AccordCommandStore) command.commandStore()).processBlocking(() -> {
+            Txn txn = command.txn();
+            AccordRead read = (AccordRead) txn.read();
+            Data readData = read.keys().stream()
+                                .map(key -> {
+                                    try
+                                    {
+                                        return read.read(key, command.commandStore(), command.executeAt(), null).get();
+                                    }
+                                    catch (InterruptedException e)
+                                    {
+                                        throw new UncheckedInterruptedException(e);
+                                    }
+                                    catch (ExecutionException e)
+                                    {
+                                        throw new RuntimeException(e);
+                                    }
+                                })
+                                .reduce(null, AccordData::merge);
+            Write write = txn.update().apply(readData);
+            command.writes(new Writes(command.executeAt(), txn.keys(), write));
+            command.result(txn.query().compute(readData));
+        });
     }
 
     public static Txn createTxn(int readKey, int... writeKeys)

@@ -101,8 +101,10 @@ public class AsyncLoaderTest
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
 
         // everything is cached, so the loader should return immediately
-        boolean result = loader.load(context, (o, t) -> Assert.fail());
-        Assert.assertTrue(result);
+        commandStore.processBlocking(() -> {
+            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            Assert.assertTrue(result);
+        });
 
         Assert.assertSame(command, context.commands.get(txnId));
         Assert.assertSame(cfk, context.commandsForKey.get(key));
@@ -133,17 +135,21 @@ public class AsyncLoaderTest
         AsyncContext context = new AsyncContext();
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
-        boolean result = loader.load(context, (o, t) -> {
-            Assert.assertNull(t);
-            cbFired.setSuccess(null);
+        commandStore.processBlocking(() -> {
+            boolean result = loader.load(context, (o, t) -> {
+                Assert.assertNull(t);
+                cbFired.setSuccess(null);
+            });
+            Assert.assertFalse(result);
         });
-        Assert.assertFalse(result);
 
         cbFired.awaitUninterruptibly(1, TimeUnit.SECONDS);
 
         // then return immediately after the callback has fired
-        result = loader.load(context, (o, t) -> Assert.fail());
-        Assert.assertTrue(result);
+        commandStore.processBlocking(() -> {
+            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            Assert.assertTrue(result);
+        });
     }
 
     /**
@@ -171,17 +177,21 @@ public class AsyncLoaderTest
         AsyncContext context = new AsyncContext();
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
-        boolean result = loader.load(context, (o, t) -> {
-            Assert.assertNull(t);
-            cbFired.setSuccess(null);
+        commandStore.processBlocking(() -> {
+            boolean result = loader.load(context, (o, t) -> {
+                Assert.assertNull(t);
+                cbFired.setSuccess(null);
+            });
+            Assert.assertFalse(result);
         });
-        Assert.assertFalse(result);
 
         cbFired.awaitUninterruptibly(1, TimeUnit.SECONDS);
 
         // then return immediately after the callback has fired
-        result = loader.load(context, (o, t) -> Assert.fail());
-        Assert.assertTrue(result);
+        commandStore.processBlocking(() -> {
+            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            Assert.assertTrue(result);
+        });
     }
 
     /**
@@ -213,11 +223,13 @@ public class AsyncLoaderTest
         commandCache.setLoadFuture(command.txnId(), readFuture);
 
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
-        boolean result = loader.load(context, (o, t) -> {
-            Assert.assertNull(t);
-            cbFired.setSuccess(null);
+        commandStore.processBlocking(() -> {
+            boolean result = loader.load(context, (o, t) -> {
+                Assert.assertNull(t);
+                cbFired.setSuccess(null);
+            });
+            Assert.assertFalse(result);
         });
-        Assert.assertFalse(result);
 
         Assert.assertFalse(cbFired.isSuccess());
         readFuture.setSuccess(null);
@@ -225,8 +237,10 @@ public class AsyncLoaderTest
         Assert.assertTrue(cbFired.isSuccess());
 
         // then return immediately after the callback has fired
-        result = loader.load(context, (o, t) -> Assert.fail());
-        Assert.assertTrue(result);
+        commandStore.processBlocking(() -> {
+            boolean result = loader.load(context, (o, t) -> Assert.fail());
+            Assert.assertTrue(result);
+        });
     }
 
     @Test

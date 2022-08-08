@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -36,7 +37,10 @@ import accord.txn.Txn;
 import accord.txn.TxnId;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 
@@ -59,6 +63,12 @@ public class AccordCommandStoreTest
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks"));
         StorageService.instance.initServer();
+    }
+
+    @Before
+    public void setUp() throws Exception
+    {
+        Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStores().forEach(ColumnFamilyStore::truncateBlocking);
     }
 
     @Test
