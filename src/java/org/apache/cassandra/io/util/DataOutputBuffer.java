@@ -246,7 +246,8 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      * logic knows that no new calls to this object will happen after calling this method, then this method can avoid the
      * copying done in {@link #getData()} and {@link #asNewBuffer()}.
      */
-    public ByteBuffer unsafeGetBufferAndFlip() {
+    public ByteBuffer unsafeGetBufferAndFlip()
+    {
         buffer.flip();
         return buffer;
     }
