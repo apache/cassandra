@@ -244,7 +244,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      * Gets the underlying ByteBuffer and calls {@link ByteBuffer#flip()}.  This method is "unsafe" in the sense that
      * it returns the underlying buffer, which may be modified by other methods after calling this method.  If the calling
      * logic knows that no new calls to this object will happen after calling this method, then this method can avoid the
-     * copying done in {@link #getData()} and {@link #asNewBuffer()}.
+     * copying done in {@link #getData()}, and {@link #asNewBuffer()}, and {@link #buffer()}.
      */
     public ByteBuffer unsafeGetBufferAndFlip()
     {
