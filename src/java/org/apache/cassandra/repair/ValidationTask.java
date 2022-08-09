@@ -21,8 +21,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -56,8 +55,10 @@ public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnabl
      */
     public void run()
     {
-        ValidationRequest request = new ValidationRequest(desc, nowInSec);
-        MessagingService.instance().send(Message.out(VALIDATION_REQ, request), endpoint);
+        RepairMessage.sendMessageWithFailureCB(new ValidationRequest(desc, nowInSec),
+                                               VALIDATION_REQ,
+                                               endpoint,
+                                               this::tryFailure);
     }
 
     /**
