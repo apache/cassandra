@@ -35,8 +35,8 @@ import org.openjdk.jmh.annotations.*;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 25, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 5, time = 2, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1)
+@Measurement(iterations = 5, time = 50, timeUnit = TimeUnit.SECONDS)
+@Fork(value = 0)
 @Threads(1)
 @State(Scope.Benchmark)
 public class CompactionBench extends CQLTester
@@ -58,6 +58,8 @@ public class CompactionBench extends CQLTester
         execute("use "+keyspace+";");
         writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";
         readStatement = "SELECT * from "+table+" limit 100";
+
+
 
         Keyspace.system().forEach(k -> k.getColumnFamilyStores().forEach(c -> c.disableAutoCompaction()));
 
