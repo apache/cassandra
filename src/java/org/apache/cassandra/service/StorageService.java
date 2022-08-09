@@ -1868,7 +1868,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         // if the node was updated within the ring delay or the node is alive, we should fail
                         if (updateTimestamp > allowedDelay || endpointStateForExisting.isAlive())
                         {
-                            logger.error("Unable to replace node for token={}. The node is reporting as {}alive with updateTimestamp={} which exceeds the allowedDelay={}",
+                            logger.error("Unable to replace node for token={}. The node is reporting as {}alive with updateTimestamp={}, allowedDelay={}",
                                          token, endpointStateForExisting.isAlive() ? "" : "not ", updateTimestamp, allowedDelay);
                             throw new UnsupportedOperationException("Cannot replace a live node... ");
                         }
