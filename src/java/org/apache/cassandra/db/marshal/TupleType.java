@@ -22,7 +22,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
@@ -73,6 +75,12 @@ public class TupleType extends AbstractType<ByteBuffer>
         else
             this.types = types;
         this.serializer = new TupleSerializer(fieldSerializers(types));
+    }
+
+    @Override
+    public TupleType overrideKeyspace(Function<String, String> overrideKeyspace)
+    {
+        return new TupleType(types.stream().map(t -> t.overrideKeyspace(overrideKeyspace)).collect(Collectors.toList()), isMultiCell());
     }
 
     private static List<TypeSerializer<?>> fieldSerializers(List<AbstractType<?>> types)

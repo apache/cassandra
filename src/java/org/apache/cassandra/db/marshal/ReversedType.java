@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
@@ -52,6 +53,16 @@ public class ReversedType<T> extends AbstractType<T>
         return null == t
              ? instances.computeIfAbsent(baseType, ReversedType::new)
              : t;
+    }
+
+    @Override
+    public AbstractType<T> overrideKeyspace(Function<String, String> overrideKeyspace)
+    {
+        AbstractType<T> newBaseType = baseType.overrideKeyspace(overrideKeyspace);
+        if (newBaseType == baseType)
+            return this;
+
+        return getInstance(newBaseType);
     }
 
     private ReversedType(AbstractType<T> baseType)
