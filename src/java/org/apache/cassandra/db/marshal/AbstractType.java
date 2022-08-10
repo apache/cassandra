@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -412,6 +413,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public String toString(boolean ignoreFreezing)
     {
         return this.toString();
+    }
+
+    /**
+     * To override keyspace name in {@link UserType}
+     */
+    public AbstractType<T> overrideKeyspace(Function<String, String> overrideKeyspace)
+    {
+        return this;
     }
 
     /**
