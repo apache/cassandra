@@ -21,7 +21,9 @@ package org.apache.cassandra.service.accord.async;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
@@ -42,6 +44,7 @@ import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.Collections.singleton;
@@ -288,5 +291,51 @@ public class AsyncLoaderTest
             Assert.assertEquals(blockApply, Iterables.getOnlyElement(loaded.blockingApplyOn.getView()));
             Assert.assertEquals(blockCommit, Iterables.getOnlyElement(loaded.blockingCommitOn.getView()));
         });
+    }
+
+    @Test
+    public void failedLoadTest() throws Throwable
+    {
+        AtomicLong clock = new AtomicLong(0);
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
+
+        AsyncPromise<Void> promise1 = new AsyncPromise<>();
+        AsyncPromise<Void> promise2 = new AsyncPromise<>();
+        AsyncPromise<Void> callback = new AsyncPromise<>();
+        RuntimeException failure = new RuntimeException();
+
+        execute(commandStore, () -> {
+            AsyncContext context = new AsyncContext();
+            AtomicInteger loadCalls = new AtomicInteger();
+            AsyncLoader loader = new AsyncLoader(commandStore, List.of(txnId1, txnId2), Collections.emptyList()){
+                @Override
+                Function<AccordCommand, Future<?>> loadCommandFunction()
+                {
+                    return cmd -> {
+                        TxnId txnId = cmd.txnId();
+                        loadCalls.incrementAndGet();
+                        if (txnId.equals(txnId1))
+                            return promise1;
+                        if (txnId.equals(txnId2))
+                            return promise2;
+                        throw new AssertionError("Unknown txnId: " + txnId);
+                    };
+                }
+            };
+
+            boolean result = loader.load(context, (u, t) -> {
+                Assert.assertFalse(callback.isDone());
+                Assert.assertNull(u);
+                Assert.assertEquals(failure, t);
+                callback.trySuccess(null);
+            });
+            Assert.assertFalse(result);
+            Assert.assertEquals(2, loadCalls.get());
+        });
+
+        promise1.tryFailure(failure);
+        callback.get();
     }
 }

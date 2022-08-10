@@ -24,8 +24,12 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+
 import accord.txn.TxnId;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
@@ -66,11 +70,19 @@ public class AsyncLoader
                                                                                 Map<K, V> context,
                                                                                 Function<V, Future<?>> readFunction)
     {
+        V item = context.get(key);
+        if (item != null)
+        {
+            // if the item is already in the context, then the read future has completed and the item is loaded
+            Preconditions.checkState(item.isLoaded());
+            return null;
+        }
+
         Future<?> future = cache.getLoadFuture(key);
         if (future != null)
             return future;
 
-        V item = cache.getOrCreate(key);
+        item = cache.getOrCreate(key);
         context.put(key, item);
         if (item.isLoaded())
             return null;
@@ -102,6 +114,18 @@ public class AsyncLoader
         return futures;
     }
 
+    @VisibleForTesting
+    Function<AccordCommand, Future<?>> loadCommandFunction()
+    {
+        return command -> Stage.READ.submit(() -> AccordKeyspace.loadCommand(command));
+    }
+
+    @VisibleForTesting
+    Function<AccordCommandsForKey, Future<?>> loadCommandsPerKeyFunction()
+    {
+        return cfk -> Stage.READ.submit(() -> AccordKeyspace.loadCommandsForKey(cfk));
+    }
+
     private Future<?> referenceAndDispatchReads(AsyncContext context)
     {
         List<Future<?>> futures = null;
@@ -109,13 +133,13 @@ public class AsyncLoader
         futures = referenceAndDispatchReads(txnIds,
                                             commandStore.commandCache(),
                                             context.commands.items,
-                                            command -> Stage.READ.submit(() -> AccordKeyspace.loadCommand(command)),
+                                            loadCommandFunction(),
                                             futures);
 
         futures = referenceAndDispatchReads(keys,
                                             commandStore.commandsForKeyCache(),
                                             context.commandsForKey.items,
-                                            cfk -> Stage.READ.submit(() -> AccordKeyspace.loadCommandsForKey(cfk)),
+                                            loadCommandsPerKeyFunction(),
                                             futures);
 
         return futures != null ? FutureCombiner.allOf(futures) : null;
@@ -136,7 +160,14 @@ public class AsyncLoader
                 readFuture = referenceAndDispatchReads(context);
                 state = State.LOADING;
             case LOADING:
-                if (readFuture != null && !readFuture.isSuccess())
+                // if the read future succeeded, add the loaded items to the operation context
+                if (readFuture != null && readFuture.isSuccess())
+                {
+                    readFuture = referenceAndDispatchReads(context);
+                    // processing the loaded items should not generate a new read future
+                    Preconditions.checkState(readFuture == null);
+                }
+                else if (readFuture != null)
                 {
                     readFuture.addCallback(callback, commandStore.executor());
                     break;
