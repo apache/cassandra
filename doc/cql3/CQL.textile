@@ -579,7 +579,7 @@ __Syntax:__
 bc(syntax). <alter-materialized-view-stmt> ::= ALTER MATERIALIZED VIEW <viewname>
                                                  WITH <option> ( AND <option> )*
 
-p.
+p. 
 The @ALTER MATERIALIZED VIEW@ statement allows options to be update; these options are the same as <a href="#createTableOptions">@CREATE TABLE@'s options</a>.
 
 
@@ -863,7 +863,7 @@ __Syntax:__
 bc(syntax).. 
 <insertStatement> ::= INSERT INTO <tablename>
                       ( ( <name-list> VALUES <value-list> )
-                      | ( JSON <string> ))
+                      | ( JSON <string> [ DEFAULT ( NULL | UNSET ) ]))
                       ( IF NOT EXISTS )?
                       ( USING <option> ( AND <option> )* )?
 
@@ -1653,7 +1653,7 @@ bc(syntax)..
              | FUNCTION <functionname>
              | ALL MBEANS
              | ( MBEAN | MBEANS ) <objectName>
-p.
+p. 
 
 __Sample:__ 
 
@@ -1683,7 +1683,7 @@ bc(syntax)..
              | FUNCTION <functionname>
              | ALL MBEANS
              | ( MBEAN | MBEANS ) <objectName>
-p.
+p. 
 
 __Sample:__
 
@@ -2293,7 +2293,7 @@ With @INSERT@ statements, the new @JSON@ keyword can be used to enable inserting
 bc(sample). 
 INSERT INTO mytable JSON '{"\"myKey\"": 0, "value": 0}'
 
-Any columns which are ommitted from the @JSON@ map will be defaulted to a @NULL@ value (which will result in a tombstone being created).
+By default (or if @DEFAULT NULL@ is explicitly used), a column omitted from the @JSON@ map will be set to @NULL@, meaning that any pre-existing value for that column will be removed (resulting in a tombstone being created). Alternatively, if the @DEFAULT UNSET@ directive is used after the value, omitted column values will be left unset, meaning that pre-existing values for those column will be preserved.
 
 h3(#jsonEncoding). JSON Encoding of Cassandra Data Types
 
@@ -2498,6 +2498,7 @@ h3. 3.4.3
 
 * Adds a new @duration@ data type See "Data Types":#types (see "CASSANDRA-11873":https://issues.apache.org/jira/browse/CASSANDRA-11873).
 * Support for @GROUP BY@. See "@<group-by>@":#selectGroupBy (see "CASSANDRA-10707":https://issues.apache.org/jira/browse/CASSANDRA-10707).
+* Adds a @DEFAULT UNSET@ option for @INSERT JSON@ to ignore omitted columns (see "CASSANDRA-11424":https://issues.apache.org/jira/browse/CASSANDRA-11424).
 
 h3. 3.4.2
 
