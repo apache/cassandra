@@ -52,7 +52,7 @@ public class StoredValue<T> extends AbstractStoredField
     }
 
     @Override
-    public String toString()
+    public String valueString()
     {
         return value.toString();
     }

@@ -50,7 +50,7 @@ public class StoredLong extends AbstractStoredField
     }
 
     @Override
-    public String toString()
+    public String valueString()
     {
         return Long.toString(value);
     }

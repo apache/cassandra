@@ -67,9 +67,8 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
     }
 
     @Override
-    public String toString()
+    public String valueString()
     {
-        preGet();
         return view.stream()
                    .map(Object::toString)
                    .collect(Collectors.joining(", ", "{", "}"));

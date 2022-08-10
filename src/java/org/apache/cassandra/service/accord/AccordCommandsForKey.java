@@ -388,7 +388,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     {
         return "AccordCommandsForKey{" +
                "key=" + key +
-               ", maxTs=" + max() +
+               ", maxTs=" + maxTimestamp +
                ", lastExecutedTimestamp=" + lastExecutedTimestamp +
                ", lastExecutedMicros=" + lastExecutedMicros +
                ", blindWitnessed=" + blindWitnessed +

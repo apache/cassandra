@@ -21,6 +21,9 @@ package org.apache.cassandra.service.accord.async;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Key;
 import accord.local.CommandStore;
 import accord.local.TxnOperation;
@@ -31,6 +34,8 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<CommandStore, R>
 {
+    private static final Logger logger = LoggerFactory.getLogger(AsyncOperation.class);
+
     enum State
     {
         INITIALIZED,
@@ -66,10 +71,17 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         this(commandStore, new AsyncLoader(commandStore, commandsToLoad, keyCommandsToLoad));
     }
 
+    @Override
+    public String toString()
+    {
+        return "AsyncOperation{" + state + "}-0x" + Integer.toHexString(System.identityHashCode(this));
+    }
+
     private void callback(Object unused, Throwable throwable)
     {
         if (throwable != null)
         {
+            logger.error(String.format("Operation %s failed", this), throwable);
             state = State.FAILED;
             tryFailure(throwable);
         }
@@ -111,6 +123,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         }
         catch (Throwable t)
         {
+            logger.error(String.format("Operation %s failed", this), t);
             tryFailure(t);
         }
         finally

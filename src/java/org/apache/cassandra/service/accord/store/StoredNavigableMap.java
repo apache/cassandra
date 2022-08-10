@@ -67,9 +67,8 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
     }
 
     @Override
-    public String toString()
+    public String valueString()
     {
-        preGet();
         return view.entrySet().stream()
                    .map(e -> e.getKey() + "=" + e.getValue())
                    .collect(Collectors.joining(", ", "{", "}"));

@@ -136,6 +136,13 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         blockingApplyOn = new StoredSet.Navigable<>(kind());
     }
 
+
+    @Override
+    public String toString()
+    {
+        return "AccordCommand{txnId=" + txnId + ", status=" + this.status + ", txn=" + this.txn + ", executeAt=" + this.executeAt + ", deps=" + this.deps + "}";
+    }
+
     public AccordCommand initialize()
     {
         status.set(Status.NotWitnessed);

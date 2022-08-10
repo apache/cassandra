@@ -20,7 +20,7 @@ package org.apache.cassandra.service.accord.store;
 
 import org.apache.cassandra.service.accord.AccordState;
 
-public class AbstractStoredField
+public abstract class AbstractStoredField
 {
     private static final int LOADED_FLAG = 0x01;
     private static final int CHANGED_FLAG = 0x01 << 1;
@@ -37,6 +37,17 @@ public class AbstractStoredField
             set(WRITE_ONLY_FLAG);
         if (kind == AccordState.Kind.READ_ONLY)
             set(READ_ONLY_FLAG);
+    }
+
+    @Override
+    public String toString()
+    {
+        if (!isLoaded())
+            return "<empty>";
+        preGet();
+        if (hasModifications())
+            return '*' + valueString();
+        return valueString();
     }
 
     private void clear(int v)
@@ -120,4 +131,6 @@ public class AbstractStoredField
     {
         return check(CLEARED_FLAG);
     }
+
+    public abstract String valueString();
 }

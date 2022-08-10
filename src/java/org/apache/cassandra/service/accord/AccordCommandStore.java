@@ -162,7 +162,8 @@ public class AccordCommandStore extends CommandStore
         AccordCommand command = currentCtx.commands.get(txnId);
         if (command == null)
             command = currentCtx.commands.summary(txnId);
-        Preconditions.checkArgument(command != null);
+        if (command == null)
+            throw new IllegalArgumentException("No command in context for txnId " + txnId);
         return command;
     }
 
@@ -172,7 +173,8 @@ public class AccordCommandStore extends CommandStore
         Preconditions.checkState(currentCtx != null);
         Preconditions.checkArgument(key instanceof PartitionKey);
         AccordCommandsForKey commandsForKey = currentCtx.commandsForKey.get((PartitionKey) key);
-        Preconditions.checkArgument(commandsForKey != null);
+        if (commandsForKey == null)
+            throw new IllegalArgumentException("No commandsForKey in context for key " + key);
         return commandsForKey;
     }
 
