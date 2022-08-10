@@ -1719,6 +1719,7 @@ bc(syntax)..
                 | date
                 | decimal
                 | double
+                | duration
                 | float
                 | inet
                 | int
@@ -1749,6 +1750,7 @@ p. The following table gives additional informations on the native data types, a
 |@date@     |   integers, strings  |A date (with no corresponding time value).  See "Working with dates":#usingdates below for more information.|
 |@decimal@  |   integers, floats   |Variable-precision decimal|
 |@double@   |   integers           |64-bit IEEE-754 floating point|
+|@duration@ |  duration           |  A duration with nanosecond precision. See "Working with durations":#usingdurations below for details.|
 |@float@    |   integers, floats   |32-bit IEEE-754 floating point|
 |@inet@     |   strings            |An IP address. It can be either 4 bytes long (IPv4) or 16 bytes long (IPv6). There is no @inet@ constant, IP address should be inputed as strings|
 |@int@      |   integers           |32-bit signed int|
@@ -1821,6 +1823,44 @@ They can also be input as string literals in any of the following formats:
 * @08:12:54.123@
 * @08:12:54.123456@
 * @08:12:54.123456789@
+
+h3(#usingdurations). Working with durations
+
+Values of the @duration@ type are encoded as 3 signed integer of variable lengths. The first integer represents the
+number of months, the second the number of days and the third the number of nanoseconds. This is due to the fact that
+the number of days in a month can change, and a day can have 23 or 25 hours depending on the daylight saving.
+
+A duration can be input as:
+
+* (quantity unit)+ like @12h30m@ where the unit can be:
+** @y@: years (12 months)
+** @mo@: months (1 month)
+** @w@: weeks (7 days)
+** @d@: days (1 day)
+** @h@: hours (3,600,000,000,000 nanoseconds)
+** @m@: minutes (60,000,000,000 nanoseconds)
+** @s@: seconds (1,000,000,000 nanoseconds)
+** @ms@: milliseconds (1,000,000 nanoseconds)
+** @us@ or @µs@ : microseconds (1000 nanoseconds)
+** @ns@: nanoseconds (1 nanosecond)
+* ISO 8601 format:  @P[n]Y[n]M[n]DT[n]H[n]M[n]S@ or @P[n]W@
+* ISO 8601 alternative format: @P[YYYY]-[MM]-[DD]T[hh]:[mm]:[ss]@
+
+For example:
+
+bc(sample). 
+    INSERT INTO RiderResults (rider, race, result) VALUES ('Christopher Froome', 'Tour de France', 89h4m48s);
+    INSERT INTO RiderResults (rider, race, result) VALUES ('BARDET Romain', 'Tour de France', PT89H8M53S);
+    INSERT INTO RiderResults (rider, race, result) VALUES ('QUINTANA Nairo', 'Tour de France', P0000-00-00T89:09:09);
+
+h4. duration-limitation:
+
+Duration columns cannot be used in a table's @PRIMARY KEY@. This limitation is due to the fact that
+durations cannot be ordered. It is effectively not possible to know if @1mo@ is greater than @29d@ without a date
+context.
+
+A @1d@ duration is not equals to a @24h@ one as the duration type has been created to be able to support daylight
+saving.
 
 
 h3(#counters). Counters
@@ -2453,6 +2493,7 @@ The following describes the changes in each version of CQL.
 
 h3. 3.4.3
 
+* Adds a new @duration@ data type See "Data Types":#types (see "CASSANDRA-11873":https://issues.apache.org/jira/browse/CASSANDRA-11873).
 * Support for @GROUP BY@. See "@<group-by>@":#selectGroupBy (see "CASSANDRA-10707":https://issues.apache.org/jira/browse/CASSANDRA-10707).
 
 h3. 3.4.2
