@@ -390,7 +390,7 @@ public class ResultSet
                 if (newColumnSpecification != cs)
                     changed = true;
             }
-            return changed ? new ResultMetadata(resultMetadataId, EnumSet.copyOf(flags), newNames, columnCount, pagingState) : this;
+            return changed ? new ResultMetadata(computeResultMetadataId(newNames), EnumSet.copyOf(flags), newNames, columnCount, pagingState) : this;
         }
 
         private static class Codec implements CBCodec<ResultMetadata>

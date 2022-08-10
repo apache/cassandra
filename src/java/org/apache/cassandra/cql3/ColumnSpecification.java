@@ -83,7 +83,11 @@ public class ColumnSpecification
             return this;
 
         String newKeyspaceName = keyspaceMapper.apply(ksName);
-        return ksName.equals(newKeyspaceName) ? this : new ColumnSpecification(newKeyspaceName, cfName, name, type);
+
+        if (ksName.equals(newKeyspaceName))
+            return this;
+
+        return new ColumnSpecification(newKeyspaceName, cfName, name, type.overrideKeyspace(keyspaceMapper));
     }
 
     @Override
