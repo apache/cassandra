@@ -15,7 +15,6 @@
   limitations under the License.
 -->
 <project basedir="." default="jar" name="apache-cassandra"
-         xmlns:resolver="antlib:org.apache.maven.resolver.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
 
@@ -90,14 +89,9 @@
     <property name="version" value="${base.version}-SNAPSHOT"/>
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
-    <property name="final.name" value="${ant.project.name}"/>
+    <property name="final.name" value="${ant.project.name}-${version}"/>
 
     <property name="local.repository" value="${user.home}/.m2/repository" />
-
-    <property name="maven-artifact-resolver-ant-tasks.version" value="1.4.0" />
-    <property name="maven-artifact-resolver-ant-tasks.local" value="${local.repository}/org/apache/maven/resolver/maven-resolver-ant-tasks"/>
-    <property name="maven-artifact-resolver-ant-tasks.url"
-              value="https://repo.maven.apache.org/maven2/org/apache/maven/resolver/maven-resolver-ant-tasks" />
 
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
@@ -665,6 +659,14 @@
         </javac>
     </target>
 
+    <target name="write-poms" unless="without.maven">
+        <!-- TODO: Set fields in templates, move POMs to correct locations
+            <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
+            <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
+            <artifact:writepom pomRefId="build-deps-pom" file="${build.dir}/tmp-${final.name}-deps.pom"/>
+        -->
+    </target>
+
     <!--
         The jar target makes cassandra.jar output.
     -->
@@ -759,7 +761,7 @@
     </target>
 
     <target name="jar"
-            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars"
+            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,write-poms"
             description="Assemble Cassandra JAR files">
     </target>
 
@@ -1817,7 +1819,7 @@
         </java>
   </target>
 
-  <target name="init-checkstyle" depends="build-project">
+  <target name="init-checkstyle" depends="resolver-retrieve-build,build-project">
       <path id="checkstyle.lib.path">
           <fileset dir="${test.lib}/jars" includes="*.jar"/>
       </path>
@@ -1870,12 +1872,12 @@
              packaging="pom"/>
 
     <!-- the cassandra-all jar -->
-    <install pomFile="${basedir}/${final.name}.pom"
+    <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}.jar"/>
-    <install pomFile="${basedir}/${final.name}.pom"
+    <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}-sources.jar"
              classifier="sources"/>
-    <install pomFile="${basedir}/${final.name}.pom"
+    <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}-javadoc.jar"
              classifier="javadoc"/>
   </target>
@@ -1886,17 +1888,17 @@
           description="Publishes the artifacts to the Maven repository">
 
     <!-- the parent -->
-    <deploy pomFile="${basedir}/${final.name}-parent.pom"
+    <deploy pomFile="${build.dir}/${final.name}-parent.pom"
             file="${build.dir}/${final.name}-parent.pom"
             packaging="pom"/>
 
     <!-- the cassandra-all jar -->
-    <deploy pomFile="${basedir}/${final.name}.pom"
+    <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}.jar"/>
-    <deploy pomFile="${basedir}/${final.name}.pom"
+    <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-sources.jar"
             classifier="sources"/>
-    <deploy pomFile="${basedir}/${final.name}.pom"
+    <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
 
