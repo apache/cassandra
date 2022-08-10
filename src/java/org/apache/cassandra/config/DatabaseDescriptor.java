@@ -283,7 +283,7 @@ public class DatabaseDescriptor
         if (clientInitialized)
             return;
         clientInitialized = true;
-
+        setDefaultFailureDetector();
         Config.setClientMode(true);
         conf = new Config();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
