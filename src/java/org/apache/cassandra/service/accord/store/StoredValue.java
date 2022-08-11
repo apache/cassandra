@@ -54,7 +54,7 @@ public class StoredValue<T> extends AbstractStoredField
     @Override
     public String valueString()
     {
-        return value.toString();
+        return Objects.toString(value);
     }
 
     public long estimatedSizeOnHeap(ToLongFunction<T> measure)
