@@ -175,11 +175,11 @@ public class AccordIntegrationTest extends TestBaseImpl
 
             cluster.get(1).runOnInstance(() -> execute(txn()
                                                        .withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0")
-                                                       .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (0, 0, 2)")
+                                                       .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (0, 0, 3)")
                                                        .withCondition(keyspace, "tbl", 0, 0, NOT_EXISTS)));
             awaitAsyncApply(cluster);
 
-            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 1);
+            assertRow(cluster, "SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0", 0, 0, 2);
         });
     }
 
