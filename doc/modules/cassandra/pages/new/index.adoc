@@ -9,3 +9,4 @@ This section covers the new features in Apache Cassandra 4.0.
 * xref:new/messaging.adoc[Messaging]
 * xref:new/streaming.adoc[Streaming]
 * xref:new/transientreplication.adoc[Transient replication]
+* xref:configuration/configuration.adoc[Configuration]
