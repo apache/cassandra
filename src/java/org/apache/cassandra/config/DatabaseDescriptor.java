@@ -2573,6 +2573,22 @@ public class DatabaseDescriptor
         conf.native_transport_max_threads = max_threads;
     }
 
+    public static Integer getNativeTransportMaxAuthThreads()
+    {
+        return conf.native_transport_max_auth_threads;
+    }
+
+    /**
+     * If this value is set to <= 0 it will move auth requests to the standard request pool regardless of the current
+     * size of the {@link org.apache.cassandra.transport.Dispatcher#authExecutor}'s active size.
+     *
+     * see {@link org.apache.cassandra.transport.Dispatcher#dispatch} for executor selection
+     */
+    public static void setNativeTransportMaxAuthThreads(int threads)
+    {
+        conf.native_transport_max_auth_threads = threads;
+    }
+
     public static int getNativeTransportMaxFrameSize()
     {
         return conf.native_transport_max_frame_size.toBytes();
