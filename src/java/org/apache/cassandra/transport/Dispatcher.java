@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,11 +52,31 @@ import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
 public class Dispatcher
 {
     private static final Logger logger = LoggerFactory.getLogger(Dispatcher.class);
-    
-    private static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
-                                                                                     DatabaseDescriptor::setNativeTransportMaxThreads,
-                                                                                     "transport",
-                                                                                     "Native-Transport-Requests");
+
+    @VisibleForTesting
+    static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
+                                                                             DatabaseDescriptor::setNativeTransportMaxThreads,
+                                                                             "transport",
+                                                                             "Native-Transport-Requests");
+
+    /** CASSANDRA-17812: Rate-limit new client connection setup to avoid overwhelming during bcrypt
+     *
+     * authExecutor is a separate thread pool for handling requests on connections that need to be authenticated.
+     * Calls to AUTHENTICATE can be expensive if the number of rounds for bcrypt is configured to a high value,
+     * so during a connection storm checking the password hash would starve existing connected clients for CPU and
+     * trigger timeouts if on the same thread pool as standard requests.
+     *
+     * Moving authentication requests to a small, separate pool prevents starvation handling all other
+     * requests. If the authExecutor pool backs up, it may cause authentication timeouts but the clients should
+     * back off and retry while the rest of the system continues to make progress.
+     *
+     * Setting less than 1 will service auth requests on the standard {@link Dispatcher#requestExecutor}
+     */
+    @VisibleForTesting
+    static final LocalAwareExecutorPlus authExecutor = SHARED.newExecutor(Math.max(1, DatabaseDescriptor.getNativeTransportMaxAuthThreads()),
+                                                                          DatabaseDescriptor::setNativeTransportMaxAuthThreads,
+                                                                          "transport",
+                                                                          "Native-Transport-Auth-Requests");
 
     private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
     private final boolean useLegacyFlusher;
@@ -80,7 +101,16 @@ public class Dispatcher
 
     public void dispatch(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
     {
-        requestExecutor.submit(new RequestProcessor(channel, request, forFlusher, backpressure));
+        // if native_transport_max_auth_threads is < 1, don't delegate to new pool on auth messages
+        if (DatabaseDescriptor.getNativeTransportMaxAuthThreads() > 0 && (request.type == Message.Type.AUTH_RESPONSE || request.type == Message.Type.CREDENTIALS))
+        {
+            // importantly will handle the AUTHENTICATE message which may be CPU intensive.
+            authExecutor.submit(new RequestProcessor(channel, request, forFlusher, backpressure));
+        }
+        else
+        {
+            requestExecutor.submit(new RequestProcessor(channel, request, forFlusher, backpressure));
+        }
         ClientMetrics.instance.markRequestDispatched();
     }
 
@@ -237,8 +267,11 @@ public class Dispatcher
         {
             requestExecutor.shutdown();
         }
+        if (authExecutor != null)
+        {
+            authExecutor.shutdown();
+        }
     }
-
 
     /**
      * Dispatcher for EventMessages. In {@link Server.ConnectionTracker#send(Event)}, the strategy
