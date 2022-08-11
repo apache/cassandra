@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -323,4 +324,19 @@ public class TableSnapshot
         }
         return new File(liveDir.toString(), snapshotFilePath.getFileName().toString());
     }
+
+    public static Predicate<TableSnapshot> shouldClearSnapshot(String tag)
+    {
+        return ts ->
+        {
+            // When no tag is supplied, all snapshots must be cleared
+            boolean clearAll = tag == null || tag.isEmpty();
+            if (!clearAll && ts.isEphemeral())
+                logger.info("Skipping deletion of ephemeral snapshot '{}' in keyspace {}. " +
+                            "Ephemeral snapshots are not removable by a user.",
+                            tag, ts.keyspaceName);
+            return !ts.isEphemeral() && (clearAll || ts.tag.equals(tag));
+        };
+    }
+
 }
