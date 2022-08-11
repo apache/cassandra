@@ -47,6 +47,7 @@ import static org.junit.Assert.assertTrue;
 public class EphemeralSnapshotTest extends TestBaseImpl
 {
     private static final String snapshotName = "snapshotname";
+    private static final String snapshotName2 = "second-snapshot";
     private static final String tableName = "city";
 
     @Test
@@ -58,14 +59,7 @@ public class EphemeralSnapshotTest extends TestBaseImpl
         {
             Pair<String, String[]> initialisationData = initialise(c);
 
-            String tableId = initialisationData.left;
-            String[] dataDirs = initialisationData.right;
-
-            // rewrite manifest, pretend that it is ephemeral
-            Path manifestPath = findManifest(dataDirs, tableId);
-            SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(new File(manifestPath));
-            SnapshotManifest manifestWithEphemeralFlag = new SnapshotManifest(manifest.files, null, manifest.createdAt, true);
-            manifestWithEphemeralFlag.serializeToJsonFile(new File(manifestPath));
+            rewriteManifestToEphemeral(initialisationData.left, initialisationData.right);
 
             verify(c.get(1));
         }
@@ -98,6 +92,47 @@ public class EphemeralSnapshotTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void testEphemeralSnapshotIsNotClearableFromNodetool() throws Exception
+    {
+        try (Cluster c = init(builder().withNodes(1)
+                                       .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                       .start()))
+        {
+            IInvokableInstance instance = c.get(1);
+
+            Pair<String, String[]> initialisationData = initialise(c);
+            rewriteManifestToEphemeral(initialisationData.left, initialisationData.right);
+
+            assertTrue(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName));
+            instance.nodetoolResult("clearsnapshot", "-t", snapshotName).asserts().success();
+            // ephemeral snapshot was not removed as it can not be (from nodetool / user operation)
+            assertTrue(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName));
+
+            assertFalse(instance.logs().grep("Skipping deletion of ephemeral snapshot 'snapshotname' in keyspace distributed_test_keyspace. " +
+                                             "Ephemeral snapshots are not removable by a user.").getResult().isEmpty());
+        }
+    }
+
+    @Test
+    public void testClearingAllSnapshotsFromNodetoolWillKeepEphemeralSnaphotsIntact() throws Exception
+    {
+        try (Cluster c = init(builder().withNodes(1)
+                                       .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+                                       .start()))
+        {
+            IInvokableInstance instance = c.get(1);
+
+            Pair<String, String[]> initialisationData = initialise(c);
+
+            rewriteManifestToEphemeral(initialisationData.left, initialisationData.right);
+
+            instance.nodetoolResult("clearsnapshot", "--all").asserts().success();
+            assertTrue(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName));
+            assertFalse(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName2));
+        }
+    }
+
     private Pair<String, String[]> initialise(Cluster c)
     {
         c.schemaChange(withKeyspace("CREATE TABLE IF NOT EXISTS %s." + tableName + " (cityid int PRIMARY KEY, name text)"));
@@ -108,6 +143,11 @@ public class EphemeralSnapshotTest extends TestBaseImpl
 
         assertEquals(0, instance.nodetool("snapshot", "-kt", withKeyspace("%s." + tableName), "-t", snapshotName));
         waitForSnapshot(instance, snapshotName);
+
+        // take one more snapshot, this one is not ephemeral,
+        // starting Cassandra will clear ephemerals, but it will not affect non-ephemeral snapshots
+        assertEquals(0, instance.nodetool("snapshot", "-kt", withKeyspace("%s." + tableName), "-t", snapshotName2));
+        waitForSnapshot(instance, snapshotName2);
 
         String tableId = instance.callOnInstance((IIsolatedExecutor.SerializableCallable<String>) () -> {
             return Keyspace.open(KEYSPACE).getMetadata().tables.get(tableName).get().id.asUUID().toString().replaceAll("-", "");
@@ -122,17 +162,18 @@ public class EphemeralSnapshotTest extends TestBaseImpl
     private void verify(IInvokableInstance instance)
     {
         // by default, we do not see ephemerals
-        assertFalse(instance.nodetoolResult("listsnapshots").getStdout().contains("snapshotname"));
+        assertFalse(instance.nodetoolResult("listsnapshots").getStdout().contains(snapshotName));
 
         // we see them via -e flag
-        assertTrue(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains("snapshotname"));
+        assertTrue(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName));
 
         Futures.getUnchecked(instance.shutdown());
 
-        // startup should remove ephemeral marker file
+        // startup should remove ephemeral snapshot
         instance.startup();
 
-        assertFalse(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains("snapshotname"));
+        assertFalse(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName));
+        assertTrue(instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName2));
     }
 
     private void waitForSnapshot(IInvokableInstance instance, String snapshotName)
@@ -140,6 +181,15 @@ public class EphemeralSnapshotTest extends TestBaseImpl
         await().timeout(20, SECONDS)
                .pollInterval(1, SECONDS)
                .until(() -> instance.nodetoolResult("listsnapshots", "-e").getStdout().contains(snapshotName));
+    }
+
+    private void rewriteManifestToEphemeral(String tableId, String[] dataDirs) throws Exception
+    {
+        // rewrite manifest, pretend that it is ephemeral
+        Path manifestPath = findManifest(dataDirs, tableId);
+        SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(new File(manifestPath));
+        SnapshotManifest manifestWithEphemeralFlag = new SnapshotManifest(manifest.files, null, manifest.createdAt, true);
+        manifestWithEphemeralFlag.serializeToJsonFile(new File(manifestPath));
     }
 
     private Path findManifest(String[] dataDirs, String tableId)

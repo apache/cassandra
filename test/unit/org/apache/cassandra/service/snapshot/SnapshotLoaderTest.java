@@ -127,6 +127,23 @@ public class SnapshotLoaderTest
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files, false));
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, null, null, tag2Files, false));
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files, false));
+
+        // Verify snapshot loading for a specific keyspace
+        loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
+
+        snapshots = loader.loadSnapshots(KEYSPACE_1);
+        assertThat(snapshots).hasSize(2);
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, null, null, tag2Files, false));
+
+        loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
+        snapshots = loader.loadSnapshots(KEYSPACE_2);
+        assertThat(snapshots).hasSize(1);
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files, false));
     }
 
     @Test
@@ -203,6 +220,23 @@ public class SnapshotLoaderTest
         assertThat(snapshots).hasSize(3);
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, tag1Ts, null, tag1Files, false));
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, tag3Ts, null, tag3Files, false));
+
+        // Verify snapshot loading for a specific keyspace
+        loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
+
+        snapshots = loader.loadSnapshots(KEYSPACE_1);
+        assertThat(snapshots).hasSize(2);
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, tag1Ts, null, tag1Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, false));
+
+        loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
+        snapshots = loader.loadSnapshots(KEYSPACE_2);
+        assertThat(snapshots).hasSize(1);
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, tag3Ts, null, tag3Files, false));
     }
 

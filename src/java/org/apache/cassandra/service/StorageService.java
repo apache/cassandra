@@ -4190,7 +4190,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * Remove the snapshot with the given name from the given keyspaces.
      * If no tag is specified we will remove all snapshots.
      */
-    public void clearSnapshot(String tag, String... keyspaceNames) throws IOException
+    public void clearSnapshot(String tag, String... keyspaceNames)
     {
         if(tag == null)
             tag = "";
@@ -4208,10 +4208,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         for (String keyspace : keyspaces)
-            Keyspace.clearSnapshot(tag, keyspace);
+            clearKeyspaceSnapshot(keyspace, tag);
 
         if (logger.isDebugEnabled())
             logger.debug("Cleared out snapshot directories");
+    }
+
+    /**
+     * Clear snapshots for a given keyspace.
+     * @param keyspace keyspace to remove snapshots for
+     * @param tag the user supplied snapshot name. If empty or null, all the snapshots will be cleaned
+     */
+    private void clearKeyspaceSnapshot(String keyspace, String tag)
+    {
+        Set<TableSnapshot> snapshotsToClear = new SnapshotLoader().loadSnapshots(keyspace)
+                                                                  .stream()
+                                                                  .filter(TableSnapshot.shouldClearSnapshot(tag))
+                                                                  .collect(Collectors.toSet());
+        for (TableSnapshot snapshot : snapshotsToClear)
+            snapshotManager.clearSnapshot(snapshot);
     }
 
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)

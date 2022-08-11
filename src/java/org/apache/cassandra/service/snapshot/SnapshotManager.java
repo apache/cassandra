@@ -150,7 +150,7 @@ public class SnapshotManager {
     /**
      * Deletes snapshot and remove it from manager
      */
-    protected void clearSnapshot(TableSnapshot snapshot)
+    public void clearSnapshot(TableSnapshot snapshot)
     {
         for (File snapshotDir : snapshot.getDirectories())
         {

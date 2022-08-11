@@ -54,7 +54,8 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotLoader.class);
 
-    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)\\-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>[\\w-]+)$");
+    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>.+)$");
+    private static final Pattern UUID_PATTERN = Pattern.compile("([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]+)");
 
     private final Collection<Path> dataDirectories;
     private final Map<String, TableSnapshot.Builder> snapshots = new HashMap<>();
@@ -79,15 +80,21 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
         this(directories.getCFDirectories().stream().map(File::toPath).collect(Collectors.toList()));
     }
 
-    public Set<TableSnapshot> loadSnapshots()
+    public Set<TableSnapshot> loadSnapshots(String keyspace)
     {
+        // if we supply a keyspace, the walking max depth will be suddenly shorther
+        // because we are one level down in the directory structure
+        int maxDepth = keyspace == null ? 5 : 4;
         for (Path dataDir : dataDirectories)
         {
+            if (keyspace != null)
+                dataDir = dataDir.resolve(keyspace);
+
             try
             {
                 if (new File(dataDir).exists())
                 {
-                    Files.walkFileTree(dataDir, Collections.EMPTY_SET, 5, this);
+                    Files.walkFileTree(dataDir, Collections.emptySet(), maxDepth, this);
                 }
                 else
                 {
@@ -100,6 +107,11 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
             }
         }
         return snapshots.values().stream().map(TableSnapshot.Builder::build).collect(Collectors.toSet());
+    }
+
+    public Set<TableSnapshot> loadSnapshots()
+    {
+        return loadSnapshots(null);
     }
 
     @Override
@@ -159,7 +171,7 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
     protected static UUID parseUUID(String uuidWithoutDashes) throws IllegalArgumentException
     {
         assert uuidWithoutDashes.length() == 32 && !uuidWithoutDashes.contains("-");
-        String dashedUUID = uuidWithoutDashes.replaceFirst("([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]+)", "$1-$2-$3-$4-$5");
+        String dashedUUID = UUID_PATTERN.matcher(uuidWithoutDashes).replaceFirst("$1-$2-$3-$4-$5");
         return UUID.fromString(dashedUUID);
     }
 }

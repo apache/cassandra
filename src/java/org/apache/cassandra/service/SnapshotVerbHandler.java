@@ -37,7 +37,7 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         SnapshotCommand command = message.payload;
         if (command.clear_snapshot)
         {
-            Keyspace.clearSnapshot(command.snapshot_name, command.keyspace);
+            StorageService.instance.clearSnapshot(command.snapshot_name, command.keyspace);
         }
         else if (DiagnosticSnapshotService.isDiagnosticSnapshotRequest(command))
         {
