@@ -1,4 +1,4 @@
-<!--
+!--
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -1985,6 +1985,47 @@ UPDATE plays SET scores = scores - [ 12, 21 ] WHERE id = '123-afde'; // removes 
 
 As with "maps":#map, TTLs if used only apply to the newly inserted/updated _values_.
 
+h2(#arithmeticOperators). Arithmetic Operators
+
+h3(#numberArithmetic). Number Arithmetic
+
+CQL supports the following operators:
+
+|_. Operator   |_. Description                        |
+| @-@ (unary)  | Negates operand                      |
+| @+@          | Addition                             |
+| @-@          | Substraction                         |
+| @*@          | Multiplication                       |
+| @/@          | Division                             |
+| @%@          | Returns the remainder of a division  |
+
+Arithmetic operations are only supported on numeric types or counters.
+
+The return type of the operation will be based on the operand types:
+
+
+|_. left/right     |_. @tinyint@    |_. @smallint@    |_. @int@      |_. @bigint@    |_. @counter@    |_. @float@     |_. @double@    |_. @varint@    |_. @decimal@    |
+| **@tinyint@**      | @tinyint@      | @smallint@      | @int@        | @bigint@      | @bigint@       | @float@       | @double@      | @varint@      | @decimal@      |
+| **@smallint@**     | @smallint@     | @smallint@      | @int@        | @bigint@      | @bigint@       | @float@       | @double@      | @varint@      | @decimal@      |
+| **@int@**          | @int@          | @int@           | @int@        | @bigint@      | @bigint@       | @float@       | @double@      | @varint@      | @decimal@      |
+| **@bigint@**       | @bigint@       | @bigint@        | @bigint@     | @bigint@      | @bigint@       | @double@      | @double@      | @varint@      | @decimal@      |
+| **@counter@**      | @bigint@       | @bigint@        | @bigint@     | @bigint@      | @bigint@       | @double@      | @double@      | @varint@      | @decimal@      |
+| **@float@**        | @float@        | @float@         | @float@      | @double@      | @double@       | @float@       | @double@      | @decimal@     | @decimal@      |
+| **@double@**       | @double@       | @double@        | @double@     | @double@      | @double@       | @double@      | @double@      | @decimal@     | @decimal@      |
+| **@varint@**       | @varint@       | @varint@        | @varint@     | @decimal@     | @decimal@      | @decimal@     | @decimal@     | @decimal@     | @decimal@      |
+| **@decimal@**      | @decimal@      | @decimal@       | @decimal@    | @decimal@     | @decimal@      | @decimal@     | @decimal@     | @decimal@     | @decimal@      |
+
+
+@*@, @/@ and @%@ operators have a higher precedence level than @+@ and @-@ operator. By consequence, they will be evaluated before. If two operator in an expression have the same precedence level, they will be evaluated left to right based on their position in the expression.
+
+h3(#datetimeArithmetic). Datetime Arithmetic
+
+A @duration@ can be added (+) or substracted (-) from a @timestamp@ or a @date@ to create a new @timestamp@ or @date@. So for instance:
+
+bc(sample). 
+SELECT * FROM myTable WHERE t = '2017-01-01' - 2d
+
+will select all the records with a value of @t@ which is in the last 2 days of 2016.
 
 h2(#functions). Functions
 
@@ -1998,7 +2039,7 @@ The following table describes the conversions supported by the @cast@ function. 
 
 |_. from    |_. to   |
 |@ascii@   |@text@, @varchar@                                                                                    |
-|@bigint@   |@tinyint@, @smallint@, @int@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@             |
+|@bigint@   |@tinyint@, @smallint@, @int@, @float@, @double@, @@decimal@@, @varint@, @text@, @varchar@             |
 |@boolean@  |@text@, @varchar@                                                                                   |
 |@counter@  |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@   |
 |@date@      |@timestamp@                                                                                        |
@@ -2490,6 +2531,11 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
+h3. 3.4.5
+
+* Adds support for arithmetic operators. See "Number Arithmetic":#numberArithmetic (see "CASSANDRA-11935":https://issues.apache.org/jira/browse/CASSANDRA-11935).
+* Adds support for + and - operations on dates. See "Datetime Arithmetic":#datetimeArithmetic (see "CASSANDRA-11936":https://issues.apache.org/jira/browse/CASSANDRA-11936).
 
 h3. 3.4.4
 
