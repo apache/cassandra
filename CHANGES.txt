@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-15181] Additional nodetool cleanup metric
  * [SO-15682] Fix bad query log for incorrect consistency level
  * [SO-14119] Handle stale DNS entry while checking the node being removed
  * [SO-14580] Auto repair priority list should be honored and setting priority list using nodetool can only set local group.

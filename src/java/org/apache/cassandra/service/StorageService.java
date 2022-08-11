@@ -4051,7 +4051,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
 
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tables))
+        Iterable<ColumnFamilyStore> columnFamilyStores = getValidColumnFamilies(false, false, keyspaceName, tables);
+        CompactionManager.instance.addPendingTablesToBeProcessed(Iterables.size(columnFamilyStores));
+        for (ColumnFamilyStore cfStore : columnFamilyStores)
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.forceCleanup(jobs);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
@@ -4078,7 +4080,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tables))
+        Iterable<ColumnFamilyStore> columnFamilyStores = getValidColumnFamilies(true, false, keyspaceName, tables);
+        CompactionManager.instance.addPendingTablesToBeProcessed(Iterables.size(columnFamilyStores));
+        for (ColumnFamilyStore cfStore : columnFamilyStores)
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.scrub(disableSnapshot, skipCorrupted, reinsertOverflowedTTL, checkData, jobs);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
@@ -4103,7 +4107,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                      .checkOwnsTokens(checkOwnsTokens)
                                                      .quick(quick).build();
         logger.info("Verifying {}.{} with options = {}", keyspaceName, Arrays.toString(tableNames), options);
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tableNames))
+        Iterable<ColumnFamilyStore> columnFamilyStores = getValidColumnFamilies(false, false, keyspaceName, tableNames);
+        CompactionManager.instance.addPendingTablesToBeProcessed(Iterables.size(columnFamilyStores));
+        for (ColumnFamilyStore cfStore : columnFamilyStores)
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.verify(options);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
@@ -4142,7 +4148,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, true, keyspaceName, tableNames))
+        Iterable<ColumnFamilyStore> columnFamilyStores = getValidColumnFamilies(true, true, keyspaceName, tableNames);
+        CompactionManager.instance.addPendingTablesToBeProcessed(Iterables.size(columnFamilyStores));
+        for (ColumnFamilyStore cfStore : columnFamilyStores)
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.sstablesRewrite(skipIfCurrentVersion, skipIfNewerThanTimestamp, skipIfCompressionMatches, jobs);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)

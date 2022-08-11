@@ -172,6 +172,7 @@ public class CompactionManager implements CompactionManagerMBean
         return metrics;
     }
 
+    private volatile AtomicInteger pendingTablesToBeProcessed = new AtomicInteger(0);
     /**
      * Gets compaction rate limiter.
      * Rate unit is bytes per sec.
@@ -471,6 +472,7 @@ public class CompactionManager implements CompactionManagerMBean
             Throwable fail = Throwables.close(null, transactions);
             if (fail != null)
                 logger.error("Failed to cleanup lifecycle transactions ({} for {}.{})", operationType, cfs.keyspace.getName(), cfs.getTableName(), fail);
+            pendingTablesToBeProcessed.decrementAndGet();
         }
     }
 
@@ -2397,5 +2399,15 @@ public class CompactionManager implements CompactionManagerMBean
     public interface CompactionPauser extends AutoCloseable
     {
         public void close();
+    }
+
+    public int addPendingTablesToBeProcessed(int totalTablesTobeCleanedup)
+    {
+        return pendingTablesToBeProcessed.accumulateAndGet(totalTablesTobeCleanedup, (x, y) -> (x + y));
+    }
+
+    public int getPendingTablesToBeProcessed()
+    {
+        return pendingTablesToBeProcessed.get();
     }
 }

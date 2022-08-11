@@ -56,6 +56,9 @@ public class CompactionMetrics
     public final Timer indexSummaryRedistributionTime;
     /** Successful cleanup of an SSTable */
     public final Counter successfulCleanup;
+    /** Pending tables to be processed as part of one of the operations [Cleanup|Scrub|Verify] up */
+    public final Gauge<Integer> pendingTablesToBeProcessed;
+
     /** Total number of compactions that have had sstables drop out of them */
     public final Counter compactionsReduced;
 
@@ -148,6 +151,13 @@ public class CompactionMetrics
         totalCompactionsCompleted = Metrics.meter(factory.createMetricName("TotalCompactionsCompleted"));
         bytesCompacted = Metrics.counter(factory.createMetricName("BytesCompacted"));
         successfulCleanup = Metrics.counter(factory.createMetricName("SuccessfulCleanup"));
+        pendingTablesToBeProcessed = Metrics.register(factory.createMetricName("PendingTablesToBeProcessed"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return CompactionManager.instance.getPendingTablesToBeProcessed();
+            }
+        });
 
         // compaction failure metrics
         compactionsReduced = Metrics.counter(factory.createMetricName("CompactionsReduced"));
