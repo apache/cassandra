@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.Set;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -41,7 +42,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 public abstract class AlterSchemaStatement implements CQLStatement.SingleKeyspaceCqlStatement, SchemaTransformation
 {
     private final String rawCQLStatement;
-    protected final String keyspaceName; // name of the keyspace affected by the statement
+    protected String keyspaceName; // name of the keyspace affected by the statement
 
     protected AlterSchemaStatement(String queryString, String keyspaceName)
     {
@@ -70,6 +71,11 @@ public abstract class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     public String keyspace()
     {
         return keyspaceName;
+    }
+
+    public void overrideKeyspace(Function<String, String> overrideKeyspace)
+    {
+        this.keyspaceName = overrideKeyspace.apply(keyspaceName);
     }
 
     public ResultMessage executeLocally(QueryState state, QueryOptions options)

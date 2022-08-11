@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -643,6 +644,12 @@ public class BatchStatement implements CQLStatement
         {
             for (ModificationStatement.Parsed statement : parsedStatements)
                 statement.setKeyspace(state);
+        }
+
+        public void setKeyspace(Function<ModificationStatement.Parsed, String> convertKeyspace) throws InvalidRequestException
+        {
+            for (ModificationStatement.Parsed statement : parsedStatements)
+                statement.setKeyspace(convertKeyspace.apply(statement));
         }
 
         @Override
