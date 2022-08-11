@@ -1595,7 +1595,7 @@ public class DatabaseDescriptor
             boolean created = maybeCreateHeapDumpPath();
             if (!created && conf.dump_heap_on_uncaught_exception)
             {
-                logger.error(String.format("conf.dump_heap_on_uncaught_exception is enabled but unable to create heap dump path %s. Disabling.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+                logger.error(String.format("cassandra.yaml:dump_heap_on_uncaught_exception is enabled but unable to create heap dump path %s. Disabling.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
                 conf.dump_heap_on_uncaught_exception = false;
             }
         }
@@ -4452,13 +4452,12 @@ public class DatabaseDescriptor
         conf.dump_heap_on_uncaught_exception = enabled;
         boolean pathExists = maybeCreateHeapDumpPath();
 
-        // In the good case, we're either disabling or we're enabled and the path exists on disk just fine.
-        if (!enabled || pathExists)
-            logger.info("Setting dump_heap_on_uncaught_exception to {}", enabled);
-        else
+        if (enabled && !pathExists)
         {
             logger.error("Attempted to enable heap dump but cannot create the requested path. Disabling.");
             conf.dump_heap_on_uncaught_exception = false;
         }
+        else
+            logger.info("Setting dump_heap_on_uncaught_exception to {}", enabled);
     }
 }

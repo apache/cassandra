@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
 import java.nio.file.Paths;
 
 import org.junit.BeforeClass;
@@ -40,7 +39,7 @@ public class HeapUtilsTest
     }
 
     @Test
-    public void shouldDumpHeapWithPathArgSpecified() throws IOException
+    public void shouldDumpHeapWithPathArgSpecified()
     {
         DatabaseDescriptor.setDumpHeapOnUncaughtException(true);
         String path = HeapUtils.maybeCreateHeapDump();
