@@ -186,8 +186,8 @@ Upgrading
       `setRepairSessionSpaceInMebibytes(int sizeInMebibytes)` and `getRepairSessionSpaceInMebibytes`. They replace the now
       deprecated methods `setRepairSessionSpaceInMegabytes(int sizeInMegabytes)` and `getRepairSessionSpaceInMegabytes`, which
       will be removed in a future major release.
-    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|MiB/s|KiB/s|MiB/s),
-      memory (KiB|MiB|GiB|B) and duration(d|h|s|ms|us|µs|ns|m)
+    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|KiB/s|MiB/s),
+      memory (B|KiB|MiB|GiB) and duration(d|h|m|s|ms|us|µs|ns)
       parameters. List of changed parameters and details to consider during configuration setup can be
       found at https://cassandra.apache.org/doc/latest/cassandra/new/configuration.html. (CASSANDRA-15234)
       Backward compatibility with the old cassandra.yaml file will be in place until at least the next major version.
@@ -242,7 +242,10 @@ Deprecation
       deprecate getter method `getCompactionThroughputMbPerSec` in favor of getter methods `getCompactionThroughtputMibPerSecAsDouble`
       and `getCompactionThroughtputBytesPerSec`; deprecate setter methods `setStreamThroughputMbPerSec` and `setStreamThroughputMbitPerSec`
       in favor of `setStreamThroughputMebibytesPerSec`; deprecate setter methods `setInterDCStreamThroughputMbitPerSec` and
-      `setInterDCStreamThroughputMbPerSec` in favor of `setInterDCStreamThroughputMebibytesPerSec`. See CASSANDRA-17725 for further details.
+      `setInterDCStreamThroughputMbPerSec` in favor of `setInterDCStreamThroughputMebibytesPerSec`. The deprecated JMX methods
+      may return a rounded value so if precision is important, you want to use the new getters. While those deprecated JMX getters
+      will return a rounded number, the nodetool commands `getstreamthroughput` and `getinterdcstreamthroughput`
+      will throw Runtime Exceptions advising to use the new -d flag in case an integer cannot be returned. See CASSANDRA-17725 for further details.
     - Deprecate public method `setRate(final double throughputMbPerSec)` in `Compaction Manager` in favor of
       `setRateInBytes(final double throughputBytesPerSec)`
     - `withBufferSizeInMB(int size)` in `StressCQLSSTableWriter.Builder` class is deprecated in favor of `withBufferSizeInMiB(int size)`
