@@ -63,12 +63,12 @@ public class AccordScheduler implements Scheduler, Shutdownable
     }
 
     @Override
-    public void now(Runnable run)
+    public void now(Runnable task)
     {
         // called from the mutation stage configured by the verb
         if (scheduledExecutor.isShutdown())
             throw new RejectedExecutionException("Scheduler has shut down.");
-        run.run();
+        scheduledExecutor.submit(task);
     }
 
     @Override
