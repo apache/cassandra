@@ -70,6 +70,12 @@ public class AsyncLoader
                                                                                 Map<K, V> context,
                                                                                 Function<V, Future<?>> readFunction)
     {
+        Future<?> future = cache.getLoadFuture(key);
+        if (future != null)
+            return future;
+
+        // check the context first, we may have already taken a reference to this
+        // item and added it to the context and don't want to double reference
         V item = context.get(key);
         if (item != null)
         {
@@ -77,10 +83,6 @@ public class AsyncLoader
             Preconditions.checkState(item.isLoaded());
             return null;
         }
-
-        Future<?> future = cache.getLoadFuture(key);
-        if (future != null)
-            return future;
 
         item = cache.getOrCreate(key);
         context.put(key, item);
