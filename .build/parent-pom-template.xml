@@ -23,7 +23,7 @@
   </parent>
   <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra-parent</artifactId>
-  <version>4.1-alpha2-SNAPSHOT</version>
+  <version>@VERSION@</version>
   <packaging>pom</packaging>
   <name>Apache Cassandra</name>
   <description>The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.</description>

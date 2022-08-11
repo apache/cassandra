@@ -19,12 +19,12 @@
   <parent>
     <artifactId>cassandra-parent</artifactId>
     <groupId>org.apache.cassandra</groupId>
-    <version>4.1-alpha2-SNAPSHOT</version>
-    <relativePath>parent-pom.xml</relativePath>
+    <version>@VERSION@</version>
+    <relativePath>@FINAL_NAME@-parent.pom</relativePath>
   </parent>
   <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra-all</artifactId>
-  <version>4.1-alpha2-SNAPSHOT</version>
+  <version>@VERSION@</version>
   <name>Apache Cassandra</name>
   <description>The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.</description>
   <url>https://cassandra.apache.org</url>

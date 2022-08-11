@@ -660,11 +660,20 @@
     </target>
 
     <target name="write-poms" unless="without.maven">
-        <!-- TODO: Set fields in templates, move POMs to correct locations
-            <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
-            <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
-            <artifact:writepom pomRefId="build-deps-pom" file="${build.dir}/tmp-${final.name}-deps.pom"/>
-        -->
+        <filterset id="pom-template">
+            <filter token="VERSION" value="${version}"/>
+            <filter token="FINAL_NAME" value="${final.name}"/>
+        </filterset>
+
+        <copy file=".build/cassandra-deps-template.xml" tofile="${build.dir}/${final.name}.pom">
+            <filterset refid="pom-template"/>
+        </copy>
+        <copy file=".build/parent-pom-template.xml" tofile="${build.dir}/${final.name}-parent.pom">
+            <filterset refid="pom-template"/>
+        </copy>
+        <copy file=".build/cassandra-build-deps-template.xml" tofile="${build.dir}/tmp-${final.name}-deps.pom">
+            <filterset refid="pom-template"/>
+        </copy>
     </target>
 
     <!--
