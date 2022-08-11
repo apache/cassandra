@@ -42,6 +42,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         LOADING,
         RUNNING,
         SAVING,
+        AWAITING_SAVE,
         COMPLETING,
         FINISHED,
         FAILED
@@ -109,10 +110,21 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
 
                     state = State.SAVING;
                 case SAVING:
-                    if (!writer.save(context, this::callback))
+                case AWAITING_SAVE:
+                    boolean updatesPersisted = writer.save(context, this::callback);
+
+                    if (state != State.AWAITING_SAVE)
+                    {
+                        // with any updates on the way to disk, release resources so operations waiting
+                        // to use these objects don't have issues with fields marked as unsaved
+                        context.releaseResources(commandStore);
+                        state = State.AWAITING_SAVE;
+                    }
+
+                    if (!updatesPersisted)
                         return;
+
                     state = State.COMPLETING;
-                    context.releaseResources(commandStore);
                     setSuccess(result);
                     state = State.FINISHED;
                 case FINISHED:
