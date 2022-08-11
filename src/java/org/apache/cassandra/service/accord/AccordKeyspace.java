@@ -36,6 +36,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Status;
@@ -107,6 +110,8 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class AccordKeyspace
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordKeyspace.class);
+
     public static final String COMMANDS = "commands";
     public static final String COMMAND_SERIES = "command_series";
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
@@ -499,51 +504,6 @@ public class AccordKeyspace
         }
     }
 
-    public static void saveCommand(AccordCommand command) throws IOException
-    {
-        int version = MessagingService.current_version;
-        TxnId txnId = command.txnId();
-        Timestamp executeAt = command.executeAt();
-        Ballot promised = command.promised();
-        Ballot accepted = command.accepted();
-        String cql = "UPDATE %s.%s " +
-                     "SET status=?, " +
-                     "txn_version=?, " +
-                     "txn=?, " +
-                     "execute_at=(?, ?, ?, ?), " +
-                     "promised_ballot=(?, ?, ?, ?), " +
-                     "accepted_ballot=(?, ?, ?, ?), " +
-                     "dependencies_version=?, " +
-                     "dependencies=?, " +
-                     "writes_version=?, " +
-                     "writes=?, " +
-                     "result_version=?, " +
-                     "result=?, " +
-                     "waiting_on_commit=?, " +
-                     "waiting_on_apply=?, " +
-                     "listeners=? " +
-                     "WHERE store_generation=? AND store_index=? AND txn_id=(?, ?, ?, ?)";
-        executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
-                            command.status().ordinal(),
-                            version,
-                            serializeOrNull(command.txn(), CommandSerializers.txn, version),
-                            executeAt.epoch, executeAt.real, executeAt.logical, executeAt.node.id,
-                            promised.epoch, promised.real, promised.logical, promised.node.id,
-                            accepted.epoch, accepted.real, accepted.logical, accepted.node.id,
-                            version,
-                            serialize(command.savedDeps(), CommandSerializers.deps, version),
-                            version,
-                            serializeOrNull(command.writes(), CommandSerializers.writes, version),
-                            version,
-                            serializeOrNull((AccordData) command.result(), AccordData.serializer, version),
-                            serializeWaitingOn(command.waitingOnCommit.getView()),
-                            serializeWaitingOn(command.waitingOnApply.getView()),
-                            serializeListeners(command.storedListeners.getView()),
-                            command.commandStore().generation(),
-                            command.commandStore().index(),
-                            txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
-    }
-
     private static ByteBuffer serializeKey(PartitionKey key)
     {
         UUIDSerializer.instance.serialize(key.tableId().asUUID());
@@ -632,7 +592,13 @@ public class AccordKeyspace
         }
         catch (IOException e)
         {
+            logger.error("Exception loading AccordCommand " + command.txnId(), e);
             throw new RuntimeException(e);
+        }
+        catch (Throwable t)
+        {
+            logger.error("Exception loading AccordCommand " + command.txnId(), t);
+            throw t;
         }
     }
 
@@ -803,10 +769,15 @@ public class AccordKeyspace
                 }
             }
             Preconditions.checkState(!partitions.hasNext());
-        }
 
-        cfk.uncommitted.map.load(seriesMaps.get(SeriesKind.UNCOMMITTED));
-        cfk.committedById.map.load(seriesMaps.get(SeriesKind.COMMITTED_BY_ID));
-        cfk.committedByExecuteAt.map.load(seriesMaps.get(SeriesKind.COMMITTED_BY_EXECUTE_AT));
+            cfk.uncommitted.map.load(seriesMaps.get(SeriesKind.UNCOMMITTED));
+            cfk.committedById.map.load(seriesMaps.get(SeriesKind.COMMITTED_BY_ID));
+            cfk.committedByExecuteAt.map.load(seriesMaps.get(SeriesKind.COMMITTED_BY_EXECUTE_AT));
+        }
+        catch (Throwable t)
+        {
+            logger.error("Exception loading AccordCommandsForKey " + cfk.key(), t);
+            throw t;
+        }
     }
 }
