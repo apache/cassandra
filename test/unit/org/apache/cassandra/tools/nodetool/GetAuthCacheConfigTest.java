@@ -95,17 +95,17 @@ public class GetAuthCacheConfigTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getauthcacheconfig");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Required option '--cache-name' is missing"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("getauthcacheconfig", "--cache-name");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Required values for option 'cache-name' not provided"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("getauthcacheconfig", "--cache-name", "wrong");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Unknown cache name: wrong"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
     }
 
     @Test
