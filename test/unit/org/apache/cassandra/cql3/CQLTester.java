@@ -666,8 +666,13 @@ public abstract class CQLTester
 
     protected String createType(String query)
     {
+        return createType(KEYSPACE, query);
+    }
+
+    protected String createType(String keyspace, String query)
+    {
         String typeName = String.format("type_%02d", seqNumber.getAndIncrement());
-        String fullQuery = String.format(query, KEYSPACE + "." + typeName);
+        String fullQuery = String.format(query, keyspace + "." + typeName);
         types.add(typeName);
         logger.info(fullQuery);
         schemaChange(fullQuery);
@@ -810,7 +815,12 @@ public abstract class CQLTester
 
     protected String createIndex(String query)
     {
-        String formattedQuery = formatQuery(query);
+        return createIndex(KEYSPACE, query);
+    }
+
+    protected String createIndex(String keyspace, String query)
+    {
+        String formattedQuery = formatQuery(keyspace, query);
         return createFormattedIndex(formattedQuery);
     }
 
@@ -987,6 +997,11 @@ public abstract class CQLTester
     protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, int pageSize) throws Throwable
     {
         return sessionNet(version).execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
+    }
+
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, String KS, int pageSize)
+    {
+        return sessionNet(version).execute(new SimpleStatement(formatQuery(KS, query)).setKeyspace(KS).setFetchSize(pageSize));
     }
 
     protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize) throws Throwable
