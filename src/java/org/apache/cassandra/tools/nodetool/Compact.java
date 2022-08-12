@@ -41,10 +41,10 @@ public class Compact extends NodeToolCmd
     @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined compaction")
     private boolean userDefined = false;
 
-    @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the compaction range starts")
+    @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the compaction range starts (inclusive)")
     private String startToken = EMPTY;
 
-    @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which compaction range ends")
+    @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which compaction range ends (inclusive)")
     private String endToken = EMPTY;
 
     @Option(title = "partition_key", name = {"--partition"}, description = "String representation of the partition key")
