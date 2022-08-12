@@ -976,11 +976,28 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    /**
+     * Forces a major compaction of specified token ranges of the specified column family.
+     * <p>
+     * The token ranges will be interpreted as closed intervals to match the closed interval defined by the first and
+     * last keys of a sstable, even though the {@link Range} class is suppossed to be half-open by definition.
+     *
+     * @param cfStore The column family store to be compacted.
+     * @param ranges The token ranges to be compacted, interpreted as closed intervals.
+     */
     public void forceCompactionForTokenRange(ColumnFamilyStore cfStore, Collection<Range<Token>> ranges)
     {
-        forceCompaction(cfStore, () -> sstablesInBounds(cfStore, ranges), (sstable) -> new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges));
+        forceCompaction(cfStore,
+                        () -> sstablesInBounds(cfStore, ranges),
+                        sstable -> new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges));
     }
 
+    /**
+     * Returns the sstables of the specified column family store that intersect with the specified token ranges.
+     * <p>
+     * The token ranges will be interpreted as closed intervals to match the closed interval defined by the first and
+     * last keys of a sstable, even though the {@link Range} class is suppossed to be half-open by definition.
+     */
     private static Collection<SSTableReader> sstablesInBounds(ColumnFamilyStore cfs, Collection<Range<Token>> tokenRangeCollection)
     {
         final Set<SSTableReader> sstables = new HashSet<>();
