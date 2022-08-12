@@ -113,17 +113,17 @@ public class SetAuthCacheConfigTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("setauthcacheconfig");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Required option '--cache-name' is missing"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("setauthcacheconfig", "--cache-name");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Required values for option 'cache-name' not provided"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("setauthcacheconfig", "--cache-name", "wrong", "--validity-period", "1");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Unknown cache name: wrong"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
     }
 
     @Test
@@ -132,7 +132,7 @@ public class SetAuthCacheConfigTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("setauthcacheconfig", "--cache-name", "PermissionCache");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("At least one optional parameter need to be passed"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
     }
 
     @Test
@@ -144,7 +144,7 @@ public class SetAuthCacheConfigTest extends CQLTester
                                                                "--disable-active-update");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("enable-active-update and disable-active-update cannot be used together"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
     }
 
     @Test

@@ -185,44 +185,44 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("No resource options allowed without a <role> being specified"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("No resource options specified"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--invalid-option");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("A single <role> is only supported / you have a typo in the resource options spelling"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--all-tables");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("--all-tables option should be passed along with --keyspace option"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--table", "t1");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("--table option should be passed along with --keyspace option"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--function", "f[Int32Type]");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("--function option should be passed along with --functions-in-keyspace option"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--functions-in-keyspace",
                 KEYSPACE, "--function", "f[x]");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("An error was encountered when looking up function definition: Unable to find abstract-type class 'org.apache.cassandra.db.marshal.x'"));
-        assertThat(tool.getStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr()).isEmpty();
     }
 
     @Test
