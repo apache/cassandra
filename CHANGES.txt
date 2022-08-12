@@ -1,4 +1,5 @@
 4.2
+ * DataOutputBuffer#scratchBuffer can use off-heap or on-heap memory as a means to control memory allocations (CASSANDRA-16471)
  * Add ability to read the TTLs and write times of the elements of a collection and/or UDT (CASSANDRA-8877)
  * Removed Python < 2.7 support from formatting.py (CASSANDRA-17694)
  * Cleanup pylint issues with pylexotron.py (CASSANDRA-17779)

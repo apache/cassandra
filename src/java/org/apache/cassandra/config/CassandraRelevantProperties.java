@@ -289,10 +289,12 @@ public enum CassandraRelevantProperties
     /** property for the interval on which the repeated client warnings and diagnostic events about disk usage are ignored */
     DISK_USAGE_NOTIFY_INTERVAL_MS("cassandra.disk_usage.notify_interval_ms", Long.toString(TimeUnit.MINUTES.toMillis(30))),
 
+    /** Controls the type of bufffer (heap/direct) used for shared scratch buffers */
+    DATA_OUTPUT_BUFFER_ALLOCATE_TYPE("cassandra.dob.allocate_type"),
+
     // for specific tests
     ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),
     ORG_APACHE_CASSANDRA_DB_VIRTUAL_SYSTEM_PROPERTIES_TABLE_TEST("org.apache.cassandra.db.virtual.SystemPropertiesTableTest"),
-
     ;
 
 
@@ -452,6 +454,40 @@ public enum CassandraRelevantProperties
     public void setLong(long value)
     {
         System.setProperty(key, Long.toString(value));
+    }
+
+    /**
+     * Gets the value of a system property as a enum, calling {@link String#toUpperCase()} first.
+     *
+     * @param defaultValue to return when not defined
+     * @param <T> type
+     * @return enum value
+     */
+    public <T extends Enum<T>> T getEnum(T defaultValue) {
+        return getEnum(true, defaultValue);
+    }
+
+    /**
+     * Gets the value of a system property as a enum, optionally calling {@link String#toUpperCase()} first.
+     *
+     * @param toUppercase before converting to enum
+     * @param defaultValue to return when not defined
+     * @param <T> type
+     * @return enum value
+     */
+    public <T extends Enum<T>> T getEnum(boolean toUppercase, T defaultValue) {
+        String value = System.getProperty(key);
+        if (value == null)
+            return defaultValue;
+        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? value.toUpperCase() : value);
+    }
+
+    /**
+     * Sets the value into system properties.
+     * @param value to set
+     */
+    public void setEnum(Enum<?> value) {
+        System.setProperty(key, value.name());
     }
 
     public interface PropertyConverter<T>

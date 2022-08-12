@@ -196,7 +196,7 @@ public class UnfilteredSerializer
                 // We write the size of the previous unfiltered to make reverse queries more efficient (and simpler).
                 // This is currently not used however and using it is tbd.
                 out.writeUnsignedVInt(previousUnfilteredSize);
-                out.write(dob.getData(), 0, dob.getLength());
+                out.write(dob.unsafeGetBufferAndFlip());
             }
         }
         else
