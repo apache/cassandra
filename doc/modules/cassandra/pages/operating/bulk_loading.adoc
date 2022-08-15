@@ -80,10 +80,10 @@ The following options are supported, with `-d,--nodes <initial hosts>` required:
 -d,--nodes <initial hosts>                                   Required.
                                                              Try to connect to these hosts (comma separated) initially for ring information
 
--emib,--entire-sstable-throttle-mib <throttle-mib>           Entire SSTable throttle
+--entire-sstable-throttle-mib <throttle-mib>                 Entire SSTable throttle
                                                              speed in MiB/s (default 0 for unlimited).
 
--eidctmib,--entire-sstable-inter-dc-throttle-mib <inter-dc-throttle-mib>
+--entire-sstable-inter-dc-throttle-mib                       <inter-dc-throttle-mib>
                                                              Entire SSTable inter-datacenter throttle
                                                              speed in MiB/s (default 0 for unlimited).
 
@@ -96,7 +96,7 @@ The following options are supported, with `-d,--nodes <initial hosts>` required:
 -idct,--inter-dc-throttle <inter-dc-throttle>                (deprecated) Inter-datacenter throttle speed in Mbits (default 0 for unlimited)
                                                              Use -idctmib / --inter-dc-throttle-mib instead
 
--idctmib,--inter-dc-throttle-mib <inter-dc-throttle-mib>     Inter-datacenter throttle speed in MiB/s (default 0 for unlimited)
+--inter-dc-throttle-mib <inter-dc-throttle-mib>              Inter-datacenter throttle speed in MiB/s (default 0 for unlimited)
 
 -k,--target-keyspace <target keyspace name>                  Target
                                                              keyspace name
@@ -123,7 +123,7 @@ The following options are supported, with `-d,--nodes <initial hosts>` required:
                                                              type of store
 -t,--throttle <throttle>                                     (deprecated) Throttle speed in Mbits (default 0 for unlimited)
                                                              Use -tmib / --throttle-mib instead
--tmib,--throttle-mib <throttle-mib>                          Throttle
+--throttle-mib <throttle-mib>                                Throttle
                                                              speed in MiB/s (default 0 for unlimited)
 -ts,--truststore <TRUSTSTORE>                                Client SSL:
                                                              full path to truststore

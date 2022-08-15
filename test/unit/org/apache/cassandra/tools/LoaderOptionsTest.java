@@ -118,18 +118,6 @@ public class LoaderOptionsTest
     }
 
     @Test
-    public void testThrottleSettings() throws IOException
-    {
-        // Default Cassandra config
-        File config = new File(Paths.get(".", "test", "conf", "cassandra.yaml").normalize());
-        String[] args = { "-tmib", "24", "-idctmib", "48", "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple") };
-        LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
-        // converts from mebibytes to bytes
-        assertEquals(24 * 1024 * 1024, options.throttleBytes, 0);
-        assertEquals(48 * 1024 * 1024, options.interDcThrottleBytes, 0);
-    }
-
-    @Test
     public void testThrottleSettingsWithLongSettingNames() throws IOException
     {
         // Default Cassandra config
@@ -183,17 +171,6 @@ public class LoaderOptionsTest
         LoaderOptions options = LoaderOptions.builder().build();
         assertEquals(0, options.entireSSTableThrottleMebibytes);
         assertEquals(0, options.entireSSTableInterDcThrottleMebibytes);
-    }
-
-    @Test
-    public void testEntireSSTableSettings() throws IOException
-    {
-        // Default Cassandra config
-        File config = new File(Paths.get(".", "test", "conf", "cassandra.yaml").normalize());
-        String[] args = { "-emib", "350", "-eidctmib", "600", "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple") };
-        LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
-        assertEquals(350, options.entireSSTableThrottleMebibytes);
-        assertEquals(600, options.entireSSTableInterDcThrottleMebibytes);
     }
 
     @Test

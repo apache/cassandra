@@ -756,11 +756,11 @@ public class LoaderOptions
         options.addOption("sp",  STORAGE_PORT_OPTION, "storage port", "port used for internode communication (default 7000)");
         options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001), this option is deprecated, all communication goes through storage port which handles encrypted communication as well");
         options.addOption("t", THROTTLE_MBITS, "throttle", "throttle speed in Mbps (default 0 for unlimited), this option is deprecated, use \"throttle-mib\" instead");
-        options.addOption("tmib", THROTTLE_MEBIBYTES, "throttle-mib", "throttle speed in MiB/s (default 0 for unlimited)");
+        options.addOption(null, THROTTLE_MEBIBYTES, "throttle-mib", "throttle speed in MiB/s (default 0 for unlimited)");
         options.addOption("idct", INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbps (default 0 for unlimited), this option is deprecated, use \"inter-dc-throttle-mib\" instead");
-        options.addOption("idctmib", INTER_DC_THROTTLE_MEBIBYTES, "inter-dc-throttle-mib", "inter-datacenter throttle speed in MiB/s (default 0 for unlimited), this option is deprecated, use \"inter-dc-throttle-mib\" instead");
-        options.addOption("emib", ENTIRE_SSTABLE_THROTTLE_MEBIBYTES, "entire-sstable-throttle-mib", "entire SSTable throttle speed in MiB/s (default 0 for unlimited)");
-        options.addOption("eidctmib", ENTIRE_SSTABLE_INTER_DC_THROTTLE_MEBIBYTES, "entire-sstable-inter-dc-throttle-mib", "entire SSTable inter-datacenter throttle speed in MiB/s (default 0 for unlimited)");
+        options.addOption(null, INTER_DC_THROTTLE_MEBIBYTES, "inter-dc-throttle-mib", "inter-datacenter throttle speed in MiB/s (default 0 for unlimited)");
+        options.addOption(null, ENTIRE_SSTABLE_THROTTLE_MEBIBYTES, "entire-sstable-throttle-mib", "entire SSTable throttle speed in MiB/s (default 0 for unlimited)");
+        options.addOption(null, ENTIRE_SSTABLE_INTER_DC_THROTTLE_MEBIBYTES, "entire-sstable-inter-dc-throttle-mib", "entire SSTable inter-datacenter throttle speed in MiB/s (default 0 for unlimited)");
         options.addOption("u", USER_OPTION, "username", "username for cassandra authentication");
         options.addOption("pw", PASSWD_OPTION, "password", "password for cassandra authentication");
         options.addOption("ap", AUTH_PROVIDER_OPTION, "auth provider", "custom AuthProvider class name for cassandra authentication");
