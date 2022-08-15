@@ -152,21 +152,27 @@ find_library()
     pattern=$1
     path=$(echo ${2} | tr ":" " ")
 
-    find $path -regex "$pattern" -print 2>/dev/null | head -n 1
+    find $path -regex "$pattern" -print 2>/dev/null | sort -ru | head -n 1
 }
 case "`uname -s`" in
     Linux)
         if [ -z $CASSANDRA_LIBJEMALLOC ] ; then
+            dirs="/lib64 /lib /usr/lib64 /usr/lib "
             which ldconfig > /dev/null 2>&1
             if [ $? = 0 ] ; then
-                # e.g. for CentOS
-                dirs="/lib64 /lib /usr/lib64 /usr/lib `ldconfig -v 2>/dev/null | grep -v '^\s' | sed 's/^\([^:]*\):.*$/\1/'`"
-            else
-                # e.g. for Debian, OpenSUSE
-                dirs="/lib64 /lib /usr/lib64 /usr/lib `cat /etc/ld.so.conf /etc/ld.so.conf.d/*.conf | grep '^/'`"
+                dirs="$dirs `ldconfig -v 2>/dev/null | grep -v '^\s' | sed 's/^\([^:]*\):.*$/\1/'`"
+            fi
+            if [ -f /etc/ld.so.conf ]; then
+                dirs="$dirs `cat /etc/ld.so.conf | grep '^/'`"
+            fi
+            additional_configs=$(ls /etc/ld.so.conf.d/*.conf 2>&1)
+            if [ $? = 0 ]; then
+                for conf in $additional_configs; do
+                    dirs="$dirs `cat $conf | grep '^/'`"
+                done
             fi
             dirs=`echo $dirs | tr " " ":"`
-            CASSANDRA_LIBJEMALLOC=$(find_library '.*/libjemalloc\.so\(\.1\)*' $dirs)
+            CASSANDRA_LIBJEMALLOC=$(find_library '.*/libjemalloc\.so.*' $dirs)
         fi
         if [ ! -z $CASSANDRA_LIBJEMALLOC ] ; then
             export JVM_OPTS="$JVM_OPTS -Dcassandra.libjemalloc=$CASSANDRA_LIBJEMALLOC"
