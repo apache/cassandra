@@ -27,6 +27,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -4198,13 +4199,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void clearSnapshot(String tag, String... keyspaceNames)
     {
-        if(tag == null)
+        clearSnapshot(Collections.emptyMap(), tag, keyspaceNames);
+    }
+
+    public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames)
+    {
+        if (tag == null)
             tag = "";
+
+        if (options == null)
+            options = Collections.emptyMap();
 
         Set<String> keyspaces = new HashSet<>();
         for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
-            for(String keyspaceDir : new File(dataDir).tryListNames())
+            for (String keyspaceDir : new File(dataDir).tryListNames())
             {
                 // Only add a ks if it has been specified as a param, assuming params were actually provided.
                 if (keyspaceNames.length > 0 && !Arrays.asList(keyspaceNames).contains(keyspaceDir))
@@ -4213,8 +4222,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
+        Object olderThan = options.get("older_than");
+        Object olderThanTimestamp = options.get("older_than_timestamp");
+
+        final long clearOlderThanTimestamp;
+        if (olderThan != null)
+        {
+            assert olderThan instanceof String : "it is expected that older_than is an instance of java.lang.String";
+            clearOlderThanTimestamp = Clock.Global.currentTimeMillis() - new DurationSpec.LongSecondsBound((String) olderThan).toMilliseconds();
+        }
+        else if (olderThanTimestamp != null)
+        {
+            assert olderThanTimestamp instanceof String : "it is expected that older_than_timestamp is an instance of java.lang.String";
+            try
+            {
+                clearOlderThanTimestamp = Instant.parse((String) olderThanTimestamp).toEpochMilli();
+            }
+            catch (DateTimeParseException ex)
+            {
+                throw new RuntimeException("Parameter older_than_timestamp has to be a valid instant in ISO format.");
+            }
+        }
+        else
+            clearOlderThanTimestamp = 0L;
+
         for (String keyspace : keyspaces)
-            clearKeyspaceSnapshot(keyspace, tag);
+            clearKeyspaceSnapshot(keyspace, tag, clearOlderThanTimestamp);
 
         if (logger.isDebugEnabled())
             logger.debug("Cleared out snapshot directories");
@@ -4224,12 +4257,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * Clear snapshots for a given keyspace.
      * @param keyspace keyspace to remove snapshots for
      * @param tag the user supplied snapshot name. If empty or null, all the snapshots will be cleaned
+     * @param olderThanTimestamp if a snapshot was created before this timestamp, it will be cleared,
+     *                           if its value is 0, this parameter is effectively ignored.
      */
-    private void clearKeyspaceSnapshot(String keyspace, String tag)
+    private void clearKeyspaceSnapshot(String keyspace, String tag, long olderThanTimestamp)
     {
         Set<TableSnapshot> snapshotsToClear = new SnapshotLoader().loadSnapshots(keyspace)
                                                                   .stream()
-                                                                  .filter(TableSnapshot.shouldClearSnapshot(tag))
+                                                                  .filter(TableSnapshot.shouldClearSnapshot(tag, olderThanTimestamp))
                                                                   .collect(Collectors.toSet());
         for (TableSnapshot snapshot : snapshotsToClear)
             snapshotManager.clearSnapshot(snapshot);

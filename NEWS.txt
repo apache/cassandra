@@ -88,6 +88,10 @@ New features
     - Added new CQL table property 'allow_auto_snapshot' which is by default true. When set to false and 'auto_snapshot: true'
       in cassandra.yaml, there will be no snapshot taken when a table is truncated or dropped. When auto_snapshot in
       casandra.yaml is set to false, the newly added table property does not have any effect.
+    - Added --older-than and --older-than-timestamp options to nodetool clearsnapshot command. It is possible to 
+      clear snapshots which are older than some period for example, "--older-than 5h" to remove 
+      snapshots older than 5 hours and it is possible to clear all snapshots older than some timestamp, for example
+      --older-than-timestamp 2022-12-03T10:15:30Z.
 
 Upgrading
 ---------
