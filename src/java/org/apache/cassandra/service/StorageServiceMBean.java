@@ -270,8 +270,22 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Remove the snapshot with the given name from the given keyspaces.
      * If no tag is specified we will remove all snapshots.
+     *
+     * @param tag name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
+     * @param keyspaceNames name of keyspaces to clear snapshots for
      */
+    @Deprecated
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException;
+
+    /**
+     * Remove the snapshot with the given name from the given keyspaces.
+     * If no tag is specified we will remove all snapshots.
+     *
+     * @param options map of options for cleanup operation, consult nodetool's ClearSnapshot
+     * @param tag name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
+     * @param keyspaceNames name of keyspaces to clear snapshots for
+     */
+    public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames) throws IOException;
 
     /**
      * Get the details of all the snapshot

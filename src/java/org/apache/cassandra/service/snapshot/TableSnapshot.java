@@ -325,7 +325,7 @@ public class TableSnapshot
         return new File(liveDir.toString(), snapshotFilePath.getFileName().toString());
     }
 
-    public static Predicate<TableSnapshot> shouldClearSnapshot(String tag)
+    public static Predicate<TableSnapshot> shouldClearSnapshot(String tag, long olderThanTimestamp)
     {
         return ts ->
         {
@@ -335,7 +335,18 @@ public class TableSnapshot
                 logger.info("Skipping deletion of ephemeral snapshot '{}' in keyspace {}. " +
                             "Ephemeral snapshots are not removable by a user.",
                             tag, ts.keyspaceName);
-            return !ts.isEphemeral() && (clearAll || ts.tag.equals(tag));
+            boolean notEphemeral = !ts.isEphemeral();
+            boolean shouldClearTag = clearAll || ts.tag.equals(tag);
+            boolean byTimestamp = true;
+
+            if (olderThanTimestamp > 0L)
+            {
+                Instant createdAt = ts.getCreatedAt();
+                if (createdAt != null)
+                    byTimestamp = createdAt.isBefore(Instant.ofEpochMilli(olderThanTimestamp));
+            }
+
+            return notEphemeral && shouldClearTag && byTimestamp;
         };
     }
 

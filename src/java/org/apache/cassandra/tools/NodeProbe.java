@@ -852,11 +852,31 @@ public class NodeProbe implements AutoCloseable
     }
 
     /**
-     * Remove all the existing snapshots.
+     * Remove all the existing snapshots of given tag for provided keyspaces.
+     * When no keyspaces are specified, take all keyspaces into account. When tag is not specified (null or empty string),
+     * take all tags into account.
+     *
+     * @param tag tag of snapshot to clear
+     * @param keyspaces keyspaces to clear snapshots for
      */
+    @Deprecated
     public void clearSnapshot(String tag, String... keyspaces) throws IOException
     {
-        ssProxy.clearSnapshot(tag, keyspaces);
+        clearSnapshot(Collections.emptyMap(), tag, keyspaces);
+    }
+
+    /**
+     * Remove all the existing snapshots of given tag for provided keyspaces.
+     * When no keyspaces are specified, take all keyspaces into account. When tag is not specified (null or empty string),
+     * take all tags into account.
+     *
+     * @param options options to supply for snapshot clearing
+     * @param tag tag of snapshot to clear
+     * @param keyspaces keyspaces to clear snapshots for
+     */
+    public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaces) throws IOException
+    {
+        ssProxy.clearSnapshot(options, tag, keyspaces);
     }
 
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
