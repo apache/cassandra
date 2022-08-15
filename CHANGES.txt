@@ -50,6 +50,7 @@ Merged from 3.11:
  * Document usage of closed token intervals in manual compaction (CASSANDRA-17575)
  * Creating of a keyspace on insufficient number of replicas should filter out gosspping-only members (CASSANDRA-17759)
 Merged from 3.0:
+ * Improve libjemalloc resolution in bin/cassandra (CASSANDRA-15767)
  * Fix restarting of services on gossipping-only member (CASSANDRA-17752)
 
 
