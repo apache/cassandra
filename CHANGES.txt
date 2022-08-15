@@ -10,6 +10,7 @@
 Merged from 3.11:
  * Document usage of closed token intervals in manual compaction (CASSANDRA-17575)
 Merged from 3.0:
+ * Improve libjemalloc resolution in bin/cassandra (CASSANDRA-15767)
  * Fix restarting of services on gossipping-only member (CASSANDRA-17752)
 
 4.0.5
