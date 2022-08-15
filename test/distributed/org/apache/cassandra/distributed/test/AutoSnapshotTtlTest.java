@@ -126,10 +126,10 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     @Test
     public void testAutoSnapshotTTlOnDropAfterRestart() throws IOException
     {
-        int TWENTY_SECONDS = 20; // longer TTL to allow snapshot to survive node restart
+        int ONE_MINUTE = 60; // longer TTL to allow snapshot to survive node restart
         try (Cluster cluster = init(build().withNodes(1)
                                            .withConfig(c -> c.with(Feature.GOSSIP)
-                                                             .set("auto_snapshot_ttl", String.format("%ds", TWENTY_SECONDS)))
+                                                             .set("auto_snapshot_ttl", String.format("%ds", ONE_MINUTE)))
                                            .start()))
         {
             IInvokableInstance instance = cluster.get(1);
@@ -149,7 +149,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
             instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_DROP_PREFIX);
 
             // Check snapshot is removed after at most 21s
-            await().timeout(TWENTY_SECONDS + 1, SECONDS)
+            await().timeout(ONE_MINUTE + 1, SECONDS)
                    .pollInterval(1, SECONDS)
                    .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
         }
