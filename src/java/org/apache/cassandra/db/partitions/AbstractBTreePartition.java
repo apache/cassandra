@@ -416,10 +416,10 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
     @Override
     public boolean equals(Object obj)
     {
-        if (!(obj instanceof PartitionUpdate))
+        if (!(obj instanceof AbstractBTreePartition))
             return false;
 
-        PartitionUpdate that = (PartitionUpdate) obj;
+        AbstractBTreePartition that = (AbstractBTreePartition) obj;
         Holder a = this.holder(), b = that.holder();
         return partitionKey.equals(that.partitionKey)
                && metadata().id.equals(that.metadata().id)

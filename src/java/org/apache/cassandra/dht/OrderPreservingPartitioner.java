@@ -208,7 +208,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         {
             return ByteSource.of(token, version);
         }
-        
+
         @Override
         public int tokenHash()
         {

@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.concurrent.LoadingMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 
 import static java.lang.String.format;
 
@@ -105,7 +106,7 @@ public class Schema implements SchemaProvider
     {
         this.online = isDaemonInitialized();
         this.localKeyspaces = (FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized())
-                              ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata())
+                              ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata(), AccordKeyspace.metadata())
                               : Keyspaces.none();
 
         this.localKeyspaces.forEach(this::loadNew);

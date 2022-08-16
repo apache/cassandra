@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 
@@ -46,6 +47,21 @@ import org.apache.cassandra.service.accord.api.AccordKey;
 public class AccordData implements Data, Result
 {
     private final NavigableMap<AccordKey, FilteredPartition> partitions = new TreeMap<>(AccordKey::compare);
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AccordData data = (AccordData) o;
+        return partitions.equals(data.partitions);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(partitions);
+    }
 
     void put(FilteredPartition partition)
     {
@@ -80,9 +96,10 @@ public class AccordData implements Data, Result
         public void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException
         {
             partition.tableId().serialize(out);
+            TableMetadata metadata = Schema.instance.getTableMetadata(partition.tableId());
             try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
             {
-                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.NONE, out, version, partition.rowCount());
+                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.all(metadata), out, version, partition.rowCount());
             }
         }
 
@@ -90,7 +107,7 @@ public class AccordData implements Data, Result
         public FilteredPartition deserialize(DataInputPlus in, int version) throws IOException
         {
             TableMetadata metadata = Schema.instance.getTableMetadata(TableId.deserialize(in));
-            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, ColumnFilter.NONE, DeserializationHelper.Flag.FROM_REMOTE))
+            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, ColumnFilter.all(metadata), DeserializationHelper.Flag.FROM_REMOTE))
             {
                 return new FilteredPartition(UnfilteredRowIterators.filter(partition, 0));
             }
@@ -100,9 +117,10 @@ public class AccordData implements Data, Result
         public long serializedSize(FilteredPartition partition, int version)
         {
             long size = partition.tableId().serializedSize();
+            TableMetadata metadata = Schema.instance.getTableMetadata(partition.tableId());
             try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
             {
-                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.NONE, version, partition.rowCount());
+                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.all(metadata), version, partition.rowCount());
             }
         }
     };

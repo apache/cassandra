@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.db;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
@@ -43,6 +44,27 @@ public abstract class AbstractKeyIndexed<T extends AccordKey>
             Preconditions.checkState(i == 0 || keys[i].compareTo(keys[i-1]) > 0);
         }
         return new Keys(keys);
+    }
+
+    @Override
+    public String toString()
+    {
+        return items.toString();
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AbstractKeyIndexed<?> that = (AbstractKeyIndexed<?>) o;
+        return keys.equals(that.keys) && items.equals(that.items);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(keys, items);
     }
 
     public AbstractKeyIndexed(List<T> items)

@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -35,6 +36,21 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
     protected AbstractClusteringIndexFilter(boolean reversed)
     {
         this.reversed = reversed;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AbstractClusteringIndexFilter that = (AbstractClusteringIndexFilter) o;
+        return reversed == that.reversed;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(reversed);
     }
 
     public boolean isReversed()

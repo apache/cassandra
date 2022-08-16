@@ -51,6 +51,11 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
         super(items);
     }
 
+    public String toString()
+    {
+        return "AccordRead{" + super.toString() + '}';
+    }
+
     @Override
     public Data read(Key key, Timestamp executeAt, Store store)
     {

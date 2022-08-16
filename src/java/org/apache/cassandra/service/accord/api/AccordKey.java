@@ -39,6 +39,11 @@ public interface AccordKey extends Key<AccordKey>
     TableId tableId();
     PartitionPosition partitionKey();
 
+    public static AccordKey of(Key key)
+    {
+        return (AccordKey) key;
+    }
+
     static int compare(AccordKey left, AccordKey right)
     {
         int cmp = left.tableId().compareTo(right.tableId());
@@ -75,6 +80,21 @@ public interface AccordKey extends Key<AccordKey>
         {
             this.tableId = tableId;
             this.isMin = isMin;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SentinelKey that = (SentinelKey) o;
+            return isMin == that.isMin && tableId.equals(that.tableId);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(tableId, isMin);
         }
 
         public static SentinelKey min(TableId tableId)
@@ -117,18 +137,6 @@ public interface AccordKey extends Key<AccordKey>
         }
 
         @Override
-        public TableId tableId()
-        {
-            return tableId;
-        }
-
-        @Override
-        public PartitionPosition partitionKey()
-        {
-            return key;
-        }
-
-        @Override
         public boolean equals(Object o)
         {
             if (this == o) return true;
@@ -141,6 +149,18 @@ public interface AccordKey extends Key<AccordKey>
         public int hashCode()
         {
             return Objects.hash(tableId, key);
+        }
+
+        @Override
+        public TableId tableId()
+        {
+            return tableId;
+        }
+
+        @Override
+        public PartitionPosition partitionKey()
+        {
+            return key;
         }
     }
 

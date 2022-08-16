@@ -26,7 +26,9 @@ import accord.api.KeyRange;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordKey.TokenKey;
 
 public class TokenRange extends KeyRange.EndInclusive<AccordKey>
@@ -38,20 +40,25 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
         Preconditions.checkArgument(!(end instanceof AccordKey.PartitionKey));
     }
 
-    private static TokenKey toAccordToken(AccordKey key)
+    private static AccordKey toAccordTokenOrSentinel(AccordKey key)
     {
-        if (key instanceof TokenKey)
-            return (TokenKey) key;
-        return new TokenKey(key.tableId(),
-                                      key.partitionKey().getToken().maxKeyBound());
+        if (key instanceof TokenKey || key instanceof SentinelKey)
+            return key;
+        return new TokenKey(key.tableId(), key.partitionKey().getToken().maxKeyBound());
+    }
+
+    public static TokenRange fullRange(TableId tableId)
+    {
+        return new TokenRange(SentinelKey.min(tableId), SentinelKey.max(tableId));
     }
 
     @Override
     public TokenRange subRange(AccordKey start, AccordKey end)
     {
-        return new TokenRange(toAccordToken(start), toAccordToken(end));
+        return new TokenRange(toAccordTokenOrSentinel(start), toAccordTokenOrSentinel(end));
     }
 
+    // FIXME: serialize sentinel keys
     public static final IVersionedSerializer<TokenRange> serializer = new IVersionedSerializer<TokenRange>()
     {
         @Override
