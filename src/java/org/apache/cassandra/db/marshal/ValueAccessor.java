@@ -337,12 +337,6 @@ public interface ValueAccessor<V>
     int putByte(V dst, int offset, byte value);
 
     /**
-     * writes the byte value {@param value} to {@param dst} at offset {@param offset}
-     * @return the number of bytes written to {@param value}
-     */
-    int putByte(V dst, int offset, byte value);
-
-    /**
      * writes the short value {@param value} to {@param dst} at offset {@param offset}
      * @return the number of bytes written to {@param value}
      */

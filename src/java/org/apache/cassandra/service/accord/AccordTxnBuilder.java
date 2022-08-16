@@ -48,6 +48,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.db.AccordQuery;
 import org.apache.cassandra.service.accord.db.AccordRead;
@@ -85,7 +86,7 @@ public class AccordTxnBuilder
         Preconditions.checkArgument(prepared.statement instanceof ModificationStatement);
         ModificationStatement modification = (ModificationStatement) prepared.statement;
         // TODO: look into getting partition updates directly
-        List<? extends IMutation> mutations = modification.getMutations(QueryProcessor.makeInternalOptions(prepared.statement, values), false, 0, 0, 0);
+        List<? extends IMutation> mutations = modification.getMutations(ClientState.forInternalCalls(), QueryProcessor.makeInternalOptions(prepared.statement, values), false, 0, 0, 0);
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())

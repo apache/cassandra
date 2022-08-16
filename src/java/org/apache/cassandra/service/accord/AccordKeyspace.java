@@ -525,7 +525,7 @@ public class AccordKeyspace
     {
         if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
-        ByteBuffer[] split = TIMESTAMP_TYPE.split(bytes);
+        ByteBuffer[] split = TIMESTAMP_TYPE.split(ByteBufferAccessor.instance, bytes);
         return factory.create(split[0].getLong(), split[1].getLong(), split[2].getInt(), new Node.Id(split[3].getLong()));
     }
 
