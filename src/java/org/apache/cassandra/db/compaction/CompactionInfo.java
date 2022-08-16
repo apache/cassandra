@@ -27,7 +27,9 @@ import java.util.function.Predicate;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -42,7 +44,10 @@ public final class CompactionInfo
     public static final String UNIT = "unit";
     public static final String COMPACTION_ID = "compactionId";
     public static final String SSTABLES = "sstables";
+    public static final String TARGET_DIRECTORY = "targetDirectory";
 
+    // NON_COMPACTION_OPERATION is going to be used for printouts of the compactions activities that are not actual compactions
+    public static final String NON_COMPACTION_OPERATION = "-------- Other operations --------";
     private final TableMetadata metadata;
     private final OperationType tasktype;
     private final long completed;
@@ -50,13 +55,9 @@ public final class CompactionInfo
     private final Unit unit;
     private final TimeUUID compactionId;
     private final ImmutableSet<SSTableReader> sstables;
+    private final String targetDirectory;
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, TimeUUID compactionId, Collection<SSTableReader> sstables)
-    {
-        this(metadata, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId, sstables);
-    }
-
-    private CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, Collection<SSTableReader> sstables)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, Collection<SSTableReader> sstables, String targetDirectory)
     {
         this.tasktype = tasktype;
         this.completed = completed;
@@ -65,21 +66,41 @@ public final class CompactionInfo
         this.unit = unit;
         this.compactionId = compactionId;
         this.sstables = ImmutableSet.copyOf(sstables);
+        this.targetDirectory = targetDirectory;
+    }
+
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, TimeUUID compactionId, Collection<SSTableReader> sstables, String targetDirectory)
+    {
+        this(metadata, tasktype, completed, total, Unit.BYTES, compactionId, sstables, targetDirectory);
+    }
+
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, TimeUUID compactionId, Collection<SSTableReader> sstables)
+    {
+        this(metadata, tasktype, completed, total, Unit.BYTES, compactionId, sstables, NON_COMPACTION_OPERATION);
     }
 
     /**
-     * Special compaction info where we always need to cancel the compaction - for example ViewBuilderTask and AutoSavingCache where we don't know
+     * Special compaction info where we always need to cancel the compaction - for example ViewBuilderTask where we don't know
      * the sstables at construction
      */
     public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId)
     {
-        return new CompactionInfo(metadata, tasktype, completed, total, unit, compactionId, ImmutableSet.of());
+        return withoutSSTables(metadata, tasktype, completed, total, unit, compactionId, NON_COMPACTION_OPERATION);
+    }
+
+    /**
+     * Special compaction info where we always need to cancel the compaction - for example AutoSavingCache where we don't know
+     * the sstables at construction
+     */
+    public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, String targetDirectory)
+    {
+        return new CompactionInfo(metadata, tasktype, completed, total, unit, compactionId, ImmutableSet.of(), targetDirectory);
     }
 
     /** @return A copy of this CompactionInfo with updated progress. */
     public CompactionInfo forProgress(long complete, long total)
     {
-        return new CompactionInfo(metadata, tasktype, complete, total, unit, compactionId, sstables);
+        return new CompactionInfo(metadata, tasktype, complete, total, unit, compactionId, sstables, targetDirectory);
     }
 
     public Optional<String> getKeyspace()
@@ -127,6 +148,23 @@ public final class CompactionInfo
         return sstables;
     }
 
+    public String targetDirectory()
+    {
+        if (targetDirectory == null || targetDirectory.equals(NON_COMPACTION_OPERATION))
+            return "";
+
+        File targetDirectoryFile = new File(targetDirectory);
+
+        try
+        {
+            return targetDirectoryFile.canonicalPath();
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to resolve canonical path for " + targetDirectoryFile);
+        }
+    }
+
     @Override
     public String toString()
     {
@@ -155,6 +193,7 @@ public final class CompactionInfo
         ret.put(UNIT, unit.toString());
         ret.put(COMPACTION_ID, compactionId == null ? "" : compactionId.toString());
         ret.put(SSTABLES, Joiner.on(',').join(sstables));
+        ret.put(TARGET_DIRECTORY, targetDirectory());
         return ret;
     }
 

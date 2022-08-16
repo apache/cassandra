@@ -39,7 +39,6 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     private long totalWrittenInLevel = 0;
     private int sstablesWritten = 0;
     private final long keysPerSSTable;
-    private Directories.DataDirectory sstableDirectory;
     private final int levelFanoutSize;
 
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
@@ -90,7 +89,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     @Override
     public void switchCompactionLocation(Directories.DataDirectory location)
     {
-        this.sstableDirectory = location;
+        sstableDirectory = location;
         averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
         sstableWriter.switchWriter(SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
                 keysPerSSTable,

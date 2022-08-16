@@ -19,9 +19,12 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
 import java.text.DecimalFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
@@ -29,6 +32,8 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -49,9 +54,19 @@ public class CompactionStats extends NodeToolCmd
             description = "Display fields matching vtable output")
     private boolean vtableOutput = false;
 
+    @Option(title = "verbose",
+            name = {"-v", "--verbose"},
+            description = "Sort and display sstable paths for the compactions")
+    private boolean verbose = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        if (verbose && vtableOutput)
+        {
+            throw new IllegalArgumentException("You can either specify verbose or vtable flag, not both.");
+        }
+
         PrintStream out = probe.output().out;
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
         Map<String, Map<String, Integer>> pendingTaskNumberByTable =
@@ -75,15 +90,15 @@ public class CompactionStats extends NodeToolCmd
             }
         }
         out.println();
-        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughputBytes(), humanReadable, vtableOutput, out);
+        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughputBytes(), humanReadable, vtableOutput, out, verbose);
     }
 
-    public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, PrintStream out)
+    public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, PrintStream out, boolean verbose)
     {
-        reportCompactionTable(compactions, compactionThroughputInBytes, humanReadable, false, out);
+        reportCompactionTable(compactions, compactionThroughputInBytes, humanReadable, false, out, verbose);
     }
 
-    public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, boolean vtableOutput, PrintStream out)
+    public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, boolean vtableOutput, PrintStream out, boolean verbose)
     {
         if (!compactions.isEmpty())
         {
@@ -91,31 +106,102 @@ public class CompactionStats extends NodeToolCmd
             TableBuilder table = new TableBuilder();
 
             if (vtableOutput)
-                table.add("keyspace", "table", "task id", "completion ratio", "kind", "progress", "sstables", "total", "unit");
+                table.add("keyspace", "table", "task id", "completion ratio", "kind", "progress", "sstables", "total", "unit", "target directory");
             else
                 table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
 
-            for (Map<String, String> c : compactions)
-            {
-                long total = Long.parseLong(c.get(CompactionInfo.TOTAL));
-                long completed = Long.parseLong(c.get(CompactionInfo.COMPLETED));
-                String taskType = c.get(CompactionInfo.TASK_TYPE);
-                String keyspace = c.get(CompactionInfo.KEYSPACE);
-                String columnFamily = c.get(CompactionInfo.COLUMNFAMILY);
-                String unit = c.get(CompactionInfo.UNIT);
-                boolean toFileSize = humanReadable && Unit.isFileSize(unit);
-                String[] tables = c.get(CompactionInfo.SSTABLES).split(",");
-                String progressStr = toFileSize ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
-                String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
-                String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
-                String id = c.get(CompactionInfo.COMPACTION_ID);
-                if (vtableOutput)
-                    table.add(keyspace, columnFamily, id, percentComplete, taskType, progressStr, String.valueOf(tables.length), totalStr, unit);
-                else
-                    table.add(id, taskType, keyspace, columnFamily, progressStr, totalStr, unit, percentComplete);
+            // Map target directories to the list of the corresponding compactions
 
-                remainingBytes += total - completed;
+            Map<String, List<Map<String, String>>> targetDirectoryRows;
+
+            if (vtableOutput)
+            {
+                targetDirectoryRows = compactions.stream().collect(Collectors.groupingBy(c -> {
+                    String targetDirectory = c.get("targetDirectory");
+                    if (targetDirectory == null || targetDirectory.isEmpty())
+                        return CompactionInfo.NON_COMPACTION_OPERATION;
+                    else
+                        return targetDirectory;
+                }, LinkedHashMap::new, Collectors.mapping(Function.identity(), Collectors.toList())));
             }
+            else
+            {
+                targetDirectoryRows = compactions.stream().collect(Collectors.groupingBy(c -> {
+                    String targetDirectory = c.get("targetDirectory");
+                    String keyspace = c.get("keyspace");
+
+                    if (keyspace != null && !keyspace.isEmpty())
+                    {
+                        int i = targetDirectory.lastIndexOf(keyspace);
+                        if (i != -1)
+                            return targetDirectory.substring(0, i);
+                        else
+                            return CompactionInfo.NON_COMPACTION_OPERATION;
+                    }
+                    else
+                        return CompactionInfo.NON_COMPACTION_OPERATION;
+                }, LinkedHashMap::new, Collectors.mapping(Function.identity(), Collectors.toList())));
+            }
+
+            for (Entry<String, List<Map<String, String>>> entry : targetDirectoryRows.entrySet())
+            {
+                String targetDirectory;
+                String key = entry.getKey();
+                if (key.equals(CompactionInfo.NON_COMPACTION_OPERATION))
+                {
+                    targetDirectory = key;
+                }
+                else
+                {
+                    try
+                    {
+                        targetDirectory = new File(key).canonicalPath();
+                    }
+                    catch (Throwable e)
+                    {
+                        // Couldn't parse entry into the canonical path, just use as is
+                        targetDirectory = key;
+                    }
+                }
+
+                if (verbose)
+                    table.add(targetDirectory);
+
+                for (Map<String, String> c : entry.getValue())
+                {
+                    long total = Long.parseLong(c.get(CompactionInfo.TOTAL));
+                    long completed = Long.parseLong(c.get(CompactionInfo.COMPLETED));
+                    String taskType = c.get(CompactionInfo.TASK_TYPE);
+                    String keyspace = c.get(CompactionInfo.KEYSPACE);
+                    String columnFamily = c.get(CompactionInfo.COLUMNFAMILY);
+                    String unit = c.get(CompactionInfo.UNIT);
+                    boolean toFileSize = humanReadable && Unit.isFileSize(unit);
+                    String[] tables = c.get(CompactionInfo.SSTABLES).split(",");
+                    String progressStr = toFileSize ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
+                    String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
+                    String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + '%';
+                    String id = c.get(CompactionInfo.COMPACTION_ID);
+                    if (vtableOutput)
+                    {
+                        String targetDirectoryForOutput = targetDirectory.equals(CompactionInfo.NON_COMPACTION_OPERATION) ? "" : targetDirectory;
+                        table.add(keyspace, columnFamily, id, percentComplete, taskType, progressStr, String.valueOf(tables.length), totalStr, unit, targetDirectoryForOutput);
+                    }
+                    else
+                        table.add(id, taskType, keyspace, columnFamily, progressStr, totalStr, unit, percentComplete);
+
+                    if (taskType.equals(OperationType.COMPACTION.toString()))
+                        remainingBytes += total - completed;
+                }
+
+                // If with more info, add an empty line between this and next path set
+                if (verbose)
+                    table.addEmptyLine();
+            }
+
+            // if we are printing more info, we need to remove the extra newline before printing the totals
+            if (verbose)
+                table.removeLastLine();
+
             table.printTo(out);
 
             String remainingTime = "n/a";

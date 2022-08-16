@@ -81,6 +81,11 @@ public class TableBuilder
         add(row.toArray(new String[0]));
     }
 
+    public void addEmptyLine()
+    {
+        add("");
+    }
+
     public void add(@Nonnull String... row)
     {
         Objects.requireNonNull(row);
@@ -144,7 +149,8 @@ public class TableBuilder
     /**
      * Share max offsets across multiple TableBuilders
      */
-    public static class SharedTable {
+    public static class SharedTable
+    {
         private List<TableBuilder> tables = new ArrayList<>();
         private final String columnDelimiter;
 
@@ -191,5 +197,14 @@ public class TableBuilder
                          .map(tb -> new TableBuilder(tb, maximumColumnWidth))
                          .collect(Collectors.toList());
         }
+    }
+
+    // Remove last line in a set of rows, used in printouts to remove the last empty line
+    public void removeLastLine()
+    {
+        if (rows.isEmpty())
+            return;
+
+        rows.remove(rows.size() - 1);
     }
 }
