@@ -19,12 +19,17 @@
 package org.apache.cassandra.service.accord.api;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Objects;
+
+import com.google.common.base.Preconditions;
 
 import accord.api.Key;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -186,13 +191,30 @@ public interface AccordKey extends Key<AccordKey>
                    '}';
         }
 
-        public static final IVersionedSerializer<PartitionKey> serializer = new IVersionedSerializer<>()
+        public static final Serializer serializer = new Serializer();
+        public static class Serializer implements IVersionedSerializer<PartitionKey>
         {
+            // TODO: add vint to value accessor and use vints
+            private Serializer() {}
+
             @Override
             public void serialize(PartitionKey key, DataOutputPlus out, int version) throws IOException
             {
                 key.tableId().serialize(out);
-                ByteBufferUtil.writeWithVIntLength(key.partitionKey().getKey(), out);
+                ByteBufferUtil.writeWithShortLength(key.partitionKey().getKey(), out);
+            }
+
+            public <V> int serialize(PartitionKey key, V dst, ValueAccessor<V> accessor, int offset)
+            {
+                int position = offset;
+                position += key.tableId().serialize(dst, accessor, position);
+                ByteBuffer bytes = key.partitionKey().getKey();
+                int numBytes = ByteBufferAccessor.instance.size(bytes);
+                Preconditions.checkState(numBytes <= Short.MAX_VALUE);
+                position += accessor.putShort(dst, offset, (short) numBytes);
+                position += accessor.copyByteBufferTo(bytes, 0, dst, position, numBytes);
+                return position - offset;
+
             }
 
             @Override
@@ -200,16 +222,34 @@ public interface AccordKey extends Key<AccordKey>
             {
                 TableId tableId = TableId.deserialize(in);
                 TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
-                DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithVIntLength(in));
+                DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
+                return new PartitionKey(tableId, key);
+            }
+
+            public <V> PartitionKey deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
+            {
+                TableId tableId = TableId.deserialize(src, accessor, offset);
+                offset += TableId.serializedSize();
+                TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+                int numBytes = accessor.getShort(src, offset);
+                offset += TypeSizes.SHORT_SIZE;
+                ByteBuffer bytes = ByteBuffer.allocate(numBytes);
+                accessor.copyTo(src, offset, bytes, ByteBufferAccessor.instance, 0, numBytes);
+                DecoratedKey key = metadata.partitioner.decorateKey(bytes);
                 return new PartitionKey(tableId, key);
             }
 
             @Override
             public long serializedSize(PartitionKey key, int version)
             {
-                return key.tableId().serializedSize() + ByteBufferUtil.serializedSizeWithVIntLength(key.partitionKey().getKey());
+                return serializedSize(key);
             }
-        };
+
+            public long serializedSize(PartitionKey key)
+            {
+                return key.tableId().serializedSize() + ByteBufferUtil.serializedSizeWithShortLength(key.partitionKey().getKey());
+            }
+        }
     }
 
     public static class TokenKey extends AbstractKey<Token.KeyBound>

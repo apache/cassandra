@@ -21,6 +21,8 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.util.Map;
 
+import com.google.common.base.Preconditions;
+
 import accord.local.Node;
 import accord.local.Status;
 import accord.txn.Ballot;
@@ -31,6 +33,7 @@ import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -43,11 +46,11 @@ public class CommandSerializers
 {
     private CommandSerializers() {}
 
-    public static final IVersionedSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::new);
-    public static final IVersionedSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::new);
-    public static final IVersionedSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::new);
+    public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::new);
+    public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::new);
+    public static final TimestampSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::new);
 
-    private static class TimestampSerializer<T extends Timestamp> implements IVersionedSerializer<T>
+    public static class TimestampSerializer<T extends Timestamp> implements IVersionedSerializer<T>
     {
         interface Factory<T extends Timestamp>
         {
@@ -56,7 +59,7 @@ public class CommandSerializers
 
         private final TimestampSerializer.Factory<T> factory;
 
-        TimestampSerializer(TimestampSerializer.Factory<T> factory)
+        private TimestampSerializer(TimestampSerializer.Factory<T> factory)
         {
             this.factory = factory;
         }
@@ -70,6 +73,18 @@ public class CommandSerializers
             TopologySerializers.nodeId.serialize(ts.node, out, version);
         }
 
+        public <V> int serialize(T ts, V dst, ValueAccessor<V> accessor, int offset)
+        {
+            int position = offset;
+            position += accessor.putLong(dst, position, ts.epoch);
+            position += accessor.putLong(dst, position, ts.real);
+            position += accessor.putInt(dst, position, ts.logical);
+            position += TopologySerializers.nodeId.serialize(ts.node, dst, accessor, position);
+            int size = position - offset;
+            Preconditions.checkState(size == serializedSize());
+            return size;
+        }
+
         @Override
         public T deserialize(DataInputPlus in, int version) throws IOException
         {
@@ -79,13 +94,30 @@ public class CommandSerializers
                                   TopologySerializers.nodeId.deserialize(in, version));
         }
 
+        public <V> T deserialize(V src, ValueAccessor<V> accessor, int offset)
+        {
+            long epoch = accessor.getLong(src, offset);
+            offset += TypeSizes.LONG_SIZE;
+            long real = accessor.getLong(src, offset);
+            offset += TypeSizes.LONG_SIZE;
+            int logical = accessor.getInt(src, offset);
+            offset += TypeSizes.INT_SIZE;
+            Node.Id node = TopologySerializers.nodeId.deserialize(src, accessor, offset);
+            return factory.create(epoch, real, logical, node);
+        }
+
         @Override
         public long serializedSize(T ts, int version)
         {
-            return TypeSizes.sizeof(ts.epoch)
-                   + TypeSizes.sizeof(ts.real)
-                   + TypeSizes.sizeof(ts.logical)
-                   + TopologySerializers.nodeId.serializedSize(ts.node, version);
+            return serializedSize();
+        }
+
+        public int serializedSize()
+        {
+            return TypeSizes.LONG_SIZE +  // ts.epoch
+                   TypeSizes.LONG_SIZE +  // ts.real
+                   TypeSizes.INT_SIZE +   // ts.logical
+                   TopologySerializers.nodeId.serializedSize();   // ts.node
         }
     }
 

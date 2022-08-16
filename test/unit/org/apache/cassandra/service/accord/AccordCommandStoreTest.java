@@ -107,6 +107,7 @@ public class AccordCommandStoreTest
         command.status(Status.Accepted);
         command.addWaitingOnCommit(oldTxnId1, new AccordCommand(commandStore, oldTxnId1));
         command.addWaitingOnApplyIfAbsent(oldTimestamp, new AccordCommand(commandStore, oldTxnId2));
+        command.addListener(new AccordCommand(commandStore, oldTxnId1));
         processCommandResult(command);
 
         AccordKeyspace.saveCommand(command);

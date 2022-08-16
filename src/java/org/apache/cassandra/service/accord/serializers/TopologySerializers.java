@@ -23,6 +23,7 @@ import java.io.IOException;
 import accord.local.Node;
 import accord.messages.TxnRequest;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -31,12 +32,20 @@ public class TopologySerializers
 {
     private TopologySerializers() {}
 
-    public static final IVersionedSerializer<Node.Id> nodeId = new IVersionedSerializer<>()
+    public static final NodeIdSerializer nodeId = new NodeIdSerializer();
+    public static class NodeIdSerializer implements IVersionedSerializer<Node.Id>
     {
+        private NodeIdSerializer() {}
+
         @Override
         public void serialize(Node.Id id, DataOutputPlus out, int version) throws IOException
         {
             out.writeLong(id.id);
+        }
+
+        public <V> int serialize(Node.Id id, V dst, ValueAccessor<V> accessor, int offset)
+        {
+            return accessor.putLong(dst, offset, id.id);
         }
 
         @Override
@@ -45,10 +54,20 @@ public class TopologySerializers
             return new Node.Id(in.readLong());
         }
 
+        public <V> Node.Id deserialize(V src, ValueAccessor<V> accessor, int offset)
+        {
+            return new Node.Id(accessor.getLong(src, offset));
+        }
+
         @Override
         public long serializedSize(Node.Id id, int version)
         {
-            return TypeSizes.sizeof(id.id);
+            return serializedSize();
+        }
+
+        public int serializedSize()
+        {
+            return TypeSizes.LONG_SIZE;  // id.id
         }
     };
 

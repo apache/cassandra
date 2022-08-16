@@ -25,13 +25,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import accord.local.CommandStore;
+import accord.local.Listener;
+import accord.local.Listeners;
 import accord.local.Node;
 import accord.local.Status;
 import accord.txn.Ballot;
@@ -40,6 +44,7 @@ import accord.txn.TxnId;
 import com.beust.jcommander.internal.Lists;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
@@ -186,6 +191,35 @@ public class AccordKeyspace
         return deserializeWaitingOn(row.getMap(name, BytesType.instance, BytesType.instance), factory);
     }
 
+    public static Set<ByteBuffer> serializeListeners(Listeners listeners)
+    {
+        Set<ByteBuffer> result = Sets.newHashSetWithExpectedSize(listeners.size());
+        for (Listener listener : listeners)
+        {
+            if (listener.isTransient())
+                continue;
+
+            Preconditions.checkArgument(listener instanceof ListenerProxy);
+            result.add(((ListenerProxy) listener).identifier());
+        }
+        return result;
+    }
+
+    private static Listeners deserializeListeners(CommandStore commandStore, Set<ByteBuffer> serialized) throws IOException
+    {
+        Listeners result = new Listeners();
+        for (ByteBuffer bytes : serialized)
+        {
+            result.add(ListenerProxy.deserialize(commandStore, bytes, ByteBufferAccessor.instance, 0));
+        }
+        return result;
+    }
+
+    private static Listeners deserializeListeners(CommandStore commandStore, UntypedResultSet.Row row, String name) throws IOException
+    {
+        return deserializeListeners(commandStore, row.getSet(name, BytesType.instance));
+    }
+
     public static void saveCommand(AccordCommand command) throws IOException
     {
         int version = MessagingService.current_version;
@@ -204,7 +238,8 @@ public class AccordKeyspace
                      "writes=?, " +
                      "result=?, " +
                      "waiting_on_commit=?, " +
-                     "waiting_on_apply=? " +
+                     "waiting_on_apply=?, " +
+                     "listeners=? " +
                      "WHERE store_generation=? AND store_index=? AND txn_id=(?, ?, ?, ?)";
         executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
                             command.status().ordinal(),
@@ -218,6 +253,7 @@ public class AccordKeyspace
                             serializeOrNull((AccordData) command.result(), AccordData.serializer, version),
                             serializeWaitingOn(command.getWaitingOnCommit()),
                             serializeWaitingOn(command.getWaitingOnApply()),
+                            serializeListeners(command.getListeners()),
                             command.commandStore().generation(),
                             command.commandStore().index(),
                             txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
@@ -272,7 +308,8 @@ public class AccordKeyspace
         command.writes(deserializeOrNull(row.getBlob("writes"), CommandSerializers.writes, version));
         command.result(deserializeOrNull(row.getBlob("result"), AccordData.serializer, version));
         command.setWaitingOnCommit(deserializeWaitingOn(row, "waiting_on_commit", TxnId::new));
-        command.setWaitingOnApply(deserializeWaitingOn(row, "waiting_on_applygg", Timestamp::new));
+        command.setWaitingOnApply(deserializeWaitingOn(row, "waiting_on_apply", Timestamp::new));
+        command.setListeners(deserializeListeners(commandStore, row, "listeners"));
         return command;
     }
 

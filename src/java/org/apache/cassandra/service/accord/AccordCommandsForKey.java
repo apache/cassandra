@@ -160,6 +160,11 @@ public class AccordCommandsForKey extends CommandsForKey
         AccordKeyspace.updateCommandsForKeyMaxTimestamp(commandStore, key, max);
     }
 
+    public AccordKey.PartitionKey key()
+    {
+        return key;
+    }
+
     public void save()
     {
         // TODO: save accumulated updates

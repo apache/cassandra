@@ -217,13 +217,27 @@ public class AccordCommand extends Command
         this.status = status;
     }
 
+    private Listener maybeWrapListener(Listener listener)
+    {
+        if (listener.isTransient())
+            return listener;
+
+        if (listener instanceof AccordCommand)
+            return new ListenerProxy.CommandListenerProxy(commandStore, ((AccordCommand) listener).txnId());
+
+        if (listener instanceof AccordCommandsForKey)
+            return new ListenerProxy.CommandsForKeyListenerProxy(commandStore, ((AccordCommandsForKey) listener).key());
+
+        throw new RuntimeException("Unhandled non-transient listener: " + listener);
+    }
+
     @Override
     public Command addListener(Listener listener)
     {
         isDirty = true;
         if (listeners == null)
             listeners = new Listeners();
-        listeners.add(listener);
+        listeners.add(maybeWrapListener(listener));
         return this;
     }
 
@@ -232,7 +246,7 @@ public class AccordCommand extends Command
     {
         isDirty = true;
         if (listeners != null)
-            listeners.remove(listener);
+            listeners.remove(maybeWrapListener(listener));
     }
 
     @Override

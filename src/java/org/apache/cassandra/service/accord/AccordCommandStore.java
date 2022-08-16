@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -33,6 +34,7 @@ import accord.api.Store;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
+import accord.local.Listener;
 import accord.local.Node;
 import accord.topology.KeyRanges;
 import accord.topology.Topology;
@@ -44,7 +46,6 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public class AccordCommandStore extends CommandStore
 {
-    private final ExecutorService executor;
 
     private class ProcessingContext extends AsyncPromise<Void> implements Runnable
     {
@@ -89,6 +90,7 @@ public class AccordCommandStore extends CommandStore
         }
     }
 
+    private final ExecutorService executor;
     private ProcessingContext currentCtx = null;
 
     public AccordCommandStore(int generation,
