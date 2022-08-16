@@ -1,1 +1,1 @@
-$ curl https://www.apache.org/dist/cassandra/KEYS | sudo apt-key add -
+$ curl https://downloads.apache.org/cassandra/KEYS | sudo apt-key add -
