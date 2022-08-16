@@ -18,13 +18,15 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.EnumMap;
+import java.util.Map;
+
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 
 import accord.api.MessageSink;
 import accord.local.Node;
 import accord.messages.Callback;
-import accord.messages.PreAccept;
+import accord.messages.MessageType;
 import accord.messages.Reply;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
@@ -36,22 +38,26 @@ import static org.apache.cassandra.service.accord.EndpointMapping.getEndpoint;
 
 public class CassandraMessageSink implements MessageSink
 {
-    private static final ImmutableMap<Class<? extends Request>, Verb> REQUEST_VERBS;
-    private static final ImmutableMap<Class<? extends Reply>, Verb> RESPONSE_VERBS;
+    private static final Map<MessageType, Verb> VERB_MAPPING = new EnumMap<>(MessageType.class);
     static {
-        // TODO: make an accord level Message verb/type we can map
-        REQUEST_VERBS = ImmutableMap.<Class<? extends Request>, Verb>builder()
-                            .put(PreAccept.class, Verb.ACCORD_PREACCEPT_REQ)
-                            .build();
-        RESPONSE_VERBS = ImmutableMap.<Class<? extends Reply>, Verb>builder()
-                            .put(PreAccept.PreAcceptOk.class, Verb.ACCORD_PREACCEPT_RSP)
-                            .build();
+        VERB_MAPPING.put(MessageType.PREACCEPT_REQ, Verb.ACCORD_PREACCEPT_REQ);
+        VERB_MAPPING.put(MessageType.PREACCEPT_RSP, Verb.ACCORD_PREACCEPT_RSP);
+        VERB_MAPPING.put(MessageType.ACCEPT_REQ, Verb.ACCORD_ACCEPT_REQ);
+        VERB_MAPPING.put(MessageType.ACCEPT_RSP, Verb.ACCORD_ACCEPT_RSP);
+        VERB_MAPPING.put(MessageType.COMMIT_REQ, Verb.ACCORD_COMMIT_REQ);
+        VERB_MAPPING.put(MessageType.APPLY_REQ, Verb.ACCORD_APPLY_REQ);
+        VERB_MAPPING.put(MessageType.READ_REQ, Verb.ACCORD_READ_REQ);
+        VERB_MAPPING.put(MessageType.READ_RSP, Verb.ACCORD_READ_RSP);
+        VERB_MAPPING.put(MessageType.RECOVER_REQ, Verb.ACCORD_RECOVER_REQ);
+        VERB_MAPPING.put(MessageType.RECOVER_RSP, Verb.ACCORD_RECOVER_RSP);
+        VERB_MAPPING.put(MessageType.WAIT_ON_COMMIT_REQ, Verb.ACCORD_WAIT_COMMIT_REQ);
+        VERB_MAPPING.put(MessageType.WAIT_ON_COMMIT_RSP, Verb.ACCORD_WAIT_COMMIT_RSP);
     }
 
     @Override
     public void send(Node.Id to, Request request)
     {
-        Verb verb = REQUEST_VERBS.get(request.getClass());
+        Verb verb = VERB_MAPPING.get(request.type());
         Preconditions.checkArgument(verb != null);
         Message<Request> message = Message.out(verb, request);
         MessagingService.instance().send(message, getEndpoint(to));
@@ -60,10 +66,9 @@ public class CassandraMessageSink implements MessageSink
     @Override
     public void send(Node.Id to, Request request, Callback callback)
     {
-        Verb verb = REQUEST_VERBS.get(request.getClass());
+        Verb verb = VERB_MAPPING.get(request.type());
         Preconditions.checkArgument(verb != null);
         Message<Request> message = Message.out(verb, request);
-
         MessagingService.instance().sendWithCallback(message, getEndpoint(to), new AccordCallback<>((Callback<Reply>) callback));
     }
 
@@ -71,6 +76,8 @@ public class CassandraMessageSink implements MessageSink
     public void reply(Node.Id replyingToNode, ReplyContext replyContext, Reply reply)
     {
         Message<?> replyTo = (Message<?>) replyContext;
-        MessagingService.instance().send(replyTo.responseWith(reply), getEndpoint(replyingToNode));
+        Message<?> replyMsg = replyTo.responseWith(reply);
+        Preconditions.checkArgument(replyMsg.verb() == VERB_MAPPING.get(reply.type()));
+        MessagingService.instance().send(replyMsg, getEndpoint(replyingToNode));
     }
 }

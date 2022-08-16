@@ -18,18 +18,42 @@
 
 package org.apache.cassandra.service.accord;
 
+import accord.local.CommandStore;
 import accord.local.Node;
+import accord.messages.Request;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.api.AccordScheduler;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class AccordService
 {
-    private final Node node;
+    public static final AccordService instance = new AccordService();
+
+    public final Node node;
     private final CassandraMessageSink messageSink;
     private final CassandraConfigurationService configService;
+    private final AccordScheduler scheduler;
+    private final AccordVerbHandler verbHandler;
 
-    public AccordService()
+    private AccordService()
     {
         this.messageSink = new CassandraMessageSink();
         this.configService = new CassandraConfigurationService();
-        this.node = null;
+        this.scheduler = new AccordScheduler();
+        this.node = new Node(EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort()),
+                             messageSink,
+                             configService,
+                             System::currentTimeMillis,
+                             () -> null,
+                             new AccordAgent(),
+                             scheduler,
+                             CommandStore.Factory.SINGLE_THREAD);
+        this.verbHandler = new AccordVerbHandler(this.node);
+    }
+
+    public <T extends Request> IVerbHandler<T> verbHandler()
+    {
+        return verbHandler;
     }
 }

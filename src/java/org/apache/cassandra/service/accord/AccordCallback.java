@@ -37,6 +37,7 @@ class AccordCallback<T extends Reply> implements RequestCallback<T>
     @Override
     public void onResponse(Message<T> msg)
     {
+        // TODO: add support for non-final callback messages
         callback.onSuccess(EndpointMapping.endpointToId(msg.from()), msg.payload);
     }
 
