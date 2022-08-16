@@ -18,14 +18,17 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import accord.api.Scheduler;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.concurrent.Shutdownable;
 
-public class AccordScheduler implements Scheduler
+public class AccordScheduler implements Scheduler, Shutdownable
 {
     private final ScheduledExecutorPlus scheduledExecutor = ExecutorFactory.Global.executorFactory().scheduled("AccordScheduled");
 
@@ -63,6 +66,32 @@ public class AccordScheduler implements Scheduler
     public void now(Runnable run)
     {
         // called from the mutation stage configured by the verb
+        if (scheduledExecutor.isShutdown())
+            throw new RejectedExecutionException("Scheduler has shut down.");
         run.run();
+    }
+
+    @Override
+    public boolean isTerminated()
+    {
+        return scheduledExecutor.isTerminated();
+    }
+
+    @Override
+    public void shutdown()
+    {
+        scheduledExecutor.shutdown();
+    }
+
+    @Override
+    public List<Runnable> shutdownNow()
+    {
+        return scheduledExecutor.shutdownNow();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        return scheduledExecutor.awaitTermination(timeout, units);
     }
 }

@@ -18,23 +18,28 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.local.Node;
 import accord.messages.Reply;
 import accord.messages.Request;
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class AccordService
+public class AccordService implements Shutdownable
 {
     public static final AccordService instance = new AccordService();
 
     public final Node node;
+    private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     public final AccordConfigurationService configService;
     private final AccordScheduler scheduler;
@@ -59,6 +64,7 @@ public class AccordService
                              new AccordAgent(),
                              scheduler,
                              AccordCommandStores::new);
+        this.nodeShutdown = toShutdownable(node);
         this.verbHandler = new AccordVerbHandler(this.node);
     }
 
@@ -94,5 +100,80 @@ public class AccordService
         long bytes = kb << 10;
         AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
         commandStores.setCacheSize(bytes);
+    }
+
+    @Override
+    public boolean isTerminated()
+    {
+        return scheduler.isTerminated();
+    }
+
+    @Override
+    public void shutdown()
+    {
+        ExecutorUtils.shutdown(Arrays.asList(scheduler, nodeShutdown));
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        ExecutorUtils.shutdownNow(Arrays.asList(scheduler, nodeShutdown));
+        return null;
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        try
+        {
+            ExecutorUtils.awaitTermination(timeout, units, Arrays.asList(scheduler, nodeShutdown));
+            return true;
+        }
+        catch (TimeoutException e)
+        {
+            return false;
+        }
+    }
+
+    @VisibleForTesting
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownAndWait(timeout, unit, this);
+    }
+
+    private static Shutdownable toShutdownable(Node node)
+    {
+        return new Shutdownable() {
+            private volatile boolean isShutdown = false;
+
+            @Override
+            public boolean isTerminated()
+            {
+                // we don't know about terminiated... so settle for shutdown!
+                return isShutdown;
+            }
+
+            @Override
+            public void shutdown()
+            {
+                isShutdown = true;
+                node.shutdown();
+            }
+
+            @Override
+            public Object shutdownNow()
+            {
+                // node doesn't offer shutdownNow
+                shutdown();
+                return null;
+            }
+
+            @Override
+            public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+            {
+                // node doesn't offer
+                return true;
+            }
+        };
     }
 }

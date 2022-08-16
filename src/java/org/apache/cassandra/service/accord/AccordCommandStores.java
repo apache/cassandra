@@ -30,6 +30,7 @@ import accord.local.Node;
 import accord.topology.KeyRanges;
 import accord.txn.Timestamp;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.utils.ExecutorUtils;
 
 public class AccordCommandStores extends CommandStores
 {
@@ -75,7 +76,7 @@ public class AccordCommandStores extends CommandStores
     public synchronized void shutdown()
     {
         super.shutdown();
-        for (ExecutorService executor : executors)
-            executor.shutdown();
+        //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
+        ExecutorUtils.shutdown(executors);
     }
 }
