@@ -171,6 +171,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private volatile boolean initialized = false;
     private volatile boolean internodeMessagingStarted = false;
     private final AtomicLong startedAt = new AtomicLong();
+    private final Logger logger;
 
     @Deprecated
     Instance(IInstanceConfig config, ClassLoader classLoader)
@@ -187,6 +188,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         super("node" + config.num(), classLoader, executorFactory().pooled("isolatedExecutor", Integer.MAX_VALUE), shutdownExecutor);
         this.config = config;
+        this.logger = LoggerFactory.getLogger(Instance.class.getCanonicalName() + "$node" + config.num());
         if (fileSystem != null)
             File.unsafeSetFilesystem(fileSystem);
         Object clusterId = Objects.requireNonNull(config.get(Constants.KEY_DTEST_API_CLUSTER_ID), "cluster_id is not defined");
@@ -350,7 +352,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 return false;
             int fromNum = from.config().num();
             int toNum = config.num(); // since this instance is reciving the message, to will always be this instance
-            return cluster.filters().permitInbound(fromNum, toNum, serialized);
+            boolean permit = cluster.filters().permitInbound(fromNum, toNum, serialized);
+            if (!permit)
+                logger.info("Dropping inbound message {}", message);
+            return permit;
         });
     }
 
@@ -365,7 +370,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             if (toInstance == null)
                 return false; // TODO: Simulator needs this to trigger a failure
             int toNum = toInstance.config().num();
-            return cluster.filters().permitOutbound(fromNum, toNum, serialzied);
+            boolean permit = cluster.filters().permitOutbound(fromNum, toNum, serialzied);
+            if (!permit)
+                logger.info("Dropping outbound message {}", message);
+            return permit;
         });
     }
 
