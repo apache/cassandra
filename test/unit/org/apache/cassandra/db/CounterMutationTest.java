@@ -29,6 +29,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CounterId;
 
 import static org.junit.Assert.assertEquals;
 
@@ -214,5 +215,21 @@ public class CounterMutationTest
                 .build(),
             ConsistencyLevel.ONE).apply();
         Util.assertEmpty(Util.cmd(cfs).includeRow("cc").columns("val", "val2").build());
+    }
+
+    @Test
+    public void testAddingWithoutLocks() throws WriteTimeoutException
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF1);
+        cfs.truncateBlocking();
+        ColumnMetadata cDef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
+
+        // Do the initial update (+1)
+        long toAdd = 5;
+        Mutation m = new RowUpdateBuilder(cfs.metadata(), 5, "key1").clustering("cc").add("val", toAdd).build();
+        new CounterMutation(m, ConsistencyLevel.ONE).applyCounterMutationWithoutLocks(1234567, CounterId.getLocalId());
+
+        Row row = Util.getOnlyRow(Util.cmd(cfs).includeRow("cc").columns("val").build());
+        assertEquals(toAdd, CounterContext.instance().total(row.getCell(cDef)));
     }
 }

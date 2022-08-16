@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
@@ -168,11 +169,15 @@ public class CounterMutation implements IMutation
 
         List<Lock> locks = new ArrayList<>();
         Tracing.trace("Acquiring counter locks");
+
+        long clock = FBUtilities.timestampMicros();
+        CounterId counterId = CounterId.getLocalId();
+
         try
         {
             grabCounterLocks(keyspace, locks);
             for (PartitionUpdate upd : getPartitionUpdates())
-                resultBuilder.add(processModifications(upd));
+                resultBuilder.add(processModifications(upd, clock, counterId));
 
             Mutation result = resultBuilder.build();
             result.apply();
@@ -183,6 +188,26 @@ public class CounterMutation implements IMutation
             for (Lock lock : locks)
                 lock.unlock();
         }
+    }
+
+    /**
+     * Applies the counter mutation with the provided time and {@link CounterId}. As opposed to
+     * {@link #applyCounterMutation()} this method doesn't acquire cell-level locks.
+     * <p/>
+     * This method is used in CDC counter write path (CNDB).
+     * <p/>
+     * The time and counter values are evaluated and propagated to all replicas by CDC Service. The replicas
+     * use this method to apply the mutation locally without locks. The locks are not needed in the CDC
+     * path as all the writes to the same partition are serialized by CDC Service.
+     */
+    public CompletableFuture<Mutation> applyCounterMutationWithoutLocks(long systemClockMicros, CounterId counterId)
+    {
+        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(getKeyspaceName(), key());
+        for (PartitionUpdate upd : getPartitionUpdates())
+            resultBuilder.add(processModifications(upd, systemClockMicros, counterId));
+
+        Mutation mutatation = resultBuilder.build();
+        return mutatation.applyFuture(WriteOptions.DEFAULT).thenApply(ignore -> mutatation);
     }
 
     public void apply()
@@ -275,7 +300,9 @@ public class CounterMutation implements IMutation
         }));
     }
 
-    private PartitionUpdate processModifications(PartitionUpdate changes)
+    private PartitionUpdate processModifications(PartitionUpdate changes,
+                                                 long systemClockMicros,
+                                                 CounterId counterId)
     {
         ColumnFamilyStore cfs = Keyspace.open(getKeyspaceName()).getColumnFamilyStore(changes.metadata().id);
 
@@ -284,34 +311,41 @@ public class CounterMutation implements IMutation
         if (CacheService.instance.counterCache.getCapacity() != 0)
         {
             Tracing.trace("Fetching {} counter values from cache", marks.size());
-            updateWithCurrentValuesFromCache(marks, cfs);
+            updateWithCurrentValuesFromCache(marks, cfs, systemClockMicros, counterId);
             if (marks.isEmpty())
                 return changes;
         }
 
         Tracing.trace("Reading {} counter values from the CF", marks.size());
-        updateWithCurrentValuesFromCFS(marks, cfs);
+        updateWithCurrentValuesFromCFS(marks, cfs, systemClockMicros, counterId);
 
         // What's remain is new counters
         for (PartitionUpdate.CounterMark mark : marks)
-            updateWithCurrentValue(mark, ClockAndCount.BLANK, cfs);
+            updateWithCurrentValue(mark, ClockAndCount.BLANK, cfs, systemClockMicros, counterId);
 
         return changes;
     }
 
-    private void updateWithCurrentValue(PartitionUpdate.CounterMark mark, ClockAndCount currentValue, ColumnFamilyStore cfs)
+    private void updateWithCurrentValue(PartitionUpdate.CounterMark mark,
+                                        ClockAndCount currentValue,
+                                        ColumnFamilyStore cfs,
+                                        long systemClockMicros,
+                                        CounterId counterId)
     {
-        long clock = Math.max(FBUtilities.timestampMicros(), currentValue.clock + 1L);
+        long clock = Math.max(systemClockMicros, currentValue.clock + 1L);
         long count = currentValue.count + CounterContext.instance().total(mark.value(), ByteBufferAccessor.instance);
 
-        mark.setValue(CounterContext.instance().createGlobal(CounterId.getLocalId(), clock, count));
+        mark.setValue(CounterContext.instance().createGlobal(counterId, clock, count));
 
         // Cache the newly updated value
         cfs.putCachedCounter(key().getKey(), mark.clustering(), mark.column(), mark.path(), ClockAndCount.create(clock, count));
     }
 
     // Returns the count of cache misses.
-    private void updateWithCurrentValuesFromCache(List<PartitionUpdate.CounterMark> marks, ColumnFamilyStore cfs)
+    private void updateWithCurrentValuesFromCache(List<PartitionUpdate.CounterMark> marks,
+                                                  ColumnFamilyStore cfs,
+                                                  long systemClockMicros,
+                                                  CounterId counterId)
     {
         Iterator<PartitionUpdate.CounterMark> iter = marks.iterator();
         while (iter.hasNext())
@@ -320,14 +354,17 @@ public class CounterMutation implements IMutation
             ClockAndCount cached = cfs.getCachedCounter(key().getKey(), mark.clustering(), mark.column(), mark.path());
             if (cached != null)
             {
-                updateWithCurrentValue(mark, cached, cfs);
+                updateWithCurrentValue(mark, cached, cfs, systemClockMicros, counterId);
                 iter.remove();
             }
         }
     }
 
     // Reads the missing current values from the CFS.
-    private void updateWithCurrentValuesFromCFS(List<PartitionUpdate.CounterMark> marks, ColumnFamilyStore cfs)
+    private void updateWithCurrentValuesFromCFS(List<PartitionUpdate.CounterMark> marks,
+                                                ColumnFamilyStore cfs,
+                                                long systemClockMicros,
+                                                CounterId counterId)
     {
         ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
         BTreeSet.Builder<Clustering<?>> names = BTreeSet.builder(cfs.metadata().comparator);
@@ -348,14 +385,14 @@ public class CounterMutation implements IMutation
         try (ReadExecutionController controller = cmd.executionController();
              RowIterator partition = UnfilteredRowIterators.filter(cmd.queryMemtableAndDisk(cfs, controller), nowInSec))
         {
-            updateForRow(markIter, partition.staticRow(), cfs);
+            updateForRow(markIter, partition.staticRow(), cfs, systemClockMicros, counterId);
 
             while (partition.hasNext())
             {
                 if (!markIter.hasNext())
                     return;
 
-                updateForRow(markIter, partition.next(), cfs);
+                updateForRow(markIter, partition.next(), cfs, systemClockMicros, counterId);
             }
         }
     }
@@ -370,7 +407,11 @@ public class CounterMutation implements IMutation
         return cfs.getComparator().compare(c1, c2);
     }
 
-    private void updateForRow(PeekingIterator<PartitionUpdate.CounterMark> markIter, Row row, ColumnFamilyStore cfs)
+    private void updateForRow(PeekingIterator<PartitionUpdate.CounterMark> markIter,
+                              Row row,
+                              ColumnFamilyStore cfs,
+                              long systemClockMicros,
+                              CounterId counterId)
     {
         int cmp = 0;
         // If the mark is before the row, we have no value for this mark, just consume it
@@ -386,7 +427,8 @@ public class CounterMutation implements IMutation
             Cell<?> cell = mark.path() == null ? row.getCell(mark.column()) : row.getCell(mark.column(), mark.path());
             if (cell != null)
             {
-                updateWithCurrentValue(mark, CounterContext.instance().getLocalClockAndCount(cell.buffer()), cfs);
+                ClockAndCount localClockAndCount = CounterContext.instance().getLocalClockAndCount(cell.buffer());
+                updateWithCurrentValue(mark, localClockAndCount, cfs, systemClockMicros, counterId);
                 markIter.remove();
             }
             if (!markIter.hasNext())
