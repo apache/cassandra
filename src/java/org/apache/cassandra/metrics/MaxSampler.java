@@ -38,27 +38,27 @@ public abstract class MaxSampler<T> extends Sampler<T>
         return endTimeNanos != -1 && clock.now() <= endTimeNanos;
     }
 
-    public synchronized void beginSampling(int capacity, int durationMillis)
+    @Override
+    public synchronized void beginSampling(int capacity, long durationMillis)
     {
-        if (endTimeNanos == -1 || clock.now() > endTimeNanos)
+        if (isActive())
         {
-            endTimeNanos = clock.now() + MILLISECONDS.toNanos(durationMillis);
-            queue = MinMaxPriorityQueue
-                    .orderedBy(comp)
-                    .maximumSize(Math.max(1, capacity))
-                    .create();
-            this.capacity = capacity;
-        }
-        else
             throw new RuntimeException("Sampling already in progress");
+        }
+        updateEndTime(clock.now() + MILLISECONDS.toNanos(durationMillis));
+        queue = MinMaxPriorityQueue.orderedBy(comp)
+                                   .maximumSize(Math.max(1, capacity))
+                                   .create();
+        this.capacity = capacity;
     }
 
+    @Override
     public synchronized List<Sample<T>> finishSampling(int count)
     {
         List<Sample<T>> result = new ArrayList<>(count);
-        if (endTimeNanos != -1)
+        if (isEnabled())
         {
-            endTimeNanos = -1;
+            disable();
             Sample<T> next;
             while ((next = queue.poll()) != null && result.size() <= count)
                 result.add(next);
@@ -69,9 +69,12 @@ public abstract class MaxSampler<T> extends Sampler<T>
     @Override
     protected synchronized void insert(T item, long value)
     {
-        if (value > 0 && clock.now() <= endTimeNanos
-                && (queue.isEmpty() || queue.size() < capacity || queue.peekLast().count < value))
-            queue.add(new Sample<T>(item, value, 0));
+        if (isActive() && permitsValue(value))
+            queue.add(new Sample<>(item, value, 0));
     }
 
+    private boolean permitsValue(long value)
+    {
+        return value > 0 && (queue.isEmpty() || queue.size() < capacity || queue.peekLast().count < value);
+    }
 }
