@@ -253,7 +253,7 @@ public class AsyncWriter
 
                     state = State.SAVING;
                 case SAVING:
-                    if (writeFuture != null && !writeFuture.isDone())
+                    if (writeFuture != null && (!writeFuture.isDone() || !writeFuture.isSuccess()))
                     {
                         writeFuture.addCallback(callback, commandStore.executor());
                         break;
@@ -272,4 +272,5 @@ public class AsyncWriter
 
         return state == State.FINISHED;
     }
+
 }

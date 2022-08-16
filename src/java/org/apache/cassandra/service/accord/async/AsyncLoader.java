@@ -19,15 +19,14 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import accord.txn.TxnId;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
@@ -125,6 +124,8 @@ public class AsyncLoader
 
     public boolean load(AsyncContext context, BiConsumer<Object, Throwable> callback)
     {
+        commandStore.checkInStoreThread();
+
         switch (state)
         {
             case INITIALIZED:
@@ -136,7 +137,7 @@ public class AsyncLoader
                 readFuture = referenceAndDispatchReads(context);
                 state = State.LOADING;
             case LOADING:
-                if (readFuture != null && !readFuture.isDone())
+                if (readFuture != null && (!readFuture.isDone() || !readFuture.isSuccess()))
                 {
                     readFuture.addCallback(callback, commandStore.executor());
                     break;

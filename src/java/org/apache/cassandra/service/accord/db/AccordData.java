@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -44,7 +45,7 @@ import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements Data, Result
+public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements Data, Result, Iterable<FilteredPartition>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordData());
 
@@ -121,10 +122,17 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
     }
 
     @Override
+    public Iterator<FilteredPartition> iterator()
+    {
+        return serialized.values().stream().map(this::deserialize).iterator();
+    }
+
+    @Override
     public Data merge(Data data)
     {
         AccordData that = (AccordData) data;
         AccordData merged = new AccordData();
+        //TODO on conflict should we "merge" the partition rather than override?
         this.serialized.forEach(merged::put);
         that.serialized.forEach(merged::put);
         return merged;

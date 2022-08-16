@@ -29,6 +29,7 @@ import accord.local.CommandStores;
 import accord.local.Node;
 import accord.topology.KeyRanges;
 import accord.txn.Timestamp;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 
 public class AccordCommandStores extends CommandStores
 {
@@ -43,7 +44,7 @@ public class AccordCommandStores extends CommandStores
             int index = i;
             executors[i] = Executors.newSingleThreadExecutor(r -> {
                 Thread thread = new Thread(r);
-                thread.setName(CommandStore.class.getSimpleName() + '[' + node + ':' + index + ']');
+                thread.setName(NamedThreadFactory.globalPrefix() + CommandStore.class.getSimpleName() + '[' + node + ':' + index + ']');
                 return thread;
             });
         }

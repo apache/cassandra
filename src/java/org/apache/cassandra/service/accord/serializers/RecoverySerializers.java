@@ -86,8 +86,12 @@ public class RecoverySerializers
                 CommandSerializers.deps.serialize(recoverOk.earlierCommittedWitness, out, version);
                 CommandSerializers.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
                 out.writeBoolean(recoverOk.rejectsFastPath);
-                CommandSerializers.writes.serialize(recoverOk.writes, out, version);
-                AccordData.serializer.serialize((AccordData) recoverOk.result, out, version);
+                out.writeBoolean(recoverOk.writes != null);
+                if (recoverOk.writes != null)
+                    CommandSerializers.writes.serialize(recoverOk.writes, out, version);
+                out.writeBoolean(recoverOk.result != null);
+                if (recoverOk.result != null)
+                    AccordData.serializer.serialize((AccordData) recoverOk.result, out, version);
             }
         }
 
@@ -106,8 +110,8 @@ public class RecoverySerializers
                                  CommandSerializers.deps.deserialize(in, version),
                                  CommandSerializers.deps.deserialize(in, version),
                                  in.readBoolean(),
-                                 CommandSerializers.writes.deserialize(in, version),
-                                 AccordData.serializer.deserialize(in, version));
+                                 in.readBoolean() ? CommandSerializers.writes.deserialize(in, version) : null,
+                                 in.readBoolean() ? AccordData.serializer.deserialize(in, version) : null);
         }
 
         @Override
@@ -131,8 +135,12 @@ public class RecoverySerializers
                 size += CommandSerializers.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
                 size += CommandSerializers.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
                 size += TypeSizes.sizeof(recoverOk.rejectsFastPath);
-                size += CommandSerializers.writes.serializedSize(recoverOk.writes, version);
-                size += AccordData.serializer.serializedSize((AccordData) recoverOk.result, version);
+                size += TypeSizes.sizeof(recoverOk.writes != null);
+                if (recoverOk.writes != null)
+                    size += CommandSerializers.writes.serializedSize(recoverOk.writes, version);
+                size += TypeSizes.sizeof(recoverOk.result != null);
+                if (recoverOk.result != null)
+                    size += AccordData.serializer.serializedSize((AccordData) recoverOk.result, version);
             }
             return size;
         }
