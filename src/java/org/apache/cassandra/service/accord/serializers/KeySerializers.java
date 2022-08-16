@@ -51,7 +51,7 @@ public class KeySerializers
             Key[] keys = new Key[in.readInt()];
             for (int i=0; i<keys.length; i++)
                 keys[i] = AccordKey.PartitionKey.serializer.deserialize(in, version);
-            return null;
+            return new Keys(keys);
         }
 
         @Override

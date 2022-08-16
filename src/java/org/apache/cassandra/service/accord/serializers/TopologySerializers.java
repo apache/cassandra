@@ -83,6 +83,7 @@ public class TopologySerializers
         public void serialize(TxnRequestScope scope, DataOutputPlus out, int version) throws IOException
         {
             out.writeLong(scope.maxEpoch());
+            out.writeInt(scope.size());
             for (int i = 0, mi = scope.size(); i < mi; i++)
                 epochRangesSerializer.serialize(scope.get(i), out, version);
         }
@@ -101,6 +102,7 @@ public class TopologySerializers
         public long serializedSize(TxnRequestScope scope, int version)
         {
             long size = TypeSizes.sizeof(scope.maxEpoch());
+            size += TypeSizes.sizeof(scope.size());
             for (int i = 0, mi = scope.size(); i < mi; i++)
                 size += epochRangesSerializer.serializedSize(scope.get(i), version);
             return size;

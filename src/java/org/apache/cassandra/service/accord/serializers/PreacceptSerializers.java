@@ -77,7 +77,7 @@ public class PreacceptSerializers
         @Override
         public PreAcceptReply deserialize(DataInputPlus in, int version) throws IOException
         {
-            if (in.readBoolean())
+            if (!in.readBoolean())
                 return PreAccept.PreAcceptNack.INSTANCE;
 
             return new PreAcceptOk(CommandSerializers.txnId.deserialize(in, version),

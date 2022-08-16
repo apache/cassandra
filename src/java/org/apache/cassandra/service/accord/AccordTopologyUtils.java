@@ -25,16 +25,21 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
+
 import accord.topology.Shard;
 import accord.topology.Topology;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 
 public class AccordTopologyUtils
 {
@@ -46,36 +51,77 @@ public class AccordTopologyUtils
                          pending.stream().map(EndpointMapping::getId).collect(Collectors.toSet()));
     }
 
-    public static Topology createTopology(long epoch, TableMetadata tableMetadata, TokenMetadata tokenMetadata)
+    public static List<Shard> createShards(TableMetadata tableMetadata, TokenMetadata tokenMetadata)
     {
         String keyspace = tableMetadata.keyspace;
         AbstractReplicationStrategy replication = Keyspace.open(keyspace).getReplicationStrategy();
         Set<Token> tokenSet = new HashSet<>(tokenMetadata.sortedTokens());
         tokenSet.addAll(tokenMetadata.getBootstrapTokens().keySet());
         tokenMetadata.getMovingEndpoints().forEach(p -> tokenSet.add(p.left));
+        IPartitioner partitioner = tableMetadata.partitioner;
 
         List<Token> tokens = new ArrayList<>(tokenSet);
         tokens.sort(Comparator.naturalOrder());
 
         List<Range<Token>> ranges = new ArrayList<>(tokens.size());
 
+        Range<Token> finalRange = null;
         for (int i=0, mi=tokens.size(); i<mi; i++)
         {
-            ranges.add(new Range<>(tokens.get(i > 0 ? i - 1 : mi - 1),
-                                   tokens.get(i)));
+            Range<Token> range = new Range<>(tokens.get(i > 0 ? i - 1 : mi - 1), tokens.get(i));
+            if (range.isWrapAround())
+            {
+                Preconditions.checkArgument(finalRange == null);
+                // FIXME: this will exclude the min token with the current range logic, fix that
+                ranges.add(new Range<>(partitioner.getMinimumToken(), range.right));
+                finalRange = new Range<>(range.left, partitioner.getMaximumToken());
+            }
+            else
+            {
+                ranges.add(range);
+            }
+
         }
 
-        ranges = Range.normalize(ranges);
+        if (finalRange != null)
+            ranges.add(finalRange);
 
-        Shard[] shards = new Shard[ranges.size()];
+        List<Shard> shards = new ArrayList<>(ranges.size());
         for (int i=0, mi=ranges.size(); i<mi; i++)
         {
             Range<Token> range = ranges.get(i);
             EndpointsForToken natural = replication.getNaturalReplicasForToken(range.right);
             EndpointsForToken pending = tokenMetadata.pendingEndpointsForToken(range.right, keyspace);
-            shards[i] = createShard(tableMetadata.id, range, natural, pending);
+            shards.add(createShard(tableMetadata.id, range, natural, pending));
         }
 
-        return new Topology(epoch, shards);
+        return shards;
+    }
+
+    public static Topology createTopology(long epoch)
+    {
+        List<TableId> tableIds = new ArrayList<>();
+        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+        for (String ksname: Schema.instance.getNonLocalStrategyKeyspaces())
+        {
+            Keyspace keyspace = Keyspace.open(ksname);
+            for (TableMetadata tableMetadata : keyspace.getMetadata().tables)
+            {
+                tableIds.add(tableMetadata.id);
+            }
+        }
+
+        tableIds.sort(Comparator.naturalOrder());
+
+        List<Shard> shards = new ArrayList<>();
+        for (TableId tableId : tableIds)
+        {
+            TableMetadata tableMetadata = Schema.instance.getTableMetadata(tableId);
+            Preconditions.checkNotNull(tableId);
+            shards.addAll(createShards(tableMetadata, tokenMetadata));
+        }
+
+        // FIXME: this is creating a huge request scope (1532 bytes), figure out why it's so big
+        return new Topology(epoch, shards.toArray(Shard[]::new));
     }
 }

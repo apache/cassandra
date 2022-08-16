@@ -22,15 +22,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 import accord.api.ConfigurationService;
+import accord.local.Node;
 import accord.topology.Topology;
 
+/**
+ * Currently a stubbed out config service meant to be triggered from a dtest
+ */
 public class CassandraConfigurationService implements ConfigurationService
 {
+    private final Node.Id localId;
     private final List<Listener> listeners = new ArrayList<>();
     private final List<Topology> epochs = new ArrayList<>();
 
-    public CassandraConfigurationService()
+    public CassandraConfigurationService(Node.Id localId)
     {
+        this.localId = localId;
         epochs.add(Topology.EMPTY);
     }
 
@@ -61,6 +67,21 @@ public class CassandraConfigurationService implements ConfigurationService
     @Override
     public void acknowledgeEpoch(long epoch)
     {
-        throw new UnsupportedOperationException();
+        Topology acknowledged = getTopologyForEpoch(epoch);
+        for (Node.Id node : acknowledged.nodes())
+        {
+            if (node.equals(localId))
+                continue;
+            for (Listener listener : listeners)
+                listener.onEpochSyncComplete(node, epoch);
+        }
+    }
+
+    public void createEpochFromConfig()
+    {
+        Topology topology = AccordTopologyUtils.createTopology(epochs.size());
+        epochs.add(topology);
+        for (Listener listener : listeners)
+            listener.onTopologyUpdate(topology);
     }
 }

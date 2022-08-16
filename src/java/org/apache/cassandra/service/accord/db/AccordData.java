@@ -54,7 +54,7 @@ public class AccordData implements Data, Result
         partitions.put(partition, partition);
     }
 
-    FilteredPartition get(DecoratedKey key)
+    FilteredPartition get(AccordKey key)
     {
         return partitions.get(key);
     }

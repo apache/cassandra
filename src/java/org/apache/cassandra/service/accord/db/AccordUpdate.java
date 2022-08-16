@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
@@ -32,6 +33,7 @@ import accord.api.Update;
 import accord.api.Write;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -46,6 +48,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AccordUpdate implements Update
@@ -53,24 +56,31 @@ public class AccordUpdate implements Update
     private final List<PartitionUpdate> updates;
     private final List<UpdatePredicate> predicates;
 
-    public static abstract class UpdatePredicate
+    public static abstract class UpdatePredicate implements AccordKey
     {
         public enum Type
         {
-            EXISTS,
-            NOT_EXISTS,
-            EQUAL,
-            NOT_EQUAL,
-            GREATER_THAN,
-            GREATER_THAN_OR_EQUAL,
-            LESS_THAN,
-            LESS_THAN_OR_EQUAL
+            EXISTS("EXISTS"),
+            NOT_EXISTS("NOT EXISTS"),
+            EQUAL("=="),
+            NOT_EQUAL("!="),
+            GREATER_THAN(">"),
+            GREATER_THAN_OR_EQUAL(">="),
+            LESS_THAN("<"),
+            LESS_THAN_OR_EQUAL("<=");
+
+            final String symbol;
+
+            Type(String symbol)
+            {
+                this.symbol = symbol;
+            }
         }
 
-        private final Type type;
-        private final TableMetadata table;
-        private final DecoratedKey key;
-        private final Clustering<?> clustering;
+        final Type type;
+        final TableMetadata table;
+        final DecoratedKey key;
+        final Clustering<?> clustering;
 
         public UpdatePredicate(Type type, TableMetadata table, DecoratedKey key, Clustering<?> clustering)
         {
@@ -80,7 +90,36 @@ public class AccordUpdate implements Update
             this.clustering = clustering;
         }
 
-        public DecoratedKey key()
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            UpdatePredicate predicate = (UpdatePredicate) o;
+            return type == predicate.type && table.equals(predicate.table) && key.equals(predicate.key) && clustering.equals(predicate.clustering);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(type, table, key, clustering);
+        }
+
+        @Override
+        public String toString()
+        {
+            return table.keyspace + '.' + table.name + " ["
+                   + key + ", " + clustering.toString(table) + "] " + type.symbol;
+        }
+
+        @Override
+        public TableId tableId()
+        {
+            return table.id;
+        }
+
+        @Override
+        public PartitionPosition partitionKey()
         {
             return key;
         }
@@ -167,6 +206,30 @@ public class AccordUpdate implements Update
             this.value = value;
         }
 
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            ValuePredicate that = (ValuePredicate) o;
+            return column.equals(that.column) && value.equals(that.value);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(super.hashCode(), column, value);
+        }
+
+        @Override
+        public String toString()
+        {
+            return table.keyspace + '.' + table.name + " ["
+                   + key + ", " + clustering.toString(table) + ", " + column.name.toString() + "] "
+                   + type.symbol + ' ' + column.type.getString(value);
+        }
+
         private <T> int compare(Cell<T> cell)
         {
             return column.type.compare(cell.value(), cell.accessor(), value, ByteBufferAccessor.instance);
@@ -228,18 +291,52 @@ public class AccordUpdate implements Update
     }
 
     @Override
+    public String toString()
+    {
+        return "AccordUpdate{" +
+               "updates=" + updates +
+               ", predicates=" + predicates +
+               '}';
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AccordUpdate update = (AccordUpdate) o;
+        return updates.equals(update.updates) && predicates.equals(update.predicates);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(updates, predicates);
+    }
+
+    @Override
     public Write apply(Data data)
     {
         AccordData read = (AccordData) data;
         for (UpdatePredicate predicate : predicates)
         {
-            if (!predicate.applies(read.get(predicate.key)));
+            if (!predicate.applies(read.get(predicate)))
                 return AccordWrite.EMPTY;
         }
         return new AccordWrite(updates);
     }
 
-    private static final IVersionedSerializer<UpdatePredicate> predicateSerializer = new IVersionedSerializer<UpdatePredicate>()
+    PartitionUpdate getPartitionUpdate(int i)
+    {
+        return updates.get(i);
+    }
+
+    UpdatePredicate getPredicate(int i)
+    {
+        return predicates.get(i);
+    }
+
+    static final IVersionedSerializer<UpdatePredicate> predicateSerializer = new IVersionedSerializer<UpdatePredicate>()
     {
         @Override
         public void serialize(UpdatePredicate predicate, DataOutputPlus out, int version) throws IOException
@@ -310,10 +407,12 @@ public class AccordUpdate implements Update
             List<PartitionUpdate> updates = new ArrayList<>(numUpdate);
             for (int i=0; i<numUpdate; i++)
                 updates.add(PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE));
+
             int numPredicate = in.readInt();
             List<UpdatePredicate> predicates = new ArrayList<>(numPredicate);
-            for (int i=0; i<numUpdate; i++)
+            for (int i=0; i<numPredicate; i++)
                 predicates.add(predicateSerializer.deserialize(in, version));
+
             return new AccordUpdate(updates, predicates);
         }
 
@@ -323,9 +422,11 @@ public class AccordUpdate implements Update
             long size = TypeSizes.sizeof(update.updates.size());
             for (PartitionUpdate upd : update.updates)
                 size += PartitionUpdate.serializer.serializedSize(upd, version);
+
             size += TypeSizes.sizeof(update.predicates.size());
             for (UpdatePredicate predicate : update.predicates)
-                predicateSerializer.serializedSize(predicate, version);
+                size += predicateSerializer.serializedSize(predicate, version);
+
             return size;
         }
     };

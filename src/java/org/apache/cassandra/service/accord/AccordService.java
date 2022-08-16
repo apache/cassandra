@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.messages.Request;
@@ -32,16 +34,17 @@ public class AccordService
 
     public final Node node;
     private final CassandraMessageSink messageSink;
-    private final CassandraConfigurationService configService;
+    public final CassandraConfigurationService configService;
     private final AccordScheduler scheduler;
     private final AccordVerbHandler verbHandler;
 
     private AccordService()
     {
+        Node.Id localId = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
         this.messageSink = new CassandraMessageSink();
-        this.configService = new CassandraConfigurationService();
+        this.configService = new CassandraConfigurationService(localId);
         this.scheduler = new AccordScheduler();
-        this.node = new Node(EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort()),
+        this.node = new Node(localId,
                              messageSink,
                              configService,
                              System::currentTimeMillis,
@@ -55,5 +58,11 @@ public class AccordService
     public <T extends Request> IVerbHandler<T> verbHandler()
     {
         return verbHandler;
+    }
+
+    @VisibleForTesting
+    public void createEpochFromConfigUnsafe()
+    {
+        configService.createEpochFromConfig();
     }
 }

@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.service.accord;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.messages.Callback;
 import accord.messages.Reply;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -27,6 +30,7 @@ import org.apache.cassandra.net.RequestCallback;
 
 class AccordCallback<T extends Reply> implements RequestCallback<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordCallback.class);
     private final Callback<T> callback;
 
     public AccordCallback(Callback<T> callback)
@@ -38,12 +42,14 @@ class AccordCallback<T extends Reply> implements RequestCallback<T>
     public void onResponse(Message<T> msg)
     {
         // TODO: add support for non-final callback messages
+        logger.debug("Received response {} from {}", msg.payload, msg.from());
         callback.onSuccess(EndpointMapping.endpointToId(msg.from()), msg.payload);
     }
 
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
+        logger.debug("Received failure {} from {}", failureReason, from);
         callback.onFailure(EndpointMapping.endpointToId(from), new RuntimeException(failureReason.toString()));
     }
 
