@@ -53,11 +53,11 @@ public class SamplingManager
 
     /**
      * Tracks the active scheduled sampling tasks.
-     * The key of the map is a {@link JobId}, which is effectively a keyspace + table abstracted behind some
-     * convenience so we can use them without peppering Pairs throughout this class. Both keyspace and table are nullable,
-     * a paradigm we inherit from {@link ProfileLoad} so need to manage here.
+     * The key of the map is a {@link JobId}, which is effectively a keyspace + table abstracted behind some syntactic
+     * sugar so we can use them without peppering Pairs throughout this class. Both keyspace and table are nullable,
+     * a paradigm we inherit from {@link ProfileLoad} so need to accommodate here.
      *
-     * The value of the map is the current scheduled task
+     * The value of the map is the current scheduled task.
      */
     private final ConcurrentHashMap<JobId, Future<?>> activeSamplingTasks = new ConcurrentHashMap<>();
 

@@ -26,6 +26,10 @@ import com.google.common.collect.MinMaxPriorityQueue;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+/**
+ * Note: {@link Sampler#samplerExecutor} is single threaded but we still need to synchronize as we have access
+ * from both internal and the external JMX context that can cause races.
+ */
 public abstract class MaxSampler<T> extends Sampler<T>
 {
     private int capacity;
@@ -42,9 +46,7 @@ public abstract class MaxSampler<T> extends Sampler<T>
     public synchronized void beginSampling(int capacity, long durationMillis)
     {
         if (isActive())
-        {
             throw new RuntimeException("Sampling already in progress");
-        }
         updateEndTime(clock.now() + MILLISECONDS.toNanos(durationMillis));
         queue = MinMaxPriorityQueue.orderedBy(comp)
                                    .maximumSize(Math.max(1, capacity))

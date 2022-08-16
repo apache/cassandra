@@ -49,7 +49,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-// Includes test cases for 'toppartitions' and the successor 'profileload'
+/**
+ * Includes test cases for both the 'toppartitions' command and its successor 'profileload'
+ */
 public class TopPartitionsTest
 {
     @BeforeClass

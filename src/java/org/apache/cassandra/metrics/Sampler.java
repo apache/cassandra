@@ -36,6 +36,8 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 
 public abstract class Sampler<T>
 {
+    private static long DISABLED = -1L;
+
     private static final BiFunction<SamplerType, SamplingManager.ResultBuilder, SamplingManager.ResultBuilder>
         FrequencySamplerFomatter = (type, resultBuilder) ->
                                    resultBuilder.forType(type, type.description)
@@ -62,15 +64,15 @@ public abstract class Sampler<T>
         private final String description;
         private final BiFunction<SamplerType, SamplingManager.ResultBuilder, SamplingManager.ResultBuilder> formatter;
 
-        void format(SamplingManager.ResultBuilder resultBuilder, PrintStream ps)
-        {
-            formatter.apply(this, resultBuilder).print(ps);
-        }
-
         SamplerType(String description, BiFunction<SamplerType, SamplingManager.ResultBuilder, SamplingManager.ResultBuilder> formatter)
         {
             this.description = description;
             this.formatter = formatter;
+        }
+
+        void format(SamplingManager.ResultBuilder resultBuilder, PrintStream ps)
+        {
+            formatter.apply(this, resultBuilder).print(ps);
         }
     }
 
@@ -96,18 +98,17 @@ public abstract class Sampler<T>
     protected abstract void insert(T item, long value);
 
     /**
+     * A sampler is enabled between {@link this#beginSampling} and {@link this#finishSampling}
      * @return true if the sampler is enabled.
-     * A sampler is enabled between `beginSampling` and `finishSampling`.
      */
     public boolean isEnabled()
     {
-        return endTimeNanos != -1L;
+        return endTimeNanos != DISABLED;
     }
 
-    // Disable the sampler
     public void disable()
     {
-        endTimeNanos = -1L;
+        endTimeNanos = DISABLED;
     }
 
     /**
@@ -120,7 +121,7 @@ public abstract class Sampler<T>
     }
 
     /**
-     * Update the end time for the sampler. Implicitly, calling this method enables the sampler
+     * Update the end time for the sampler. Implicitly, calling this method enables the sampler.
      */
     public void updateEndTime(long endTimeMillis)
     {

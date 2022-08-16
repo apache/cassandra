@@ -508,10 +508,9 @@ public class NodeProbe implements AutoCloseable
                                            List<String> samplers,
                                            boolean shouldStop) throws OpenDataException
     {
-        if (shouldStop)
-            return ssProxy.stopSamplingPartitions(ks, table);
-        else
-            return ssProxy.startSamplingPartitions(ks, table, durationMillis, intervalMillis, capacity, count, samplers);
+        return shouldStop ?
+               ssProxy.stopSamplingPartitions(ks, table) :
+               ssProxy.startSamplingPartitions(ks, table, durationMillis, intervalMillis, capacity, count, samplers);
     }
 
     public List<String> getSampleTasks()

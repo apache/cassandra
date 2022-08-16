@@ -33,6 +33,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * <p>add("x", 10); and add("x", 20); will result in "x" = 30</p> This uses StreamSummary to only store the
  * approximate cardinality (capacity) of keys. If the number of distinct keys exceed the capacity, the error of the
  * sample may increase depending on distribution of keys among the total set.
+ *
+ * Note: {@link Sampler#samplerExecutor} is single threaded but we still need to synchronize as we have access
+ * from both internal and the external JMX context that can cause races.
  * 
  * @param <T>
  */
@@ -52,9 +55,7 @@ public abstract class FrequencySampler<T> extends Sampler<T>
     public synchronized void beginSampling(int capacity, long durationMillis)
     {
         if (isActive())
-        {
             throw new RuntimeException("Sampling already in progress");
-        }
         updateEndTime(clock.now() + MILLISECONDS.toNanos(durationMillis));
         summary = new StreamSummary<>(capacity);
     }
@@ -79,8 +80,6 @@ public abstract class FrequencySampler<T> extends Sampler<T>
 
     protected synchronized void insert(final T item, final long value)
     {
-        // samplerExecutor is single threaded but still need
-        // synchronization against jmx calls to finishSampling
         if (value > 0 && isActive())
         {
             try
