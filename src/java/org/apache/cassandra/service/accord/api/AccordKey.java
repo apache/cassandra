@@ -62,6 +62,12 @@ public interface AccordKey extends Key<AccordKey>
         }
 
         @Override
+        public int keyHash()
+        {
+            return key.getToken().tokenHash();
+        }
+
+        @Override
         public TableId tableId()
         {
             return tableId;

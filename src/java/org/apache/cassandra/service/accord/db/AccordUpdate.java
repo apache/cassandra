@@ -125,6 +125,12 @@ public class AccordUpdate implements Update
             return key;
         }
 
+        @Override
+        public int keyHash()
+        {
+            return key.getToken().tokenHash();
+        }
+
         public Type type()
         {
             return type;

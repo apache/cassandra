@@ -46,6 +46,12 @@ public interface Partition extends AccordKey
         return metadata().id;
     }
 
+    @Override
+    default int keyHash()
+    {
+        return partitionKey().getToken().tokenHash();
+    }
+
     public DecoratedKey partitionKey();
     public DeletionTime partitionLevelDeletion();
 

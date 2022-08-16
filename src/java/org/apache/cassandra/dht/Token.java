@@ -123,6 +123,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
     abstract public IPartitioner getPartitioner();
     abstract public long getHeapSize();
     abstract public Object getTokenValue();
+    abstract public int tokenHash();
 
     /**
      * Produce a weakly prefix-free byte-comparable representation of the token, i.e. such a sequence of bytes that any

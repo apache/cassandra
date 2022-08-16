@@ -416,6 +416,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
+    public int keyHash()
+    {
+        return partitionKey.getToken().tokenHash();
+    }
+
+    @Override
     public DecoratedKey partitionKey()
     {
         return partitionKey;
