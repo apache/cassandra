@@ -18,16 +18,20 @@
 
 package org.apache.cassandra.tools;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.management.openmbean.CompositeData;
 
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,12 +40,18 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.service.StorageService;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
+/**
+ * Includes test cases for both the 'toppartitions' command and its successor 'profileload'
+ */
 public class TopPartitionsTest
 {
     @BeforeClass
@@ -59,7 +69,7 @@ public class TopPartitionsTest
         {
             try
             {
-                q.put(StorageService.instance.samplePartitions(1000, 100, 10, Lists.newArrayList("READS", "WRITES")));
+                q.put(StorageService.instance.samplePartitions(null, 1000, 100, 10, Lists.newArrayList("READS", "WRITES")));
             }
             catch (Exception e)
             {
@@ -81,5 +91,31 @@ public class TopPartitionsTest
         executeInternal(format(req, SystemKeyspace.LOCAL, SystemKeyspace.LOCAL));
         List<CompositeData> result = ColumnFamilyStore.getIfExists("system", "local").finishLocalSampling("READS", 5);
         assertEquals("If this failed you probably have to raise the beginLocalSampling duration", 1, result.size());
+    }
+
+    @Test
+    public void testStartAndStopScheduledSampling()
+    {
+        List<String> allSamplers = Arrays.stream(Sampler.SamplerType.values()).map(Enum::toString).collect(Collectors.toList());
+        StorageService ss = StorageService.instance;
+
+        assertTrue("Scheduling new sampled tasks should be allowed",
+                   ss.startSamplingPartitions(null, null, 10, 10, 100, 10, allSamplers));
+
+        assertEquals(Collections.singletonList("*.*"), ss.getSampleTasks());
+
+        assertFalse("Sampling with duplicate keys should be disallowed",
+                    ss.startSamplingPartitions(null, null, 20, 20, 100, 10, allSamplers));
+
+        assertTrue("Existing scheduled sampling tasks should be cancellable", ss.stopSamplingPartitions(null, null));
+
+        int timeout = 10;
+        while (timeout-- > 0 && ss.getSampleTasks().size() > 0)
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+
+        assertEquals("Scheduled sampled tasks should be removed", Collections.emptyList(), ss.getSampleTasks());
+
+        assertTrue("When nothing is scheduled, you should be able to stop all scheduled sampling tasks",
+                   ss.stopSamplingPartitions(null, null));
     }
 }

@@ -498,9 +498,29 @@ public class NodeProbe implements AutoCloseable
             }
         }
     }
-    public Map<String, List<CompositeData>> getPartitionSample(int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
+
+    public boolean handleScheduledSampling(String ks,
+                                           String table,
+                                           int capacity,
+                                           int count,
+                                           int durationMillis,
+                                           int intervalMillis,
+                                           List<String> samplers,
+                                           boolean shouldStop) throws OpenDataException
     {
-        return ssProxy.samplePartitions(durationMillis, capacity, count, samplers);
+        return shouldStop ?
+               ssProxy.stopSamplingPartitions(ks, table) :
+               ssProxy.startSamplingPartitions(ks, table, durationMillis, intervalMillis, capacity, count, samplers);
+    }
+
+    public List<String> getSampleTasks()
+    {
+        return ssProxy.getSampleTasks();
+    }
+
+    public Map<String, List<CompositeData>> getPartitionSample(String ks, int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
+    {
+        return ssProxy.samplePartitions(ks, durationMillis, capacity, count, samplers);
     }
 
     public Map<String, List<CompositeData>> getPartitionSample(String ks, String cf, int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
