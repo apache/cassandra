@@ -97,6 +97,19 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         return callbacks.remove(key(id, peer));
     }
 
+    public CallbackInfo getOrRemove(Message<?> msg)
+    {
+        return msg.isFinalReply()
+               ? remove(msg.id(), msg.from())
+               : get(msg.id(), msg.from());
+    }
+
+    @VisibleForTesting
+    public boolean contains(long id, InetAddressAndPort peer)
+    {
+        return get(id, peer) != null;
+    }
+
     /**
      * Register the provided {@link RequestCallback}, inferring expiry and id from the provided {@link Message}.
      */

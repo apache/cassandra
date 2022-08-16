@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
@@ -211,17 +212,17 @@ public enum Verb
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
 
     // accord
-    ACCORD_PREACCEPT_RSP   (121, P2, writeTimeout,    REQUEST_RESPONSE,  () -> PreacceptSerializers.reply,           () -> ResponseVerbHandler.instance),
+    ACCORD_PREACCEPT_RSP   (121, P2, writeTimeout,    REQUEST_RESPONSE,  () -> PreacceptSerializers.reply,           () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
     ACCORD_PREACCEPT_REQ   (120, P2, writeTimeout,    MUTATION,          () -> PreacceptSerializers.request,         AccordService.instance::verbHandler,       ACCORD_PREACCEPT_RSP),
-    ACCORD_ACCEPT_RSP      (123, P2, writeTimeout,    REQUEST_RESPONSE,  () -> AcceptSerializers.reply,              () -> ResponseVerbHandler.instance),
+    ACCORD_ACCEPT_RSP      (123, P2, writeTimeout,    REQUEST_RESPONSE,  () -> AcceptSerializers.reply,              () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
     ACCORD_ACCEPT_REQ      (122, P2, writeTimeout,    MUTATION,          () -> AcceptSerializers.request,            AccordService.instance::verbHandler,       ACCORD_ACCEPT_RSP   ),
     ACCORD_COMMIT_REQ      (124, P2, writeTimeout,    MUTATION,          () -> CommitSerializer.request,             AccordService.instance::verbHandler),
     ACCORD_APPLY_REQ       (125, P2, writeTimeout,    MUTATION,          () -> ApplySerializer.request,              AccordService.instance::verbHandler),
-    ACCORD_READ_RSP        (127, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ReadDataSerializers.reply,            () -> ResponseVerbHandler.instance),
+    ACCORD_READ_RSP        (127, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ReadDataSerializers.reply,            () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
     ACCORD_READ_REQ        (126, P2, writeTimeout,    MUTATION,          () -> ReadDataSerializers.request,          AccordService.instance::verbHandler,       ACCORD_READ_RSP     ),
-    ACCORD_RECOVER_RSP     (129, P2, writeTimeout,    REQUEST_RESPONSE,  () -> RecoverySerializers.reply,            () -> ResponseVerbHandler.instance),
+    ACCORD_RECOVER_RSP     (129, P2, writeTimeout,    REQUEST_RESPONSE,  () -> RecoverySerializers.reply,            () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
     ACCORD_RECOVER_REQ     (128, P2, writeTimeout,    MUTATION,          () -> RecoverySerializers.request,          AccordService.instance::verbHandler,       ACCORD_RECOVER_RSP  ),
-    ACCORD_WAIT_COMMIT_RSP (131, P2, writeTimeout,    REQUEST_RESPONSE,  () -> WaitOnCommitSerializer.reply,         () -> ResponseVerbHandler.instance),
+    ACCORD_WAIT_COMMIT_RSP (131, P2, writeTimeout,    REQUEST_RESPONSE,  () -> WaitOnCommitSerializer.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
     ACCORD_WAIT_COMMIT_REQ (130, P2, writeTimeout,    MUTATION,          () -> WaitOnCommitSerializer.request,       AccordService.instance::verbHandler,       ACCORD_WAIT_COMMIT_RSP),
 
     // generic failure response
@@ -281,6 +282,12 @@ public enum Verb
     private final Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer;
     private final Supplier<? extends IVerbHandler<?>> handler;
 
+    /**
+     * Predicate used by the response verb handler to determine if more responses are expected for the given
+     * peer/id tuple. If no more are expected, the callback info is discarded.
+     */
+    private final Predicate<?> isFinalReply;
+
     public final Verb responseVerb;
 
     private final ToLongFunction<TimeUnit> expiration;
@@ -293,20 +300,30 @@ public enum Verb
      */
     Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler)
     {
-        this(id, priority, expiration, stage, serializer, handler, null);
+        this(NORMAL, id, priority, expiration, stage, serializer, handler, null, null);
+    }
+
+    Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Predicate<?> isFinalReply)
+    {
+        this(NORMAL, id, priority, expiration, stage, serializer, handler, null, isFinalReply);
     }
 
     Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
     {
-        this(NORMAL, id, priority, expiration, stage, serializer, handler, responseVerb);
+        this(NORMAL, id, priority, expiration, stage, serializer, handler, responseVerb, null);
     }
 
     Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler)
     {
-        this(kind, id, priority, expiration, stage, serializer, handler, null);
+        this(kind, id, priority, expiration, stage, serializer, handler, null, null);
     }
 
-    Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
+    Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Predicate<?> isFinalReply)
+    {
+        this(kind, id, priority, expiration, stage, serializer, handler, null, isFinalReply);
+    }
+
+    Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb, Predicate<?> isFinalReply)
     {
         this.stage = stage;
         if (id < 0)
@@ -330,6 +347,7 @@ public enum Verb
         this.responseVerb = responseVerb;
         this.expiration = expiration;
         this.kind = kind;
+        this.isFinalReply = isFinalReply != null ? isFinalReply : response -> true;
     }
 
     public <In, Out> IVersionedAsymmetricSerializer<In, Out> serializer()
@@ -340,6 +358,11 @@ public enum Verb
     public <T> IVerbHandler<T> handler()
     {
         return (IVerbHandler<T>) handler.get();
+    }
+
+    public <T> Predicate<T> isFinalReply()
+    {
+        return (Predicate<T>) isFinalReply;
     }
 
     public long expiresAtNanos(long nowNanos)

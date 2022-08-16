@@ -182,6 +182,11 @@ public class Message<T> implements ReplyContext
         return header.traceType();
     }
 
+    public boolean isFinalReply()
+    {
+        return verb().isFinalReply().test(payload);
+    }
+
     /*
      * request/response convenience
      */

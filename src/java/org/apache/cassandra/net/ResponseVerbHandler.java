@@ -26,7 +26,7 @@ import org.apache.cassandra.tracing.Tracing;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
-class ResponseVerbHandler implements IVerbHandler
+public class ResponseVerbHandler implements IVerbHandler
 {
     public static final ResponseVerbHandler instance = new ResponseVerbHandler();
 
@@ -35,7 +35,7 @@ class ResponseVerbHandler implements IVerbHandler
     @Override
     public void doVerb(Message message)
     {
-        RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
+        RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.getOrRemove(message);
         if (callbackInfo == null)
         {
             String msg = "Callback already removed for {} (from {})";

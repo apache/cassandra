@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.local.CommandStore;
 import accord.local.Node;
+import accord.messages.Reply;
 import accord.messages.Request;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -68,8 +69,19 @@ public class AccordService
         configService.createEpochFromConfig();
     }
 
+    public static boolean isFinalReply(Object reply)
+    {
+        return ((Reply) reply).isFinal();
+    }
+
     public static long nowInMicros()
     {
         return TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
+    }
+
+    @VisibleForTesting
+    AccordMessageSink messageSink()
+    {
+        return messageSink;
     }
 }
