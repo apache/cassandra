@@ -690,11 +690,13 @@ public abstract class CommitLogSegment
     /**
      * Change the current cdcState on this CommitLogSegment. There are some restrictions on state transitions and this
      * method is idempotent.
+     *
+     * @return the old cdc state
      */
-    public void setCDCState(CDCState newState)
+    public CDCState setCDCState(CDCState newState)
     {
         if (newState == cdcState)
-            return;
+            return cdcState;
 
         // Also synchronized in CDCSizeTracker.processNewSegment and .processDiscardedSegment
         synchronized(cdcStateLock)
@@ -706,7 +708,9 @@ public abstract class CommitLogSegment
             if (cdcState == CDCState.FORBIDDEN && newState != CDCState.PERMITTED)
                 throw new IllegalArgumentException("Only transition from FORBIDDEN to PERMITTED is allowed.");
 
+            CDCState oldState = cdcState;
             cdcState = newState;
+            return oldState;
         }
     }
 
