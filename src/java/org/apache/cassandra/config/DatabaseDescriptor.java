@@ -3629,15 +3629,15 @@ public class DatabaseDescriptor
         return conf.cdc_raw_directory;
     }
 
-    public static int getCDCSpaceInMiB()
+    public static long getCDCTotalSpace()
     {
-        return conf.cdc_total_space.toMebibytes();
+        return conf.cdc_total_space.toBytesInLong();
     }
 
     @VisibleForTesting
-    public static void setCDCSpaceInMiB(int input)
+    public static void setCDCTotalSpaceInMiB(int mibs)
     {
-        conf.cdc_total_space = new DataStorageSpec.IntMebibytesBound(input);
+        conf.cdc_total_space = new DataStorageSpec.IntMebibytesBound(mibs);
     }
 
     public static int getCDCDiskCheckInterval()
