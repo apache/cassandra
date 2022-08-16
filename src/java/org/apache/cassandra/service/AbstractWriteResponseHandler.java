@@ -125,7 +125,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         }
     }
 
-    public final long currentTimeoutNanos()
+    public long currentTimeoutNanos()
     {
         long requestTimeout = writeType == WriteType.COUNTER
                               ? DatabaseDescriptor.getCounterWriteRpcTimeout(NANOSECONDS)

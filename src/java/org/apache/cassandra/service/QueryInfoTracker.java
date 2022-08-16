@@ -18,11 +18,8 @@
 
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
 import java.util.Collection;
 import java.util.List;
-
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -35,21 +32,20 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.TableMetadata;
 
 /**
- * A tracker objects that can be registered against {@link StorageProxy} to be called back with information on executed
- * queries.
+ * A tracker notified about executed queries.
  *
- * <p>The goal of this interface is to provide to implementations enough information for it to accurately estimate how
- * much "work" a query has performed. So while for write this mostly just mean passing the generated mutations, for
- * reads this mean passing the unfiltered result of the query.
+ * <p>The goal of this interface is to provide enough information to accurately estimate how
+ * much "work" a query has performed. So while for writes this mostly just means passing the generated mutations, for
+ * reads this means passing the unfiltered result of the query.
  *
- * <p>The methods of this tracker are called from {@link StorageProxy} and are thus "coordinator level". As such, all
- * user writes or reads will trigger the call of one of these methods, as will internal distributed system table
- * queries, but internal local system table queries will not.
+ * <p>The tracker methods are called from {@link StorageProxy} and are thus "coordinator level". All
+ * user queries and internal distributed system table queries trigger a call to one of these methods.
+ * Internal local system table queries don't.
  *
- * <p>For writes, the {@link #onWrite} method is only called for the "user write", but if that write trigger either
- * secondary index or materialized views updates, those additional update do not trigger additional calls.
+ * <p>For writes, the {@link #onWrite} method is only called for the "user write", but if that write triggers either
+ * secondary index or materialized views updates, those additional updates do not trigger additional calls.
  *
- * <p>The methods of this tracker are called on hot path, so  they should be as lightweight as possible.
+ * <p>The tracker methods are called on write and read hot paths, so they should be as lightweight as possible.
  */
 public interface QueryInfoTracker
 {
@@ -197,10 +193,10 @@ public interface QueryInfoTracker
     interface ReadTracker extends Tracker
     {
         /**
-         * Calls just before queries are sent with the contacts from the replica plan.
+         * Called just before the queries are sent to the replica plan contacts.
          * Note that this callback method may be invoked more than once for a given read,
          * e.g. range quries spanning multiple partitions are internally issued as a
-         * number of subranges requests to different replicas (with different
+         * number of subrange requests to different replicas (with different
          * ReplicaPlans). This callback is called at least once for a given read.
          *
          * @param replicaPlan the queried nodes.

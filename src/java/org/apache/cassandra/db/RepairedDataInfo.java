@@ -37,7 +37,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 @NotThreadSafe
-class RepairedDataInfo
+public class RepairedDataInfo
 {
     public static final RepairedDataInfo NO_OP_REPAIRED_DATA_INFO = new RepairedDataInfo(null)
     {

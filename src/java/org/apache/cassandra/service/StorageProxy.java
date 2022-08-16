@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
@@ -160,6 +161,29 @@ public class StorageProxy implements StorageProxyMBean
     private static final WritePerformer counterWriteOnCoordinatorPerformer;
 
     public static final StorageProxy instance = new StorageProxy();
+
+    private static final Mutator mutator = MutatorProvider.instance;
+
+    static class DefaultMutator implements Mutator
+    {
+        @Override
+        public AbstractWriteResponseHandler<IMutation> mutateCounter(CounterMutation cm, String localDataCenter, long queryStartNanoTime)
+        {
+            return defaultMutateCounter(cm, localDataCenter, queryStartNanoTime);
+        }
+
+        @Override
+        public AbstractWriteResponseHandler<IMutation> mutateStandard(Mutation mutation, ConsistencyLevel consistencyLevel, String localDataCenter, WritePerformer standardWritePerformer, Runnable callback, WriteType writeType, long queryStartNanoTime)
+        {
+            return performWrite(mutation, consistencyLevel, localDataCenter, standardWritePerformer, callback, writeType, queryStartNanoTime);
+        }
+
+        @Override
+        public AbstractWriteResponseHandler<Commit> mutatePaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, long queryStartNanoTime)
+        {
+            return defaultCommitPaxos(proposal, consistencyLevel, allowHints, queryStartNanoTime);
+        }
+    }
 
     private static volatile int maxHintsInProgress = 128 * FBUtilities.getAvailableProcessors();
     private static final CacheLoader<InetAddressAndPort, AtomicInteger> hintsInProgress = new CacheLoader<InetAddressAndPort, AtomicInteger>()
@@ -744,7 +768,17 @@ public class StorageProxy implements StorageProxyMBean
         return false;
     }
 
+    @Nullable
     private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, long queryStartNanoTime) throws WriteTimeoutException
+    {
+        boolean shouldBlock = consistencyLevel != ConsistencyLevel.ANY;
+        AbstractWriteResponseHandler<Commit> responseHandler = mutator.mutatePaxos(proposal, consistencyLevel, allowHints, queryStartNanoTime);
+        if (shouldBlock && responseHandler != null)
+            responseHandler.get();
+    }
+
+    @Nullable
+    private static AbstractWriteResponseHandler<Commit> defaultCommitPaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, long queryStartNanoTime) throws WriteTimeoutException
     {
         boolean shouldBlock = consistencyLevel != ConsistencyLevel.ANY;
         Keyspace keyspace = Keyspace.open(proposal.update.metadata().keyspace);
@@ -793,8 +827,7 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
-        if (shouldBlock)
-            responseHandler.get();
+        return responseHandler;
     }
 
     /**
@@ -864,13 +897,13 @@ public class StorageProxy implements StorageProxyMBean
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, queryStartNanoTime));
                 else
-                    responseHandlers.add(performWrite(mutation, consistencyLevel, localDataCenter, standardWritePerformer, null, plainWriteType, queryStartNanoTime));
+                    responseHandlers.add(mutator.mutateStandard((Mutation)mutation, consistencyLevel, localDataCenter, standardWritePerformer, null, plainWriteType, queryStartNanoTime));
             }
 
             // upgrade to full quorum any failed cheap quorums
             for (int i = 0 ; i < mutations.size() ; ++i)
             {
-                if (!(mutations.get(i) instanceof CounterMutation)) // at the moment, only non-counter writes support cheap quorums
+                if (!(mutations.get(i) instanceof CounterMutation) && mutator instanceof DefaultMutator) // at the moment, only non-counter writes support cheap quorums
                     responseHandlers.get(i).maybeTryAdditionalReplicas(mutations.get(i), standardWritePerformer, localDataCenter);
             }
 
@@ -1654,6 +1687,11 @@ public class StorageProxy implements StorageProxyMBean
      * the write latencies at the coordinator node to make gathering point similar to the case of standard writes.
      */
     public static AbstractWriteResponseHandler<IMutation> mutateCounter(CounterMutation cm, String localDataCenter, long queryStartNanoTime) throws UnavailableException, OverloadedException
+    {
+        return mutator.mutateCounter(cm, localDataCenter, queryStartNanoTime);
+    }
+
+    private static AbstractWriteResponseHandler<IMutation> defaultMutateCounter(CounterMutation cm, String localDataCenter, long queryStartNanoTime) throws UnavailableException, OverloadedException
     {
         Replica replica = findSuitableReplica(cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
 
