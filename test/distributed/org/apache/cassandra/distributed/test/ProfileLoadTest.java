@@ -35,14 +35,12 @@ public class ProfileLoadTest extends TestBaseImpl
     @Test
     public void testScheduledSamplingTaskLogs() throws IOException
     {
-        try (Cluster cluster = init(Cluster.build(1)
-                                           .start()))
+        try (Cluster cluster = init(Cluster.build(1).start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck));"));
 
             // start the scheduled profileload task that samples for 1 second and every second.
-            cluster.get(1).nodetoolResult("profileload", "1000", "-i", "1000")
-                   .asserts().success();
+            cluster.get(1).nodetoolResult("profileload", "1000", "-i", "1000").asserts().success();
 
             Random rnd = new Random();
             // 800 * 2ms = 1.6 seconds. It logs every second. So it logs at least once.
@@ -53,16 +51,16 @@ public class ProfileLoadTest extends TestBaseImpl
                                 ConsistencyLevel.QUORUM, rnd.nextInt(), rnd.nextInt(), i);
                 Uninterruptibles.sleepUninterruptibly(2, TimeUnit.MILLISECONDS);
             }
-            // test --list should display all active tasks.
-            String expectedOutput = String.format("KEYSPACE TABLE%n" +
-                                                  "%8s %5s", "*", "*");
+            // --list should display all active tasks.
+            String expectedOutput = String.format("KEYSPACE TABLE%n" + "%8s %5s", "*", "*");
             cluster.get(1).nodetoolResult("profileload", "--list")
                    .asserts()
                    .success()
                    .stdoutContains(expectedOutput);
 
-            // loop assert the log to contain top frequencies
-            int timeout = 5;
+            // loop assert the log contains the frequency readout; give this 15 seconds which should be plenty of time
+            // even on very badly underprovisioned environments
+            int timeout = 15;
             boolean testPassed = false;
             while (timeout-- > 0)
             {
@@ -81,19 +79,18 @@ public class ProfileLoadTest extends TestBaseImpl
 
             List<String> startSamplingLogs = cluster.get(1)
                                                     .logs()
-                                                    .grep("Start to sample the tables")
+                                                    .grep("Starting to sample tables")
                                                     .getResult();
             Assert.assertTrue("It should start sampling at least once", startSamplingLogs.size() > 0);
 
             // stop the scheduled sampling
-            cluster.get(1).nodetoolResult("profileload", "--stop")
-                   .asserts().success();
+            cluster.get(1).nodetoolResult("profileload", "--stop").asserts().success();
+
             // wait for the last schedule to be stopped. --list should list nothing after stopping
-            assertListEmpty(cluster.get(1), 1500);
+            assertListEmpty(cluster.get(1));
 
             // schedule on the specific table
-            cluster.get(1).nodetoolResult("profileload", KEYSPACE, "tbl", "1000", "-i", "1000")
-                   .asserts().success();
+            cluster.get(1).nodetoolResult("profileload", KEYSPACE, "tbl", "1000", "-i", "1000").asserts().success();
             expectedOutput = String.format("%" + KEYSPACE.length() + "s %5s%n" +
                                            "%s %5s",
                                            "KEYSPACE", "TABLE",
@@ -105,39 +102,37 @@ public class ProfileLoadTest extends TestBaseImpl
             // stop all should stop the task scheduled with the specific table
             cluster.get(1).nodetoolResult("profileload", "--stop")
                    .asserts().success();
-            assertListEmpty(cluster.get(1), 1500);
+            assertListEmpty(cluster.get(1));
         }
     }
-
 
     @Test
     public void testPreventDuplicatedSchedule() throws IOException
     {
-        try (Cluster cluster = init(Cluster.build(1)
-                                           .start()))
+        try (Cluster cluster = init(Cluster.build(1).start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck));"));
 
-            // new sampling, we are good
+            // New sampling; we are good
             cluster.get(1).nodetoolResult("profileload", KEYSPACE, "tbl", "1000", "-i", "1000")
                    .asserts()
                    .success()
                    .stdoutNotContains("Unable to schedule sampling for keyspace");
 
-            // duplicated sampling (against the same table) but different interval. Nodetool should reject
+            // Duplicated sampling (against the same table) but different interval. Nodetool should reject
             cluster.get(1).nodetoolResult("profileload", KEYSPACE, "tbl", "1000", "-i", "1000")
                    .asserts()
                    .success()
                    .stdoutContains("Unable to schedule sampling for keyspace");
 
-            // the later sampling all request creates overlaps, so it should be rejected too.
+            // The "sampling all" request creates overlaps, so it should be rejected too
             cluster.get(1).nodetoolResult("profileload", "1000", "-i", "1000")
                    .asserts()
                    .success()
                    .stdoutContains("Unable to schedule sampling for keyspace");
 
             cluster.get(1).nodetoolResult("profileload", KEYSPACE, "tbl", "--stop").asserts().success();
-            assertListEmpty(cluster.get(1), 1500);
+            assertListEmpty(cluster.get(1));
 
             cluster.get(1).nodetoolResult("profileload", "nonexistks", "nonexisttbl", "--stop")
                    .asserts()
@@ -146,9 +141,9 @@ public class ProfileLoadTest extends TestBaseImpl
         }
     }
 
-    private void assertListEmpty(IInvokableInstance instance, long waitTimeMillis)
+    private void assertListEmpty(IInvokableInstance instance)
     {
-        Uninterruptibles.sleepUninterruptibly(waitTimeMillis, TimeUnit.MILLISECONDS);
+        Uninterruptibles.sleepUninterruptibly(1500, TimeUnit.MILLISECONDS);
         Assert.assertEquals("--list should list nothing",
                             "KEYSPACE TABLE\n",
                             instance.nodetoolResult("profileload", "--list").getStdout());

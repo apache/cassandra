@@ -107,7 +107,7 @@ public class TopPartitionsTest
 
         assertTrue("Existing scheduled sampling tasks should be cancellable", ss.stopSamplingPartitions(null, null));
 
-        int timeout = 3;
+        int timeout = 10;
         while (timeout-- > 0 && ss.getSampleTasks().size() > 0)
             Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
 

@@ -6027,7 +6027,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return result;
     }
 
-    @Override // ks and table are nullable
+    @Override // From parent javadoc: ks and table are nullable
     public boolean startSamplingPartitions(String ks, String table, int duration, int interval, int capacity, int count, List<String> samplers)
     {
         Preconditions.checkArgument(duration > 0, "Sampling duration %s must be positive.", duration);
@@ -6047,9 +6047,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Preconditions.checkArgument(!samplers.isEmpty(), "Samplers cannot be empty.");
 
         Set<Sampler.SamplerType> available = EnumSet.allOf(Sampler.SamplerType.class);
-        for (String sampler : samplers)
-            checkArgument(available.contains(Sampler.SamplerType.valueOf(sampler)),
-                          "'%s' sampler is not available from: %s", sampler, Arrays.toString(Sampler.SamplerType.values()));
+        samplers.forEach((x) -> checkArgument(available.contains(Sampler.SamplerType.valueOf(x)),
+                                              "'%s' sampler is not available from: %s",
+                                              x, Arrays.toString(Sampler.SamplerType.values())));
         return samplingManager.register(ks, table, duration, interval, capacity, count, samplers);
     }
 

@@ -22,11 +22,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
@@ -34,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 
@@ -44,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.tools.nodetool.ProfileLoad;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Pair;
 
@@ -53,13 +53,16 @@ public class SamplingManager
 
     /**
      * Tracks the active scheduled sampling tasks.
-     * The key of the map is a pair of keyspace and table. Both keyspace and table are nullable
+     * The key of the map is a {@link JobId}, which is effectively a keyspace + table abstracted behind some
+     * convenience so we can use them without peppering Pairs throughout this class. Both keyspace and table are nullable,
+     * a paradigm we inherit from {@link ProfileLoad} so need to manage here.
+     *
      * The value of the map is the current scheduled task
      */
-    private final ConcurrentHashMap<Pair<String, String>, Future<?>>
-    activeSamplingTasks = new ConcurrentHashMap<>();
-    // tasks to be cancelled
-    private final Set<Pair<String, String>> cancelingTasks = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<JobId, Future<?>> activeSamplingTasks = new ConcurrentHashMap<>();
+
+    /** Tasks that are actively being cancelled */
+    private final Set<JobId> cancelingTasks = ConcurrentHashMap.newKeySet();
 
     public static String formatResult(ResultBuilder resultBuilder)
     {
@@ -76,15 +79,17 @@ public class SamplingManager
 
     public static Iterable<ColumnFamilyStore> getTables(String ks, String table)
     {
-        // for all tables
+        // null KEYSPACE == all the tables
         if (ks == null)
             return ColumnFamilyStore.all();
 
         Keyspace keyspace = Keyspace.open(ks);
-        // for all tables under the `ks`
+
+        // KEYSPACE defined w/null table == all the tables on that KEYSPACE
         if (table == null)
             return keyspace.getColumnFamilyStores();
-        else // for a specific table
+        // Or we just have a specific ks+table combo we're looking to profile
+        else
             return Collections.singletonList(keyspace.getColumnFamilyStore(table));
     }
 
@@ -101,19 +106,19 @@ public class SamplingManager
      */
     public boolean register(String ks, String table, int duration, int interval, int capacity, int count, List<String> samplers)
     {
-        Pair<String, String> jobId = Pair.create(ks, table);
+        JobId jobId = new JobId(ks, table);
         logger.info("Registering samplers {} for {}", samplers, jobId);
 
         if (!canSchedule(jobId))
         {
-            logger.info("Unable to register {} due to existing samplings.", jobId);
+            logger.info("Unable to register {} due to existing ongoing sampling.", jobId);
             return false;
         }
 
-        // 'begin' always runs before 'finish'
-        Future<?> sf = ScheduledExecutors.optionalTasks
-        .submit(getSamplingBegin(jobId, getTables(ks, table), duration, interval, capacity, count, samplers));
-        activeSamplingTasks.put(jobId, sf);
+        // 'begin' tasks are chained to finish before their paired 'finish'
+        activeSamplingTasks.put(jobId, ScheduledExecutors.optionalTasks.submit(
+        createSamplingBeginRunnable(jobId, getTables(ks, table), duration, interval, capacity, count, samplers)
+        ));
         return true;
     }
 
@@ -124,7 +129,7 @@ public class SamplingManager
         if (ks == null && table == null)
         {
             boolean res = true;
-            for (Pair<String, String> id : activeSamplingTasks.keySet())
+            for (JobId id : activeSamplingTasks.keySet())
             {
                 res = cancelTask(id) & res;
             }
@@ -132,50 +137,50 @@ public class SamplingManager
         }
         else
         {
-            return cancelTask(Pair.create(ks, table));
+            return cancelTask(new JobId(ks, table));
         }
     }
 
     public List<String> allJobs()
     {
         return jobIds().stream()
-                       .map(this::formatJobId)
+                       .map(JobId::toString)
                        .collect(Collectors.toList());
     }
 
-    private Set<Pair<String, String>> jobIds()
+    private Set<JobId> jobIds()
     {
-        Enumeration<Pair<String, String>> keys = activeSamplingTasks.keys();
-        Set<Pair<String, String>> all = new HashSet<>();
-        while (keys.hasMoreElements())
-        {
-            all.add(keys.nextElement());
-        }
+        Set<JobId> all = new HashSet<>();
+        all.addAll(activeSamplingTasks.keySet());
         all.addAll(cancelingTasks);
         return all;
     }
 
-    // validate if a schedule on the ks and table can be permitted
-    // returns false, if there are overlapping tables already being sampled
-    private boolean canSchedule(Pair<String, String> jobId)
+    /**
+     * Validate if a schedule on the keyspace and table is permitted
+     * @param jobId
+     * @return true if possible, false if there are overlapping tables already being sampled
+     */
+    private boolean canSchedule(JobId jobId)
     {
-        Pair<String, String> sampleAll = Pair.create(null, null);
-        Set<Pair<String, String>> allJobIds = jobIds();
-        // there is a schedule that works on all tables. Overlapping guaranteed.
-        if (allJobIds.contains(sampleAll)
-            || (!allJobIds.isEmpty() && jobId.equals(sampleAll)))
+        Set<JobId> allJobIds = jobIds();
+        // There is a schedule that works on all tables. Overlapping guaranteed.
+        if (allJobIds.contains(JobId.ALL_KS_AND_TABLES) || (!allJobIds.isEmpty() && jobId.equals(JobId.ALL_KS_AND_TABLES)))
             return false;
-            // there is an exactly duplicated schedule
+        // there is an exactly duplicated schedule
         else if (allJobIds.contains(jobId))
             return false;
         else
             // make sure has no overlapping tables under the keyspace
-            return !allJobIds.contains(Pair.create(jobId.left, null));
+            return !allJobIds.contains(new JobId(jobId.keyspace, null));
     }
 
-    // Cancel a taks by its id. The corresponding task will be stopped once its finish sampling completes.
-    // Return true if the task exist.
-    private boolean cancelTask(Pair<String, String> jobId)
+    /**
+     * Cancel a task by its id. The corresponding task will be stopped once its final sampling completes.
+     * @param jobId
+     * @return true if the task exists, false if not found
+     */
+    private boolean cancelTask(JobId jobId)
     {
         Future<?> task = activeSamplingTasks.remove(jobId);
         if (task != null)
@@ -183,32 +188,23 @@ public class SamplingManager
         return task != null;
     }
 
-    private String formatJobId(Pair<String, String> jobId)
-    {
-        return wildCardMaybe(jobId.left) + '.' + wildCardMaybe(jobId.right);
-    }
-
-    private String wildCardMaybe(String input)
-    {
-        return input == null ? "*" : input;
-    }
-
-
-    // begin sampling and schedule a future task to finish sampling
-    private Runnable getSamplingBegin(Pair<String, String> jobId, Iterable<ColumnFamilyStore> tables, int duration, int interval, int capacity, int count, List<String> samplers)
+    /**
+     * Begin sampling and schedule a future task to end the sampling task
+     */
+    private Runnable createSamplingBeginRunnable(JobId jobId, Iterable<ColumnFamilyStore> tables, int duration, int interval, int capacity, int count, List<String> samplers)
     {
         return () ->
         {
             if (cancelingTasks.contains(jobId))
             {
-                logger.debug("The sampling job of {} has been cancelled. Not issuing a new run.", jobId);
+                logger.debug("The sampling job of {} is currently canceling. Not issuing a new run.", jobId);
                 activeSamplingTasks.remove(jobId);
                 return;
             }
             List<String> tableNames = StreamSupport.stream(tables.spliterator(), false)
                                                    .map(cfs -> String.format("%s.%s", cfs.keyspace, cfs.name))
                                                    .collect(Collectors.toList());
-            logger.info("Start to sample the tables {} with the samplers {} for {} ms", tableNames, samplers, duration);
+            logger.info("Starting to sample tables {} with the samplers {} for {} ms", tableNames, samplers, duration);
             for (String sampler : samplers)
             {
                 for (ColumnFamilyStore cfs : tables)
@@ -216,18 +212,24 @@ public class SamplingManager
                     cfs.beginLocalSampling(sampler, capacity, duration);
                 }
             }
-            Future<?> fut = ScheduledExecutors.optionalTasks
-            .schedule(getSamplingFinish(jobId, tables, duration, interval, capacity, count, samplers),
-                      interval,
-                      TimeUnit.MILLISECONDS);
+            Future<?> fut = ScheduledExecutors.optionalTasks.schedule(
+                createSamplingEndRunnable(jobId, tables, duration, interval, capacity, count, samplers),
+                interval,
+                TimeUnit.MILLISECONDS);
             // reached to the end of the current runnable
             // update the referenced future to SamplingFinish
             activeSamplingTasks.put(jobId, fut);
         };
     }
 
-    // finish the sampling and begin a new one right after
-    private Runnable getSamplingFinish(Pair<String, String> jobId, Iterable<ColumnFamilyStore> tables, int duration, int interval, int capacity, int count, List<String> samplers)
+    /**
+     * Finish the sampling and begin a new one immediately after.
+     *
+     * NOTE: Do not call this outside the context of {@link this#createSamplingBeginRunnable}, as we need to preserve
+     * ordering between a "start" and "end" runnable
+     * @return
+     */
+    private Runnable createSamplingEndRunnable(JobId jobId, Iterable<ColumnFamilyStore> tables, int duration, int interval, int capacity, int count, List<String> samplers)
     {
         return () ->
         {
@@ -243,7 +245,7 @@ public class SamplingManager
                     }
                     catch (OpenDataException e)
                     {
-                        logger.warn("Failed to retrive the sampled data. Abort the background sampling job: {}.", formatJobId(jobId), e);
+                        logger.warn("Failed to retrieve the sampled data. Abort the background sampling job: {}.", jobId, e);
                         activeSamplingTasks.remove(jobId);
                         cancelingTasks.remove(jobId);
                         return;
@@ -258,22 +260,68 @@ public class SamplingManager
             AtomicBoolean first = new AtomicBoolean(false);
             ResultBuilder rb = new ResultBuilder(first, results, samplers);
             logger.info(formatResult(rb));
+
+            // If nobody has canceled us, we ping-pong back to a "begin" runnable to run another profile load
             if (!cancelingTasks.contains(jobId))
             {
-                Future<?> fut = ScheduledExecutors.optionalTasks
-                .submit(getSamplingBegin(jobId, tables, duration, interval, capacity, count, samplers));
+                Future<?> fut = ScheduledExecutors.optionalTasks.submit(
+                    createSamplingBeginRunnable(jobId, tables, duration, interval, capacity, count, samplers));
                 activeSamplingTasks.put(jobId, fut);
             }
+            // If someone *has* canceled us, we need to remove the runnable from activeSampling and also remove the
+            // cancellation sentinel so subsequent re-submits of profiling don't get blocked immediately
             else
             {
                 logger.info("The sampling job {} has been cancelled.", jobId);
-                // When the finish sampling runnable (this one) is queued after canncelling,
-                // the activeSamplingTask could contain the jobId
                 activeSamplingTasks.remove(jobId);
                 cancelingTasks.remove(jobId);
             }
-
         };
+    }
+
+    private static class JobId
+    {
+        public static final JobId ALL_KS_AND_TABLES = new JobId(null, null);
+
+        public final String keyspace;
+        public final String table;
+
+        public JobId(String ks, String tb)
+        {
+            keyspace = ks;
+            table = tb;
+        }
+
+        public static JobId createForAllTables(String keyspace)
+        {
+            return new JobId(keyspace, null);
+        }
+
+        @Override
+        public String toString()
+        {
+            return maybeWildCard(keyspace) + '.' + maybeWildCard(table);
+        }
+
+        private String maybeWildCard(String input)
+        {
+            return input == null ? "*" : input;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            JobId jobId = (JobId) o;
+            return Objects.equals(keyspace, jobId.keyspace) && Objects.equals(table, jobId.table);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(keyspace, table);
+        }
     }
 
     public static class ResultBuilder

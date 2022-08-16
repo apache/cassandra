@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
-import static org.apache.commons.lang3.StringUtils.join;
-
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,22 +25,23 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
-
-import org.apache.cassandra.metrics.Sampler.SamplerType;
-import org.apache.cassandra.metrics.SamplingManager;
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.Lists;
 
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
+import org.apache.cassandra.metrics.Sampler.SamplerType;
+import org.apache.cassandra.metrics.SamplingManager;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.utils.Pair;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "profileload", description = "Low footprint profiling of activity for a period of time")
 public class ProfileLoad extends NodeToolCmd
@@ -84,9 +81,9 @@ public class ProfileLoad extends NodeToolCmd
         String table = null;
         int durationMillis = 10000;
         /* There are 3 possible outcomes after processing the args.
-         * - keyspace == null && table == null. It indicates to sample all tables
-         * - keyspace == KEYSPACE && table == *. It indicates to sample all tables under the specified KEYSPACE
-         * - keyspace = KEYSPACE && table == TABLE. It indicates to sample the table, KEYSPACE.TABLE
+         * - keyspace == null && table == null. We need to sample all tables
+         * - keyspace == KEYSPACE && table == *. We need to sample all tables under the specified KEYSPACE
+         * - keyspace = KEYSPACE && table == TABLE. Sample the specific KEYSPACE.table combination
          */
         if (args.size() == 3)
         {
