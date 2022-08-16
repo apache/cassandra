@@ -79,7 +79,12 @@ public class SamplerTest
                 return true;
             }
 
-            public void beginSampling(int capacity, int durationMillis)
+            public boolean isActive()
+            {
+                return true;
+            }
+
+            public void beginSampling(int capacity, long durationMillis)
             {
             }
 

@@ -69,6 +69,8 @@ import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+import org.apache.cassandra.metrics.Sampler;
+import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.snapshot.SnapshotLoader;
@@ -142,6 +144,7 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
@@ -224,6 +227,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private final SnapshotManager snapshotManager = new SnapshotManager();
 
     public static final StorageService instance = new StorageService();
+
+    private final SamplingManager samplingManager = new SamplingManager();
 
     @Deprecated
     public boolean isInShutdownHook()
@@ -5978,17 +5983,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return sampledKeys;
     }
 
+    @Override
+    public Map<String, List<CompositeData>> samplePartitions(int duration, int capacity, int count, List<String> samplers) throws OpenDataException {
+        return samplePartitions(null, duration, capacity, count, samplers);
+    }
+
     /*
      * { "sampler_name": [ {table: "", count: i, error: i, value: ""}, ... ] }
      */
     @Override
-    public Map<String, List<CompositeData>> samplePartitions(int durationMillis, int capacity, int count,
-            List<String> samplers) throws OpenDataException
+    public Map<String, List<CompositeData>> samplePartitions(String keyspace, int durationMillis, int capacity, int count,
+                                                             List<String> samplers) throws OpenDataException
     {
         ConcurrentHashMap<String, List<CompositeData>> result = new ConcurrentHashMap<>();
+        Iterable<ColumnFamilyStore> tables = SamplingManager.getTables(keyspace, null);
         for (String sampler : samplers)
         {
-            for (ColumnFamilyStore table : ColumnFamilyStore.all())
+            for (ColumnFamilyStore table : tables)
             {
                 table.beginLocalSampling(sampler, capacity, durationMillis);
             }
@@ -5998,7 +6009,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (String sampler : samplers)
         {
             List<CompositeData> topk = new ArrayList<>();
-            for (ColumnFamilyStore table : ColumnFamilyStore.all())
+            for (ColumnFamilyStore table : tables)
             {
                 topk.addAll(table.finishLocalSampling(sampler, count));
             }
@@ -6014,6 +6025,44 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             result.put(sampler, topk);
         }
         return result;
+    }
+
+    @Override // Note from parent javadoc: ks and table are nullable
+    public boolean startSamplingPartitions(String ks, String table, int duration, int interval, int capacity, int count, List<String> samplers)
+    {
+        Preconditions.checkArgument(duration > 0, "Sampling duration %s must be positive.", duration);
+
+        Preconditions.checkArgument(interval <= 0 || interval >= duration,
+                                    "Sampling interval %s should be greater then or equals to duration %s if defined.",
+                                    interval, duration);
+
+        Preconditions.checkArgument(capacity > 0 && capacity <= 1024,
+                                    "Sampling capacity %s must be positive and the max value is 1024 (inclusive).",
+                                    capacity);
+
+        Preconditions.checkArgument(count > 0 && count < capacity,
+                                    "Sampling count %s must be positive and smaller than capacity %s.",
+                                    count, capacity);
+
+        Preconditions.checkArgument(!samplers.isEmpty(), "Samplers cannot be empty.");
+
+        Set<Sampler.SamplerType> available = EnumSet.allOf(Sampler.SamplerType.class);
+        samplers.forEach((x) -> checkArgument(available.contains(Sampler.SamplerType.valueOf(x)),
+                                              "'%s' sampler is not available from: %s",
+                                              x, Arrays.toString(Sampler.SamplerType.values())));
+        return samplingManager.register(ks, table, duration, interval, capacity, count, samplers);
+    }
+
+    @Override
+    public boolean stopSamplingPartitions(String ks, String table)
+    {
+        return samplingManager.unregister(ks, table);
+    }
+
+    @Override
+    public List<String> getSampleTasks()
+    {
+        return samplingManager.allJobs();
     }
 
     public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)

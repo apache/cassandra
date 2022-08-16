@@ -795,6 +795,36 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public Map<String, List<CompositeData>> samplePartitions(int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
 
+    public Map<String, List<CompositeData>> samplePartitions(String keyspace, int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
+
+    /**
+     * Start a scheduled sampling
+     * @param ks Keyspace. Nullable. If null, the scheduled sampling is on all keyspaces and tables
+     * @param table Nullable. If null, the scheduled sampling is on all tables of the specified keyspace
+     * @param duration Duration of each scheduled sampling job in milliseconds
+     * @param interval Interval of each scheduled sampling job in milliseconds
+     * @param capacity Capacity of the sampler, higher for more accuracy
+     * @param count Number of the top samples to list
+     * @param samplers a list of samplers to enable
+     * @return true if the scheduled sampling is started successfully. Otherwise return false
+     */
+    public boolean startSamplingPartitions(String ks, String table, int duration, int interval, int capacity, int count, List<String> samplers) throws OpenDataException;
+
+    /**
+     * Stop a scheduled sampling
+     * @param ks Keyspace. Nullable. If null, the scheduled sampling is on all keysapces and tables
+     * @param table Nullable. If null, the scheduled sampling is on all tables of the specified keyspace
+     * @return true if the scheduled sampling is stopped. False is returned if the sampling task is not found
+     */
+    public boolean stopSamplingPartitions(String ks, String table) throws OpenDataException;
+
+    /**
+     * @return a list of qualified table names that have active scheduled sampling tasks. The format of the name is `KEYSPACE.TABLE`
+     * The wild card symbol (*) indicates all keyspace/table. For example, "*.*" indicates all tables in all keyspaces. "foo.*" indicates
+     * all tables under keyspace 'foo'. "foo.bar" indicates the scheduled sampling is enabled for the table 'bar'
+     */
+    public List<String> getSampleTasks();
+
     /**
      * Returns the configured tracing probability.
      */

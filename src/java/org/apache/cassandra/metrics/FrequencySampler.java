@@ -33,33 +33,31 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * <p>add("x", 10); and add("x", 20); will result in "x" = 30</p> This uses StreamSummary to only store the
  * approximate cardinality (capacity) of keys. If the number of distinct keys exceed the capacity, the error of the
  * sample may increase depending on distribution of keys among the total set.
+ *
+ * Note: {@link Sampler#samplerExecutor} is single threaded but we still need to synchronize as we have access
+ * from both internal and the external JMX context that can cause races.
  * 
  * @param <T>
  */
 public abstract class FrequencySampler<T> extends Sampler<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(FrequencySampler.class);
-    private long endTimeNanos = -1;
 
     private StreamSummary<T> summary;
 
     /**
      * Start to record samples
      *
-     * @param capacity
-     *            Number of sample items to keep in memory, the lower this is
-     *            the less accurate results are. For best results use value
-     *            close to cardinality, but understand the memory trade offs.
+     * @param capacity Number of sample items to keep in memory, the lower this is
+     *                 the less accurate results are. For best results use value
+     *                 close to cardinality, but understand the memory trade offs.
      */
-    public synchronized void beginSampling(int capacity, int durationMillis)
+    public synchronized void beginSampling(int capacity, long durationMillis)
     {
-        if (endTimeNanos == -1 || clock.now() > endTimeNanos)
-        {
-            summary = new StreamSummary<>(capacity);
-            endTimeNanos = clock.now() + MILLISECONDS.toNanos(durationMillis);
-        }
-        else
+        if (isActive())
             throw new RuntimeException("Sampling already in progress");
+        updateEndTime(clock.now() + MILLISECONDS.toNanos(durationMillis));
+        summary = new StreamSummary<>(capacity);
     }
 
     /**
@@ -69,12 +67,12 @@ public abstract class FrequencySampler<T> extends Sampler<T>
     public synchronized List<Sample<T>> finishSampling(int count)
     {
         List<Sample<T>> results = Collections.emptyList();
-        if (endTimeNanos != -1)
+        if (isEnabled())
         {
-            endTimeNanos = -1;
+            disable();
             results = summary.topK(count)
                              .stream()
-                             .map(c -> new Sample<T>(c.getItem(), c.getCount(), c.getError()))
+                             .map(c -> new Sample<>(c.getItem(), c.getCount(), c.getError()))
                              .collect(Collectors.toList());
         }
         return results;
@@ -82,24 +80,16 @@ public abstract class FrequencySampler<T> extends Sampler<T>
 
     protected synchronized void insert(final T item, final long value)
     {
-        // samplerExecutor is single threaded but still need
-        // synchronization against jmx calls to finishSampling
-        if (value > 0 && clock.now() <= endTimeNanos)
+        if (value > 0 && isActive())
         {
             try
             {
                 summary.offer(item, (int) Math.min(value, Integer.MAX_VALUE));
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 logger.trace("Failure to offer sample", e);
             }
         }
     }
-
-    public boolean isEnabled()
-    {
-        return endTimeNanos != -1 && clock.now() <= endTimeNanos;
-    }
-
 }
-
