@@ -113,37 +113,41 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         long timeoutNanos = currentTimeoutNanos();
 
-        boolean success;
+        boolean signaled;
         try
         {
-            success = condition.await(timeoutNanos, NANOSECONDS);
+            signaled = condition.await(timeoutNanos, NANOSECONDS);
         }
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
         }
 
-        if (!success)
-        {
-            int blockedFor = blockFor();
-            int acks = ackCount();
-            // It's pretty unlikely, but we can race between exiting await above and here, so
-            // that we could now have enough acks. In that case, we "lie" on the acks count to
-            // avoid sending confusing info to the user (see CASSANDRA-6491).
-            if (acks >= blockedFor)
-                acks = blockedFor - 1;
-            throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
-        }
+        if (!signaled)
+            throwTimeout();
 
         if (blockFor() + failures > candidateReplicaCount())
         {
             // is it actually a timeout?
             long numTimeout = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
-            if (blockFor() + numTimeout > candidateReplicaCount())
-                throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), ackCount(), blockFor());
+            long nonTimeout = failures - numTimeout;
+            if (nonTimeout <= numTimeout)
+                throwTimeout();
 
             throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, failureReasonByEndpoint);
         }
+    }
+
+    private void throwTimeout()
+    {
+        int blockedFor = blockFor();
+        int acks = ackCount();
+        // It's pretty unlikely, but we can race between exiting await above and here, so
+        // that we could now have enough acks. In that case, we "lie" on the acks count to
+        // avoid sending confusing info to the user (see CASSANDRA-6491).
+        if (acks >= blockedFor)
+            acks = blockedFor - 1;
+        throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
     }
 
     public final long currentTimeoutNanos()
