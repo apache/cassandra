@@ -57,8 +57,6 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 public abstract class CommitLogSegment
 {
-    private final static long idBase;
-
     private CDCState cdcState = CDCState.PERMITTED;
     public enum CDCState
     {
@@ -67,19 +65,6 @@ public abstract class CommitLogSegment
         CONTAINS
     }
     Object cdcStateLock = new Object();
-
-    private final static AtomicInteger nextId = new AtomicInteger(1);
-    private static long replayLimitId;
-    static
-    {
-        long maxId = Long.MIN_VALUE;
-        for (File file : DatabaseDescriptor.getCommitLogLocation().tryList())
-        {
-            if (CommitLogDescriptor.isValid(file.name()))
-                maxId = Math.max(CommitLogDescriptor.fromFileName(file.name()).id, maxId);
-        }
-        replayLimitId = idBase = Math.max(System.currentTimeMillis(), maxId + 1);
-    }
 
     // The commit log entry overhead in bytes (int: length + int: head checksum + int: tail checksum)
     public static final int ENTRY_OVERHEAD_SIZE = 4 + 4 + 4;
@@ -157,10 +142,6 @@ public abstract class CommitLogSegment
         return config.useEncryption() || config.useCompression();
     }
 
-    static long getNextId()
-    {
-        return idBase + nextId.getAndIncrement();
-    }
 
     /**
      * Constructs a new segment file.
@@ -169,7 +150,7 @@ public abstract class CommitLogSegment
     {
         this.manager = manager;
 
-        id = getNextId();
+        id = manager.getNextId();
         descriptor = new CommitLogDescriptor(id,
                                              commitLog.configuration.getCompressorClass(),
                                              commitLog.configuration.getEncryptionContext());
@@ -243,19 +224,6 @@ public abstract class CommitLogSegment
             opGroup.close();
             throw t;
         }
-    }
-
-    static boolean shouldReplay(String name)
-    {
-        return CommitLogDescriptor.fromFileName(name).id < replayLimitId;
-    }
-
-    /**
-     * FOR TESTING PURPOSES.
-     */
-    static void resetReplayLimit()
-    {
-        replayLimitId = getNextId();
     }
 
     // allocate bytes in the segment, or return -1 if not enough space

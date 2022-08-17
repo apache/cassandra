@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.mockito.Mockito;
 
@@ -53,7 +54,7 @@ public class CommitLogApiTest
     public void testForPath()
     {
         AbstractCommitLogSegmentManager original = CommitLog.instance.getSegmentManager();
-        File location = Mockito.mock(File.class);
+        File location = FileUtils.getTempDir();
         CommitLog.instance.forPath(location);
         Assert.assertNotEquals(original, CommitLog.instance.getSegmentManager());
         Assert.assertEquals(location, CommitLog.instance.getSegmentManager().storageDirectory);
