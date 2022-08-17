@@ -186,3 +186,6 @@
 # * CAP_NOWARN: same as previous, except that the client warning will not be emitted.
 #
 #-Dcassandra.expiration_date_overflow_policy=REJECT
+#
+-Dpmem_path=/mnt/mem/persistent_pool
+-Dpool_size=15032385536

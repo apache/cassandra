@@ -108,6 +108,8 @@ public abstract class AbstractMemtable implements Memtable
         return statsCollector.get();
     }
 
+    public void performGarbageCollect() { }
+
     protected static class ColumnsCollector
     {
         private final HashMap<ColumnMetadata, AtomicBoolean> predefined = new HashMap<>();

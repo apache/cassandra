@@ -1719,6 +1719,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, int jobs) throws ExecutionException, InterruptedException
     {
+	 if (memtableWritesAreDurable())
+        {
+            Memtable current = getTracker().getView().getCurrentMemtable();
+            if (!current.isClean())
+            {
+                current.performGarbageCollect();
+            }
+        }
+
         return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
     }
 

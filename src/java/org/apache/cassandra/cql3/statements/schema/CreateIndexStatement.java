@@ -45,6 +45,7 @@ import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
+import org.apache.cassandra.db.memtable.PersistentMemoryMemtable;
 
 public final class CreateIndexStatement extends AlterSchemaStatement
 {
@@ -55,6 +56,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
 
     private ClientState state;
+    private TableMetadata table;
+
 
     public CreateIndexStatement(String keyspaceName,
                                 String tableName,
@@ -93,7 +96,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
 
-        TableMetadata table = keyspace.getTableOrViewNullable(tableName);
+        table = keyspace.getTableOrViewNullable(tableName);
         if (null == table)
             throw ire("Table '%s' doesn't exist", tableName);
 
@@ -167,6 +170,9 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        if (table != null && attrs.isCustom && table.params.memtable.factory() instanceof PersistentMemoryMemtable.Factory)
+            return ImmutableSet.of("CUSTOM indexes aren't supported for 'PersistentMemoryMemtable'");
+
         if (attrs.isCustom && attrs.customClass.equals(SASIIndex.class.getName()))
             return ImmutableSet.of(SASIIndex.USAGE_WARNING);
 
