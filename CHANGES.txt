@@ -1,4 +1,5 @@
 4.2
+ * Protect against Gossip backing up due to a quarantined endpoint without version information (CASSANDRA-17830)
  * Add guardrail for column size (CASSANDRA-17151)
  * When doing a host replacement, we need to check that the node is a live node before failing with "Cannot replace a live node..." (CASSANDRA-17805)
  * Add support to generate a One-Shot heap dump on unhandled exceptions (CASSANDRA-17795)
