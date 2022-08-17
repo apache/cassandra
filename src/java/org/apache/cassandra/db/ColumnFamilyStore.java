@@ -403,11 +403,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         indexManager.reload();
 
         memtableFactory = metadata().params.memtable.factory;
-        Memtable currentMemtable = data.getView().getCurrentMemtable();
-        if (currentMemtable.shouldSwitch(FlushReason.SCHEMA_CHANGE))
-            switchMemtableIfCurrent(currentMemtable, FlushReason.SCHEMA_CHANGE);
-        else
-            currentMemtable.metadataUpdated();
+        if (!data.getView().liveMemtables.isEmpty())
+        {
+            Memtable currentMemtable = data.getView().getCurrentMemtable();
+            if (currentMemtable.shouldSwitch(FlushReason.SCHEMA_CHANGE))
+                switchMemtableIfCurrent(currentMemtable, FlushReason.SCHEMA_CHANGE);
+            else
+                currentMemtable.metadataUpdated();
+        }
     }
 
     /**
@@ -3325,7 +3328,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (DatabaseDescriptor.isAutoSnapshot())
             snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
 
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        if (getTracker().isDummy())
+        {
+            // offline services (e.g. standalone compactor) don't have Memtables or CommitLog. An attempt to flush would
+            // throw an exception
+            logger.debug("Memtables and CommitLog are disabled; not recycling or flushing {}", metadata);
+        }
+        else
+        {
+            logger.debug("Recycling CL segments for dropping {}", metadata);
+            CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        }
 
         strategyContainer.shutdown();
 

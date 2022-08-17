@@ -421,7 +421,10 @@ public class Keyspace
     // disassociate a cfs from this keyspace instance.
     private void unloadCf(ColumnFamilyStore cfs, boolean dropData)
     {
-        cfs.unloadCf();
+        // offline services (e.g. standalone compactor) don't have Memtables or CommitLog. An attempt to flush would
+        // throw an exception
+        if (!cfs.getTracker().isDummy())
+            cfs.unloadCf();
         cfs.invalidate(true, dropData);
     }
 
