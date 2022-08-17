@@ -205,11 +205,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return epStates.isEmpty() || epStates.keySet().equals(Collections.singleton(FBUtilities.getBroadcastAddressAndPort()));
     }
 
+    private static final ExpiringMemoizingSupplier.Memoized<CassandraVersion> NO_UPGRADE_IN_PROGRESS = new ExpiringMemoizingSupplier.Memoized<>(null);
+    private static final ExpiringMemoizingSupplier.NotMemoized<CassandraVersion> CURRENT_NODE_VERSION = new ExpiringMemoizingSupplier.NotMemoized<>(SystemKeyspace.CURRENT_VERSION);
     final Supplier<ExpiringMemoizingSupplier.ReturnValue<CassandraVersion>> upgradeFromVersionSupplier = () ->
     {
         // Once there are no prior version nodes we don't need to keep rechecking
         if (!upgradeInProgressPossible)
-            return new ExpiringMemoizingSupplier.Memoized<>(null);
+            return NO_UPGRADE_IN_PROGRESS;
 
         CassandraVersion minVersion = SystemKeyspace.CURRENT_VERSION;
 
@@ -218,14 +220,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // If we don't know any epstate we don't know anything about the cluster.
         // If we only know about ourselves, we can assume that version is CURRENT_VERSION
         if (!isEnabled() || isLoneNode(endpointStateMap))
-        {
-            return new ExpiringMemoizingSupplier.NotMemoized<>(minVersion);
-        }
+            return CURRENT_NODE_VERSION;
 
         // Check the release version of all the peers it heard of. Not necessary the peer that it has/had contacted with.
         boolean allHostsHaveKnownVersion = true;
         for (InetAddressAndPort host : endpointStateMap.keySet())
         {
+            if (justRemovedEndpoints.containsKey(host))
+                continue;
+
             CassandraVersion version = getReleaseVersion(host);
 
             //Raced with changes to gossip state, wait until next iteration
@@ -242,7 +245,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return new ExpiringMemoizingSupplier.NotMemoized<>(minVersion);
 
         upgradeInProgressPossible = false;
-        return new ExpiringMemoizingSupplier.Memoized<>(null);
+        return NO_UPGRADE_IN_PROGRESS;
     };
 
     private final Supplier<CassandraVersion> upgradeFromVersionMemoized = ExpiringMemoizingSupplier.memoizeWithExpiration(upgradeFromVersionSupplier, 1, TimeUnit.MINUTES);
@@ -1548,6 +1551,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         checkProperThreadForStateMutation();
+        boolean hasMajorVersion3Nodes = hasMajorVersion3Nodes();
         for (Entry<InetAddressAndPort, EndpointState> entry : order(epStateMap))
         {
             InetAddressAndPort ep = entry.getKey();
@@ -1562,7 +1566,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
             EndpointState remoteState = entry.getValue();
-            if (!hasMajorVersion3Nodes())
+            if (!hasMajorVersion3Nodes)
                 remoteState.removeMajorVersion3LegacyApplicationStates();
 
             /*
@@ -1598,7 +1602,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     if (remoteMaxVersion > localMaxVersion)
                     {
                         // apply states, but do not notify since there is no major change
-                        applyNewStates(ep, localEpStatePtr, remoteState);
+                        applyNewStates(ep, localEpStatePtr, remoteState, hasMajorVersion3Nodes);
                     }
                     else if (logger.isTraceEnabled())
                             logger.trace("Ignoring remote version {} <= {} for {}", remoteMaxVersion, localMaxVersion, ep);
@@ -1621,7 +1625,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
-    private void applyNewStates(InetAddressAndPort addr, EndpointState localState, EndpointState remoteState)
+    private void applyNewStates(InetAddressAndPort addr, EndpointState localState, EndpointState remoteState, boolean hasMajorVersion3Nodes)
     {
         // don't assert here, since if the node restarts the version will go back to zero
         int oldVersion = localState.getHeartBeatState().getHeartBeatVersion();
@@ -1650,7 +1654,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         localState.addApplicationStates(updatedStates);
 
         // get rid of legacy fields once the cluster is not in mixed mode
-        if (!hasMajorVersion3Nodes())
+        if (!hasMajorVersion3Nodes)
             localState.removeMajorVersion3LegacyApplicationStates();
 
         // need to run STATUS or STATUS_WITH_PORT first to handle BOOT_REPLACE correctly (else won't be a member, so TOKENS won't be processed)
