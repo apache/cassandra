@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -46,7 +47,7 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
     private final int responseCount;
     protected final AtomicInteger responses = new AtomicInteger(0);
     private final long start;
-    private volatile InetAddress truncateFailingReplica;
+    private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
 
     public TruncateResponseHandler(int responseCount)
     {
@@ -61,24 +62,36 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
     public void get() throws TimeoutException
     {
         long timeoutNanos = getTruncateRpcTimeout(NANOSECONDS) - (nanoTime() - start);
-        boolean completedInTime;
+        boolean signaled;
         try
         {
-            completedInTime = condition.await(timeoutNanos, NANOSECONDS); // TODO truncate needs a much longer timeout
+            signaled = condition.await(timeoutNanos, NANOSECONDS); // TODO truncate needs a much longer timeout
         }
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
         }
 
-        if (!completedInTime)
-        {
+        if (!signaled)
             throw new TimeoutException("Truncate timed out - received only " + responses.get() + " responses");
-        }
 
-        if (truncateFailingReplica != null)
+        if (!failureReasonByEndpoint.isEmpty())
         {
-            throw new TruncateException("Truncate failed on replica " + truncateFailingReplica);
+            int size = failureReasonByEndpoint.size();
+            long timeouts = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
+            long nonTimeout = size - timeouts;
+            if (nonTimeout <= timeouts)
+            {
+                throw new TimeoutException("Truncate timed out - received only " + responses.get() + " responses");
+            }
+            else
+            {
+                StringBuilder sb = new StringBuilder("Truncate failed on replicas ");
+                for (Map.Entry<InetAddressAndPort, RequestFailureReason> e : failureReasonByEndpoint.entrySet())
+                    sb.append(e.getKey()).append(' ').append(e.getValue()).append(", ");
+                sb.setLength(sb.length() - 2);
+                throw new TruncateException(sb.toString());
+            }
         }
     }
 
@@ -94,7 +107,7 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
         // If the truncation hasn't succeeded on some replica, abort and indicate this back to the client.
-        truncateFailingReplica = from.getAddress();
+        failureReasonByEndpoint.put(from, failureReason);
         condition.signalAll();
     }
 
