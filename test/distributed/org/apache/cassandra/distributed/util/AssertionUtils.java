@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.distributed.util;
 
+import com.google.common.base.Throwables;
+
 import org.assertj.core.api.Condition;
 
 public class AssertionUtils
@@ -75,5 +77,32 @@ public class AssertionUtils
                 return name;
             }
         };
+    }
+
+    public static Condition<Throwable> rootCause(Condition<Throwable> other)
+    {
+        return new Condition<Throwable>() {
+            @Override
+            public boolean matches(Throwable value)
+            {
+                return other.matches(Throwables.getRootCause(value));
+            }
+
+            @Override
+            public String toString()
+            {
+                return "Root cause " + other;
+            }
+        };
+    }
+
+    public static Condition<Throwable> rootCauseIs(Class<?> klass)
+    {
+        return rootCause(is(klass));
+    }
+
+    public static Condition<Throwable> rootCauseIsInstanceof(Class<?> klass)
+    {
+        return rootCause(isInstanceof(klass));
     }
 }
