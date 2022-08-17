@@ -855,7 +855,7 @@
         <dependency groupId="io.netty" artifactId="netty-tcnative-boringssl-static"/>
         <dependency groupId="javax.inject" artifactId="javax.inject"/>
         <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations"/>
-	    <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
+        <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
         <dependency groupId="com.intel.pmem" artifactId="llpl" version="1.2.1-release" />
 
         <!-- sasi deps -->
@@ -1068,7 +1068,7 @@
             <src path="${simulator-asm.build.src}" />
             <classpath>
                 <fileset dir="${test.lib}">
-                     <include name="**/asm-*${asm.version}.jar" /> 
+                     <include name="**/asm-*${asm.version}.jar" />
                 </fileset>
                 <fileset dir="${build.lib}">
                      <include name="**/asm-*${asm.version}.jar" />
@@ -1493,10 +1493,10 @@
         <jvmarg line="-javaagent:${build.lib}/jamm-${jamm.version}.jar ${additionalagent}" />
         <jvmarg value="-ea"/>
         <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
-	    <jvmarg value="-Dcassandra.debugrefcount=true"/>
-	    <jvmarg value="-Xss512m"/>
+        <jvmarg value="-Dcassandra.debugrefcount=true"/>
+        <jvmarg value="-Xss512m"/>
         <jvmarg value="-Dpmem_path=/mnt/mem/persistent_pool" />
-        <jvmarg value="-Dpool_size=932385536" />
+        <jvmarg value="-Dpool_size=132385536" />
         <!-- When we do classloader manipulation SoftReferences can cause memory leaks
              that can OOM our test runs. The next two settings informs our GC
              algorithm to limit the metaspace size and clean up SoftReferences
@@ -1798,8 +1798,8 @@
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
-	    <jvmarg value="-ea"/>
-	    <jvmarg value="-Xss512m"/>
+        <jvmarg value="-ea"/>
+        <jvmarg value="-Xss512m"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
