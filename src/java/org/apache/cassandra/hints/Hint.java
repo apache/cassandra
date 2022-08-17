@@ -93,7 +93,7 @@ public final class Hint
     /**
      * Applies the contained mutation unless it's expired, filtering out any updates for truncated tables
      */
-    CompletableFuture<?> applyFuture()
+    public CompletableFuture<?> applyFuture()
     {
         if (isLive())
         {
@@ -120,6 +120,14 @@ public final class Hint
         {
             throw Throwables.propagate(e.getCause());
         }
+    }
+
+    /**
+     * @return the mutation stored in the hint
+     */
+    public Mutation mutation()
+    {
+        return mutation;
     }
 
     /**

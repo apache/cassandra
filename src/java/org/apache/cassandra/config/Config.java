@@ -102,6 +102,8 @@ public class Config
 
     public volatile long write_request_timeout_in_ms = 2000L;
 
+    public volatile long hints_request_timeout_in_ms = 2000L;
+
     public volatile long counter_write_request_timeout_in_ms = 5000L;
 
     public volatile long cas_contention_timeout_in_ms = 1000L;
@@ -319,6 +321,7 @@ public class Config
     public int max_hints_delivery_threads = 2;
     public int hints_flush_period_in_ms = 10000;
     public int max_hints_file_size_in_mb = 128;
+    public int max_total_hints_size_in_mb = -1; // negative value means unlimited
     public ParameterizedClass hints_compression;
 
     public volatile boolean incremental_backups = false;

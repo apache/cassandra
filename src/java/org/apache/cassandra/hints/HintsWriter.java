@@ -118,6 +118,8 @@ class HintsWriter implements AutoCloseable
         perform(file, Throwables.FileOpType.WRITE, this::doFsync, channel::close);
 
         writeChecksum();
+
+        descriptor.setDataSize(file.length());
     }
 
     public void fsync()

@@ -179,7 +179,7 @@ public class HintsBufferTest
         int idx = (int) (hint.creationTime - baseTimestamp);
         assertEquals(hostId, load[idx]);
 
-        Row row = hint.mutation.getPartitionUpdates().iterator().next().iterator().next();
+        Row row = hint.mutation().getPartitionUpdates().iterator().next().iterator().next();
         assertEquals(1, Iterables.size(row.cells()));
 
         ValueAccessors.assertDataEquals(bytes(idx), row.clustering().get(0));

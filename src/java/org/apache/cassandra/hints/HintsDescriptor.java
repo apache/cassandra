@@ -46,6 +46,7 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.EncryptionContext;
@@ -81,6 +82,10 @@ final class HintsDescriptor
 
     final ImmutableMap<String, Object> parameters;
     final ParameterizedClass compressionConfig;
+
+    // It's set when HintsWriter closed for new hint file or
+    // when descriptor is deserialized from local hint file.
+    private volatile long dataSize = 0;
 
     private final Cipher cipher;
     private final ICompressor compressor;
@@ -186,6 +191,16 @@ final class HintsDescriptor
         }
     }
 
+    public void setDataSize(long length)
+    {
+        this.dataSize = length;
+    }
+
+    public long getDataSize()
+    {
+        return dataSize;
+    }
+
     private static final class EncryptionData
     {
         final Cipher cipher;
@@ -239,7 +254,9 @@ final class HintsDescriptor
     {
         try (FileInputStreamPlus raf = new FileInputStreamPlus(path))
         {
-            return Optional.of(deserialize(raf));
+            HintsDescriptor descriptor = deserialize(raf);
+            descriptor.setDataSize(FileUtils.size(path));
+            return Optional.of(descriptor);
         }
         catch (ChecksumMismatchException e)
         {
@@ -280,7 +297,9 @@ final class HintsDescriptor
     {
         try (FileInputStreamPlus raf = new FileInputStreamPlus(path))
         {
-            return deserialize(raf);
+            HintsDescriptor descriptor = deserialize(raf);
+            descriptor.setDataSize(path.length());
+            return descriptor;
         }
         catch (IOException e)
         {
