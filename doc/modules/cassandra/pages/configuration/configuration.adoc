@@ -15,6 +15,15 @@ Three big things happened as part of https://issues.apache.org/jira/browse/CASSA
 
 The community has decided to allow operators to specify units for Cassandra parameters of types duration, data storage, and data rate.
 All parameters which had a particular unit (most of the time added as a suffix to their name) can be now set by using the format [value][unit]. The unit suffix has been removed from their names.
+Supported units:
+[cols=",",options="header",]
+|===
+|Parameter Type |Units Supported
+|Duration | d, h, m, s, ms, us, µs, ns
+|Data Storage | B, KiB, MiB, GiB
+|Data Rate | B/s, MiB/s, KiB/s
+|===
+
 
 *Example*:
 
@@ -187,6 +196,9 @@ Currently, if we try to use the new config for a newer version, that will be sil
 - SnakeYAML supports overloading of parameters. This means that if you add a configuration parameter more than once in your `cassandra.yaml` -
 the latest occasion will be the one to load in Config during Cassandra startup. In order to make upgrades as less disruptive as possible,
 we continue supporting that behavior also with adding old and new names of a parameter into `cassandra.yaml`.
+
+- Please ensure that any JMX setters/getters update the Config class properties and not some local copies. Settings Virtual Table
+reports the configuration loaded at any time from the Config class.
 
 *Example*:
 
