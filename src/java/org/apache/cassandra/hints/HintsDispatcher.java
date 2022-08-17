@@ -71,7 +71,7 @@ final class HintsDispatcher implements AutoCloseable
 
     static HintsDispatcher create(File file, RateLimiter rateLimiter, InetAddressAndPort address, UUID hostId, BooleanSupplier abortRequested)
     {
-        int messagingVersion = MessagingService.instance().versions.get(address);
+        int messagingVersion = HintsEndpointProvider.instance.versionForEndpoint(address);
         HintsDispatcher dispatcher = new HintsDispatcher(HintsReader.open(file, rateLimiter), hostId, address, messagingVersion, abortRequested);
         HintDiagnostics.dispatcherCreated(dispatcher);
         return dispatcher;

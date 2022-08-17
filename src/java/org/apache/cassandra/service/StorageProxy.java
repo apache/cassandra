@@ -338,7 +338,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                                 metadata,
                                                                                 key,
                                                                                 consistencyForPaxos,
-                                                                                consistencyForCommit);;
+                                                                                consistencyForCommit);
         try
         {
             consistencyForPaxos.validateForCas(keyspaceName, state);
@@ -2338,8 +2338,18 @@ public class StorageProxy implements StorageProxyMBean
         {
             HintsService.instance.metrics.incrPastWindow(replica.endpoint());
             Tracing.trace("Not hinting {} which has been down {} ms", replica, Gossiper.instance.getEndpointDowntime(replica.endpoint()));
+            return false;
         }
-        return !hintWindowExpired;
+        if (HintsService.instance.exceedsMaxHintsSize())
+        {
+            Tracing.trace("Not hinting {} which has reached the max hints size of {} bytes on disk. "
+                          + "The current hints size on disk is {} bytes",
+                          replica.endpoint(),
+                          DatabaseDescriptor.getMaxTotalHintsSize(),
+                          HintsService.instance.getTotalHintsSize());
+            return false;
+        }
+        return true;
     }
 
     /**

@@ -80,9 +80,9 @@ public class HintMessageTest
         }
 
         // compare before/after
-        assertEquals(hostId, deserializedMessage.hostId);
-        assertNotNull(deserializedMessage.hint);
-        assertHintsEqual(hint, deserializedMessage.hint);
+        assertEquals(hostId, deserializedMessage.hostId());
+        assertNotNull(deserializedMessage.hint());
+        assertHintsEqual(hint, deserializedMessage.hint());
     }
 
     @Test
@@ -115,8 +115,8 @@ public class HintMessageTest
         HintMessage deserializedMessage = HintMessage.serializer.deserialize(dip, MessagingService.current_version);
 
         // compare before/after
-        assertEquals(hostId, deserializedMessage.hostId);
-        assertNotNull(deserializedMessage.hint);
-        assertHintsEqual(hint, deserializedMessage.hint);
+        assertEquals(hostId, deserializedMessage.hostId());
+        assertNotNull(deserializedMessage.hint());
+        assertHintsEqual(hint, deserializedMessage.hint());
     }
 }
