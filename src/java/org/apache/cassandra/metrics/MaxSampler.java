@@ -34,13 +34,7 @@ public abstract class MaxSampler<T> extends Sampler<T>
 {
     private int capacity;
     private MinMaxPriorityQueue<Sample<T>> queue;
-    private long endTimeNanos = -1;
     private final Comparator<Sample<T>> comp = Collections.reverseOrder(Comparator.comparing(p -> p.count));
-
-    public boolean isEnabled()
-    {
-        return endTimeNanos != -1 && clock.now() <= endTimeNanos;
-    }
 
     @Override
     public synchronized void beginSampling(int capacity, long durationMillis)
@@ -72,7 +66,7 @@ public abstract class MaxSampler<T> extends Sampler<T>
     protected synchronized void insert(T item, long value)
     {
         if (isActive() && permitsValue(value))
-            queue.add(new Sample<>(item, value, 0));
+            queue.add(new Sample<T>(item, value, 0));
     }
 
     private boolean permitsValue(long value)
