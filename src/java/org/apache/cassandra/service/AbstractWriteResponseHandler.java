@@ -137,6 +137,11 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         if (blockFor() + failures > candidateReplicaCount())
         {
+            // is it actually a timeout?
+            long numTimeout = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
+            if (blockFor() + numTimeout > candidateReplicaCount())
+                throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), ackCount(), blockFor());
+
             throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, failureReasonByEndpoint);
         }
     }
