@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.nio.ByteBuffer;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -29,6 +31,15 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class InsertTest extends CQLTester
 {
+    @Test
+    public void testEmptyTTL() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        execute("INSERT INTO %s (k, v) VALUES (0, 0) USING TTL ?", (Object) null);
+        execute("INSERT INTO %s (k, v) VALUES (1, 1) USING TTL ?", ByteBuffer.wrap(new byte[0]));
+        assertRows(execute("SELECT k, v, ttl(v) FROM %s"), row(1, 1, null), row(0, 0, null));
+    }
+
     @Test
     public void testInsertWithUnset() throws Throwable
     {
