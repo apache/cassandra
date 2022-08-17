@@ -20,15 +20,13 @@ package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Function;
 
 import accord.api.Agent;
-import accord.api.Store;
+import accord.api.DataStore;
+import accord.api.ProgressLog;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Node;
-import accord.topology.KeyRanges;
-import accord.txn.Timestamp;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.ExecutorUtils;
 
@@ -36,9 +34,10 @@ public class AccordCommandStores extends CommandStores
 {
     private final ExecutorService[] executors;
 
-    public AccordCommandStores(int numShards, Node.Id node, Function<Timestamp, Timestamp> uniqueNow, Agent agent, Store store)
+    public AccordCommandStores(int numShards, Node node, Agent agent, DataStore store,
+                               ProgressLog.Factory progressLogFactory)
     {
-        super(numShards, node, uniqueNow, agent, store);
+        super(numShards, node, agent, store, progressLogFactory);
         this.executors = new ExecutorService[numShards];
         for (int i=0; i<numShards; i++)
         {
@@ -53,18 +52,9 @@ public class AccordCommandStores extends CommandStores
     }
 
     @Override
-    protected CommandStore createCommandStore(int generation, int index, KeyRanges ranges)
+    protected CommandStore createCommandStore(int generation, int index, int numShards, Node node, Agent agent, DataStore store, ProgressLog.Factory progressLogFactory, CommandStore.RangesForEpoch rangesForEpoch)
     {
-        return new AccordCommandStore(generation,
-                                      index,
-                                      numShards,
-                                      node,
-                                      uniqueNow,
-                                      agent,
-                                      store,
-                                      ranges,
-                                      this::getLocalTopology,
-                                      executors[index]);
+        return new AccordCommandStore(generation, index, numShards, node::uniqueNow, node.topology()::epoch, agent, store, progressLogFactory, rangesForEpoch, executors[index]);
     }
 
     void setCacheSize(long bytes)

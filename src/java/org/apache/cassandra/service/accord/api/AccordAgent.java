@@ -37,4 +37,10 @@ public class AccordAgent implements Agent
     {
         // TODO: this
     }
+
+    @Override
+    public void onUncaughtException(Throwable t)
+    {
+        // TODO: this
+    }
 }

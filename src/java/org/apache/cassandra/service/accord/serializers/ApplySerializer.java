@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.messages.Apply;
+import accord.txn.Keys;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -28,14 +29,14 @@ import org.apache.cassandra.service.accord.db.AccordData;
 
 public class ApplySerializer
 {
-    public static final IVersionedSerializer<Apply> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Apply> request = new TxnRequestSerializer<Apply>()
     {
         @Override
-        public void serialize(Apply apply, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(Apply apply, DataOutputPlus out, int version) throws IOException
         {
-            TopologySerializers.requestScope.serialize(apply.scope(), out, version);
             CommandSerializers.txnId.serialize(apply.txnId, out, version);
             CommandSerializers.txn.serialize(apply.txn, out, version);
+            KeySerializers.key.serialize(apply.homeKey, out, version);
             CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
             CommandSerializers.deps.serialize(apply.deps, out, version);
             CommandSerializers.writes.serialize(apply.writes, out, version);
@@ -43,11 +44,12 @@ public class ApplySerializer
         }
 
         @Override
-        public Apply deserialize(DataInputPlus in, int version) throws IOException
+        public Apply deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
         {
-            return new Apply(TopologySerializers.requestScope.deserialize(in, version),
+            return new Apply(scope, waitForEpoch,
                              CommandSerializers.txnId.deserialize(in, version),
                              CommandSerializers.txn.deserialize(in, version),
+                             KeySerializers.key.deserialize(in, version),
                              CommandSerializers.timestamp.deserialize(in, version),
                              CommandSerializers.deps.deserialize(in, version),
                              CommandSerializers.writes.deserialize(in, version),
@@ -55,16 +57,15 @@ public class ApplySerializer
         }
 
         @Override
-        public long serializedSize(Apply apply, int version)
+        public long serializedBodySize(Apply apply, int version)
         {
-            long size = TopologySerializers.requestScope.serializedSize(apply.scope(), version);
-            size += CommandSerializers.txnId.serializedSize(apply.txnId, version);
-            size += CommandSerializers.txn.serializedSize(apply.txn, version);
-            size += CommandSerializers.timestamp.serializedSize(apply.executeAt, version);
-            size += CommandSerializers.deps.serializedSize(apply.deps, version);
-            size += CommandSerializers.writes.serializedSize(apply.writes, version);
-            size += AccordData.serializer.serializedSize((AccordData) apply.result, version);
-            return size;
+            return CommandSerializers.txnId.serializedSize(apply.txnId, version)
+                   + CommandSerializers.txn.serializedSize(apply.txn, version)
+                   + KeySerializers.key.serializedSize(apply.homeKey, version)
+                   + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
+                   + CommandSerializers.deps.serializedSize(apply.deps, version)
+                   + CommandSerializers.writes.serializedSize(apply.writes, version)
+                   + AccordData.serializer.serializedSize((AccordData) apply.result, version);
         }
     };
 }

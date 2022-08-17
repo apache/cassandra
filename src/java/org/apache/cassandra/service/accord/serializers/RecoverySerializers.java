@@ -24,6 +24,7 @@ import accord.messages.BeginRecovery;
 import accord.messages.BeginRecovery.RecoverNack;
 import accord.messages.BeginRecovery.RecoverOk;
 import accord.messages.BeginRecovery.RecoverReply;
+import accord.txn.Keys;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -32,35 +33,34 @@ import org.apache.cassandra.service.accord.db.AccordData;
 
 public class RecoverySerializers
 {
-    public static final IVersionedSerializer<BeginRecovery> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<BeginRecovery> request = new TxnRequestSerializer<BeginRecovery>()
     {
         @Override
-        public void serialize(BeginRecovery recover, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(BeginRecovery recover, DataOutputPlus out, int version) throws IOException
         {
-            TopologySerializers.requestScope.serialize(recover.scope(), out, version);
             CommandSerializers.txnId.serialize(recover.txnId, out, version);
             CommandSerializers.txn.serialize(recover.txn, out, version);
+            KeySerializers.key.serialize(recover.homeKey, out, version);
             CommandSerializers.ballot.serialize(recover.ballot, out, version);
-
         }
 
         @Override
-        public BeginRecovery deserialize(DataInputPlus in, int version) throws IOException
+        public BeginRecovery deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
         {
-            return new BeginRecovery(TopologySerializers.requestScope.deserialize(in, version),
+            return new BeginRecovery(scope, waitForEpoch,
                                      CommandSerializers.txnId.deserialize(in, version),
                                      CommandSerializers.txn.deserialize(in, version),
+                                     KeySerializers.key.deserialize(in, version),
                                      CommandSerializers.ballot.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(BeginRecovery recover, int version)
+        public long serializedBodySize(BeginRecovery recover, int version)
         {
-            long size = TopologySerializers.requestScope.serializedSize(recover.scope(), version);
-            size += CommandSerializers.txnId.serializedSize(recover.txnId, version);
-            size += CommandSerializers.txn.serializedSize(recover.txn, version);
-            size += CommandSerializers.ballot.serializedSize(recover.ballot, version);
-            return size;
+            return CommandSerializers.txnId.serializedSize(recover.txnId, version)
+                   + CommandSerializers.txn.serializedSize(recover.txn, version)
+                   + KeySerializers.key.serializedSize(recover.homeKey, version)
+                   + CommandSerializers.ballot.serializedSize(recover.ballot, version);
         }
     };
 

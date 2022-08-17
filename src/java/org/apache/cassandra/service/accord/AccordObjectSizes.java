@@ -28,7 +28,6 @@ import accord.txn.Timestamp;
 import accord.txn.Txn;
 import accord.txn.TxnId;
 import accord.txn.Writes;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.db.AccordQuery;
 import org.apache.cassandra.service.accord.db.AccordRead;
@@ -38,13 +37,18 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class AccordObjectSizes
 {
+    public static long key(Key key)
+    {
+        return ((AccordKey.PartitionKey) key).estimatedSizeOnHeap();
+    }
+
     private static final long EMPTY_KEYS_SIZE = ObjectSizes.measure(new Keys(new Key[0]));
     public static long keys(Keys keys)
     {
         long size = EMPTY_KEYS_SIZE;
         size += ObjectSizes.sizeOfReferenceArray(keys.size());
         for (int i=0, mi=keys.size(); i<mi; i++)
-            size += ((AccordKey.PartitionKey) keys.get(i)).estimatedSizeOnHeap();
+            size += key(keys.get(i));
         return size;
     }
 

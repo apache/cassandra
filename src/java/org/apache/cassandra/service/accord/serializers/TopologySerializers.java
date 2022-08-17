@@ -70,29 +70,4 @@ public class TopologySerializers
             return TypeSizes.LONG_SIZE;  // id.id
         }
     };
-
-    public static final IVersionedSerializer<TxnRequest.Scope> requestScope = new IVersionedSerializer<>()
-    {
-
-        @Override
-        public void serialize(TxnRequest.Scope scope, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeLong(scope.minRequiredEpoch());
-            KeySerializers.keys.serialize(scope.keys(), out, version);
-        }
-
-        @Override
-        public TxnRequest.Scope deserialize(DataInputPlus in, int version) throws IOException
-        {
-            long maxEpoch = in.readLong();
-            return new TxnRequest.Scope(maxEpoch, KeySerializers.keys.deserialize(in, version));
-        }
-
-        @Override
-        public long serializedSize(TxnRequest.Scope scope, int version)
-        {
-            long size = TypeSizes.sizeof(scope.minRequiredEpoch());
-            return size + KeySerializers.keys.serializedSize(scope.keys(), version);
-        }
-    };
 }

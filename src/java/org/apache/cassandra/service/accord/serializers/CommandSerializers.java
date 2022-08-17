@@ -192,6 +192,7 @@ public class CommandSerializers
             {
                 txnId.serialize(entry.getKey(), out, version);
                 txn.serialize(entry.getValue(), out, version);
+                KeySerializers.key.serialize(deps.homeKey(entry.getKey()), out, version);
             }
         }
 
@@ -201,7 +202,9 @@ public class CommandSerializers
             Dependencies deps = new Dependencies();
             int size = in.readInt();
             for (int i=0; i<size; i++)
-                deps.add(txnId.deserialize(in, version), txn.deserialize(in, version));
+                deps.add(txnId.deserialize(in, version),
+                         txn.deserialize(in, version),
+                         KeySerializers.key.deserialize(in, version));
             return deps;
         }
 
@@ -213,6 +216,7 @@ public class CommandSerializers
             {
                 size += txnId.serializedSize(entry.getKey(), version);
                 size += txn.serializedSize(entry.getValue(), version);
+                size += KeySerializers.key.serializedSize(deps.homeKey(entry.getKey()), version);
             }
             return size;
         }

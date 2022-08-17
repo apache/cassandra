@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import com.google.common.base.Preconditions;
 
-import accord.api.KeyRange;
+import accord.topology.KeyRange;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;

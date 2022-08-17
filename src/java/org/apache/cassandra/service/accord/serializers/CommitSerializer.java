@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.messages.Commit;
+import accord.txn.Keys;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -28,40 +29,40 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class CommitSerializer
 {
-    public static final IVersionedSerializer<Commit> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Commit> request = new TxnRequestSerializer<>()
     {
         @Override
-        public void serialize(Commit commit, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(Commit msg, DataOutputPlus out, int version) throws IOException
         {
-            TopologySerializers.requestScope.serialize(commit.scope(), out, version);
-            CommandSerializers.txnId.serialize(commit.txnId, out, version);
-            CommandSerializers.txn.serialize(commit.txn, out, version);
-            CommandSerializers.timestamp.serialize(commit.executeAt, out, version);
-            CommandSerializers.deps.serialize(commit.deps, out, version);
-            out.writeBoolean(commit.read);
+            CommandSerializers.txnId.serialize(msg.txnId, out, version);
+            CommandSerializers.txn.serialize(msg.txn, out, version);
+            CommandSerializers.deps.serialize(msg.deps, out, version);
+            KeySerializers.key.serialize(msg.homeKey, out, version);
+            CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
+            out.writeBoolean(msg.read);
         }
 
         @Override
-        public Commit deserialize(DataInputPlus in, int version) throws IOException
+        public Commit deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
         {
-            return new Commit(TopologySerializers.requestScope.deserialize(in, version),
+            return new Commit(scope, waitForEpoch,
                               CommandSerializers.txnId.deserialize(in, version),
                               CommandSerializers.txn.deserialize(in, version),
-                              CommandSerializers.timestamp.deserialize(in, version),
                               CommandSerializers.deps.deserialize(in, version),
+                              KeySerializers.key.deserialize(in, version),
+                              CommandSerializers.timestamp.deserialize(in, version),
                               in.readBoolean());
         }
 
         @Override
-        public long serializedSize(Commit commit, int version)
+        public long serializedBodySize(Commit msg, int version)
         {
-            long size = TopologySerializers.requestScope.serializedSize(commit.scope(), version);
-            size += CommandSerializers.txnId.serializedSize(commit.txnId, version);
-            size += CommandSerializers.txn.serializedSize(commit.txn, version);
-            size += CommandSerializers.timestamp.serializedSize(commit.executeAt, version);
-            size += CommandSerializers.deps.serializedSize(commit.deps, version);
-            size += TypeSizes.sizeof(commit.read);
-            return size;
+            return CommandSerializers.txnId.serializedSize(msg.txnId, version)
+                   + CommandSerializers.txn.serializedSize(msg.txn, version)
+                   + CommandSerializers.deps.serializedSize(msg.deps, version)
+                   + KeySerializers.key.serializedSize(msg.homeKey, version)
+                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
+                   + TypeSizes.BOOL_SIZE;
         }
     };
 }

@@ -21,7 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.Key;
-import accord.api.KeyRange;
+import accord.topology.KeyRange;
 import accord.topology.KeyRanges;
 import accord.txn.Keys;
 import org.apache.cassandra.db.TypeSizes;
@@ -35,6 +35,27 @@ public class KeySerializers
 {
     private KeySerializers() {}
 
+    public static final IVersionedSerializer<Key> key = new IVersionedSerializer<Key>()
+    {
+        @Override
+        public void serialize(Key key, DataOutputPlus out, int version) throws IOException
+        {
+            AccordKey.PartitionKey.serializer.serialize((AccordKey.PartitionKey) key, out, version);
+        }
+
+        @Override
+        public Key deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return AccordKey.PartitionKey.serializer.deserialize(in, version);
+        }
+
+        @Override
+        public long serializedSize(Key key, int version)
+        {
+            return AccordKey.PartitionKey.serializer.serializedSize((AccordKey.PartitionKey) key, version);
+        }
+    };
+
     public static final IVersionedSerializer<Keys> keys = new IVersionedSerializer<>()
     {
         @Override
@@ -42,7 +63,7 @@ public class KeySerializers
         {
             out.writeInt(keys.size());
             for (int i=0, mi=keys.size(); i<mi; i++)
-                AccordKey.PartitionKey.serializer.serialize((AccordKey.PartitionKey) keys.get(i), out, version);
+                key.serialize(keys.get(i), out, version);
         }
 
         @Override
@@ -50,7 +71,7 @@ public class KeySerializers
         {
             Key[] keys = new Key[in.readInt()];
             for (int i=0; i<keys.length; i++)
-                keys[i] = AccordKey.PartitionKey.serializer.deserialize(in, version);
+                keys[i] = key.deserialize(in, version);
             return new Keys(keys);
         }
 
@@ -59,7 +80,7 @@ public class KeySerializers
         {
             long size = TypeSizes.sizeof(keys.size());
             for (int i=0, mi=keys.size(); i<mi; i++)
-                size += AccordKey.PartitionKey.serializer.serializedSize((AccordKey.PartitionKey) keys.get(i), version);
+                size += key.serializedSize(keys.get(i), version);
             return size;
         }
     };

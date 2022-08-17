@@ -24,6 +24,8 @@ import accord.messages.Accept;
 import accord.messages.Accept.AcceptNack;
 import accord.messages.Accept.AcceptOk;
 import accord.messages.Accept.AcceptReply;
+import accord.txn.Keys;
+import accord.txn.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -33,44 +35,41 @@ public class AcceptSerializers
 {
     private AcceptSerializers() {}
 
-    public static final IVersionedSerializer<Accept> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Accept> request = new TxnRequestSerializer.WithUnsyncedSerializer<>()
     {
         @Override
-        public void serialize(Accept accept, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(Accept accept, DataOutputPlus out, int version) throws IOException
         {
-            TopologySerializers.requestScope.serialize(accept.scope(), out, version);
             CommandSerializers.ballot.serialize(accept.ballot, out, version);
-            CommandSerializers.txnId.serialize(accept.txnId, out, version);
+            KeySerializers.key.serialize(accept.homeKey, out, version);
             CommandSerializers.txn.serialize(accept.txn, out, version);
             CommandSerializers.timestamp.serialize(accept.executeAt, out, version);
             CommandSerializers.deps.serialize(accept.deps, out, version);
         }
 
         @Override
-        public Accept deserialize(DataInputPlus in, int version) throws IOException
+        public Accept deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch, TxnId txnId, long minEpoch) throws IOException
         {
-            return new Accept(TopologySerializers.requestScope.deserialize(in, version),
+            return new Accept(scope, waitForEpoch, txnId,
                               CommandSerializers.ballot.deserialize(in, version),
-                              CommandSerializers.txnId.deserialize(in, version),
+                              KeySerializers.key.deserialize(in, version),
                               CommandSerializers.txn.deserialize(in, version),
                               CommandSerializers.timestamp.deserialize(in, version),
                               CommandSerializers.deps.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(Accept accept, int version)
+        public long serializedBodySize(Accept accept, int version)
         {
-            long size = TopologySerializers.requestScope.serializedSize(accept.scope(), version);
-            size += CommandSerializers.ballot.serializedSize(accept.ballot, version);
-            size += CommandSerializers.txnId.serializedSize(accept.txnId, version);
-            size += CommandSerializers.txn.serializedSize(accept.txn, version);
-            size += CommandSerializers.timestamp.serializedSize(accept.executeAt, version);
-            size += CommandSerializers.deps.serializedSize(accept.deps, version);
-            return size;
+            return CommandSerializers.ballot.serializedSize(accept.ballot, version)
+                   + KeySerializers.key.serializedSize(accept.homeKey, version)
+                   + CommandSerializers.txn.serializedSize(accept.txn, version)
+                   + CommandSerializers.timestamp.serializedSize(accept.executeAt, version)
+                   + CommandSerializers.deps.serializedSize(accept.deps, version);
         }
     };
 
-    private static final IVersionedSerializer<AcceptOk> acceptOk = new IVersionedSerializer<AcceptOk>()
+    private static final IVersionedSerializer<AcceptOk> acceptOk = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(AcceptOk acceptOk, DataOutputPlus out, int version) throws IOException

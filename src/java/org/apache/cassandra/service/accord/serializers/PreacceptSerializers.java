@@ -23,39 +23,40 @@ import java.io.IOException;
 import accord.messages.PreAccept;
 import accord.messages.PreAccept.PreAcceptOk;
 import accord.messages.PreAccept.PreAcceptReply;
+import accord.txn.Keys;
+import accord.txn.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
 
 public class PreacceptSerializers
 {
     private PreacceptSerializers() {}
 
-    public static final IVersionedSerializer<PreAccept> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<PreAccept> request = new WithUnsyncedSerializer<>()
     {
         @Override
-        public void serialize(PreAccept preAccept, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(PreAccept msg, DataOutputPlus out, int version) throws IOException
         {
-            TopologySerializers.requestScope.serialize(preAccept.scope(), out, version);
-            CommandSerializers.txnId.serialize(preAccept.txnId, out, version);
-            CommandSerializers.txn.serialize(preAccept.txn, out, version);
+            CommandSerializers.txn.serialize(msg.txn, out, version);
+            KeySerializers.key.serialize(msg.homeKey, out, version);
         }
 
         @Override
-        public PreAccept deserialize(DataInputPlus in, int version) throws IOException
+        public PreAccept deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch, TxnId txnId, long minEpoch) throws IOException
         {
-            return new PreAccept(TopologySerializers.requestScope.deserialize(in, version),
-                                 CommandSerializers.txnId.deserialize(in, version),
-                                 CommandSerializers.txn.deserialize(in, version));
+            return new PreAccept(scope, waitForEpoch, txnId,
+                                 CommandSerializers.txn.deserialize(in, version),
+                                 KeySerializers.key.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(PreAccept preAccept, int version)
+        public long serializedBodySize(PreAccept msg, int version)
         {
-            return TopologySerializers.requestScope.serializedSize(preAccept.scope(), version)
-                 + CommandSerializers.txnId.serializedSize(preAccept.txnId, version)
-                 + CommandSerializers.txn.serializedSize(preAccept.txn, version);
+            return CommandSerializers.txn.serializedSize(msg.txn, version)
+                   + KeySerializers.key.serializedSize(msg.homeKey, version);
         }
     };
 

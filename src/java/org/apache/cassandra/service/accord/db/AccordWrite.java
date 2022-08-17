@@ -25,8 +25,8 @@ import java.util.NavigableMap;
 
 import com.google.common.collect.ImmutableList;
 
+import accord.api.DataStore;
 import accord.api.Key;
-import accord.api.Store;
 import accord.api.Write;
 import accord.local.CommandStore;
 import accord.txn.Timestamp;
@@ -85,7 +85,7 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
     }
 
     @Override
-    public Future<?> apply(Key key, CommandStore commandStore, Timestamp executeAt, Store store)
+    public Future<?> apply(Key key, CommandStore commandStore, Timestamp executeAt, DataStore store)
     {
         PartitionUpdate update = getDeserialized((PartitionKey) key);
         if (update == null)

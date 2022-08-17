@@ -23,20 +23,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 import com.google.common.base.Preconditions;
 
 import accord.api.Agent;
+import accord.api.DataStore;
 import accord.api.Key;
-import accord.api.Store;
+import accord.api.ProgressLog;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
-import accord.local.Node;
 import accord.local.TxnOperation;
-import accord.topology.KeyRanges;
-import accord.topology.Topology;
 import accord.txn.Timestamp;
 import accord.txn.TxnId;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
@@ -80,15 +78,15 @@ public class AccordCommandStore extends CommandStore
     public AccordCommandStore(int generation,
                               int index,
                               int numShards,
-                              Node.Id nodeId,
                               Function<Timestamp, Timestamp> uniqueNow,
+                              LongSupplier currentEpoch,
                               Agent agent,
-                              Store store,
-                              KeyRanges ranges,
-                              Supplier<Topology> localTopologySupplier,
+                              DataStore store,
+                              ProgressLog.Factory progressLogFactory,
+                              RangesForEpoch rangesForEpoch,
                               ExecutorService executor)
     {
-        super(generation, index, numShards, nodeId, uniqueNow, agent, store, ranges, localTopologySupplier);
+        super(generation, index, numShards, uniqueNow, currentEpoch, agent, store, progressLogFactory, rangesForEpoch);
         this.executor = executor;
         this.threadId = getThreadId(executor);
         this.stateCache = new AccordStateCache(maxCacheSize() / numShards);
@@ -168,6 +166,13 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
+    public Command ifPresent(TxnId txnId)
+    {
+        // FIXME: support optional loading
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CommandsForKey commandsForKey(Key key)
     {
         Preconditions.checkState(currentCtx != null);
@@ -176,6 +181,13 @@ public class AccordCommandStore extends CommandStore
         if (commandsForKey == null)
             throw new IllegalArgumentException("No commandsForKey in context for key " + key);
         return commandsForKey;
+    }
+
+    @Override
+    public CommandsForKey maybeCommandsForKey(Key key)
+    {
+        // FIXME: support optional loading
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -22,37 +22,31 @@ import java.io.IOException;
 
 import accord.messages.WaitOnCommit;
 import accord.messages.WaitOnCommit.WaitOnCommitOk;
+import accord.txn.Keys;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class WaitOnCommitSerializer
 {
-    public static final IVersionedSerializer<WaitOnCommit> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<WaitOnCommit> request = new TxnRequestSerializer<>()
     {
         @Override
-        public void serialize(WaitOnCommit wait, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(WaitOnCommit wait, DataOutputPlus out, int version) throws IOException
         {
-            TopologySerializers.requestScope.serialize(wait.scope(), out, version);
             CommandSerializers.txnId.serialize(wait.txnId, out, version);
-            KeySerializers.keys.serialize(wait.keys, out, version);
-
         }
 
         @Override
-        public WaitOnCommit deserialize(DataInputPlus in, int version) throws IOException
+        public WaitOnCommit deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
         {
-            return new WaitOnCommit(TopologySerializers.requestScope.deserialize(in, version),
-                                    CommandSerializers.txnId.deserialize(in, version),
-                                    KeySerializers.keys.deserialize(in, version));
+            return new WaitOnCommit(scope, waitForEpoch, CommandSerializers.txnId.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(WaitOnCommit wait, int version)
+        public long serializedBodySize(WaitOnCommit wait, int version)
         {
-            return TopologySerializers.requestScope.serializedSize(wait.scope(), version)
-                 + CommandSerializers.txnId.serializedSize(wait.txnId, version)
-                 + KeySerializers.keys.serializedSize(wait.keys, version);
+            return CommandSerializers.txnId.serializedSize(wait.txnId, version);
         }
     };
 

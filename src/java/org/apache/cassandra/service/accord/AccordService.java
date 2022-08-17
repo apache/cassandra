@@ -19,11 +19,13 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Arrays;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.impl.SimpleProgressLog;
 import accord.local.Node;
 import accord.messages.Reply;
 import accord.messages.Request;
@@ -62,7 +64,9 @@ public class AccordService implements Shutdownable
                              AccordService::uniqueNow,
                              () -> null,
                              new AccordAgent(),
+                             new Random(),
                              scheduler,
+                             SimpleProgressLog::new,
                              AccordCommandStores::new);
         this.nodeShutdown = toShutdownable(node);
         this.verbHandler = new AccordVerbHandler(this.node);

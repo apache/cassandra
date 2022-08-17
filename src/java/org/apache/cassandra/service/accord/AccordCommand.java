@@ -25,6 +25,7 @@ import java.util.TreeSet;
 
 import com.google.common.base.Preconditions;
 
+import accord.api.Key;
 import accord.api.Read;
 import accord.api.Result;
 import accord.local.Command;
@@ -41,6 +42,7 @@ import accord.txn.Writes;
 import accord.utils.DeterministicIdentitySet;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
+import org.apache.cassandra.service.accord.store.StoredBoolean;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
@@ -97,6 +99,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private final AccordCommandStore commandStore;
     private final TxnId txnId;
+    public final StoredValue<Key> homeKey;
+    public final StoredValue<Key> progressKey;
     public final StoredValue<Txn> txn;
     public final StoredValue<Ballot> promised;
     public final StoredValue<Ballot> accepted;
@@ -106,6 +110,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     public final StoredValue<Result> result;
 
     public final StoredValue.HistoryPreserving<Status> status;
+    public final StoredBoolean isGloballyPersistent;
 
     public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnCommit;
     public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnApply;
@@ -120,6 +125,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         this.commandStore = commandStore;
         this.txnId = txnId;
+        homeKey = new StoredValue<>(kind());
+        progressKey = new StoredValue<>(kind());
         txn = new StoredValue<>(kind());
         promised = new StoredValue<>(kind());
         accepted = new StoredValue<>(kind());
@@ -128,6 +135,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         writes = new StoredValue<>(kind());
         result = new StoredValue<>(kind());
         status = new StoredValue.HistoryPreserving<>(kind());
+        isGloballyPersistent = new StoredBoolean(kind());
         waitingOnCommit = new StoredNavigableMap<>(kind());
         waitingOnApply = new StoredNavigableMap<>(kind());
         storedListeners = new StoredSet.DeterministicIdentity<>(kind());
@@ -146,6 +154,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     public AccordCommand initialize()
     {
         status.set(Status.NotWitnessed);
+        homeKey.set(null);
+        progressKey.set(null);
         txn.set(null);
         executeAt.load(null);
         promised.set(Ballot.ZERO);
@@ -153,6 +163,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         deps.set(new Dependencies());
         writes.load(null);
         result.load(null);
+        isGloballyPersistent.set(false);
         waitingOnCommit.load(new TreeMap<>());
         blockingCommitOn.load(new TreeSet<>());
         waitingOnApply.load(new TreeMap<>());
@@ -164,7 +175,9 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public boolean isLoaded()
     {
-        return txn.isLoaded()
+        return homeKey.isLoaded()
+               && progressKey.isLoaded()
+               && txn.isLoaded()
                && promised.isLoaded()
                && accepted.isLoaded()
                && executeAt.isLoaded()
@@ -172,6 +185,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                && writes.isLoaded()
                && result.isLoaded()
                && status.isLoaded()
+               && isGloballyPersistent.isLoaded()
                && waitingOnCommit.isLoaded()
                && blockingCommitOn.isLoaded()
                && waitingOnApply.isLoaded()
@@ -182,7 +196,9 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public boolean hasModifications()
     {
-        return txn.hasModifications()
+        return homeKey.hasModifications()
+               || progressKey.hasModifications()
+               || txn.hasModifications()
                || promised.hasModifications()
                || accepted.hasModifications()
                || executeAt.hasModifications()
@@ -190,6 +206,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                || writes.hasModifications()
                || result.hasModifications()
                || status.hasModifications()
+               || isGloballyPersistent.hasModifications()
                || waitingOnCommit.hasModifications()
                || blockingCommitOn.hasModifications()
                || waitingOnApply.hasModifications()
@@ -200,6 +217,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public void clearModifiedFlag()
     {
+        homeKey.clearModifiedFlag();
+        progressKey.clearModifiedFlag();
         txn.clearModifiedFlag();
         promised.clearModifiedFlag();
         accepted.clearModifiedFlag();
@@ -208,6 +227,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         writes.clearModifiedFlag();
         result.clearModifiedFlag();
         status.clearModifiedFlag();
+        isGloballyPersistent.clearModifiedFlag();
         waitingOnCommit.clearModifiedFlag();
         blockingCommitOn.clearModifiedFlag();
         waitingOnApply.clearModifiedFlag();
@@ -222,6 +242,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         if (o == null || getClass() != o.getClass()) return false;
         AccordCommand command = (AccordCommand) o;
         return commandStore == command.commandStore
+               && homeKey.equals(command.homeKey)
+               && progressKey.equals(command.progressKey)
                && txnId.equals(command.txnId)
                && txn.equals(command.txn)
                && promised.equals(command.promised)
@@ -231,6 +253,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                && writes.equals(command.writes)
                && result.equals(command.result)
                && status.equals(command.status)
+               && isGloballyPersistent.equals(command.isGloballyPersistent)
                && waitingOnCommit.equals(command.waitingOnCommit)
                && blockingCommitOn.equals(command.blockingCommitOn)
                && waitingOnApply.equals(command.waitingOnApply)
@@ -244,6 +267,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         return Objects.hash(commandStore,
                             txnId,
+                            homeKey,
+                            progressKey,
                             txn,
                             promised,
                             accepted,
@@ -252,6 +277,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                             writes,
                             result,
                             status,
+                            isGloballyPersistent,
                             waitingOnCommit,
                             blockingCommitOn,
                             waitingOnApply,
@@ -276,6 +302,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         long size = EMPTY_SIZE;
         size += AccordObjectSizes.timestamp(txnId);
+        size += homeKey.estimatedSizeOnHeap(AccordObjectSizes::key);
+        size += progressKey.estimatedSizeOnHeap(AccordObjectSizes::key);
         size += txn.estimatedSizeOnHeap(AccordObjectSizes::txn);
         size += promised.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += accepted.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
@@ -284,6 +312,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         size += writes.estimatedSizeOnHeap(AccordObjectSizes::writes);
         size += result.estimatedSizeOnHeap(r -> ((AccordData) r).estimatedSizeOnHeap());
         size += status.estimatedSizeOnHeap(s -> 0);
+        size += isGloballyPersistent.estimatedSizeOnHeap();
         size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
         size += blockingCommitOn.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += waitingOnApply.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
@@ -312,13 +341,37 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
+    public Key homeKey()
+    {
+        return homeKey.get();
+    }
+
+    @Override
+    protected void setHomeKey(Key key)
+    {
+        homeKey.set(key);
+    }
+
+    @Override
+    public Key progressKey()
+    {
+        return progressKey.get();
+    }
+
+    @Override
+    protected void setProgressKey(Key key)
+    {
+        progressKey.set(key);
+    }
+
+    @Override
     public Txn txn()
     {
         return txn.get();
     }
 
     @Override
-    public void txn(Txn txn)
+    protected void setTxn(Txn txn)
     {
         this.txn.set(txn);
     }
@@ -409,19 +462,31 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    protected void postApply()
+    public boolean isGloballyPersistent()
     {
-        super.postApply();
+        return isGloballyPersistent.get();
+    }
+
+    @Override
+    public void isGloballyPersistent(boolean v)
+    {
+        isGloballyPersistent.set(v);
+    }
+
+    @Override
+    protected void postApply(boolean notifyListeners)
+    {
+        super.postApply(notifyListeners);
         cache().clearWriteFuture(txnId);
     }
 
     @Override
-    public Future<?> apply(Txn txn, Dependencies deps, Timestamp executeAt, Writes writes, Result result)
+    public Future<?> apply(boolean notifyListeners)
     {
         Future<?> future = cache().getWriteFuture(txnId);
         if (future != null)
             return future;
-        future = super.apply(txn, deps, executeAt, writes, result);
+        future = super.apply(notifyListeners);
         cache().setWriteFuture(txnId, future);
         return future;
     }

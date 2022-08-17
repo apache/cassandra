@@ -30,10 +30,11 @@ import java.util.TreeMap;
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Data;
+import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.Read;
-import accord.api.Store;
 import accord.local.CommandStore;
+import accord.txn.Keys;
 import accord.txn.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -92,10 +93,10 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
         return EMPTY_SIZE;
     }
 
-    @VisibleForTesting
-    public Collection<PartitionKey> keys()
+    @Override
+    public Keys keys()
     {
-        return serialized.keySet();
+        return new Keys(serialized.keySet());
     }
 
     public String toString()
@@ -104,7 +105,7 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     }
 
     @Override
-    public Future<Data> read(Key key, CommandStore commandStore, Timestamp executeAt, Store store)
+    public Future<Data> read(Key key, CommandStore commandStore, Timestamp executeAt, DataStore store)
     {
         SinglePartitionReadCommand command = getDeserialized((PartitionKey) key);
         if (command == null)

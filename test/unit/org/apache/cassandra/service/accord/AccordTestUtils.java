@@ -32,13 +32,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import accord.api.Data;
-import accord.api.KeyRange;
 import accord.api.Write;
 import accord.impl.InMemoryCommandStore;
+import accord.impl.SimpleProgressLog;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Node.Id;
+import accord.topology.KeyRange;
 import accord.topology.KeyRanges;
 import accord.topology.Shard;
 import accord.topology.Topology;
@@ -164,6 +165,37 @@ public class AccordTestUtils
         return createTxn(key, key);
     }
 
+    private static class SingleEpochRanges implements CommandStore.RangesForEpoch
+    {
+        private final KeyRanges ranges;
+
+        public SingleEpochRanges(KeyRanges ranges)
+        {
+            this.ranges = ranges;
+        }
+
+        @Override
+        public KeyRanges at(long epoch)
+        {
+            assert epoch == 1;
+            return ranges;
+        }
+
+        @Override
+        public KeyRanges since(long epoch)
+        {
+            assert epoch == 1;
+            return ranges;
+        }
+
+        @Override
+        public boolean intersects(long epoch, Keys keys)
+        {
+            assert epoch == 1;
+            return ranges.intersects(keys);
+        }
+    }
+
     public static InMemoryCommandStore.Synchronized createInMemoryCommandStore(LongSupplier now, String keyspace, String table)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
@@ -171,12 +203,12 @@ public class AccordTestUtils
         Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
         return new InMemoryCommandStore.Synchronized(0, 1, 8,
-                                                     node,
                                                      ts -> new Timestamp(1, now.getAsLong(), 0, node),
+                                                     () -> 1,
                                                      new AccordAgent(),
                                                      null,
-                                                     KeyRanges.of(range),
-                                                     () -> topology);
+                                                     cs -> null,
+                                                     new SingleEpochRanges(KeyRanges.of(range)));
     }
 
     public static AccordCommandStore createAccordCommandStore(Node.Id node, LongSupplier now, Topology topology)
@@ -187,12 +219,12 @@ public class AccordTestUtils
             return thread;
         });
         return new AccordCommandStore(0, 0, 1,
-                                      node,
                                       ts -> new Timestamp(1, now.getAsLong(), 0, node),
+                                      () -> 1,
                                       new AccordAgent(),
                                       null,
-                                      topology.rangesForNode(node),
-                                      () -> topology,
+                                      cs -> null,
+                                      new SingleEpochRanges(topology.rangesForNode(node)),
                                       executor);
     }
     public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
