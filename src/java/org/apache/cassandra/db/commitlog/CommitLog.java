@@ -20,6 +20,7 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.FileStore;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -48,6 +49,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.io.storage.StorageProvider;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
@@ -83,9 +85,9 @@ public class CommitLog implements CommitLogMBean
 
     public static final CommitLog instance = CommitLog.construct();
 
-    private static final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
-
     private volatile AbstractCommitLogSegmentManager segmentManager;
+
+    private final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && segmentManager.shouldReplay(name);
 
     public final CommitLogArchiver archiver;
     public final CommitLogMetrics metrics;
@@ -168,11 +170,6 @@ public class CommitLog implements CommitLogMBean
     public boolean isStarted()
     {
         return started;
-    }
-
-    public boolean hasFilesToReplay()
-    {
-        return getUnmanagedFiles().length > 0;
     }
 
     private File[] getUnmanagedFiles()
@@ -556,7 +553,7 @@ public class CommitLog implements CommitLogMBean
             throw new RuntimeException(e);
         }
         segmentManager.stopUnsafe(deleteSegments);
-        CommitLogSegment.resetReplayLimit();
+        segmentManager.resetReplayLimit();
         if (DatabaseDescriptor.isCDCEnabled() && deleteSegments)
             for (File f : DatabaseDescriptor.getCDCLogLocation().tryList())
                 FileUtils.deleteWithConfirm(f);
