@@ -130,7 +130,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             // is it actually a timeout?
             long numTimeout = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
             long nonTimeout = failures - numTimeout;
-            timedout = nonTimeout > numTimeout;
+            timedout = nonTimeout <= numTimeout;
         }
         WarningContext warnings = warningContext;
         // save the snapshot so abort state is not changed between now and when mayAbort gets called
@@ -150,19 +150,19 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (isTracing())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
-            Tracing.trace("{}; received {} of {} responses{}", timedout ? "Failed" : "Timed out", received, blockFor, gotData);
+            Tracing.trace("{}; received {} of {} responses{}", !timedout ? "Failed" : "Timed out", received, blockFor, gotData);
         }
         else if (logger.isDebugEnabled())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
-            logger.debug("{}; received {} of {} responses{}", timedout ? "Failed" : "Timed out", received, blockFor, gotData);
+            logger.debug("{}; received {} of {} responses{}", !timedout ? "Failed" : "Timed out", received, blockFor, gotData);
         }
 
         if (snapshot != null)
             snapshot.maybeAbort(command, replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
 
         // Same as for writes, see AbstractWriteResponseHandler
-        throw timedout
+        throw !timedout
             ? new ReadFailureException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint)
             : new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent());
     }
