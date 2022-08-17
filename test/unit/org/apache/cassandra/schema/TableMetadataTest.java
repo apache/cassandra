@@ -148,4 +148,23 @@ public class TableMetadataTest
         assertThat(memtableParams.factory).isInstanceOf(CustomMemtableFactory.class);
         assertThat(memtableParams.options).isEmpty();
     }
+
+    @Test
+    public void testCdcParamsChangeAffectsPreparedStatements()
+    {
+        String keyspaceName = "ks1";
+        String tableName = "tbl1";
+        TableParams noCdcParams = TableParams.builder().cdc(false).build();
+        TableParams cdcParams = TableParams.builder().cdc(true).build();
+
+        TableMetadata metadata = TableMetadata.builder(keyspaceName, tableName)
+                                              .addPartitionKeyColumn("key", UTF8Type.instance)
+                                              .params(noCdcParams)
+                                              .build();
+        TableMetadata updated = TableMetadata.builder(keyspaceName, tableName)
+                                             .addPartitionKeyColumn("key", UTF8Type.instance)
+                                             .params(cdcParams)
+                                             .build();
+        assertThat(metadata.changeAffectsPreparedStatements(updated)).isTrue();
+    }
 }
