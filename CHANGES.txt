@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-14866] Avoid orphan hint clean up log/metric noise
  * [SO-15181] Additional nodetool cleanup metric
  * [SO-15682] Fix bad query log for incorrect consistency level
  * [SO-14119] Handle stale DNS entry while checking the node being removed

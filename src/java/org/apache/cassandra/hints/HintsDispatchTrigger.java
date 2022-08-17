@@ -111,6 +111,8 @@ final class HintsDispatchTrigger implements Runnable
         catalog.stores()
                 .filter(store -> countHintFiles(store))
                .filter(store -> !isScheduled(store))
+               .filter(store -> !store.isLive())
+               .filter(store -> store.getDispatchQueueSize() > 0)
                .filter(store -> isOrphan(store, allValidNodesCurrentlyInRing))
                .forEach(this::purgeOrphanHintFiles);
     }
