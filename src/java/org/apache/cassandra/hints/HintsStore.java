@@ -22,17 +22,16 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.SyncUtil;
 
 /**
@@ -84,15 +83,9 @@ final class HintsStore
         return dispatchDequeue.size();
     }
 
-    InetAddressAndPort address()
-    {
-        return StorageService.instance.getEndpointForHostId(hostId);
-    }
-
     boolean isLive()
     {
-        InetAddressAndPort address = address();
-        return address != null && IFailureDetector.instance.isAlive(address);
+        return HintsEndpointProvider.instance.isAlive(hostId);
     }
 
     HintsDescriptor poll()
@@ -143,6 +136,12 @@ final class HintsStore
         return !dispatchDequeue.isEmpty();
     }
 
+    @VisibleForTesting
+    Stream<HintsDescriptor> descriptors()
+    {
+        return dispatchDequeue.stream();
+    }
+
     InputPosition getDispatchOffset(HintsDescriptor descriptor)
     {
         return dispatchPositions.get(descriptor);
@@ -151,6 +150,15 @@ final class HintsStore
     void markDispatchOffset(HintsDescriptor descriptor, InputPosition inputPosition)
     {
         dispatchPositions.put(descriptor, inputPosition);
+    }
+
+    /**
+     * @return the total size of all files belonging to the hints store, in bytes.
+     */
+    long getTotalFileSize()
+    {
+        return Stream.concat(dispatchDequeue.stream(), corruptedFiles.stream())
+                     .mapToLong(HintsDescriptor::getDataSize).sum();
     }
 
     void cleanUp(HintsDescriptor descriptor)

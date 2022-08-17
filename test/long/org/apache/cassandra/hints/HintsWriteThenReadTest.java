@@ -121,7 +121,7 @@ public class HintsWriteThenReadTest
                     Hint hint = hints.next();
 
                     long timestamp = baseTimestamp + index;
-                    Mutation mutation = hint.mutation;
+                    Mutation mutation = hint.mutation();
 
                     assertEquals(timestamp, hint.creationTime);
                     assertEquals(dk(bytes(index)), mutation.key());

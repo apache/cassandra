@@ -112,6 +112,7 @@ import static org.apache.cassandra.net.Verb.Priority.P2;
 import static org.apache.cassandra.net.Verb.Priority.P3;
 import static org.apache.cassandra.net.Verb.Priority.P4;
 import static org.apache.cassandra.net.VerbTimeouts.counterTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.hintTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.longTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.noTimeout;
 import static org.apache.cassandra.net.VerbTimeouts.pingTimeout;
@@ -137,8 +138,8 @@ public class Verb
 
     public static Verb MUTATION_RSP           = new Verb("MUTATION_RSP",           60,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance);
     public static Verb MUTATION_REQ           = new Verb("MUTATION_REQ",           0,   P3, writeTimeout,    MUTATION,          () -> Mutation.serializer,                  () -> MutationVerbHandler.instance,        MUTATION_RSP);
-    public static Verb HINT_RSP               = new Verb("HINT_RSP",               61,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
-    public static Verb HINT_REQ               = new Verb("HINT_REQ",               1,   P4, writeTimeout,    MUTATION,          () -> HintMessage.serializer,               () -> HintVerbHandler.instance,            HINT_RSP            );
+    public static Verb HINT_RSP               = new Verb("HINT_RSP",               61,  P1, hintTimeout,     REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
+    public static Verb HINT_REQ               = new Verb("HINT_REQ",               1,   P4, hintTimeout,     MUTATION,          () -> HintMessage.serializer,               () -> HintVerbHandler.instance,            HINT_RSP            );
     public static Verb READ_REPAIR_RSP        = new Verb("READ_REPAIR_RSP",        62,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
     public static Verb READ_REPAIR_REQ        = new Verb("READ_REPAIR_REQ",        2,   P1, writeTimeout,    MUTATION,          () -> Mutation.serializer,                  () -> ReadRepairVerbHandler.instance,      READ_REPAIR_RSP     );
     public static Verb BATCH_STORE_RSP        = new Verb("BATCH_STORE_RSP",        65,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             );
@@ -564,6 +565,7 @@ class VerbTimeouts
 {
     static final ToLongFunction<TimeUnit> rpcTimeout      = DatabaseDescriptor::getRpcTimeout;
     static final ToLongFunction<TimeUnit> writeTimeout    = DatabaseDescriptor::getWriteRpcTimeout;
+    static final ToLongFunction<TimeUnit> hintTimeout     = DatabaseDescriptor::getHintsRpcTimeout;
     static final ToLongFunction<TimeUnit> readTimeout     = DatabaseDescriptor::getReadRpcTimeout;
     static final ToLongFunction<TimeUnit> rangeTimeout    = DatabaseDescriptor::getRangeRpcTimeout;
     static final ToLongFunction<TimeUnit> counterTimeout  = DatabaseDescriptor::getCounterWriteRpcTimeout;

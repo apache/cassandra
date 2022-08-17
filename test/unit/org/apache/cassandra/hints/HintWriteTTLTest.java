@@ -61,7 +61,7 @@ public class HintWriteTTLTest
 
     private static DecoratedKey hintKey(Hint hint)
     {
-        return hint.mutation.key();
+        return hint.mutation().key();
     }
 
     private static Hint deserialize(ByteBuffer bb) throws IOException

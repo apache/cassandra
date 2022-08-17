@@ -70,7 +70,6 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
-import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
@@ -1712,6 +1711,11 @@ public class DatabaseDescriptor
         return unit.convert(conf.write_request_timeout_in_ms, MILLISECONDS);
     }
 
+    public static long getHintsRpcTimeout(TimeUnit unit)
+    {
+        return unit.convert(conf.hints_request_timeout_in_ms, MILLISECONDS);
+    }
+
     public static void setWriteRpcTimeout(long timeOutInMillis)
     {
         conf.write_request_timeout_in_ms = timeOutInMillis;
@@ -2710,7 +2714,12 @@ public class DatabaseDescriptor
 
     public static long getMaxHintsFileSize()
     {
-        return  ByteUnit.MEBI_BYTES.toBytes(conf.max_hints_file_size_in_mb);
+        return ByteUnit.MEBI_BYTES.toBytes(conf.max_hints_file_size_in_mb);
+    }
+
+    public static long getMaxTotalHintsSize()
+    {
+        return ByteUnit.MEBI_BYTES.toBytes(conf.max_total_hints_size_in_mb);
     }
 
     public static ParameterizedClass getHintsCompression()

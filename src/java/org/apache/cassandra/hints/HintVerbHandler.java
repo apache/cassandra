@@ -31,6 +31,9 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_HINTS_HANDLER;
 
 /**
  * Verb handler used both for hint dispatch and streaming.
@@ -41,15 +44,19 @@ import org.apache.cassandra.service.StorageService;
  */
 public final class HintVerbHandler implements IVerbHandler<HintMessage>
 {
-    public static final HintVerbHandler instance = new HintVerbHandler();
+    public static final IVerbHandler<HintMessage> instance = CUSTOM_HINTS_HANDLER.isPresent()
+                                                             ? FBUtilities.construct(CUSTOM_HINTS_HANDLER.getString(),
+                                                                                     "Unknown Custom Hint Verb Handler")
+                                                             : new HintVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(HintVerbHandler.class);
 
+    @Override
     public void doVerb(Message<HintMessage> message)
     {
         UUID hostId = message.payload.hostId;
         Hint hint = message.payload.hint;
-        InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
+        InetAddressAndPort address = HintsEndpointProvider.instance.endpointForHost(hostId);
 
         // If we see an unknown table id, it means the table, or one of the tables in the mutation, had been dropped.
         // In that case there is nothing we can really do, or should do, other than log it go on.
