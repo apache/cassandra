@@ -1,4 +1,5 @@
 4.0.6
+ * Prevent infinite loop in repair coordinator on FailSession (CASSANDRA-17834)
  * Fix race condition on updating cdc size and advancing to next segment (CASSANDRA-17792)
  * Add 'noboolean' rpm build for older distros like CentOS7 (CASSANDRA-17765)
  * Fix default value for compaction_throughput_mb_per_sec in Config class to match  the one in cassandra.yaml (CASSANDRA-17790)
