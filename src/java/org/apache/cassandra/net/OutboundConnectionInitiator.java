@@ -94,15 +94,17 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
     private static final Logger logger = LoggerFactory.getLogger(OutboundConnectionInitiator.class);
 
     private final ConnectionType type;
+    private final SslFallbackConnectionType sslConnectionType;
     private final OutboundConnectionSettings settings;
     private final int requestMessagingVersion; // for pre40 nodes
     private final Promise<Result<SuccessType>> resultPromise;
     private boolean isClosed;
 
-    private OutboundConnectionInitiator(ConnectionType type, OutboundConnectionSettings settings,
+    private OutboundConnectionInitiator(ConnectionType type, SslFallbackConnectionType sslConnectionType, OutboundConnectionSettings settings,
                                         int requestMessagingVersion, Promise<Result<SuccessType>> resultPromise)
     {
         this.type = type;
+        this.sslConnectionType = sslConnectionType;
         this.requestMessagingVersion = requestMessagingVersion;
         this.settings = settings;
         this.resultPromise = resultPromise;
@@ -115,9 +117,10 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
      *
      * The returned {@code Future} is guaranteed to be completed on the supplied eventLoop.
      */
-    public static Future<Result<StreamingSuccess>> initiateStreaming(EventLoop eventLoop, OutboundConnectionSettings settings, int requestMessagingVersion)
+    public static Future<Result<StreamingSuccess>> initiateStreaming(EventLoop eventLoop, OutboundConnectionSettings settings,
+                                                                     SslFallbackConnectionType sslConnectionType, int requestMessagingVersion)
     {
-        return new OutboundConnectionInitiator<StreamingSuccess>(STREAMING, settings, requestMessagingVersion, AsyncPromise.withExecutor(eventLoop))
+        return new OutboundConnectionInitiator<StreamingSuccess>(STREAMING, sslConnectionType, settings, requestMessagingVersion, AsyncPromise.withExecutor(eventLoop))
                .initiate(eventLoop);
     }
 
@@ -128,9 +131,10 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
      *
      * The returned {@code Future} is guaranteed to be completed on the supplied eventLoop.
      */
-    static Future<Result<MessagingSuccess>> initiateMessaging(EventLoop eventLoop, ConnectionType type, OutboundConnectionSettings settings, int requestMessagingVersion, Promise<Result<MessagingSuccess>> result)
+    static Future<Result<MessagingSuccess>> initiateMessaging(EventLoop eventLoop, ConnectionType type, SslFallbackConnectionType sslConnectionType,
+                                                              OutboundConnectionSettings settings, int requestMessagingVersion, Promise<Result<MessagingSuccess>> result)
     {
-        return new OutboundConnectionInitiator<>(type, settings, requestMessagingVersion, result)
+        return new OutboundConnectionInitiator<>(type, sslConnectionType, settings, requestMessagingVersion, result)
                .initiate(eventLoop);
     }
 
@@ -202,6 +206,14 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         return bootstrap;
     }
 
+    public enum SslFallbackConnectionType
+    {
+        SERVER_CONFIG, // Original configuration of the server
+        MTLS,
+        SSL,
+        NO_SSL
+    }
+
     private class Initializer extends ChannelInitializer<SocketChannel>
     {
         public void initChannel(SocketChannel channel) throws Exception
@@ -209,11 +221,10 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             ChannelPipeline pipeline = channel.pipeline();
 
             // order of handlers: ssl -> server-authentication -> logger -> handshakeHandler
-            if (settings.withEncryption())
+            if ((sslConnectionType == SslFallbackConnectionType.SERVER_CONFIG && settings.withEncryption())
+                || sslConnectionType == SslFallbackConnectionType.SSL || sslConnectionType == SslFallbackConnectionType.MTLS)
             {
-                // check if we should actually encrypt this connection
-                SslContext sslContext = SSLFactory.getOrCreateSslContext(settings.encryption, true,
-                                                                         ISslContextFactory.SocketType.CLIENT);
+                SslContext sslContext = getSslContext(sslConnectionType);
                 // for some reason channel.remoteAddress() will return null
                 InetAddressAndPort address = settings.to;
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
@@ -227,6 +238,20 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 pipeline.addLast("logger", new LoggingHandler(LogLevel.INFO));
 
             pipeline.addLast("handshake", new Handler());
+        }
+
+        private SslContext getSslContext(SslFallbackConnectionType connectionType) throws IOException
+        {
+            boolean requireClientAuth = false;
+            if (connectionType == SslFallbackConnectionType.MTLS || connectionType == SslFallbackConnectionType.SSL)
+            {
+                requireClientAuth = true;
+            }
+            else if (connectionType == SslFallbackConnectionType.SERVER_CONFIG)
+            {
+                requireClientAuth = settings.withEncryption();
+            }
+            return SSLFactory.getOrCreateSslContext(settings.encryption, requireClientAuth, ISslContextFactory.SocketType.CLIENT);
         }
 
     }
