@@ -1282,7 +1282,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar,javadoc-jar"
+    <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar"
             description="Create Cassandra release artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
