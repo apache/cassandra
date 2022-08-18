@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed.test;
 import java.time.Duration;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -32,6 +34,8 @@ import static org.junit.Assert.assertTrue;
 
 public class SchemaTest extends TestBaseImpl
 {
+    private static final Logger logger = LoggerFactory.getLogger(SchemaTest.class);
+
     @Test
     public void readRepair() throws Throwable
     {

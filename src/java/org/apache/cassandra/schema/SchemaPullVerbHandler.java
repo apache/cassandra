@@ -52,7 +52,7 @@ public final class SchemaPullVerbHandler implements IVerbHandler<NoPayload>
 
     public void doVerb(Message<NoPayload> message)
     {
-        logger.trace("Received schema pull request from {}", message.from());
+        logger.debug("Received schema pull request from {}", message.from());
         List<Consumer<Message<NoPayload>>> handlers = this.handlers;
         if (handlers.isEmpty())
             throw new UnsupportedOperationException("There is no handler registered for schema pull verb");

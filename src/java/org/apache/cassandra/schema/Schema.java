@@ -18,7 +18,14 @@
 package org.apache.cassandra.schema;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -27,9 +34,15 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import org.apache.commons.lang3.ObjectUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.KeyspaceNotDefinedException;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -43,12 +56,8 @@ import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResu
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.utils.concurrent.LoadingMap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import static java.lang.String.format;
-
 import static com.google.common.collect.Iterables.size;
+import static java.lang.String.format;
 import static org.apache.cassandra.config.DatabaseDescriptor.isDaemonInitialized;
 import static org.apache.cassandra.config.DatabaseDescriptor.isToolInitialized;
 
@@ -611,14 +620,10 @@ public class Schema implements SchemaProvider
      * Clear all locally stored schema information and fetch schema from another node.
      * Called by user (via JMX) who wants to get rid of schema disagreement.
      */
-    public synchronized void resetLocalSchema()
+    public void resetLocalSchema()
     {
         logger.debug("Clearing local schema...");
         updateHandler.clear();
-
-        logger.debug("Clearing local schema keyspace instances...");
-        distributedKeyspaces.forEach(this::unload);
-        updateVersion(SchemaConstants.emptyVersion);
         SchemaDiagnostics.schemaCleared(this);
 
         updateHandler.reset(false);

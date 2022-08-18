@@ -63,9 +63,8 @@ public interface SchemaUpdateHandler
      * refreshed, the callbacks provided in the factory method are executed, and the updated schema version is announced.
      *
      * @param local whether we should reset with locally stored schema or fetch the schema from other nodes
-     * @return transformation result
      */
-    SchemaTransformationResult reset(boolean local);
+    void reset(boolean local);
 
     /**
      * Clears the locally stored schema entirely. After this operation the schema is equal to {@link DistributedSchema#EMPTY}.

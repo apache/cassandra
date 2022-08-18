@@ -77,12 +77,12 @@ public class OfflineSchemaUpdateHandler implements SchemaUpdateHandler
     }
 
     @Override
-    public SchemaTransformationResult reset(boolean local)
+    public void reset(boolean local)
     {
         if (!local)
             throw new UnsupportedOperationException();
 
-        return apply(ignored -> SchemaKeyspace.fetchNonSystemKeyspaces(), local);
+        apply(ignored -> SchemaKeyspace.fetchNonSystemKeyspaces(), local);
     }
 
     @Override

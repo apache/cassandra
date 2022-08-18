@@ -86,7 +86,16 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         this.migrationCoordinator = migrationCoordinator == null ? createMigrationCoordinator(messagingService) : migrationCoordinator;
         Gossiper.instance.register(this);
         SchemaPushVerbHandler.instance.register(msg -> applyMutations(msg.payload));
-        SchemaPullVerbHandler.instance.register(msg -> messagingService.send(msg.responseWith(getSchemaMutations()), msg.from()));
+        SchemaPullVerbHandler.instance.register(msg -> {
+            logger.debug("Received schema pull request from {}", msg.from());
+            try
+            {
+                messagingService.send(msg.responseWith(getSchemaMutations()), msg.from());
+                logger.debug("Sent schema mutations to {}", msg.from());
+            } catch (RuntimeException ex) {
+                logger.error("Failed to send schema mutations to " + msg.from(), ex);
+            }
+        });
     }
 
     public synchronized void start()
@@ -140,6 +149,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         if (state == ApplicationState.SCHEMA)
         {
             EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+            logger.debug("Received onChange from {} for {} = {}, current state = {}, dead = {}, member = {}", endpoint, state, value, epState, Gossiper.instance.isDeadState(epState), StorageService.instance.getTokenMetadata().isMember(endpoint));
             if (epState != null && !Gossiper.instance.isDeadState(epState) && StorageService.instance.getTokenMetadata().isMember(endpoint))
             {
                 migrationCoordinator.reportEndpointVersion(endpoint, UUID.fromString(value.value));
@@ -253,20 +263,28 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
     }
 
     @Override
-    public SchemaTransformationResult reset(boolean local)
+    public void reset(boolean local)
     {
         if (local)
-            return reload();
-
-        Collection<Mutation> mutations = migrationCoordinator.pullSchemaFromAnyNode().awaitThrowUncheckedOnInterrupt().getNow();
-        return applyMutations(mutations);
+        {
+            reload();
+        } 
+        else
+        {
+            migrationCoordinator.reset();
+            if (!migrationCoordinator.awaitSchemaRequests(StorageService.SCHEMA_DELAY_MILLIS))
+            {
+                logger.error("Timeout exceeded when waiting for schema from other nodes");
+            }
+        }
     }
 
     @Override
     public synchronized void clear()
     {
+        SchemaTransformationResult update = new SchemaTransformationResult(schema, DistributedSchema.EMPTY, Keyspaces.diff(schema.getKeyspaces(), Keyspaces.none()));
         SchemaKeyspace.truncate();
-        this.schema = DistributedSchema.EMPTY;
+        updateSchema(update, false);
     }
 
     private synchronized Collection<Mutation> getSchemaMutations()
