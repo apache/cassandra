@@ -19,7 +19,6 @@ package org.apache.cassandra.repair;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -228,7 +227,8 @@ public class AutoRepairUtils
 
     // if dc groups is empty(not set), return the input value. If groups are set, only return the nodes in the same group
     public static Set<InetAddressAndPort> processNodesByGroup(Set<InetAddressAndPort> allNodesInRing) {
-        if (AutoRepairService.instance.getDCGroups().isEmpty()) {
+        Set<Set<String>> dcGroups = AutoRepairService.instance.getDCGroups();
+        if (dcGroups == null || dcGroups.isEmpty()) {
             logger.info("No data center groups is defined, will use all nodes in ring as one group.");
             return allNodesInRing;
         }
@@ -265,10 +265,19 @@ public class AutoRepairUtils
                 UUID hostId = Gossiper.instance.getHostId(node);
                 hostIdsInCurrentRing.add(hostId);
             } else {
-                logger.info("Node is not present in Gossipe cache node {}", node, nodeDC);
+                logger.info("Node is not present in Gossipe cache node {}, node data center {}", node, nodeDC);
             }
         }
         return hostIdsInCurrentRing;
+    }
+
+    public static TreeSet<UUID> getHostIdsInCurrentRing()
+    {
+        if (!AutoRepairService.instance.isAutoRepairEnabled()) {
+            return new TreeSet<>();
+        }
+        Set<InetAddressAndPort> allNodesInRing = StorageService.instance.getTokenMetadata().getAllEndpoints();
+        return getHostIdsInCurrentRing(allNodesInRing);
     }
 
     @VisibleForTesting
@@ -300,6 +309,7 @@ public class AutoRepairUtils
                 //i.e. I am the first one in the ring, check the last node's repair status
                 myNeighbourHostId = hostIdsInCurrentRing.last();
             }
+            logger.info("My neighbor node is {} and I am{} first in the ring.", myNeighbourHostId, firstInTheRing ? "" : " not");
 
             //get current repair status
             CurrentRepairStatus currentRepairStatus = getCurrentRepairStatus();
@@ -381,7 +391,7 @@ public class AutoRepairUtils
                             currentNodeFound = true;
                         }
                     }
-                    logger.info("Next node in sequence is {}", StorageService.instance.getTokenMetadata().getEndpointForHostId(nextNode));
+                    logger.info("Next node in sequence is {}, {}", StorageService.instance.getTokenMetadata().getEndpointForHostId(nextNode), nextNode);
                 }
 
             }

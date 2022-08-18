@@ -19,6 +19,8 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -145,4 +147,19 @@ public interface AutoRepairServiceMBean
      * Set ignore dcs list
      */
     public void setIgnoreDCs(Set<String> ignorDCs);
+
+    /**
+     * Get data center groups
+     */
+    public Set<Set<String>> getDCGroups();
+
+    /**
+     * Set data center groups
+     */
+    public void setDCGourps(Set<Set<String>> dcGourps);
+
+    /**
+     * Get the current ring this node within
+     */
+    public TreeSet<UUID> getCurrentRingHostIds();
 }

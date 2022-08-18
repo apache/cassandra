@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.Set;
+
 import com.google.common.base.Joiner;
 import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
@@ -41,6 +43,11 @@ public class GetAutoRepairConfig extends NodeToolCmd
             sb.append("\ntable max repair time in sec: " + probe
                     .getAutoRepairTableMaxRepairTimeInSec());
             sb.append("\nignore datacenters: " + Joiner.on(',').skipNulls().join(probe.getAutoRepairIgnoreDCs()));
+            sb.append("\ndatacenter groups: ");
+            for (Set<String> dcGroup : probe.getDCGroups()) {
+                sb.append("\n" + Joiner.on(',').skipNulls().join(dcGroup));
+            }
+
             System.out.println(sb.toString());
         }
         else

@@ -25,8 +25,9 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
-import java.util.Collections;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -205,5 +206,10 @@ public class AutoRepairService implements AutoRepairServiceMBean
 
     public Set<Set<String>> getDCGroups() {
         return autoRepairDCGroups;
+    }
+
+    public TreeSet<UUID> getCurrentRingHostIds()
+    {
+        return AutoRepairUtils.getHostIdsInCurrentRing();
     }
 }

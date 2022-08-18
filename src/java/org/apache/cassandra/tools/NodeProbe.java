@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -2389,6 +2391,19 @@ public class NodeProbe implements AutoCloseable
     public void setAutoRepairIgnoreDCs(Set<String> ignoreDCs)
     {
         autoRepairProxy.setIgnoreDCs(ignoreDCs);
+    }
+
+    public Set<Set<String>> getDCGroups() {
+        return autoRepairProxy.getDCGroups();
+    }
+
+    public void setDCGourps(Set<Set<String>> dcGourps) {
+        autoRepairProxy.setDCGourps(dcGourps);
+    }
+
+    public TreeSet<UUID> getCurrentRingHostIds()
+    {
+        return autoRepairProxy.getCurrentRingHostIds();
     }
 
     public boolean isDecommissionFailed()
