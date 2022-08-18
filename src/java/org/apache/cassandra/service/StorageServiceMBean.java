@@ -1122,4 +1122,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Indicates whether this node's bootstrap failed. */
     public boolean isBootstrapFailed();
+
+    /** Provides Token to end-point ownership cache details for UN, UJ, and UL */
+    public String getTokenToEndpointOwnership();
 }

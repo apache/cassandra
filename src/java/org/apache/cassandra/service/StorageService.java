@@ -7341,4 +7341,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         return false;
     }
+
+    public String getTokenToEndpointOwnership()
+    {
+        return tokenMetadata.toString();
+    }
 }

@@ -156,6 +156,7 @@ public class NodeTool
                 GetStreamThroughput.class,
                 GetTimeout.class,
                 GetTraceProbability.class,
+                GetTokenToEndpointOwnership.class,
                 GossipInfo.class,
                 Import.class,
                 Info.class,

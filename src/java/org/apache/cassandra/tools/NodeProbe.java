@@ -2415,6 +2415,11 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.isBootstrapFailed();
     }
+
+    public String getTokenToEndpointOwnership()
+    {
+        return ssProxy.getTokenToEndpointOwnership();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
