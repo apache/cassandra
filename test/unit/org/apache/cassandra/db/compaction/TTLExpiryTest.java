@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -79,6 +80,7 @@ public class TTLExpiryTest
     @Test
     public void testAggressiveFullyExpired()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
         cfs.disableAutoCompaction();
         SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().gcGraceSeconds(0).build());
@@ -146,12 +148,14 @@ public class TTLExpiryTest
     @Test
     public void testSimpleExpire() throws InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testSimpleExpire(false);
     }
 
     @Test
     public void testBug10944() throws InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // Reproduction for CASSANDRA-10944 (at the time of the bug)
         testSimpleExpire(true);
     }
@@ -207,6 +211,7 @@ public class TTLExpiryTest
     @Test
     public void testNoExpire() throws InterruptedException, IOException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -257,6 +262,7 @@ public class TTLExpiryTest
     @Test
     public void testCheckForExpiredSSTableBlockers() throws InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();

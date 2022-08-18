@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.AbstractRow;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -40,6 +41,7 @@ public class RepairedDataTombstonesTest extends CQLTester
     @Test
     public void compactionTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int, id2 int, t text, primary key (id, id2)) with gc_grace_seconds=0 and compaction = {'class':'SizeTieredCompactionStrategy', 'only_purge_repaired_tombstones':true}");
         // insert a live row to make sure that the sstables are not dropped (we test dropping in compactionDropExpiredSSTableTest() below)
         execute("insert into %s (id, id2, t) values (999,999,'live')");
@@ -68,6 +70,7 @@ public class RepairedDataTombstonesTest extends CQLTester
     @Test
     public void compactionDropExpiredSSTableTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int, id2 int, t text, primary key (id, id2)) with gc_grace_seconds=0 and compaction = {'class':'SizeTieredCompactionStrategy', 'only_purge_repaired_tombstones':true}");
         for (int i = 0; i < 10; i++)
         {
@@ -94,6 +97,7 @@ public class RepairedDataTombstonesTest extends CQLTester
     @Test
     public void readTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int, id2 int, t text, t2 text, primary key (id, id2)) with gc_grace_seconds=0 and compaction = {'class':'SizeTieredCompactionStrategy', 'only_purge_repaired_tombstones':true}");
         for (int i = 0; i < 10; i++)
         {
@@ -136,6 +140,7 @@ public class RepairedDataTombstonesTest extends CQLTester
     @Test
     public void readTestRowTombstones() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int, id2 int, t text, t2 text, primary key (id, id2)) with gc_grace_seconds=0 and compaction = {'class':'SizeTieredCompactionStrategy', 'only_purge_repaired_tombstones':true}");
         for (int i = 0; i < 10; i++)
         {
@@ -158,6 +163,7 @@ public class RepairedDataTombstonesTest extends CQLTester
     @Test
     public void readTestPartitionTombstones() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int, id2 int, t text, t2 text, primary key (id, id2)) with gc_grace_seconds=0 and compaction = {'class':'SizeTieredCompactionStrategy', 'only_purge_repaired_tombstones':true}");
         for (int i = 0; i < 10; i++)
         {
@@ -195,6 +201,7 @@ public class RepairedDataTombstonesTest extends CQLTester
     @Test
     public void readTestOldUnrepaired() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int, id2 int, t text, t2 text, primary key (id, id2)) with gc_grace_seconds=0 and compaction = {'class':'SizeTieredCompactionStrategy', 'only_purge_repaired_tombstones':true}");
         getCurrentColumnFamilyStore().disableAutoCompaction();
         for (int i = 0; i < 10; i++)

@@ -63,6 +63,7 @@ import org.apache.cassandra.db.compaction.CompactionIterator;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
@@ -119,6 +120,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void successCase() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Assert.assertSame(ByteOrderedPartitioner.class, DatabaseDescriptor.getPartitioner().getClass());
         cfs.disableAutoCompaction();
 
@@ -169,6 +171,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void acquisitionSuccess() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(6);
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
@@ -200,6 +203,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void repairedSSTablesAreNotAcquired() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
@@ -226,6 +230,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void finalizedPendingRepairSSTablesAreNotAcquired() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
@@ -255,6 +260,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void conflictingSessionAcquisitionFailure() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
@@ -295,6 +301,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void callbackSuccess() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
@@ -318,6 +325,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void callbackNullResult() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
@@ -341,6 +349,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void callbackNullTxn() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
@@ -364,6 +373,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void singleAnticompaction() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(2);
 
@@ -384,6 +394,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test (expected = CompactionInterruptedException.class)
     public void cancelledAntiCompaction() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(1);
 
@@ -413,6 +424,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void antiCompactionException()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         makeSSTables(2);
         TimeUUID prsid = nextTimeUUID();
@@ -452,6 +464,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void testBlockedAcquisition() throws ExecutionException, InterruptedException, TimeoutException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         ExecutorService es = Executors.newFixedThreadPool(1);
 
@@ -507,6 +520,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void testUnblockedAcquisition() throws ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         ExecutorService es = Executors.newFixedThreadPool(1);
         makeSSTables(2);
@@ -727,6 +741,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void testWith2i() throws ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs2.disableAutoCompaction();
         makeSSTables(2, cfs2, 100);
         ColumnFamilyStore idx = cfs2.indexManager.getAllIndexColumnFamilyStores().iterator().next();

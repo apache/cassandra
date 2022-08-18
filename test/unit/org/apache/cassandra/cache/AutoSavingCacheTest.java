@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cache;
 
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -55,6 +56,7 @@ public class AutoSavingCacheTest
     @Test
     public void testSerializeAndLoadKeyCache0kB() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DatabaseDescriptor.setColumnIndexCacheSize(0);
         doTestSerializeAndLoadKeyCache();
     }
@@ -62,6 +64,7 @@ public class AutoSavingCacheTest
     @Test
     public void testSerializeAndLoadKeyCache() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DatabaseDescriptor.setColumnIndexCacheSize(8);
         doTestSerializeAndLoadKeyCache();
     }

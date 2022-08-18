@@ -32,6 +32,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -44,6 +45,7 @@ public class ViewBuilderTaskTest extends CQLTester
     @Test
     public void testBuildRange() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         requireNetwork();
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());

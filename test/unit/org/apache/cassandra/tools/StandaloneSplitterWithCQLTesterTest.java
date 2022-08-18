@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,14 +25,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
-import com.google.common.io.Files;
-
-import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
@@ -49,6 +47,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     @Before
     public void before() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         setupTestSstables();
         tearDownClass();
         SSTableReader.resetTidying();

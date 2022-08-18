@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 import org.junit.After;
 import org.junit.Test;
 
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -205,6 +206,7 @@ public class AntiCompactionTest
     @Test
     public void antiCompactOneFull() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore store = prepareColumnFamilyStore();
         SSTableStats stats = antiCompactRanges(store, atEndpoint(range(0, 4), NO_RANGES));
         assertEquals(2, stats.numLiveSSTables);
@@ -217,6 +219,7 @@ public class AntiCompactionTest
     @Test
     public void antiCompactOneMixed() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore store = prepareColumnFamilyStore();
         SSTableStats stats = antiCompactRanges(store, atEndpoint(range(0, 4), range(4, 8)));
         assertEquals(3, stats.numLiveSSTables);
@@ -229,6 +232,7 @@ public class AntiCompactionTest
     @Test
     public void antiCompactOneTransOnly() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore store = prepareColumnFamilyStore();
         SSTableStats stats = antiCompactRanges(store, atEndpoint(NO_RANGES, range(0, 4)));
         assertEquals(2, stats.numLiveSSTables);
@@ -307,6 +311,7 @@ public class AntiCompactionTest
     @Test
     public void antiCompactTenFull() throws IOException, NoSuchRepairSessionException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.disableAutoCompaction();
@@ -330,6 +335,7 @@ public class AntiCompactionTest
     @Test
     public void antiCompactTenTrans() throws IOException, NoSuchRepairSessionException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.disableAutoCompaction();
@@ -353,6 +359,7 @@ public class AntiCompactionTest
     @Test
     public void antiCompactTenMixed() throws IOException, NoSuchRepairSessionException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.disableAutoCompaction();
@@ -372,6 +379,7 @@ public class AntiCompactionTest
     @Test
     public void shouldMutatePendingRepair() throws InterruptedException, IOException, NoSuchRepairSessionException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore store = prepareColumnFamilyStore();
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
         assertEquals(store.getLiveSSTables().size(), sstables.size());
@@ -398,6 +406,7 @@ public class AntiCompactionTest
     @Test
     public void shouldSkipAntiCompactionForNonIntersectingRange() throws IOException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.disableAutoCompaction();
@@ -467,6 +476,7 @@ public class AntiCompactionTest
     @Test
     public void missingParentRepairSession() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.disableAutoCompaction();

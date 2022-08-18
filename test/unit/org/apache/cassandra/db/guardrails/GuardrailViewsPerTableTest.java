@@ -21,6 +21,8 @@ package org.apache.cassandra.db.guardrails;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.schema.MemtableParams;
+
 import static java.lang.String.format;
 
 /**
@@ -61,6 +63,7 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
     @Test
     public void testCreateView() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String view1 = assertCreateViewSucceeds();
         assertCurrentValue(1);
 
@@ -88,6 +91,7 @@ public class GuardrailViewsPerTableTest extends ThresholdTester
     @Test
     public void testExcludedUsers() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int)");
 
         testExcludedUsers(() -> format("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +

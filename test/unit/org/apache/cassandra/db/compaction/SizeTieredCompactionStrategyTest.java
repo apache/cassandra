@@ -32,6 +32,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -149,6 +150,7 @@ public class SizeTieredCompactionStrategyTest
     @Test
     public void testPrepBucket() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String ksname = KEYSPACE1;
         String cfname = "Standard1";
         Keyspace keyspace = Keyspace.open(ksname);

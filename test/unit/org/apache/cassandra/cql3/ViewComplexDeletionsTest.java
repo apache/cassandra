@@ -30,6 +30,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
 
 import static org.junit.Assert.assertEquals;
@@ -49,6 +50,7 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
     @Test
     public void testCommutativeRowDeletionFlush() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // CASSANDRA-13409
         testCommutativeRowDeletion(true);
     }
@@ -57,6 +59,7 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
     public void testCommutativeRowDeletionWithoutFlush() throws Throwable
     {
         // CASSANDRA-13409
+
         testCommutativeRowDeletion(false);
     }
 

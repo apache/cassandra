@@ -54,6 +54,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -166,6 +167,7 @@ public class CassandraStreamManagerTest
     @Test
     public void incrementalSSTableSelection() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // CASSANDRA-15825 Make sure a compaction won't be triggered under our feet removing the sstables mid-flight
         cfs.disableAutoCompaction();
 
@@ -194,6 +196,7 @@ public class CassandraStreamManagerTest
     @Test
     public void testSSTableSectionsForRanges() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.truncateBlocking();
 
         createSSTable(() -> {

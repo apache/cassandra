@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.tools.ToolRunner;
 import org.assertj.core.api.Assertions;
 
@@ -42,6 +43,7 @@ public class CompactTest extends CQLTester
     @Test
     public void keyPresent() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         long token = 42;
         long key = Murmur3Partitioner.LongToken.keyForToken(token).getLong();
         createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
@@ -63,6 +65,7 @@ public class CompactTest extends CQLTester
     @Test
     public void keyNotPresent() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         long token = 42;
         long key = Murmur3Partitioner.LongToken.keyForToken(token).getLong();
         createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");

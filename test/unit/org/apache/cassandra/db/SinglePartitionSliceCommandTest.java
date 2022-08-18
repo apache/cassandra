@@ -39,6 +39,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -402,6 +403,7 @@ public class SinglePartitionSliceCommandTest
     @Test
     public void testPartitionDeletionRangeDeletionTie()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         QueryProcessor.executeOnceInternal("CREATE TABLE ks.partition_range_deletion (k int, c1 int, c2 int, v int, primary key (k, c1, c2))");
         TableMetadata metadata = Schema.instance.getTableMetadata("ks", "partition_range_deletion");
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);

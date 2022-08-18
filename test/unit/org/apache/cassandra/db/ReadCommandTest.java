@@ -29,6 +29,7 @@ import java.util.stream.IntStream;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.schema.MemtableParams;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -626,6 +627,7 @@ public class ReadCommandTest
     @Test
     public void testSinglePartitionSliceRepairedDataTracking() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
         testRepairedDataTracking(cfs, readCommand);
@@ -634,6 +636,7 @@ public class ReadCommandTest
     @Test
     public void testPartitionRangeRepairedDataTracking() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
         ReadCommand readCommand = Util.cmd(cfs).build();
         testRepairedDataTracking(cfs, readCommand);
@@ -642,6 +645,7 @@ public class ReadCommandTest
     @Test
     public void testSinglePartitionNamesRepairedDataTracking() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).includeRow("cc").includeRow("dd").build();
         testRepairedDataTracking(cfs, readCommand);
@@ -653,6 +657,7 @@ public class ReadCommandTest
         // when tracking, the optimizations of querying sstables in timestamp order and
         // returning once all requested columns are not available so just assert that
         // all sstables are read when performing such queries
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -700,6 +705,7 @@ public class ReadCommandTest
         // This clearly has a tradeoff with the efficacy of the digest, without doing
         // so false positive digest mismatches will be reported for scenarios where
         // there is nothing that can be done to "fix" the replicas
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF7);
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -761,6 +767,7 @@ public class ReadCommandTest
     @Test
     public void purgeGCableTombstonesBeforeCalculatingDigest()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF8);
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -845,6 +852,7 @@ public class ReadCommandTest
     @Test
     public void testRepairedDataOverreadMetrics()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF9);
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
@@ -954,6 +962,7 @@ public class ReadCommandTest
     @Test
     public void partitionReadFullyPurged() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         ReadCommand partitionRead = Util.cmd(cfs, Util.dk("key")).build();
         fullyPurgedPartitionCreatesEmptyDigest(cfs, partitionRead);
@@ -962,6 +971,7 @@ public class ReadCommandTest
     @Test
     public void rangeReadFullyPurged() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         ReadCommand rangeRead = Util.cmd(cfs).build();
         fullyPurgedPartitionCreatesEmptyDigest(cfs, rangeRead);
@@ -1024,6 +1034,7 @@ public class ReadCommandTest
     @Test
     public void mixedPurgedAndNonPurgedPartitions()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();

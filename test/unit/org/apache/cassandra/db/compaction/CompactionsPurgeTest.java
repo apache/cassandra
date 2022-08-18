@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -85,6 +86,7 @@ public class CompactionsPurgeTest
     @Test
     public void testMajorCompactionPurge()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CompactionManager.instance.disableAutoCompaction();
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
@@ -130,6 +132,7 @@ public class CompactionsPurgeTest
     @Test
     public void testMajorCompactionPurgeTombstonesWithMaxTimestamp()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CompactionManager.instance.disableAutoCompaction();
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
@@ -175,6 +178,7 @@ public class CompactionsPurgeTest
     @Test
     public void testMajorCompactionPurgeTopLevelTombstoneWithMaxTimestamp()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CompactionManager.instance.disableAutoCompaction();
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
@@ -219,6 +223,7 @@ public class CompactionsPurgeTest
     @Test
     public void testMajorCompactionPurgeRangeTombstoneWithMaxTimestamp()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CompactionManager.instance.disableAutoCompaction();
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
@@ -261,6 +266,7 @@ public class CompactionsPurgeTest
     @Test
     public void testMinorCompactionPurge()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CompactionManager.instance.disableAutoCompaction();
 
         Keyspace keyspace = Keyspace.open(KEYSPACE2);
@@ -324,6 +330,7 @@ public class CompactionsPurgeTest
     @Test
     public void testMinTimestampPurge()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CompactionManager.instance.disableAutoCompaction();
 
         Keyspace keyspace = Keyspace.open(KEYSPACE2);
@@ -371,6 +378,7 @@ public class CompactionsPurgeTest
     @Test
     public void testCompactionPurgeOneFile() throws ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CompactionManager.instance.disableAutoCompaction();
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
@@ -448,6 +456,7 @@ public class CompactionsPurgeTest
     @Test
     public void testCompactionPurgeTombstonedRow() throws ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CompactionManager.instance.disableAutoCompaction();
 
         String keyspaceName = KEYSPACE1;
@@ -496,6 +505,7 @@ public class CompactionsPurgeTest
     @Test
     public void testRowTombstoneObservedBeforePurging()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String keyspace = "cql_keyspace";
         String table = "table1";
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);

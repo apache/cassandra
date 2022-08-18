@@ -47,6 +47,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -87,6 +88,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionSTCS() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (id text PRIMARY KEY)  WITH compaction = {'class':'SizeTieredCompactionStrategy', 'min_threshold':2};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1')");
@@ -99,6 +101,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionLCS() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1, 'fanout_size':5};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1')");
@@ -112,6 +115,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionDTCS() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'DateTieredCompactionStrategy', 'min_threshold':2};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1') using timestamp 1000"); // same timestamp = same window = minor compaction triggered
@@ -124,6 +128,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionTWCS() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'TimeWindowCompactionStrategy', 'min_threshold':2};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1')");
@@ -149,6 +154,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionSTCSNodetoolEnabled() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (id text PRIMARY KEY)  WITH compaction = {'class':'SizeTieredCompactionStrategy', 'min_threshold':2, 'enabled':false};");
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         getCurrentColumnFamilyStore().enableAutoCompaction();
@@ -197,6 +203,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionSTCSAlterTable() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (id text PRIMARY KEY)  WITH compaction = {'class':'SizeTieredCompactionStrategy', 'min_threshold':2, 'enabled':false};");
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("ALTER TABLE %s WITH compaction = {'class': 'SizeTieredCompactionStrategy', 'min_threshold': 2, 'enabled': true}");
@@ -278,18 +285,21 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testPerCFSNeverPurgeTombstonesCell() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testPerCFSNeverPurgeTombstonesHelper(true);
     }
 
     @Test
     public void testPerCFSNeverPurgeTombstones() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testPerCFSNeverPurgeTombstonesHelper(false);
     }
 
     @Test
     public void testCompactionInvalidRTs() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // set the corruptedTombstoneStrategy to exception since these tests require it - if someone changed the default
         // in test/conf/cassandra.yaml they would start failing
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
@@ -307,6 +317,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testCompactionInvalidTombstone() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         prepare();
         // write a standard tombstone with negative local deletion time (LDTs are not set by user and should not be negative):
@@ -321,6 +332,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testCompactionInvalidPartitionDeletion() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         prepare();
         // write a partition deletion with negative local deletion time (LDTs are not set by user and should not be negative)::
@@ -335,6 +347,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testCompactionInvalidRowDeletion() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         prepare();
         // write a row deletion with negative local deletion time (LDTs are not set by user and should not be negative):
@@ -355,6 +368,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testIndexedReaderRowDeletion() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt row deletion
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         int maxSizePre = DatabaseDescriptor.getColumnIndexSizeInKiB();
@@ -370,6 +384,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testIndexedReaderTombstone() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt standard tombstone
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         int maxSizePre = DatabaseDescriptor.getColumnIndexSizeInKiB();
@@ -386,6 +401,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testIndexedReaderRT() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt range tombstone
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
         final int maxSizePreKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
@@ -404,6 +420,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testLCSThresholdParams() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int, id2 int, t blob, primary key (id, id2)) with compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':'1', 'max_threshold':'60'}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -429,6 +446,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testSTCSinL0() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int, id2 int, t blob, primary key (id, id2)) with compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':'1', 'max_threshold':'60'}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -466,6 +484,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testAbortNotifications() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int primary key, x blob) with compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1}");
         Random r = new Random();
         byte [] b = new byte[100 * 1024];

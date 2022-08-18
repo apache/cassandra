@@ -36,6 +36,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SchemaCQLHelper;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
@@ -50,6 +51,7 @@ public class ViewSchemaTest extends ViewAbstractTest
     @Test
     public void testCaseSensitivity() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (\"theKey\" int, \"theClustering\" int, \"theValue\" int, PRIMARY KEY (\"theKey\", \"theClustering\"))");
 
         execute("INSERT INTO %s (\"theKey\", \"theClustering\", \"theValue\") VALUES (?, ?, ?)", 0, 0, 0);
@@ -203,6 +205,7 @@ public class ViewSchemaTest extends ViewAbstractTest
     @Test
     public void testAllTypes() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String myType = createType("CREATE TYPE %s (a int, b uuid, c set<text>)");
 
         createTable("CREATE TABLE %s (" +

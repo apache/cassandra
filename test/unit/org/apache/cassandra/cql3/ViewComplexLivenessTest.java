@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.schema.MemtableParams;
 
 import static org.junit.Assert.assertEquals;
 
@@ -101,6 +102,7 @@ public class ViewComplexLivenessTest extends ViewAbstractParameterizedTest
     @Test
     public void testStrictLivenessTombstone() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (p int primary key, v1 int, v2 int)");
 
         Keyspace ks = Keyspace.open(keyspace());

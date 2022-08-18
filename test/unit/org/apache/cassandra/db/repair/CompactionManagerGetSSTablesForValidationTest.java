@@ -32,6 +32,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -136,6 +137,7 @@ public class CompactionManagerGetSSTablesForValidationTest
     @Test
     public void consistentRepair() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         makeSSTables();
         registerRepair(true);
         modifySSTables();
@@ -151,6 +153,7 @@ public class CompactionManagerGetSSTablesForValidationTest
     @Test
     public void legacyIncrementalRepair() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         makeSSTables();
         registerRepair(true);
         modifySSTables();
@@ -167,6 +170,7 @@ public class CompactionManagerGetSSTablesForValidationTest
     @Test
     public void fullRepair() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         makeSSTables();
         registerRepair(false);
         modifySSTables();

@@ -32,12 +32,14 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.schema.MemtableParams;
 
 public class CommitLogCQLTest extends CQLTester
 {
     @Test
     public void testTruncateSegmentDiscard() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String otherTable = createTable("CREATE TABLE %s (idx INT, data TEXT, PRIMARY KEY(idx));");
 
         createTable("CREATE TABLE %s (idx INT, data TEXT, PRIMARY KEY(idx));");
@@ -67,6 +69,7 @@ public class CommitLogCQLTest extends CQLTester
     @Test
     public void testSwitchMemtable() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (idx INT, data TEXT, PRIMARY KEY(idx));");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         

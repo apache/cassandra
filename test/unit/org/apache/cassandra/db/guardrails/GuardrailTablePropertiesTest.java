@@ -31,6 +31,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
+import org.apache.cassandra.schema.MemtableParams;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -164,6 +165,7 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
     @Test
     public void testViewProperties() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // view properties is not allowed
         createTableWithProperties();
         assertValid(() -> createViewWithProperties(""));
@@ -188,6 +190,7 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
     @Test
     public void testExcludedUsers() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testExcludedUsers(
         () -> format(CREATE_TABLE, keyspace(), createTableName(), "WITH compaction = { 'class': 'SizeTieredCompactionStrategy' }"),
         () -> format(CREATE_TABLE, keyspace(), createTableName(), "WITH gc_grace_seconds = 1000"),

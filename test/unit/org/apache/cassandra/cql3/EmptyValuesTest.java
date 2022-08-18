@@ -23,9 +23,11 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.commons.io.IOUtils;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
@@ -53,6 +55,11 @@ import static org.junit.Assume.assumeTrue;
 
 public class EmptyValuesTest extends CQLTester
 {
+    @BeforeClass
+    public static void setUp() {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
+    }
+
     private void verify(String emptyValue) throws Throwable
     {
         UntypedResultSet result = execute("SELECT * FROM %s");

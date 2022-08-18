@@ -29,6 +29,7 @@ import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -90,6 +91,7 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff30() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         List<String> excludeObjects = Arrays.asList("org.apache.cassandra.metrics:type=ThreadPools.*",
                                                     "org.apache.cassandra.internal:.*",
                                                     "org.apache.cassandra.metrics:type=DroppedMessage.*",
@@ -121,6 +123,7 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff311() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         List<String> excludeObjects = Arrays.asList("org.apache.cassandra.metrics:type=ThreadPools.*", //lazy initialization in 4.0
                                                     "org.apache.cassandra.internal:.*",
                                                     "org.apache.cassandra.metrics:type=DroppedMessage,scope=PAGED_RANGE.*", //it was deprecated in the previous major version
@@ -153,6 +156,7 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff40() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         List<String> excludeObjects = Arrays.asList();
         List<String> excludeAttributes = Arrays.asList();
         List<String> excludeOperations = Arrays.asList();
@@ -163,6 +167,7 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff41() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         List<String> excludeObjects = Arrays.asList();
         List<String> excludeAttributes = Arrays.asList();
         List<String> excludeOperations = Arrays.asList();

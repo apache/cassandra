@@ -61,6 +61,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -103,6 +104,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
     @Test
     public void emptyPartitionDeletionTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // create cell tombstone, range tombstone, partition deletion
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v1 int, v2 int, PRIMARY KEY (pk, ck1, ck2))");
         // partition deletion
@@ -138,6 +140,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
     @Test
     public void emptyStaticTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // create cell tombstone, range tombstone, partition deletion
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v1 int, v2 int static, PRIMARY KEY (pk, ck1, ck2))");
         // partition deletion
@@ -173,6 +176,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
     @Test
     public void complexThrottleWithTombstoneTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // create cell tombstone, range tombstone, partition deletion
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v1 int, v2 int, PRIMARY KEY (pk, ck1, ck2))");
 

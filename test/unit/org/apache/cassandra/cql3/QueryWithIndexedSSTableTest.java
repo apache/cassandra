@@ -19,6 +19,8 @@ package org.apache.cassandra.cql3;
 
 import java.util.Random;
 
+import org.apache.cassandra.schema.MemtableParams;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -29,6 +31,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class QueryWithIndexedSSTableTest extends CQLTester
 {
+
+    @BeforeClass
+    public static void setUp() {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
+    }
+
     @Test
     public void queryIndexedSSTableTest() throws Throwable
     {

@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.schema.MemtableParams;
 
 /*
  * This test class was too large and used to timeout CASSANDRA-16777. We're splitting it into:
@@ -82,6 +83,7 @@ public class ViewRangesTest extends ViewAbstractTest
     @Test
     public void testRangeTombstone() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (" +
                     "k int, " +
                     "asciival ascii, " +

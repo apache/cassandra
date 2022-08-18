@@ -35,6 +35,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -63,6 +64,7 @@ public class AntiCompactionBytemanTest extends CQLTester
              action = "Thread.sleep(2000);") } )
     public void testRedundantTransitions() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int primary key, i int)");
         execute("insert into %s (id, i) values (1, 1)");
         execute("insert into %s (id, i) values (2, 1)");

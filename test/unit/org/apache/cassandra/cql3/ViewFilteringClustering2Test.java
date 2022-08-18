@@ -23,6 +23,8 @@ import java.util.List;
 
 import org.junit.Test;
 
+import org.apache.cassandra.schema.MemtableParams;
+
 /* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes
  * - ViewFilteringPKTest
@@ -37,6 +39,7 @@ public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
     @Test
     public void testClusteringKeyMultiColumnRestrictions() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         List<String> mvPrimaryKeys = Arrays.asList("((a, b), c)", "((b, a), c)", "(a, b, c)", "(c, b, a)", "((c, a), b)");
         for (int i = 0; i < mvPrimaryKeys.size(); i++)
         {
@@ -138,6 +141,7 @@ public class ViewFilteringClustering2Test extends ViewAbstractParameterizedTest
     @Test
     public void testClusteringKeyFilteringRestrictions() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         List<String> mvPrimaryKeys = Arrays.asList("((a, b), c)", "((b, a), c)", "(a, b, c)", "(c, b, a)", "((c, a), b)");
         for (int i = 0; i < mvPrimaryKeys.size(); i++)
         {

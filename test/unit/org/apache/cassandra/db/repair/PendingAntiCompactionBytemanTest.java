@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.utils.TimeUUID;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
@@ -54,6 +55,7 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
     @Test
     public void testExceptionAnticompaction() throws InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         cfs.disableAutoCompaction();
         cfs2.disableAutoCompaction();
         ExecutorService es = Executors.newFixedThreadPool(1);
