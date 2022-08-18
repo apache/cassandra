@@ -93,8 +93,8 @@ The following options are supported, with `-d,--nodes <initial hosts>` required:
 
 -i,--ignore <NODES>                                          Don't stream to this (comma separated) list of nodes
 
--idct,--inter-dc-throttle <inter-dc-throttle>                (deprecated) Inter-datacenter throttle speed in Mbits (default 0 for unlimited)
-                                                             Use -idctmib / --inter-dc-throttle-mib instead
+-idct,--inter-dc-throttle <inter-dc-throttle>                (deprecated) Inter-datacenter throttle speed in Mbits (default 0 for unlimited).
+                                                             Use --inter-dc-throttle-mib instead.
 
 --inter-dc-throttle-mib <inter-dc-throttle-mib>              Inter-datacenter throttle speed in MiB/s (default 0 for unlimited)
 
@@ -121,8 +121,8 @@ The following options are supported, with `-d,--nodes <initial hosts>` required:
                                                              for TLS internode communication (default 7001)
 -st,--store-type <STORE-TYPE>                                Client SSL:
                                                              type of store
--t,--throttle <throttle>                                     (deprecated) Throttle speed in Mbits (default 0 for unlimited)
-                                                             Use -tmib / --throttle-mib instead
+-t,--throttle <throttle>                                     (deprecated) Throttle speed in Mbits (default 0 for unlimited).
+                                                             Use --throttle-mib instead.
 --throttle-mib <throttle-mib>                                Throttle
                                                              speed in MiB/s (default 0 for unlimited)
 -ts,--truststore <TRUSTSTORE>                                Client SSL:

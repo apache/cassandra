@@ -265,9 +265,9 @@ public class LoaderOptions
         }
 
         @Deprecated
-        public Builder throttle(int throttle)
+        public Builder throttle(int throttleMegabits)
         {
-            return throttleMegabits(throttle);
+            return throttleMegabits(throttleMegabits);
         }
 
         public Builder interDcThrottleMebibytes(int interDcThrottleMebibytes)
