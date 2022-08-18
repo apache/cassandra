@@ -55,7 +55,7 @@ public class FailingTruncationTest extends TestBaseImpl
             }
             catch (Exception e)
             {
-                assertTrue(e.getMessage().contains("Truncate failed on replicas /127.0.0.2"));
+                assertTrue(e.getMessage().contains("Truncate failed on replica /127.0.0.2"));
             }
         }
     }
