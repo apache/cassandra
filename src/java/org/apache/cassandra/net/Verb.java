@@ -78,6 +78,7 @@ import org.apache.cassandra.schema.SchemaPushVerbHandler;
 import org.apache.cassandra.schema.SchemaVersionVerbHandler;
 import org.apache.cassandra.service.accord.serializers.ApplyAndCheckSerializers;
 import org.apache.cassandra.service.accord.serializers.BeginInvalidateSerializers;
+import org.apache.cassandra.service.accord.serializers.CheckStatusSerializers;
 import org.apache.cassandra.service.accord.serializers.InformOfPersistenceSerializers;
 import org.apache.cassandra.service.accord.serializers.InformOfTxnSerializers;
 import org.apache.cassandra.service.paxos.PaxosCommit;
@@ -244,6 +245,9 @@ public enum Verb
 
     ACCORD_INFORM_OF_PERSISTENCE_RSP(141, P2, writeTimeout, REQUEST_RESPONSE,     () -> InformOfTxnSerializers.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
     ACCORD_INFORM_OF_PERSIETENCE_REQ(140, P2, writeTimeout, ACCORD,               () -> InformOfPersistenceSerializers.request, AccordService.instance::verbHandler, ACCORD_INFORM_OF_PERSISTENCE_RSP),
+
+    ACCORD_CHECK_STATUS_RSP         (143, P2, writeTimeout, REQUEST_RESPONSE,     () -> CheckStatusSerializers.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_CHECK_STATUS_REQ         (142, P2, writeTimeout, ACCORD,               () -> CheckStatusSerializers.request,       AccordService.instance::verbHandler, ACCORD_CHECK_STATUS_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             ),
