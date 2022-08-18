@@ -27,7 +27,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class CommitSerializer
+public class CommitSerializers
 {
     public static final IVersionedSerializer<Commit> request = new TxnRequestSerializer<>()
     {
@@ -63,6 +63,31 @@ public class CommitSerializer
                    + KeySerializers.key.serializedSize(msg.homeKey, version)
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + TypeSizes.BOOL_SIZE;
+        }
+    };
+
+    public static final IVersionedSerializer<Commit.Invalidate> invalidate = new TxnRequestSerializer<>()
+    {
+        @Override
+        public void serializeBody(Commit.Invalidate invalidate, DataOutputPlus out, int version) throws IOException
+        {
+            CommandSerializers.txnId.serialize(invalidate.txnId, out, version);
+            KeySerializers.keys.serialize(invalidate.txnKeys, out, version);
+        }
+
+        @Override
+        public Commit.Invalidate deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
+        {
+            return new Commit.Invalidate(scope, waitForEpoch,
+                                         CommandSerializers.txnId.deserialize(in, version),
+                                         KeySerializers.keys.deserialize(in, version));
+        }
+
+        @Override
+        public long serializedBodySize(Commit.Invalidate invalidate, int version)
+        {
+            return CommandSerializers.txnId.serializedSize(invalidate.txnId, version)
+                   + KeySerializers.keys.serializedSize(invalidate.txnKeys, version);
         }
     };
 }

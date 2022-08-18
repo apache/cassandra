@@ -69,6 +69,33 @@ public class AcceptSerializers
         }
     };
 
+    public static final IVersionedSerializer<Accept.Invalidate> invalidate = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(Accept.Invalidate invalidate, DataOutputPlus out, int version) throws IOException
+        {
+            CommandSerializers.ballot.serialize(invalidate.ballot, out, version);
+            CommandSerializers.txnId.serialize(invalidate.txnId, out, version);
+            KeySerializers.key.serialize(invalidate.someKey, out, version);
+        }
+
+        @Override
+        public Accept.Invalidate deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return new Accept.Invalidate(CommandSerializers.ballot.deserialize(in, version),
+                                         CommandSerializers.txnId.deserialize(in, version),
+                                         KeySerializers.key.deserialize(in, version));
+        }
+
+        @Override
+        public long serializedSize(Accept.Invalidate invalidate, int version)
+        {
+            return CommandSerializers.ballot.serializedSize(invalidate.ballot, version)
+                   + CommandSerializers.txnId.serializedSize(invalidate.txnId, version)
+                   + KeySerializers.key.serializedSize(invalidate.someKey, version);
+        }
+    };
+
     private static final IVersionedSerializer<AcceptOk> acceptOk = new IVersionedSerializer<>()
     {
         @Override

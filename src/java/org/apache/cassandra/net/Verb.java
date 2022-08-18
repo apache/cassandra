@@ -91,7 +91,7 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ApplySerializer;
-import org.apache.cassandra.service.accord.serializers.CommitSerializer;
+import org.apache.cassandra.service.accord.serializers.CommitSerializers;
 import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
@@ -212,18 +212,23 @@ public enum Verb
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
 
     // accord
-    ACCORD_PREACCEPT_RSP   (121, P2, writeTimeout,    REQUEST_RESPONSE,  () -> PreacceptSerializers.reply,           () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
-    ACCORD_PREACCEPT_REQ   (120, P2, writeTimeout,    ACCORD,            () -> PreacceptSerializers.request,         AccordService.instance::verbHandler,       ACCORD_PREACCEPT_RSP),
-    ACCORD_ACCEPT_RSP      (123, P2, writeTimeout,    REQUEST_RESPONSE,  () -> AcceptSerializers.reply,              () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
-    ACCORD_ACCEPT_REQ      (122, P2, writeTimeout,    ACCORD,            () -> AcceptSerializers.request,            AccordService.instance::verbHandler,       ACCORD_ACCEPT_RSP   ),
-    ACCORD_READ_RSP        (127, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ReadDataSerializers.reply,            () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
-    ACCORD_READ_REQ        (126, P2, writeTimeout,    ACCORD,            () -> ReadDataSerializers.request,          AccordService.instance::verbHandler,       ACCORD_READ_RSP     ),
-    ACCORD_COMMIT_REQ      (124, P2, writeTimeout,    ACCORD,            () -> CommitSerializer.request,             AccordService.instance::verbHandler,       ACCORD_READ_RSP     ),
-    ACCORD_APPLY_REQ       (125, P2, writeTimeout,    ACCORD,            () -> ApplySerializer.request,              AccordService.instance::verbHandler),
-    ACCORD_RECOVER_RSP     (129, P2, writeTimeout,    REQUEST_RESPONSE,  () -> RecoverySerializers.reply,            () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
-    ACCORD_RECOVER_REQ     (128, P2, writeTimeout,    ACCORD,            () -> RecoverySerializers.request,          AccordService.instance::verbHandler,       ACCORD_RECOVER_RSP  ),
-    ACCORD_WAIT_COMMIT_RSP (131, P2, writeTimeout,    REQUEST_RESPONSE,  () -> WaitOnCommitSerializer.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
-    ACCORD_WAIT_COMMIT_REQ (130, P2, writeTimeout,    ACCORD,            () -> WaitOnCommitSerializer.request,       AccordService.instance::verbHandler,       ACCORD_WAIT_COMMIT_RSP),
+    ACCORD_PREACCEPT_RSP            (121, P2, writeTimeout,    REQUEST_RESPONSE,  () -> PreacceptSerializers.reply,           () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_PREACCEPT_REQ            (120, P2, writeTimeout,    ACCORD,            () -> PreacceptSerializers.request,         AccordService.instance::verbHandler,       ACCORD_PREACCEPT_RSP),
+
+    ACCORD_ACCEPT_RSP               (124, P2, writeTimeout,    REQUEST_RESPONSE,  () -> AcceptSerializers.reply,              () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_ACCEPT_REQ               (122, P2, writeTimeout,    ACCORD,            () -> AcceptSerializers.request,            AccordService.instance::verbHandler,       ACCORD_ACCEPT_RSP   ),
+    ACCORD_ACCEPT_INVALIDATE_REQ    (123, P2, writeTimeout,    ACCORD,            () -> AcceptSerializers.invalidate,         AccordService.instance::verbHandler,       ACCORD_ACCEPT_RSP   ),
+
+    ACCORD_READ_RSP                 (128, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ReadDataSerializers.reply,            () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_READ_REQ                 (127, P2, writeTimeout,    ACCORD,            () -> ReadDataSerializers.request,          AccordService.instance::verbHandler,       ACCORD_READ_RSP     ),
+    ACCORD_COMMIT_REQ               (125, P2, writeTimeout, ACCORD,               () -> CommitSerializers.request,            AccordService.instance::verbHandler, ACCORD_READ_RSP     ),
+    ACCORD_COMMIT_INVALIDATE_REQ    (126, P2, writeTimeout, ACCORD,               () -> CommitSerializers.invalidate,         AccordService.instance::verbHandler, AccordService::isFinalReply),
+
+    ACCORD_APPLY_REQ                (125, P2, writeTimeout,    ACCORD,            () -> ApplySerializer.request,              AccordService.instance::verbHandler),
+    ACCORD_RECOVER_RSP              (129, P2, writeTimeout,    REQUEST_RESPONSE,  () -> RecoverySerializers.reply,            () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_RECOVER_REQ              (128, P2, writeTimeout,    ACCORD,            () -> RecoverySerializers.request,          AccordService.instance::verbHandler,       ACCORD_RECOVER_RSP  ),
+    ACCORD_WAIT_COMMIT_RSP          (131, P2, writeTimeout,    REQUEST_RESPONSE,  () -> WaitOnCommitSerializer.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_WAIT_COMMIT_REQ          (130, P2, writeTimeout,    ACCORD,            () -> WaitOnCommitSerializer.request,       AccordService.instance::verbHandler,       ACCORD_WAIT_COMMIT_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             ),
