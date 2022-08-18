@@ -50,7 +50,7 @@ public class AccordMessageSink implements MessageSink
 
         private final Map<MessageType, Verb> mapping = new EnumMap<>(MessageType.class);
 
-        public VerbMapping()
+        private VerbMapping()
         {
             mapping.put(MessageType.PREACCEPT_REQ,          Verb.ACCORD_PREACCEPT_REQ);
             mapping.put(MessageType.PREACCEPT_RSP,          Verb.ACCORD_PREACCEPT_RSP);
@@ -70,6 +70,10 @@ public class AccordMessageSink implements MessageSink
             mapping.put(MessageType.BEGIN_INVALIDATE_RSP,   Verb.ACCORD_BEGIN_INVALIDATE_RSP);
             mapping.put(MessageType.WAIT_ON_COMMIT_REQ,     Verb.ACCORD_WAIT_COMMIT_REQ);
             mapping.put(MessageType.WAIT_ON_COMMIT_RSP,     Verb.ACCORD_WAIT_COMMIT_RSP);
+            mapping.put(MessageType.INFORM_REQ,             Verb.ACCORD_INFORM_OF_TXN_REQ);
+            mapping.put(MessageType.INFORM_RSP,             Verb.ACCORD_INFORM_OF_TXN_RSP);
+            mapping.put(MessageType.INFORM_PERSISTED_REQ,   Verb.ACCORD_INFORM_OF_PERSIETENCE_REQ);
+            mapping.put(MessageType.INFORM_PERSISTED_RSP,   Verb.ACCORD_INFORM_OF_PERSISTENCE_RSP);
         }
     }
 
