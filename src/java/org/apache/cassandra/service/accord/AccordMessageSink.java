@@ -66,6 +66,8 @@ public class AccordMessageSink implements MessageSink
             mapping.put(MessageType.READ_RSP,               Verb.ACCORD_READ_RSP);
             mapping.put(MessageType.BEGIN_RECOVER_REQ,      Verb.ACCORD_RECOVER_REQ);
             mapping.put(MessageType.BEGIN_RECOVER_RSP,      Verb.ACCORD_RECOVER_RSP);
+            mapping.put(MessageType.BEGIN_INVALIDATE_REQ,   Verb.ACCORD_BEGIN_INVALIDATE_REQ);
+            mapping.put(MessageType.BEGIN_INVALIDATE_RSP,   Verb.ACCORD_BEGIN_INVALIDATE_RSP);
             mapping.put(MessageType.WAIT_ON_COMMIT_REQ,     Verb.ACCORD_WAIT_COMMIT_REQ);
             mapping.put(MessageType.WAIT_ON_COMMIT_RSP,     Verb.ACCORD_WAIT_COMMIT_RSP);
         }
