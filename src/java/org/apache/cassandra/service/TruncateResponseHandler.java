@@ -86,9 +86,9 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
             }
             else
             {
-                StringBuilder sb = new StringBuilder("Truncate failed on replica ");
+                StringBuilder sb = new StringBuilder("Truncate failed on ");
                 for (Map.Entry<InetAddressAndPort, RequestFailureReason> e : failureReasonByEndpoint.entrySet())
-                    sb.append(e.getKey()).append(' ').append(e.getValue()).append(", ");
+                    sb.append("replica ").append(e.getKey()).append(' ').append(e.getValue()).append(", ");
                 sb.setLength(sb.length() - 2);
                 throw new TruncateException(sb.toString());
             }
