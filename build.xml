@@ -913,7 +913,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,gen-doc,build-test,stress-build-test,sources-jar,javadoc-jar"
+    <target name="artifacts" depends="jar,gen-doc,build-test,stress-build-test,sources-jar"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
