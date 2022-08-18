@@ -112,11 +112,12 @@ public class AccordCommandTest
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(1);
-        PreAccept preAccept = new PreAccept(null, txnId, txn);
+        Key key = txn.keys().get(0);
+        PreAccept preAccept = new PreAccept(txn.keys(), 1, txnId, txn, key);
 
         // Check preaccept
         commandStore.process(preAccept, instance -> {
-            PreAccept.PreAcceptReply reply = preAccept.process(instance);
+            PreAccept.PreAcceptReply reply = preAccept.process(instance, key);
             Assert.assertTrue(reply.isOK());
             PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
             Assert.assertEquals(txnId, ok.witnessedAt);
@@ -140,11 +141,11 @@ public class AccordCommandTest
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 0, 1);
         Dependencies deps = new Dependencies();
-        deps.add(txnId2, txn);
-        Accept accept = new Accept(null, Ballot.ZERO, txnId, txn, executeAt, deps);
+        deps.add(txnId2, txn, key);
+        Accept accept = new Accept(txn.keys(), 1, txnId, Ballot.ZERO, key, txn, executeAt, deps);
 
         commandStore.process(accept, instance -> {
-            Accept.AcceptReply reply = accept.process(instance);
+            Accept.AcceptReply reply = accept.process(instance, key);
             Assert.assertTrue(reply.isOK());
             Accept.AcceptOk ok = (Accept.AcceptOk) reply;
             Assert.assertTrue(ok.deps.isEmpty());
@@ -164,10 +165,10 @@ public class AccordCommandTest
         }).get();
 
         // check commit
-        Commit commit = new Commit(null, txnId, txn, executeAt, deps, false);
+        Commit commit = new Commit(txn.keys(), 1, txnId, txn, deps, key, executeAt, false);
         commandStore.process(commit, instance -> {
             Command command = instance.command(txnId);
-            command.commit(commit.txn, commit.deps, commit.executeAt);
+            command.commit(commit.txn, key, key, commit.executeAt, commit.deps);
         }).get();
 
         // unseen deps txn should have been witnessed
@@ -201,15 +202,16 @@ public class AccordCommandTest
 
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(2);
-        PreAccept preAccept1 = new PreAccept(null, txnId1, txn);
+        Key key = txn.keys().get(0);
+        PreAccept preAccept1 = new PreAccept(txn.keys(), 1, txnId1, txn, key);
 
-        commandStore.process(preAccept1, (Consumer<CommandStore>) preAccept1::process).get();
+        commandStore.process(preAccept1, (Consumer<CommandStore>) cs -> preAccept1.process(cs, key)).get();
 
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
-        PreAccept preAccept2 = new PreAccept(null, txnId2, txn);
+        PreAccept preAccept2 = new PreAccept(txn.keys(), 1, txnId2, txn, key);
         commandStore.process(preAccept2, instance -> {
-            PreAccept.PreAcceptReply reply = preAccept2.process(instance);
+            PreAccept.PreAcceptReply reply = preAccept2.process(instance, key);
             Assert.assertTrue(reply.isOK());
             PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
             Assert.assertTrue(ok.deps.contains(txnId1));

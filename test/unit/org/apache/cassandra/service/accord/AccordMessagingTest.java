@@ -46,49 +46,57 @@ public class AccordMessagingTest
     @Test
     public void nonFinalReplyTest() throws Exception
     {
-        MessagingService messagingService = MessagingService.instance();
-        AtomicLong msgId = new AtomicLong(-1);
-        messagingService.outboundSink.add((msg, to) -> {
-            if (!msgId.compareAndSet(-1, msg.id()))
-                throw new AssertionError("Unexpected previous message id: " + msgId.get());
-            return false;
-        });
+//        MessagingService messagingService = MessagingService.instance();
+//        AtomicLong msgId = new AtomicLong(-1);
+//        messagingService.outboundSink.add((msg, to) -> {
+//            if (!msgId.compareAndSet(-1, msg.id()))
+//                throw new AssertionError("Unexpected previous message id: " + msgId.get());
+//            return false;
+//        });
+//
+//        InetAddressAndPort peer = InetAddressAndPort.getByName("127.0.0.2");
+//
+//        AtomicInteger responses = new AtomicInteger(0);
+//        Callback<ReadData.ReadReply> callback = new Callback<>()
+//        {
+//            @Override
+//            public void onSuccess(Node.Id from, ReadData.ReadReply response)
+//            {
+//                Assert.assertEquals(EndpointMapping.endpointToId(peer), from);
+//                responses.incrementAndGet();
+//            }
+//
+//            @Override
+//            public void onFailure(Node.Id from, Throwable throwable)
+//            {
+//                throw new AssertionError("Unexpected failure");
+//            }
+//
+//            @Override
+//            public void onCallbackFailure(Throwable failure)
+//            {
+//                throw new AssertionError("Unexpected failure");
+//            }
+//        };
+//
+//        ReadData req = new ReadData(null, null, null, null, null);
+//        AccordService.instance.messageSink().send(EndpointMapping.getId(peer), req, callback);
+//        Assert.assertNotEquals(-1, msgId.get());
+//        Assert.assertTrue(messagingService.callbacks.contains(msgId.get(), peer));
+//
+//        ReadData.ReadWaiting readWaiting = new ReadData.ReadWaiting(null, null, null, null, null);
+//        Message<?> waitingResponse = Message.builder(Verb.ACCORD_READ_RSP, readWaiting).from(peer).withId(msgId.get()).build();
+//
+//        ResponseVerbHandler.instance.doVerb(waitingResponse);
+//        Assert.assertEquals(1, responses.get());
+//        Assert.assertTrue(messagingService.callbacks.contains(msgId.get(), peer));
+//
+//        ReadData.ReadOk readOk = new ReadData.ReadOk(null);
+//        Message<?> okResponse = Message.builder(Verb.ACCORD_READ_RSP, readOk).from(peer).withId(msgId.get()).build();
+//        ResponseVerbHandler.instance.doVerb(okResponse);
+//        Assert.assertEquals(2, responses.get());
+//        Assert.assertFalse(messagingService.callbacks.contains(msgId.get(), peer));
 
-        InetAddressAndPort peer = InetAddressAndPort.getByName("127.0.0.2");
-
-        AtomicInteger responses = new AtomicInteger(0);
-        Callback<ReadData.ReadReply> callback = new Callback<>()
-        {
-            @Override
-            public void onSuccess(Node.Id from, ReadData.ReadReply response)
-            {
-                Assert.assertEquals(EndpointMapping.endpointToId(peer), from);
-                responses.incrementAndGet();
-            }
-
-            @Override
-            public void onFailure(Node.Id from, Throwable throwable)
-            {
-                throw new AssertionError("Unexpected failure");
-            }
-        };
-
-        ReadData req = new ReadData(null, null, null, null, null);
-        AccordService.instance.messageSink().send(EndpointMapping.getId(peer), req, callback);
-        Assert.assertNotEquals(-1, msgId.get());
-        Assert.assertTrue(messagingService.callbacks.contains(msgId.get(), peer));
-
-        ReadData.ReadWaiting readWaiting = new ReadData.ReadWaiting(null, null, null, null, null);
-        Message<?> waitingResponse = Message.builder(Verb.ACCORD_READ_RSP, readWaiting).from(peer).withId(msgId.get()).build();
-
-        ResponseVerbHandler.instance.doVerb(waitingResponse);
-        Assert.assertEquals(1, responses.get());
-        Assert.assertTrue(messagingService.callbacks.contains(msgId.get(), peer));
-
-        ReadData.ReadOk readOk = new ReadData.ReadOk(null);
-        Message<?> okResponse = Message.builder(Verb.ACCORD_READ_RSP, readOk).from(peer).withId(msgId.get()).build();
-        ResponseVerbHandler.instance.doVerb(okResponse);
-        Assert.assertEquals(2, responses.get());
-        Assert.assertFalse(messagingService.callbacks.contains(msgId.get(), peer));
+        throw new AssertionError("Remove non-final callback handling");
     }
 }

@@ -214,7 +214,7 @@ public class AccordIntegrationTest extends TestBaseImpl
                              .withCondition(keyspace, "tbl", key, 0, NOT_EXISTS);
                 }
                 Keys keySet = txn.build().keys();
-                Topologies topology = AccordService.instance.node.topology().forKeys(keySet);
+                Topologies topology = AccordService.instance.node.topology().withUnsyncedEpochs(keySet, 1);
                 // currently we don't detect out-of-bounds read/write, so need this logic to validate we reach different
                 // shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);

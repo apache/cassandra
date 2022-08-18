@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Key;
 import accord.local.Command;
 import accord.local.Status;
 import accord.txn.Dependencies;
@@ -76,10 +77,11 @@ public class AccordCommandStoreTest
     {
         AtomicLong clock = new AtomicLong(0);
         Txn depTxn = createTxn(0);
+        Key key = depTxn.keys().get(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         Dependencies dependencies = new Dependencies();
-        dependencies.add(txnId(1, clock.incrementAndGet(), 0, 1), depTxn);
+        dependencies.add(txnId(1, clock.incrementAndGet(), 0, 1), depTxn, key);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
 
         TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
