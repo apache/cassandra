@@ -258,16 +258,11 @@ public class LoaderOptions
             return this;
         }
 
-        public Builder throttleMegabits(int throttleMegabits)
-        {
-            this.throttleBytes = (long) DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(throttleMegabits).toBytesPerSecond();
-            return this;
-        }
-
         @Deprecated
         public Builder throttle(int throttleMegabits)
         {
-            return throttleMegabits(throttleMegabits);
+            this.throttleBytes = (long) DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(throttleMegabits).toBytesPerSecond();
+            return this;
         }
 
         public Builder interDcThrottleMebibytes(int interDcThrottleMebibytes)
@@ -582,7 +577,7 @@ public class LoaderOptions
 
                 if (cmd.hasOption(THROTTLE_MBITS))
                 {
-                    throttleMegabits(Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS)));
+                    throttle(Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS)));
                 }
 
                 if (cmd.hasOption(THROTTLE_MEBIBYTES))
