@@ -19,7 +19,17 @@
 <project basedir="." name="apache-cassandra-git-tasks"
          xmlns:if="ant:if">
     <target name="get-git-sha">
-        <exec executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+        <exec executable="git" osfamily="unix" dir="${basedir}" logError="false" failonerror="false" failifexecutionfails="false" resultproperty="git.is-available.exit-code">
+            <arg value="rev-parse"/>
+            <arg value="--is-inside-work-tree"/>
+            <redirector outputproperty="git.is-available.output"/>
+        </exec>
+        <condition property="git.is-available" else="false">
+            <equals arg1="${git.is-available.exit-code}" arg2="0"/>
+        </condition>
+        <echo message="git.is-available=${git.is-available}"/>
+
+        <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
             <arg value="describe"/>
             <arg value="--match=''"/>
             <arg value="--always"/>
@@ -30,7 +40,7 @@
         <property name="git.sha" value="Unknown"/>
         <echo level="info">git.sha=${git.sha}</echo>
 
-        <exec executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+        <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
             <arg value="diff"/>
             <arg value="--stat"/>
             <redirector outputproperty="git.diffstat"/>
