@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.util;
+package org.apache.cassandra.utils;
 
 import com.google.common.base.Throwables;
 
@@ -32,12 +32,12 @@ public class AssertionUtils
      * When working with jvm-dtest the thrown error is in a different {@link ClassLoader} causing type checks
      * to fail; this method relies on naming instead.
      */
-    public static Condition<Throwable> is(Class<?> klass)
+    public static Condition<Object> is(Class<?> klass)
     {
         String name = klass.getCanonicalName();
-        return new Condition<Throwable>() {
+        return new Condition<Object>() {
             @Override
-            public boolean matches(Throwable value)
+            public boolean matches(Object value)
             {
                 return value.getClass().getCanonicalName().equals(name);
             }
@@ -50,23 +50,44 @@ public class AssertionUtils
         };
     }
 
+    public static <T extends Throwable> Condition<Throwable> isThrowable(Class<T> klass)
+    {
+        // org.assertj.core.api.AbstractAssert.is has <? super ? extends Throwable> which blocks <T>, so need to
+        // always return Throwable
+        return (Condition<Throwable>) (Condition<?>) is(klass);
+    }
+
     /**
      * When working with jvm-dtest the thrown error is in a different {@link ClassLoader} causing type checks
      * to fail; this method relies on naming instead.
      *
      * This method is different than {@link #is(Class)} as it tries to mimic instanceOf rather than equality.
      */
-    public static Condition<Throwable> isInstanceof(Class<?> klass)
+    public static Condition<Object> isInstanceof(Class<?> klass)
     {
         String name = klass.getCanonicalName();
-        return new Condition<Throwable>() {
+        return new Condition<Object>() {
             @Override
-            public boolean matches(Throwable value)
+            public boolean matches(Object value)
             {
-                for (Class<?> klass = value.getClass(); klass != null; klass = klass.getSuperclass())
+                if (value == null)
+                    return false;
+                return matches(value.getClass());
+            }
+
+            private boolean matches(Class<?> input)
+            {
+                for (Class<?> klass = input; klass != null; klass = klass.getSuperclass())
                 {
+                    // extends
                     if (klass.getCanonicalName().equals(name))
                         return true;
+                    // implements
+                    for (Class<?> i : klass.getInterfaces())
+                    {
+                        if (matches(i))
+                            return true;
+                    }
                 }
                 return false;
             }
@@ -96,13 +117,8 @@ public class AssertionUtils
         };
     }
 
-    public static Condition<Throwable> rootCauseIs(Class<?> klass)
+    public static Condition<Throwable> rootCauseIs(Class<? extends Throwable> klass)
     {
-        return rootCause(is(klass));
-    }
-
-    public static Condition<Throwable> rootCauseIsInstanceof(Class<?> klass)
-    {
-        return rootCause(isInstanceof(klass));
+        return rootCause((Condition<Throwable>) (Condition<?>) is(klass));
     }
 }

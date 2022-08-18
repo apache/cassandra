@@ -40,7 +40,7 @@ import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.distributed.util.AssertionUtils;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -52,7 +52,7 @@ import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
-import static org.apache.cassandra.distributed.util.AssertionUtils.is;
+import static org.apache.cassandra.utils.AssertionUtils.isThrowable;
 
 public class RequestTimeoutTest extends TestBaseImpl
 {
@@ -88,7 +88,7 @@ public class RequestTimeoutTest extends TestBaseImpl
     {
         CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
-                  .is(is(WriteTimeoutException.class));
+                  .is(isThrowable(WriteTimeoutException.class));
     }
 
     @Test
@@ -96,7 +96,7 @@ public class RequestTimeoutTest extends TestBaseImpl
     {
         CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("UPDATE %s.tbl SET v=? WHERE pk=?"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
-                  .is(is(WriteTimeoutException.class));
+                  .is(isThrowable(WriteTimeoutException.class));
     }
 
     @Test
@@ -104,7 +104,7 @@ public class RequestTimeoutTest extends TestBaseImpl
     {
         CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(batch(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)")), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
-                  .is(is(WriteTimeoutException.class));
+                  .is(isThrowable(WriteTimeoutException.class));
     }
 
     @Test
@@ -112,7 +112,7 @@ public class RequestTimeoutTest extends TestBaseImpl
     {
         CLUSTER.filters().verbs(Verb.RANGE_REQ.id).to(2).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl"), ConsistencyLevel.ALL))
-                  .is(is(ReadTimeoutException.class));
+                  .is(isThrowable(ReadTimeoutException.class));
     }
 
     @Test
@@ -120,7 +120,7 @@ public class RequestTimeoutTest extends TestBaseImpl
     {
         CLUSTER.filters().verbs(Verb.READ_REQ.id).to(2).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=?"), ConsistencyLevel.ALL, NEXT.getAndIncrement()))
-                  .is(is(ReadTimeoutException.class));
+                  .is(isThrowable(ReadTimeoutException.class));
     }
 
     @Test
@@ -138,7 +138,7 @@ public class RequestTimeoutTest extends TestBaseImpl
 
         CLUSTER.filters().verbs(Verb.PAXOS2_PREPARE_REQ.id).to(2, 3).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
-                  .is(is(CasWriteTimeoutException.class));
+                  .is(isThrowable(CasWriteTimeoutException.class));
     }
 
     @Test
@@ -148,7 +148,7 @@ public class RequestTimeoutTest extends TestBaseImpl
 
         CLUSTER.filters().verbs(Verb.PAXOS2_PREPARE_REQ.id).to(2, 3).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=?"), ConsistencyLevel.SERIAL, NEXT.getAndIncrement()))
-                  .is(is(ReadTimeoutException.class)); // why does write have its own type but not read?
+                  .is(isThrowable(ReadTimeoutException.class)); // why does write have its own type but not read?
     }
 
     @Test
@@ -158,7 +158,7 @@ public class RequestTimeoutTest extends TestBaseImpl
 
         CLUSTER.filters().verbs(Verb.PAXOS_COMMIT_REQ.id).to(2, 3).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
-                  .is(is(CasWriteTimeoutException.class));
+                  .is(isThrowable(CasWriteTimeoutException.class));
     }
 
     private static void withPaxos(Config.PaxosVariant variant)
