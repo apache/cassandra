@@ -21,8 +21,10 @@ package org.apache.cassandra.repair.consistent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -263,6 +265,15 @@ public class CoordinatorSession extends ConsistentSession
 
     public synchronized void fail()
     {
+        Set<Map.Entry<InetAddressAndPort, State>> cantFail = participantStates.entrySet()
+                                                                              .stream()
+                                                                              .filter(entry -> !entry.getValue().canTransitionTo(State.FAILED))
+                                                                              .collect(Collectors.toSet());
+        if (!cantFail.isEmpty())
+        {
+            logger.error("Can't transition endpoints {} to FAILED", cantFail, new RuntimeException());
+            return;
+        }
         logger.info("Incremental repair session {} failed", sessionID);
         sendFailureMessageToParticipants();
         setAll(State.FAILED);
