@@ -36,6 +36,8 @@ public class DurationType extends AbstractType<Duration>
 {
     public static final DurationType instance = new DurationType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(Duration.newInstance(0, 0, 0));
+
     DurationType()
     {
         super(ComparisonType.BYTE_ORDER);
@@ -85,5 +87,11 @@ public class DurationType extends AbstractType<Duration>
     public boolean referencesDuration()
     {
         return true;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

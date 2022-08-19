@@ -49,6 +49,8 @@ public class UUIDType extends AbstractType<UUID>
 {
     public static final UUIDType instance = new UUIDType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+
     UUIDType()
     {
         super(ComparisonType.CUSTOM);
@@ -237,5 +239,11 @@ public class UUIDType extends AbstractType<UUID>
     public int valueLengthIfFixed()
     {
         return 16;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

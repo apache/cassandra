@@ -23,6 +23,8 @@ import java.util.Collection;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.cql3.functions.masking.MaskingFcts;
+
 /**
  * A container of native functions. It stores both pre-built function overloads ({@link NativeFunction}) and
  * dynamic generators of functions ({@link FunctionFactory}).
@@ -43,6 +45,7 @@ public class NativeFunctions
             CollectionFcts.addFunctionsTo(this);
             BytesConversionFcts.addFunctionsTo(this);
             MathFcts.addFunctionsTo(this);
+            MaskingFcts.addFunctionsTo(this);
         }
     };
 

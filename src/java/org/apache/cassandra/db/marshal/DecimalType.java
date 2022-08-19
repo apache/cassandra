@@ -42,6 +42,8 @@ import ch.obermuhlner.math.big.BigDecimalMath;
 public class DecimalType extends NumberType<BigDecimal>
 {
     public static final DecimalType instance = new DecimalType();
+
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(BigDecimal.ZERO);
     private static final int MIN_SCALE = 32;
     private static final int MIN_SIGNIFICANT_DIGITS = MIN_SCALE;
     private static final int MAX_SCALE = 1000;
@@ -448,5 +450,11 @@ public class DecimalType extends NumberType<BigDecimal>
     {
         return DecimalType.instance.decompose(
         toBigDecimal(input).setScale(0, RoundingMode.HALF_UP));
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

@@ -35,6 +35,8 @@ public class DoubleType extends NumberType<Double>
 {
     public static final DoubleType instance = new DoubleType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(0d);
+
     DoubleType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
@@ -208,5 +210,11 @@ public class DoubleType extends NumberType<Double>
     public ByteBuffer round(ByteBuffer input)
     {
         return ByteBufferUtil.bytes((double) Math.round(toDouble(input)));
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

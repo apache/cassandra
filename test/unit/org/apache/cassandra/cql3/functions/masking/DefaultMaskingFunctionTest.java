@@ -15,34 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.marshal;
 
-import java.nio.ByteBuffer;
+package org.apache.cassandra.cql3.functions.masking;
 
-import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.cql3.CQL3Type;
 
-// Fully compatible with UUID, and indeed is interpreted as UUID for UDF
-public class TimeUUIDType extends AbstractTimeUUIDType<TimeUUID>
+import static java.lang.String.format;
+
+/**
+ * Tests for {@link DefaultMaskingFunction}.
+ */
+public class DefaultMaskingFunctionTest extends MaskingFunctionTester
 {
-    public static final TimeUUIDType instance = new TimeUUIDType();
-
-    private static final ByteBuffer MASKED_VALUE = instance.decompose(TimeUUID.minAtUnixMillis(0));
-
-    public TypeSerializer<TimeUUID> getSerializer()
-    {
-        return TimeUUID.Serializer.instance;
-    }
-
     @Override
-    public AbstractType<?> udfType()
+    protected void testMaskingOnColumn(String name, CQL3Type type, Object value) throws Throwable
     {
-        return LegacyTimeUUIDType.instance;
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return MASKED_VALUE;
+        assertRows(execute(format("SELECT mask_default(%s) FROM %%s", name)),
+                   row(type.getType().getMaskedValue()));
     }
 }

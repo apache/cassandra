@@ -68,20 +68,20 @@ public class TokenFct extends NativeScalarFunction
             @Override
             public NativeFunction getOrCreateFunction(List<? extends AssignmentTestable> args,
                                                       AbstractType<?> receiverType,
-                                                      String receiverKs,
-                                                      String receiverCf)
+                                                      String receiverKeyspace,
+                                                      String receiverTable)
             {
-                if (receiverKs == null)
+                if (receiverKeyspace == null)
                     throw new InvalidRequestException("No receiver keyspace has been specified for function " + name);
 
-                if (receiverCf == null)
+                if (receiverTable == null)
                     throw new InvalidRequestException("No receiver table has been specified for function " + name);
 
-                TableMetadata metadata = Schema.instance.getTableMetadata(receiverKs, receiverCf);
+                TableMetadata metadata = Schema.instance.getTableMetadata(receiverKeyspace, receiverTable);
                 if (metadata == null)
                     throw new InvalidRequestException(String.format("The receiver table %s.%s specified by call to " +
                                                                     "function %s hasn't been found",
-                                                                    receiverKs, receiverCf, name));
+                                                                    receiverKeyspace, receiverTable, name));
 
                 return new TokenFct(metadata);
             }

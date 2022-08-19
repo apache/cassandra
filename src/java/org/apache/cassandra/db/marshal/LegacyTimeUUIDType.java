@@ -17,18 +17,28 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.UUIDSerializer;
+import org.apache.cassandra.utils.TimeUUID;
 
 // Fully compatible with UUID, and indeed is interpreted as UUID for UDF
 public class LegacyTimeUUIDType extends AbstractTimeUUIDType<UUID>
 {
     public static final LegacyTimeUUIDType instance = new LegacyTimeUUIDType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(TimeUUID.minAtUnixMillis(0).asUUID());
+
     public TypeSerializer<UUID> getSerializer()
     {
         return UUIDSerializer.instance;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

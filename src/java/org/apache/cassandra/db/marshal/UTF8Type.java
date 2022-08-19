@@ -36,6 +36,8 @@ public class UTF8Type extends StringType
 {
     public static final UTF8Type instance = new UTF8Type();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose("****");
+
     UTF8Type() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public ByteBuffer fromString(String source)
@@ -86,5 +88,11 @@ public class UTF8Type extends StringType
     public TypeSerializer<String> getSerializer()
     {
         return UTF8Serializer.instance;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

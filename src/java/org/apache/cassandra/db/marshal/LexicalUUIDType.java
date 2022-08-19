@@ -34,6 +34,8 @@ public class LexicalUUIDType extends AbstractType<UUID>
 {
     public static final LexicalUUIDType instance = new LexicalUUIDType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+
     LexicalUUIDType()
     {
         super(ComparisonType.CUSTOM);
@@ -130,5 +132,11 @@ public class LexicalUUIDType extends AbstractType<UUID>
     public int valueLengthIfFixed()
     {
         return 16;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

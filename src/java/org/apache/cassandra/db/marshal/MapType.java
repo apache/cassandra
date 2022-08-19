@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -386,5 +387,11 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public void forEach(ByteBuffer input, Consumer<ByteBuffer> action)
     {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return decompose(Collections.emptyMap());
     }
 }

@@ -233,4 +233,10 @@ public class SetType<T> extends CollectionType<Set<T>>
     {
         serializer.forEach(input, action);
     }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return decompose(Collections.emptySet());
+    }
 }

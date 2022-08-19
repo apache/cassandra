@@ -715,4 +715,12 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     {
         return this;
     }
+
+    /**
+     * @return A fixed, serialized value to be used when the column is masked, to be returned instead of the real value.
+     */
+    public ByteBuffer getMaskedValue()
+    {
+        throw new UnsupportedOperationException("There isn't a defined masked value for type " + asCQL3Type());
+    }
 }

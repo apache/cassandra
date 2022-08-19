@@ -36,6 +36,8 @@ public class Int32Type extends NumberType<Integer>
 {
     public static final Int32Type instance = new Int32Type();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(0);
+
     Int32Type()
     {
         super(ComparisonType.CUSTOM);
@@ -203,5 +205,11 @@ public class Int32Type extends NumberType<Integer>
     public ByteBuffer round(ByteBuffer input)
     {
         return ByteBufferUtil.clone(input);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

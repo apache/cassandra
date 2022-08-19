@@ -549,4 +549,17 @@ public class TupleType extends AbstractType<ByteBuffer>
     {
         return getClass().getName() + TypeParser.stringifyTypeParameters(types, true);
     }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        ByteBuffer[] buffers = new ByteBuffer[types.size()];
+        for (int i = 0; i < types.size(); i++)
+        {
+            AbstractType<?> type = types.get(i);
+            buffers[i] = type.getMaskedValue();
+        }
+
+        return serializer.serialize(buildValue(buffers));
+    }
 }

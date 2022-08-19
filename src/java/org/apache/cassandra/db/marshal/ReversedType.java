@@ -218,4 +218,10 @@ public class ReversedType<T> extends AbstractType<T>
             return END_OF_STREAM;
         }
     }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return baseType.getMaskedValue();
+    }
 }
