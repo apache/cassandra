@@ -122,7 +122,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         int received = resolver.responses.size();
         boolean failed = failures > 0 && (blockFor > received || !resolver.isDataPresent());
         // If all messages came back as a TIMEOUT then signaled=true and failed=true.
-        // Need to distigues between a timeout and a failure (network, bad data, etc.), so store an extra field.
+        // Need to distinguish between a timeout and a failure (network, bad data, etc.), so store an extra field.
         // see CASSANDRA-17828
         boolean timedout = !signaled;
         if (failed)
