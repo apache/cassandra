@@ -91,7 +91,7 @@ public class CompactionStats extends NodeToolCmd
             TableBuilder table = new TableBuilder();
 
             if (vtableOutput)
-                table.add("keyspace", "table", "task id", "completion ratio", "kind", "progress", "sstables", "total", "unit");
+                table.add("keyspace", "table", "task id", "completion ratio", "kind", "progress", "sstables", "total", "unit", "target directory");
             else
                 table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
 
@@ -110,7 +110,10 @@ public class CompactionStats extends NodeToolCmd
                 String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
                 String id = c.get(CompactionInfo.COMPACTION_ID);
                 if (vtableOutput)
-                    table.add(keyspace, columnFamily, id, percentComplete, taskType, progressStr, String.valueOf(tables.length), totalStr, unit);
+                {
+                    String targetDirectory = c.get(CompactionInfo.TARGET_DIRECTORY);
+                    table.add(keyspace, columnFamily, id, percentComplete, taskType, progressStr, String.valueOf(tables.length), totalStr, unit, targetDirectory);
+                }
                 else
                     table.add(id, taskType, keyspace, columnFamily, progressStr, totalStr, unit, percentComplete);
 

@@ -78,10 +78,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final ImmutableSet<SSTableReader> sstables;
     private final int nowInSec;
     private final TimeUUID compactionId;
-
     private final long totalBytes;
     private long bytesRead;
     private long totalSourceCQLRows;
+
+    // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
+    private String targetDirectory;
 
     /*
      * counters for merged rows.
@@ -151,12 +153,18 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                   bytesRead,
                                   totalBytes,
                                   compactionId,
-                                  sstables);
+                                  sstables,
+                                  targetDirectory);
     }
 
     public boolean isGlobal()
     {
         return false;
+    }
+
+    public void setTargetDirectory(final String targetDirectory)
+    {
+        this.targetDirectory = targetDirectory;
     }
 
     private void updateCounterFor(int rows)

@@ -21,6 +21,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -512,7 +513,8 @@ public class Scrubber implements Closeable
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
                                           scrubCompactionId,
-                                          ImmutableSet.of(sstable));
+                                          ImmutableSet.of(sstable),
+                                          Paths.get(sstable.getFilename()).getParent().toString());
             }
             catch (Exception e)
             {

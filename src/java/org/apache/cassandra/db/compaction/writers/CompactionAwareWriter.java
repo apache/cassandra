@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction.writers;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -39,7 +40,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
-import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.io.util.File;
 
 
 /**
@@ -64,6 +65,9 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     private final List<Directories.DataDirectory> locations;
     private final List<PartitionPosition> diskBoundaries;
     private int locationIndex;
+
+    // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
+    protected Directories.DataDirectory sstableDirectory;
 
     public CompactionAwareWriter(ColumnFamilyStore cfs,
                                  Directories directories,
@@ -134,6 +138,11 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     {
         maybeSwitchWriter(partition.partitionKey());
         return realAppend(partition);
+    }
+
+    public final File getSStableDirectory() throws IOException
+    {
+        return getDirectories().getLocationForDisk(sstableDirectory);
     }
 
     @Override

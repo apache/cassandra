@@ -49,7 +49,6 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     private final Set<SSTableReader> allSSTables;
     private long currentBytesToWrite;
     private int currentRatioIndex = 0;
-    private Directories.DataDirectory location;
 
     public SplittingSizeTieredCompactionWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
     {
@@ -90,8 +89,9 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
+
             currentBytesToWrite = getExpectedWriteSize();
-            switchCompactionLocation(location);
+            switchCompactionLocation(sstableDirectory);
             logger.debug("Switching writer, currentBytesToWrite = {}", currentBytesToWrite);
         }
         return rie != null;
@@ -100,7 +100,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     @Override
     public void switchCompactionLocation(Directories.DataDirectory location)
     {
-        this.location = location;
+        sstableDirectory = location;
         long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
         @SuppressWarnings("resource")
         SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(location)),

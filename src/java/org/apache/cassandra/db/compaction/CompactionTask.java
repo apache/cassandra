@@ -199,6 +199,7 @@ public class CompactionTask extends AbstractCompactionTask
                         if (writer.append(ci.next()))
                             totalKeysWritten++;
 
+                        ci.setTargetDirectory(writer.getSStableDirectory().path());
                         long bytesScanned = scanners.getTotalBytesScanned();
 
                         // Rate limit the scanners, and account for compression

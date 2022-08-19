@@ -313,7 +313,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                                   0,
                                                   keysEstimate,
                                                   Unit.KEYS,
-                                                  nextTimeUUID());
+                                                  nextTimeUUID(),
+                                                  getCacheDataPath(CURRENT_VERSION).toPath().toString());
         }
 
         public CacheService.CacheType cacheType()
