@@ -153,41 +153,61 @@ public class AccordCommandStore extends CommandStore
         return lastSystemTimestampMicros;
     }
 
-    @Override
-    public Command command(TxnId txnId)
+    private AccordCommand getCommandInternal(TxnId txnId)
     {
         Preconditions.checkState(currentCtx != null);
         AccordCommand command = currentCtx.commands.get(txnId);
         if (command == null)
             command = currentCtx.commands.summary(txnId);
+
         if (command == null)
             throw new IllegalArgumentException("No command in context for txnId " + txnId);
+
+        Preconditions.checkState(command.isLoaded());
+
+        return command;
+    }
+
+    @Override
+    public Command command(TxnId txnId)
+    {
+        AccordCommand command = getCommandInternal(txnId);
+        if (command.isEmpty()) command.initialize();
         return command;
     }
 
     @Override
     public Command ifPresent(TxnId txnId)
     {
-        // FIXME: support optional loading
-        throw new UnsupportedOperationException();
+        AccordCommand command = getCommandInternal(txnId);
+        return !command.isEmpty() ? command : null;
     }
 
-    @Override
-    public CommandsForKey commandsForKey(Key key)
+    private AccordCommandsForKey getCommandsForKeyInternal(Key key)
     {
         Preconditions.checkState(currentCtx != null);
         Preconditions.checkArgument(key instanceof PartitionKey);
         AccordCommandsForKey commandsForKey = currentCtx.commandsForKey.get((PartitionKey) key);
         if (commandsForKey == null)
             throw new IllegalArgumentException("No commandsForKey in context for key " + key);
+        Preconditions.checkState(commandsForKey.isLoaded());
+        return commandsForKey;
+    }
+
+    @Override
+    public CommandsForKey commandsForKey(Key key)
+    {
+        AccordCommandsForKey commandsForKey = getCommandsForKeyInternal(key);
+        if (commandsForKey.isEmpty())
+            commandsForKey.initialize();
         return commandsForKey;
     }
 
     @Override
     public CommandsForKey maybeCommandsForKey(Key key)
     {
-        // FIXME: support optional loading
-        throw new UnsupportedOperationException();
+        AccordCommandsForKey commandsForKey = getCommandsForKeyInternal(key);
+        return !commandsForKey.isEmpty() ? commandsForKey : null;
     }
 
     @Override

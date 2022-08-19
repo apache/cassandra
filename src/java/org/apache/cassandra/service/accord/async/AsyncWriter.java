@@ -196,6 +196,9 @@ public class AsyncWriter
 
     private void denormalize(AccordCommand command, AsyncContext context)
     {
+        if (!command.hasModifications())
+            return;
+
         Map<TxnId, AccordCommand> addCmdToCtx = new HashMap<>();
 
         // notify commands we're waiting on that they need to update the summaries in our maps

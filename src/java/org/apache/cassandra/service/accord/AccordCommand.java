@@ -145,10 +145,72 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
 
+
+
     @Override
     public String toString()
     {
-        return "AccordCommand{txnId=" + txnId + ", status=" + this.status + ", txn=" + this.txn + ", executeAt=" + this.executeAt + ", deps=" + this.deps + "}";
+        return "AccordCommand{" +
+               "txnId=" + txnId +
+               ", homeKey=" + homeKey +
+               ", progressKey=" + progressKey +
+               ", txn=" + txn +
+               ", promised=" + promised +
+               ", accepted=" + accepted +
+               ", executeAt=" + executeAt +
+               ", deps=" + deps +
+               ", writes=" + writes +
+               ", result=" + result +
+               ", status=" + status +
+               ", isGloballyPersistent=" + isGloballyPersistent +
+               ", waitingOnCommit=" + waitingOnCommit +
+               ", waitingOnApply=" + waitingOnApply +
+               ", storedListeners=" + storedListeners +
+               ", transientListeners=" + transientListeners +
+               ", blockingCommitOn=" + blockingCommitOn +
+               ", blockingApplyOn=" + blockingApplyOn +
+               '}';
+    }
+
+    @Override
+    public boolean isEmpty()
+    {
+        return homeKey.isEmpty()
+               || progressKey.isEmpty()
+               || txn.isEmpty()
+               || promised.isEmpty()
+               || accepted.isEmpty()
+               || executeAt.isEmpty()
+               || deps.isEmpty()
+               || writes.isEmpty()
+               || result.isEmpty()
+               || status.isEmpty()
+               || isGloballyPersistent.isEmpty()
+               || waitingOnCommit.isEmpty()
+               || blockingCommitOn.isEmpty()
+               || waitingOnApply.isEmpty()
+               || blockingApplyOn.isEmpty()
+               || storedListeners.isEmpty();
+    }
+
+    public void setEmpty()
+    {
+        homeKey.setEmpty();
+        progressKey.setEmpty();
+        txn.setEmpty();
+        promised.setEmpty();
+        accepted.setEmpty();
+        executeAt.setEmpty();
+        deps.setEmpty();
+        writes.setEmpty();
+        result.setEmpty();
+        status.setEmpty();
+        isGloballyPersistent.setEmpty();
+        waitingOnCommit.setEmpty();
+        blockingCommitOn.setEmpty();
+        waitingOnApply.setEmpty();
+        blockingApplyOn.setEmpty();
+        storedListeners.setEmpty();;
     }
 
     public AccordCommand initialize()

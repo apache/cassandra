@@ -39,10 +39,17 @@ public class AccordStateCacheTest
 
         final Integer key;
         boolean modified = false;
+        boolean initialized = false;
 
         public Item(Integer key)
         {
             this.key = key;
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return initialized;
         }
 
         @Override
@@ -253,6 +260,7 @@ public class AccordStateCacheTest
         final Integer key;
         final Set<Integer> set = new HashSet<>();
         boolean modified = false;
+        boolean initialized = false;
 
         static class WriteOnly extends SetItem implements AccordState.WriteOnly<Integer, SetItem>
         {
@@ -290,6 +298,12 @@ public class AccordStateCacheTest
         public SetItem(Integer key)
         {
             this.key = key;
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return initialized;
         }
 
         @Override
