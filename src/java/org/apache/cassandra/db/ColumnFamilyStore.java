@@ -1719,16 +1719,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, int jobs) throws ExecutionException, InterruptedException
     {
-	 if (memtableWritesAreDurable())
+        CompactionManager.AllSSTableOpStatus status = CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
+        if (status != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
         {
-            Memtable current = getTracker().getView().getCurrentMemtable();
-            if (!current.isClean())
-            {
-                current.performGarbageCollect();
-            }
+            return status;
         }
-
-        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
+        Memtable current = getTracker().getView().getCurrentMemtable();
+        return current.performGarbageCollect();
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)

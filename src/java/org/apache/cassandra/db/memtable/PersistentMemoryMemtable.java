@@ -33,6 +33,7 @@ import com.intel.pmem.llpl.util.AutoCloseableIterator;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.memtable.pmem.PmemIndexBuilder;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -427,7 +428,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         // TODO: implement. Figure out how to restore snapshot (with external tools).
     }
     @Override
-    public void performGarbageCollect()
+    public CompactionManager.AllSSTableOpStatus performGarbageCollect()
     {
         logger.info("Starting {} from memtable for {}.{}.", OperationType.GARBAGE_COLLECT, metadata().keyspace, metadata().name);
         ConcurrentLongART memtableCart = tablesMetadataMap.get(metadata().id).getMemtableCart();
@@ -445,11 +446,11 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e);
+            return CompactionManager.AllSSTableOpStatus.ABORTED;
         }
 
         logger.info("Removed {} expired Tombstones from memtable for {}.{} successfully.", removedTombstones, metadata().keyspace, metadata().name);
-
+        return CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
     }
 
     public void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)

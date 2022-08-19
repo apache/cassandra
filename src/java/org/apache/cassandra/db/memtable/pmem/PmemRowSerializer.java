@@ -570,15 +570,6 @@ public class PmemRowSerializer extends UnfilteredSerializer {
                 Row.Deletion deletion = new Row.Deletion(header.readDeletionTime(in), deletionIsShadowable);
                 return BTreeRow.emptyDeletedRow(builder.clustering(), deletion);
             }
-            else if (hasTTL && hasTimestamp)
-            {
-                long timestamp = header.readTimestamp(in);
-                int ttl = header.readTTL(in);
-                int localDeletionTime = header.readLocalDeletionTime(in);
-                LivenessInfo rowLiveness = LivenessInfo.withExpirationTime(timestamp, ttl, localDeletionTime);
-                builder.addPrimaryKeyLivenessInfo(rowLiveness);
-                return BTreeRow.noCellLiveRow(builder.clustering(), rowLiveness);
-            }
             return null;
         }
     }
