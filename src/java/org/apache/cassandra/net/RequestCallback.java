@@ -67,11 +67,17 @@ public interface RequestCallback<T>
 
     static boolean isTimeout(Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
-        //TODO majority timeout = timeout, single timeout = timeout, or all timeout = timeout. need to come to agreement on this
-        int size = failureReasonByEndpoint.size();
-        long timeouts = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
-        long nonTimeout = size - timeouts;
-        return nonTimeout <= timeouts;
+        // The reason that all must be timeout to be called a timeout is as follows
+        // Assume RF=6, QUORUM, and failureReasonByEndpoint.size() == 3
+        // R1 -> TIMEOUT
+        // R2 -> TIMEOUT
+        // R3 -> READ_TOO_MANY_TOMBSTONES
+        // Since we got a reply back, and that was a failure, we should return a failure letting the user know.
+        // When all failures are a timeout, then this is a race condition with
+        // org.apache.cassandra.utils.concurrent.Awaitable.await(long, java.util.concurrent.TimeUnit)
+        // The race is that the message expire path runs and expires all messages, this then casues the condition
+        // to signal telling the caller "got all replies!".
+        return failureReasonByEndpoint.values().stream().allMatch(RequestFailureReason.TIMEOUT::equals);
     }
 
 }
