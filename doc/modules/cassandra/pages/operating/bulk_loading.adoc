@@ -80,13 +80,23 @@ The following options are supported, with `-d,--nodes <initial hosts>` required:
 -d,--nodes <initial hosts>                                   Required.
                                                              Try to connect to these hosts (comma separated) initially for ring information
 
+--entire-sstable-throttle-mib <throttle-mib>                 Entire SSTable throttle
+                                                             speed in MiB/s (default 0 for unlimited).
+
+--entire-sstable-inter-dc-throttle-mib                       <inter-dc-throttle-mib>
+                                                             Entire SSTable inter-datacenter throttle
+                                                             speed in MiB/s (default 0 for unlimited).
+
 -f,--conf-path <path to config file>                         cassandra.yaml file path for streaming throughput and client/server SSL.
 
 -h,--help                                                    Display this help message
 
 -i,--ignore <NODES>                                          Don't stream to this (comma separated) list of nodes
 
--idct,--inter-dc-throttle <inter-dc-throttle>                Inter-datacenter throttle speed in Mbits (default unlimited)
+-idct,--inter-dc-throttle <inter-dc-throttle>                (deprecated) Inter-datacenter throttle speed in Mbits (default 0 for unlimited).
+                                                             Use --inter-dc-throttle-mib instead.
+
+--inter-dc-throttle-mib <inter-dc-throttle-mib>              Inter-datacenter throttle speed in MiB/s (default 0 for unlimited)
 
 -k,--target-keyspace <target keyspace name>                  Target
                                                              keyspace name
@@ -111,8 +121,10 @@ The following options are supported, with `-d,--nodes <initial hosts>` required:
                                                              for TLS internode communication (default 7001)
 -st,--store-type <STORE-TYPE>                                Client SSL:
                                                              type of store
--t,--throttle <throttle>                                     Throttle
-                                                             speed in Mbits (default unlimited)
+-t,--throttle <throttle>                                     (deprecated) Throttle speed in Mbits (default 0 for unlimited).
+                                                             Use --throttle-mib instead.
+--throttle-mib <throttle-mib>                                Throttle
+                                                             speed in MiB/s (default 0 for unlimited)
 -ts,--truststore <TRUSTSTORE>                                Client SSL:
                                                              full path to truststore
 -tspw,--truststore-password <TRUSTSTORE-PASSWORD>            Client SSL:
