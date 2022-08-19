@@ -39,6 +39,8 @@
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
+4.0.6
+ * Prevent infinite loop in repair coordinator on FailSession (CASSANDRA-17834)
  * Fix race condition on updating cdc size and advancing to next segment (CASSANDRA-17792)
  * Add 'noboolean' rpm build for older distros like CentOS7 (CASSANDRA-17765)
  * Fix default value for compaction_throughput_mb_per_sec in Config class to match  the one in cassandra.yaml (CASSANDRA-17790)
