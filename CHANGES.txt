@@ -1,4 +1,5 @@
 4.2
+ * Read/Write/Truncate throw RequestFailure in a race condition with callback timeouts, should return Timeout instead (CASSANDRA-17828)
  * Add ability to log load profiles at fixed intervals (CASSANDRA-17821)
  * Protect against Gossip backing up due to a quarantined endpoint without version information (CASSANDRA-17830)
  * NPE in org.apache.cassandra.cql3.Attributes.getTimeToLive (CASSANDRA-17822)
