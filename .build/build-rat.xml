@@ -49,13 +49,14 @@
             <fileset dir="." includesfile="build/.ratinclude">
                  <!-- Config files with not much creativity -->
                  <exclude name="**/.asf.yaml"/>
+                 <exclude name="**/.github/pull_request_template.md"/>
                  <exclude name="**/ide/**/*"/>
                  <exclude name="**/metrics-reporter-config-sample.yaml"/>
                  <exclude name="**/cassandra.yaml"/>
                  <exclude name="**/cassandra-murmur.yaml"/>
                  <exclude name="**/cassandra-seeds.yaml"/>
                  <exclude name="**/harry-generic.yaml"/>
-                 <exclude NAME="**/doc/antora.yml"/>
+                 <exclude name="**/doc/antora.yml"/>
                  <exclude name="**/test/conf/cassandra.yaml"/>
                  <exclude name="**/test/conf/cassandra-old.yaml"/>
                  <exclude name="**/test/conf/cassandra-converters-special-cases-old-names.yaml"/>
@@ -80,12 +81,12 @@
                  <exclude name="**/tools/cqlstress-insanity-example.yaml"/>
                  <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
                  <!-- Documentation files -->
-                 <exclude NAME="**/doc/modules/**/*"/>
-                 <exclude NAME="**/src/java/**/*.md"/>
+                 <exclude name="**/doc/modules/**/*"/>
+                 <exclude name="**/src/java/**/*.md"/>
                  <!-- NOTICE files -->
-                 <exclude NAME="**/NOTICE.md"/>
+                 <exclude name="**/NOTICE.md"/>
                  <!-- LICENSE files -->
-                 <exclude NAME="**/LICENSE.md"/>
+                 <exclude name="**/LICENSE.md"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">
