@@ -56,7 +56,7 @@ import static org.apache.cassandra.utils.AssertionUtils.isThrowable;
 
 public class RequestTimeoutTest extends TestBaseImpl
 {
-    private static AtomicInteger NEXT = new AtomicInteger(0);
+    private static final AtomicInteger NEXT = new AtomicInteger(0);
     private static Cluster CLUSTER;
 
     @BeforeClass
