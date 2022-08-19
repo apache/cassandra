@@ -45,10 +45,23 @@ internode communication (default 7001)
 
 |--no-progress |don't display progress
 
-|-t, --throttle <throttle> |throttle speed in Mbits (default unlimited)
+|-t, --throttle <throttle> |(deprecated) throttle speed in Mbits
+(default 0 for unlimited) Use --throttle-mib instead
 
-|-idct, --inter-dc-throttle <inter-dc-throttle> |inter-datacenter
-throttle speed in Mbits (default unlimited)
+|--throttle-mib <throttle-mib> |throttle speed in MiB/s
+(default 0 for unlimited)
+
+|-idct, --inter-dc-throttle <inter-dc-throttle> |(deprecated) inter-datacenter
+throttle speed in Mbits (default 0 for unlimited) Use --inter-dc-throttle-mib instead
+
+|--inter-dc-throttle-mib <inter-dc-throttle-mib> |inter-datacenter
+throttle speed in MiB/s (default 0 for unlimited)
+
+|--entire-sstable-throttle-mib <throttle-mib> |entire SSTable throttle
+speed in MiB/s (default 0 for unlimited)
+
+|--entire-sstable-inter-dc-throttle-mib <inter-dc-throttle-mib> |entire
+SSTable inter-datacenter throttle speed in MiB/s (default 0 for unlimited)
 
 |-cph, --connections-per-host <connectionsPerHost> |number of concurrent
 connections-per-host

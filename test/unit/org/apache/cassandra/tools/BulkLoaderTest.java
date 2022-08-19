@@ -21,6 +21,7 @@ package org.apache.cassandra.tools;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.hamcrest.CoreMatchers;
 
@@ -155,6 +156,52 @@ public class BulkLoaderTest extends OfflineToolUtils
                                                  "127.9.9.1:9041",
                                                  OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
         assertEquals(-1, tool.getExitCode());
+        throw tool.getException().getCause().getCause().getCause();
+    }
+
+    @Test(expected = NoHostAvailableException.class)
+    public void testBulkLoader_WithArgs5() throws Throwable
+    {
+        ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+                                                 "-d",
+                                                 "127.9.9.1:9041",
+                                                 "--throttle",
+                                                 "10",
+                                                 "--inter-dc-throttle",
+                                                 "15",
+                                                 "--entire-sstable-throttle-mib",
+                                                 "20",
+                                                 "--entire-sstable-inter-dc-throttle-mib",
+                                                 "25",
+                                                 OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
+        assertEquals(-1, tool.getExitCode());
+        assertEquals(10 * 125_000, DatabaseDescriptor.getStreamThroughputOutboundBytesPerSec(), 0.0);
+        assertEquals(15 * 125_000, DatabaseDescriptor.getInterDCStreamThroughputOutboundBytesPerSec(), 0.0);
+        assertEquals(20, DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec(), 0.0);
+        assertEquals(25, DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(), 0.0);
+        throw tool.getException().getCause().getCause().getCause();
+    }
+
+    @Test(expected = NoHostAvailableException.class)
+    public void testBulkLoader_WithArgs6() throws Throwable
+    {
+        ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+                                                 "-d",
+                                                 "127.9.9.1:9041",
+                                                 "--throttle-mib",
+                                                 "3",
+                                                 "--inter-dc-throttle-mib",
+                                                 "4",
+                                                 "--entire-sstable-throttle-mib",
+                                                 "5",
+                                                 "--entire-sstable-inter-dc-throttle-mib",
+                                                 "6",
+                                                 OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
+        assertEquals(-1, tool.getExitCode());
+        assertEquals(3 * 1024 * 1024, DatabaseDescriptor.getStreamThroughputOutboundBytesPerSec(), 0.0);
+        assertEquals(4 * 1024 * 1024, DatabaseDescriptor.getInterDCStreamThroughputOutboundBytesPerSec(), 0.0);
+        assertEquals(5, DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec(), 0.0);
+        assertEquals(6, DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(), 0.0);
         throw tool.getException().getCause().getCause().getCause();
     }
 }

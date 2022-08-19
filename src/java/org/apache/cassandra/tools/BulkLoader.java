@@ -23,20 +23,26 @@ import java.util.Set;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
-import com.datastax.driver.core.AuthProvider;
-import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
-import com.datastax.driver.core.SSLOptions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
+import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
+import com.datastax.driver.core.SSLOptions;
 import com.datastax.shaded.netty.channel.socket.SocketChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.SessionInfo;
+import org.apache.cassandra.streaming.StreamEvent;
+import org.apache.cassandra.streaming.StreamEventHandler;
+import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NativeSSTableLoaderClient;
@@ -46,7 +52,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class BulkLoader
 {
-    public static void main(String args[]) throws BulkLoadException
+    public static void main(String[] args) throws BulkLoadException
     {
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
         load(options);
@@ -68,9 +74,11 @@ public class BulkLoader
                         options.connectionsPerHost,
                         options.targetKeyspace,
                         options.targetTable);
-        DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
-        DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(options.interDcThrottle);
-        StreamResultFuture future = null;
+        DatabaseDescriptor.setStreamThroughputOutboundBytesPerSec(options.throttleBytes);
+        DatabaseDescriptor.setInterDCStreamThroughputOutboundBytesPerSec(options.interDcThrottleBytes);
+        DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMebibytesPerSec(options.entireSSTableThrottleMebibytes);
+        DatabaseDescriptor.setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(options.entireSSTableInterDcThrottleMebibytes);
+        StreamResultFuture future;
 
         ProgressIndicator indicator = new ProgressIndicator();
         try
@@ -120,7 +128,7 @@ public class BulkLoader
     // Return true when everything is at 100%
     static class ProgressIndicator implements StreamEventHandler
     {
-        private long start;
+        private final long start;
         private long lastProgress;
         private long lastTime;
 
@@ -219,7 +227,7 @@ public class BulkLoader
                 }
                 sb.append(" (avg: ").append(FBUtilities.prettyPrintMemoryPerSecond(totalProgress, time - start)).append(")");
 
-                System.out.println(sb.toString());
+                System.out.println(sb);
             }
         }
 
@@ -241,7 +249,7 @@ public class BulkLoader
             sb.append(String.format("   %-24s: %-10s%n", "Total duration ", durationMS + " ms"));
             sb.append(String.format("   %-24s: %-10s%n", "Average transfer rate ", FBUtilities.prettyPrintMemoryPerSecond(lastProgress, end - start)));
             sb.append(String.format("   %-24s: %-10s%n", "Peak transfer rate ",  FBUtilities.prettyPrintMemoryPerSecond(peak)));
-            System.out.println(sb.toString());
+            System.out.println(sb);
         }
     }
 
