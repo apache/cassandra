@@ -94,6 +94,7 @@ import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.accord.AccordCommandsForKey.SeriesKind;
+import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
@@ -131,6 +132,11 @@ public class AccordKeyspace
               + "store_index int,"
               + format("txn_id %s,", TIMESTAMP_TUPLE)
               + "status int,"
+              + "home_key blob,"
+              + "home_key_version int,"
+              + "progress_key blob,"
+              + "progress_key_version blob,"
+              + "is_globally_persistent boolean,"
               + "txn_version int,"
               + "txn blob,"
               + format("execute_at %s,", TIMESTAMP_TUPLE)
@@ -162,6 +168,11 @@ public class AccordKeyspace
     {
         static final ClusteringComparator keyComparator = Commands.partitionKeyAsClusteringComparator();
         static final ColumnMetadata status = getColumn(Commands, "status");
+        static final ColumnMetadata home_key = getColumn(Commands, "home_key");
+        static final ColumnMetadata home_key_version = getColumn(Commands, "home_key_version");
+        static final ColumnMetadata progress_key = getColumn(Commands, "progress_key");
+        static final ColumnMetadata progress_key_version = getColumn(Commands, "progress_key_version");
+        static final ColumnMetadata is_globally_persistent = getColumn(Commands, "is_globally_persistent");
         static final ColumnMetadata txn_version = getColumn(Commands, "txn_version");
         static final ColumnMetadata txn = getColumn(Commands, "txn");
         static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
@@ -425,6 +436,21 @@ public class AccordKeyspace
             if (command.status.hasModifications())
                 builder.addCell(live(CommandsColumns.status, timestampMicros, accessor.valueOf(command.status.get().ordinal())));
 
+            if (command.homeKey.hasModifications())
+            {
+                builder.addCell(live(CommandsColumns.home_key_version, timestampMicros, versionBytes));
+                builder.addCell(live(CommandsColumns.home_key, timestampMicros, serializeOrNull((AccordKey) command.homeKey.get(), AccordKey.serializer, version)));
+            }
+
+            if (command.progressKey.hasModifications())
+            {
+                builder.addCell(live(CommandsColumns.progress_key_version, timestampMicros, versionBytes));
+                builder.addCell(live(CommandsColumns.progress_key, timestampMicros, serializeOrNull((AccordKey) command.progressKey.get(), AccordKey.serializer, version)));
+            }
+
+            if (command.isGloballyPersistent.hasModifications())
+                builder.addCell(live(CommandsColumns.is_globally_persistent, timestampMicros, accessor.valueOf(command.isGloballyPersistent.get())));
+
             if (command.txn.hasModifications())
             {
                 builder.addCell(live(CommandsColumns.txn_version, timestampMicros, versionBytes));
@@ -577,6 +603,9 @@ public class AccordKeyspace
             UntypedResultSet.Row row = result.one();
             Preconditions.checkState(deserializeTimestampOrNull(row, "txn_id", TxnId::new).equals(txnId));
             command.status.load(Status.values()[row.getInt("status")]);
+            command.homeKey.load(deserializeOrNull(row.getBlob("home_key"), AccordKey.serializer, row.getInt("home_key_version")));
+            command.progressKey.load(deserializeOrNull(row.getBlob("progress_key"), AccordKey.serializer, row.getInt("progress_key_version")));
+            command.isGloballyPersistent.load(row.getBoolean("is_globally_persistent"));
             command.txn.load(deserializeOrNull(row.getBlob("txn"), CommandSerializers.txn, row.getInt("txn_version")));
             command.executeAt.load(deserializeTimestampOrNull(row, "execute_at", Timestamp::new));
             command.promised.load(deserializeTimestampOrNull(row, "promised_ballot", Ballot::new));
