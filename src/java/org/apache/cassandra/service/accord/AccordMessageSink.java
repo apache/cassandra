@@ -60,6 +60,7 @@ public class AccordMessageSink implements MessageSink
             mapping.put(MessageType.COMMIT_REQ,             Verb.ACCORD_COMMIT_REQ);
             mapping.put(MessageType.COMMIT_INVALIDATE,      Verb.ACCORD_COMMIT_INVALIDATE_REQ);
             mapping.put(MessageType.APPLY_REQ,              Verb.ACCORD_APPLY_REQ);
+            mapping.put(MessageType.APPLY_RSP,              Verb.ACCORD_APPLY_RSP);
             mapping.put(MessageType.APPLY_AND_CHECK_REQ,    Verb.ACCORD_APPLY_AND_CHECK_REQ);
             mapping.put(MessageType.APPLY_AND_CHECK_RSP,    Verb.ACCORD_APPLY_AND_CHECK_RSP);
             mapping.put(MessageType.READ_REQ,               Verb.ACCORD_READ_REQ);

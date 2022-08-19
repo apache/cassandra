@@ -27,7 +27,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.db.AccordData;
 
-public class ApplySerializer
+public class ApplySerializers
 {
     public static final IVersionedSerializer<Apply> request = new TxnRequestSerializer<Apply>()
     {
@@ -66,6 +66,27 @@ public class ApplySerializer
                    + CommandSerializers.deps.serializedSize(apply.deps, version)
                    + CommandSerializers.writes.serializedSize(apply.writes, version)
                    + AccordData.serializer.serializedSize((AccordData) apply.result, version);
+        }
+    };
+
+    public static final IVersionedSerializer<Apply.ApplyOk> reply = new IVersionedSerializer<Apply.ApplyOk>()
+    {
+        @Override
+        public void serialize(Apply.ApplyOk t, DataOutputPlus out, int version) throws IOException
+        {
+
+        }
+
+        @Override
+        public Apply.ApplyOk deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return Apply.ApplyOk.INSTANCE;
+        }
+
+        @Override
+        public long serializedSize(Apply.ApplyOk t, int version)
+        {
+            return 0;
         }
     };
 }
