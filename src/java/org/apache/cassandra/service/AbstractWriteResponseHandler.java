@@ -132,11 +132,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         if (blockFor() + failures > candidateReplicaCount())
         {
-            Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint =
-            this.failureReasonByEndpoint.keySet().stream()
-                                        .filter(this::waitingFor) // DatacenterWriteResponseHandler filters errors from remote DCs
-                                        .collect(Collectors.toMap(Function.identity(), this.failureReasonByEndpoint::get));
-            if (RequestCallback.isTimeout(failureReasonByEndpoint))
+            if (RequestCallback.isTimeout(this.failureReasonByEndpoint.keySet().stream()
+                                                                      .filter(this::waitingFor) // DatacenterWriteResponseHandler filters errors from remote DCs
+                                                                      .collect(Collectors.toMap(Function.identity(), this.failureReasonByEndpoint::get))))
                 throwTimeout();
 
             throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, this.failureReasonByEndpoint);
