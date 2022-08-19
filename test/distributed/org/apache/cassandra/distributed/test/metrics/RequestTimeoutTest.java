@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed.test.metrics;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,6 +35,7 @@ import org.junit.Test;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.SuperMethod;
 import net.bytebuddy.implementation.bind.annotation.This;
 import org.apache.cassandra.config.Config;
@@ -40,6 +43,10 @@ import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
@@ -57,6 +64,7 @@ import static org.apache.cassandra.utils.AssertionUtils.isThrowable;
 public class RequestTimeoutTest extends TestBaseImpl
 {
     private static final AtomicInteger NEXT = new AtomicInteger(0);
+    public static final int COORDINATOR = 1;
     private static Cluster CLUSTER;
 
     @BeforeClass
@@ -80,56 +88,66 @@ public class RequestTimeoutTest extends TestBaseImpl
     @Before
     public void before()
     {
+        CLUSTER.get(COORDINATOR).runOnInstance(() -> MessagingService.instance().callbacks.unsafeClear());
         CLUSTER.filters().reset();
+        BB.reset();
     }
 
     @Test
     public void insert()
     {
         CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
                   .is(isThrowable(WriteTimeoutException.class));
+        BB.assertIsTimeoutTrue();
     }
 
     @Test
     public void update()
     {
         CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("UPDATE %s.tbl SET v=? WHERE pk=?"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("UPDATE %s.tbl SET v=? WHERE pk=?"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
                   .is(isThrowable(WriteTimeoutException.class));
+        BB.assertIsTimeoutTrue();
     }
 
     @Test
     public void batchInsert()
     {
         CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(batch(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)")), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(batch(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)")), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
                   .is(isThrowable(WriteTimeoutException.class));
+        BB.assertIsTimeoutTrue();
     }
 
     @Test
     public void rangeSelect()
     {
         CLUSTER.filters().verbs(Verb.RANGE_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl"), ConsistencyLevel.ALL))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("SELECT * FROM %s.tbl"), ConsistencyLevel.ALL))
                   .is(isThrowable(ReadTimeoutException.class));
+        BB.assertIsTimeoutTrue();
     }
 
     @Test
     public void select()
     {
         CLUSTER.filters().verbs(Verb.READ_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=?"), ConsistencyLevel.ALL, NEXT.getAndIncrement()))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=?"), ConsistencyLevel.ALL, NEXT.getAndIncrement()))
                   .is(isThrowable(ReadTimeoutException.class));
+        BB.assertIsTimeoutTrue();
     }
 
     @Test
     public void truncate()
     {
         CLUSTER.filters().verbs(Verb.TRUNCATE_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("TRUNCATE %s.tbl"), ConsistencyLevel.ALL))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("TRUNCATE %s.tbl"), ConsistencyLevel.ALL))
                   .is(AssertionUtils.rootCauseIs(TimeoutException.class));
+        BB.assertIsTimeoutTrue();
     }
+
+    // don't call BB.assertIsTimeoutTrue(); for CAS, as it has its own logic
 
     @Test
     public void casV2PrepareInsert()
@@ -137,7 +155,7 @@ public class RequestTimeoutTest extends TestBaseImpl
         withPaxos(Config.PaxosVariant.v2);
 
         CLUSTER.filters().verbs(Verb.PAXOS2_PREPARE_REQ.id).to(2, 3).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
                   .is(isThrowable(CasWriteTimeoutException.class));
     }
 
@@ -147,7 +165,7 @@ public class RequestTimeoutTest extends TestBaseImpl
         withPaxos(Config.PaxosVariant.v2);
 
         CLUSTER.filters().verbs(Verb.PAXOS2_PREPARE_REQ.id).to(2, 3).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=?"), ConsistencyLevel.SERIAL, NEXT.getAndIncrement()))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=?"), ConsistencyLevel.SERIAL, NEXT.getAndIncrement()))
                   .is(isThrowable(ReadTimeoutException.class)); // why does write have its own type but not read?
     }
 
@@ -157,7 +175,7 @@ public class RequestTimeoutTest extends TestBaseImpl
         withPaxos(Config.PaxosVariant.v2);
 
         CLUSTER.filters().verbs(Verb.PAXOS_COMMIT_REQ.id).to(2, 3).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
+        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
                   .is(isThrowable(CasWriteTimeoutException.class));
     }
 
@@ -173,10 +191,18 @@ public class RequestTimeoutTest extends TestBaseImpl
 
     public static class BB
     {
-        public static void install(ClassLoader cl, Integer num)
+        public static void install(ClassLoader cl, int num)
         {
+            if (num != COORDINATOR)
+                return;
             new ByteBuddy().rebase(Condition.Async.class)
                            .method(named("await").and(takesArguments(2)))
+                           .intercept(MethodDelegation.to(BB.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+
+            new ByteBuddy().rebase(RequestCallback.class)
+                           .method(named("isTimeout"))
                            .intercept(MethodDelegation.to(BB.class))
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
@@ -184,8 +210,32 @@ public class RequestTimeoutTest extends TestBaseImpl
 
         public static boolean await(long time, TimeUnit units, @This Awaitable self, @SuperMethod Method method) throws InterruptedException, InvocationTargetException, IllegalAccessException
         {
-            // attempt to decouple the two usages of write_request_timeout: await(write_request_timeout) and message expire
-            return (boolean) method.invoke(self, time * 10, units);
+            // make sure that the underline condition is met before returnning true
+            // this way its know that the timeouts triggered!
+            while (!((boolean) method.invoke(self, time, units)))
+            {
+            }
+            return true;
+        }
+
+        private static final AtomicInteger TIMEOUTS = new AtomicInteger(0);
+        public static boolean isTimeout(Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint, @SuperCall Callable<Boolean> fn) throws Exception
+        {
+            boolean timeout = fn.call();
+            if (timeout)
+                TIMEOUTS.incrementAndGet();
+            return timeout;
+        }
+
+        public static void assertIsTimeoutTrue()
+        {
+            int timeouts = CLUSTER.get(COORDINATOR).callOnInstance(() -> TIMEOUTS.getAndSet(0));
+            Assertions.assertThat(timeouts).isGreaterThan(0);
+        }
+
+        public static void reset()
+        {
+            CLUSTER.get(COORDINATOR).runOnInstance(() -> TIMEOUTS.set(0));
         }
     }
 }
