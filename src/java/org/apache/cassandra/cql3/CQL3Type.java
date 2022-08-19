@@ -177,7 +177,7 @@ public interface CQL3Type
             this.type = type;
         }
 
-        public AbstractType<?> getType()
+        public CollectionType<?> getType()
         {
             return type;
         }
@@ -410,7 +410,7 @@ public interface CQL3Type
             return new Tuple(type);
         }
 
-        public AbstractType<?> getType()
+        public TupleType getType()
         {
             return type;
         }

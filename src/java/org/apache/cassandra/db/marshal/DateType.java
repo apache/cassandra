@@ -46,6 +46,8 @@ public class DateType extends AbstractType<Date>
 
     public static final DateType instance = new DateType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(new Date(0));
+
     DateType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public boolean isEmptyValueMeaningless()
@@ -138,5 +140,11 @@ public class DateType extends AbstractType<Date>
     public int valueLengthIfFixed()
     {
         return 8;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

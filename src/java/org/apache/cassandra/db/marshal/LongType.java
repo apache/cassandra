@@ -36,6 +36,8 @@ public class LongType extends NumberType<Long>
 {
     public static final LongType instance = new LongType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(0L);
+
     LongType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
@@ -227,5 +229,11 @@ public class LongType extends NumberType<Long>
     public ByteBuffer round(ByteBuffer input)
     {
         return ByteBufferUtil.clone(input);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

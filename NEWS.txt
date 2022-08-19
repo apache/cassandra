@@ -115,6 +115,13 @@ New features
       the paramater called `resolve_multiple_ip_addresses_per_dns_record` which value is meant to be boolean and by
       default it is set to false. When set to true, SimpleSeedProvider will resolve all IP addresses per DNS record,
       based on the configured name service on the system.
+    - Added new native CQL functions for data masking, allowing to replace or obscure sensitive data. The functions are:
+      - `mask_null` replaces the column value by null.
+      - `mask_default` replaces the data by a fixed default value of the same type.
+      - `mask_replace` replaces the data by a custom value.
+      - `mask_inner` replaces every character but the first and last ones by a fixed character.
+      - `mask_outer` replaces the first and last characters by a fixed character.
+      - `mask_hash` replaces the data by its hash, according to the specified algorithm.
 
 Upgrading
 ---------

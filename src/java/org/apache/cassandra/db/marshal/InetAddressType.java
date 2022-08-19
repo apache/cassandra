@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -32,6 +33,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class InetAddressType extends AbstractType<InetAddress>
 {
     public static final InetAddressType instance = new InetAddressType();
+
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(new InetSocketAddress(0).getAddress());
 
     InetAddressType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
@@ -93,5 +96,11 @@ public class InetAddressType extends AbstractType<InetAddress>
     public TypeSerializer<InetAddress> getSerializer()
     {
         return InetAddressSerializer.instance;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }
