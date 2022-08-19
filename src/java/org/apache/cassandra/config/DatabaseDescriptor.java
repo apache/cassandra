@@ -2120,6 +2120,11 @@ public class DatabaseDescriptor
         conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
+    public static void setStreamThroughputOutboundBytesPerSec(long value)
+    {
+        conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND);
+    }
+
     public static void setStreamThroughputOutboundMegabitsPerSec(int value)
     {
         conf.stream_throughput_outbound = DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value);
@@ -2178,6 +2183,11 @@ public class DatabaseDescriptor
                                                Integer.MAX_VALUE + " in megabits/s");
 
         conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+    }
+
+    public static void setInterDCStreamThroughputOutboundBytesPerSec(long value)
+    {
+        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND);
     }
 
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
