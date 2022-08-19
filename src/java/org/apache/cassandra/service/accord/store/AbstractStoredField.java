@@ -23,10 +23,11 @@ import org.apache.cassandra.service.accord.AccordState;
 public abstract class AbstractStoredField
 {
     private static final int LOADED_FLAG = 0x01;
-    private static final int CHANGED_FLAG = 0x01 << 1;
-    private static final int CLEARED_FLAG = 0x01 << 2;
-    private static final int WRITE_ONLY_FLAG = 0x01 << 3;
-    private static final int READ_ONLY_FLAG = 0x01 << 4;
+    private static final int EMPTY_FLAG = 0x01 << 1;
+    private static final int CHANGED_FLAG = 0x01 << 2;
+    private static final int CLEARED_FLAG = 0x01 << 3;
+    private static final int WRITE_ONLY_FLAG = 0x01 << 4;
+    private static final int READ_ONLY_FLAG = 0x01 << 5;
 
     private byte flag;
 
@@ -42,7 +43,7 @@ public abstract class AbstractStoredField
     @Override
     public String toString()
     {
-        if (!isLoaded())
+        if (!hasValue())
             return "<empty>";
         preGet();
         if (hasModifications())
@@ -65,9 +66,26 @@ public abstract class AbstractStoredField
         flag |= v;
     }
 
+    public boolean hasValue()
+    {
+        return isLoaded() && !isEmpty();
+    }
+
     public boolean isLoaded()
     {
         return check(LOADED_FLAG);
+    }
+
+    public void setEmpty()
+    {
+        if (check(0xFF))
+            throw new IllegalStateException("Cannot set previously loaded/initialized commands to empty");
+        set(LOADED_FLAG | EMPTY_FLAG);
+    }
+
+    public boolean isEmpty()
+    {
+        return check(EMPTY_FLAG);
     }
 
     void checkWritesAllowed()
@@ -93,11 +111,13 @@ public abstract class AbstractStoredField
     {
         if (hasModifications())
             throw new IllegalStateException("Cannot load into a field with unsaved changes");
+        clear(EMPTY_FLAG);
         set(LOADED_FLAG);
     }
 
     void preChange()
     {
+        clear(EMPTY_FLAG);
         set(LOADED_FLAG | CHANGED_FLAG);
     }
 
@@ -110,6 +130,8 @@ public abstract class AbstractStoredField
     {
         if (!check(LOADED_FLAG))
             throw new IllegalStateException("Cannot read unloaded fields");
+        if (check(EMPTY_FLAG))
+            throw new IllegalStateException("Cannot read empty fields");
     }
 
     void preClear()

@@ -68,7 +68,8 @@ public class AsyncLoader
     private static <K, V extends AccordState<K>> Future<?> referenceAndDispatch(K key,
                                                                                 AccordStateCache.Instance<K, V> cache,
                                                                                 Map<K, V> context,
-                                                                                Function<V, Future<?>> readFunction)
+                                                                                Function<V, Future<?>> readFunction,
+                                                                                boolean canDispatch)
     {
         Future<?> future = cache.getLoadFuture(key);
         if (future != null)
@@ -89,6 +90,8 @@ public class AsyncLoader
         if (item.isLoaded())
             return null;
 
+        if (!canDispatch)
+            throw new IllegalStateException("Unable to dispatch read for " + key);
         future = readFunction.apply(item);
         cache.setLoadFuture(item.key(), future);
         return future;
@@ -99,11 +102,12 @@ public class AsyncLoader
                                                                                            AccordStateCache.Instance<K, V> cache,
                                                                                            Map<K, V> context,
                                                                                            Function<V, Future<?>> readFunction,
-                                                                                           List<Future<?>> futures)
+                                                                                           List<Future<?>> futures,
+                                                                                           boolean canDispatch)
     {
         for (K key : keys)
         {
-            Future<?> future = referenceAndDispatch(key, cache, context, readFunction);
+            Future<?> future = referenceAndDispatch(key, cache, context, readFunction, canDispatch);
             if (future == null)
                 continue;
 
@@ -128,7 +132,7 @@ public class AsyncLoader
         return cfk -> Stage.READ.submit(() -> AccordKeyspace.loadCommandsForKey(cfk));
     }
 
-    private Future<?> referenceAndDispatchReads(AsyncContext context)
+    private Future<?> referenceAndDispatchReads(AsyncContext context, boolean canDispatch)
     {
         List<Future<?>> futures = null;
 
@@ -136,13 +140,13 @@ public class AsyncLoader
                                             commandStore.commandCache(),
                                             context.commands.items,
                                             loadCommandFunction(),
-                                            futures);
+                                            futures, canDispatch);
 
         futures = referenceAndDispatchReads(keys,
                                             commandStore.commandsForKeyCache(),
                                             context.commandsForKey.items,
                                             loadCommandsPerKeyFunction(),
-                                            futures);
+                                            futures, canDispatch);
 
         return futures != null ? FutureCombiner.allOf(futures) : null;
     }
@@ -159,13 +163,13 @@ public class AsyncLoader
                 // notify any pending write only groups we're loading a full instance so the pending changes aren't removed
                 txnIds.forEach(commandStore.commandCache()::lockWriteOnlyGroupIfExists);
                 keys.forEach(commandStore.commandsForKeyCache()::lockWriteOnlyGroupIfExists);
-                readFuture = referenceAndDispatchReads(context);
+                readFuture = referenceAndDispatchReads(context, true);
                 state = State.LOADING;
             case LOADING:
                 // if the read future succeeded, add the loaded items to the operation context
                 if (readFuture != null && readFuture.isSuccess())
                 {
-                    readFuture = referenceAndDispatchReads(context);
+                    readFuture = referenceAndDispatchReads(context, false);
                     // processing the loaded items should not generate a new read future
                     Preconditions.checkState(readFuture == null);
                 }

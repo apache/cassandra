@@ -232,6 +232,8 @@ public class CommandSummaries
 
             // TODO: switch to txnId -> DUMMY_TXN once we don't need to transmit txns everywhere
             serializeNullable(command.savedDeps(), out, version.msg_version, CommandSerializers.deps);
+
+            serializeNullable(command.homeKey(), out, version.msg_version, KeySerializers.key);
         }
 
         @Override
@@ -240,6 +242,7 @@ public class CommandSummaries
             statusExecute.deserializeBody(command, in, version);
             command.txn.load(deserializeNullable(in, version.msg_version, CommandSerializers.txn));
             command.deps.load(deserializeNullable(in, version.msg_version, CommandSerializers.deps));
+            command.homeKey.load(deserializeNullable(in, version.msg_version, KeySerializers.key));
         }
 
         @Override
@@ -248,6 +251,7 @@ public class CommandSummaries
             int size = statusExecute.serializedBodySize(command, version);
             size += serializedSizeNullable(command.txn(), version.msg_version, CommandSerializers.txn);
             size += serializedSizeNullable(command.savedDeps(), version.msg_version, CommandSerializers.deps);
+            size += serializedSizeNullable(command.homeKey(), version.msg_version, KeySerializers.key);
             return size;
         }
 
@@ -256,7 +260,8 @@ public class CommandSummaries
         {
             return statusExecute.needsUpdate(command)
                    || command.txn.hasModifications()
-                   || command.deps.hasModifications();
+                   || command.deps.hasModifications()
+                   || command.homeKey.hasModifications();
         }
     };
 

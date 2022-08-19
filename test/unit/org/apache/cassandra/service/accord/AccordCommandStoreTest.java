@@ -90,6 +90,9 @@ public class AccordCommandStoreTest
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
         command.txn(createTxn(0));
+        command.homeKey(key);
+        command.progressKey(key);
+        command.isGloballyPersistent(true);
         command.promised(ballot(1, clock.incrementAndGet(), 0, 1));
         command.accepted(ballot(1, clock.incrementAndGet(), 0, 1));
         command.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
@@ -173,6 +176,6 @@ public class AccordCommandStoreTest
         fullCfk.applyBlindWitnessedTimestamps();
         Assert.assertEquals(maxTimestamp, fullCfk.max());
         Assert.assertTrue(fullCfk.blindWitnessed.getView().isEmpty());
-
     }
+
 }

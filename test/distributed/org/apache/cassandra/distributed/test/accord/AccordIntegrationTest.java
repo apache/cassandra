@@ -362,4 +362,28 @@ public class AccordIntegrationTest extends TestBaseImpl
         }
         builder.row(buffer);
     }
+
+//    @Test
+//    public void acceptInvalidationTest()
+//    {
+//
+//    }
+//
+//    @Test
+//    public void applyAndCheckTest()
+//    {
+//
+//    }
+//
+//    @Test
+//    public void beginInvalidationTest()
+//    {
+//
+//    }
+//
+//    @Test
+//    public void checkStatusTest()
+//    {
+//
+//    }
 }

@@ -171,14 +171,6 @@ public class AccordCommandTest
             command.commit(commit.txn, key, key, commit.executeAt, commit.deps);
         }).get();
 
-        // unseen deps txn should have been witnessed
-        Timestamp executeAt2 = commandStore.process(op(txnId2), instance -> {
-            Command command = instance.command(txnId2);
-            Assert.assertTrue(command.hasBeen(Status.PreAccepted));
-            Assert.assertTrue(command.executeAt().compareTo(executeAt) > 0);
-            return command.executeAt();
-        }).get();
-
         commandStore.process(commit, instance -> {
             Command command = instance.command(txnId);
             Assert.assertEquals(commit.executeAt, command.executeAt());
@@ -186,7 +178,6 @@ public class AccordCommandTest
             Assert.assertEquals(commit.deps, command.savedDeps());
 
             CommandsForKey cfk = instance.commandsForKey(key(1));
-            Assert.assertEquals(executeAt2, cfk.max());
             Assert.assertNull(cfk.uncommitted().get(txnId));
             Assert.assertNotNull(cfk.committedById().get(txnId));
             Assert.assertNotNull(cfk.committedByExecuteAt().get(commit.executeAt));

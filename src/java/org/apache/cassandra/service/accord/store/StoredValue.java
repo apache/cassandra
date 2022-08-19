@@ -37,10 +37,11 @@ public class StoredValue<T> extends AbstractStoredField
     @Override
     public boolean equals(Object o)
     {
-        preGet();
+        this.preGet();
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         StoredValue<?> that = (StoredValue<?>) o;
+        that.preGet();
         return Objects.equals(value, that.value);
     }
 
@@ -59,7 +60,7 @@ public class StoredValue<T> extends AbstractStoredField
 
     public long estimatedSizeOnHeap(ToLongFunction<T> measure)
     {
-        if (!isLoaded() || value == null)
+        if (!hasValue() || value == null)
             return EMPTY_SIZE;
 
         return EMPTY_SIZE + measure.applyAsLong(value);

@@ -28,17 +28,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.LongSupplier;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import accord.api.Data;
+import accord.api.ProgressLog;
 import accord.api.Write;
 import accord.impl.InMemoryCommandStore;
-import accord.impl.SimpleProgressLog;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Node.Id;
+import accord.local.TxnOperation;
 import accord.topology.KeyRange;
 import accord.topology.KeyRanges;
 import accord.topology.Shard;
@@ -68,6 +71,18 @@ public class AccordTestUtils
     {
         return EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
     }
+
+    public static final ProgressLog NOOP_PROGRESS_LOG = new ProgressLog()
+    {
+        @Override public void preaccept(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void accept(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void commit(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void readyToExecute(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void execute(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void invalidate(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void executedOnAllShards(TxnId txnId, Set<Id> persistedOn) {}
+        @Override public void waiting(TxnId blockedBy, @Nullable Keys someKeys) {}
+    };
 
     public static Topology simpleTopology(TableId... tables)
     {
@@ -123,10 +138,11 @@ public class AccordTestUtils
     /**
      * does the reads, writes, and results for a command without the consensus
      */
-    public static void processCommandResult(Command command)
+    public static void processCommandResult(Command command) throws Throwable
     {
 
-        ((AccordCommandStore) command.commandStore()).processBlocking(() -> {
+        command.commandStore().process(TxnOperation.scopeFor(Collections.emptyList(), command.txn().keys()),
+                                       instance -> {
             Txn txn = command.txn();
             AccordRead read = (AccordRead) txn.read();
             Data readData = read.keys().stream()
@@ -148,7 +164,7 @@ public class AccordTestUtils
             Write write = txn.update().apply(readData);
             command.writes(new Writes(command.executeAt(), txn.keys(), write));
             command.result(txn.query().compute(readData));
-        });
+        }).get();
     }
 
     public static Txn createTxn(int readKey, int... writeKeys)
@@ -223,7 +239,7 @@ public class AccordTestUtils
                                       () -> 1,
                                       new AccordAgent(),
                                       null,
-                                      cs -> null,
+                                      cs -> NOOP_PROGRESS_LOG,
                                       new SingleEpochRanges(topology.rangesForNode(node)),
                                       executor);
     }

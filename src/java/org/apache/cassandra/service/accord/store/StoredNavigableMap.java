@@ -106,7 +106,7 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
     public void blindPut(K key, V val)
     {
         preBlindChange();
-        if (isLoaded())
+        if (hasValue())
             map.put(key, val);
 
         if (additions == null)
@@ -120,7 +120,7 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
     public void blindRemove(K key)
     {
         preBlindChange();
-        if (isLoaded())
+        if (hasValue())
             map.remove(key);
 
         if (!wasCleared())
@@ -188,7 +188,7 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
     public long estimatedSizeOnHeap(ToLongFunction<K> measureKey, ToLongFunction<V> measureVal)
     {
         long size = EMPTY_SIZE;
-        if (isLoaded() && ! map.isEmpty())
+        if (hasValue() && ! map.isEmpty())
         {
             for (Map.Entry<K, V> entry : map.entrySet())
             {

@@ -51,6 +51,13 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
 {
     private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordCommandsForKey(null, null));
 
+    public static class Defaults
+    {
+        public static final Timestamp maxTimestamp = Timestamp.NONE;
+        public static final Timestamp lastExecutedTimestamp = Timestamp.NONE;
+        public static final long lastExecutedMicros = 0;
+    }
+
     public static class WriteOnly extends AccordCommandsForKey implements AccordState.WriteOnly<PartitionKey, AccordCommandsForKey>
     {
         private Future<?> future = null;
@@ -188,11 +195,34 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         committedByExecuteAt = new Series(kind(), SeriesKind.COMMITTED_BY_EXECUTE_AT);
     }
 
+    @Override
+    public boolean isEmpty()
+    {
+        return maxTimestamp.isEmpty()
+               && lastExecutedTimestamp.isEmpty()
+               && lastExecutedMicros.isEmpty()
+               && blindWitnessed.isEmpty()
+               && uncommitted.map.isEmpty()
+               && committedById.map.isEmpty()
+               && committedByExecuteAt.map.isEmpty();
+    }
+
+    public void setEmpty()
+    {
+        maxTimestamp.setEmpty();
+        lastExecutedTimestamp.setEmpty();
+        lastExecutedMicros.setEmpty();
+        blindWitnessed.setEmpty();
+        uncommitted.map.setEmpty();
+        committedById.map.setEmpty();
+        committedByExecuteAt.map.setEmpty();
+    }
+
     public AccordCommandsForKey initialize()
     {
-        maxTimestamp.set(Timestamp.NONE);
-        lastExecutedTimestamp.load(Timestamp.NONE);
-        lastExecutedMicros.load(0);
+        maxTimestamp.set(Defaults.maxTimestamp);
+        lastExecutedTimestamp.load(Defaults.lastExecutedTimestamp);
+        lastExecutedMicros.load(Defaults.lastExecutedMicros);
         blindWitnessed.load(new TreeSet<>());
         uncommitted.map.load(new TreeMap<>());
         committedById.map.load(new TreeMap<>());
@@ -303,7 +333,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
 
     public void applyBlindWitnessedTimestamps()
     {
-        if (blindWitnessed.getView().isEmpty())
+        if (isEmpty() || blindWitnessed.getView().isEmpty())
             return;
 
         blindWitnessed.getView().forEach(this::updateMax);

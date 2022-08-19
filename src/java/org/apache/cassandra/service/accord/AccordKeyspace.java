@@ -575,6 +575,19 @@ public class AccordKeyspace
         return deserialize(row.getBlob(dataColumn), serializer, row.getInt(versionColumn));
     }
 
+    public static UntypedResultSet loadCommandRow(CommandStore commandStore, TxnId txnId)
+    {
+        String cql = "SELECT * FROM %s.%s " +
+                     "WHERE store_generation=? " +
+                     "AND store_index=? " +
+                     "AND txn_id=(?, ?, ?, ?)";
+
+        return executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
+                                   commandStore.generation(),
+                                   commandStore.index(),
+                                   txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
+    }
+
     public static void loadCommand(AccordCommand command)
     {
         Preconditions.checkArgument(!command.isLoaded());
@@ -587,14 +600,11 @@ public class AccordKeyspace
                      "AND store_index=? " +
                      "AND txn_id=(?, ?, ?, ?)";
 
-        UntypedResultSet result = executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
-                                                      commandStore.generation(),
-                                                      commandStore.index(),
-                                                      txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
+        UntypedResultSet result = loadCommandRow(commandStore, command.txnId());
 
         if (result.isEmpty())
         {
-            command.initialize();
+            command.setEmpty();
             return;
         }
 
@@ -656,12 +666,17 @@ public class AccordKeyspace
         });
     }
 
+    private static DecoratedKey makeKey(CommandStore commandStore, PartitionKey key)
+    {
+        ByteBuffer pk = CommandsForKeyColumns.keyComparator.make(commandStore.generation(),
+                                                                  commandStore.index(),
+                                                                  serializeKey(key)).serializeAsPartitionKey();
+        return CommandsForKey.partitioner.decorateKey(pk);
+    }
+
     private static DecoratedKey makeKey(AccordCommandsForKey cfk)
     {
-        ByteBuffer key = CommandsForKeyColumns.keyComparator.make(cfk.commandStore().generation(),
-                                                                  cfk.commandStore().index(),
-                                                                  serializeKey(cfk.key())).serializeAsPartitionKey();
-        return CommandsForKey.partitioner.decorateKey(key);
+        return makeKey(cfk.commandStore(), cfk.key());
     }
 
     public static Mutation getCommandsForKeyMutation(AccordCommandsForKey cfk, long timestampMicros)
@@ -736,6 +751,16 @@ public class AccordKeyspace
         return clustering.accessor().toBuffer(clustering.get(idx));
     }
 
+    public static SinglePartitionReadCommand getCommandsForKeyRead(CommandStore commandStore, PartitionKey key, int nowInSeconds)
+    {
+        return SinglePartitionReadCommand.create(CommandsForKey, nowInSeconds,
+                                                 CommandsForKeyColumns.allColumns,
+                                                 RowFilter.NONE,
+                                                 DataLimits.NONE,
+                                                 makeKey(commandStore, key),
+                                                 FULL_PARTITION);
+    }
+
     public static void loadCommandsForKey(AccordCommandsForKey cfk)
     {
         Preconditions.checkArgument(!cfk.isLoaded());
@@ -743,12 +768,7 @@ public class AccordKeyspace
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
-        SinglePartitionReadCommand command = SinglePartitionReadCommand.create(CommandsForKey, nowInSeconds,
-                                                                               CommandsForKeyColumns.allColumns,
-                                                                               RowFilter.NONE,
-                                                                               DataLimits.NONE,
-                                                                               makeKey(cfk),
-                                                                               FULL_PARTITION);
+        SinglePartitionReadCommand command = getCommandsForKeyRead(cfk.commandStore(), cfk.key(), nowInSeconds);
 
         EnumMap<SeriesKind, TreeMap<Timestamp, ByteBuffer>> seriesMaps = new EnumMap<>(SeriesKind.class);
         for (SeriesKind kind : SeriesKind.values())
@@ -759,31 +779,32 @@ public class AccordKeyspace
         {
             if (!partitions.hasNext())
             {
-                cfk.initialize();
+                cfk.setEmpty();
                 return;
             }
 
             try (RowIterator partition = partitions.next())
             {
+                // empty static row will be interpreted as all null cells which will cause everything to be initialized
                 Row staticRow = partition.staticRow();
-                if (!staticRow.isEmpty())
-                {
-                    Cell<?> cell = staticRow.getCell(CommandsForKeyColumns.max_timestamp);
-                    cfk.maxTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new) : Timestamp.NONE);
+                Cell<?> cell = staticRow.getCell(CommandsForKeyColumns.max_timestamp);
+                cfk.maxTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new)
+                                                                          : AccordCommandsForKey.Defaults.maxTimestamp);
 
-                    cell = staticRow.getCell(CommandsForKeyColumns.last_executed_timestamp);
-                    cfk.lastExecutedTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new) : Timestamp.NONE);
+                cell = staticRow.getCell(CommandsForKeyColumns.last_executed_timestamp);
+                cfk.lastExecutedTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new)
+                                                                                   : AccordCommandsForKey.Defaults.lastExecutedTimestamp);
 
-                    cell = staticRow.getCell(CommandsForKeyColumns.last_executed_micros);
-                    ByteBuffer microsBytes = cell != null && !cell.isTombstone() ? cellValue(cell) : null;
-                    cfk.lastExecutedMicros.load(microsBytes != null ? microsBytes.getLong(microsBytes.position()) : 0);
+                cell = staticRow.getCell(CommandsForKeyColumns.last_executed_micros);
+                ByteBuffer microsBytes = cell != null && !cell.isTombstone() ? cellValue(cell) : null;
+                cfk.lastExecutedMicros.load(microsBytes != null ? microsBytes.getLong(microsBytes.position())
+                                                                : AccordCommandsForKey.Defaults.lastExecutedMicros);
 
-                    TreeSet<Timestamp> blindWitnessed = new TreeSet<>();
-                    ComplexColumnData cmplx = staticRow.getComplexColumnData(CommandsForKeyColumns.blind_witnessed);
-                    if (cmplx != null)
-                        cmplx.forEach(c -> blindWitnessed.add(deserializeTimestampOrNull(c.path().get(0), Timestamp::new)));
-                    cfk.blindWitnessed.load(blindWitnessed);
-                }
+                TreeSet<Timestamp> blindWitnessed = new TreeSet<>();
+                ComplexColumnData cmplx = staticRow.getComplexColumnData(CommandsForKeyColumns.blind_witnessed);
+                if (cmplx != null)
+                    cmplx.forEach(c -> blindWitnessed.add(deserializeTimestampOrNull(c.path().get(0), Timestamp::new)));
+                cfk.blindWitnessed.load(blindWitnessed);
 
                 while (partition.hasNext())
                 {

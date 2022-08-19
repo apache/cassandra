@@ -104,7 +104,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
     public void blindAdd(T item)
     {
         preBlindChange();
-        if (isLoaded())
+        if (hasValue())
             set.add(item);
 
         if (additions == null)
@@ -118,7 +118,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
     public void blindRemove(T item)
     {
         preBlindChange();
-        if (isLoaded())
+        if (hasValue())
             set.remove(item);
 
         if (!wasCleared())
@@ -171,7 +171,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
     public long estimatedSizeOnHeap(ToLongFunction<T> measure)
     {
         long size = emptySize();
-        if (isLoaded() && !set.isEmpty())
+        if (hasValue() && !set.isEmpty())
         {
             for (T val : set)
                 size += measure.applyAsLong(val);
