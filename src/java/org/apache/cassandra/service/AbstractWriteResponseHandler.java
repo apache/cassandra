@@ -17,12 +17,16 @@
  */
 package org.apache.cassandra.service;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -128,13 +132,14 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         if (blockFor() + failures > candidateReplicaCount())
         {
-            // is it actually a timeout?
-            long numTimeout = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
-            long nonTimeout = failures - numTimeout;
-            if (nonTimeout <= numTimeout)
+            Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint =
+            this.failureReasonByEndpoint.keySet().stream()
+                                        .filter(this::waitingFor) // DatacenterWriteResponseHandler filters errors from remote DCs
+                                        .collect(Collectors.toMap(Function.identity(), this.failureReasonByEndpoint::get));
+            if (RequestCallback.isTimeout(failureReasonByEndpoint))
                 throwTimeout();
 
-            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, failureReasonByEndpoint);
+            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, this.failureReasonByEndpoint);
         }
     }
 

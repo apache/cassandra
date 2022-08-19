@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.reads;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -125,12 +126,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         // see CASSANDRA-17828
         boolean timedout = !signaled;
         if (failed)
-        {
-            // is it actually a timeout?
-            long numTimeout = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
-            long nonTimeout = failures - numTimeout;
-            timedout = nonTimeout <= numTimeout;
-        }
+            timedout = RequestCallback.isTimeout(new HashMap<>(failureReasonByEndpoint));
         WarningContext warnings = warningContext;
         // save the snapshot so abort state is not changed between now and when mayAbort gets called
         WarningsSnapshot snapshot = null;

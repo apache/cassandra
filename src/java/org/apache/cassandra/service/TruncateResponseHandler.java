@@ -80,10 +80,7 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
         {
             // clone to make sure no race condition happens
             Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>(this.failureReasonByEndpoint);
-            int size = failureReasonByEndpoint.size();
-            long timeouts = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
-            long nonTimeout = size - timeouts;
-            if (nonTimeout <= timeouts)
+            if (RequestCallback.isTimeout(failureReasonByEndpoint))
                 throw new TimeoutException("Truncate timed out - received only " + responses.get() + " responses");
 
             StringBuilder sb = new StringBuilder("Truncate failed on ");

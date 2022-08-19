@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.net;
 
+import java.util.Map;
+
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
@@ -61,6 +63,15 @@ public interface RequestCallback<T>
     default boolean trackLatencyForSnitch()
     {
         return false;
+    }
+
+    static boolean isTimeout(Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    {
+        //TODO majority timeout = timeout, single timeout = timeout, or all timeout = timeout. need to come to agreement on this
+        int size = failureReasonByEndpoint.size();
+        long timeouts = failureReasonByEndpoint.values().stream().filter(RequestFailureReason.TIMEOUT::equals).count();
+        long nonTimeout = size - timeouts;
+        return nonTimeout <= timeouts;
     }
 
 }
