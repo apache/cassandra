@@ -38,6 +38,8 @@ public final class IntegerType extends NumberType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(BigInteger.ZERO);
+
     // Constants or escaping values needed to encode/decode variable-length integers in our custom byte-ordered
     // encoding scheme.
     private static final int POSITIVE_VARINT_HEADER = 0x80;
@@ -602,5 +604,11 @@ public final class IntegerType extends NumberType<BigInteger>
     public ByteBuffer round(ByteBuffer input)
     {
         return ByteBufferUtil.clone(input);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

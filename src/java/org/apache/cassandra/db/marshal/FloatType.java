@@ -36,6 +36,8 @@ public class FloatType extends NumberType<Float>
 {
     public static final FloatType instance = new FloatType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(0f);
+
     FloatType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
@@ -203,5 +205,11 @@ public class FloatType extends NumberType<Float>
     public ByteBuffer round(ByteBuffer input)
     {
         return ByteBufferUtil.bytes((float) Math.round(toFloat(input)));
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

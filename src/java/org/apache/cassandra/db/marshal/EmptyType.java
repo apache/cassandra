@@ -182,4 +182,10 @@ public class EmptyType extends AbstractType<Void>
             super(message);
         }
     }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+    }
 }

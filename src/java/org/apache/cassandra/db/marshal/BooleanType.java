@@ -33,6 +33,8 @@ public class BooleanType extends AbstractType<Boolean>
 {
     public static final BooleanType instance = new BooleanType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(false);
+
     BooleanType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
@@ -115,5 +117,11 @@ public class BooleanType extends AbstractType<Boolean>
     public int valueLengthIfFixed()
     {
         return 1;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

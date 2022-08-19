@@ -2136,12 +2136,12 @@ public abstract class CQLTester
         return new UserTypeValue(fieldNames, fieldValues);
     }
 
-    protected Object list(Object...values)
+    protected List<Object> list(Object...values)
     {
         return Arrays.asList(values);
     }
 
-    protected Object set(Object...values)
+    protected Set<Object> set(Object...values)
     {
         return ImmutableSet.copyOf(values);
     }
