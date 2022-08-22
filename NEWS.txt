@@ -77,12 +77,20 @@ New features
     - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
     - Added a new flag to `nodetool profileload` and JMX endpoint to set up recurring profile load generation on specified
       intervals (see CASSANDRA-17821)
+    - Added a new property, gossiper.loose_empty_enabled, to allow for a looser definition of "empty" when
+      considering the heartbeat state of another node in Gossip. This should only be used by knowledgeable
+      operators in the following scenarios:
+
+      Currently "empty" w/regards to heartbeat state in Gossip is very specific to a single edge case (i.e. in
+      isEmptyWithoutStatus() our usage of hbState() + applicationState), however there are other failure cases which
+      block host replacements and require intrusive workarounds and human intervention to recover from when you
+      have something in hbState() you don't expect. See CASSANDRA-17842 for further details.
 
 Upgrading
 ---------
     - Ephemeral marker files for snapshots done by repairs are not created anymore,
-      there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there 
-      are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots 
+      there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there
+      are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
       will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
 
 Deprecation
@@ -427,7 +435,7 @@ Upgrading
     - Native protocol v5 is promoted from beta in this release. The wire format has changed
       significantly and users should take care to ensure client drivers are upgraded to a version
       with support for the final v5 format, if currently connecting over v5-beta. (CASSANDRA-15299, CASSANDRA-14973)
-    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the 
+    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the
       replication strategy for the keyspaces using this strategy to the NetworkTopologyStrategy. (CASSANDRA-13990)
     - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.
 
@@ -625,7 +633,7 @@ Upgrading
       reason, a opt-in system property has been added to disable the fix:
         -Dcassandra.unsafe.disable-serial-reads-linearizability=true
       Use this flag at your own risk as it revert SERIAL reads to the incorrect behavior of
-      previous versions. See CASSANDRA-12126 for details. 
+      previous versions. See CASSANDRA-12126 for details.
     - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
       it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
       lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
@@ -722,7 +730,7 @@ Compact Storage (only when upgrading from 3.X or any version lower than 3.0.15)
       Starting version 5.0, COMPACT STORAGE will no longer be supported.
       'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
       exposing internal structure of Thrift/Compact Tables. You can find more details
-      on exposed internal structure under: 
+      on exposed internal structure under:
       http://cassandra.apache.org/doc/latest/cql/appendices.html#appendix-c-dropping-compact-storage
 
       For uninterrupted cluster upgrades, drivers now support 'NO_COMPACT' startup option.

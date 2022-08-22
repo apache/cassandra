@@ -1,4 +1,5 @@
 4.2
+ * Add the ability for operators to loosen the definition of "empty" for edge cases (CASSANDRA-17842)
  * Fix potential out of range exception on column index downsampling (CASSANDRA-17839)
  * Introduce target directory to vtable output for sstable_tasks and for compactionstats (CASSANDRA-13010)
  * Read/Write/Truncate throw RequestFailure in a race condition with callback timeouts, should return Timeout instead (CASSANDRA-17828)
