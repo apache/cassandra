@@ -46,7 +46,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
 {
     public static final IVerbHandler<HintMessage> instance = CUSTOM_HINTS_HANDLER.isPresent()
                                                              ? FBUtilities.construct(CUSTOM_HINTS_HANDLER.getString(),
-                                                                                     "Unknown Custom Hint Verb Handler")
+                                                                                     "Custom Hint Verb Handler")
                                                              : new HintVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(HintVerbHandler.class);
