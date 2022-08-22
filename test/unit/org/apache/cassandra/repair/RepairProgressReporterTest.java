@@ -19,7 +19,6 @@
 package org.apache.cassandra.repair;
 
 import java.net.UnknownHostException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -44,12 +43,10 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.repair.SystemDistributedKeyspace.PARENT_REPAIR_HISTORY;
 import static org.apache.cassandra.repair.SystemDistributedKeyspace.REPAIR_HISTORY;
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class RepairProgressReporterTest extends CQLTester
 {
@@ -162,15 +159,6 @@ public class RepairProgressReporterTest extends CQLTester
         assertRows(repairHistoryWithError(), row(keyspace, cfs[0], sessionId, parentRepairSession, "FAILED", RANGE1.left.toString(), RANGE1.right.toString(), "Mock Error"));
     }
 
-    @Test
-    public void testCustomInstance()
-    {
-        RepairProgressReporter reporter = RepairProgressReporter.make(MockReporter.class.getName());
-        Assertions.assertThat(reporter).isInstanceOf(MockReporter.class);
-
-        assertThatThrownBy(() -> RepairProgressReporter.make("unknown")).hasMessageContaining("Unknown repair progress report");
-    }
-
     private UntypedResultSet repairHistory()
     {
         return repairHistory("keyspace_name, columnfamily_name, id, parent_id, status, range_begin, range_end");
@@ -218,54 +206,5 @@ public class RepairProgressReporterTest extends CQLTester
     protected static Token t(int v)
     {
         return DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(v));
-    }
-
-    private static class MockReporter implements RepairProgressReporter
-    {
-        public MockReporter()
-        {
-        }
-
-        @Override
-        public void onParentRepairStarted(UUID parentSession, String keyspaceName, String[] cfnames, RepairOption options)
-        {
-
-        }
-
-        @Override
-        public void onParentRepairSucceeded(UUID parentSession, Collection<Range<Token>> successfulRanges)
-        {
-
-        }
-
-        @Override
-        public void onParentRepairFailed(UUID parentSession, Throwable t)
-        {
-
-        }
-
-        @Override
-        public void onRepairsStarted(UUID id, UUID parentRepairSession, String keyspaceName, String[] cfnames, CommonRange commonRange)
-        {
-
-        }
-
-        @Override
-        public void onRepairsFailed(UUID id, String keyspaceName, String[] cfnames, Throwable t)
-        {
-
-        }
-
-        @Override
-        public void onRepairFailed(UUID id, String keyspaceName, String cfname, Throwable t)
-        {
-
-        }
-
-        @Override
-        public void onRepairSucceeded(UUID id, String keyspaceName, String cfname)
-        {
-
-        }
     }
 }

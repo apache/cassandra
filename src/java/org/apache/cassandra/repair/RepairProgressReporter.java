@@ -27,11 +27,13 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.utils.FBUtilities;
 
 public interface RepairProgressReporter
 {
     RepairProgressReporter instance = CassandraRelevantProperties.REPAIR_PROGRESS_REPORTER.isPresent()
-                                      ? make(CassandraRelevantProperties.REPAIR_PROGRESS_REPORTER.getString())
+                                      ? FBUtilities.construct(CassandraRelevantProperties.REPAIR_PROGRESS_REPORTER.getString(),
+                                                              "Repair Progress Reporter")
                                       : new DefaultRepairProgressReporter();
 
     void onParentRepairStarted(UUID parentSession, String keyspaceName, String[] cfnames, RepairOption options);
@@ -47,18 +49,6 @@ public interface RepairProgressReporter
     void onRepairFailed(UUID id, String keyspaceName, String cfname, Throwable t);
 
     void onRepairSucceeded(UUID id, String keyspaceName, String cfname);
-
-    static RepairProgressReporter make(String customImpl)
-    {
-        try
-        {
-            return (RepairProgressReporter) Class.forName(customImpl).newInstance();
-        }
-        catch (Throwable ex)
-        {
-            throw new IllegalStateException("Unknown repair progress report: " + customImpl);
-        }
-    }
 
     class DefaultRepairProgressReporter implements RepairProgressReporter
     {

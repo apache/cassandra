@@ -18,13 +18,41 @@
 
 package org.apache.cassandra.gms;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import junit.framework.TestCase;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class CustomFailureDetectorTest extends TestCase
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_FAILURE_DETECTOR_PROPERTY;
+import static org.junit.Assert.assertTrue;
+
+public class CustomFailureDetectorTest
 {
+    static String oldValueCustomProperty = null;
+
+    @BeforeClass
+    public static void setProperty()
+    {
+        oldValueCustomProperty =CUSTOM_FAILURE_DETECTOR_PROPERTY.getString();
+        CUSTOM_FAILURE_DETECTOR_PROPERTY.setString(TestFailureDetector.class.getName());
+    }
+
+    @AfterClass
+    public static void resetProperty()
+    {
+        if (oldValueCustomProperty != null)
+            CUSTOM_FAILURE_DETECTOR_PROPERTY.setString(oldValueCustomProperty);
+        else
+            System.clearProperty(CUSTOM_FAILURE_DETECTOR_PROPERTY.getKey());
+    }
+
+    @Test
+    public void testCustomFailureDetector()
+    {
+        assertTrue(IFailureDetector.instance instanceof TestFailureDetector);
+    }
+
     public static class TestFailureDetector implements IFailureDetector
     {
         @Override
@@ -51,7 +79,6 @@ public class CustomFailureDetectorTest extends TestCase
         @Override
         public void forceConviction(InetAddressAndPort ep)
         {
-
         }
 
         @Override
@@ -62,28 +89,6 @@ public class CustomFailureDetectorTest extends TestCase
         @Override
         public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener)
         {
-        }
-    }
-
-    @Test
-    public void testValidFailureClassWorks()
-    {
-        final String validClassName = TestFailureDetector.class.getName();
-        CustomFailureDetector.make(validClassName);
-    }
-
-    @Test
-    public void testInvalidFailureClassThrows()
-    {
-        final String invalidClassName = "invalidClass";
-        try
-        {
-            CustomFailureDetector.make(invalidClassName);
-            fail();
-        }
-        catch (IllegalStateException ex)
-        {
-            assertEquals(ex.getMessage(), "Unknown failure detector: " + invalidClassName);
         }
     }
 }

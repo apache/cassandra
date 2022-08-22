@@ -22,24 +22,14 @@ import java.util.concurrent.Future;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public interface ParentRepairSessionListener
 {
     ParentRepairSessionListener instance = CassandraRelevantProperties.REPAIR_PARENT_SESSION_LISTENER.isPresent()
-                                      ? make(CassandraRelevantProperties.REPAIR_PARENT_SESSION_LISTENER.getString())
+                                      ? FBUtilities.construct(CassandraRelevantProperties.REPAIR_PARENT_SESSION_LISTENER.getString(),
+                                                              "Parent Repair Session Listener")
                                       : new NoopParentRepairSessionListener();
-
-    static ParentRepairSessionListener make(String customImpl)
-    {
-        try
-        {
-            return (ParentRepairSessionListener) Class.forName(customImpl).newInstance();
-        }
-        catch (Throwable ex)
-        {
-            throw new IllegalStateException("Unknown parent repair session listener: " + customImpl);
-        }
-    }
 
     /**
      * Call when parent repair session is registered
