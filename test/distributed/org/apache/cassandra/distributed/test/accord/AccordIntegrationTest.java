@@ -36,6 +36,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.coordinate.Preempted;
 import accord.messages.Commit;
 import accord.topology.Topologies;
 import accord.txn.Keys;
@@ -166,7 +167,8 @@ public class AccordIntegrationTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> execute(txn()
                                                        .withRead("SELECT * FROM " + keyspace + ".tbl WHERE k=0 AND c=0")
                                                        .withWrite("UPDATE " + keyspace + ".tbl SET v=? WHERE k=? AND c=?", 2, 0, 0)
-                                                       .withCondition(keyspace, "tbl", 0, 0, "v", EQUAL, 1)));
+                                                       .withCondition(keyspace, "tbl", 0, 0, "v", EQUAL, 1),
+                                                       true));
 
             awaitAsyncApply(cluster);
 
@@ -289,12 +291,22 @@ public class AccordIntegrationTest extends TestBaseImpl
         return new AccordTxnBuilder();
     }
 
+    private static SimpleQueryResult execute(AccordTxnBuilder builder, boolean allowPreempted)
+    {
+        return execute(builder.build(), allowPreempted);
+    }
+
     private static SimpleQueryResult execute(AccordTxnBuilder builder)
     {
-        return execute(builder.build());
+        return execute(builder, false);
     }
 
     private static SimpleQueryResult execute(Txn txn)
+    {
+        return execute(txn, false);
+    }
+
+    private static SimpleQueryResult execute(Txn txn, boolean allowPreempted)
     {
         try
         {
@@ -319,8 +331,14 @@ public class AccordIntegrationTest extends TestBaseImpl
             }
             return builder.build();
         }
-        catch (InterruptedException | ExecutionException e)
+        catch (InterruptedException e)
         {
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            if (e.getCause() instanceof Preempted && allowPreempted)
+                return null;
             throw new AssertionError(e);
         }
     }
