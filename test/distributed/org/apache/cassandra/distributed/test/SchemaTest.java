@@ -18,20 +18,35 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.time.Duration;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionFactory;
 
+import static java.time.Duration.ofSeconds;
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SchemaTest extends TestBaseImpl
 {
+    public static final String TABLE_ONE = "tbl_one";
+    public static final String TABLE_TWO = "tbl_two";
+
     @Test
     public void readRepair() throws Throwable
     {
@@ -84,7 +99,7 @@ public class SchemaTest extends TestBaseImpl
             Throwable cause = e;
             while (cause != null)
             {
-                if (cause.getMessage() != null && cause.getMessage().contains("Unknown column "+name+" during deserialization"))
+                if (cause.getMessage() != null && cause.getMessage().contains("Unknown column " + name + " during deserialization"))
                     causeIsUnknownColumn = true;
                 cause = cause.getCause();
             }
@@ -92,32 +107,90 @@ public class SchemaTest extends TestBaseImpl
         }
     }
 
+    /**
+     * The purpose of this test is to verify manual schema reset functinality.
+     * <p>
+     * There is a 2-node cluster and a table one created. The schema version is agreed on both nodes. Then the 2nd node
+     * is shutdown, and we introduce a disagreement by dropping table one and creating table two. Therefore, 1st node
+     * has a newer schema version with table two, while the shutdown 2nd node has older schema version with table one.
+     * <p>
+     * At this point, if we just start 2nd node, it synces its schema by getting the fresh mutations from 1st node which
+     * results that both nodes have only the definition of table two.
+     * <p>
+     * However, before starting 2nd we reset the schema on 1st node, so that its schema is discarded whenever it manages
+     * to fetch schema from any node. So in this case, it ends up with both nodes having only the definition of table one.
+     * <p>
+     * In the second phase of the test, we simply break the schema on 1st node and call reset to fetch it from 2nd node.
+     */
     @Test
     public void schemaReset() throws Throwable
     {
+        CassandraRelevantProperties.MIGRATION_DELAY.setLong(10000);
+        CassandraRelevantProperties.SCHEMA_PULL_INTERVAL_MS.setLong(10000);
         try (Cluster cluster = init(Cluster.build(2).withConfig(cfg -> cfg.with(Feature.GOSSIP, Feature.NETWORK)).start()))
         {
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk INT PRIMARY KEY, v TEXT)");
+            // crate table one and make sure it got propagated
+            cluster.schemaChange(String.format("CREATE TABLE %s.%s (pk INT PRIMARY KEY, v TEXT)", KEYSPACE, TABLE_ONE));
+            assertTrue(checkTables(cluster.get(1), true, false));
+            assertTrue(checkTables(cluster.get(2), true, false));
 
-            assertTrue(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(KEYSPACE, "tbl") != null));
-            assertTrue(cluster.get(2).callOnInstance(() -> Schema.instance.getTableMetadata(KEYSPACE, "tbl") != null));
-
+            // shutdown node 2 and make sure that node 1 does see it any longer as alive
             cluster.get(2).shutdown().get();
+            await(30).until(() -> cluster.get(1).callOnInstance(() -> {
+                return Gossiper.instance.getLiveMembers()
+                                        .stream()
+                                        .allMatch(e -> e.equals(getBroadcastAddressAndPort()));
+            }));
 
-            // when schema is removed and there is no other node to fetch it from, node 1 should be left with clean schema
-            cluster.get(1).runOnInstance(() -> Schema.instance.resetLocalSchema());
-            assertTrue(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(KEYSPACE, "tbl") == null));
+            // when there is no node to fetch the schema from, reset local schema should immediately fail
+            Assertions.assertThatExceptionOfType(RuntimeException.class).isThrownBy(() -> {
+                cluster.get(1).runOnInstance(() -> Schema.instance.resetLocalSchema());
+            }).withMessageContaining("Cannot reset local schema when there are no other live nodes");
+
+            // now, let's make a disagreement, the shutdown node 2 has a definition of table one, while
+            // the running node 2 will have definitions of table two
+            cluster.coordinator(1).execute(String.format("DROP TABLE %s.%s", KEYSPACE, TABLE_ONE), ConsistencyLevel.ONE);
+            cluster.coordinator(1).execute(String.format("CREATE TABLE %s.%s (pk INT PRIMARY KEY, v TEXT)", KEYSPACE, TABLE_TWO), ConsistencyLevel.ONE);
+            await(30).until(() -> checkTables(cluster.get(1), false, true));
+
+            // Schema.resetLocalSchema is guarded by some conditions which would not let us reset schema if there is no
+            // live node in the cluster; therefore we simply call SchemaUpdateHandler.clear
+            SerializableCallable<Boolean> clear = () -> Schema.instance.updateHandler.clear().awaitUninterruptibly(1, TimeUnit.MINUTES);
+            Future<Boolean> clear1 = cluster.get(1).asyncCallsOnInstance(clear).call();
+            assertFalse(clear1.isDone());
 
             // when the other node is started, schema should be back in sync
             cluster.get(2).startup();
-            Awaitility.waitAtMost(Duration.ofMinutes(1))
-                      .pollDelay(Duration.ofSeconds(1))
-                      .until(() -> cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(KEYSPACE, "tbl") != null));
+            await(30).until(() -> clear1.isDone() && clear1.get());
+
+            // this proves node1 reset schema works - the most recent change should be discarded because it receives
+            // the schema from node2 and applies it on a clean schema
+            await(60).until(() -> checkTables(cluster.get(1), true, false));
+
+            // now let's break schema locally and let it be reset
+            cluster.get(1).runOnInstance(() -> Schema.instance.getLocalKeyspaces()
+                                                              .get(SchemaConstants.SCHEMA_KEYSPACE_NAME)
+                                                              .get().tables.forEach(t -> ColumnFamilyStore.getIfExists(t.keyspace, t.name).truncateBlockingWithoutSnapshot()));
 
             // when schema is removed and there is a node to fetch it from, node 1 should immediatelly restore the schema
             cluster.get(1).runOnInstance(() -> Schema.instance.resetLocalSchema());
-            assertTrue(cluster.get(1).callOnInstance(() -> Schema.instance.getTableMetadata(KEYSPACE, "tbl") != null));
+            // note that we should not wait for this to be true because resetLocalSchema is blocking
+            // and after successfully completing it, the schema should be already back in sync
+            assertTrue(checkTables(cluster.get(1), true, false));
+            assertTrue(checkTables(cluster.get(2), true, false));
         }
     }
 
+    private static ConditionFactory await(int seconds)
+    {
+        return Awaitility.await().atMost(ofSeconds(seconds)).pollDelay(ofSeconds(1));
+    }
+
+    private static boolean checkTables(IInvokableInstance instance, boolean one, boolean two)
+    {
+        return instance.callOnInstance(() -> {
+            return (Schema.instance.getTableMetadata(KEYSPACE, TABLE_ONE) != null ^ !one)
+                   && (Schema.instance.getTableMetadata(KEYSPACE, TABLE_TWO) != null ^ !two);
+        });
+    }
 }

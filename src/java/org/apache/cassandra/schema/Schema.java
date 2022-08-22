@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -34,6 +35,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -41,14 +43,16 @@ import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Awaitable;
 import org.apache.cassandra.utils.concurrent.LoadingMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.lang.String.format;
-
 import static com.google.common.collect.Iterables.size;
+import static java.lang.String.format;
 import static org.apache.cassandra.config.DatabaseDescriptor.isDaemonInitialized;
 import static org.apache.cassandra.config.DatabaseDescriptor.isToolInitialized;
 
@@ -611,18 +615,28 @@ public class Schema implements SchemaProvider
      * Clear all locally stored schema information and fetch schema from another node.
      * Called by user (via JMX) who wants to get rid of schema disagreement.
      */
-    public synchronized void resetLocalSchema()
+    public void resetLocalSchema()
     {
         logger.debug("Clearing local schema...");
-        updateHandler.clear();
 
-        logger.debug("Clearing local schema keyspace instances...");
-        distributedKeyspaces.forEach(this::unload);
-        updateVersion(SchemaConstants.emptyVersion);
+        if (Gossiper.instance.getLiveMembers().stream().allMatch(ep -> FBUtilities.getBroadcastAddressAndPort().equals(ep)))
+            throw new InvalidRequestException("Cannot reset local schema when there are no other live nodes");
+
+        Awaitable clearCompletion = updateHandler.clear();
+        try
+        {
+            if (!clearCompletion.await(StorageService.SCHEMA_DELAY_MILLIS, TimeUnit.MILLISECONDS))
+            {
+                throw new RuntimeException("Schema reset failed - no schema received from other nodes");
+            }
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Failed to reset schema - the thread has been interrupted");
+        }
         SchemaDiagnostics.schemaCleared(this);
-
-        updateHandler.reset(false);
-        logger.info("Local schema reset is complete.");
+        logger.info("Local schema reset completed");
     }
 
     private void merge(KeyspacesDiff diff, boolean removeData)
