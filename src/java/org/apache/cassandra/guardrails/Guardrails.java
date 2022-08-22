@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.units.SizeUnit;
 import org.apache.cassandra.utils.units.Units;
 
@@ -40,7 +41,8 @@ public abstract class Guardrails
     private static final GuardrailsConfig config = DatabaseDescriptor.getGuardrailsConfig();
 
     public static final GuardrailsFactory factory = CUSTOM_GUARDRAILS_FACTORY_PROPERTY.isPresent()
-                                                    ? CustomGuardrailsFactory.make(CUSTOM_GUARDRAILS_FACTORY_PROPERTY.getString())
+                                                    ? FBUtilities.construct(CUSTOM_GUARDRAILS_FACTORY_PROPERTY.getString(),
+                                                                            "Guardrails Factory")
                                                     : new DefaultGuardrailsFactory();
 
     public static final Threshold tablesLimit =

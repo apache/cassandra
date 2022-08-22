@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.locator;
 
+import org.apache.cassandra.utils.FBUtilities;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_TMD_PROVIDER_PROPERTY;
 
 /**
@@ -25,9 +27,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_TMD
  */
 public interface TokenMetadataProvider
 {
-    TokenMetadataProvider instance = CUSTOM_TMD_PROVIDER_PROPERTY.getString() == null ?
-                                     new DefaultTokenMetadataProvider() :
-                                     CustomTokenMetadataProvider.make(CUSTOM_TMD_PROVIDER_PROPERTY.getString());
+    TokenMetadataProvider instance = CUSTOM_TMD_PROVIDER_PROPERTY.isPresent()
+                                     ? FBUtilities.construct(CUSTOM_TMD_PROVIDER_PROPERTY.getString(),
+                                                             "Token Metadata Provider")
+                                     : new DefaultTokenMetadataProvider();
 
     TokenMetadata getTokenMetadata();
 

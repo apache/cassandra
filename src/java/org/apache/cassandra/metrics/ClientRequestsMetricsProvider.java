@@ -19,6 +19,8 @@
 package org.apache.cassandra.metrics;
 
 
+import org.apache.cassandra.utils.FBUtilities;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY;
 
 /**
@@ -27,23 +29,12 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_CLI
  */
 public interface ClientRequestsMetricsProvider
 {
-    ClientRequestsMetricsProvider instance = CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.getString() == null ?
-                                             new DefaultClientRequestsMetricsProvider() :
-                                             make(CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.getString());
+    ClientRequestsMetricsProvider instance = CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.isPresent()
+                                             ? FBUtilities.construct(CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.getString(),
+                                                                     "Client Request Metrics Provider")
+                                             : new DefaultClientRequestsMetricsProvider();
 
     ClientRequestsMetrics metrics(String keyspace);
-
-    static ClientRequestsMetricsProvider make(String customImpl)
-    {
-        try
-        {
-            return (ClientRequestsMetricsProvider) Class.forName(customImpl).newInstance();
-        }
-        catch (Throwable ex)
-        {
-            throw new IllegalStateException("Unknown client request metrics provider: " + customImpl);
-        }
-    }
 
     class DefaultClientRequestsMetricsProvider implements ClientRequestsMetricsProvider
     {

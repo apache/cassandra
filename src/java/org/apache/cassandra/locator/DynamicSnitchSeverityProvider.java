@@ -31,8 +31,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DYNAMIC_SN
  */
 public interface DynamicSnitchSeverityProvider
 {
-    DynamicSnitchSeverityProvider instance = DYNAMIC_SNITCH_SEVERITY_PROVIDER.getString() == null ?
-                                             new DefaultProvider() : make(DYNAMIC_SNITCH_SEVERITY_PROVIDER.getString());
+    DynamicSnitchSeverityProvider instance = DYNAMIC_SNITCH_SEVERITY_PROVIDER.isPresent()
+                                             ? FBUtilities.construct(DYNAMIC_SNITCH_SEVERITY_PROVIDER.getString(),
+                                                                     "Dynamic Snitch Severity Provider")
+                                             : new DefaultProvider();
 
     /**
      * @return true if initialization is completed and ready to update dynamic snitch scores
@@ -51,18 +53,6 @@ public interface DynamicSnitchSeverityProvider
      * @return severity for the endpoint or 0.0 if not found
      */
     double getSeverity(InetAddressAndPort endpoint);
-
-    static DynamicSnitchSeverityProvider make(String customImpl)
-    {
-        try
-        {
-            return (DynamicSnitchSeverityProvider) Class.forName(customImpl).newInstance();
-        }
-        catch (Throwable ex)
-        {
-            throw new IllegalStateException("Unknown dynamic snitch severity provider: " + customImpl);
-        }
-    }
 
     class DefaultProvider implements DynamicSnitchSeverityProvider
     {

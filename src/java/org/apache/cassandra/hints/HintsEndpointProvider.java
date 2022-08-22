@@ -36,7 +36,7 @@ public interface HintsEndpointProvider
 {
     HintsEndpointProvider instance = CUSTOM_HINTS_ENDPOINT_PROVIDER.isPresent()
                                      ? FBUtilities.construct(CUSTOM_HINTS_ENDPOINT_PROVIDER.getString(),
-                                                             "Unknown Hinted Handoff Endpoint Provider")
+                                                             "Hinted Handoff Endpoint Provider")
                                      : new DefaultHintsEndpointProvider();
 
     boolean isSameSchemaVersion(UUID hostId);

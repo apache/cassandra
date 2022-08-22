@@ -27,37 +27,37 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class CustomCoordinatorMetricsTest
 {
+    static String oldValueCustomProvider = null;
+
     @BeforeClass
     public static void beforeClass()
     {
+        oldValueCustomProvider = CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.getString();
         // Sets custom client provider class used in {@code ClientRequestsMetricsHolderProvider#instance}
-        CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.setString(ClientRequestsMetricsProvider.DefaultClientRequestsMetricsProvider.class.getName());
+        CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.setString(CustomClientRequestsMetricsProvider.class.getName());
     }
 
     @AfterClass
     public static void teardown()
     {
-        CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.setString("");
+        if (oldValueCustomProvider != null)
+            CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.setString(oldValueCustomProvider);
+        else
+            System.clearProperty(CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY.getKey());
     }
 
     @Test
     public void testStaticInstanceWithCustomProviderClassName()
     {
-        // Custom client provider class name set in {@link beforeClass()}
-        ClientRequestsMetricsProvider customClientRequestMetricsProvider = ClientRequestsMetricsProvider.instance;
-        assertThat(customClientRequestMetricsProvider).isInstanceOf(ClientRequestsMetricsProvider.DefaultClientRequestsMetricsProvider.class);
-        ClientRequestsMetrics metrics = customClientRequestMetricsProvider.metrics("");
+        assertThat(ClientRequestsMetricsProvider.instance).isInstanceOf(CustomClientRequestsMetricsProvider.class);
     }
 
-    @Test
-    public void testMakeProviderWithClassThatExists()
+    public static class CustomClientRequestsMetricsProvider implements ClientRequestsMetricsProvider
     {
-        ClientRequestsMetricsProvider.make(ClientRequestsMetricsProvider.DefaultClientRequestsMetricsProvider.class.getName());
-    }
-
-    @Test(expected = IllegalStateException.class)
-    public void testMakeProviderWithClassThatDoesNotExist()
-    {
-        ClientRequestsMetricsProvider.make("SomeOtherCLass");
+        @Override
+        public ClientRequestsMetrics metrics(String keyspace)
+        {
+            return null;
+        }
     }
 }
