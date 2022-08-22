@@ -234,6 +234,12 @@ Upgrading
 
 Deprecation
 -----------
+    - In the command line options for `org.apache.cassandra.tools.LoaderOptions`: deprecate the `-t`, `--throttle`,
+      `-idct`, and `--inter-dc-throttle` options for setting the throttle and inter-datacenter throttle options in
+      Mbps. Instead, users are instructed to use the `--throttle-mib`, and `--inter-dc-throttle-mib` for setting the
+      throttling options in MiB/s. Additionally, in the loader options builder
+      `org.apache.cassandra.tools.LoaderOptions$Builder`: deprecate the `throttle(int)`, `interDcThrottle(int)`,
+      `entireSSTableThrottle(int)`, and the `entireSSTableInterDcThrottle(int)` methods.
     - In the JMX MBean `org.apache.cassandra.db:type=StorageService`: deprecate getter method `getStreamThroughputMbitPerSec`
       in favor of getter method `getStreamThroughputMbitPerSecAsDouble`; deprecate getter method `getStreamThroughputMbPerSec`
       in favor of getter methods `getStreamThroughputMebibytesPerSec` and `getStreamThroughputMebibytesPerSecAsDouble`;
