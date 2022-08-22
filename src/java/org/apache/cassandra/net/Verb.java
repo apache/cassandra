@@ -245,7 +245,7 @@ public enum Verb
     ACCORD_INFORM_OF_TXN_REQ        (139, P2, writeTimeout,    ACCORD,            () -> InformOfTxnSerializers.request,       AccordService.instance::verbHandler,   ACCORD_INFORM_OF_TXN_RSP),
 
     ACCORD_INFORM_OF_PERSISTENCE_RSP(142, P2, writeTimeout, REQUEST_RESPONSE,     () -> InformOfTxnSerializers.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
-    ACCORD_INFORM_OF_PERSIETENCE_REQ(141, P2, writeTimeout, ACCORD,               () -> InformOfPersistenceSerializers.request, AccordService.instance::verbHandler, ACCORD_INFORM_OF_PERSISTENCE_RSP),
+    ACCORD_INFORM_OF_PERSIETENCE_REQ(141, P2, writeTimeout, ACCORD,               () -> InformOfPersistenceSerializers.request, AccordService.instance::verbHandler, ACCORD_INFORM_OF_TXN_RSP),
 
     ACCORD_CHECK_STATUS_RSP         (144, P2, writeTimeout, REQUEST_RESPONSE,     () -> CheckStatusSerializers.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
     ACCORD_CHECK_STATUS_REQ         (143, P2, writeTimeout, ACCORD,               () -> CheckStatusSerializers.request,       AccordService.instance::verbHandler, ACCORD_CHECK_STATUS_RSP),
