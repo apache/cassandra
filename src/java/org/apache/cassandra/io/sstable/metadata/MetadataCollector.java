@@ -58,8 +58,9 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     static EstimatedHistogram defaultPartitionSizeHistogram()
     {
-        // EH of 150 can track a max value of 1697806495183, i.e., > 1.5PB
-        return new EstimatedHistogram(150);
+        // EH of 155 can track a max value of 3520571548412 i.e. 3.5TB
+        return new EstimatedHistogram(155);
+
     }
 
     static TombstoneHistogram defaultTombstoneDropTimeHistogram()
