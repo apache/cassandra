@@ -38,4 +38,7 @@ public interface GossiperMBean
     /** Returns each node's database release version */
     public Map<String, List<String>> getReleaseVersionsWithPort();
 
+    public boolean getLooseEmptyEnabled();
+
+    public void setLooseEmptyEnabled(boolean enabled);
 }
