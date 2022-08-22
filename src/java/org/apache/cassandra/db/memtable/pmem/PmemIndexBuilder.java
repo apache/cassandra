@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.memtable.pmem;
 
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
@@ -35,7 +34,6 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.PersistentMemoryMemtable;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
@@ -59,13 +57,13 @@ public class PmemIndexBuilder extends SecondaryIndexBuilder
     private long keysBuilt = 0;
 
 
-    public PmemIndexBuilder(ColumnFamilyStore cfs, Set<Index> indexers)
+    public PmemIndexBuilder(ColumnFamilyStore cfs, Set<Index> indexers, ConcurrentLongART memtableCart)
     {
         this.cfs = cfs;
         this.indexers = indexers;
         this.nextEntry = null;
         this.compactionId = nextTimeUUID();
-        this.memtableCart = PersistentMemoryMemtable.getMemtableCart(cfs.metadata());
+        this.memtableCart = memtableCart;
     }
 
     @Override
@@ -102,7 +100,7 @@ public class PmemIndexBuilder extends SecondaryIndexBuilder
         return CompactionInfo.withoutSSTables(cfs.metadata(), OperationType.INDEX_BUILD, keysBuilt, memtableCart.size(), CompactionInfo.Unit.RANGES, compactionId);
     }
 
-    public static void buildBlocking(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata, Set<Index> indexers, Memtable memtable)
+    public static void buildBlocking(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata, Set<Index> indexers, PersistentMemoryMemtable memtable)
     {
         if (memtable.isClean())
         {
@@ -116,7 +114,7 @@ public class PmemIndexBuilder extends SecondaryIndexBuilder
         logger.info("Submitting index build of {} ",
                     indexMetadata.name);
 
-        SecondaryIndexBuilder builder = new PmemIndexBuilder(baseCfs, indexers);
+        SecondaryIndexBuilder builder = new PmemIndexBuilder(baseCfs, indexers,  memtable.getMemtableCart(baseCfs.metadata()));
         Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
         FBUtilities.waitOnFuture(future);
 

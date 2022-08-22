@@ -142,7 +142,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         this.owner = owner;
 
         if (tablesMetadataMap.get(metadata.get().id) == null)
-            addToTablesMetadataMap(metadata);
+            addToTablesMetadataMap(metadata.get());
         else
         {
             pmemTableInfo = tablesMetadataMap.get(metadata.get().id);
@@ -190,7 +190,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
             ByteSource partitionByteSource = update.partitionKey().asComparableBytes(ByteComparable.Version.OSS42);
             byte[] partitionKeyBytes = ByteSourceInverse.readBytes(partitionByteSource);
             PmemRowUpdater updater = new PmemRowUpdater(update, indexer);
-            ConcurrentLongART memtableCart = tablesMetadataMap.get(metadata.get().id).getMemtableCart();
+            ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
             memtableCart.put(partitionKeyBytes, updater, this::merge);
         });
         long[] pair = new long[]{ update.dataSize(), colUpdateTimeDelta };
@@ -221,7 +221,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
             boolean includeStop = isBound || keyRange instanceof Range;
 
             AutoCloseableIterator<LongART.Entry> entryIterator;
-            ConcurrentLongART memtableCart = tablesMetadataMap.get(metadata.get().id).getMemtableCart();
+            ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
             if (startIsMin)
             {
                 if (stopIsMin)
@@ -261,7 +261,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         PmemPartition pMemPartition = null;
         ByteSource partitionByteSource = key.asComparableBytes(BYTE_COMPARABLE_VERSION);
         byte[] partitionKeyBytes = ByteSourceInverse.readBytes(partitionByteSource);
-        ConcurrentLongART memtableCart = tablesMetadataMap.get(metadata.get().id).getMemtableCart();
+        ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
 
         if (memtableCart.size() != 0)
         {
@@ -293,9 +293,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
 
     public long partitionCount()
     {
-
-        PmemTableInfo tableInfo = tablesMetadataMap.get(metadata.get().id);
-        ConcurrentLongART memtableCart = tableInfo != null ? pmemTableInfo.getMemtableCart() : null;
+        ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
         if (memtableCart == null)
             return 0;
         return memtableCart.size();
@@ -370,7 +368,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
             case OWNED_RANGES_CHANGE:
                 return false;
             case INDEX_REMOVED:
-                dropTable();
+                memtableMemoryReclaim();
                 return false;
             case INDEX_BUILD_STARTED:
                 if (!metadata().indexes.isEmpty())
@@ -431,7 +429,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     public CompactionManager.AllSSTableOpStatus performGarbageCollect()
     {
         logger.info("Starting {} from memtable for {}.{}.", OperationType.GARBAGE_COLLECT, metadata().keyspace, metadata().name);
-        ConcurrentLongART memtableCart = tablesMetadataMap.get(metadata().id).getMemtableCart();
+        ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
         long removedTombstones = 0;
         try (AutoCloseableIterator<LongART.Entry> cartIterator = memtableCart.getEntryIterator())
         {
@@ -469,9 +467,9 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     }
 
     //Frees the Persistent Memory which is associated with CFS
-    private void dropTable()
+    private void memtableMemoryReclaim()
     {
-        ConcurrentLongART memtableCart = tablesMetadataMap.get(metadata.get().id).getMemtableCart();
+        ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
         memtableCart.clear(this::freeRowMemoryBlock);
         memtableCart.free();
         Iterator<Long> tablesIterator = tablesLinkedList.iterator();
@@ -523,8 +521,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     public void discard()
     {
         //Deletes all memtable data from pmem.
-        //dropTable();
-        truncateTable();
+        memtableMemoryReclaim();
     }
 
     @Override
@@ -630,16 +627,19 @@ public class PersistentMemoryMemtable extends AbstractMemtable
      * @param metadata
      * @return ConcurrentLongART based on TableId
      */
-    public static ConcurrentLongART getMemtableCart(TableMetadata metadata)
+    public ConcurrentLongART getMemtableCart(TableMetadata metadata)
     {
+        if(tablesMetadataMap.get(metadata.id) ==null){
+            addToTablesMetadataMap(metadata);
+        }
         return tablesMetadataMap.get(metadata.id).getMemtableCart();
     }
 
-    private void addToTablesMetadataMap(TableMetadataRef metadataRef)
+    private void addToTablesMetadataMap(TableMetadata tableMetadata)
     {
         pmemTableInfo = Transaction.create(heap, () -> {
             ConcurrentLongART memtableCart = new ConcurrentLongART(heap, CORES);
-            PmemTableInfo tmpPmemTableInfo = new PmemTableInfo(heap, memtableCart, metadataRef.get());
+            PmemTableInfo tmpPmemTableInfo = new PmemTableInfo(heap, memtableCart, tableMetadata);
             tablesLinkedList.addFirst(tmpPmemTableInfo.handle());
             return tmpPmemTableInfo;
         });
@@ -679,7 +679,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
             if (!(isBuilt(baseCfs, tableIndex.name) || baseCfs.isEmpty()))
             {
                 Index index = baseCfs.indexManager.getIndexByName(tableIndex.name);
-                PmemIndexBuilder.buildBlocking(baseCfs, tableIndex, Collections.singleton(index), owner.getCurrentMemtable());
+                PmemIndexBuilder.buildBlocking(baseCfs, tableIndex, Collections.singleton(index), this);
             }
         }
     }
