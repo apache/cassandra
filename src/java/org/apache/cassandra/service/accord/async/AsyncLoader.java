@@ -65,24 +65,20 @@ public class AsyncLoader
         this.keys = keys;
     }
 
-    private static <K, V extends AccordState<K>> Future<?> referenceAndDispatch(K key,
-                                                                                AccordStateCache.Instance<K, V> cache,
-                                                                                Map<K, V> context,
-                                                                                Function<V, Future<?>> readFunction,
-                                                                                boolean canDispatch)
+    private <K, V extends AccordState<K>> Future<?> referenceAndDispatch(K key,
+                                                                         AccordStateCache.Instance<K, V> cache,
+                                                                         Map<K, V> context,
+                                                                         Function<V, Future<?>> readFunction)
     {
+        V item;
         Future<?> future = cache.getLoadFuture(key);
         if (future != null)
-            return future;
-
-        // check the context first, we may have already taken a reference to this
-        // item and added it to the context and don't want to double reference
-        V item = context.get(key);
-        if (item != null)
         {
-            // if the item is already in the context, then the read future has completed and the item is loaded
-            Preconditions.checkState(item.isLoaded());
-            return null;
+            // if a load future exists for this, it must be present in the cache
+            item = cache.getOrNull(key);
+            Preconditions.checkState(item != null);
+            context.put(key, item);
+            return future;
         }
 
         item = cache.getOrCreate(key);
@@ -90,24 +86,21 @@ public class AsyncLoader
         if (item.isLoaded())
             return null;
 
-        if (!canDispatch)
-            throw new IllegalStateException("Unable to dispatch read for " + key);
         future = readFunction.apply(item);
         cache.setLoadFuture(item.key(), future);
         return future;
     }
 
 
-    private static <K, V extends AccordState<K>> List<Future<?>> referenceAndDispatchReads(Iterable<K> keys,
+    private <K, V extends AccordState<K>> List<Future<?>> referenceAndDispatchReads(Iterable<K> keys,
                                                                                            AccordStateCache.Instance<K, V> cache,
                                                                                            Map<K, V> context,
                                                                                            Function<V, Future<?>> readFunction,
-                                                                                           List<Future<?>> futures,
-                                                                                           boolean canDispatch)
+                                                                                           List<Future<?>> futures)
     {
         for (K key : keys)
         {
-            Future<?> future = referenceAndDispatch(key, cache, context, readFunction, canDispatch);
+            Future<?> future = referenceAndDispatch(key, cache, context, readFunction);
             if (future == null)
                 continue;
 
@@ -132,7 +125,7 @@ public class AsyncLoader
         return cfk -> Stage.READ.submit(() -> AccordKeyspace.loadCommandsForKey(cfk));
     }
 
-    private Future<?> referenceAndDispatchReads(AsyncContext context, boolean canDispatch)
+    private Future<?> referenceAndDispatchReads(AsyncContext context)
     {
         List<Future<?>> futures = null;
 
@@ -140,13 +133,13 @@ public class AsyncLoader
                                             commandStore.commandCache(),
                                             context.commands.items,
                                             loadCommandFunction(),
-                                            futures, canDispatch);
+                                            futures);
 
         futures = referenceAndDispatchReads(keys,
                                             commandStore.commandsForKeyCache(),
                                             context.commandsForKey.items,
                                             loadCommandsPerKeyFunction(),
-                                            futures, canDispatch);
+                                            futures);
 
         return futures != null ? FutureCombiner.allOf(futures) : null;
     }
@@ -163,20 +156,21 @@ public class AsyncLoader
                 // notify any pending write only groups we're loading a full instance so the pending changes aren't removed
                 txnIds.forEach(commandStore.commandCache()::lockWriteOnlyGroupIfExists);
                 keys.forEach(commandStore.commandsForKeyCache()::lockWriteOnlyGroupIfExists);
-                readFuture = referenceAndDispatchReads(context, true);
+                readFuture = referenceAndDispatchReads(context);
                 state = State.LOADING;
             case LOADING:
-                // if the read future succeeded, add the loaded items to the operation context
-                if (readFuture != null && readFuture.isSuccess())
+                if (readFuture != null)
                 {
-                    readFuture = referenceAndDispatchReads(context, false);
-                    // processing the loaded items should not generate a new read future
-                    Preconditions.checkState(readFuture == null);
-                }
-                else if (readFuture != null)
-                {
-                    readFuture.addCallback(callback, commandStore.executor());
-                    break;
+                    if (readFuture.isSuccess())
+                    {
+                        context.verifyLoaded();
+                        readFuture = null;
+                    }
+                    else
+                    {
+                        readFuture.addCallback(callback, commandStore.executor());
+                        break;
+                    }
                 }
                 // apply any pending write only changes that may not have made it to disk in time to be loaded
                 context.commands.items.values().forEach(commandStore.commandCache()::applyAndRemoveWriteOnlyGroup);

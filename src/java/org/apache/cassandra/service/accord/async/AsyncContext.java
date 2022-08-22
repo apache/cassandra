@@ -97,6 +97,13 @@ public class AsyncContext
     public final SummaryGroup<TxnId, AccordCommand, AccordCommand.ReadOnly> commands = new SummaryGroup<>();
     public final Group<PartitionKey, AccordCommandsForKey> commandsForKey = new Group<>();
 
+    void verifyLoaded()
+    {
+        commands.items.forEach((key, command) -> Preconditions.checkState(command.isLoaded()));
+        commands.summaries.forEach((key, command) -> Preconditions.checkState(command.isLoaded()));
+        commandsForKey.items.forEach((key, cfk) -> Preconditions.checkState(cfk.isLoaded()));
+    }
+
     void releaseResources(AccordCommandStore commandStore)
     {
         commands.releaseResources(commandStore.commandCache());
