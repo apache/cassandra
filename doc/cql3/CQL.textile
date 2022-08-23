@@ -215,7 +215,7 @@ h3(#alterKeyspaceStmt). ALTER KEYSPACE
 __Syntax:__
 
 bc(syntax).. 
-<create-keyspace-stmt> ::= ALTER KEYSPACE <identifier> WITH <properties>
+<create-keyspace-stmt> ::= ALTER KEYSPACE (IF EXISTS)? <identifier> WITH <properties>
 p. 
 __Sample:__
 
@@ -225,6 +225,7 @@ ALTER KEYSPACE Excelsior
 
 p. 
 The @ALTER KEYSPACE@ statement alters the properties of an existing keyspace. The supported @<properties>@ are the same as for the "@CREATE KEYSPACE@":#createKeyspaceStmt statement.
+If the keyspace does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 
 h3(#dropKeyspaceStmt). DROP KEYSPACE
@@ -410,12 +411,11 @@ h3(#alterTableStmt). ALTER TABLE
 __Syntax:__
 
 bc(syntax).. 
-<alter-table-stmt> ::= ALTER (TABLE | COLUMNFAMILY) <tablename> <instruction>
+<alter-table-stmt> ::= ALTER (TABLE | COLUMNFAMILY) (IF NOT EXISTS)? <tablename> <instruction>
 
-<instruction> ::= ADD   <identifier> <type>
-                | ADD   ( <identifier> <type> ( , <identifier> <type> )* )
-                | DROP  <identifier>
-                | DROP  ( <identifier> ( , <identifier> )* )
+<instruction> ::= ADD (IF NOT EXISTS)? ( <identifier> <type> ( , <identifier> <type> )* )
+                | DROP  (IF EXISTS)? ( <identifier> ( , <identifier> )* )
+                | RENAME (IF EXISTS)? <identifier> to <identifier> (AND <identifier> to <identifier>)*
                 | DROP COMPACT STORAGE
                 | WITH  <option> ( AND <option> )*
 p. 
@@ -432,9 +432,12 @@ WITH comment = 'A most excellent and useful column family';
 p. 
 The @ALTER@ statement is used to manipulate table definitions. It allows for adding new columns, dropping existing ones, or updating the table options. As with table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
 
+If the table does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
-* @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option.
-* @DROP@: Removes a column from the table. Dropped columns will immediately become unavailable in the queries and will not be included in compacted sstables in the future. If a column is readded, queries won't return values written before the column was last dropped. It is assumed that timestamps represent actual time, so if this is not your case, you should NOT readd previously dropped columns. Columns can't be dropped from tables defined with the @COMPACT STORAGE@ option.
+* @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option. If the new column already exists, the statement will return an error, unless @IF NOT EXISTS@ is used in which case the operation is a no-op.
+* @DROP@: Removes a column from the table. Dropped columns will immediately become unavailable in the queries and will not be included in compacted sstables in the future. If a column is readded, queries won't return values written before the column was last dropped. It is assumed that timestamps represent actual time, so if this is not your case, you should NOT readd previously dropped columns. Columns can't be dropped from tables defined with the @COMPACT STORAGE@ option. If the dropped column does not already exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+* @RENAME@ a primary key column of a table. Non primary key columns cannot be renamed. Furthermore, renaming a column to another name which already exists isn't allowed. It's important to keep in mind that renamed columns shouldn't have dependent secondary indexes. If the renamed column does not already exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 * @DROP COMPACT STORAGE@: Removes Thrift compatibility mode from the table.
 * @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
 
@@ -568,12 +571,12 @@ h3(#alterMVStmt). ALTER MATERIALIZED VIEW
 
 __Syntax:__
 
-bc(syntax). <alter-materialized-view-stmt> ::= ALTER MATERIALIZED VIEW <viewname>
+bc(syntax). <alter-materialized-view-stmt> ::= ALTER MATERIALIZED VIEW (IF EXISTS)? <viewname>
                                                  WITH <option> ( AND <option> )*
 
 p. 
 The @ALTER MATERIALIZED VIEW@ statement allows options to be update; these options are the same as <a href="#createTableOptions">@CREATE TABLE@'s options</a>.
-
+If the view does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#dropMVStmt). DROP MATERIALIZED VIEW
 
@@ -633,10 +636,10 @@ h3(#alterTypeStmt). ALTER TYPE
 __Syntax:__
 
 bc(syntax).. 
-<alter-type-stmt> ::= ALTER TYPE <typename> <instruction>
+<alter-type-stmt> ::= ALTER TYPE (IF EXISTS)? <typename> <instruction>
 
-<instruction> ::= ADD <field-name> <type>
-                | RENAME <field-name> TO <field-name> ( AND <field-name> TO <field-name> )*
+<instruction> ::= ADD (IF NOT EXISTS)? <field-name> <type>
+                | RENAME (IF EXISTS)? <field-name> TO <field-name> ( AND <field-name> TO <field-name> )*
 p. 
 __Sample:__
 
@@ -646,6 +649,7 @@ ALTER TYPE address ADD country text
 ALTER TYPE address RENAME zip TO zipcode AND street_name TO street
 p. 
 The @ALTER TYPE@ statement is used to manipulate type definitions. It allows for adding new fields, renaming existing fields, or changing the type of existing fields.
+If the type does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#dropTypeStmt). DROP TYPE
 
@@ -855,7 +859,7 @@ __Syntax:__
 bc(syntax).. 
 <insertStatement> ::= INSERT INTO <tablename>
                       ( ( <name-list> VALUES <value-list> )
-                      | ( JSON <string> [ DEFAULT ( NULL | UNSET ) ]))
+                      | ( JSON <string> (DEFAULT ( NULL | UNSET ))?))
                       ( IF NOT EXISTS )?
                       ( USING <option> ( AND <option> )* )?
 
