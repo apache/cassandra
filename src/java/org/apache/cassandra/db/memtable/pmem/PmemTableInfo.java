@@ -135,16 +135,6 @@ public class PmemTableInfo
         return metadata;
     }
 
-    /**
-     * Updates this PmemTableInfo with given  ConcurrentLongART
-     *
-     * @param memtableCart ConcurrentLongART
-     */
-    public void updateMemtableCart(ConcurrentLongART memtableCart)
-    {
-        this.memtableCart = memtableCart;
-        block.setLong(TABLE_ID_SIZE, memtableCart.handle());
-    }
 
     /**
      * Frees the Persistent Memory associated with this PmemTableInfo

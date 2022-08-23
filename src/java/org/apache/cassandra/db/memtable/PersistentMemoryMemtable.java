@@ -80,7 +80,6 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     public static final TransactionalHeap heap;
     private static final LongLinkedList tablesLinkedList;
     private static final int CORES = FBUtilities.getAvailableProcessors();
-    private final Owner owner;
     public static final ByteComparable.Version BYTE_COMPARABLE_VERSION = ByteComparable.Version.OSS42;
     protected StatsCollector statsCollector = new StatsCollector();
     private static final Map<TableId, PmemTableInfo> tablesMetadataMap = new ConcurrentHashMap<>();
@@ -139,7 +138,6 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     public PersistentMemoryMemtable(TableMetadataRef metadataRef, Owner owner)
     {
         super(updateMetadataRef(metadataRef));
-        this.owner = owner;
 
         if (tablesMetadataMap.get(metadata.get().id) == null)
             addToTablesMetadataMap(metadata.get());
@@ -510,9 +508,6 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         {
             ConcurrentLongART memtableCartForIndex = pmemIndexTableInfo.getMemtableCart();
             memtableCartForIndex.clear(this::freeRowMemoryBlock);
-            memtableCartForIndex.free();
-            memtableCartForIndex = new ConcurrentLongART(heap, CORES);
-            pmemIndexTableInfo.updateMemtableCart(memtableCartForIndex);
         }
         else
             logger.info("Cannot truncate {} index table ",id);

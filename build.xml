@@ -856,7 +856,7 @@
         <dependency groupId="javax.inject" artifactId="javax.inject"/>
         <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations"/>
         <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
-        <dependency groupId="com.intel.pmem" artifactId="llpl" version="1.2.1-release" />
+        <!--<dependency groupId="com.intel.pmem" artifactId="llpl" version="1.2.1-release" />-->
 
         <!-- sasi deps -->
         <dependency groupId="de.jflex" artifactId="jflex" />

@@ -645,27 +645,18 @@ public class PmemPartition implements Partition
     private int removeExpired(LongART artTree , boolean isRow)
     {
         Iterator<LongART.Entry> itr = artTree.getEntryIterator();
-        final ArrayList<byte[]> artEntryKeyArray = new ArrayList<>();
+        int count = 0;
         while (itr.hasNext())
         {
             LongART.Entry nextEntry = itr.next();
             if (isExpired(nextEntry, isRow))
             {
-                artEntryKeyArray.add(nextEntry.getKey());
+                heap.memoryBlockFromHandle(nextEntry.getValue()).free();
+                itr.remove();
+                count++;
             }
         }
-        if (!artEntryKeyArray.isEmpty())
-        {
-            for (byte[] artEntryKey : artEntryKeyArray)
-            {
-                artTree.remove(artEntryKey, (Long rowhandle) -> {
-                    TransactionalMemoryBlock rowMemoryBlock = heap.memoryBlockFromHandle(rowhandle);
-                    rowMemoryBlock.free();
-                });
-            }
-        }
-
-        return artEntryKeyArray.size();
+        return count;
     }
 
     private static int getGcBefore(TableMetadata metadata, int nowInSec)
@@ -928,7 +919,6 @@ public class PmemPartition implements Partition
         protected final TableMetadata metadata;
         private final TransactionalHeap heap;
         private Iterator<LongART.Entry> pmemRowTreeIterator;
-        private LongART pmemRowTree;
         private DecoratedKey dkey;
         SerializationHeader header;
         DeletionTime deletionTime;
@@ -943,7 +933,6 @@ public class PmemPartition implements Partition
             this.header = SerializationHeader.makeWithoutStats(metadata);
             this.dkey = key;
             this.deletionTime = deletionTime;
-            this.pmemRowTree = pmemRowMapTree;
             boolean includeStart = slice.start().isInclusive();
             boolean includeEnd = slice.end().isInclusive();
             ClusteringBound start = slice.start() == ClusteringBound.BOTTOM ? null : slice.start();
@@ -1023,25 +1012,16 @@ public class PmemPartition implements Partition
         @Override
         protected Unfiltered computeNext()
         {
-            final ArrayList<byte[]> artEntryKeyArray = new ArrayList<>();
             while (pmemRowTreeIterator.hasNext())
             {
                 LongART.Entry nextEntry = pmemRowTreeIterator.next();
                 Unfiltered unfiltered = computeNextInternal(nextEntry);
                 if (unfiltered != null && (((Row) unfiltered).primaryKeyLivenessInfo().timestamp() <= deletionTime.markedForDeleteAt()))
                 {
-                    artEntryKeyArray.add(nextEntry.getKey());
+                    heap.memoryBlockFromHandle(nextEntry.getValue()).free();
+                    pmemRowTreeIterator.remove();
                 }
             }
-
-            for (byte[] artEntryKey : artEntryKeyArray)
-            {
-                pmemRowTree.remove(artEntryKey, (Long rowhandle) -> {
-                    TransactionalMemoryBlock rowMemoryBlock = heap.memoryBlockFromHandle(rowhandle);
-                    rowMemoryBlock.free();
-                });
-            }
-
             return endOfData();
         }
 
