@@ -177,6 +177,9 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-16527] Auto repair 2.0 bug fix: for insert new history statement, set paxos consistency as local_serial
+ * [SO-16527] Auto repair 2.0 bug fix 1) Nullpointerexception fix when delete_hosts_update_time is null. 2) Wrong statement for deleting auto_repair_history record
+ * [SO-16186] Auto repair with auto repair history table for each node and new logic to determine turns
  * [SO-15324] Nodetool cmd to retrieve the cached token ownership for C* split-brain on token ownership
  * [SO-15966] Add more logs to auto repair and add nodetool command to get auto repair ring host ids
  * [SO-14866] Avoid orphan hint clean up log/metric noise

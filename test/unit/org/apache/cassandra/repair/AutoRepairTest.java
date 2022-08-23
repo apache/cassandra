@@ -22,12 +22,14 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -83,7 +85,7 @@ public class AutoRepairTest extends CQLTester
         cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         cfs.truncateBlocking();
 
-        cfs = Keyspace.open(AutoRepairUtils.KEYSPACE_NAME).getColumnFamilyStore(AutoRepairUtils.REPAIR_STATUS);
+        cfs = Keyspace.open(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME).getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_STATUS);
         cfs.truncateBlocking();
 
         AutoRepairService.instance.startAutoRepair();

@@ -4842,6 +4842,10 @@ public class DatabaseDescriptor
          return conf.auto_repair_min_repair_frequency_in_hours;
     }
 
+    public static Integer getAutoRepairHistoryClearDeleteHostsBufferInSec() {
+        return conf.auto_repair_history_clear_delete_hosts_buffer_in_sec;
+    }
+
     public static String getAutoRepairIgnoreDC()
     {
         return conf.auto_repair_ignore_dc;

@@ -46,6 +46,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private long autoRepairTableMaxRepairTimeInSec;
     private Set<String> autoRepairIgnoreDCs;
     private Set<Set<String>> autoRepairDCGroups;
+    private int autoRepairHistoryClearDeleteHostsBufferInSec;
 
     public static final AutoRepairService instance = new AutoRepairService();
 
@@ -138,6 +139,16 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setRepairMinFrequencyInHours(int repairMinFrequencyInHours)
     {
         this.repairMinFrequencyInHours = repairMinFrequencyInHours;
+    }
+
+    @Override
+    public int getAutoRepairHistoryClearDeleteHostsBufferInSec() {
+        return this.autoRepairHistoryClearDeleteHostsBufferInSec;
+    }
+
+    @Override
+    public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds) {
+        this.autoRepairHistoryClearDeleteHostsBufferInSec = seconds;
     }
 
     @Override

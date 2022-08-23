@@ -82,7 +82,9 @@ import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeConditio
 /**
  * This class is designed to run start automatic repair on Cassandra cluster where repair was not in past and now we
  * would like to start repair w/o impacting production workload. Here is how it works:
- * a. It sorts all the nodes's uuid in the ring and checks whose turn it is to run repair
+ * a. It sorts all the nodes's uuid in the auto repair ring and checks whose turn it is to run repair
+ *      1. auto repair ring is not same as the Cassandra instance ring. It can be defined by the auto_repair_dc_groups
+ *      2. The node with the longest unrepaired time within the auto repair ring will be chosen to run repair
  * b. After node makes a decision to run repair, full sub-range repair is triggered one table at a time
  * If at any point #of unrepaired sstable count goes beyond certain threshold then simply ignore such table as
  * there maybe some challenges to repair such a large table
@@ -106,6 +108,7 @@ public class AutoRepair
     static int repairInProgress = 0;
     static int repairTableSkipCount = 0;
     static int repairTableFailureCount = 0;
+    static AutoRepairUtils.AutoRepairHistory longestUnrepairedNode;
 
     private static ScheduledExecutorPlus repairExecutor;
     public static AutoRepair instance = new AutoRepair();
@@ -149,6 +152,14 @@ public class AutoRepair
         return repairTableSkipCount;
     }
 
+    public static int getLongestUnrepairedSec()
+    {
+        if (longestUnrepairedNode == null) {
+            return 0;
+        }
+        return (int)TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - longestUnrepairedNode.lastRepairFinishTime );
+    }
+
     public static int getRepairFailedTablesCount()
     {
         return repairTableFailureCount;
@@ -166,6 +177,7 @@ public class AutoRepair
                 .getAutoRepairMinRepairFrequencyInHours());
         AutoRepairService.instance.setAutoRepairTableMaxRepairTimeInSec(DatabaseDescriptor
                 .getAutoRepairTableMaxRepairTimeInSec());
+        AutoRepairService.instance.setAutoRepairHistoryClearDeleteHostsBufferInSec(DatabaseDescriptor.getAutoRepairHistoryClearDeleteHostsBufferInSec());
 
         if (DatabaseDescriptor.getAutoRepairIgnoreKeyspaces().length() > 0)
         {
@@ -231,6 +243,9 @@ public class AutoRepair
                 return;
             }
 
+            // refresh the longest unrepaired node
+            longestUnrepairedNode = AutoRepairUtils.getHostIDWithLongestUnrepairTime();
+
             //consistency level to use for local query
             UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
             AutoRepairUtils.RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(myId);
@@ -253,8 +268,9 @@ public class AutoRepair
                 }
 
                 Stopwatch stopWatch = Stopwatch.createStarted();
-                logger.info("My turn to run repair..., my id: {}", myId);
+                logger.info("My host id: {}, my turn to run repair...", myId);
                 AutoRepairUtils.updateRepairStatus(myId, RepairCurrentStatus.REPAIR_NOT_DONE);
+                AutoRepairUtils.updateStartAutoRepairHistory(myId, System.currentTimeMillis(), turn);
 
                 int repairKeyspaceCount = 0;
                 int repairTableSuccessCount = 0;
@@ -479,6 +495,7 @@ public class AutoRepair
                 }
                 repairInProgress = 0;
                 AutoRepairUtils.updateRepairStatus(myId, RepairCurrentStatus.REPAIR_DONE);
+                AutoRepairUtils.updateFinishAutoRepairHistory(myId, System.currentTimeMillis());
             }
             else
             {

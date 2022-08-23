@@ -697,6 +697,8 @@ public class Config
     public String auto_repair_dc_groups = "";
 
     public Long auto_repair_table_max_repair_time_in_sec = 6 * 60 * 60L;
+
+    public Integer auto_repair_history_clear_delete_hosts_buffer_in_sec = 60 * 60 * 2; // two hours
     /**
      * When a node first starts up it intially considers all other peers as DOWN and is disconnected from all of them.
      * To be useful as a coordinator (and not introduce latency penalties on restart) this node must have successfully

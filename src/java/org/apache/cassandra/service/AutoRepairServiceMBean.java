@@ -99,6 +99,16 @@ public interface AutoRepairServiceMBean
     public void setRepairMinFrequencyInHours(int repairMinFrequencyInHours);
 
     /**
+     * Get auto repair history clear
+     */
+    public int getAutoRepairHistoryClearDeleteHostsBufferInSec();
+
+    /**
+     * Set repair subranges
+     */
+    public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds);
+
+    /**
      * Get repair sstable count higher threshold
      */
     public int getRepairSSTableCountHigherThreshold();

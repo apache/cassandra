@@ -33,6 +33,7 @@ public class AutoRepairMetrics
     public static Gauge<Integer> nodeRepairTimeInSec;
     public static Gauge<Integer> clusterRepairTimeInSec;
     public static Gauge<Integer> skippedTablesCount;
+    public static Gauge<Integer> longestUnrepairedSec;
     public static Gauge<Integer> failedTablesCount;
 
     public static void setup()
@@ -65,6 +66,14 @@ public class AutoRepairMetrics
             public Integer getValue()
             {
                 return AutoRepair.getRepairSkippedTablesCount();
+            }
+        });
+
+        longestUnrepairedSec = Metrics.register(factory.createMetricName("LongestUnrepairedSec"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepair.getLongestUnrepairedSec();
             }
         });
 

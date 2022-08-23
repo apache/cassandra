@@ -42,7 +42,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
     @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
             description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
                     "[threads|subranges|minrepairfreqinhours|sstablehigherthreshold|ignorekeyspacesregex" +
-                    "|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|ignoredcs]",
+                    "|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|ignoredcs|historydeletehostsclearbufferinsec]",
             required = true)
     private List<String> args = new ArrayList<>();
 
@@ -70,6 +70,10 @@ public class SetAutoRepairConfig extends NodeToolCmd
         else if (paramType.equals("minrepairfreqinhours"))
         {
             probe.setRepairMinFrequencyInHours(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("historydeletehostsclearbufferinsec"))
+        {
+            probe.setAutoRepairHistoryClearDeleteHostsBufferInSec(Integer.parseInt(paramVal));
         }
         else if (paramType.equals("sstablehigherthreshold"))
         {
