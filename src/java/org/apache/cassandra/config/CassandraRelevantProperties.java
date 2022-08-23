@@ -300,6 +300,9 @@ public enum CassandraRelevantProperties
 
     // Loosen the definition of "empty" for gossip state, for use during host replacements if things go awry
     LOOSE_DEF_OF_EMPTY_ENABLED(Config.PROPERTY_PREFIX + "gossiper.loose_empty_enabled");
+
+    /** Used when running in Client mode and the system and schema keyspaces need to be initialized outside of their normal initialization path **/
+    FORCE_LOAD_LOCAL_KEYSPACES("cassandra.schema.force_load_local_keyspaces"),
     ;
 
 
