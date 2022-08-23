@@ -26,11 +26,11 @@ import accord.messages.BeginRecovery;
 import accord.messages.BeginRecovery.RecoverNack;
 import accord.messages.BeginRecovery.RecoverOk;
 import accord.messages.BeginRecovery.RecoverReply;
-import accord.txn.Ballot;
-import accord.txn.Dependencies;
-import accord.txn.Keys;
-import accord.txn.Timestamp;
-import accord.txn.TxnId;
+import accord.primitives.Ballot;
+import accord.primitives.Deps;
+import accord.primitives.Keys;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -117,9 +117,9 @@ public class RecoverySerializers
                                  Status status,
                                  Ballot accepted,
                                  Timestamp executeAt,
-                                 Dependencies deps,
-                                 Dependencies earlierCommittedWitness,
-                                 Dependencies earlierAcceptedNoWitness,
+                                 Deps deps,
+                                 Deps earlierCommittedWitness,
+                                 Deps earlierAcceptedNoWitness,
                                  boolean rejectsFastPath,
                                  Writes writes,
                                  Result result,
@@ -188,7 +188,7 @@ public class RecoverySerializers
         }
 
         @Override
-        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, Dependencies deps, Dependencies earlierCommittedWitness, Dependencies earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
+        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, Deps deps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
         {
             return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierCommittedWitness, earlierAcceptedNoWitness, rejectsFastPath, writes, result);
         }

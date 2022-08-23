@@ -29,7 +29,7 @@ import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.Write;
 import accord.local.CommandStore;
-import accord.txn.Timestamp;
+import accord.primitives.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;

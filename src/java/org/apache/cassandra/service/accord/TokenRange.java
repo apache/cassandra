@@ -22,7 +22,8 @@ import java.io.IOException;
 
 import com.google.common.base.Preconditions;
 
-import accord.topology.KeyRange;
+import accord.api.Key;
+import accord.primitives.KeyRange;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -31,20 +32,21 @@ import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordKey.TokenKey;
 
-public class TokenRange extends KeyRange.EndInclusive<AccordKey>
+public class TokenRange extends KeyRange.EndInclusive
 {
     public TokenRange(AccordKey start, AccordKey end)
     {
         super(start, end);
-        Preconditions.checkArgument(start.kind().isRangeCompatible());
-        Preconditions.checkArgument(end.kind().isRangeCompatible());
+        Preconditions.checkArgument(start.kind().supportsRanges());
+        Preconditions.checkArgument(end.kind().supportsRanges());
     }
 
-    private static AccordKey toAccordTokenOrSentinel(AccordKey key)
+    private static AccordKey toAccordTokenOrSentinel(Key key)
     {
-        if (key instanceof TokenKey || key instanceof SentinelKey)
-            return key;
-        return new TokenKey(key.tableId(), key.partitionKey().getToken().maxKeyBound());
+        AccordKey aKey = (AccordKey) key;
+        if (aKey instanceof TokenKey || aKey instanceof SentinelKey)
+            return aKey;
+        return new TokenKey(aKey.tableId(), aKey.partitionKey().getToken().maxKeyBound());
     }
 
     public static TokenRange fullRange(TableId tableId)
@@ -53,7 +55,7 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
     }
 
     @Override
-    public TokenRange subRange(AccordKey start, AccordKey end)
+    public TokenRange subRange(Key start, Key end)
     {
         return new TokenRange(toAccordTokenOrSentinel(start), toAccordTokenOrSentinel(end));
     }
@@ -63,8 +65,8 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
         @Override
         public void serialize(TokenRange range, DataOutputPlus out, int version) throws IOException
         {
-            AccordKey.serializer.serialize(range.start(), out, version);
-            AccordKey.serializer.serialize(range.end(), out, version);
+            AccordKey.serializer.serialize((AccordKey) range.start(), out, version);
+            AccordKey.serializer.serialize((AccordKey) range.end(), out, version);
         }
 
         @Override
@@ -77,8 +79,8 @@ public class TokenRange extends KeyRange.EndInclusive<AccordKey>
         @Override
         public long serializedSize(TokenRange range, int version)
         {
-            return AccordKey.serializer.serializedSize(range.start(), version)
-                 + AccordKey.serializer.serializedSize(range.end(), version);
+            return AccordKey.serializer.serializedSize((AccordKey) range.start(), version)
+                 + AccordKey.serializer.serializedSize((AccordKey) range.end(), version);
         }
     };
 }

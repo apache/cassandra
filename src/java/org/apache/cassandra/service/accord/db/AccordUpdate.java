@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -30,8 +31,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
 import accord.api.Data;
+import accord.api.Key;
 import accord.api.Update;
 import accord.api.Write;
+import accord.primitives.Keys;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -53,12 +56,15 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class AccordUpdate implements Update
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordUpdate((ByteBuffer[]) null, (ByteBuffer[]) null));;
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordUpdate(Keys.EMPTY, (ByteBuffer[]) null, (ByteBuffer[]) null));;
+
+    private final Keys keys;
     private final ByteBuffer[] updates;
     private final ByteBuffer[] predicates;
 
@@ -298,14 +304,27 @@ public class AccordUpdate implements Update
         }
     }
 
+    private static Keys keysFrom(List<PartitionUpdate> updates, List<UpdatePredicate> predicates)
+    {
+        Set<Key> keys = new HashSet<>();
+        for (PartitionUpdate update : updates)
+            keys.add(new PartitionKey(update.metadata().id, update.partitionKey()));
+        for (UpdatePredicate predicate : predicates)
+            keys.add(new PartitionKey(predicate.table.id, predicate.key));
+
+        return new Keys(keys);
+    }
+
     public AccordUpdate(List<PartitionUpdate> updates, List<UpdatePredicate> predicates)
     {
+        this.keys = keysFrom(updates, predicates);
         this.updates = serialize(updates, updateSerializer);
         this.predicates = serialize(predicates, predicateSerializer);
     }
 
-    public AccordUpdate(ByteBuffer[] updates, ByteBuffer[] predicates)
+    public AccordUpdate(Keys keys, ByteBuffer[] updates, ByteBuffer[] predicates)
     {
+        this.keys = keys;
         this.updates = updates;
         this.predicates = predicates;
     }
@@ -332,6 +351,12 @@ public class AccordUpdate implements Update
     public int hashCode()
     {
         return Objects.hash(updates, predicates);
+    }
+
+    @Override
+    public Keys keys()
+    {
+        return keys;
     }
 
     @Override
@@ -438,6 +463,7 @@ public class AccordUpdate implements Update
         @Override
         public void serialize(AccordUpdate update, DataOutputPlus out, int version) throws IOException
         {
+            KeySerializers.keys.serialize(update.keys, out, version);
             out.writeInt(update.updates.length);
             for (ByteBuffer buffer : update.updates)
                 ByteBufferUtil.writeWithVIntLength(buffer, out);
@@ -450,6 +476,7 @@ public class AccordUpdate implements Update
         @Override
         public AccordUpdate deserialize(DataInputPlus in, int version) throws IOException
         {
+            Keys keys = KeySerializers.keys.deserialize(in, version);
             int numUpdate = in.readInt();
             ByteBuffer[] updates = new ByteBuffer[numUpdate];
             for (int i=0; i<numUpdate; i++)
@@ -460,14 +487,15 @@ public class AccordUpdate implements Update
             for (int i=0; i<numPredicate; i++)
                 predicates[i] = ByteBufferUtil.readWithVIntLength(in);
 
-            return new AccordUpdate(updates, predicates);
+            return new AccordUpdate(keys, updates, predicates);
         }
 
         @Override
         public long serializedSize(AccordUpdate update, int version)
         {
-            long size = TypeSizes.sizeof(update.updates.length);
+            long size = KeySerializers.keys.serializedSize(update.keys, version);
 
+            size += TypeSizes.sizeof(update.updates.length);
             for (ByteBuffer buffer : update.updates)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
 

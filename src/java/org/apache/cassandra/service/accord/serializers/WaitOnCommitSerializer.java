@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import accord.messages.WaitOnCommit;
 import accord.messages.WaitOnCommit.WaitOnCommitOk;
-import accord.txn.Keys;
+import accord.primitives.Keys;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;

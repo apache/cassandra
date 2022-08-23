@@ -33,7 +33,7 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
 import accord.local.Status;
-import accord.txn.Timestamp;
+import accord.primitives.Timestamp;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredLong;

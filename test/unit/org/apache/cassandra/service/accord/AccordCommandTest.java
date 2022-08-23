@@ -38,11 +38,11 @@ import accord.local.TxnOperation;
 import accord.messages.Accept;
 import accord.messages.Commit;
 import accord.messages.PreAccept;
-import accord.txn.Ballot;
-import accord.txn.Dependencies;
-import accord.txn.Timestamp;
+import accord.primitives.Ballot;
+import accord.primitives.Deps;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Txn;
-import accord.txn.TxnId;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -140,8 +140,9 @@ public class AccordCommandTest
         // check accept
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 0, 1);
-        Dependencies deps = new Dependencies();
-        deps.add(txnId2, txn, key);
+        Deps.OrderedBuilder builder = Deps.orderedBuilder(false);
+        builder.add(key, txnId2);
+        Deps deps = builder.build();
         Accept accept = new Accept(txn.keys(), 1, txnId, Ballot.ZERO, key, txn, executeAt, deps);
 
         commandStore.process(accept, instance -> {

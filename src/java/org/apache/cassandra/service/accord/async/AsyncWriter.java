@@ -32,7 +32,7 @@ import com.google.common.base.Preconditions;
 
 import accord.api.Key;
 import accord.local.Status;
-import accord.txn.TxnId;
+import accord.primitives.TxnId;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.service.accord.AccordCommand;

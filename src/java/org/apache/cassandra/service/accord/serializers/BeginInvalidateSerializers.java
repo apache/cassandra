@@ -29,10 +29,10 @@ import accord.messages.BeginInvalidate.InvalidateNack;
 import accord.messages.BeginInvalidate.InvalidateOk;
 import accord.messages.BeginRecovery;
 import accord.messages.BeginRecovery.RecoverReply;
-import accord.txn.Ballot;
-import accord.txn.Dependencies;
-import accord.txn.Timestamp;
-import accord.txn.TxnId;
+import accord.primitives.Ballot;
+import accord.primitives.Deps;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -96,7 +96,7 @@ public class BeginInvalidateSerializers
         }
 
         @Override
-        InvalidateOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, Dependencies deps, Dependencies earlierCommittedWitness, Dependencies earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version) throws IOException
+        InvalidateOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, Deps deps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version) throws IOException
         {
             Preconditions.checkArgument(earlierCommittedWitness == null);
             Preconditions.checkArgument(earlierAcceptedNoWitness == null);

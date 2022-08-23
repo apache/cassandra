@@ -20,8 +20,6 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.TreeMap;
 
 import com.google.common.base.Preconditions;
 
@@ -29,11 +27,10 @@ import accord.api.Query;
 import accord.api.Read;
 import accord.api.Update;
 import accord.local.Status;
-import accord.txn.Dependencies;
-import accord.txn.Keys;
-import accord.txn.Timestamp;
+import accord.primitives.Keys;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Txn;
-import accord.txn.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;

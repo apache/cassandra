@@ -21,9 +21,9 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.Key;
-import accord.topology.KeyRange;
-import accord.topology.KeyRanges;
-import accord.txn.Keys;
+import accord.primitives.KeyRange;
+import accord.primitives.KeyRanges;
+import accord.primitives.Keys;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -35,7 +35,7 @@ public class KeySerializers
 {
     private KeySerializers() {}
 
-    public static final IVersionedSerializer<Key> key = new IVersionedSerializer<Key>()
+    public static final IVersionedSerializer<Key> key = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Key key, DataOutputPlus out, int version) throws IOException
@@ -72,7 +72,7 @@ public class KeySerializers
             Key[] keys = new Key[in.readInt()];
             for (int i=0; i<keys.length; i++)
                 keys[i] = key.deserialize(in, version);
-            return new Keys(keys);
+            return Keys.of(keys);
         }
 
         @Override

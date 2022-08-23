@@ -42,15 +42,15 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.TxnOperation;
-import accord.topology.KeyRange;
-import accord.topology.KeyRanges;
+import accord.primitives.Ballot;
+import accord.primitives.KeyRange;
+import accord.primitives.KeyRanges;
+import accord.primitives.Keys;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.topology.Shard;
 import accord.topology.Topology;
-import accord.txn.Ballot;
-import accord.txn.Keys;
-import accord.txn.Timestamp;
 import accord.txn.Txn;
-import accord.txn.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -163,7 +163,7 @@ public class AccordTestUtils
                                 .reduce(null, AccordData::merge);
             Write write = txn.update().apply(readData);
             command.writes(new Writes(command.executeAt(), txn.keys(), write));
-            command.result(txn.query().compute(readData));
+            command.result(txn.query().compute(readData, txn.read(), txn.update()));
         }).get();
     }
 

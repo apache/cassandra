@@ -24,7 +24,7 @@ import com.google.common.collect.Sets;
 
 import accord.impl.SimpleProgressLog.ApplyAndCheck;
 import accord.impl.SimpleProgressLog.ApplyAndCheckOk;
-import accord.txn.Keys;
+import accord.primitives.Keys;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;

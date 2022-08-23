@@ -26,9 +26,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.local.Status;
-import accord.txn.Timestamp;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Txn;
-import accord.txn.TxnId;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;

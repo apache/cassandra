@@ -20,11 +20,15 @@ package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Preconditions;
 
 import accord.api.Data;
 import accord.api.Query;
+import accord.api.Read;
 import accord.api.Result;
+import accord.api.Update;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -36,7 +40,7 @@ public abstract class AccordQuery implements Query
     public static final AccordQuery ALL = new AccordQuery()
     {
         @Override
-        public Result compute(Data data)
+        public Result compute(Data data, @Nullable Read read, @Nullable Update update)
         {
             return (AccordData) data;
         }
@@ -45,7 +49,7 @@ public abstract class AccordQuery implements Query
     public static final AccordQuery NONE = new AccordQuery()
     {
         @Override
-        public Result compute(Data data)
+        public Result compute(Data data, @Nullable Read read, @Nullable Update update)
         {
             return new AccordData();
         }

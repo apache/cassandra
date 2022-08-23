@@ -22,7 +22,7 @@ import accord.api.Agent;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.Node;
-import accord.txn.Timestamp;
+import accord.primitives.Timestamp;
 
 public class AccordAgent implements Agent
 {

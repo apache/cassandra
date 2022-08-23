@@ -32,12 +32,12 @@ import accord.local.Command;
 import accord.local.Listener;
 import accord.local.Listeners;
 import accord.local.Status;
-import accord.txn.Ballot;
-import accord.txn.Dependencies;
-import accord.txn.Keys;
-import accord.txn.Timestamp;
+import accord.primitives.Ballot;
+import accord.primitives.Deps;
+import accord.primitives.Keys;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Txn;
-import accord.txn.TxnId;
 import accord.txn.Writes;
 import accord.utils.DeterministicIdentitySet;
 import org.apache.cassandra.service.accord.db.AccordData;
@@ -105,7 +105,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     public final StoredValue<Ballot> promised;
     public final StoredValue<Ballot> accepted;
     public final StoredValue<Timestamp> executeAt;
-    public final StoredValue<Dependencies> deps;
+    public final StoredValue<Deps> deps;
     public final StoredValue<Writes> writes;
     public final StoredValue<Result> result;
 
@@ -222,7 +222,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         executeAt.load(null);
         promised.set(Ballot.ZERO);
         accepted.set(Ballot.ZERO);
-        deps.set(new Dependencies());
+        deps.set(Deps.NONE);
         writes.load(null);
         result.load(null);
         isGloballyPersistent.set(false);
@@ -476,13 +476,13 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public Dependencies savedDeps()
+    public Deps savedDeps()
     {
         return deps.get();
     }
 
     @Override
-    public void savedDeps(Dependencies deps)
+    public void savedDeps(Deps deps)
     {
         this.deps.set(deps);
     }

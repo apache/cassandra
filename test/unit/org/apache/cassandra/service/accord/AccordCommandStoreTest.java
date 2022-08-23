@@ -32,10 +32,10 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.local.Command;
 import accord.local.Status;
-import accord.txn.Dependencies;
-import accord.txn.Timestamp;
+import accord.primitives.Deps;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Txn;
-import accord.txn.TxnId;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -80,8 +80,9 @@ public class AccordCommandStoreTest
         Key key = depTxn.keys().get(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        Dependencies dependencies = new Dependencies();
-        dependencies.add(txnId(1, clock.incrementAndGet(), 0, 1), depTxn, key);
+        Deps.OrderedBuilder builder = Deps.orderedBuilder(false);
+        builder.add(key, txnId(1, clock.incrementAndGet(), 0, 1));
+        Deps dependencies = builder.build();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
 
         TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 0, 1);

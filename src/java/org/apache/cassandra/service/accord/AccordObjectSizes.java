@@ -22,11 +22,11 @@ import java.util.Map;
 
 import accord.api.Key;
 import accord.local.Node;
-import accord.txn.Dependencies;
-import accord.txn.Keys;
-import accord.txn.Timestamp;
+import accord.primitives.Deps;
+import accord.primitives.Keys;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Txn;
-import accord.txn.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.db.AccordQuery;
@@ -42,7 +42,7 @@ public class AccordObjectSizes
         return ((AccordKey.PartitionKey) key).estimatedSizeOnHeap();
     }
 
-    private static final long EMPTY_KEYS_SIZE = ObjectSizes.measure(new Keys(new Key[0]));
+    private static final long EMPTY_KEYS_SIZE = ObjectSizes.measure(Keys.of());
     public static long keys(Keys keys)
     {
         long size = EMPTY_KEYS_SIZE;
@@ -75,14 +75,14 @@ public class AccordObjectSizes
         return TIMESTAMP_SIZE;
     }
 
-    private static final long EMPTY_DEPS_SIZE = ObjectSizes.measureDeep(new Dependencies());
-    public static long dependencies(Dependencies dependencies)
+    private static final long EMPTY_DEPS_SIZE = ObjectSizes.measureDeep(Deps.NONE);
+    public static long dependencies(Deps dependencies)
     {
         long size = EMPTY_DEPS_SIZE;
-        for (Map.Entry<TxnId, Txn> entry : dependencies)
+        for (Map.Entry<Key, TxnId> entry : dependencies)
         {
-            size += timestamp(entry.getKey());
-            size += txn(entry.getValue());
+            size += key(entry.getKey());
+            size += timestamp(entry.getValue());
         }
         return size;
     }

@@ -31,7 +31,7 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Listener;
 import accord.local.TxnOperation;
-import accord.txn.TxnId;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.service.accord.api.AccordKey;

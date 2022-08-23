@@ -25,12 +25,12 @@ import com.google.common.base.Preconditions;
 
 import accord.local.Node;
 import accord.local.Status;
-import accord.txn.Ballot;
-import accord.txn.Dependencies;
-import accord.txn.Keys;
-import accord.txn.Timestamp;
+import accord.primitives.Ballot;
+import accord.primitives.Deps;
+import accord.primitives.Keys;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.txn.Txn;
-import accord.txn.TxnId;
 import accord.txn.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -182,42 +182,54 @@ public class CommandSerializers
         }
     };
 
-    public static final IVersionedSerializer<Dependencies> deps = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Deps> deps = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(Dependencies deps, DataOutputPlus out, int version) throws IOException
+        public void serialize(Deps deps, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(deps.size());
-            for (Map.Entry<TxnId, Txn> entry : deps)
-            {
-                txnId.serialize(entry.getKey(), out, version);
-                txn.serialize(entry.getValue(), out, version);
-                KeySerializers.key.serialize(deps.homeKey(entry.getKey()), out, version);
-            }
+            Keys keys = deps.keys();
+            KeySerializers.keys.serialize(keys, out, version);
+
+            int txnIdCount = deps.txnIdCount();
+            out.writeInt(txnIdCount);
+            for (int i=0; i<txnIdCount; i++)
+                CommandSerializers.txnId.serialize(deps.txnId(i), out, version);
+
+            int keyToTxnIdCount = deps.keyToTxnIdCount();
+            out.writeInt(keyToTxnIdCount);
+            for (int i=0; i<keyToTxnIdCount; i++)
+                out.writeInt(deps.keyToTxnId(i));
+
         }
 
         @Override
-        public Dependencies deserialize(DataInputPlus in, int version) throws IOException
+        public Deps deserialize(DataInputPlus in, int version) throws IOException
         {
-            Dependencies deps = new Dependencies();
-            int size = in.readInt();
-            for (int i=0; i<size; i++)
-                deps.add(txnId.deserialize(in, version),
-                         txn.deserialize(in, version),
-                         KeySerializers.key.deserialize(in, version));
-            return deps;
+            Keys keys = KeySerializers.keys.deserialize(in, version);
+            TxnId[] txnIds = new TxnId[in.readInt()];
+            for (int i=0; i<txnIds.length; i++)
+                txnIds[i] = CommandSerializers.txnId.deserialize(in, version);
+            int[] keyToTxnIds = new int[in.readInt()];
+            for (int i=0; i<keyToTxnIds.length; i++)
+                keyToTxnIds[i] = in.readInt();
+            return new Deps(keys, txnIds, keyToTxnIds);
         }
 
         @Override
-        public long serializedSize(Dependencies deps, int version)
+        public long serializedSize(Deps deps, int version)
         {
-            long size = TypeSizes.sizeof(deps.size());
-            for (Map.Entry<TxnId, Txn> entry : deps)
-            {
-                size += txnId.serializedSize(entry.getKey(), version);
-                size += txn.serializedSize(entry.getValue(), version);
-                size += KeySerializers.key.serializedSize(deps.homeKey(entry.getKey()), version);
-            }
+            Keys keys = deps.keys();
+            long size = KeySerializers.keys.serializedSize(keys, version);
+
+            int txnIdCount = deps.txnIdCount();
+            size += TypeSizes.sizeof(txnIdCount);
+            for (int i=0; i<txnIdCount; i++)
+                size += CommandSerializers.txnId.serializedSize(deps.txnId(i), version);
+
+            int keyToTxnIdCount = deps.keyToTxnIdCount();
+            size += TypeSizes.sizeof(keyToTxnIdCount);
+            for (int i=0; i<keyToTxnIdCount; i++)
+                size += TypeSizes.sizeof(deps.keyToTxnId(i));
             return size;
         }
     };

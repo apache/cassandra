@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.local.CommandStore;
 import accord.local.TxnOperation;
-import accord.txn.TxnId;
+import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;

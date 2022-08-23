@@ -43,12 +43,13 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public interface AccordKey extends Key<AccordKey>
+public interface AccordKey extends Key
 {
-    enum Kind {
+    enum Kind
+    {
         TOKEN, PARTITION, SENTINEL;
 
-        public boolean isRangeCompatible()
+        public boolean supportsRanges()
         {
             switch (this)
             {
@@ -65,17 +66,17 @@ public interface AccordKey extends Key<AccordKey>
     PartitionPosition partitionKey();
     Kind kind();
 
-    public static AccordKey of(Key key)
+    static AccordKey of(Key key)
     {
         return (AccordKey) key;
     }
 
-    public static PartitionKey of(Partition partition)
+    static PartitionKey of(Partition partition)
     {
         return new PartitionKey(partition.metadata().id, partition.partitionKey());
     }
 
-    public static PartitionKey of(SinglePartitionReadCommand command)
+    static PartitionKey of(SinglePartitionReadCommand command)
     {
         return new PartitionKey(command.metadata().id, command.partitionKey());
     }
@@ -107,12 +108,12 @@ public interface AccordKey extends Key<AccordKey>
     }
 
     @Override
-    default int keyHash()
+    default int routingHash()
     {
         return partitionKey().getToken().tokenHash();
     }
 
-    static class SentinelKey implements AccordKey
+    class SentinelKey implements AccordKey
     {
         private final TableId tableId;
         private final boolean isMin;
@@ -136,6 +137,12 @@ public interface AccordKey extends Key<AccordKey>
         public int hashCode()
         {
             return Objects.hash(tableId, isMin);
+        }
+
+        @Override
+        public int compareTo(Key that)
+        {
+            return compare(this, (AccordKey) that);
         }
 
         @Override
@@ -205,7 +212,7 @@ public interface AccordKey extends Key<AccordKey>
         };
     }
 
-    static abstract class AbstractKey<T extends PartitionPosition> implements AccordKey
+    abstract class AbstractKey<T extends PartitionPosition> implements AccordKey
     {
         private final TableId tableId;
         private final T key;
@@ -232,6 +239,12 @@ public interface AccordKey extends Key<AccordKey>
         }
 
         @Override
+        public int compareTo(Key that)
+        {
+            return compare(this, (AccordKey) that);
+        }
+
+        @Override
         public TableId tableId()
         {
             return tableId;
@@ -244,7 +257,7 @@ public interface AccordKey extends Key<AccordKey>
         }
     }
 
-    public static class PartitionKey extends AbstractKey<DecoratedKey>
+    class PartitionKey extends AbstractKey<DecoratedKey>
     {
         private static final long EMPTY_SIZE;
         static
@@ -339,7 +352,7 @@ public interface AccordKey extends Key<AccordKey>
         }
     }
 
-    public static class TokenKey extends AbstractKey<Token.KeyBound>
+    class TokenKey extends AbstractKey<Token.KeyBound>
     {
         public TokenKey(TableId tableId, Token.KeyBound key)
         {
@@ -403,7 +416,7 @@ public interface AccordKey extends Key<AccordKey>
         };
     }
 
-    static final IVersionedSerializer<AccordKey> serializer = new IVersionedSerializer<AccordKey>()
+    IVersionedSerializer<AccordKey> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(AccordKey key, DataOutputPlus out, int version) throws IOException

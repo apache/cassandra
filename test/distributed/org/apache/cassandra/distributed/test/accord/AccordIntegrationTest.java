@@ -38,8 +38,8 @@ import org.junit.Test;
 
 import accord.coordinate.Preempted;
 import accord.messages.Commit;
+import accord.primitives.Keys;
 import accord.topology.Topologies;
-import accord.txn.Keys;
 import accord.txn.Txn;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;

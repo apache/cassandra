@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 import com.google.common.base.Preconditions;
 
 import accord.api.Key;
-import accord.txn.Keys;
+import accord.primitives.Keys;
 import accord.txn.Txn;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryHandler;
@@ -142,7 +142,7 @@ public class AccordTxnBuilder
         predicates.sort(Comparator.comparing(UpdatePredicate::partitionKey));
         if (updates.isEmpty())
         {
-            return new Txn.InMemory(new Keys(keyArray), new AccordRead(reads), query);
+            return new Txn.InMemory(Keys.of(keyArray), new AccordRead(reads), query);
         }
         else
         {
@@ -156,7 +156,7 @@ public class AccordTxnBuilder
                 throw new IllegalStateException(msg);
             }
 
-            return new Txn.InMemory(new Keys(keyArray), new AccordRead(reads), query, new AccordUpdate(updates, predicates));
+            return new Txn.InMemory(Keys.of(keyArray), new AccordRead(reads), query, new AccordUpdate(updates, predicates));
         }
     }
 

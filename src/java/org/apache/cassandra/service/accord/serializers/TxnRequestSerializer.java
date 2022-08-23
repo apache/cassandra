@@ -21,8 +21,8 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.messages.TxnRequest;
-import accord.txn.Keys;
-import accord.txn.TxnId;
+import accord.primitives.Keys;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
