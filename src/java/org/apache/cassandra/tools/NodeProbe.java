@@ -442,6 +442,14 @@ public class NodeProbe implements AutoCloseable
         ssProxy.relocateSSTables(jobs, keyspace, cfnames);
     }
 
+    /**
+     * Forces major compaction of specified token range in a single keyspace.
+     *
+     * @param keyspaceName the name of the keyspace to be compacted
+     * @param startToken the token at which the compaction range starts (inclusive)
+     * @param endToken the token at which compaction range ends (inclusive)
+     * @param tableNames the names of the tables to be compacted
+     */
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, final String startToken, final String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceKeyspaceCompactionForTokenRange(keyspaceName, startToken, endToken, tableNames);
@@ -490,9 +498,29 @@ public class NodeProbe implements AutoCloseable
             }
         }
     }
-    public Map<String, List<CompositeData>> getPartitionSample(int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
+
+    public boolean handleScheduledSampling(String ks,
+                                           String table,
+                                           int capacity,
+                                           int count,
+                                           int durationMillis,
+                                           int intervalMillis,
+                                           List<String> samplers,
+                                           boolean shouldStop) throws OpenDataException
     {
-        return ssProxy.samplePartitions(durationMillis, capacity, count, samplers);
+        return shouldStop ?
+               ssProxy.stopSamplingPartitions(ks, table) :
+               ssProxy.startSamplingPartitions(ks, table, durationMillis, intervalMillis, capacity, count, samplers);
+    }
+
+    public List<String> getSampleTasks()
+    {
+        return ssProxy.getSampleTasks();
+    }
+
+    public Map<String, List<CompositeData>> getPartitionSample(String ks, int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
+    {
+        return ssProxy.samplePartitions(ks, durationMillis, capacity, count, samplers);
     }
 
     public Map<String, List<CompositeData>> getPartitionSample(String ks, String cf, int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
@@ -1253,9 +1281,20 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
+    @Deprecated
     public int getCompactionThroughput()
     {
         return ssProxy.getCompactionThroughputMbPerSec();
+    }
+
+    public double getCompactionThroughputMebibytesAsDouble()
+    {
+        return ssProxy.getCompactionThroughtputMibPerSecAsDouble();
+    }
+
+    public long getCompactionThroughputBytes()
+    {
+        return ssProxy.getCompactionThroughtputBytesPerSec();
     }
 
     public void setBatchlogReplayThrottle(int value)
@@ -1327,24 +1366,46 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    @Deprecated
     public int getStreamThroughput()
     {
         return ssProxy.getStreamThroughputMbitPerSec();
     }
 
+    public double getStreamThroughputAsDouble()
+    {
+        return ssProxy.getStreamThroughputMbitPerSecAsDouble();
+    }
+
+    @Deprecated
     public int getInterDCStreamThroughput()
     {
         return ssProxy.getInterDCStreamThroughputMbitPerSec();
     }
 
-    public int getEntireSSTableStreamThroughput()
+    public double getInterDCStreamThroughputAsDouble()
     {
-        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSec();
+        return ssProxy.getInterDCStreamThroughputMbitPerSecAsDouble();
     }
 
-    public int getEntireSSTableInterDCStreamThroughput()
+    public double getStreamThroughputMibAsDouble()
     {
-        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
+        return ssProxy.getStreamThroughputMebibytesPerSecAsDouble();
+    }
+
+    public double getInterDCStreamThroughputMibAsDouble()
+    {
+        return ssProxy.getInterDCStreamThroughputMebibytesPerSecAsDouble();
+    }
+
+    public double getEntireSSTableStreamThroughput()
+    {
+        return ssProxy.getEntireSSTableStreamThroughputMebibytesPerSecAsDouble();
+    }
+
+    public double getEntireSSTableInterDCStreamThroughput()
+    {
+        return ssProxy.getEntireSSTableInterDCStreamThroughputMebibytesPerSecAsDouble();
     }
 
     public double getTraceProbability()
@@ -1445,9 +1506,19 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setStreamThroughputMbitPerSec(value);
     }
 
+    public void setStreamThroughputMiB(int value)
+    {
+        ssProxy.setStreamThroughputMebibytesPerSec(value);
+    }
+
     public void setInterDCStreamThroughput(int value)
     {
         ssProxy.setInterDCStreamThroughputMbitPerSec(value);
+    }
+
+    public void setInterDCStreamThroughputMiB(int value)
+    {
+        ssProxy.setInterDCStreamThroughputMebibytesPerSec(value);
     }
 
     public void setEntireSSTableStreamThroughput(int value)

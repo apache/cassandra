@@ -139,6 +139,7 @@ or not.
 |`WHERE` |yes
 |`WITH` |yes
 |`WRITETIME` |no
+|`MAXWRITETIME` |no
 |===
 
 == Appendix B: CQL Reserved Types

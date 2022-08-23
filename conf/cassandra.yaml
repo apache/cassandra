@@ -64,7 +64,7 @@ hinted_handoff_enabled: true
 # Min unit: ms
 max_hint_window: 3h
 
-# Maximum throttle in KBs per second, per delivery thread.  This will be
+# Maximum throttle in KiBs per second, per delivery thread.  This will be
 # reduced proportionally to the number of nodes in the cluster.  (If there
 # are two nodes in the cluster, each delivery thread will use the maximum
 # rate; if there are three, each will throttle to half of the maximum,
@@ -86,7 +86,7 @@ max_hints_delivery_threads: 2
 # Min unit: ms
 hints_flush_period: 10000ms
 
-# Maximum size for a single hints file, in megabytes.
+# Maximum size for a single hints file, in mebibytes.
 # Min unit: MiB
 max_hints_file_size: 128MiB
 
@@ -107,6 +107,16 @@ auto_hints_cleanup_enabled: false
 #     parameters:
 #         -
 
+# Directory where Cassandra should store results of a One-Shot troubleshooting heapdump for uncaught exceptions.
+# Note: this value can be overridden by the -XX:HeapDumpPath JVM env param with a relative local path for testing if
+# so desired.
+# If not set, the default directory is $CASSANDRA_HOME/heapdump
+# heap_dump_path: /var/lib/cassandra/heapdump
+
+# Enable / disable automatic dump of heap on first uncaught exception
+# If not set, the default value is false
+# dump_heap_on_uncaught_exception: true
+
 # Enable / disable persistent hint windows.
 #
 # If set to false, a hint will be stored only in case a respective node
@@ -121,7 +131,7 @@ auto_hints_cleanup_enabled: false
 #
 # hint_window_persistent_enabled: true
 
-# Maximum throttle in KBs per second, total. This will be
+# Maximum throttle in KiBs per second, total. This will be
 # reduced proportionally to the number of nodes in the cluster.
 # Min unit: KiB
 batchlog_replay_throttle: 1024KiB
@@ -298,6 +308,18 @@ partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # containing a CDC-enabled table if at space limit in cdc_raw_directory).
 cdc_enabled: false
 
+# Specify whether writes to the CDC-enabled tables should be blocked when CDC data on disk has reached to the limit.
+# When setting to false, the writes will not be blocked and the oldest CDC data on disk will be deleted to
+# ensure the size constraint. The default is true.
+# cdc_block_writes: true
+
+# Specify whether CDC mutations are replayed through the write path on streaming, e.g. repair.
+# When enabled, CDC data streamed to the destination node will be written into commit log first. When setting to false,
+# the streamed CDC data is written into SSTables just the same as normal streaming. The default is true.
+# If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
+# (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
+# cdc_on_repair_enabled: true
+
 # CommitLogSegments are moved to this directory on flush if cdc_enabled: true and the
 # segment contains mutations for a CDC-enabled table. This should be placed on a
 # separate spindle than the data directories. If not set, the default directory is
@@ -362,7 +384,7 @@ commit_failure_policy: stop
 #
 # Default value ("auto") is 1/256th of the heap or 10MiB, whichever is greater
 # Min unit: MiB
-# prepared_statements_cache_size:
+prepared_statements_cache_size:
 
 # Maximum size of the key cache in memory.
 #
@@ -377,7 +399,7 @@ commit_failure_policy: stop
 #
 # Default value is empty to make it "auto" (min(5% of Heap (in MiB), 100MiB)). Set to 0 to disable key cache.
 # Min unit: MiB
-# key_cache_size:
+key_cache_size:
 
 # Duration in seconds after which Cassandra should
 # save the key cache. Caches are saved to saved_caches_directory as
@@ -445,7 +467,7 @@ row_cache_save_period: 0s
 # Default value is empty to make it "auto" (min(2.5% of Heap (in MiB), 50MiB)). Set to 0 to disable counter cache.
 # NOTE: if you perform counter deletes and rely on low gcgs, you should disable the counter cache.
 # Min unit: MiB
-# counter_cache_size:
+counter_cache_size:
 
 # Duration in seconds after which Cassandra should
 # save the counter cache (keys only). Caches are saved to saved_caches_directory as
@@ -647,7 +669,7 @@ memtable_allocation_type: heap_buffers
 # is 1/16th of the available heap. The main tradeoff is that smaller trees
 # have less resolution, which can lead to over-streaming data. If you see heap
 # pressure during repairs, consider lowering this, but you cannot go below
-# one megabyte. If you see lots of over-streaming, consider raising
+# one mebibyte. If you see lots of over-streaming, consider raising
 # this or using subrange repair.
 #
 # For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
@@ -719,11 +741,11 @@ memtable_allocation_type: heap_buffers
 # is a best-effort process. In extreme conditions Cassandra may need to use
 # more than this amount of memory.
 # Min unit: KiB
-# index_summary_capacity:
+index_summary_capacity:
 
 # How frequently index summaries should be resampled.  This is done
 # periodically to redistribute memory from the fixed-size pool to sstables
-# proportional their recent read rates.  Setting to -1 will disable this
+# proportional their recent read rates.  Setting to null value will disable this
 # process, leaving existing index summaries at their current sampling level.
 # Min unit: m
 index_summary_resize_interval: 60m
@@ -992,6 +1014,8 @@ compaction_throughput: 64MiB/s
 # are completely written, and used in place of the prior sstables for
 # any range that has been written. This helps to smoothly transfer reads 
 # between the sstables, reducing page cache churn and keeping hot rows hot
+# Set sstable_preemptive_open_interval to null for disabled which is equivalent to
+# sstable_preemptive_open_interval_in_mb being negative
 # Min unit: MiB
 sstable_preemptive_open_interval: 50MiB
 
@@ -1000,7 +1024,7 @@ sstable_preemptive_open_interval: 50MiB
 # set to true, each newly created sstable will have a UUID based generation identifier and such files are
 # not readable by previous Cassandra versions. At some point, this option will become true by default
 # and eventually get removed from the configuration.
-enable_uuid_sstable_identifiers: false
+uuid_sstable_identifiers_enabled: false
 
 # When enabled, permits Cassandra to zero-copy stream entire eligible
 # SSTables between nodes, including every component.
@@ -1316,6 +1340,12 @@ server_encryption_options:
   # Set to a valid keystore if internode_encryption is dc, rack or all
   keystore: conf/.keystore
   keystore_password: cassandra
+  # During internode mTLS authentication, inbound connections (acting as servers) use keystore, keystore_password
+  # containing server certificate to create SSLContext and
+  # outbound connections (acting as clients) use outbound_keystore & outbound_keystore_password with client certificates
+  # to create SSLContext. By default, outbound_keystore is the same as keystore indicating mTLS is not enabled.
+#  outbound_keystore: conf/.keystore
+#  outbound_keystore_password: cassandra
   # Verify peer server certificates
   require_client_auth: false
   # Set to a valid trustore if require_client_auth is true
@@ -1665,58 +1695,96 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # keyspaces_warn_threshold: -1
 # keyspaces_fail_threshold: -1
+#
 # Guardrail to warn or fail when creating more user tables than threshold.
 # The two thresholds default to -1 to disable.
 # tables_warn_threshold: -1
 # tables_fail_threshold: -1
+#
 # Guardrail to enable or disable the ability to create uncompressed tables
 # uncompressed_tables_enabled: true
+#
 # Guardrail to warn or fail when creating/altering a table with more columns per table than threshold.
 # The two thresholds default to -1 to disable.
 # columns_per_table_warn_threshold: -1
 # columns_per_table_fail_threshold: -1
+#
 # Guardrail to warn or fail when creating more secondary indexes per table than threshold.
 # The two thresholds default to -1 to disable.
 # secondary_indexes_per_table_warn_threshold: -1
 # secondary_indexes_per_table_fail_threshold: -1
+#
 # Guardrail to enable or disable the creation of secondary indexes
 # secondary_indexes_enabled: true
+#
 # Guardrail to warn or fail when creating more materialized views per table than threshold.
 # The two thresholds default to -1 to disable.
 # materialized_views_per_table_warn_threshold: -1
 # materialized_views_per_table_fail_threshold: -1
+#
 # Guardrail to warn about, ignore or reject properties when creating tables. By default all properties are allowed.
 # table_properties_warned: []
 # table_properties_ignored: []
 # table_properties_disallowed: []
+#
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 # user_timestamps_enabled: true
+#
 # Guardrail to allow/disallow GROUP BY functionality.
 # group_by_enabled: true
+#
 # Guardrail to allow/disallow TRUNCATE and DROP TABLE statements
 # drop_truncate_table_enabled: true
+#
+# Guardrail to allow/disallow DROP KEYSPACE statements
+# drop_keyspace_enabled: true
+#
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1
 # page_size_fail_threshold: -1
+#
 # Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
 # removing list elements by either index or value. Defaults to true.
 # read_before_write_list_operations_enabled: true
+#
 # Guardrail to warn or fail when querying with an IN restriction selecting more partition keys than threshold.
 # The two thresholds default to -1 to disable.
 # partition_keys_in_select_warn_threshold: -1
 # partition_keys_in_select_fail_threshold: -1
+#
 # Guardrail to warn or fail when an IN query creates a cartesian product with a size exceeding threshold,
 # eg. "a in (1,2,...10) and b in (1,2...10)" results in cartesian product of 100.
 # The two thresholds default to -1 to disable.
 # in_select_cartesian_product_warn_threshold: -1
 # in_select_cartesian_product_fail_threshold: -1
+#
 # Guardrail to warn about or reject read consistency levels. By default, all consistency levels are allowed.
 # read_consistency_levels_warned: []
 # read_consistency_levels_disallowed: []
+#
 # Guardrail to warn about or reject write consistency levels. By default, all consistency levels are allowed.
 # write_consistency_levels_warned: []
 # write_consistency_levels_disallowed: []
+#
+# Guardrail to warn or fail when writing column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# Deleting individual elements of non-frozen sets and maps involves creating tombstones that contain the value of the
+# deleted element, independently on whether the element existed or not. That tombstone value is also guarded by this
+# guardrail, to prevent the insertion of tombstones over the threshold. The downside is that enabling or raising this
+# threshold can prevent users from deleting set/map elements that were written when the guardrail was disabled or with a
+# lower value. Deleting the entire column, row or partition is always allowed, since the tombstones created for those
+# operations don't contain the CQL column values.
+# This guardrail is different to max_value_size. max_value_size is checked when deserializing any value to detect
+# sstable corruption, whereas this guardrail is checked on the CQL layer at write time to reject regular user queries
+# inserting too large columns.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_value_size_warn_threshold:
+# column_value_size_fail_threshold:
+#
 # Guardrail to warn or fail when encountering larger size of collection data than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
@@ -1727,6 +1795,7 @@ drop_compact_storage_enabled: false
 # collection_size_warn_threshold:
 # Min unit: B
 # collection_size_fail_threshold:
+#
 # Guardrail to warn or fail when encountering more elements in collection than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
@@ -1735,12 +1804,21 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # items_per_collection_warn_threshold: -1
 # items_per_collection_fail_threshold: -1
+#
 # Guardrail to allow/disallow querying with ALLOW FILTERING. Defaults to true.
 # allow_filtering_enabled: true
+#
+# Guardrail to allow/disallow setting SimpleStrategy via keyspace creation or alteration. Defaults to true.
+# simplestrategy_enabled: true
+#
 # Guardrail to warn or fail when creating a user-defined-type with more fields in than threshold.
 # Default -1 to disable.
 # fields_per_udt_warn_threshold: -1
 # fields_per_udt_fail_threshold: -1
+#
+# Guardrail to indicate whether or not users are allowed to use ALTER TABLE commands to make column changes to tables
+# alter_table_enabled: true
+#
 # Guardrail to warn or fail when local data disk usage percentage exceeds threshold. Valid values are in [1, 100].
 # This is only used for the disks storing data directories, so it won't count any separate disks used for storing
 # the commitlog, hints nor saved caches. The disk usage is the ratio between the amount of space used by the data
@@ -1752,7 +1830,8 @@ drop_compact_storage_enabled: false
 # The two thresholds default to -1 to disable.
 # data_disk_usage_percentage_warn_threshold: -1
 # data_disk_usage_percentage_fail_threshold: -1
-# Allows defining the max disk size of the data directories when calculating thresholds for
+#
+# Guardrail that allows users to define the max disk size of the data directories when calculating thresholds for
 # disk_usage_percentage_warn_threshold and disk_usage_percentage_fail_threshold, so if this is greater than zero they
 # become percentages of a fixed size on disk instead of percentages of the physically available disk size. This should
 # be useful when we have a large disk and we only want to use a part of it for Cassandra's data directories.
@@ -1760,11 +1839,17 @@ drop_compact_storage_enabled: false
 # Defaults to null to disable and use the physically available disk size of data directories during calculations.
 # Min unit: B
 # data_disk_usage_max_disk_size:
+#
 # Guardrail to warn or fail when the minimum replication factor is lesser than threshold.
 # This would also apply to system keyspaces.
 # Suggested value for use in production: 2 or higher
 # minimum_replication_factor_warn_threshold: -1
 # minimum_replication_factor_fail_threshold: -1
+#
+# Guardrail to warn or fail when the maximum replication factor is greater than threshold.
+# This would also apply to system keyspaces.
+# maximum_replication_factor_warn_threshold: -1
+# maximum_replication_factor_fail_threshold: -1
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

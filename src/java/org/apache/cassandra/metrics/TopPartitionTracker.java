@@ -48,7 +48,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.Clock;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -86,7 +85,7 @@ public class TopPartitionTracker implements Closeable
         this.metadata = metadata;
         topSizes.set(new TopHolder(SystemKeyspace.getTopPartitions(metadata, SIZES),
                                    DatabaseDescriptor.getMaxTopSizePartitionCount(),
-                                   DatabaseDescriptor.getMinTrackedPartitionSize().toBytes()));
+                                   DatabaseDescriptor.getMinTrackedPartitionSizeInBytes().toBytes()));
         topTombstones.set(new TopHolder(SystemKeyspace.getTopPartitions(metadata, TOMBSTONES),
                                         DatabaseDescriptor.getMaxTopTombstonePartitionCount(),
                                         DatabaseDescriptor.getMinTrackedPartitionTombstoneCount()));
@@ -176,7 +175,7 @@ public class TopPartitionTracker implements Closeable
                                             DatabaseDescriptor.getMinTrackedPartitionTombstoneCount(),
                                             ranges);
             this.sizes = new TopHolder(DatabaseDescriptor.getMaxTopSizePartitionCount(),
-                                       DatabaseDescriptor.getMinTrackedPartitionSize().toBytes(),
+                                       DatabaseDescriptor.getMinTrackedPartitionSizeInBytes().toBytes(),
                                        ranges);
         }
 

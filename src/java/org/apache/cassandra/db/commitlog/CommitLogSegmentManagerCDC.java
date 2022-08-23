@@ -21,7 +21,6 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -172,7 +171,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         CommitLogSegment segment = allocatingFrom();
         CommitLogSegment.Allocation alloc;
 
-        ensureSegmentPermittedIfNotBlockWrites(segment);
+        permitSegmentMaybe(segment);
         throwIfForbidden(mutation, segment);
         while ( null == (alloc = segment.allocate(mutation, size)) )
         {
@@ -180,7 +179,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             advanceAllocatingFrom(segment);
             segment = allocatingFrom();
 
-            ensureSegmentPermittedIfNotBlockWrites(segment);
+            permitSegmentMaybe(segment);
             throwIfForbidden(mutation, segment);
         }
 
@@ -190,13 +189,23 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         return alloc;
     }
 
-    // Non-blocking mode has just recently been enabled for CDC.
-    // The segment is still marked as FORBIDDEN. It should be set to PERMITTED.
-    private void ensureSegmentPermittedIfNotBlockWrites(CommitLogSegment segment)
+    // Permit a forbidden segment under the following conditions.
+    // - Non-blocking mode has just recently been enabled for CDC.
+    // - The CDC total space has droppped below the limit (e.g. CDC consumer cleans up).
+    private void permitSegmentMaybe(CommitLogSegment segment)
     {
-        if (!DatabaseDescriptor.getCDCBlockWrites() && segment.getCDCState() == CDCState.FORBIDDEN)
+        if (segment.getCDCState() != CDCState.FORBIDDEN)
+            return;
+
+        if (!DatabaseDescriptor.getCDCBlockWrites()
+            || cdcSizeTracker.sizeInProgress.get() + DatabaseDescriptor.getCommitLogSegmentSize() < DatabaseDescriptor.getCDCTotalSpace())
         {
-            segment.setCDCState(CDCState.PERMITTED);
+            CDCState oldState = segment.setCDCState(CDCState.PERMITTED);
+            if (oldState == CDCState.FORBIDDEN)
+            {
+                FileUtils.createHardLink(segment.logFile, segment.getCDCFile());
+                cdcSizeTracker.addSize(DatabaseDescriptor.getCommitLogSegmentSize());
+            }
         }
     }
 
@@ -205,8 +214,10 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         if (mutation.trackedByCDC() && segment.getCDCState() == CDCState.FORBIDDEN)
         {
             cdcSizeTracker.submitOverflowSizeRecalculation();
-            String logMsg = String.format("Rejecting mutation to keyspace %s. Free up space in %s by processing CDC logs.",
-                mutation.getKeyspaceName(), DatabaseDescriptor.getCDCLogLocation());
+            String logMsg = String.format("Rejecting mutation to keyspace %s. Free up space in %s by processing CDC logs. " +
+                                          "Total CDC bytes on disk is %s.",
+                                          mutation.getKeyspaceName(), DatabaseDescriptor.getCDCLogLocation(),
+                                          cdcSizeTracker.sizeInProgress.get());
             NoSpamLogger.log(logger,
                              NoSpamLogger.Level.WARN,
                              10,
@@ -219,15 +230,20 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     /**
      * On segment creation, flag whether the segment should accept CDC mutations or not based on the total currently
      * allocated unflushed CDC segments and the contents of cdc_raw
+     *
+     * Synchronized on this
      */
+    @Override
     public CommitLogSegment createSegment()
     {
         CommitLogSegment segment = CommitLogSegment.createSegment(commitLog, this);
-
-        // Hard link file in cdc folder for realtime tracking
-        FileUtils.createHardLink(segment.logFile, segment.getCDCFile());
-
         cdcSizeTracker.processNewSegment(segment);
+        // After processing, the state of the segment can either be PERMITTED or FORBIDDEN
+        if (segment.getCDCState() == CDCState.PERMITTED)
+        {
+            // Hard link file in cdc folder for realtime tracking
+            FileUtils.createHardLink(segment.logFile, segment.getCDCFile());
+        }
         return segment;
     }
 
@@ -309,7 +325,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         void processNewSegment(CommitLogSegment segment)
         {
             int segmentSize = defaultSegmentSize();
-            long allowance = allowableCDCBytes();
+            long allowance = DatabaseDescriptor.getCDCTotalSpace();
             boolean blocking = DatabaseDescriptor.getCDCBlockWrites();
 
             // See synchronization in CommitLogSegment.setCDCState
@@ -365,30 +381,19 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             submitOverflowSizeRecalculation();
         }
 
-        private long allowableCDCBytes()
-        {
-            return (long)DatabaseDescriptor.getCDCSpaceInMiB() * 1024 * 1024;
-        }
-
         public void submitOverflowSizeRecalculation()
         {
             try
             {
-                cdcSizeCalculationExecutor.submit(this::recalculateOverflowSize);
+                cdcSizeCalculationExecutor.submit(() -> {
+                    rateLimiter.acquire();
+                    calculateSize();
+                });
             }
             catch (RejectedExecutionException e)
             {
                 // Do nothing. Means we have one in flight so this req. should be satisfied when it completes.
             }
-        }
-
-        private void recalculateOverflowSize()
-        {
-            rateLimiter.acquire();
-            calculateSize();
-            CommitLogSegment allocatingFrom = segmentManager.allocatingFrom();
-            if (allocatingFrom.getCDCState() == CDCState.FORBIDDEN)
-                processNewSegment(allocatingFrom);
         }
 
         private int defaultSegmentSize()
@@ -438,7 +443,9 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         cdcSizeTracker.submitOverflowSizeRecalculation();
         // Give the update time to run
         Uninterruptibles.sleepUninterruptibly(sleepTime, TimeUnit.MILLISECONDS);
-
+        // then update the state of the segment it is allocating from. In produciton, the state is updated during "allocate"
+        if (allocatingFrom().getCDCState() == CDCState.FORBIDDEN)
+            cdcSizeTracker.processNewSegment(allocatingFrom());
         return cdcSizeTracker.getAllocatedSize();
     }
 }

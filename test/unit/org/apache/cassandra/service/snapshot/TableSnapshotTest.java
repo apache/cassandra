@@ -74,7 +74,9 @@ public class TableSnapshotTest
         "some",
         null,
         null,
-        folders);
+        folders,
+        false
+        );
 
         assertThat(snapshot.exists()).isTrue();
 
@@ -95,7 +97,9 @@ public class TableSnapshotTest
         "some",
         null,
         null,
-        folders);
+        folders,
+        false
+        );
 
         assertThat(snapshot.isExpiring()).isFalse();
         assertThat(snapshot.isExpired(now())).isFalse();
@@ -107,7 +111,9 @@ public class TableSnapshotTest
         "some",
         now(),
         null,
-        folders);
+        folders,
+        false
+        );
 
         assertThat(snapshot.isExpiring()).isFalse();
         assertThat(snapshot.isExpired(now())).isFalse();
@@ -119,7 +125,9 @@ public class TableSnapshotTest
         "some",
         now(),
         now().plusSeconds(1000),
-        folders);
+        folders,
+        false
+        );
 
         assertThat(snapshot.isExpiring()).isTrue();
         assertThat(snapshot.isExpired(now())).isFalse();
@@ -131,7 +139,8 @@ public class TableSnapshotTest
         "some",
         now(),
         now().minusSeconds(1000),
-        folders);
+        folders,
+        false);
 
         assertThat(snapshot.isExpiring()).isTrue();
         assertThat(snapshot.isExpired(now())).isTrue();
@@ -159,7 +168,8 @@ public class TableSnapshotTest
         "some",
         null,
         null,
-        folders);
+        folders,
+        false);
 
         Long res = 0L;
 
@@ -185,7 +195,9 @@ public class TableSnapshotTest
         "some",
         null,
         null,
-        folders);
+        folders,
+        false
+        );
 
         Long res = 0L;
 
@@ -214,7 +226,10 @@ public class TableSnapshotTest
         "some1",
         createdAt,
         null,
-        folders);
+        folders,
+        false
+        );
+
         assertThat(withCreatedAt.getCreatedAt()).isEqualTo(createdAt);
 
         // When createdAt is  null, it should return the snapshot folder minimum update time
@@ -225,7 +240,10 @@ public class TableSnapshotTest
         "some1",
         null,
         null,
-        folders);
+        folders,
+        false
+        );
+
         assertThat(withoutCreatedAt.getCreatedAt()).isEqualTo(Instant.ofEpochMilli(folders.stream().mapToLong(f -> f.lastModified()).min().getAsLong()));
     }
 

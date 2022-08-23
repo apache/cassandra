@@ -126,7 +126,10 @@ public class Keyspace
 
     public static void setInitialized()
     {
-        initialized = true;
+        synchronized (Schema.instance)
+        {
+            initialized = true;
+        }
     }
 
     /**
@@ -137,7 +140,10 @@ public class Keyspace
     @VisibleForTesting
     public static void unsetInitialized()
     {
-        initialized = false;
+        synchronized (Schema.instance)
+        {
+            initialized = false;
+        }
     }
 
     public static Keyspace open(String keyspaceName)

@@ -51,6 +51,44 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+
+4.2
+===
+
+New features
+------------
+    - Added a new configuration cdc_on_repair_enabled to toggle whether CDC mutations are replayed through the
+      write path on streaming, e.g. repair. When enabled, CDC data streamed to the destination node will be written into
+      commit log first. When disabled, the streamed CDC data is written into SSTables just the same as normal streaming.
+      If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
+      (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
+      The default is true/enabled. The configuration can be altered via JMX.
+    - Added support for reading the write times and TTLs of the elements of collections and UDTs, regardless of being
+      frozen or not. The CQL functions writetime, maxwritetime and ttl can now be applied to entire collections/UDTs,
+      single collection/UDT elements and slices of collection/UDT elements.
+    - Added a new CQL function, maxwritetime. It shows the largest unix timestamp that the data was written, similar to
+      its sibling CQL function, writetime.
+    - New Guardrails added:
+      - Whether ALTER TABLE commands are allowed to mutate columns
+      - Whether SimpleStrategy is allowed on keyspace creation or alteration
+      - Maximum replication factor
+      - Whether DROP KEYSPACE commands are allowed.
+      - Column value size
+    - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
+    - Added a new flag to `nodetool profileload` and JMX endpoint to set up recurring profile load generation on specified
+      intervals (see CASSANDRA-17821)
+
+Upgrading
+---------
+    - Ephemeral marker files for snapshots done by repairs are not created anymore,
+      there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there 
+      are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots 
+      will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
+
+Deprecation
+-----------
+
+
 4.1
 ===
 
@@ -165,6 +203,15 @@ New features
 
 Upgrading
 ---------
+    - `cache_load_timeout_seconds` being negative for disabled is equivalent to `cache_load_timeout` = 0 for disabled.
+    - `sstable_preemptive_open_interval_in_mb` being negative for disabled is equivalent to `sstable_preemptive_open_interval`
+      being null again. In the JMX MBean `org.apache.cassandra.db:type=StorageService`, the setter method
+      `setSSTablePreemptiveOpenIntervalInMB`still takes `intervalInMB` negative numbers for disabled.
+    - `enable_uuid_sstable_identifiers` parameter from 4.1 alpha1 was renamed to `uuid_sstable_identifiers_enabled`.
+    - `index_summary_resize_interval_in_minutes = -1` is equivalent to index_summary_resize_interval being set to `null` or
+      disabled. In the JMX MBean `org.apache.cassandra.db:type=IndexSummaryManager`, the setter method `setResizeIntervalInMinutes` still takes
+      `resizeIntervalInMinutes = -1` for disabled.
+    - min_tracked_partition_size_bytes parameter from 4.1 alpha1 was renamed to min_tracked_partition_size.
     - Parameters of type data storage, duration and data rate cannot be set to Long.MAX_VALUE (former parameters of long type)
       and Integer.MAX_VALUE (former parameters of int type). Those numbers are used during conversion between units to prevent
       an overflow from happening. (CASSANDRA-17571)
@@ -177,8 +224,8 @@ Upgrading
       `setRepairSessionSpaceInMebibytes(int sizeInMebibytes)` and `getRepairSessionSpaceInMebibytes`. They replace the now
       deprecated methods `setRepairSessionSpaceInMegabytes(int sizeInMegabytes)` and `getRepairSessionSpaceInMegabytes`, which
       will be removed in a future major release.
-    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|MiB/s|KiB/s|MiB/s),
-      memory (KiB|MiB|GiB|B) and duration(d|h|s|ms|us|µs|ns|m)
+    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|KiB/s|MiB/s),
+      memory (B|KiB|MiB|GiB) and duration(d|h|m|s|ms|us|µs|ns)
       parameters. List of changed parameters and details to consider during configuration setup can be
       found at https://cassandra.apache.org/doc/latest/cassandra/new/configuration.html. (CASSANDRA-15234)
       Backward compatibility with the old cassandra.yaml file will be in place until at least the next major version.
@@ -225,7 +272,30 @@ Upgrading
 
 Deprecation
 -----------
-    - `withBufferSizeInMB(int size)` in CQLSSTableWriter.Builder class is deprecated in favor of withBufferSizeInMiB(int size)
+    - In the command line options for `org.apache.cassandra.tools.LoaderOptions`: deprecate the `-t`, `--throttle`,
+      `-idct`, and `--inter-dc-throttle` options for setting the throttle and inter-datacenter throttle options in
+      Mbps. Instead, users are instructed to use the `--throttle-mib`, and `--inter-dc-throttle-mib` for setting the
+      throttling options in MiB/s. Additionally, in the loader options builder
+      `org.apache.cassandra.tools.LoaderOptions$Builder`: deprecate the `throttle(int)`, `interDcThrottle(int)`,
+      `entireSSTableThrottle(int)`, and the `entireSSTableInterDcThrottle(int)` methods.
+    - In the JMX MBean `org.apache.cassandra.db:type=StorageService`: deprecate getter method `getStreamThroughputMbitPerSec`
+      in favor of getter method `getStreamThroughputMbitPerSecAsDouble`; deprecate getter method `getStreamThroughputMbPerSec`
+      in favor of getter methods `getStreamThroughputMebibytesPerSec` and `getStreamThroughputMebibytesPerSecAsDouble`;
+      deprecate getter method `getInterDCStreamThroughputMbitPerSec` in favor of getter method `getInterDCStreamThroughputMbitPerSecAsDouble`;
+      deprecate getter method `getInterDCStreamThroughputMbPerSec` in favor of getter methods `getInterDCStreamThroughputMebibytesPerSecAsDouble`;
+      deprecate getter method `getCompactionThroughputMbPerSec` in favor of getter methods `getCompactionThroughtputMibPerSecAsDouble`
+      and `getCompactionThroughtputBytesPerSec`; deprecate setter methods `setStreamThroughputMbPerSec` and `setStreamThroughputMbitPerSec`
+      in favor of `setStreamThroughputMebibytesPerSec`; deprecate setter methods `setInterDCStreamThroughputMbitPerSec` and
+      `setInterDCStreamThroughputMbPerSec` in favor of `setInterDCStreamThroughputMebibytesPerSec`. The deprecated JMX methods
+      may return a rounded value so if precision is important, you want to use the new getters. While those deprecated JMX getters
+      will return a rounded number, the nodetool commands `getstreamthroughput` and `getinterdcstreamthroughput`
+      will throw Runtime Exceptions advising to use the new -d flag in case an integer cannot be returned. See CASSANDRA-17725 for further details.
+    - Deprecate public method `setRate(final double throughputMbPerSec)` in `Compaction Manager` in favor of
+      `setRateInBytes(final double throughputBytesPerSec)`
+    - `withBufferSizeInMB(int size)` in `StressCQLSSTableWriter.Builder` class is deprecated in favor of `withBufferSizeInMiB(int size)`
+      No change of functionality in the new one, only name change for clarity in regards to units and to follow naming
+      standartization.
+    - `withBufferSizeInMB(int size)` in `CQLSSTableWriter.Builder` class is deprecated in favor of `withBufferSizeInMiB(int size)`
       No change of functionality in the new one, only name change for clarity in regards to units and to follow naming
       standartization.
     - The properties `keyspace_count_warn_threshold` and `table_count_warn_threshold` in cassandra.yaml have been
@@ -332,6 +402,10 @@ New features
 
 Upgrading
 ---------
+    - If you were on 4.0.1 - 4.0.5 and if you haven't set the compaction_thoroughput_mb_per_sec in your 4.0 cassandra.yaml
+      file but you relied on the internal default value,then compaction_throughput_mb_per_sec was equal to an old default
+      value of 16MiB/s in Cassandra 4.0. After CASSANDRA-17790 this is changed to 64MiB/s to match the default value in
+      cassandra.yaml. If you prefer the old one of 16MiB/s, you need to set it explicitly in your cassandra.yaml file.
     - otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
       otc_backlog_expiration_interval_ms are deprecated and will be removed at earliest with next major release.
       otc_coalescing_strategy is disabled since 3.11.

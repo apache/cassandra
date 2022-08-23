@@ -19,7 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.util.List;
-import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -36,6 +36,7 @@ import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -106,8 +107,8 @@ public class CompactionStatsTest extends CQLTester
         long bytesTotal = 123456;
         TimeUUID compactionId = nextTimeUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
-                .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
-                .collect(Collectors.toList());
+                                                .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
+                                                .collect(Collectors.toList());
         CompactionInfo.Holder compactionHolder = new CompactionInfo.Holder()
         {
             public CompactionInfo getCompactionInfo()
@@ -122,21 +123,15 @@ public class CompactionStatsTest extends CQLTester
         };
 
         CompactionManager.instance.active.beginCompaction(compactionHolder);
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("compactionstats");
-        tool.assertOnCleanExit();
-        String stdout = tool.getStdout();
-        assertThat(stdout).contains("pending tasks: 1");
+        String stdout = waitForNumberOfPendingTasks(1, "compactionstats");
         Assertions.assertThat(stdout).containsPattern("id\\s+compaction type\\s+keyspace\\s+table\\s+completed\\s+total\\s+unit\\s+progress");
         String expectedStatsPattern = String.format("%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%.2f%%",
-            compactionId, OperationType.COMPACTION, CQLTester.KEYSPACE, currentTable(), bytesCompacted, bytesTotal,
-            CompactionInfo.Unit.BYTES, (double) bytesCompacted / bytesTotal * 100);
+                                                    compactionId, OperationType.COMPACTION, CQLTester.KEYSPACE, currentTable(), bytesCompacted, bytesTotal,
+                                                    CompactionInfo.Unit.BYTES, (double) bytesCompacted / bytesTotal * 100);
         Assertions.assertThat(stdout).containsPattern(expectedStatsPattern);
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
-        tool = ToolRunner.invokeNodetool("compactionstats");
-        tool.assertOnCleanExit();
-        stdout = tool.getStdout();
-        assertThat(stdout).contains("pending tasks: 0");
+        waitForNumberOfPendingTasks(0, "compactionstats");
     }
 
     @Test
@@ -149,13 +144,27 @@ public class CompactionStatsTest extends CQLTester
         long bytesTotal = 123456;
         TimeUUID compactionId = nextTimeUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
-            .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
-            .collect(Collectors.toList());
+                                                .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
+                                                .collect(Collectors.toList());
+        String targetDirectory = "/some/dir/" + cfs.metadata.keyspace + '/' + cfs.metadata.name + '-' + cfs.metadata.id.asUUID();
         CompactionInfo.Holder compactionHolder = new CompactionInfo.Holder()
         {
             public CompactionInfo getCompactionInfo()
             {
-                return new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, bytesCompacted, bytesTotal, compactionId, sstables);
+                return new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, bytesCompacted, bytesTotal, compactionId, sstables, targetDirectory);
+            }
+
+            public boolean isGlobal()
+            {
+                return false;
+            }
+        };
+
+        CompactionInfo.Holder nonCompactionHolder = new CompactionInfo.Holder()
+        {
+            public CompactionInfo getCompactionInfo()
+            {
+                return new CompactionInfo(cfs.metadata(), OperationType.CLEANUP, bytesCompacted, bytesTotal, compactionId, sstables);
             }
 
             public boolean isGlobal()
@@ -165,21 +174,23 @@ public class CompactionStatsTest extends CQLTester
         };
 
         CompactionManager.instance.active.beginCompaction(compactionHolder);
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("compactionstats", "-V");
-        tool.assertOnCleanExit();
-        String stdout = tool.getStdout();
-        assertThat(stdout).contains("pending tasks: 1");
-        Assertions.assertThat(stdout).containsPattern("keyspace\\s+table\\s+task id\\s+completion ratio\\s+kind\\s+progress\\s+sstables\\s+total\\s+unit");
-        String expectedStatsPattern = String.format("%s\\s+%s\\s+%s\\s+%.2f%%\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s",
-            CQLTester.KEYSPACE, currentTable(), compactionId, (double) bytesCompacted / bytesTotal * 100,
-            OperationType.COMPACTION, bytesCompacted, sstables.size(), bytesTotal, CompactionInfo.Unit.BYTES);
+        CompactionManager.instance.active.beginCompaction(nonCompactionHolder);
+        String stdout = waitForNumberOfPendingTasks(2, "compactionstats", "-V");
+        Assertions.assertThat(stdout).containsPattern("keyspace\\s+table\\s+task id\\s+completion ratio\\s+kind\\s+progress\\s+sstables\\s+total\\s+unit\\s+target directory");
+        String expectedStatsPattern = String.format("%s\\s+%s\\s+%s\\s+%.2f%%\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s",
+                                                    CQLTester.KEYSPACE, currentTable(), compactionId, (double) bytesCompacted / bytesTotal * 100,
+                                                    OperationType.COMPACTION, bytesCompacted, sstables.size(), bytesTotal, CompactionInfo.Unit.BYTES,
+                                                    targetDirectory);
         Assertions.assertThat(stdout).containsPattern(expectedStatsPattern);
 
+        String expectedStatsPatternForNonCompaction = String.format("%s\\s+%s\\s+%s\\s+%.2f%%\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s",
+                                                                    CQLTester.KEYSPACE, currentTable(), compactionId, (double) bytesCompacted / bytesTotal * 100,
+                                                                    OperationType.COMPACTION, bytesCompacted, sstables.size(), bytesTotal, CompactionInfo.Unit.BYTES);
+        Assertions.assertThat(stdout).containsPattern(expectedStatsPatternForNonCompaction);
+
         CompactionManager.instance.active.finishCompaction(compactionHolder);
-        tool = ToolRunner.invokeNodetool("compactionstats", "-V");
-        tool.assertOnCleanExit();
-        stdout = tool.getStdout();
-        assertThat(stdout).contains("pending tasks: 0");
+        CompactionManager.instance.active.finishCompaction(nonCompactionHolder);
+        waitForNumberOfPendingTasks(0, "compactionstats", "-V");
     }
 
     @Test
@@ -192,8 +203,8 @@ public class CompactionStatsTest extends CQLTester
         long bytesTotal = 123456;
         TimeUUID compactionId = nextTimeUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
-            .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
-            .collect(Collectors.toList());
+                                                .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
+                                                .collect(Collectors.toList());
         CompactionInfo.Holder compactionHolder = new CompactionInfo.Holder()
         {
             public CompactionInfo getCompactionInfo()
@@ -208,21 +219,15 @@ public class CompactionStatsTest extends CQLTester
         };
 
         CompactionManager.instance.active.beginCompaction(compactionHolder);
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("compactionstats", "--human-readable");
-        tool.assertOnCleanExit();
-        String stdout = tool.getStdout();
-        assertThat(stdout).contains("pending tasks: 1");
+        String stdout = waitForNumberOfPendingTasks(1, "compactionstats", "--human-readable");
         Assertions.assertThat(stdout).containsPattern("id\\s+compaction type\\s+keyspace\\s+table\\s+completed\\s+total\\s+unit\\s+progress");
         String expectedStatsPattern = String.format("%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%.2f%%",
-            compactionId, OperationType.COMPACTION, CQLTester.KEYSPACE, currentTable(), "123 bytes", "120.56 KiB",
-            CompactionInfo.Unit.BYTES, (double) bytesCompacted / bytesTotal * 100);
+                                                    compactionId, OperationType.COMPACTION, CQLTester.KEYSPACE, currentTable(), "123 bytes", "120.56 KiB",
+                                                    CompactionInfo.Unit.BYTES, (double) bytesCompacted / bytesTotal * 100);
         Assertions.assertThat(stdout).containsPattern(expectedStatsPattern);
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
-        tool = ToolRunner.invokeNodetool("compactionstats", "--human-readable");
-        tool.assertOnCleanExit();
-        stdout = tool.getStdout();
-        assertThat(stdout).contains("pending tasks: 0");
+        waitForNumberOfPendingTasks(0, "compactionstats", "--human-readable");
     }
 
     @Test
@@ -235,13 +240,27 @@ public class CompactionStatsTest extends CQLTester
         long bytesTotal = 123456;
         TimeUUID compactionId = nextTimeUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
-            .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
-            .collect(Collectors.toList());
+                                                .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
+                                                .collect(Collectors.toList());
+        String targetDirectory = "/some/dir/" + cfs.metadata.keyspace + '/' + cfs.metadata.name + '-' + cfs.metadata.id.asUUID();
         CompactionInfo.Holder compactionHolder = new CompactionInfo.Holder()
         {
             public CompactionInfo getCompactionInfo()
             {
-                return new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, bytesCompacted, bytesTotal, compactionId, sstables);
+                return new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, bytesCompacted, bytesTotal, compactionId, sstables, targetDirectory);
+            }
+
+            public boolean isGlobal()
+            {
+                return false;
+            }
+        };
+
+        CompactionInfo.Holder nonCompactionHolder = new CompactionInfo.Holder()
+        {
+            public CompactionInfo getCompactionInfo()
+            {
+                return new CompactionInfo(cfs.metadata(), OperationType.CLEANUP, bytesCompacted, bytesTotal, compactionId, sstables);
             }
 
             public boolean isGlobal()
@@ -251,20 +270,35 @@ public class CompactionStatsTest extends CQLTester
         };
 
         CompactionManager.instance.active.beginCompaction(compactionHolder);
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("compactionstats", "--vtable", "--human-readable");
-        tool.assertOnCleanExit();
-        String stdout = tool.getStdout();
-        assertThat(stdout).contains("pending tasks: 1");
-        Assertions.assertThat(stdout).containsPattern("keyspace\\s+table\\s+task id\\s+completion ratio\\s+kind\\s+progress\\s+sstables\\s+total\\s+unit");
-        String expectedStatsPattern = String.format("%s\\s+%s\\s+%s\\s+%.2f%%\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s",
-            CQLTester.KEYSPACE, currentTable(), compactionId, (double) bytesCompacted / bytesTotal * 100,
-            OperationType.COMPACTION, "123 bytes", sstables.size(), "120.56 KiB", CompactionInfo.Unit.BYTES);
+        CompactionManager.instance.active.beginCompaction(nonCompactionHolder);
+        String stdout = waitForNumberOfPendingTasks(2, "compactionstats", "--vtable", "--human-readable");
+        Assertions.assertThat(stdout).containsPattern("keyspace\\s+table\\s+task id\\s+completion ratio\\s+kind\\s+progress\\s+sstables\\s+total\\s+unit\\s+target directory");
+        String expectedStatsPattern = String.format("%s\\s+%s\\s+%s\\s+%.2f%%\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s",
+                                                    CQLTester.KEYSPACE, currentTable(), compactionId, (double) bytesCompacted / bytesTotal * 100,
+                                                    OperationType.COMPACTION, "123 bytes", sstables.size(), "120.56 KiB", CompactionInfo.Unit.BYTES,
+                                                    targetDirectory);
         Assertions.assertThat(stdout).containsPattern(expectedStatsPattern);
+        String expectedStatsPatternForNonCompaction = String.format("%s\\s+%s\\s+%s\\s+%.2f%%\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s",
+                                                                    CQLTester.KEYSPACE, currentTable(), compactionId, (double) bytesCompacted / bytesTotal * 100,
+                                                                    OperationType.CLEANUP, "123 bytes", sstables.size(), "120.56 KiB", CompactionInfo.Unit.BYTES);
+        Assertions.assertThat(stdout).containsPattern(expectedStatsPatternForNonCompaction);
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
-        tool = ToolRunner.invokeNodetool("compactionstats", "--vtable", "--human-readable");
-        tool.assertOnCleanExit();
-        stdout = tool.getStdout();
-        assertThat(stdout).contains("pending tasks: 0");
+        CompactionManager.instance.active.finishCompaction(nonCompactionHolder);
+        waitForNumberOfPendingTasks(0, "compactionstats", "--vtable", "--human-readable");
+    }
+
+    private String waitForNumberOfPendingTasks(int pendingTasksToWaitFor, String... args)
+    {
+        AtomicReference<String> stdout = new AtomicReference<>();
+        Awaitility.await().until(() -> {
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
+            tool.assertOnCleanExit();
+            String output = tool.getStdout();
+            stdout.set(output);
+            return output.contains("pending tasks: " + pendingTasksToWaitFor);
+        });
+
+        return stdout.get();
     }
 }

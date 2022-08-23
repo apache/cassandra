@@ -54,6 +54,9 @@ drop_compact_storage_enabled: true
 file_cache_enabled: true
 auto_hints_cleanup_enabled: true
 
+heap_dump_path: build/test
+dump_heap_on_uncaught_exception: true
+
 read_thresholds_enabled: true
 coordinator_read_size_warn_threshold: 1024KiB
 coordinator_read_size_fail_threshold: 4096KiB

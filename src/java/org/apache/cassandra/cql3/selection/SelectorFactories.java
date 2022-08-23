@@ -32,22 +32,27 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
- * A set of <code>Selector</code> factories.
+ * A set of {@code Selector} factories.
  */
 final class SelectorFactories implements Iterable<Selector.Factory>
 {
     /**
-     * The <code>Selector</code> factories.
+     * The {@code Selector} factories.
      */
     private final List<Selector.Factory> factories;
 
     /**
-     * <code>true</code> if one of the factory creates writetime selectors.
+     * {@code true} if one of the factories creates writetime selectors.
      */
     private boolean containsWritetimeFactory;
 
     /**
-     * <code>true</code> if one of the factory creates TTL selectors.
+     * {@code true} if one of the factories creates maxWritetime selectors.
+     */
+    private boolean containsMaxWritetimeFactory;
+
+    /**
+     * {@code true} if one of the factories creates TTL selectors.
      */
     private boolean containsTTLFactory;
 
@@ -96,6 +101,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
             Factory factory = selectable.newSelectorFactory(table, expectedType, defs, boundNames);
             containsWritetimeFactory |= factory.isWritetimeSelectorFactory();
             containsTTLFactory |= factory.isTTLSelectorFactory();
+            containsMaxWritetimeFactory |= factory.isMaxWritetimeSelectorFactory();
             if (factory.isAggregateSelectorFactory())
                 ++numberOfAggregateFactories;
             factories.add(factory);
@@ -163,6 +169,17 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     public boolean containsWritetimeSelectorFactory()
     {
         return containsWritetimeFactory;
+    }
+
+    /**
+     * Checks if this {@code SelectorFactories} contains at least one factory for maxWritetime selectors.
+     *
+     * @return {@link true} if this {@link SelectorFactories} contains at least one factory for maxWritetime
+     * selectors, {@link false} otherwise.
+     */
+    public boolean containsMaxWritetimeSelectorFactory()
+    {
+        return containsMaxWritetimeFactory;
     }
 
     /**

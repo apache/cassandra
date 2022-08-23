@@ -32,7 +32,8 @@ public class SnapshotDetailsTabularData
             "True size",
             "Size on disk",
             "Creation time",
-            "Expiration time",};
+            "Expiration time",
+            "Ephemeral"};
 
     private static final String[] ITEM_DESCS = new String[]{"snapshot_name",
             "keyspace_name",
@@ -40,7 +41,8 @@ public class SnapshotDetailsTabularData
             "TrueDiskSpaceUsed",
             "TotalDiskSpaceUsed",
             "created_at",
-            "expires_at",};
+            "expires_at",
+            "ephemeral"};
 
     private static final String TYPE_NAME = "SnapshotDetails";
 
@@ -56,7 +58,7 @@ public class SnapshotDetailsTabularData
     {
         try
         {
-            ITEM_TYPES = new OpenType[]{ SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING };
+            ITEM_TYPES = new OpenType[]{ SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING };
 
             COMPOSITE_TYPE = new CompositeType(TYPE_NAME, ROW_DESC, ITEM_NAMES, ITEM_DESCS, ITEM_TYPES);
 
@@ -77,8 +79,9 @@ public class SnapshotDetailsTabularData
             final String liveSize =  FileUtils.stringifyFileSize(details.computeTrueSizeBytes());
             String createdAt = safeToString(details.getCreatedAt());
             String expiresAt = safeToString(details.getExpiresAt());
+            String ephemeral = Boolean.toString(details.isEphemeral());
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
-                    new Object[]{ details.getTag(), details.getKeyspaceName(), details.getTableName(), liveSize, totalSize, createdAt, expiresAt }));
+                    new Object[]{ details.getTag(), details.getKeyspaceName(), details.getTableName(), liveSize, totalSize, createdAt, expiresAt, ephemeral }));
         }
         catch (OpenDataException e)
         {

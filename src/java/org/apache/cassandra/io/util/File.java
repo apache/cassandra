@@ -699,7 +699,8 @@ public class File implements Comparable<File>
 
     public java.io.File toJavaIOFile()
     {
-        return path == null ? new java.io.File("") : path.toFile();  // checkstyle: permit this instantiation
+        return path == null ? new java.io.File("") // checkstyle: permit this instantiation
+                            : path.toFile(); // checkstyle: permit this invocation
     }
 
     /**

@@ -650,8 +650,8 @@ public abstract class ColumnCondition
 
             Cell<?> cell = getCell(row, column);
             return cell == null
-                      ? null
-                      : userType.split(cell.buffer())[userType.fieldPosition(field)];
+                   ? null
+                   : userType.split(ByteBufferAccessor.instance, cell.buffer())[userType.fieldPosition(field)];
         }
 
         private boolean isSatisfiedBy(ByteBuffer rowValue)

@@ -21,6 +21,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -381,7 +382,7 @@ public class Scrubber implements Closeable
     @SuppressWarnings("resource")
     private UnfilteredRowIterator getIterator(DecoratedKey key)
     {
-        RowMergingSSTableIterator rowMergingIterator = new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key));
+        RowMergingSSTableIterator rowMergingIterator = new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key), outputHandler);
         return reinsertOverflowedTTLRows ? new FixNegativeLocalDeletionTimeIterator(rowMergingIterator,
                                                                                     outputHandler,
                                                                                     negativeLocalDeletionInfoMetrics) : rowMergingIterator;
@@ -512,7 +513,8 @@ public class Scrubber implements Closeable
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
                                           scrubCompactionId,
-                                          ImmutableSet.of(sstable));
+                                          ImmutableSet.of(sstable),
+                                          Paths.get(sstable.getFilename()).getParent().toString());
             }
             catch (Exception e)
             {
@@ -565,10 +567,12 @@ public class Scrubber implements Closeable
     private static class RowMergingSSTableIterator extends WrappingUnfilteredRowIterator
     {
         Unfiltered nextToOffer = null;
+        private final OutputHandler output;
 
-        RowMergingSSTableIterator(UnfilteredRowIterator source)
+        RowMergingSSTableIterator(UnfilteredRowIterator source, OutputHandler output)
         {
             super(source);
+            this.output = output;
         }
 
         @Override
@@ -584,6 +588,7 @@ public class Scrubber implements Closeable
 
             if (next.isRow())
             {
+                boolean logged = false;
                 while (wrapped.hasNext())
                 {
                     Unfiltered peek = wrapped.next();
@@ -595,6 +600,13 @@ public class Scrubber implements Closeable
 
                     // Duplicate row, merge it.
                     next = Rows.merge((Row) next, (Row) peek);
+
+                    if (!logged)
+                    {
+                        String partitionKey = metadata().partitionKeyType.getString(partitionKey().getKey());
+                        output.warn("Duplicate row detected in " + metadata().keyspace + '.' + metadata().name + ": " + partitionKey + " " + next.clustering().toString(metadata()));
+                        logged = true;
+                    }
                 }
             }
 

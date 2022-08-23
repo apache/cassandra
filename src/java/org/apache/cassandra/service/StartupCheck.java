@@ -31,7 +31,7 @@ import org.apache.cassandra.service.StartupChecks.StartupCheckType;
  * misconfiguration of cluster_name in cassandra.yaml.
  *
  * The StartupChecks class manages a collection of these tests, which it executes
- * right at the beginning of the server settup process.
+ * right at the beginning of the server setup process.
  */
 public interface StartupCheck
 {

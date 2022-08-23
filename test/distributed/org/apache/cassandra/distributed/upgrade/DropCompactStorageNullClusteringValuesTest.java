@@ -33,7 +33,7 @@ public class DropCompactStorageNullClusteringValuesTest extends UpgradeTestBase
     public void testNullClusteringValues() throws Throwable
     {
         new TestCase().nodes(1)
-                      .upgradesFrom(v30)
+                      .upgradesToCurrentFrom(v30)
                       .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL).set("enable_drop_compact_storage", true))
                       .setup(cluster -> {
                           String create = "CREATE TABLE %s.%s(k int, c1 int, c2 int, v int, PRIMARY KEY (k, c1, c2)) " +

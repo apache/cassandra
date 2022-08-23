@@ -42,11 +42,6 @@ public class MixedModeConsistencyTestBase extends UpgradeTestBase
 {
     protected static void testConsistency(Semver initial) throws Throwable
     {
-        testConsistency(initial, UpgradeTestBase.CURRENT);
-    }
-
-    protected static void testConsistency(Semver initial, Semver upgrade) throws Throwable
-    {
         List<Tester> testers = new ArrayList<>();
         testers.addAll(Tester.create(1, ALL));
         testers.addAll(Tester.create(2, ALL, QUORUM));
@@ -55,7 +50,7 @@ public class MixedModeConsistencyTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1)
-        .upgrades(initial, upgrade)
+        .upgradesToCurrentFrom(initial)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(30))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(30)))
         .setup(cluster -> {

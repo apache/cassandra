@@ -325,8 +325,14 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated
     public int relocateSSTables(String keyspace, String ... cfnames) throws IOException, ExecutionException, InterruptedException;
     public int relocateSSTables(int jobs, String keyspace, String ... cfnames) throws IOException, ExecutionException, InterruptedException;
+
     /**
-     * Forces major compaction of specified token range in a single keyspace
+     * Forces major compaction of specified token range in a single keyspace.
+     *
+     * @param keyspaceName the name of the keyspace to be compacted
+     * @param startToken the token at which the compaction range starts (inclusive)
+     * @param endToken the token at which compaction range ends (inclusive)
+     * @param tableNames the names of the tables to be compacted
      */
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
@@ -625,26 +631,71 @@ public interface StorageServiceMBean extends NotificationEmitter
     public long getTruncateRpcTimeout();
 
     public void setStreamThroughputMbitPerSec(int value);
+    /**
+     * @return stream_throughput_outbound in megabits
+     * @deprecated Use getStreamThroughputMbitPerSecAsDouble instead as this one will provide a rounded value
+     */
+    @Deprecated
     public int getStreamThroughputMbitPerSec();
+    public double getStreamThroughputMbitPerSecAsDouble();
 
     @Deprecated
     public void setStreamThroughputMbPerSec(int value);
+
+    /**
+     * @return stream_throughput_outbound in MiB
+     * @deprecated Use getStreamThroughputMebibytesPerSecAsDouble instead as this one will provide a rounded value
+     */
     @Deprecated
     public int getStreamThroughputMbPerSec();
+    public void setStreamThroughputMebibytesPerSec(int value);
+    /**
+     * Below method returns stream_throughput_outbound rounded, for precise number, please, use getStreamThroughputMebibytesPerSecAsDouble
+     * @return stream_throughput_outbound in MiB
+     */
+    public int getStreamThroughputMebibytesPerSec();
+    public double getStreamThroughputMebibytesPerSecAsDouble();
 
     public void setInterDCStreamThroughputMbitPerSec(int value);
+
+    /**
+     * @return inter_dc_stream_throughput_outbound in megabits
+     * @deprecated Use getInterDCStreamThroughputMbitPerSecAsDouble instead as this one will provide a rounded value
+     */
+    @Deprecated
     public int getInterDCStreamThroughputMbitPerSec();
+    public double getInterDCStreamThroughputMbitPerSecAsDouble();
+
     @Deprecated
     public void setInterDCStreamThroughputMbPerSec(int value);
+
+    /**
+     * @return inter_dc_stream_throughput_outbound in MiB
+     * @deprecated Use getInterDCStreamThroughputMebibytesPerSecAsDouble instead as this one will provide a rounded value
+     */
     @Deprecated
     public int getInterDCStreamThroughputMbPerSec();
+    public void setInterDCStreamThroughputMebibytesPerSec(int value);
+    /**
+     * Below method returns Inter_dc_stream_throughput_outbound rounded, for precise number, please, use getInterDCStreamThroughputMebibytesPerSecAsDouble
+     * @return inter_dc_stream_throughput_outbound in MiB
+     */
+    public int getInterDCStreamThroughputMebibytesPerSec();
+    public double getInterDCStreamThroughputMebibytesPerSecAsDouble();
 
     public void setEntireSSTableStreamThroughputMebibytesPerSec(int value);
-    public int getEntireSSTableStreamThroughputMebibytesPerSec();
+    public double getEntireSSTableStreamThroughputMebibytesPerSecAsDouble();
 
     public void setEntireSSTableInterDCStreamThroughputMebibytesPerSec(int value);
-    public int getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
+    public double getEntireSSTableInterDCStreamThroughputMebibytesPerSecAsDouble();
 
+    public double getCompactionThroughtputMibPerSecAsDouble();
+    public long getCompactionThroughtputBytesPerSec();
+    /**
+     * @return  compaction_throughgput in MiB
+     * @deprecated Use getCompactionThroughtputMibPerSecAsDouble instead as this one will provide a rounded value
+     */
+    @Deprecated
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
 
@@ -743,6 +794,36 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setTraceProbability(double probability);
 
     public Map<String, List<CompositeData>> samplePartitions(int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
+
+    public Map<String, List<CompositeData>> samplePartitions(String keyspace, int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
+
+    /**
+     * Start a scheduled sampling
+     * @param ks Keyspace. Nullable. If null, the scheduled sampling is on all keyspaces and tables
+     * @param table Nullable. If null, the scheduled sampling is on all tables of the specified keyspace
+     * @param duration Duration of each scheduled sampling job in milliseconds
+     * @param interval Interval of each scheduled sampling job in milliseconds
+     * @param capacity Capacity of the sampler, higher for more accuracy
+     * @param count Number of the top samples to list
+     * @param samplers a list of samplers to enable
+     * @return true if the scheduled sampling is started successfully. Otherwise return false
+     */
+    public boolean startSamplingPartitions(String ks, String table, int duration, int interval, int capacity, int count, List<String> samplers) throws OpenDataException;
+
+    /**
+     * Stop a scheduled sampling
+     * @param ks Keyspace. Nullable. If null, the scheduled sampling is on all keysapces and tables
+     * @param table Nullable. If null, the scheduled sampling is on all tables of the specified keyspace
+     * @return true if the scheduled sampling is stopped. False is returned if the sampling task is not found
+     */
+    public boolean stopSamplingPartitions(String ks, String table) throws OpenDataException;
+
+    /**
+     * @return a list of qualified table names that have active scheduled sampling tasks. The format of the name is `KEYSPACE.TABLE`
+     * The wild card symbol (*) indicates all keyspace/table. For example, "*.*" indicates all tables in all keyspaces. "foo.*" indicates
+     * all tables under keyspace 'foo'. "foo.bar" indicates the scheduled sampling is enabled for the table 'bar'
+     */
+    public List<String> getSampleTasks();
 
     /**
      * Returns the configured tracing probability.

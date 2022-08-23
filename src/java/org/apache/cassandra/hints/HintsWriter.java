@@ -78,7 +78,7 @@ class HintsWriter implements AutoCloseable
         {
             // write the descriptor
             descriptor.serialize(dob);
-            ByteBuffer descriptorBytes = dob.buffer();
+            ByteBuffer descriptorBytes = dob.unsafeGetBufferAndFlip();
             updateChecksum(crc, descriptorBytes);
             channel.write(descriptorBytes);
 

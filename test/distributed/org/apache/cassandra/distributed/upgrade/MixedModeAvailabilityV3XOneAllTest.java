@@ -25,7 +25,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
  */
 public class MixedModeAvailabilityV3XOneAllTest extends MixedModeAvailabilityTestBase
 {
-    public MixedModeAvailabilityV3XOneAllTest() throws Throwable
+    public MixedModeAvailabilityV3XOneAllTest()
     {
         super(v3X, ConsistencyLevel.ONE, ConsistencyLevel.ALL);
     }

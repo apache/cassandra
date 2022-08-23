@@ -223,6 +223,20 @@ public interface GuardrailsMBean
     void setAllowFilteringEnabled(boolean enabled);
 
     /**
+     * Returns whether SimpleStrategy is allowed on keyspace creation or alteration
+     *
+     * @return {@code true} if SimpleStrategy is allowed; {@code false} otherwise
+     */
+    boolean getSimpleStrategyEnabled();
+
+    /**
+     * Sets whether SimpleStrategy is allowed on keyspace creation or alteration
+     *
+     * @param enabled {@code true} if SimpleStrategy is allowed, {@code false} otherwise.
+     */
+    void setSimpleStrategyEnabled(boolean enabled);
+
+    /**
      * Returns whether users can disable compression on tables
      *
      * @return {@code true} if users can disable compression on a table, {@code false} otherwise.
@@ -251,6 +265,20 @@ public interface GuardrailsMBean
     void setCompactTablesEnabled(boolean enabled);
 
     /**
+     * Gets whether users can use the ALTER TABLE statement to change columns
+     *
+     * @return {@code true} if ALTER TABLE is allowed, {@code false} otherwise.
+     */
+    boolean getAlterTableEnabled();
+
+    /**
+     * Sets whether users can use the ALTER TABLE statement to change columns
+     *
+     * @param enabled {@code true} if changing columns is allowed, {@code false} otherwise.
+     */
+    void setAlterTableEnabled(boolean enabled);
+
+    /**
      * Returns whether GROUP BY queries are allowed.
      *
      * @return {@code true} if allowed, {@code false} otherwise.
@@ -275,6 +303,18 @@ public interface GuardrailsMBean
      * Sets whether users can TRUNCATE or DROP TABLE
      */
     void setDropTruncateTableEnabled(boolean enabled);
+
+    /**
+     * Returns whether users can DROP a keyspace
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDropKeyspaceEnabled();
+
+    /**
+     * Sets whether users can DROP a keyspace
+     */
+    void setDropKeyspaceEnabled(boolean enabled);
 
     /**
      * @return The threshold to warn when requested page size greater than threshold.
@@ -429,6 +469,30 @@ public interface GuardrailsMBean
     void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
 
     /**
+     * @return The threshold to warn when encountering column values larger than threshold, as a string  formatted as
+     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent column values larger than threshold, as a string formatted as in, for example,
+     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnValueSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering column values larger than threshold, as a string
+     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent column values larger than threshold, as a string formatted as in, for
+     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     */
+    void setColumnValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
      * @return The threshold to warn when encountering larger size of collection data than threshold, as a string
      * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
      * means that the threshold is disabled.
@@ -522,21 +586,38 @@ public interface GuardrailsMBean
     void setDataDiskUsageMaxDiskSize(@Nullable String size);
 
     /**
-     * @return The threshold to warn when replication factor is lesser threshold.
+     * @return The threshold to warn when replication factor is lesser than threshold.
      */
     int getMinimumReplicationFactorWarnThreshold();
 
     /**
-     * @return The threshold to fail when replication factor is lesser threshold.
+     * @return The threshold to fail when replication factor is lesser than threshold.
      */
     int getMinimumReplicationFactorFailThreshold();
 
     /**
-     * @param warn the threshold to warn when the minimum replication factor is lesser than
-     *             threshold -1 means disabled.
-     * @param fail the threshold to fail when the minimum replication factor is lesser than
-     *             threshold -1 means disabled.
+     * @param warn The threshold to warn when the minimum replication factor is lesser than threshold.
+     *             -1 means disabled.
+     * @param fail The threshold to fail when the minimum replication factor is lesser than threshold.
+     *            -1 means disabled.
      */
     void setMinimumReplicationFactorThreshold (int warn, int fail);
 
+    /**
+     * @return The threshold to fail when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when the maximum replication factor is greater than threshold.
+     *             -1 means disabled.
+     * @param fail The threshold to fail when the maximum replication factor is greater than threshold.
+     *             -1 means disabled.
+     */
+    void setMaximumReplicationFactorThreshold (int warn, int fail);
 }

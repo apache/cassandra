@@ -47,7 +47,7 @@ public abstract class Validation
         if (key == null || key.remaining() == 0)
             throw new InvalidRequestException("Key may not be empty");
 
-        // check that key can be handled by FBUtilities.writeShortByteArray
+        // check that key can be handled by ByteArrayUtil.writeWithShortLength and ByteBufferUtil.writeWithShortLength
         if (key.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
         {
             throw new InvalidRequestException("Key length of " + key.remaining() +

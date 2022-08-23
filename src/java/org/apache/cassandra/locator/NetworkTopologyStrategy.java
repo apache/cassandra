@@ -40,6 +40,7 @@ import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 
 /**
@@ -342,14 +343,14 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         if (!SchemaConstants.isSystemKeyspace(keyspaceName))
         {
-            ImmutableMultimap<String, InetAddressAndPort> dcsNodes = StorageService.instance.getTokenMetadata()
-                                                                                            .getDC2AllEndpoints(snitch);
+            ImmutableMultimap<String, InetAddressAndPort> dcsNodes = Multimaps.index(StorageService.instance.getTokenMetadata().getAllMembers(), snitch::getDatacenter);
             for (Entry<String, String> e : this.configOptions.entrySet())
             {
 
                 String dc = e.getKey();
                 ReplicationFactor rf = getReplicationFactor(dc);
                 Guardrails.minimumReplicationFactor.guard(rf.fullReplicas, keyspaceName, false, state);
+                Guardrails.maximumReplicationFactor.guard(rf.fullReplicas, keyspaceName, false, state);
                 int nodeCount = dcsNodes.get(dc).size();
                 // nodeCount==0 on many tests
                 if (rf.fullReplicas > nodeCount && nodeCount != 0)

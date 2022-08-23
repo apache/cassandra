@@ -170,7 +170,7 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
-    public void testDeleteStandardRowSticksAfterFlush() throws Throwable
+    public void testDeleteStandardRowSticksAfterFlush()
     {
         // test to make sure flushing after a delete doesn't resurrect delted cols.
         String keyspaceName = KEYSPACE1;
@@ -228,7 +228,7 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
-    public void testClearEphemeralSnapshots() throws Throwable
+    public void testClearEphemeralSnapshots()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1);
 

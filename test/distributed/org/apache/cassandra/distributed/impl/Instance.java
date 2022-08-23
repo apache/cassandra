@@ -114,6 +114,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.MigrationCoordinator;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
@@ -619,6 +620,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // Start up virtual table support
                 CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
 
+                // clean up debris in data directories
+                CassandraDaemon.getInstanceForTesting().scrubDataDirectories();
+
                 Keyspace.setInitialized();
 
                 // Replay any CommitLogSegments found on disk
@@ -663,6 +667,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     propagateMessagingVersions(cluster); // fake messaging needs to know messaging version for filters
                 }
                 internodeMessagingStarted = true;
+
                 JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
 
                 // TODO: this is more than just gossip
@@ -844,16 +849,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> DiagnosticSnapshotService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
-                                () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES),
                                 () -> ActiveRepairService.instance.shutdownNowAndWait(1L, MINUTES),
                                 () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
             );
 
-            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
-
             internodeMessagingStarted = false;
             error = parallelRun(error, executor,
-                                CommitLog.instance::shutdownBlocking,
                                 // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure
                                 (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, false, config.has(NETWORK))
             );
@@ -862,10 +863,17 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
+
+            // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
+            // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)
+            error = parallelRun(error, executor, CommitLog.instance::shutdownBlocking);
             error = parallelRun(error, executor,
                                 () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(JMXBroadcastExecutor.executor))
             );
+
+            // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
+            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
 
             // Make sure any shutdown hooks registered for DeleteOnExit are released to prevent
             // references to the instance class loaders from being held

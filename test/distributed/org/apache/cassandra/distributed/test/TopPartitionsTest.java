@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,10 +38,12 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.test.PreviewRepairTest.logMark;
 import static org.junit.Assert.assertEquals;
 import static org.psjava.util.AssertStatus.assertTrue;
 
@@ -74,7 +77,7 @@ public class TopPartitionsTest extends TestBaseImpl
     public static void setup() throws IOException
     {
         CLUSTER = init(Cluster.build(2).withConfig(config ->
-                                                   config.set("min_tracked_partition_size_bytes", "0MiB")
+                                                   config.set("min_tracked_partition_size", "0MiB")
                                                          .set("min_tracked_partition_tombstone_count", 0)
                                                          .with(GOSSIP, NETWORK))
                               .start());
@@ -94,7 +97,7 @@ public class TopPartitionsTest extends TestBaseImpl
     }
 
     @Test
-    public void basicPartitionSizeTest()
+    public void basicPartitionSizeTest() throws TimeoutException
     {
         String name = "tbl" + COUNTER.getAndIncrement();
         String table = KEYSPACE + "." + name;
@@ -125,7 +128,7 @@ public class TopPartitionsTest extends TestBaseImpl
     }
 
     @Test
-    public void configChangeTest()
+    public void configChangeTest() throws TimeoutException
     {
         String name = "tbl" + COUNTER.getAndIncrement();
         String table = KEYSPACE + "." + name;
@@ -167,7 +170,7 @@ public class TopPartitionsTest extends TestBaseImpl
     }
 
     @Test
-    public void basicRowTombstonesTest() throws InterruptedException
+    public void basicRowTombstonesTest() throws InterruptedException, TimeoutException
     {
         String name = "tbl" + COUNTER.getAndIncrement();
         String table = KEYSPACE + "." + name;
@@ -206,7 +209,7 @@ public class TopPartitionsTest extends TestBaseImpl
     }
 
     @Test
-    public void basicRegularTombstonesTest() throws InterruptedException
+    public void basicRegularTombstonesTest() throws InterruptedException, TimeoutException
     {
         String name = "tbl" + COUNTER.getAndIncrement();
         String table = KEYSPACE + "." + name;
@@ -253,7 +256,7 @@ public class TopPartitionsTest extends TestBaseImpl
         }));
     }
 
-    private void repair()
+    private void repair() throws TimeoutException
     {
         switch (repair)
         {
@@ -261,8 +264,13 @@ public class TopPartitionsTest extends TestBaseImpl
             {
                 // IR will not populate, as it only looks at non-repaired data
                 // to trigger this patch, we need IR + --validate
-                CLUSTER.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
-                CLUSTER.get(1).nodetoolResult("repair", "--validate", KEYSPACE).asserts().success();
+                long[] marks = logMark(CLUSTER);
+                NodeToolResult res = CLUSTER.get(1).nodetoolResult("repair", KEYSPACE);
+                res.asserts().success();
+                PreviewRepairTest.waitLogsRepairFullyFinished(CLUSTER, marks);
+                res = CLUSTER.get(1).nodetoolResult("repair", "--validate", KEYSPACE);
+                res.asserts().success();
+                res.asserts().notificationContains("Repaired data is in sync");
             }
             break;
             case Full:

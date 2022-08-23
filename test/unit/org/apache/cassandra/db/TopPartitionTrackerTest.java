@@ -54,7 +54,7 @@ public class TopPartitionTrackerTest extends CQLTester
     {
         createTable("create table %s (id bigint primary key, x int)");
         DatabaseDescriptor.setMaxTopSizePartitionCount(5);
-        DatabaseDescriptor.setMinTrackedPartitionSize(new DataStorageSpec.LongBytesBound("12B"));
+        DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("12B"));
 
         Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
@@ -85,7 +85,7 @@ public class TopPartitionTrackerTest extends CQLTester
     public void testCountLimit()
     {
         createTable("create table %s (id bigint primary key, x int)");
-        DatabaseDescriptor.setMinTrackedPartitionSize(new DataStorageSpec.LongBytesBound("0B"));
+        DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("0B"));
         DatabaseDescriptor.setMaxTopSizePartitionCount(5);
         Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
@@ -111,7 +111,7 @@ public class TopPartitionTrackerTest extends CQLTester
     public void testSubRangeMerge()
     {
         createTable("create table %s (id bigint primary key, x int)");
-        DatabaseDescriptor.setMinTrackedPartitionSize(new DataStorageSpec.LongBytesBound("0B"));
+        DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("0B"));
         DatabaseDescriptor.setMaxTopSizePartitionCount(10);
         Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
@@ -140,7 +140,7 @@ public class TopPartitionTrackerTest extends CQLTester
     public void testSaveLoad()
     {
         createTable("create table %s (id bigint primary key, x int)");
-        DatabaseDescriptor.setMinTrackedPartitionSize(new DataStorageSpec.LongBytesBound("0B"));
+        DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("0B"));
         DatabaseDescriptor.setMinTrackedPartitionTombstoneCount(0);
         DatabaseDescriptor.setMaxTopSizePartitionCount(10);
         DatabaseDescriptor.setMaxTopTombstonePartitionCount(10);
@@ -205,7 +205,7 @@ public class TopPartitionTrackerTest extends CQLTester
     public void randomTest()
     {
         createTable("create table %s (id bigint primary key, x int)");
-        DatabaseDescriptor.setMinTrackedPartitionSize(new DataStorageSpec.LongBytesBound("0B"));
+        DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("0B"));
         DatabaseDescriptor.setMaxTopSizePartitionCount(1000);
         int keyCount = 10000;
         long seed = System.currentTimeMillis();
@@ -254,7 +254,7 @@ public class TopPartitionTrackerTest extends CQLTester
     public void testRanges() throws UnknownHostException
     {
         createTable("create table %s (id bigint primary key, x int)");
-        DatabaseDescriptor.setMinTrackedPartitionSize(new DataStorageSpec.LongBytesBound("0B"));
+        DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("0B"));
         DatabaseDescriptor.setMaxTopSizePartitionCount(1000);
         long seed = System.currentTimeMillis();
         Random r = new Random(seed);

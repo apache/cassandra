@@ -1124,7 +1124,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             logger.debug("[Stream #{}] Stream session with peer {} is already in a final state on abort.", planId(), peer);
             return;
         }
-
+            
         logger.info("[Stream #{}] Aborting stream session with peer {}...", planId(), peer);
 
         if (channel.connected())

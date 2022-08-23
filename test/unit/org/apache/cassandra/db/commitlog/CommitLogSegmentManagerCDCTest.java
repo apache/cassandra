@@ -52,7 +52,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     public static void setUpClass()
     {
         DatabaseDescriptor.setCDCEnabled(true);
-        DatabaseDescriptor.setCDCSpaceInMiB(1024);
+        DatabaseDescriptor.setCDCTotalSpaceInMiB(1024);
         CQLTester.setUpClass();
     }
 
@@ -423,15 +423,15 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
     private void testWithCDCSpaceInMb(int size, Testable test) throws Throwable
     {
-        int origSize = DatabaseDescriptor.getCDCSpaceInMiB();
-        DatabaseDescriptor.setCDCSpaceInMiB(size);
+        int origSize = (int) DatabaseDescriptor.getCDCTotalSpace() / 1024 / 1024;
+        DatabaseDescriptor.setCDCTotalSpaceInMiB(size);
         try
         {
             test.run();
         }
         finally
         {
-            DatabaseDescriptor.setCDCSpaceInMiB(origSize);
+            DatabaseDescriptor.setCDCTotalSpaceInMiB(origSize);
         }
     }
 

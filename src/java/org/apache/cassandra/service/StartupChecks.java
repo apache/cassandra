@@ -165,7 +165,7 @@ public class StartupChecks
 
     /**
      * Run the configured tests and return a report detailing the results.
-     * @throws org.apache.cassandra.exceptions.StartupException if any test determines that the
+     * @throws StartupException if any test determines that the
      * system is not in an valid state to startup
      * @param options options to pass to respective checks for their configration
      */
@@ -571,6 +571,40 @@ public class StartupChecks
 
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException
                 {
+                    String[] nameParts = FileUtils.getCanonicalPath(new File(dir)).split(java.io.File.separator);
+                    if (nameParts.length >= 2)
+                    {
+                        String tablePart = nameParts[nameParts.length - 1];
+                        String ksPart = nameParts[nameParts.length - 2];
+
+                        if (tablePart.contains("-"))
+                            tablePart = tablePart.split("-")[0];
+
+                        // In very old versions of Cassandra, we wouldn't necessarily delete sstables from dropped system tables
+                        // which were removed in various major version upgrades (e.g system.Versions in 1.2)
+                        if (ksPart.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) && !SystemKeyspace.ALL_TABLE_NAMES.contains(tablePart))
+                        {
+                            String canonicalPath = FileUtils.getCanonicalPath(new File(dir));
+
+                            // We can have snapshots of our system tables or snapshots created with a -t tag of "system" that would trigger
+                            // this potential warning, so we warn more softly in the case that it's probably a snapshot.
+                            if (canonicalPath.contains("snapshot"))
+                            {
+                                logger.info("Found unknown system directory {}.{} at {} that contains the word snapshot. " +
+                                            "This may be left over from a previous version of Cassandra or may be normal. " +
+                                            " Consider removing after inspection if determined to be unnecessary.",
+                                            ksPart, tablePart, canonicalPath);
+                            }
+                            else
+                            {
+                                logger.warn("Found unknown system directory {}.{} at {} - this is likely left over from a previous " +
+                                            "version of Cassandra and should be removed after inspection.",
+                                            ksPart, tablePart, canonicalPath);
+                            }
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
+                    }
+
                     String name = dir.getFileName().toString();
                     return (name.equals(Directories.SNAPSHOT_SUBDIR)
                             || name.equals(Directories.BACKUPS_SUBDIR)
@@ -605,7 +639,7 @@ public class StartupChecks
                                            "UUID sstable identifiers are disabled but some sstables have been " +
                                            "created with UUID identifiers. You have to either delete those " +
                                            "sstables or enable UUID based sstable identifers in cassandra.yaml " +
-                                           "(enable_uuid_sstable_identifiers). The list of affected sstables is: " +
+                                           "(uuid_sstable_identifiers_enabled). The list of affected sstables is: " +
                                            Joiner.on(", ").join(withIllegalGenId) + ". If you decide to delete sstables, " +
                                            "and have that data replicated over other healthy nodes, those will be brought" +
                                            "back during repair");

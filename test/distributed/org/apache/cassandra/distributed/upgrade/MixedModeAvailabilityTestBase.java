@@ -74,6 +74,14 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
         testAvailability(true, initial, writeConsistencyLevel, readConsistencyLevel);
     }
 
+    protected static void testAvailability(Semver initial,
+                                           ConsistencyLevel writeConsistencyLevel,
+                                           ConsistencyLevel readConsistencyLevel) throws Throwable
+    {
+        testAvailability(true, initial, writeConsistencyLevel, readConsistencyLevel);
+        testAvailability(false, initial, writeConsistencyLevel, readConsistencyLevel);
+    }
+
     private static void testAvailability(boolean upgradedCoordinator,
                                          Semver initial,
                                          ConsistencyLevel writeConsistencyLevel,
@@ -82,7 +90,7 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator ? 1 : 2)
-        .upgrades(initial, UpgradeTestBase.CURRENT)
+        .upgradesToCurrentFrom(initial)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(5))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(5)))
         // use retry of 10ms so that each check is consistent
@@ -93,6 +101,7 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k uuid, c int, v int, PRIMARY KEY (k, c)) WITH speculative_retry = '10ms'"));
             cluster.setUncaughtExceptionsFilter(throwable -> throwable instanceof RejectedExecutionException);
         })
+        .runBeforeClusterUpgrade(cluster -> cluster.filters().reset())
         .runAfterNodeUpgrade((cluster, n) -> {
 
             ICoordinator coordinator = cluster.coordinator(COORDINATOR);

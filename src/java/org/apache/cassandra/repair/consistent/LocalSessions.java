@@ -729,7 +729,12 @@ public class LocalSessions
         {
             synchronized (session)
             {
-                if (session.getState() != FAILED)
+                if (session.getState() == FINALIZED)
+                {
+                    logger.error("Can't change the state of session {} from FINALIZED to FAILED", session.sessionID, new RuntimeException());
+                    return;
+                }
+                else if (session.getState() != FAILED)
                 {
                     logger.info("Failing local repair session {}", session.sessionID);
                     setStateAndSave(session, FAILED);

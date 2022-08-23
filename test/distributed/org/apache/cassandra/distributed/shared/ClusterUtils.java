@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -40,6 +41,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.Futures;
+
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 
@@ -551,6 +556,47 @@ public class ClusterUtils
             if (status == null)
                 return targetStatus == null;
             return status.contains(targetStatus);
+        });
+    }
+
+    public static void awaitGossipSchemaMatch(ICluster<? extends  IInstance> cluster)
+    {
+        cluster.forEach(ClusterUtils::awaitGossipSchemaMatch);
+    }
+
+    public static void awaitGossipSchemaMatch(IInstance instance)
+    {
+        if (!instance.config().has(Feature.GOSSIP))
+        {
+            // when gosisp isn't enabled, don't bother waiting on gossip to settle...
+            return;
+        }
+        awaitGossip(instance, "Schema IDs did not match", all -> {
+            String current = null;
+            for (Map.Entry<String, Map<String, String>> e : all.entrySet())
+            {
+                Map<String, String> state = e.getValue();
+                // has the instance joined?
+                String status = state.get(ApplicationState.STATUS_WITH_PORT.name());
+                if (status == null)
+                    status = state.get(ApplicationState.STATUS.name());
+                if (status == null || !status.contains(VersionedValue.STATUS_NORMAL))
+                    continue; // ignore instances not joined yet
+                String schema = state.get("SCHEMA");
+                if (schema == null)
+                    throw new AssertionError("Unable to find schema for " + e.getKey() + "; status was " + status);
+                schema = schema.split(":")[1];
+
+                if (current == null)
+                {
+                    current = schema;
+                }
+                else if (!current.equals(schema))
+                {
+                    return false;
+                }
+            }
+            return true;
         });
     }
 

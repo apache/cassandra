@@ -122,7 +122,7 @@ public class BinLog implements Runnable
         Preconditions.checkNotNull(path, "path was null");
         Preconditions.checkNotNull(options.roll_cycle, "roll_cycle was null");
         Preconditions.checkArgument(options.max_queue_weight > 0, "max_queue_weight must be > 0");
-        SingleChronicleQueueBuilder builder = SingleChronicleQueueBuilder.single(path.toFile());
+        SingleChronicleQueueBuilder builder = SingleChronicleQueueBuilder.single(path.toFile()); // checkstyle: permit this invocation
         builder.rollCycle(RollCycles.valueOf(options.roll_cycle));
 
         sampleQueue = new WeightedQueue<>(options.max_queue_weight);
@@ -430,7 +430,7 @@ public class BinLog implements Runnable
                 if (cleanDirectory)
                 {
                     logger.info("Cleaning directory: {} as requested", path);
-                    if (path.toFile().exists())
+                    if (new File(path).exists())
                     {
                         Throwable error = cleanDirectory(new File(path), null);
                         if (error != null)

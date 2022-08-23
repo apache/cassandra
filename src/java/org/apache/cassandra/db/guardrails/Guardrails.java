@@ -104,10 +104,10 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail disabling user's ability to create secondary indexes
      */
-    public static final DisableFlag createSecondaryIndexesEnabled =
-    new DisableFlag("secondary_indexes",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesEnabled(),
-                    "User creation of secondary indexes");
+    public static final EnableFlag createSecondaryIndexesEnabled =
+    new EnableFlag("secondary_indexes",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getSecondaryIndexesEnabled(),
+                   "User creation of secondary indexes");
 
     /**
      * Guardrail on the number of materialized views per table.
@@ -135,36 +135,55 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail disabling user-provided timestamps.
      */
-    public static final DisableFlag userTimestampsEnabled =
-    new DisableFlag("user_timestamps",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
-                    "User provided timestamps (USING TIMESTAMP)");
+    public static final EnableFlag userTimestampsEnabled =
+    new EnableFlag("user_timestamps",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getUserTimestampsEnabled(),
+                   "User provided timestamps (USING TIMESTAMP)");
 
-    public static final DisableFlag groupByEnabled =
-    new DisableFlag("group_by",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
-                    "GROUP BY functionality");
+    public static final EnableFlag groupByEnabled =
+    new EnableFlag("group_by",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getGroupByEnabled(),
+                   "GROUP BY functionality");
 
-    public static final DisableFlag dropTruncateTableEnabled =
-    new DisableFlag("drop_truncate_table_enabled",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getDropTruncateTableEnabled(),
-                    "DROP and TRUNCATE TABLE functionality");
+    /**
+     * Guardrail disabling ALTER TABLE column mutation access.
+     */
+    public static final EnableFlag alterTableEnabled =
+    new EnableFlag("alter_table",
+                    state -> CONFIG_PROVIDER.getOrCreate(state).getAlterTableEnabled(),
+                    "User access to ALTER TABLE statement for column mutation");
+
+    /**
+     * Guardrail disabling DROP / TRUNCATE TABLE behavior
+     */
+    public static final EnableFlag dropTruncateTableEnabled =
+    new EnableFlag("drop_truncate_table_enabled",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getDropTruncateTableEnabled(),
+                   "DROP and TRUNCATE TABLE functionality");
+
+    /**
+     * Guardrail disabling DROP KEYSPACE behavior
+     */
+    public static final EnableFlag dropKeyspaceEnabled =
+    new EnableFlag("drop_keyspace_enabled",
+                    state -> CONFIG_PROVIDER.getOrCreate(state).getDropKeyspaceEnabled(),
+                    "DROP KEYSPACE functionality");
 
     /**
      * Guardrail disabling user's ability to turn off compression
      */
-    public static final DisableFlag uncompressedTablesEnabled =
-    new DisableFlag("uncompressed_tables_enabled",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getUncompressedTablesEnabled(),
-                    "Uncompressed table");
+    public static final EnableFlag uncompressedTablesEnabled =
+    new EnableFlag("uncompressed_tables_enabled",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getUncompressedTablesEnabled(),
+                   "Uncompressed table");
 
     /**
      * Guardrail disabling the creation of new COMPACT STORAGE tables
      */
-    public static final DisableFlag compactTablesEnabled =
-    new DisableFlag("compact_tables",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getCompactTablesEnabled(),
-                    "Creation of new COMPACT STORAGE tables");
+    public static final EnableFlag compactTablesEnabled =
+    new EnableFlag("compact_tables",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getCompactTablesEnabled(),
+                   "Creation of new COMPACT STORAGE tables");
 
     /**
      * Guardrail on the number of elements returned within page.
@@ -197,18 +216,26 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail disabling operations on lists that require read before write.
      */
-    public static final DisableFlag readBeforeWriteListOperationsEnabled =
-    new DisableFlag("read_before_write_list_operations",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
-                    "List operation requiring read before write");
+    public static final EnableFlag readBeforeWriteListOperationsEnabled =
+    new EnableFlag("read_before_write_list_operations",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getReadBeforeWriteListOperationsEnabled(),
+                   "List operation requiring read before write");
 
     /**
      * Guardrail disabling ALLOW FILTERING statement within a query
      */
-    public static final DisableFlag allowFilteringEnabled =
-    new DisableFlag("allow_filtering",
-                    state -> !CONFIG_PROVIDER.getOrCreate(state).getAllowFilteringEnabled(),
-                    "Querying with ALLOW FILTERING");
+    public static final EnableFlag allowFilteringEnabled =
+    new EnableFlag("allow_filtering",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getAllowFilteringEnabled(),
+                   "Querying with ALLOW FILTERING");
+
+    /**
+     * Guardrail disabling setting SimpleStrategy via keyspace creation or alteration
+     */
+    public static final EnableFlag simpleStrategyEnabled =
+    new EnableFlag("simplestrategy",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getSimpleStrategyEnabled(),
+                   "SimpleStrategy");
 
     /**
      * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
@@ -248,15 +275,24 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail on the size of a collection.
      */
+    public static final MaxThreshold columnValueSize =
+    new MaxThreshold("column_value_size",
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnValueSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column %s has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a collection.
+     */
     public static final MaxThreshold collectionSize =
     new MaxThreshold("collection_size",
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeWarnThreshold()),
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSizeFailThreshold()),
                      (isWarning, what, value, threshold) ->
-                     isWarning ? format("Detected collection %s of size %s, this exceeds the warning threshold of %s.",
-                                        what, value, threshold)
-                               : format("Detected collection %s of size %s, this exceeds the failure threshold of %s.",
-                                        what, value, threshold));
+                     format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
      * Guardrail on the number of items of a collection.
@@ -266,10 +302,8 @@ public final class Guardrails implements GuardrailsMBean
                      state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionWarnThreshold(),
                      state -> CONFIG_PROVIDER.getOrCreate(state).getItemsPerCollectionFailThreshold(),
                      (isWarning, what, value, threshold) ->
-                     isWarning ? format("Detected collection %s with %s items, this exceeds the warning threshold of %s.",
-                                        what, value, threshold)
-                               : format("Detected collection %s with %s items, this exceeds the failure threshold of %s.",
-                                        what, value, threshold));
+                     format("Detected collection %s with %s items, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
      * Guardrail on the number of fields on each UDT.
@@ -328,10 +362,19 @@ public final class Guardrails implements GuardrailsMBean
                      state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumReplicationFactorWarnThreshold(),
                      state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumReplicationFactorFailThreshold(),
                      (isWarning, what, value, threshold) ->
-                     isWarning ? format("The keyspace %s has a replication factor of %s, below the warning threshold of %s.",
-                                        what, value, threshold)
-                               : format("The keyspace %s has a replication factor of %s, below the failure threshold of %s.",
-                                        what, value, threshold));
+                     format("The keyspace %s has a replication factor of %s, below the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the maximum replication factor.
+     */
+    public static final MaxThreshold maximumReplicationFactor =
+    new MaxThreshold("maximum_replication_factor",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMaximumReplicationFactorWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMaximumReplicationFactorFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     format("The keyspace %s has a replication factor of %s, above the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     private Guardrails()
     {
@@ -540,6 +583,18 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public boolean getAlterTableEnabled()
+    {
+        return DEFAULT_CONFIG.getAlterTableEnabled();
+    }
+
+    @Override
+    public void setAlterTableEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setAlterTableEnabled(enabled);
+    }
+
+    @Override
     public boolean getAllowFilteringEnabled()
     {
         return DEFAULT_CONFIG.getAllowFilteringEnabled();
@@ -549,6 +604,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setAllowFilteringEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setAllowFilteringEnabled(enabled);
+    }
+
+    @Override
+    public boolean getSimpleStrategyEnabled()
+    {
+        return DEFAULT_CONFIG.getSimpleStrategyEnabled();
+    }
+
+    @Override
+    public void setSimpleStrategyEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setSimpleStrategyEnabled(enabled);
     }
 
     @Override
@@ -600,6 +667,18 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public boolean getDropKeyspaceEnabled()
+    {
+        return DEFAULT_CONFIG.getDropKeyspaceEnabled();
+    }
+
+    @Override
+    public void setDropKeyspaceEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDropKeyspaceEnabled(enabled);
+    }
+
+    @Override
     public int getPageSizeWarnThreshold()
     {
         return DEFAULT_CONFIG.getPageSizeWarnThreshold();
@@ -645,6 +724,26 @@ public final class Guardrails implements GuardrailsMBean
     public void setPartitionKeysInSelectThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
+    }
+
+    @Override
+    @Nullable
+    public String getColumnValueSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnValueSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getColumnValueSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnValueSizeFailThreshold());
+    }
+
+    @Override
+    public void setColumnValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setColumnValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
     }
 
     @Override
@@ -815,6 +914,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setFieldsPerUDTThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setFieldsPerUDTThreshold(warn, fail);
+    }
+
+    @Override
+    public int getMaximumReplicationFactorWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getMaximumReplicationFactorWarnThreshold();
+    }
+
+    @Override
+    public int getMaximumReplicationFactorFailThreshold()
+    {
+        return DEFAULT_CONFIG.getMaximumReplicationFactorFailThreshold();
+    }
+
+    @Override
+    public void setMaximumReplicationFactorThreshold (int warn, int fail)
+    {
+        DEFAULT_CONFIG.setMaximumReplicationFactorThreshold(warn, fail);
     }
 
     @Override

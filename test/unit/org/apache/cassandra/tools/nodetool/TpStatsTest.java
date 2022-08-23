@@ -134,7 +134,7 @@ public class TpStatsTest extends CQLTester
 
         assertThat(origGossip).isNotEqualTo(newGossip);
         assertThat(stdout).containsPattern("ECHO_REQ\\D.*[1-9].*");
-        assertThat(stdout).containsPattern("ECHO_RSP\\D.*[1-9].*");
+        assertThat(stdout).containsPattern("ECHO_RSP\\D.*[0-9].*");
     }
 
     @Test

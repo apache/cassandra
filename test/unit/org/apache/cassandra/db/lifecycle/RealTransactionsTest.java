@@ -172,6 +172,7 @@ public class RealTransactionsTest extends SchemaLoader
                                                            txn));
                 while (ci.hasNext())
                 {
+                    ci.setTargetDirectory(rewriter.currentWriter().getFilename());
                     rewriter.append(ci.next());
 
                     if (nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))

@@ -33,7 +33,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,38 +47,32 @@ import org.apache.cassandra.utils.Clock;
  * {@code CAUTION:} While this is a useful abstraction, please be careful if you need to modify this class
  * given possible custom implementations out there!
  */
-abstract public class FileBasedSslContextFactory extends AbstractSslContextFactory
+public abstract class FileBasedSslContextFactory extends AbstractSslContextFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(FileBasedSslContextFactory.class);
-
-    @VisibleForTesting
-    protected volatile boolean checkedExpiry = false;
+    protected FileBasedStoreContext keystoreContext;
+    protected FileBasedStoreContext outboundKeystoreContext;
+    protected FileBasedStoreContext trustStoreContext;
 
     /**
      * List of files that trigger hot reloading of SSL certificates
      */
     protected volatile List<HotReloadableFile> hotReloadableFiles = new ArrayList<>();
 
-    protected String keystore;
-    protected String keystore_password;
-    protected String truststore;
-    protected String truststore_password;
-
     public FileBasedSslContextFactory()
     {
-        keystore = "conf/.keystore";
-        keystore_password = "cassandra";
-        truststore = "conf/.truststore";
-        truststore_password = "cassandra";
+        keystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra");
+        outboundKeystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra");
+        trustStoreContext = new FileBasedStoreContext("conf/.truststore", "cassandra");
     }
 
     public FileBasedSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
-        keystore = getString("keystore");
-        keystore_password = getString("keystore_password");
-        truststore = getString("truststore");
-        truststore_password = getString("truststore_password");
+        keystoreContext = new FileBasedStoreContext(getString("keystore"), getString("keystore_password"));
+        outboundKeystoreContext = new FileBasedStoreContext(StringUtils.defaultString(getString("outbound_keystore"), keystoreContext.filePath),
+                                                            StringUtils.defaultString(getString("outbound_keystore_password"), keystoreContext.password));
+        trustStoreContext = new FileBasedStoreContext(getString("truststore"), getString("truststore_password"));
     }
 
     @Override
@@ -90,30 +84,41 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     @Override
     public boolean hasKeystore()
     {
-        return keystore != null && new File(keystore).exists();
+        return keystoreContext.hasKeystore();
+    }
+
+    @Override
+    public boolean hasOutboundKeystore()
+    {
+        return outboundKeystoreContext.hasKeystore();
     }
 
     private boolean hasTruststore()
     {
-        return truststore != null && new File(truststore).exists();
+        return trustStoreContext.filePath != null && new File(trustStoreContext.filePath).exists();
     }
 
     @Override
     public synchronized void initHotReloading()
     {
         boolean hasKeystore = hasKeystore();
+        boolean hasOutboundKeystore = hasOutboundKeystore();
         boolean hasTruststore = hasTruststore();
 
-        if (hasKeystore || hasTruststore)
+        if (hasKeystore || hasOutboundKeystore || hasTruststore)
         {
             List<HotReloadableFile> fileList = new ArrayList<>();
             if (hasKeystore)
             {
-                fileList.add(new HotReloadableFile(keystore));
+                fileList.add(new HotReloadableFile(keystoreContext.filePath));
+            }
+            if (hasOutboundKeystore)
+            {
+                fileList.add(new HotReloadableFile(outboundKeystoreContext.filePath));
             }
             if (hasTruststore)
             {
-                fileList.add(new HotReloadableFile(truststore));
+                fileList.add(new HotReloadableFile(trustStoreContext.filePath));
             }
             hotReloadableFiles = fileList;
         }
@@ -129,25 +134,13 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     @Override
     protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
+        return getKeyManagerFactory(keystoreContext);
+    }
 
-        try (InputStream ksf = Files.newInputStream(Paths.get(keystore)))
-        {
-            final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
-            KeyStore ks = KeyStore.getInstance(store_type);
-            ks.load(ksf, keystore_password.toCharArray());
-            if (!checkedExpiry)
-            {
-                checkExpiredCerts(ks);
-                checkedExpiry = true;
-            }
-            kmf.init(ks, keystore_password.toCharArray());
-            return kmf;
-        }
-        catch (Exception e)
-        {
-            throw new SSLException("failed to build key manager store for secure connections", e);
-        }
+    @Override
+    protected KeyManagerFactory buildOutboundKeyManagerFactory() throws SSLException
+    {
+        return getKeyManagerFactory(outboundKeystoreContext);
     }
 
     /**
@@ -159,18 +152,41 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     @Override
     protected TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
-        try (InputStream tsf = Files.newInputStream(Paths.get(truststore)))
+        try (InputStream tsf = Files.newInputStream(Paths.get(trustStoreContext.filePath)))
         {
             final String algorithm = this.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : this.algorithm;
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
             KeyStore ts = KeyStore.getInstance(store_type);
-            ts.load(tsf, truststore_password.toCharArray());
+            ts.load(tsf, trustStoreContext.password.toCharArray());
             tmf.init(ts);
             return tmf;
         }
         catch (Exception e)
         {
             throw new SSLException("failed to build trust manager store for secure connections", e);
+        }
+    }
+
+    private KeyManagerFactory getKeyManagerFactory(final FileBasedStoreContext context) throws SSLException
+    {
+        try (InputStream ksf = Files.newInputStream(Paths.get(context.filePath)))
+        {
+            final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
+            KeyStore ks = KeyStore.getInstance(store_type);
+            ks.load(ksf, context.password.toCharArray());
+
+            if (!context.checkedExpiry)
+            {
+                checkExpiredCerts(ks);
+                context.checkedExpiry = true;
+            }
+            kmf.init(ks, context.password.toCharArray());
+            return kmf;
+        }
+        catch (Exception e)
+        {
+            throw new SSLException("failed to build key manager store for secure connections", e);
         }
     }
 
@@ -223,6 +239,29 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
                    "file=" + file +
                    ", lastModTime=" + lastModTime +
                    '}';
+        }
+    }
+
+    protected static class FileBasedStoreContext
+    {
+        public volatile boolean checkedExpiry = false;
+        public String filePath;
+        public String password;
+
+        public FileBasedStoreContext(String keystore, String keystorePassword)
+        {
+            this.filePath = keystore;
+            this.password = keystorePassword;
+        }
+
+        protected boolean hasKeystore()
+        {
+            return filePath != null && new File(filePath).exists();
+        }
+
+        protected boolean passwordMatchesIfPresent(String keyPassword)
+        {
+            return StringUtils.isEmpty(password) || keyPassword.equals(password);
         }
     }
 }

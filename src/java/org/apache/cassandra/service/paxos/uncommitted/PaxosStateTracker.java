@@ -83,7 +83,7 @@ public class PaxosStateTracker
         return Boolean.getBoolean(TRUNCATE_BALLOT_METADATA_PROP);
     }
 
-    private static final String DIRECTORY = "system/_paxos_repair_state";
+    private static final String DIRECTORY = "system/" + SystemKeyspace.PAXOS_REPAIR_STATE;
 
     private final PaxosUncommittedTracker uncommitted;
     private final PaxosBallotTracker ballots;

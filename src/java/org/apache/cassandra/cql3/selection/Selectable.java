@@ -222,19 +222,48 @@ public interface Selectable extends AssignmentTestable
 
     public static class WritetimeOrTTL implements Selectable
     {
-        public final ColumnMetadata column;
-        public final boolean isWritetime;
+        // The order of the variants in the Kind enum matters as they are used in ser/deser
+        public enum Kind
+        {
+            TTL("ttl", Int32Type.instance),
+            WRITE_TIME("writetime", LongType.instance),
+            MAX_WRITE_TIME("maxwritetime", LongType.instance); // maxwritetime is available after Cassandra 4.1 (exclusive)
 
-        public WritetimeOrTTL(ColumnMetadata column, boolean isWritetime)
+            public final String name;
+            public final AbstractType<?> returnType;
+
+            public static Kind fromOrdinal(int ordinal)
+            {
+                return values()[ordinal];
+            }
+
+            Kind(String name, AbstractType<?> returnType)
+            {
+                this.name = name;
+                this.returnType = returnType;
+            }
+
+            public boolean aggregatesMultiCell()
+            {
+                return this == MAX_WRITE_TIME;
+            }
+        }
+
+        public final ColumnMetadata column;
+        public final Selectable selectable;
+        public final Kind kind;
+
+        public WritetimeOrTTL(ColumnMetadata column, Selectable selectable, Kind kind)
         {
             this.column = column;
-            this.isWritetime = isWritetime;
+            this.selectable = selectable;
+            this.kind = kind;
         }
 
         @Override
         public String toString()
         {
-            return (isWritetime ? "writetime" : "ttl") + "(" + column.name + ")";
+            return kind.name + "(" + selectable + ")";
         }
 
         public Selector.Factory newSelectorFactory(TableMetadata table,
@@ -245,43 +274,45 @@ public interface Selectable extends AssignmentTestable
             if (column.isPrimaryKeyColumn())
                 throw new InvalidRequestException(
                         String.format("Cannot use selection function %s on PRIMARY KEY part %s",
-                                      isWritetime ? "writeTime" : "ttl",
+                                      kind.name,
                                       column.name));
-            if (column.type.isMultiCell())
-                throw new InvalidRequestException(String.format("Cannot use selection function %s on non-frozen %s %s",
-                                                                isWritetime ? "writeTime" : "ttl",
-                                                                column.type.isCollection() ? "collection" : "UDT",
-                                                                column.name));
 
-            return WritetimeOrTTLSelector.newFactory(column, addAndGetIndex(column, defs), isWritetime);
+            Selector.Factory factory = selectable.newSelectorFactory(table, expectedType, defs, boundNames);
+            boolean isMultiCell = factory.getColumnSpecification(table).type.isMultiCell();
+
+            return WritetimeOrTTLSelector.newFactory(factory, addAndGetIndex(column, defs), kind, isMultiCell);
         }
 
+        @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            return isWritetime ? LongType.instance : Int32Type.instance;
+            AbstractType<?> type = kind.returnType;
+            return column.type.isMultiCell() && !kind.aggregatesMultiCell() ? ListType.getInstance(type, false) : type;
         }
 
         @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
-            return predicate.test(column);
+            return selectable.selectColumns(predicate);
         }
 
         public static class Raw implements Selectable.Raw
         {
-            private final Selectable.RawIdentifier id;
-            private final boolean isWritetime;
+            private final Selectable.RawIdentifier column;
+            private final Selectable.Raw selected;
+            private final Kind kind;
 
-            public Raw(Selectable.RawIdentifier id, boolean isWritetime)
+            public Raw(Selectable.RawIdentifier column, Selectable.Raw selected, Kind kind)
             {
-                this.id = id;
-                this.isWritetime = isWritetime;
+                this.column = column;
+                this.selected = selected;
+                this.kind = kind;
             }
 
             @Override
             public WritetimeOrTTL prepare(TableMetadata table)
             {
-                return new WritetimeOrTTL(id.prepare(table), isWritetime);
+                return new WritetimeOrTTL(column.prepare(table), selected.prepare(table), kind);
             }
         }
     }

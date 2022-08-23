@@ -35,7 +35,7 @@ public class DropCompactStorageTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(1, 2)
-        .upgradesFrom(v30)
+        .upgradesToCurrentFrom(v30)
         .withConfig(config -> config.with(GOSSIP, NETWORK).set("enable_drop_compact_storage", true))
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");

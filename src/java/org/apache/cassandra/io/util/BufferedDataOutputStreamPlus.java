@@ -66,6 +66,16 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         this.buffer = buffer;
     }
 
+    protected BufferedDataOutputStreamPlus(int size)
+    {
+        this.buffer = allocate(size);
+    }
+
+    protected ByteBuffer allocate(int size)
+    {
+        return ByteBuffer.allocate(size);
+    }
+
     @Override
     public void write(byte[] b) throws IOException
     {

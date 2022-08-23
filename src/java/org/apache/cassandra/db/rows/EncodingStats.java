@@ -67,7 +67,7 @@ public class EncodingStats implements IMeasurableMemory
 
     // We should use this sparingly obviously
     public static final EncodingStats NO_STATS = new EncodingStats(TIMESTAMP_EPOCH, DELETION_TIME_EPOCH, TTL_EPOCH);
-    public static long HEAP_SIZE = ObjectSizes.measure(NO_STATS);
+    public static final long HEAP_SIZE = ObjectSizes.measure(NO_STATS);
 
     public static final Serializer serializer = new Serializer();
 

@@ -31,6 +31,7 @@ import org.junit.Test;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
@@ -56,6 +57,11 @@ public class SettingsTableTest extends CQLTester
         config = new Config();
         config.client_encryption_options.applyConfig();
         config.server_encryption_options.applyConfig();
+        config.sstable_preemptive_open_interval = null;
+        config.index_summary_resize_interval = null;
+        config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
+        config.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
+        config.credentials_update_interval = null;
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
@@ -104,6 +110,40 @@ public class SettingsTableTest extends CQLTester
         assertRowsNet(executeNet(q), new Object[] {"server_encryption_options_enabled", "false"});
         q = "SELECT * FROM vts.settings WHERE name = 'server_encryption_options_XYZ'";
         assertRowsNet(executeNet(q));
+    }
+
+    @Test
+    public void virtualTableBackwardCompatibility() throws Throwable
+    {
+        // test NEGATIVE_MEBIBYTES_DATA_STORAGE_INT converter
+        String q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval';";
+        assertRowsNet(executeNet(q), new Object[] {"sstable_preemptive_open_interval", null});
+        q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval_in_mb';";
+        assertRowsNet(executeNet(q), new Object[] {"sstable_preemptive_open_interval_in_mb", "-1"});
+
+        // test MINUTES_CUSTOM_DURATION converter
+        q = "SELECT * FROM vts.settings WHERE name = 'index_summary_resize_interval';";
+        assertRowsNet(executeNet(q), new Object[] {"index_summary_resize_interval", null});
+        q = "SELECT * FROM vts.settings WHERE name = 'index_summary_resize_interval_in_minutes';";
+        assertRowsNet(executeNet(q), new Object[] {"index_summary_resize_interval_in_minutes", "-1"});
+
+        // test NEGATIVE_SECONDS_DURATION converter
+        q = "SELECT * FROM vts.settings WHERE name = 'cache_load_timeout';";
+        assertRowsNet(executeNet(q), new Object[] {"cache_load_timeout", "0s"});
+        q = "SELECT * FROM vts.settings WHERE name = 'cache_load_timeout_seconds';";
+        assertRowsNet(executeNet(q), new Object[] {"cache_load_timeout_seconds", "0"});
+
+        // test MILLIS_DURATION_DOUBLE converter
+        q = "SELECT * FROM vts.settings WHERE name = 'commitlog_sync_group_window';";
+        assertRowsNet(executeNet(q), new Object[] {"commitlog_sync_group_window", "0ms"});
+        q = "SELECT * FROM vts.settings WHERE name = 'commitlog_sync_group_window_in_ms';";
+        assertRowsNet(executeNet(q), new Object[] {"commitlog_sync_group_window_in_ms", "0.0"});
+
+        //test MILLIS_CUSTOM_DURATION converter
+        q = "SELECT * FROM vts.settings WHERE name = 'credentials_update_interval';";
+        assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval", null});
+        q = "SELECT * FROM vts.settings WHERE name = 'credentials_update_interval_in_ms';";
+        assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval_in_ms", "-1"});
     }
 
     private String getValue(Property prop)

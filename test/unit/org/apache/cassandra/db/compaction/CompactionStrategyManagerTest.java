@@ -28,11 +28,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -395,6 +398,41 @@ public class CompactionStrategyManagerTest
         }
     }
 
+    @Test
+    public void testCountsByBuckets()
+    {
+        Assert.assertArrayEquals(
+            new int[] {2, 2, 4},
+            CompactionStrategyManager.sumCountsByBucket(ImmutableList.of(
+                ImmutableMap.of(60000L, 1, 0L, 2, 180000L, 1),
+                ImmutableMap.of(60000L, 1, 0L, 2, 180000L, 1)), CompactionStrategyManager.TWCS_BUCKET_COUNT_MAX));
+        Assert.assertArrayEquals(
+            new int[] {1, 1, 3},
+            CompactionStrategyManager.sumCountsByBucket(ImmutableList.of(
+                ImmutableMap.of(60000L, 1, 0L, 1),
+                ImmutableMap.of(0L, 2, 180000L, 1)), CompactionStrategyManager.TWCS_BUCKET_COUNT_MAX));
+        Assert.assertArrayEquals(
+            new int[] {1, 1},
+            CompactionStrategyManager.sumCountsByBucket(ImmutableList.of(
+                ImmutableMap.of(60000L, 1, 0L, 1),
+                ImmutableMap.of()), CompactionStrategyManager.TWCS_BUCKET_COUNT_MAX));
+        Assert.assertArrayEquals(
+            new int[] {8, 4},
+            CompactionStrategyManager.sumCountsByBucket(ImmutableList.of(
+                ImmutableMap.of(60000L, 2, 0L, 1, 180000L, 4),
+                ImmutableMap.of(60000L, 2, 0L, 1, 180000L, 4)), 2));
+        Assert.assertArrayEquals(
+            new int[] {1, 1, 2},
+            CompactionStrategyManager.sumCountsByBucket(ImmutableList.of(
+                Collections.emptyMap(),
+                ImmutableMap.of(60000L, 1, 0L, 2, 180000L, 1)), CompactionStrategyManager.TWCS_BUCKET_COUNT_MAX));
+        Assert.assertArrayEquals(
+            new int[] {},
+            CompactionStrategyManager.sumCountsByBucket(ImmutableList.of(
+                Collections.emptyMap(),
+                Collections.emptyMap()), CompactionStrategyManager.TWCS_BUCKET_COUNT_MAX));
+    }
+
     private MockCFS createJBODMockCFS(int disks)
     {
         // Create #disks data directories to simulate JBOD
@@ -463,8 +501,6 @@ public class CompactionStrategyManagerTest
         logger.debug("Index for SSTable {} on boundary {} is {}", reader.descriptor.id, Arrays.toString(boundaries), index);
         return index;
     }
-
-
 
     class MockBoundaryManager
     {

@@ -161,9 +161,9 @@ exit 0
 %{_sysconfdir}/security/limits.d/%{username}.conf
 /usr/share/%{username}*
 %config(noreplace) /%{_sysconfdir}/%{username}
-%attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
-%attr(755,%{username},%{username}) /var/log/%{username}*
-%attr(755,%{username},%{username}) /var/run/%{username}*
+%attr(750,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
+%attr(750,%{username},%{username}) /var/log/%{username}*
+%attr(750,%{username},%{username}) /var/run/%{username}*
 %{python_sitelib}/cqlshlib/
 %{python_sitelib}/cassandra_pylib*.egg-info
 

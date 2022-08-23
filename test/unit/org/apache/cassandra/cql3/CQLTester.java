@@ -429,12 +429,14 @@ public abstract class CQLTester
 
     public static List<String> buildNodetoolArgs(List<String> args)
     {
+        int port = jmxPort == 0 ? Integer.getInteger("cassandra.jmx.local.port", 7199) : jmxPort;
+        String host = jmxHost == null ? "127.0.0.1" : jmxHost;
         List<String> allArgs = new ArrayList<>();
         allArgs.add("bin/nodetool");
         allArgs.add("-p");
-        allArgs.add(Integer.toString(jmxPort));
+        allArgs.add(String.valueOf(port));
         allArgs.add("-h");
-        allArgs.add(jmxHost == null ? "127.0.0.1" : jmxHost);
+        allArgs.add(host);
         allArgs.addAll(args);
         return allArgs;
     }
@@ -1251,6 +1253,11 @@ public abstract class CQLTester
         return sessionNet(version).execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
     }
 
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, String KS, int pageSize)
+    {
+        return sessionNet(version).execute(new SimpleStatement(formatQuery(KS, query)).setKeyspace(KS).setFetchSize(pageSize));
+    }
+
     protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize)
     {
         return sessionNet().execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
@@ -1322,6 +1329,10 @@ public abstract class CQLTester
         return executeFormattedQuery(formatViewQuery(KEYSPACE, query), values);
     }
 
+    /**
+     * Executes the provided query using the {@link ClientState#forInternalCalls()} as the expected ClientState. Note:
+     * this means permissions checking will not apply and queries will proceed regardless of role or guardrails.
+     */
     protected UntypedResultSet executeFormattedQuery(String query, Object... values) throws Throwable
     {
         UntypedResultSet rs;
@@ -1738,8 +1749,15 @@ public abstract class CQLTester
         assertInvalidThrowMessage(Optional.empty(), errorMessage, exception, query, values);
     }
 
-    // if a protocol version > Integer.MIN_VALUE is supplied, executes
-    // the query via the java driver, mimicking a real client.
+    /**
+     * Asserts that the query provided throws the exceptions provided.
+     *
+     * NOTE: This method uses {@link ClientState#forInternalCalls()} which sets the {@link ClientState#isInternal} value
+     * to true, nullifying any system keyspace or other permissions checking for tables.
+     *
+     * If a protocol version > Integer.MIN_VALUE is supplied, executes
+     * the query via the java driver, mimicking a real client.
+     */
     protected void assertInvalidThrowMessage(Optional<ProtocolVersion> protocolVersion,
                                              String errorMessage,
                                              Class<? extends Throwable> exception,

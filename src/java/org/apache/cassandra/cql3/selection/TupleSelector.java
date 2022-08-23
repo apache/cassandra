@@ -89,10 +89,10 @@ final class TupleSelector extends Selector
             elements.get(i).addFetchedColumns(builder);
     }
 
-    public void addInput(ProtocolVersion protocolVersion, InputRow input)
+    public void addInput(InputRow input)
     {
         for (int i = 0, m = elements.size(); i < m; i++)
-            elements.get(i).addInput(protocolVersion, input);
+            elements.get(i).addInput(input);
     }
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException

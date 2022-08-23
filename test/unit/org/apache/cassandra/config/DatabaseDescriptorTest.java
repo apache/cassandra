@@ -587,6 +587,44 @@ public class DatabaseDescriptorTest
     }
 
     @Test
+    public void testUpperBoundStreamingConfigOnStartup()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+
+        String expectedMsg = "Invalid value of entire_sstable_stream_throughput_outbound:";
+        config.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
+        validateProperty(expectedMsg);
+
+        expectedMsg = "Invalid value of entire_sstable_stream_throughput_outbound:";
+        config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
+        validateProperty(expectedMsg);
+
+        expectedMsg = "Invalid value of stream_throughput_outbound:";
+        config.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE * 125_000L);
+        validateProperty(expectedMsg);
+
+        expectedMsg = "Invalid value of inter_dc_stream_throughput_outbound:";
+        config.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE * 125_000L);
+        validateProperty(expectedMsg);
+
+        expectedMsg = "compaction_throughput:";
+        config.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
+        validateProperty(expectedMsg);
+    }
+
+    private static void validateProperty(String expectedMsg)
+    {
+        try
+        {
+            DatabaseDescriptor.validateUpperBoundStreamingConfig();
+        }
+        catch (ConfigurationException ex)
+        {
+            Assert.assertEquals(expectedMsg, ex.getMessage());
+        }
+    }
+
+    @Test
     public void testApplyTokensConfigInitialTokensNotSetNumTokensSet()
     {
         Config config = DatabaseDescriptor.loadConfig();

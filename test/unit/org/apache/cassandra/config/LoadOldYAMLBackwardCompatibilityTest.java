@@ -72,11 +72,11 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(new DataStorageSpec.IntKibibytesBound(4), config.column_index_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(2), config.column_index_cache_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(5), config.batch_size_warn_threshold);
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(64), config.compaction_throughput);
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound(64, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND), config.compaction_throughput);
         assertEquals(new DataStorageSpec.IntMebibytesBound(50), config.min_free_space_per_drive);
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(23841858).toString(), config.stream_throughput_outbound.toString());
-        assertEquals(DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(200000000).toString(), config.stream_throughput_outbound.toString());
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(24), config.inter_dc_stream_throughput_outbound);
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound(25000000000000L).toString(), config.stream_throughput_outbound.toString());
+        assertEquals(DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(200000000), config.stream_throughput_outbound);
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound(24L  * 1024L * 1024L), config.inter_dc_stream_throughput_outbound);
         assertNull(config.commitlog_total_space);
         assertEquals(new DurationSpec.IntMillisecondsBound(0.0, TimeUnit.MILLISECONDS), config.commitlog_sync_group_window);
         assertEquals(new DurationSpec.IntMillisecondsBound(0), config.commitlog_sync_period);

@@ -22,6 +22,9 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -57,7 +60,9 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -317,9 +322,40 @@ public class Verifier implements Closeable
                     if (key == null || dataSize > dataFile.length())
                         markAndThrow(new RuntimeException(String.format("key = %s, dataSize=%d, dataFile.length() = %d", key, dataSize, dataFile.length())));
 
-                    //mimic the scrub read path, intentionally unused
                     try (UnfilteredRowIterator iterator = SSTableIdentityIterator.create(sstable, dataFile, key))
                     {
+                        Row first = null;
+                        int duplicateRows = 0;
+                        long minTimestamp = Long.MAX_VALUE;
+                        long maxTimestamp = Long.MIN_VALUE;
+                        while (iterator.hasNext())
+                        {
+                            Unfiltered uf = iterator.next();
+                            if (uf.isRow())
+                            {
+                                Row row = (Row) uf;
+                                if (first != null && first.clustering().equals(row.clustering()))
+                                {
+                                    duplicateRows++;
+                                    for (Cell cell : row.cells())
+                                    {
+                                        maxTimestamp = Math.max(cell.timestamp(), maxTimestamp);
+                                        minTimestamp = Math.min(cell.timestamp(), minTimestamp);
+                                    }
+                                }
+                                else
+                                {
+                                    if (duplicateRows > 0)
+                                        logDuplicates(key, first, duplicateRows, minTimestamp, maxTimestamp);
+                                    duplicateRows = 0;
+                                    first = row;
+                                    maxTimestamp = Long.MIN_VALUE;
+                                    minTimestamp = Long.MAX_VALUE;
+                                }
+                            }
+                        }
+                        if (duplicateRows > 0)
+                            logDuplicates(key, first, duplicateRows, minTimestamp, maxTimestamp);
                     }
 
                     if ( (prevKey != null && prevKey.compareTo(key) > 0) || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex )
@@ -348,6 +384,31 @@ public class Verifier implements Closeable
         }
 
         outputHandler.output("Verify of " + sstable + " succeeded. All " + goodRows + " rows read successfully");
+    }
+
+    private void logDuplicates(DecoratedKey key, Row first, int duplicateRows, long minTimestamp, long maxTimestamp)
+    {
+        String keyString = sstable.metadata().partitionKeyType.getString(key.getKey());
+        long firstMaxTs = Long.MIN_VALUE;
+        long firstMinTs = Long.MAX_VALUE;
+        for (Cell cell : first.cells())
+        {
+            firstMaxTs = Math.max(firstMaxTs, cell.timestamp());
+            firstMinTs = Math.min(firstMinTs, cell.timestamp());
+        }
+        outputHandler.output(String.format("%d duplicate rows found for [%s %s] in %s.%s (%s), timestamps: [first row (%s, %s)], [duplicates (%s, %s, eq:%b)]",
+                                           duplicateRows,
+                                           keyString, first.clustering().toString(sstable.metadata()),
+                                           sstable.metadata().keyspace,
+                                           sstable.metadata().name,
+                                           sstable,
+                                           dateString(firstMinTs), dateString(firstMaxTs),
+                                           dateString(minTimestamp), dateString(maxTimestamp), minTimestamp == maxTimestamp));
+    }
+
+    private String dateString(long time)
+    {
+        return Instant.ofEpochMilli(TimeUnit.MICROSECONDS.toMillis(time)).toString();
     }
 
     /**

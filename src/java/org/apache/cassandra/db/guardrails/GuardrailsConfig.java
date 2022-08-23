@@ -133,6 +133,13 @@ public interface GuardrailsConfig
     boolean getUserTimestampsEnabled();
 
     /**
+     * Returns whether users are allowed access to the ALTER TABLE statement to mutate columns or not
+     *
+     * @return {@code true} if ALTER TABLE ADD/REMOVE/RENAME is allowed, {@code false} otherwise.
+     */
+    boolean getAlterTableEnabled();
+
+    /**
      * Returns whether tables can be uncompressed
      *
      * @return {@code true} if user's can disable compression, {@code false} otherwise.
@@ -161,6 +168,13 @@ public interface GuardrailsConfig
     boolean getDropTruncateTableEnabled();
 
     /**
+     * Returns whether DROP on keyspaces is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDropKeyspaceEnabled();
+
+    /**
      * @return The threshold to warn when page size exceeds given size.
      */
     int getPageSizeWarnThreshold();
@@ -183,6 +197,13 @@ public interface GuardrailsConfig
      * @return {@code true} if ALLOW FILTERING is allowed, {@code false} otherwise.
      */
     boolean getAllowFilteringEnabled();
+
+    /**
+     * Returns whether setting SimpleStrategy via keyspace creation or alteration is enabled
+     *
+     * @return {@code true} if SimpleStrategy is allowed, {@code false} otherwise.
+     */
+    boolean getSimpleStrategyEnabled();
 
     /**
      * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
@@ -215,6 +236,18 @@ public interface GuardrailsConfig
      * @return The consistency levels that are disallowed when writing.
      */
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
+
+    /**
+     * @return The threshold to warn when writing column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent writing column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnValueSizeFailThreshold();
 
     /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
@@ -277,4 +310,13 @@ public interface GuardrailsConfig
      */
     int getMinimumReplicationFactorFailThreshold();
 
+    /**
+     * @return The threshold to warn when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorFailThreshold();
 }
