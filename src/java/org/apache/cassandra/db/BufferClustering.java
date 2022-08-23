@@ -19,6 +19,8 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -35,7 +37,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class BufferClustering extends AbstractBufferClusteringPrefix implements Clustering
 {
-    BufferClustering(ByteBuffer... values)
+    @VisibleForTesting
+    public BufferClustering(ByteBuffer... values)
     {
         super(Kind.CLUSTERING, values);
     }

@@ -1,4 +1,5 @@
 3.11.14
+ * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)
  * Document usage of closed token intervals in manual compaction (CASSANDRA-17575)
  * Creating of a keyspace on insufficient number of replicas should filter out gosspping-only members (CASSANDRA-17759)
  * Only use statically defined subcolumns when determining column definition for supercolumn cell (CASSANDRA-14113)
