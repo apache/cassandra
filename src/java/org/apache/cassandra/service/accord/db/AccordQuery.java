@@ -42,7 +42,7 @@ public abstract class AccordQuery implements Query
         @Override
         public Result compute(Data data, @Nullable Read read, @Nullable Update update)
         {
-            return (AccordData) data;
+            return data != null ? (AccordData) data : new AccordData();
         }
     };
 
