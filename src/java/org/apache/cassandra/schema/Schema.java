@@ -736,6 +736,7 @@ public class Schema implements SchemaProvider
             if (ks == null)
                 return;
 
+            logger.debug("Dropping keyspace {}", keyspace.name);
             keyspace.views.forEach(v -> dropView(ks, v, dropData));
             keyspace.tables.forEach(t -> dropTable(ks, t, dropData));
 
@@ -747,6 +748,7 @@ public class Schema implements SchemaProvider
 
         if (initialized)
         {
+            logger.debug("Awaiting on write barrier before dropping keyspace {}", keyspace.name);
             Keyspace.writeOrder.awaitNewBarrier();
         }
 
