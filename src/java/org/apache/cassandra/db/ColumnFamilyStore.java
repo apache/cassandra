@@ -742,6 +742,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void invalidate(boolean expectMBean, boolean dropData)
     {
+        if (logger.isTraceEnabled())
+        {
+            logger.trace("Invalidating CFS {}, status: {}, expectMBean: {}, dropData: {}",
+                         metadata.name, status, expectMBean, dropData);
+        }
+
         // disable and cancel in-progress compactions before invalidating
         status = dropData ? STATUS.INVALID_DROPPED : STATUS.INVALID_UNLOADED;
 
@@ -787,6 +793,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         });
 
         invalidateCaches();
+        if (logger.isTraceEnabled())
+            logger.trace("CFS {} invalidated", metadata.name);
     }
 
     /**
@@ -1419,12 +1427,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             }
             reclaim(memtable);
             cfs.strategyFactory.getCompactionLogger().flush(sstables);
-            logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",
-                         sstables,
-                         sstables.size(),
-                         FBUtilities.prettyPrintMemory(totalBytesOnDisk),
-                         FBUtilities.prettyPrintMemory(maxBytesOnDisk),
-                         FBUtilities.prettyPrintMemory(minBytesOnDisk));
+            if (logger.isTraceEnabled())
+            {
+                logger.trace("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",
+                             sstables,
+                             sstables.size(),
+                             FBUtilities.prettyPrintMemory(totalBytesOnDisk),
+                             FBUtilities.prettyPrintMemory(maxBytesOnDisk),
+                             FBUtilities.prettyPrintMemory(minBytesOnDisk));
+            }
             return sstables;
         }
 
@@ -1570,7 +1581,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      */
     public Set<SSTableReader> getOverlappingLiveSSTables(Iterable<? extends CompactionSSTable> sstables)
     {
-        logger.trace("Checking for sstables overlapping {}", sstables);
+        if (logger.isTraceEnabled())
+            logger.trace("Checking for sstables overlapping {}", sstables);
 
         // a normal compaction won't ever have an empty sstables list, but we create a skeleton
         // compaction controller for streaming, and that passes an empty list.
@@ -3322,8 +3334,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     void onTableDropped()
     {
         indexManager.markAllIndexesRemoved();
+        if (logger.isTraceEnabled())
+            logger.trace("CFS {} is being dropped: indexes removed", name);
 
         CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
+        if (logger.isTraceEnabled())
+            logger.trace("CFS {} is being dropped: compactions stopped", name);
 
         if (DatabaseDescriptor.isAutoSnapshot())
             snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
@@ -3336,13 +3352,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
         else
         {
-            logger.debug("Recycling CL segments for dropping {}", metadata);
+            if (logger.isTraceEnabled())
+                logger.trace("Recycling CL segments for dropping {}", metadata);
             CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
         }
 
+        if (logger.isTraceEnabled())
+            logger.trace("Dropping CFS {}: shutting down compaction strategy", name);
         strategyContainer.shutdown();
 
         // wait for any outstanding reads/writes that might affect the CFS
+        if (logger.isTraceEnabled())
+            logger.trace("Dropping CFS {}: waiting for read and write barriers", name);
         Keyspace.writeOrder.awaitNewBarrier();
         readOrdering.awaitNewBarrier();
     }
