@@ -140,7 +140,8 @@
         <resolver:resolve>
             <remoterepos refid="all"/>
             <dependencies pomRef="pom-deps"/>
-            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
+            <!-- Needed to include compile here, so ant _build-test would not fail on missing jimfs dependency -->
+            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,test,!provide,!system"/>
         </resolver:resolve>
 
         <!-- jacoco agent jar comes wrapped in a jar -->
@@ -152,8 +153,8 @@
         </unzip>
     </target>
 
-    <target name="resolver-dist-lib" depends="resolver-retrieve-build,write-poms">
-        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
+    <target name="resolver-dist-lib" depends="resolver-retrieve-build">
+        <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
 
         <resolver:resolve failOnMissingAttachments="true">
             <remoterepos refid="all"/>
