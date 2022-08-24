@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.io.UTFDataFormatException;
 import java.nio.ByteBuffer;
 
-import com.intel.pmem.llpl.TransactionalMemoryBlock;
+import com.intel.pmem.llpl.Range;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -30,12 +30,12 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 /*Extending DataOutputStreamPlus to reuse a few methods defined in it */
 public class MemoryBlockDataOutputPlus extends DataOutputStreamPlus implements DataOutputPlus
 {
-    private final TransactionalMemoryBlock block;
+    private final Range range;
     private int position;
 
-    public MemoryBlockDataOutputPlus(TransactionalMemoryBlock block, int initialPosition)
+    public MemoryBlockDataOutputPlus(Range range, int initialPosition)
     {
-        this.block = block;
+        this.range = range;
         position = initialPosition;
     }
 
@@ -60,7 +60,7 @@ public class MemoryBlockDataOutputPlus extends DataOutputStreamPlus implements D
         if (buffer.hasArray())
         {
             byte[] bufferArray = buffer.array();
-            block.copyFromArray(bufferArray, buffer.arrayOffset() + buffer.position(), position, buffer.remaining());
+            range.copyFromArray(bufferArray, buffer.arrayOffset() + buffer.position(), position, buffer.remaining());
             position += buffer.remaining();
         }
         else
@@ -72,63 +72,63 @@ public class MemoryBlockDataOutputPlus extends DataOutputStreamPlus implements D
     @Override
     public void write(int b) throws IOException
     {
-        block.setByte(position, (byte) b);
+        range.setByte(position, (byte) b);
         position++;
     }
 
     @Override
     public void write(byte[] b) throws IOException
     {
-        block.copyFromArray(b, 0, position, b.length);
+        range.copyFromArray(b, 0, position, b.length);
         position += b.length;
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException
     {
-        block.copyFromArray(b, off, position, len);
+        range.copyFromArray(b, off, position, len);
         position += len;
     }
 
     @Override
     public void writeBoolean(boolean v)
     {
-        block.setByte(position, v ? (byte) 1 : (byte) 0);
+        range.setByte(position, v ? (byte) 1 : (byte) 0);
         position++;
     }
 
     @Override
     public void writeByte(int v)
     {
-        block.setByte(position, (byte) v);
+        range.setByte(position, (byte) v);
         position++;
     }
 
     @Override
     public void writeShort(int v)
     {
-        block.setShort(position, (short) v);
+        range.setShort(position, (short) v);
         position += 2;
     }
 
     @Override
     public void writeChar(int v)
     {
-        block.setByte(position, (byte) v);
+        range.setByte(position, (byte) v);
         position += Byte.BYTES;
     }
 
     @Override
     public void writeInt(int v)
     {
-        block.setInt(position, v);
+        range.setInt(position, v);
         position += Integer.BYTES;
     }
 
     @Override
     public void writeLong(long v)
     {
-        block.setLong(position, v);
+        range.setLong(position, v);
         position += Long.BYTES;
     }
 

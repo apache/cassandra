@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+
+import com.intel.pmem.llpl.Range;
 import com.intel.pmem.llpl.Transaction;
 import com.intel.pmem.llpl.TransactionalHeap;
 import com.intel.pmem.llpl.TransactionalMemoryBlock;
@@ -217,15 +219,17 @@ public class PmemTableInfo
         Transaction.create(heap, () -> {
             long blockSize = SerializationHeader.serializer.serializedSize(BigFormat.latestVersion, sHeader.toComponent());
             TransactionalMemoryBlock serializationHeaderBlock = heap.allocateMemoryBlock(blockSize);
-            DataOutputPlus out = new MemoryBlockDataOutputPlus(serializationHeaderBlock, 0);
-            try
-            {
-                SerializationHeader.serializer.serialize(BigFormat.latestVersion, sHeader.toComponent(), out);
-            }
-            catch (IndexOutOfBoundsException | IOException e)
-            {
-                throw new IOError(e);
-            }
+            serializationHeaderBlock.withRange((Range rng) -> {
+                DataOutputPlus rangeDataOutputPlus = new MemoryBlockDataOutputPlus(rng, 0);
+                try
+                {
+                    SerializationHeader.serializer.serialize(BigFormat.latestVersion, sHeader.toComponent(), rangeDataOutputPlus);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            });
             long index = sHeaderLongLinkedList.size();
             sHeaderLongLinkedList.add(index, serializationHeaderBlock.handle());
         });

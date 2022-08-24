@@ -20,6 +20,8 @@ package org.apache.cassandra.db.memtable.pmem;
 
 import java.io.IOError;
 import java.io.IOException;
+
+import com.intel.pmem.llpl.Range;
 import com.intel.pmem.llpl.util.LongART;
 import com.intel.pmem.llpl.TransactionalHeap;
 import com.intel.pmem.llpl.TransactionalMemoryBlock;
@@ -171,10 +173,20 @@ public class PmemRowMap {
             } else {
                 cellMemoryRegion = oldBlock;
             }
-
-            DataOutputPlus memoryBlockDataOutputPlus = new MemoryBlockDataOutputPlus(cellMemoryRegion, 0);
-            PmemRowSerializer.serializer.serialize(row, helper, memoryBlockDataOutputPlus, 0, version);
-        } catch (IndexOutOfBoundsException | IOException e)
+            final Row cellRow = row;
+            cellMemoryRegion.withRange((Range rng) -> {
+                DataOutputPlus rangeDataOutputPlus = new MemoryBlockDataOutputPlus(rng, 0);
+                try
+                {
+                    PmemRowSerializer.serializer.serialize(cellRow, helper, rangeDataOutputPlus, 0, version);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            });
+        }
+        catch (IndexOutOfBoundsException e)
         {
             throw new IOError(e);
         }
@@ -207,9 +219,18 @@ public class PmemRowMap {
                 rtmMemoryRegion = heap.allocateMemoryBlock(size);
             }
 
-            DataOutputPlus memoryBlockDataOutputPlus = new MemoryBlockDataOutputPlus(rtmMemoryRegion, 0);
-            PmemRowSerializer.serializer.serialize(unfiltered, helper, memoryBlockDataOutputPlus, 0, version);
-        } catch (IndexOutOfBoundsException | IOException e)
+            rtmMemoryRegion.withRange((Range rng) -> {
+                DataOutputPlus rangeDataOutputPlus = new MemoryBlockDataOutputPlus(rng, 0);
+                try
+                {
+                    PmemRowSerializer.serializer.serialize(unfiltered, helper, rangeDataOutputPlus, 0, version);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            });
+        } catch (IndexOutOfBoundsException e)
         {
             throw new IOError(e);
         }

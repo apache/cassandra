@@ -21,7 +21,6 @@ package org.apache.cassandra.db.memtable.pmem;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NavigableSet;
@@ -30,6 +29,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.intel.pmem.llpl.Range;
 import com.intel.pmem.llpl.util.AutoCloseableIterator;
 import com.intel.pmem.llpl.util.LongART;
 import com.intel.pmem.llpl.TransactionalHeap;
@@ -67,7 +67,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -307,12 +307,8 @@ public class PmemPartition implements Partition
     private Row updateStaticRow(Row staticRow, UpdateTransaction indexer) throws IOException
     {
         Row newStaticRow = staticRow;
-        long oldStaticRowHandle = 0;
         TransactionalMemoryBlock oldStaticBlock = null;
-        try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
-        {
-
-            oldStaticRowHandle = block.getLong(STATIC_ROW_OFFSET);
+         long  oldStaticRowHandle = block.getLong(STATIC_ROW_OFFSET);
             if (oldStaticRowHandle != 0)
             {
                 oldStaticBlock = heap.memoryBlockFromHandle(oldStaticRowHandle);
@@ -326,9 +322,7 @@ public class PmemPartition implements Partition
             SerializationHelper helper = new SerializationHelper(serializationHeader);
 
             int version = pmemTableInfo.getMetadataVersion();
-            PmemRowSerializer.serializer.serializeStaticRow(newStaticRow, helper, dob, version);
-            int size = dob.getLength();
-
+            long size = PmemRowSerializer.serializer.serializedSize(newStaticRow, helper.header, 0, version);
             TransactionalMemoryBlock staticRowBlock;
             if (oldStaticRowHandle == 0)
             {
@@ -344,14 +338,21 @@ public class PmemPartition implements Partition
             {
                 staticRowBlock = oldStaticBlock;
             }
-            MemoryBlockDataOutputPlus cellsOutputPlus = new MemoryBlockDataOutputPlus(staticRowBlock, 0);
-            cellsOutputPlus.write(dob.getData(), 0, dob.getLength());
-            dob.clear();
-            dob.close();
+            final Row row = newStaticRow;
+            staticRowBlock.withRange((Range rng) -> {
+                DataOutputPlus rangeDataOutputPlus = new MemoryBlockDataOutputPlus(rng, 0);
+                try
+                {
+                    PmemRowSerializer.serializer.serializeStaticRow(row, helper, rangeDataOutputPlus, version);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            });
             block.setLong(STATIC_ROW_OFFSET, staticRowBlock.handle());
             return newStaticRow;
         }
-    }
 
     public Row getMergedStaticRow(Row newRow, Long mb)
     {
@@ -402,35 +403,43 @@ public class PmemPartition implements Partition
                 return;
             }
         }
-        MemoryBlockDataOutputPlus partitionBlockOutputPlus = getPartitionDeleteInfoBuffer(deletedPartitionBlock, partitionDeleteSize);
-        DeletionTime.serializer.serialize(partitionDeleteTime, partitionBlockOutputPlus);
+
+        deletedPartitionBlock = getPartitionDeleteInfoBlock(deletedPartitionBlock, partitionDeleteSize);
+        deletedPartitionBlock.withRange((Range rng) -> {
+            MemoryBlockDataOutputPlus partitionBlockOutputPlus = new MemoryBlockDataOutputPlus(rng,0);
+            try
+            {
+                DeletionTime.serializer.serialize(partitionDeleteTime, partitionBlockOutputPlus);
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        });
         filterOutPmemRowMap(partitionDeleteTime,Slice.ALL);
         block.setLong(STATIC_ROW_OFFSET, 0);
     }
 
     /**
-     * This sets the partition delete info to the DELETION_INFO_OFFSET and returns the output buffer
+     * This sets the partition delete info to the DELETION_INFO_OFFSET and returns the memory block
      *
      * @param deletedPartitionBlock
      * @param partitionDeleteSize
-     * @return MemoryBlockDataOutputPlus reference
+     * @return TransactionalMemoryBlock reference
      */
-    private MemoryBlockDataOutputPlus getPartitionDeleteInfoBuffer(TransactionalMemoryBlock deletedPartitionBlock, long partitionDeleteSize)
+    private TransactionalMemoryBlock getPartitionDeleteInfoBlock(TransactionalMemoryBlock deletedPartitionBlock, long partitionDeleteSize)
     {
         if (deletedPartitionBlock != null && partitionDeleteSize <= deletedPartitionBlock.size())
         {
-            return new MemoryBlockDataOutputPlus(deletedPartitionBlock, 0);
+            return deletedPartitionBlock;
         }
         else
         {
             TransactionalMemoryBlock newBlock = heap.allocateMemoryBlock(partitionDeleteSize);
-            MemoryBlockDataOutputPlus partitionBlockOutputPlus = new MemoryBlockDataOutputPlus(newBlock, 0);
             if (deletedPartitionBlock != null)
-            {
                 deletedPartitionBlock.free();
-            }
             block.setLong(DELETION_INFO_OFFSET, newBlock.handle());
-            return partitionBlockOutputPlus;
+            return newBlock;
         }
     }
 
