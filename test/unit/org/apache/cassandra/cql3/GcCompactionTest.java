@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -33,6 +34,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompactionParams;
@@ -209,6 +211,65 @@ public class GcCompactionTest extends CQLTester
       assertEquals(KEY_COUNT * CLUSTERING_COUNT, countRows(collected2));
 
       assertEquals(1, collected2.getSSTableLevel()); // garbagecollect should leave the LCS level where it was
+    }
+
+    @Test
+    public void testGarbageCollectPartial() throws Throwable
+    {
+      createTable("CREATE TABLE %s(" +
+          "  key int," +
+          "  column int," +
+          "  data int," +
+          "  PRIMARY KEY ((key), column)" +
+          ");");
+
+
+      ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+      cfs.disableAutoCompaction();
+
+      execute("INSERT INTO %s (key, column, data) VALUES (1, 1, 1)");
+      flush();
+      execute("INSERT INTO %s (key, column, data) VALUES (1, 2, 1)");
+      flush();
+      execute("INSERT INTO %s (key, column, data) VALUES (2, 1, 2)");
+      flush();
+      execute("INSERT INTO %s (key, column, data) VALUES (2, 2, 2)");
+      flush();
+      execute("DELETE FROM %s where key = 1 and column = 1"); // removes (1, 1, 1)
+      flush();
+      execute("DELETE FROM %s where key = 2 and column = 2"); // removes (2, 2, 2)
+      flush();
+
+      assertEquals(6, cfs.getLiveSSTables().size());
+      ArrayList<Descriptor> toGc = new ArrayList<>();
+      Set<Integer> gens = new HashSet<>();
+      for (SSTableReader table: cfs.getLiveSSTables())
+      {
+        Descriptor desc = table.descriptor;
+        int gen = desc.generation;
+        assertEquals(1, countRows(table) + countTombstoneMarkers(table));
+        if (gen < 4) {
+          toGc.add(desc);
+        }
+        gens.add(gen);
+      }
+
+      assertEquals(new HashSet<>(Arrays.asList(1, 2, 3, 4, 5, 6)), gens);
+
+      gens.clear();
+
+      CompactionManager.AllSSTableOpStatus status;
+      status = CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, toGc);
+      assertEquals(CompactionManager.AllSSTableOpStatus.SUCCESSFUL, status);
+
+      assertEquals(5, cfs.getLiveSSTables().size());
+      for (SSTableReader table: cfs.getLiveSSTables())
+      {
+        gens.add(table.descriptor.generation);
+        assertEquals(1, countRows(table) + countTombstoneMarkers(table));
+      }
+
+      assertEquals(new HashSet<>(Arrays.asList(4, 5, 6, 7, 8)), gens); // first three were GC'd, one output was empty
     }
 
     @Test

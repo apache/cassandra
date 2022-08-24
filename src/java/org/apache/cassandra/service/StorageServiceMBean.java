@@ -299,6 +299,13 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
+     * Scrub (deserialize + reserialize at the latest version, skipping bad rows if any) for the given SSTable data files.
+     *
+     * Scrubbed CFs will be snapshotted first, if disableSnapshot is false
+     */
+    public int userDefinedScrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, Collection<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException;
+
+    /**
      * Verify (checksums of) the given keyspace.
      * If tableNames array is empty, all CFs are verified.
      *
@@ -319,6 +326,12 @@ public interface StorageServiceMBean extends NotificationEmitter
      * The tombstone option defines the granularity of the procedure: ROW removes deleted partitions and rows, CELL also removes overwritten or deleted cells.
      */
     public int garbageCollect(String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Rewrites all sstables from the given list of SSTable Data.db files.
+     * The tombstone option defines the granularity of the procedure: ROW removes deleted partitions and rows, CELL also removes overwritten or deleted cells.
+     */
+    public int userDefinedGarbageCollect(String tombstoneOption, int jobs, Collection<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Flush all memtables for the given column families, or all columnfamilies for the given keyspace

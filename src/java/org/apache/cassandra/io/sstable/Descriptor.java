@@ -26,14 +26,21 @@ import java.util.regex.Pattern;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Objects;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.LegacyMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
 
@@ -46,6 +53,8 @@ import static org.apache.cassandra.io.sstable.Component.separator;
  */
 public class Descriptor
 {
+    private static final Logger logger = LoggerFactory.getLogger(Descriptor.class);
+
     public static String TMP_EXT = ".tmp";
 
     /** canonicalized path to the directory where SSTable resides */
@@ -215,6 +224,27 @@ public class Descriptor
     public static Descriptor fromFilename(String filename)
     {
         return fromFilename(filename, false);
+    }
+
+    public static Multimap<ColumnFamilyStore, Descriptor> fromFilenamesGrouped(Collection<String> filenames) {
+      Multimap<ColumnFamilyStore, Descriptor> descriptors = ArrayListMultimap.create();
+
+      for (String filename : filenames)
+      {
+          // extract keyspace and columnfamily name from filename
+          Descriptor desc = Descriptor.fromFilename(filename.trim());
+          if (Schema.instance.getCFMetaData(desc) == null)
+          {
+              logger.warn("Schema does not exist for file {}. Skipping.", filename);
+              continue;
+          }
+          // group by keyspace/columnfamily
+          ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+          desc = cfs.getDirectories().find(new File(filename.trim()).getName());
+          if (desc != null)
+            descriptors.put(cfs, desc);
+      }
+      return descriptors;
     }
 
     public static Descriptor fromFilename(String filename, SSTableFormat.Type formatType)

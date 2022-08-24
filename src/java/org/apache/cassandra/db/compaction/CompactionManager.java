@@ -295,12 +295,16 @@ public class CompactionManager implements CompactionManagerMBean
         logger.info("Starting {} for {}.{}", operationType, cfs.keyspace.getName(), cfs.getTableName());
         List<LifecycleTransaction> transactions = new ArrayList<>();
         List<Future<?>> futures = new ArrayList<>();
+        int originalCount = 0;
+        int tableCount = 0;
         try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType))
         {
             if (compacting == null)
                 return AllSSTableOpStatus.UNABLE_TO_CANCEL;
 
-            Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
+            List<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
+            originalCount = compacting.originals().size();
+            tableCount = sstables.size();
             if (Iterables.isEmpty(sstables))
             {
                 logger.info("No sstables to {} for {}.{}", operationType.name(), cfs.keyspace.getName(), cfs.name);
@@ -333,7 +337,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
             FBUtilities.waitOnFutures(futures);
-            assert compacting.originals().isEmpty();
+            assert (compacting.originals().size() == originalCount - tableCount);
             logger.info("Finished {} for {}.{} successfully", operationType, cfs.keyspace.getName(), cfs.getTableName());
             return AllSSTableOpStatus.SUCCESSFUL;
         }
@@ -385,12 +389,27 @@ public class CompactionManager implements CompactionManagerMBean
                                            final boolean reinsertOverflowedTTL, int jobs)
     throws InterruptedException, ExecutionException
     {
+        return performScrub(cfs, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, descriptor -> true);
+    }
+
+    public AllSSTableOpStatus performScrub(ColumnFamilyStore cfs, boolean skipCorrupted, boolean checkData,
+                                           boolean reinsertOverflowedTTL, int jobs, Collection<Descriptor> sstables) throws InterruptedException, ExecutionException
+    {
+      Set<Descriptor> files = new HashSet<>(sstables);
+      return performScrub(cfs, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, files::contains);
+    }
+
+    private AllSSTableOpStatus performScrub(ColumnFamilyStore cfs, boolean skipCorrupted, boolean checkData,
+                                            boolean reinsertOverflowedTTL, int jobs, Predicate<Descriptor> allowedFile) throws InterruptedException, ExecutionException
+    {
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
         {
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction input)
             {
-                return input.originals();
+                return input.originals().stream()
+                  .filter(reader -> allowedFile.test(reader.descriptor))
+                  .collect(Collectors.toList());
             }
 
             @Override
@@ -503,7 +522,19 @@ public class CompactionManager implements CompactionManagerMBean
         }, jobs, OperationType.CLEANUP);
     }
 
-    public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
+    public AllSSTableOpStatus performGarbageCollection(ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
+    {
+        return performGarbageCollection(cfStore, tombstoneOption, jobs, descriptor -> true);
+    }
+
+    public AllSSTableOpStatus performGarbageCollection(ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs, Collection<Descriptor> dataFiles) throws InterruptedException, ExecutionException
+    {
+        Set<Descriptor> files = new HashSet<>(dataFiles);
+        return performGarbageCollection(cfStore, tombstoneOption, jobs, files::contains);
+    }
+
+    @VisibleForTesting
+    AllSSTableOpStatus performGarbageCollection(ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs, Predicate<Descriptor> allowedFile) throws InterruptedException, ExecutionException
     {
         assert !cfStore.isIndex();
 
@@ -512,12 +543,15 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
-                Iterable<SSTableReader> originals = transaction.originals();
-                if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
-                    originals = Iterables.filter(originals, SSTableReader::isRepaired);
-                List<SSTableReader> sortedSSTables = Lists.newArrayList(originals);
-                Collections.sort(sortedSSTables, SSTableReader.maxTimestampAscending);
-                return sortedSSTables;
+                Predicate<SSTableReader> onlyRepaired = cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones()
+                    ? SSTableReader::isRepaired
+                    : reader -> true;
+
+                return transaction.originals().stream()
+                    .filter(reader -> allowedFile.test(reader.descriptor))
+                    .filter(onlyRepaired)
+                    .sorted(SSTableReader.maxTimestampAscending)
+                    .collect(Collectors.toList());
             }
 
             @Override
@@ -880,22 +914,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void forceUserDefinedCompaction(String dataFiles)
     {
-        String[] filenames = dataFiles.split(",");
-        Multimap<ColumnFamilyStore, Descriptor> descriptors = ArrayListMultimap.create();
-
-        for (String filename : filenames)
-        {
-            // extract keyspace and columnfamily name from filename
-            Descriptor desc = Descriptor.fromFilename(filename.trim());
-            if (Schema.instance.getCFMetaData(desc) == null)
-            {
-                logger.warn("Schema does not exist for file {}. Skipping.", filename);
-                continue;
-            }
-            // group by keyspace/columnfamily
-            ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
-            descriptors.put(cfs, cfs.getDirectories().find(new File(filename.trim()).getName()));
-        }
+        Multimap<ColumnFamilyStore, Descriptor> descriptors =Descriptor.fromFilenamesGrouped(Arrays.asList(dataFiles.split(",")));
 
         List<Future<?>> futures = new ArrayList<>();
         int nowInSec = FBUtilities.nowInSeconds();
