@@ -32,6 +32,7 @@ import accord.local.Command;
 import accord.local.Listener;
 import accord.local.Listeners;
 import accord.local.Status;
+import accord.local.TxnOperation;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.Keys;
@@ -40,6 +41,7 @@ import accord.primitives.TxnId;
 import accord.txn.Txn;
 import accord.txn.Writes;
 import accord.utils.DeterministicIdentitySet;
+import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredBoolean;
@@ -536,19 +538,19 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    protected void postApply(boolean notifyListeners)
+    protected void postApply()
     {
-        super.postApply(notifyListeners);
+        super.postApply();
         cache().clearWriteFuture(txnId);
     }
 
     @Override
-    public Future<?> apply(boolean notifyListeners)
+    public Future<?> apply()
     {
         Future<?> future = cache().getWriteFuture(txnId);
         if (future != null)
             return future;
-        future = super.apply(notifyListeners);
+        future = super.apply();
         cache().setWriteFuture(txnId, future);
         return future;
     }
@@ -603,7 +605,20 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     public void notifyListeners()
     {
         storedListeners.getView().forEach(this);
-        transientListeners.forEach(this);
+        transientListeners.forEach(listener -> {
+            TxnOperation scope = listener.listenerScope(txnId());
+            AsyncContext context = commandStore().getContext();
+            if (context.containsScopedItems(scope))
+            {
+                listener.onChange(this);;
+            }
+            else
+            {
+                commandStore().process(scope, instance -> {
+                    listener.onChange(instance.command(txnId()));
+                });
+            }
+        });
     }
 
     @Override

@@ -24,9 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import com.google.common.base.Preconditions;
-
-import accord.api.Key;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Listener;
@@ -106,6 +103,12 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
+        public TxnOperation listenerScope(TxnId caller)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Kind kind()
         {
             return Kind.COMMAND;
@@ -126,38 +129,19 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             AccordCommand command = (AccordCommand) c;
             AccordCommandStore commandStore = command.commandStore();
             AsyncContext context = commandStore.getContext();
-            if (context.commands.get(txnId) != null)
+            TxnOperation scope = TxnOperation.scopeFor(List.of(command.txnId(), txnId), Collections.emptyList());
+            if (context.containsScopedItems(scope))
             {
                 commandStore.command(txnId).onChange(c);
             }
             else
             {
                 TxnId callingTxnId = command.txnId();
-                commandStore.process(scopeForCommand(command), instance -> {
+                commandStore.process(scope, instance -> {
                     Command caller = instance.command(callingTxnId);
                     commandStore.command(txnId).onChange(caller);
                 });
-
             }
-        }
-
-        private TxnOperation scopeForCommand(Command command)
-        {
-            Iterable<TxnId> txnIds = List.of(command.txnId(), txnId);
-            return new TxnOperation()
-            {
-                @Override
-                public Iterable<TxnId> txnIds()
-                {
-                    return txnIds;
-                }
-
-                @Override
-                public Iterable<Key> keys()
-                {
-                    return Collections.emptyList();
-                }
-            };
         }
 
         @Override
@@ -216,6 +200,12 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
+        public TxnOperation listenerScope(TxnId caller)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Kind kind()
         {
             return Kind.COMMANDS_FOR_KEY;
@@ -236,10 +226,19 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             AccordCommand command = (AccordCommand) c;
             AccordCommandStore commandStore = command.commandStore();
             AsyncContext context = commandStore.getContext();
-            AccordCommandsForKey cfk = context.commandsForKey.get(key);
-
-            Preconditions.checkState(cfk != null, "Related commands for key always need to be in context");
-            cfk.onChange(command);
+            TxnOperation scope = TxnOperation.scopeFor(List.of(command.txnId()), List.of(key));
+            if (context.containsScopedItems(scope))
+            {
+                commandStore.commandsForKey(key).onChange(c);
+            }
+            else
+            {
+                TxnId callingTxnId = command.txnId();
+                commandStore.process(scope, instance -> {
+                    Command caller = instance.command(callingTxnId);
+                    commandStore.commandsForKey(key).onChange(caller);
+                });
+            }
         }
 
         @Override
