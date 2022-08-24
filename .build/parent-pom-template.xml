@@ -23,7 +23,7 @@
   </parent>
   <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra-parent</artifactId>
-  <version>@VERSION@</version>
+  <version>@version@</version>
   <packaging>pom</packaging>
   <name>Apache Cassandra</name>
   <description>The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.</description>
@@ -36,7 +36,17 @@
     </license>
   </licenses>
   <properties>
-    <asm.version>9.1</asm.version>
+    <bytebuddy.version>1.12.13</bytebuddy.version>
+    <byteman.version>4.0.6</byteman.version>
+    <ohc.version>0.5.1</ohc.version>
+
+    <!-- These are referenced in build.xml, so need to be propagated from there -->
+    <asm.version>@asm.version@</asm.version>
+    <jamm.version>@jamm.version@</jamm.version>
+    <allocation-instrumenter.version>@allocation-instrumenter.version@</allocation-instrumenter.version>
+    <ecj.version>@ecj.version@</ecj.version>
+    <jacoco.version>@jacoco.version@</jacoco.version>
+    <jflex.version>@jflex.version@</jflex.version>
   </properties>
   <developers>
     <developer>
@@ -420,7 +430,7 @@
       <dependency>
         <groupId>com.github.jbellis</groupId>
         <artifactId>jamm</artifactId>
-        <version>0.3.2</version>
+        <version>${jamm.version}</version>
       </dependency>
       <dependency>
         <groupId>org.yaml</groupId>
@@ -454,7 +464,7 @@
       <dependency>
         <groupId>com.google.code.java-allocation-instrumenter</groupId>
         <artifactId>java-allocation-instrumenter</artifactId>
-        <version>3.1.0</version>
+        <version>${allocation-instrumenter.version}</version>
         <scope>test</scope>
         <exclusions>
           <exclusion>
@@ -555,13 +565,13 @@
       <dependency>
         <groupId>org.jacoco</groupId>
         <artifactId>org.jacoco.agent</artifactId>
-        <version>0.8.6</version>
+        <version>${jacoco.version}</version>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.jacoco</groupId>
         <artifactId>org.jacoco.ant</artifactId>
-        <version>0.8.6</version>
+        <version>${jacoco.version}</version>
         <scope>test</scope>
         <exclusions>
           <exclusion>
@@ -573,36 +583,36 @@
       <dependency>
         <groupId>org.jboss.byteman</groupId>
         <artifactId>byteman-install</artifactId>
-        <version>4.0.6</version>
+        <version>${byteman.version}</version>
         <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>org.jboss.byteman</groupId>
         <artifactId>byteman</artifactId>
-        <version>4.0.6</version>
+        <version>${byteman.version}</version>
         <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>org.jboss.byteman</groupId>
         <artifactId>byteman-submit</artifactId>
-        <version>4.0.6</version>
+        <version>${byteman.version}</version>
         <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>org.jboss.byteman</groupId>
         <artifactId>byteman-bmunit</artifactId>
-        <version>4.0.6</version>
+        <version>${byteman.version}</version>
         <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy</artifactId>
-        <version>1.10.10</version>
+        <version>${bytebuddy.version}</version>
       </dependency>
       <dependency>
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy-agent</artifactId>
-        <version>1.10.10</version>
+        <version>${bytebuddy.version}</version>
       </dependency>
       <dependency>
         <groupId>org.openjdk.jmh</groupId>
@@ -808,12 +818,12 @@
       <dependency>
         <groupId>org.eclipse.jdt.core.compiler</groupId>
         <artifactId>ecj</artifactId>
-        <version>4.6.1</version>
+        <version>${ecj.version}</version>
       </dependency>
       <dependency>
         <groupId>org.caffinitas.ohc</groupId>
         <artifactId>ohc-core</artifactId>
-        <version>0.5.1</version>
+        <version>${ohc.version}</version>
         <exclusions>
           <exclusion>
             <artifactId>slf4j-api</artifactId>
@@ -824,7 +834,7 @@
       <dependency>
         <groupId>org.caffinitas.ohc</groupId>
         <artifactId>ohc-core-j8</artifactId>
-        <version>0.5.1</version>
+        <version>${ohc.version}</version>
       </dependency>
       <dependency>
         <groupId>net.ju-n.compile-command-annotations</groupId>
@@ -851,7 +861,7 @@
       <dependency>
         <groupId>de.jflex</groupId>
         <artifactId>jflex</artifactId>
-        <version>1.8.2</version>
+        <version>${jflex.version}</version>
         <exclusions>
           <exclusion>
             <artifactId>ant</artifactId>

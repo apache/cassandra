@@ -118,29 +118,17 @@
     <property name="cassandra.test.flush_local_schema_changes" value="false" />
 
     <!-- https://www.eclemma.org/jacoco/ -->
+    <property name="jacoco.version" value="0.8.6"/>
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
     <property name="jacoco.partials.dir" value="${jacoco.export.dir}/partials" />
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
-    <property name="jacoco.version" value="0.8.6"/>
 
-    <property name="byteman.version" value="4.0.6"/>
+    <property name="jflex.version" value="1.8.2"/>
     <property name="jamm.version" value="0.3.2"/>
     <property name="ecj.version" value="4.6.1"/>
-    <property name="ohc.version" value="0.5.1"/>
     <property name="asm.version" value="9.3"/>
     <property name="allocation-instrumenter.version" value="3.1.0"/>
-    <property name="bytebuddy.version" value="1.12.13"/>
-    <property name="jflex.version" value="1.8.2"/>
-
-    <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.16.23 -->
-    <property name="chronicle-queue.version" value="5.20.123" />
-    <property name="chronicle-core.version" value="2.20.126" />
-    <property name="chronicle-bytes.version" value="2.20.111" />
-    <property name="chronicle-wire.version" value="2.20.117" />
-    <property name="chronicle-threads.version" value="2.20.111" />
-
-    <property name="dtest-api.version" value="0.0.13" />
 
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
@@ -661,8 +649,14 @@
 
     <target name="write-poms" unless="without.maven">
         <filterset id="pom-template">
-            <filter token="VERSION" value="${version}"/>
-            <filter token="FINAL_NAME" value="${final.name}"/>
+            <filter token="version" value="${version}"/>
+            <filter token="final.name" value="${final.name}"/>
+            <filter token="jamm.version" value="${jamm.version}"/>
+            <filter token="allocation-instrumenter.version" value="${allocation-instrumenter.version}"/>
+            <filter token="ecj.version" value="${ecj.version}"/>
+            <filter token="asm.version" value="${asm.version}"/>
+            <filter token="jacoco.version" value="${jacoco.version}"/>
+            <filter token="jflex.version" value="${jflex.version}"/>
         </filterset>
 
         <copy file=".build/cassandra-deps-template.xml" tofile="${build.dir}/${final.name}.pom">

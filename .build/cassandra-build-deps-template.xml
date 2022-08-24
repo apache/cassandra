@@ -19,12 +19,12 @@
   <parent>
     <artifactId>cassandra-parent</artifactId>
     <groupId>org.apache.cassandra</groupId>
-    <version>@VERSION@</version>
-    <relativePath>@FINAL_NAME@-parent.pom</relativePath>
+    <version>@version@</version>
+    <relativePath>@final.name@-parent.pom</relativePath>
   </parent>
   <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra-build-deps</artifactId>
-  <version>@VERSION@</version>
+  <version>@version@</version>
   <dependencies>
     <dependency>
       <groupId>junit</groupId>
