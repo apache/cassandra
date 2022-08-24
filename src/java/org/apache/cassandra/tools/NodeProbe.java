@@ -302,6 +302,16 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames);
     }
 
+    public int garbageCollect(String tombstoneOption, int jobs, double fraction, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.garbageCollect(tombstoneOption, jobs, fraction, keyspaceName, tableNames);
+    }
+
+    public int userDefinedGarbageCollect(String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables);
+    }
+
     private void checkJobs(PrintStream out, int jobs)
     {
         int compactors = ssProxy.getConcurrentCompactors();
@@ -341,6 +351,22 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public void userDefinedScrub(PrintStream out, boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        checkJobs(out, jobs);
+        switch (ssProxy.userDefinedScrub(disableSnapshot, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, userDefinedTables))
+        {
+            case 1:
+                failed = true;
+                out.println("Aborted scrubbing at least one table, check server logs for more information.");
+                break;
+            case 2:
+                failed = true;
+                out.println("Failed marking some sstables compacting, check server logs for more information");
+                break;
+        }
+    }
+
     public void verify(PrintStream out, boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         switch (verify(extendedVerify, keyspaceName, tableNames))
@@ -375,12 +401,31 @@ public class NodeProbe implements AutoCloseable
 
     public void garbageCollect(PrintStream out, String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        if (garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames) != 0)
+      if (garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames) != 0)
+      {
+          failed = true;
+          out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+      }
+    }
+
+    public void garbageCollect(PrintStream out, String tombstoneOption, int jobs, double fraction, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        if (garbageCollect(tombstoneOption, jobs, fraction, keyspaceName, tableNames) != 0)
         {
             failed = true;
             out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
         }
     }
+
+    public void userDefinedGarbageCollect(PrintStream out, String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        if (userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables) != 0)
+        {
+            failed = true;
+            out.println("Aborted garbage collection for at least one table, check server logs for more information.");
+        }
+    }
+
 
     public void forceUserDefinedCompaction(String datafiles) throws IOException, ExecutionException, InterruptedException
     {
