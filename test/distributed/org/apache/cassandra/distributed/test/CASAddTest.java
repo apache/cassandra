@@ -68,7 +68,7 @@ public class CASAddTest extends TestBaseImpl
     @Test
     public void testAdditionNotExists() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build(3).withConfig(c -> c.set("paxos_variant", "v2")).start()))
+        try (Cluster cluster = init(Cluster.create(3)))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int PRIMARY KEY, a int, b text, undefined blob)");
 
