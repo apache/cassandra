@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht.tokenallocator;
 
+import java.net.InetAddress;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -33,6 +34,7 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -217,7 +219,22 @@ public class TokenAllocation
     {
         String dc = replicationStrategy.snitch.getDatacenter(endpoint);
         String rack = replicationStrategy.snitch.getRack(endpoint);
-        return getOrCreateStrategy(dc, rack);
+
+        try
+        {
+            return getOrCreateStrategy(dc, rack);
+        }
+        catch (ConfigurationException e)
+        {
+            if (CassandraRelevantProperties.USE_RANDOM_ALLOCATION_IF_NOT_SUPPORTED.getBoolean())
+                return createRandomStrategy(endpoint);
+
+            throw new ConfigurationException(
+                String.format("Algorithmic token allocation failed: the number of racks in datacenter %s is lower than its replication factor %d.\n" +
+                          "If you are starting a new datacenter, please make sure that the first %d nodes to start are from different racks.\n" +
+                          "If you wish to fall back to random token allocation, please use '" + CassandraRelevantProperties.USE_RANDOM_ALLOCATION_IF_NOT_SUPPORTED + "'.",
+                          dc, replicationStrategy.getReplicationFactor().allReplicas, replicationStrategy.getReplicationFactor().allReplicas));
+        }
     }
 
     private StrategyAdapter getOrCreateStrategy(String dc, String rack)
@@ -271,6 +288,30 @@ public class TokenAllocation
 
         throw new ConfigurationException(String.format("Token allocation failed: the number of racks %d in datacenter %s is lower than its replication factor %d.",
                                                        racks, dc, replicas));
+    }
+
+    private StrategyAdapter createRandomStrategy(InetAddressAndPort endpoint)
+    {
+        return new StrategyAdapter()
+        {
+            @Override
+            public int replicas()
+            {
+                return 1;
+            }
+
+            @Override
+            public Object getGroup(InetAddressAndPort unit)
+            {
+                return unit;
+            }
+
+            @Override
+            public boolean inAllocationRing(InetAddressAndPort other)
+            {
+                return endpoint.equals(other); // Make the algorithm believe this is the only node in the DC so it assigns tokens randomly.
+            }
+        };
     }
 
     // a null dc will always return true for inAllocationRing(..)
