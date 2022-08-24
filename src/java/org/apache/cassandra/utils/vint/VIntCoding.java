@@ -105,6 +105,9 @@ public class VIntCoding
     }
     public static long getUnsignedVInt(ByteBuffer input, int readerIndex, int readerLimit)
     {
+        if (readerIndex < 0)
+            throw new IllegalArgumentException("Reader index should be non-negative, but was " + readerIndex);
+
         if (readerIndex >= readerLimit)
             return -1;
 
