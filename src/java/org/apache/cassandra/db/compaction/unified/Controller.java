@@ -393,7 +393,7 @@ public abstract class Controller
         this.calculator = calculator;
         metrics = allMetrics.computeIfAbsent(strategy.getMetadata(), Controller.Metrics::new);
         metrics.setController(this);
-        logger.debug("Started compaction controller {}", this);
+        logger.debug("Started compaction {}", this);
     }
 
     /**

@@ -44,6 +44,7 @@ class RealEnvironment implements Environment
 
     RealEnvironment(CompactionRealm realm)
     {
+        assert realm != null;
         this.realm = realm;
     }
 
@@ -163,9 +164,9 @@ class RealEnvironment implements Environment
     @Override
     public String toString()
     {
-        if (metrics() == null)
-            return "Uninitialized environment";
-        return String.format("Read latency: %d us / partition, flush latency: %d us / KiB, compaction latency: %d us / KiB, bfpr: %f, measured WA: %.2f, flush size %s",
+        return String.format("Default Environment for %s - Read latency: %d us / partition, flush latency: %d us / KiB, " +
+                             "compaction latency: %d us / KiB, bfpr: %f, measured WA: %.2f, flush size %s",
+                             realm.metadata(),
                              TimeUnit.NANOSECONDS.toMicros((long) sstablePartitionReadLatencyNanos()),
                              TimeUnit.NANOSECONDS.toMicros((long) flushTimePerKbInNanos()),
                              TimeUnit.NANOSECONDS.toMicros((long) compactionTimePerKbInNanos()),
