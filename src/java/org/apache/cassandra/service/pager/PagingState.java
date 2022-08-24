@@ -136,37 +136,66 @@ public class PagingState
         return out.buffer(false);
     }
 
-    private static boolean isModernSerialized(ByteBuffer bytes)
+    @VisibleForTesting
+    static boolean isModernSerialized(ByteBuffer bytes)
     {
         int index = bytes.position();
         int limit = bytes.limit();
 
-        long partitionKeyLen = getUnsignedVInt(bytes, index, limit);
+        int partitionKeyLen = toIntExact(getUnsignedVInt(bytes, index, limit));
         if (partitionKeyLen < 0)
             return false;
-        index += computeUnsignedVIntSize(partitionKeyLen) + partitionKeyLen;
-        if (index >= limit)
+        index = addNonNegative(index, computeUnsignedVIntSize(partitionKeyLen), partitionKeyLen);
+        if (index >= limit || index < 0)
             return false;
 
-        long rowMarkerLen = getUnsignedVInt(bytes, index, limit);
+        int rowMarkerLen = toIntExact(getUnsignedVInt(bytes, index, limit));
         if (rowMarkerLen < 0)
             return false;
-        index += computeUnsignedVIntSize(rowMarkerLen) + rowMarkerLen;
-        if (index >= limit)
+        index = addNonNegative(index, computeUnsignedVIntSize(rowMarkerLen), rowMarkerLen);
+        if (index >= limit || index < 0)
             return false;
 
-        long remaining = getUnsignedVInt(bytes, index, limit);
+        int remaining = toIntExact(getUnsignedVInt(bytes, index, limit));
         if (remaining < 0)
             return false;
-        index += computeUnsignedVIntSize(remaining);
-        if (index >= limit)
+        index = addNonNegative(index, computeUnsignedVIntSize(remaining));
+        if (index >= limit || index < 0)
             return false;
 
         long remainingInPartition = getUnsignedVInt(bytes, index, limit);
         if (remainingInPartition < 0)
             return false;
-        index += computeUnsignedVIntSize(remainingInPartition);
+        index = addNonNegative(index, computeUnsignedVIntSize(remainingInPartition));
         return index == limit;
+    }
+
+    // Following operations are similar to Math.{addExact/toIntExact}, but without using exceptions for control flow.
+    // Since we're operating non-negative numbers, we can use -1 return value as an error code.
+    private static int addNonNegative(int x, int y)
+    {
+        int sum = x + y;
+        if (sum < 0)
+            return -1;
+        return sum;
+    }
+
+    private static int addNonNegative(int x, int y, int z)
+    {
+        int sum = x + y;
+        if (sum < 0)
+            return -1;
+        sum += z;
+        if (sum < 0)
+            return -1;
+        return sum;
+    }
+
+    private static int toIntExact(long value)
+    {
+        if ((int)value != value)
+            return -1;
+        return (int)value;
     }
 
     @SuppressWarnings({ "resource", "RedundantSuppression" })
@@ -216,7 +245,8 @@ public class PagingState
         return out.buffer(false);
     }
 
-    private static boolean isLegacySerialized(ByteBuffer bytes)
+    @VisibleForTesting
+    static boolean isLegacySerialized(ByteBuffer bytes)
     {
         int index = bytes.position();
         int limit = bytes.limit();
