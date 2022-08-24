@@ -175,7 +175,8 @@
         </resolve>
         <resolve>
             <dependencies pomRef="pom-deps"/>
-            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
+            <!-- Needed to include compile here, so ant _build-test would not fail on missing jimfs dependency -->
+            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,test,!provide,!system"/>
         </resolve>
 
 
@@ -188,7 +189,7 @@
         </unzip>
     </target>
 
-    <target name="resolver-dist-lib" depends="resolver-retrieve-build,write-poms">
+    <target name="resolver-dist-lib" depends="resolver-retrieve-build">
         <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
 
         <resolve failOnMissingAttachments="true">

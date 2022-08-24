@@ -1,4 +1,5 @@
 4.2
+ * Remove dependency on Maven Ant Tasks (CASSANDRA-17750)
  * Update ASM(9.1 to 9.3), Mockito(1.10.10 to 1.12.13) and ByteBuddy(3.2.4 to 4.7.0) (CASSANDRA-17835)
  * Add the ability for operators to loosen the definition of "empty" for edge cases (CASSANDRA-17842)
  * Fix potential out of range exception on column index downsampling (CASSANDRA-17839)
