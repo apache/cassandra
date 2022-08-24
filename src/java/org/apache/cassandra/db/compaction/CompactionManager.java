@@ -1756,10 +1756,17 @@ public class CompactionManager implements CompactionManagerMBean
         }
         catch (Throwable e)
         {
-            if (e instanceof CompactionInterruptedException && isCancelled.getAsBoolean())
+            if (e instanceof CompactionInterruptedException)
             {
-                logger.info("Anticompaction has been canceled for session {}", pendingRepair);
-                logger.trace(e.getMessage(), e);
+                if (isCancelled.getAsBoolean())
+                {
+                    logger.info("Anticompaction has been canceled for session {}", pendingRepair);
+                    logger.trace(e.getMessage(), e);
+                }
+                else
+                {
+                    logger.info("Anticompaction for session {} has been stopped by request.", pendingRepair);
+                }
             }
             else
             {
