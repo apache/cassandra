@@ -17,34 +17,79 @@
  */
 package org.apache.cassandra.cql3;
 
-import static junit.framework.Assert.fail;
-import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
-
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMKiller;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
+import static junit.framework.Assert.fail;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 /**
  * Test that TombstoneOverwhelmingException gets thrown when it should be and doesn't when it shouldn't be.
  */
-public class OutOfSpaceTest extends CQLTester
+public class OutOfSpaceTest
 {
+    private final static String KEYSPACE = "ks";
+    private final static String TABLE = "tab";
+    private static EmbeddedCassandraService service; // we use EmbeddedCassandraService instead of CqlTester because we want CassandraDaemon
+
+    @BeforeClass
+    public static void beforeClass() throws IOException
+    {
+        DatabaseDescriptor.daemonInitialization();
+        ServerTestUtils.mkdirs();
+        ServerTestUtils.cleanup();
+        service = new EmbeddedCassandraService();
+        service.start();
+    }
+
+    public static void afterClass()
+    {
+        service.stop();
+    }
+
+    @Before
+    public void before()
+    {
+        if (!StorageService.instance.isNativeTransportRunning())
+            StorageService.instance.startNativeTransport();
+        if (!StorageService.instance.isGossipActive())
+            StorageService.instance.startGossiping();
+    }
+
+    @After
+    public void after()
+    {
+        SchemaTestUtil.dropKeyspaceIfExist(KEYSPACE, false);
+    }
+
     @Test
     public void testFlushUnwriteableDie() throws Throwable
     {
@@ -53,7 +98,7 @@ public class OutOfSpaceTest extends CQLTester
         KillerForTests killerForTests = new KillerForTests();
         JVMKiller originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
+        try (Closeable c = Util.markDirectoriesUnwriteable(ColumnFamilyStore.getIfExists(KEYSPACE, TABLE)))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.die);
             flushAndExpectError();
@@ -73,9 +118,10 @@ public class OutOfSpaceTest extends CQLTester
         makeTable();
 
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
+        try (Closeable c = Util.markDirectoriesUnwriteable(ColumnFamilyStore.getIfExists(KEYSPACE, TABLE)))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.stop);
+            Assert.assertTrue(Gossiper.instance.isEnabled()); // sanity check
             flushAndExpectError();
             Assert.assertFalse(Gossiper.instance.isEnabled());
         }
@@ -91,7 +137,7 @@ public class OutOfSpaceTest extends CQLTester
         makeTable();
 
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
+        try (Closeable c = Util.markDirectoriesUnwriteable(ColumnFamilyStore.getIfExists(KEYSPACE, TABLE)))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.ignore);
             flushAndExpectError();
@@ -107,11 +153,12 @@ public class OutOfSpaceTest extends CQLTester
 
     public void makeTable() throws Throwable
     {
-        createTable("CREATE TABLE %s (a text, b text, c text, PRIMARY KEY (a, b));");
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(KEYSPACE, KeyspaceParams.simple(1)));
+        QueryProcessor.executeInternal(String.format("CREATE TABLE %s.%s (a text, b text, c text, PRIMARY KEY (a, b));", KEYSPACE, TABLE));
 
         // insert exactly the amount of tombstones that shouldn't trigger an exception
         for (int i = 0; i < 10; i++)
-            execute("INSERT INTO %s (a, b, c) VALUES ('key', 'column" + i + "', null);");
+            QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (a, b, c) VALUES ('key', 'column%d', null);", KEYSPACE, TABLE, i));
     }
 
     public void flushAndExpectError() throws InterruptedException, ExecutionException
@@ -119,7 +166,7 @@ public class OutOfSpaceTest extends CQLTester
         try
         {
             Keyspace.open(KEYSPACE)
-                    .getColumnFamilyStore(currentTable())
+                    .getColumnFamilyStore(TABLE)
                     .forceFlush(UNIT_TESTS)
                     .get();
             fail("FSWriteError expected.");
@@ -136,5 +183,15 @@ public class OutOfSpaceTest extends CQLTester
             if (segment.getDirtyTableIds().contains(tableId))
                 return;
         fail("Expected commit log to remain dirty for the affected table.");
+    }
+
+    private TableMetadata currentTableMetadata()
+    {
+        return ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).metadata();
+    }
+
+    private void flush()
+    {
+        ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).forceBlockingFlush(UNIT_TESTS);
     }
 }

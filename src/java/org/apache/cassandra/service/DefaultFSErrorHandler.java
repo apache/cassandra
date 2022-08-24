@@ -50,6 +50,10 @@ public class DefaultFSErrorHandler implements FSErrorHandler
                 logger.error("Stopping transports as disk_failure_policy is " + DatabaseDescriptor.getDiskFailurePolicy());
                 StorageService.instance.stopTransports();
                 break;
+
+            case die:
+                JVMStabilityInspector.killCurrentJVM(e, false);
+                break;
         }
     }
 
