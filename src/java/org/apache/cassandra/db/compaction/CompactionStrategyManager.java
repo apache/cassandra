@@ -991,7 +991,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public CompactionTasks getMaximalTasks(final int gcBefore, final boolean splitOutput)
+    public CompactionTasks getMaximalTasks(final int gcBefore, final boolean splitOutput, OperationType operationType)
     {
         maybeReloadDiskBoundaries();
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
@@ -1012,7 +1012,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                 readLock.unlock();
             }
             return CompactionTasks.create(tasks);
-        }, false, false);
+        }, operationType, false, false);
     }
 
     /**
