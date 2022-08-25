@@ -1,5 +1,10 @@
-4.0.6
+4.0.7
  * Prevent infinite loop in repair coordinator on FailSession (CASSANDRA-17834)
+Merged from 3.11:
+ * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)
+Merged from 3.0:
+
+4.0.6
  * Fix race condition on updating cdc size and advancing to next segment (CASSANDRA-17792)
  * Add 'noboolean' rpm build for older distros like CentOS7 (CASSANDRA-17765)
  * Fix default value for compaction_throughput_mb_per_sec in Config class to match  the one in cassandra.yaml (CASSANDRA-17790)
@@ -10,7 +15,6 @@
  * Clean up ScheduledExecutors, CommitLog, and MessagingService shutdown for in-JVM dtests (CASSANDRA-17731)
  * Remove extra write to system table for prepared statements (CASSANDRA-17764)
 Merged from 3.11:
- * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)
  * Document usage of closed token intervals in manual compaction (CASSANDRA-17575)
 Merged from 3.0:
  * Improve libjemalloc resolution in bin/cassandra (CASSANDRA-15767)
@@ -33,7 +37,6 @@ Merged from 3.0:
  * Fix issue where frozen maps may not be serialized in the correct order (CASSANDRA-17623)
  * Suppress CVE-2022-24823 (CASSANDRA-17633)
  * fsync TOC and digest files (CASSANDRA-10709)
-
 
 4.0.4
  * Optimise BTree build,update and transform operations (CASSANDRA-15510)
