@@ -670,7 +670,8 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
             };
 
             CompactionManager.instance.active.beginCompaction(holder);
-            PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, nextTimeUUID(), 10, 1, acp) {
+            PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, nextTimeUUID(), 10, 1, acp)
+            {
                 protected PendingAntiCompaction.AcquireResult acquireSSTables()
                 {
                     cdl.countDown();

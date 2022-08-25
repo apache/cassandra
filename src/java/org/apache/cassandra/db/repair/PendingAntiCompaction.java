@@ -216,7 +216,7 @@ public class PendingAntiCompaction
 
         protected AcquireResult acquireSSTables()
         {
-            return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, OperationType.ANTICOMPACTION,false, false, false);
+            return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, OperationType.ANTICOMPACTION, false, false, false);
         }
 
         public AcquireResult call()

@@ -2275,7 +2275,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public List<Holder> getCompactionsMatching(Iterable<TableMetadata> columnFamilies, Predicate<CompactionInfo> predicate)
     {
-        assert columnFamilies != null;
+        Preconditions.checkArgument(columnFamilies != null, "Attempted to getCompactionsMatching in CompactionManager with no columnFamilies specified.");
 
         List<Holder> matched = new ArrayList<>();
         // consider all in-progress compactions

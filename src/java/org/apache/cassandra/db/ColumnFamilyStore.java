@@ -2719,8 +2719,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                     if (cfs.getTracker().getCompacting().stream().anyMatch(sstablesPredicate))
                     {
                         logger.warn("Unable to cancel in-progress compactions for {}. " +
-                                    "Perhaps there is an unusually large row in progress somewhere, or the system is simply overloaded.", metadata.name);
-
+                                    "Perhaps there is an unusually large row in progress somewhere, or the system is simply overloaded.",
+                                    metadata.name);
                         return null;
                     }
                 }

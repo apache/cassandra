@@ -148,7 +148,8 @@ public class CancelCompactionsTest extends CQLTester
 
             CountDownLatch cdl = new CountDownLatch(1);
             // start a compaction which only needs the sstables where first token is > 50 - these are the sstables compacted by tcts.get(1)
-            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, (sstable) -> first(sstable) > 50,
+            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; },
+                                                                       (sstable) -> first(sstable) > 50,
                                                                        OperationType.P0, false, false, true));
             t.start();
             activeCompactions = getActiveCompactionsForTable(cfs);
@@ -337,8 +338,8 @@ public class CancelCompactionsTest extends CQLTester
             }
         }
         assertTrue(foundCompaction);
-        cfs.runWithCompactionsDisabled(() -> {compactionsStopped.countDown(); return null;}, (sstable) -> true,
-                                       OperationType.P0, false, false, true);
+        cfs.runWithCompactionsDisabled(() -> { compactionsStopped.countDown(); return null; },
+                                       (sstable) -> true, OperationType.P0, false, false, true);
         // wait for the runWithCompactionsDisabled callable
         compactionsStopped.await();
         assertEquals(1, getActiveCompactionsForTable(cfs).size());
