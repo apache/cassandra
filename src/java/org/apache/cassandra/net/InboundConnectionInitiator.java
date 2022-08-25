@@ -280,6 +280,7 @@ public class InboundConnectionInitiator
                 logger.warn("peer {} attempted to establish an unencrypted connection (broadcast address {})",
                             ctx.channel().remoteAddress(), initiate.from);
                 failHandshake(ctx);
+                return;
             }
 
             if (initiate.acceptVersions != null)
@@ -305,11 +306,13 @@ public class InboundConnectionInitiator
                 {
                     logger.info("peer {} only supports messaging versions higher ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.min, current_version);
                     failHandshake(ctx);
+                    return;
                 }
                 else if (initiate.acceptVersions.max < accept.min)
                 {
                     logger.info("peer {} only supports messaging versions lower ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.max, minimum_version);
                     failHandshake(ctx);
+                    return;
                 }
                 else
                 {
@@ -332,6 +335,7 @@ public class InboundConnectionInitiator
                     {
                         logger.warn("Received stream using protocol version {} (my version {}). Terminating connection", version, settings.acceptStreaming.max);
                         failHandshake(ctx);
+                        return;
                     }
                     setupStreamingPipeline(initiate.from, ctx);
                 }
@@ -525,7 +529,14 @@ public class InboundConnectionInitiator
 
             pipeline.addLast("deserialize", handler);
 
-            pipeline.remove(this);
+            try
+            {
+                pipeline.remove(this);
+            }
+            catch (NoSuchElementException ex)
+            {
+                // possible race with the handshake timeout firing and removing this handler already
+            }
         }
     }
 
