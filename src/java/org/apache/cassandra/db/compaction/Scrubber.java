@@ -258,7 +258,8 @@ public class Scrubber implements Closeable
 
                             outputHandler.warn("Retry failed too. Skipping to next row (retry's stacktrace follows)", th2);
                             badRows++;
-                            seekToNextRow();
+                            if (!seekToNextRow())
+                                break;
                         }
                     }
                     else
@@ -268,7 +269,8 @@ public class Scrubber implements Closeable
                         outputHandler.warn("Row starting at position " + dataStart + " is unreadable; skipping to next");
                         badRows++;
                         if (currentIndexKey != null)
-                            seekToNextRow();
+                            if (!seekToNextRow())
+                                break;
                     }
                 }
             }
@@ -390,14 +392,14 @@ public class Scrubber implements Closeable
         return indexFile != null && !indexFile.isEOF();
     }
 
-    private void seekToNextRow()
+    private boolean seekToNextRow()
     {
         while(nextRowPositionFromIndex < dataFile.length())
         {
             try
             {
                 dataFile.seek(nextRowPositionFromIndex);
-                return;
+                return true;
             }
             catch (Throwable th)
             {
@@ -408,6 +410,8 @@ public class Scrubber implements Closeable
 
             updateIndexKey();
         }
+
+        return false;
     }
 
     private void saveOutOfOrderRow(DecoratedKey prevKey, DecoratedKey key, UnfilteredRowIterator iterator)
