@@ -20,6 +20,8 @@ package org.apache.cassandra.service;
 
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.ReplicaCollection;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -156,5 +158,89 @@ public class StorageServiceTest
         expectedResult.put(new Replica(aAddress, eRange, true), new Replica(cAddress, eRange, false));
         expectedResult.put(new Replica(aAddress, dRange, false), new Replica(bAddress, dRange, false));
         assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
+    }
+
+    @Test
+    public void testRepairSessionMaximumTreeDepth()
+    {
+        StorageService storageService = StorageService.instance;
+        int previousDepth = storageService.getRepairSessionMaximumTreeDepth();
+        try
+        {
+            Assert.assertEquals(20, storageService.getRepairSessionMaximumTreeDepth());
+            storageService.setRepairSessionMaximumTreeDepth(10);
+            Assert.assertEquals(10, storageService.getRepairSessionMaximumTreeDepth());
+
+            try
+            {
+                storageService.setRepairSessionMaximumTreeDepth(9);
+                fail("Should have received a IllegalArgumentException for depth of 9");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(10, storageService.getRepairSessionMaximumTreeDepth());
+
+            try
+            {
+                storageService.setRepairSessionMaximumTreeDepth(-20);
+                fail("Should have received a IllegalArgumentException for depth of -20");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(10, storageService.getRepairSessionMaximumTreeDepth());
+
+            storageService.setRepairSessionMaximumTreeDepth(22);
+            Assert.assertEquals(22, storageService.getRepairSessionMaximumTreeDepth());
+        }
+        finally
+        {
+            storageService.setRepairSessionMaximumTreeDepth(previousDepth);
+        }
+    }
+
+    @Test
+    public void testColumnIndexCacheSizeInKiB()
+    {
+        StorageService storageService = StorageService.instance;
+        int previousColumnIndexCacheSize = storageService.getColumnIndexCacheSizeInKiB();
+        try
+        {
+            storageService.setColumnIndexCacheSizeInKiB(1024);
+            Assert.assertEquals(1024, storageService.getColumnIndexCacheSizeInKiB());
+
+            try
+            {
+                storageService.setColumnIndexCacheSizeInKiB(2 * 1024 * 1024);
+                fail("Should have received an IllegalArgumentException column_index_cache_size= 2GiB");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(1024, storageService.getColumnIndexCacheSizeInKiB());
+        }
+        finally
+        {
+            storageService.setColumnIndexCacheSizeInKiB(previousColumnIndexCacheSize);
+        }
+    }
+
+    @Test
+    public void testBatchSizeWarnThresholdInKiB()
+    {
+        StorageService storageService = StorageService.instance;
+        int previousBatchSizeWarnThreshold = storageService.getBatchSizeWarnThresholdInKiB();
+        try
+        {
+            storageService.setBatchSizeWarnThresholdInKiB(1024);
+            Assert.assertEquals(1024, storageService.getBatchSizeWarnThresholdInKiB());
+
+            try
+            {
+                storageService.setBatchSizeWarnThresholdInKiB(2 * 1024 * 1024);
+                fail("Should have received an IllegalArgumentException batch_size_warn_threshold = 2GiB");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(1024, storageService.getBatchSizeWarnThresholdInKiB());
+        }
+        finally
+        {
+            storageService.setBatchSizeWarnThresholdInKiB(previousBatchSizeWarnThreshold);
+        }
     }
 }
