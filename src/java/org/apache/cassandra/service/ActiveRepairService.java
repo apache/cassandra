@@ -39,6 +39,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.slf4j.Logger;
@@ -247,14 +248,36 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         consistent.local.cancelSession(sessionID, force);
     }
 
+    @Deprecated
     @Override
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
     {
         DatabaseDescriptor.setRepairSessionSpaceInMegabytes(sizeInMegabytes);
     }
 
+    @Deprecated
     @Override
     public int getRepairSessionSpaceInMegabytes()
+    {
+        return DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
+    }
+
+    @Override
+    public void setRepairSessionSpaceInMB(int sizeInMegabytes)
+    {
+        try
+        {
+            DatabaseDescriptor.setRepairSessionSpaceInMegabytes(sizeInMegabytes);
+        }
+        catch(ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+
+    }
+
+    @Override
+    public int getRepairSessionSpaceInMB()
     {
         return DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
     }

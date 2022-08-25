@@ -79,6 +79,7 @@ import static org.apache.cassandra.service.ActiveRepairService.getRepairedAt;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 public class ActiveRepairServiceTest
 {
@@ -466,6 +467,39 @@ public class ActiveRepairServiceTest
         {
             // necessary to unregister mbean
             validationExecutor.shutdownNow();
+        }
+    }
+
+    @Test
+    public void testRepairSessionSpaceInMiB()
+    {
+        ActiveRepairService activeRepairService = ActiveRepairService.instance;
+        int previousSize = activeRepairService.getRepairSessionSpaceInMB();
+        try
+        {
+            Assert.assertEquals((Runtime.getRuntime().maxMemory() / (1024 * 1024) / 16),
+                                activeRepairService.getRepairSessionSpaceInMB());
+
+            int targetSize = (int) (Runtime.getRuntime().maxMemory() / (1024 * 1024) / 4) + 1;
+
+            activeRepairService.setRepairSessionSpaceInMB(targetSize);
+            Assert.assertEquals(targetSize, activeRepairService.getRepairSessionSpaceInMB());
+
+            activeRepairService.setRepairSessionSpaceInMB(10);
+            Assert.assertEquals(10, activeRepairService.getRepairSessionSpaceInMB());
+
+            try
+            {
+                activeRepairService.setRepairSessionSpaceInMB(0);
+                fail("Should have received an IllegalArgumentException for depth of 0");
+            }
+            catch (IllegalArgumentException ignored) { }
+
+            Assert.assertEquals(10, activeRepairService.getRepairSessionSpaceInMB());
+        }
+        finally
+        {
+            activeRepairService.setRepairSessionSpaceInMB(previousSize);
         }
     }
 

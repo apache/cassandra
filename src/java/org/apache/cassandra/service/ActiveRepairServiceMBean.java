@@ -29,8 +29,20 @@ public interface ActiveRepairServiceMBean
     public List<Map<String, String>> getSessions(boolean all, String rangesStr);
     public void failSession(String session, boolean force);
 
+    /**
+     * use setRepairSessionSpaceInMB instead as it will not throw non-standard exceptions
+     * @deprecated
+     */
+    @Deprecated
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes);
+    @Deprecated
+    /**
+     * use getRepairSessionSpaceInMB instead
+     */
     public int getRepairSessionSpaceInMegabytes();
+
+    public void setRepairSessionSpaceInMB(int sizeInMegabytes);
+    public int getRepairSessionSpaceInMB();
 
     public boolean getUseOffheapMerkleTrees();
     public void setUseOffheapMerkleTrees(boolean value);

@@ -68,6 +68,16 @@ Deprecation
 ---------
     - JavaScript user-defined functions have been deprecated. They are planned for removal
       in the next major release. (CASSANDRA-17280)
+    - In the JMX MBean org.apache.cassandra.db:type=RepairService`:
+        - deprecate the getter/setter methods `getRepairSessionSpaceInMegabytes` and `setRepairSessionSpaceInMegabytes`
+          in favor of `getRepairSessionSpaceInMB` and `setRepairSessionSpaceInMB` respectively
+    - In the JMX MBean `org.apache.cassandra.db:type=StorageService`:
+        - deprecate the getter/setter methods `getRepairSessionMaxTreeDepth` and `setRepairSessionMaxTreeDepth`
+          in favor of `getRepairSessionMaximumTreeDepth` and `setRepairSessionMaximumTreeDepth`
+        - deprecate the getter/setter methods `getColumnIndexCacheSize` and `setColumnIndexCacheSize` in favor of
+          `getColumnIndexCacheSizeInKiB` and `setColumnIndexCacheSizeInKiB` respectively
+        - deprecate the getter/setter methods `getBatchSizeWarnThreshold` and `setBatchSizeWarnThreshold` in favor of
+          `getBatchSizeWarnThresholdInKiB` and `setBatchSizeWarnThresholdInKiB` respectively
 
 4.0.2
 =====
