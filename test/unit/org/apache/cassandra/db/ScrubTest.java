@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -44,6 +45,7 @@ import org.junit.AfterClass;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import net.openhft.chronicle.core.util.ThrowingBiConsumer;
@@ -101,6 +103,7 @@ import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
 import static org.apache.cassandra.SchemaLoader.loadSchema;
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -133,6 +136,8 @@ public class ScrubTest
     public static void defineSchema() throws ConfigurationException
     {
         loadSchema();
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.enable(false);
     }
 
     @Before
@@ -174,6 +179,26 @@ public class ScrubTest
 
         // check data is still there
         assertOrderedAll(cfs, 1);
+    }
+
+    @Test
+    public void testScrubOneBrokenPartition() throws ExecutionException, InterruptedException, IOException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, 1);
+        assertOrderedAll(cfs, 1);
+
+        Set<SSTableReader> liveSSTables = cfs.getLiveSSTables();
+        assertThat(liveSSTables).hasSize(1);
+        Files.write(liveSSTables.iterator().next().getDataFile().toPath(), new byte[10], StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+        CompactionManager.instance.performScrub(cfs, true, true, false, 2);
+
+        // check data is still there
+        assertOrderedAll(cfs, 0);
     }
 
     @Test

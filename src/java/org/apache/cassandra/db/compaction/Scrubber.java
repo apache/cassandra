@@ -305,7 +305,8 @@ public class Scrubber implements Closeable
 
                             outputHandler.warn("Retry failed too. Skipping to next partition (retry's stacktrace follows)", th2);
                             badPartitions++;
-                            seekToNextPartition();
+                            if (!seekToNextPartition())
+                                break;
                         }
                     }
                     else
@@ -316,7 +317,8 @@ public class Scrubber implements Closeable
                         if (indexIterator != null)
                         {
                             outputHandler.warn("Partition starting at position " + dataStart + " is unreadable; skipping to next");
-                            seekToNextPartition();
+                            if (!seekToNextPartition())
+                                break;
                         }
                         else
                         {
@@ -429,16 +431,16 @@ public class Scrubber implements Closeable
         return indexIterator != null && !indexIterator.isExhausted();
     }
 
-    private void seekToNextPartition()
+    private boolean seekToNextPartition()
     {
-        while (!indexIterator.isExhausted())
+        while (indexAvailable())
         {
             long nextRowPositionFromIndex = indexIterator.dataPosition();
 
             try
             {
                 dataFile.seek(nextRowPositionFromIndex);
-                return;
+                return true;
             }
             catch (Throwable th)
             {
@@ -457,6 +459,8 @@ public class Scrubber implements Closeable
                 throw Throwables.cleaned(th);
             }
         }
+
+        return false;
     }
 
     private void saveOutOfOrderPartition(DecoratedKey prevKey, DecoratedKey key, UnfilteredRowIterator iterator)
