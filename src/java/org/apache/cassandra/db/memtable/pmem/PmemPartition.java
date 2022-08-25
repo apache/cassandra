@@ -210,8 +210,6 @@ public class PmemPartition implements Partition
         pmemRowMap = PmemRowMap.create(heap, indexer, pmemTableInfo);
         rowMapAddress = pmemRowMap.getHandle(); //gets address of arTree
 
-        pmemRtmMap = PmemRowMap.createForTombstone(heap, UpdateTransaction.NO_OP, pmemTableInfo);
-        rtmTreeHandle = pmemRtmMap.getRtmTreeHandle();//gets handle of RTM arTree
 
         for (Row r : update)
         {
@@ -221,31 +219,15 @@ public class PmemPartition implements Partition
         // Range Tombstones
         if (update.deletionInfo().hasRanges())
         {
-            Iterator<RangeTombstone> ranges = update.deletionInfo().rangeIterator(false);
-
-            try (UnfilteredRowIterator iterator = new RowAndDeletionMergeIterator(tableMetadata, update.partitionKey(), DeletionInfo.LIVE.getPartitionDeletion(),
-                                                                                  ColumnFilter.NONE, staticRow, false, ref.stats,
-                                                                                  Collections.emptyIterator(), ranges,
-                                                                                  false))
-            {
-                while (iterator.hasNext())
-                {
-                    Unfiltered unfiltered = iterator.next();
-                    pmemRtmMap.putRangeTombstoneMarker(unfiltered, update);
-                }
-            }
-            while (ranges.hasNext())
-            {
-                RangeTombstone rt = ranges.next();
-                DeletionTime tombstoneDeletionTime = rt.deletionTime();
-                Slice slice = rt.deletedSlice();
-                filterOutPmemRowMap(tombstoneDeletionTime, slice);
-            }
+            pmemRtmMap = PmemRowMap.createForTombstone(heap, UpdateTransaction.NO_OP, pmemTableInfo);
+            rtmTreeHandle = pmemRtmMap.getRtmTreeHandle();//gets handle of RTM arTree
+            loadRtmMap(update, true, rtmTreeHandle);
         }
+
         block.setLong(ROW_MAP_OFFSET, rowMapAddress);
         //TOMBSTONE
         block.setInt(DECORATED_KEY_SIZE_OFFSET, partitionKey.remaining());
-        block.setLong(RTM_INFO_OFFSET, rtmTreeHandle);
+
         //In index transaction flow , the Partition key can be empty
         if (keySize > 0)
             block.copyFromArray(partitionKey.array(), 0, HEADER_SIZE, keySize);
@@ -264,23 +246,55 @@ public class PmemPartition implements Partition
             pmemRowMap.put(r, update);
 
         indexer.commit();
-        // Range Tombstones
         if (update.deletionInfo().hasRanges())
         {
-            Iterator<RangeTombstone> ranges = getMergedRangeTombstones(update);
 
+            long rtmTreeHandle = block.getLong(RTM_INFO_OFFSET);
+            if (rtmTreeHandle > 0)
+            {
+                pmemRtmMap = PmemRowMap.loadFromRtmHandle(heap, rtmTreeHandle, UpdateTransaction.NO_OP,pmemTableInfo);
+                ;//gets handle of RTM arTree
+            }
+            else
+            {
+                pmemRtmMap = PmemRowMap.createForTombstone(heap, UpdateTransaction.NO_OP, pmemTableInfo);
+                rtmTreeHandle = pmemRtmMap.getRtmTreeHandle();
+            }
+            loadRtmMap(update, false, rtmTreeHandle);
+        }
+
+        deletePartition(update);
+    }
+
+
+    private  void loadRtmMap(PartitionUpdate update, boolean isPartitionInitialization, long rtmTreeHandle) {
+        if (update.deletionInfo().hasRanges())
+        {
+            Iterator<RangeTombstone> ranges = null;
+            if (!isPartitionInitialization)
+            {
+                ranges = getMergedRangeTombstones(update);
+            }
+            else
+            {
+                ranges = update.deletionInfo().rangeIterator(false);
+            }
             try (UnfilteredRowIterator iterator = new RowAndDeletionMergeIterator(tableMetadata, key, DeletionInfo.LIVE.getPartitionDeletion(),
                                                                                   ColumnFilter.NONE, staticRow, false, update.stats(),
                                                                                   Collections.emptyIterator(), ranges,
                                                                                   false))
             {
-                while (iterator.hasNext())
+                while (iterator != null && iterator.hasNext())
                 {
                     Unfiltered unfiltered = iterator.next();
                     pmemRtmMap.putRangeTombstoneMarker(unfiltered, update);
                 }
             }
-            Iterator<RangeTombstone> currentRtItr = update.deletionInfo().rangeIterator(false);
+            Iterator<RangeTombstone> currentRtItr = null;
+            if (!isPartitionInitialization)
+                currentRtItr = update.deletionInfo().rangeIterator(false);
+            else
+                currentRtItr = ranges;
             while (currentRtItr.hasNext())
             {
                 RangeTombstone rt = currentRtItr.next();
@@ -288,8 +302,8 @@ public class PmemPartition implements Partition
                 Slice slice = rt.deletedSlice();
                 filterOutPmemRowMap(tombstoneDeletionTime, slice);
             }
+            block.setLong(RTM_INFO_OFFSET, rtmTreeHandle);
         }
-        deletePartition(update);
     }
 
     private void deletePartition(PartitionUpdate update) throws IOException
@@ -308,51 +322,51 @@ public class PmemPartition implements Partition
     {
         Row newStaticRow = staticRow;
         TransactionalMemoryBlock oldStaticBlock = null;
-         long  oldStaticRowHandle = block.getLong(STATIC_ROW_OFFSET);
-            if (oldStaticRowHandle != 0)
-            {
-                oldStaticBlock = heap.memoryBlockFromHandle(oldStaticRowHandle);
-                newStaticRow = getMergedStaticRow(staticRow, oldStaticRowHandle);
-            }
-
-            SerializationHeader serializationHeader = new SerializationHeader(false,
-                                                                              tableMetadata,
-                                                                              tableMetadata.regularAndStaticColumns(),
-                                                                              EncodingStats.NO_STATS);
-            SerializationHelper helper = new SerializationHelper(serializationHeader);
-
-            int version = pmemTableInfo.getMetadataVersion();
-            long size = PmemRowSerializer.serializer.serializedSize(newStaticRow, helper.header, 0, version);
-            TransactionalMemoryBlock staticRowBlock;
-            if (oldStaticRowHandle == 0)
-            {
-                staticRowBlock = heap.allocateMemoryBlock(size);
-                indexer.onInserted(staticRow);
-            }
-            else if (oldStaticBlock.size() < size)
-            {
-                staticRowBlock = heap.allocateMemoryBlock(size);
-                oldStaticBlock.free();
-            }
-            else
-            {
-                staticRowBlock = oldStaticBlock;
-            }
-            final Row row = newStaticRow;
-            staticRowBlock.withRange((Range rng) -> {
-                DataOutputPlus rangeDataOutputPlus = new MemoryBlockDataOutputPlus(rng, 0);
-                try
-                {
-                    PmemRowSerializer.serializer.serializeStaticRow(row, helper, rangeDataOutputPlus, version);
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
-            });
-            block.setLong(STATIC_ROW_OFFSET, staticRowBlock.handle());
-            return newStaticRow;
+        long  oldStaticRowHandle = block.getLong(STATIC_ROW_OFFSET);
+        if (oldStaticRowHandle != 0)
+        {
+            oldStaticBlock = heap.memoryBlockFromHandle(oldStaticRowHandle);
+            newStaticRow = getMergedStaticRow(staticRow, oldStaticRowHandle);
         }
+
+        SerializationHeader serializationHeader = new SerializationHeader(false,
+                                                                          tableMetadata,
+                                                                          tableMetadata.regularAndStaticColumns(),
+                                                                          EncodingStats.NO_STATS);
+        SerializationHelper helper = new SerializationHelper(serializationHeader);
+
+        int version = pmemTableInfo.getMetadataVersion();
+        long size = PmemRowSerializer.serializer.serializedSize(newStaticRow, helper.header, 0, version);
+        TransactionalMemoryBlock staticRowBlock;
+        if (oldStaticRowHandle == 0)
+        {
+            staticRowBlock = heap.allocateMemoryBlock(size);
+            indexer.onInserted(staticRow);
+        }
+        else if (oldStaticBlock.size() < size)
+        {
+            staticRowBlock = heap.allocateMemoryBlock(size);
+            oldStaticBlock.free();
+        }
+        else
+        {
+            staticRowBlock = oldStaticBlock;
+        }
+        final Row row = newStaticRow;
+        staticRowBlock.withRange((Range rng) -> {
+            DataOutputPlus rangeDataOutputPlus = new MemoryBlockDataOutputPlus(rng, 0);
+            try
+            {
+                PmemRowSerializer.serializer.serializeStaticRow(row, helper, rangeDataOutputPlus, version);
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        });
+        block.setLong(STATIC_ROW_OFFSET, staticRowBlock.handle());
+        return newStaticRow;
+    }
 
     public Row getMergedStaticRow(Row newRow, Long mb)
     {
@@ -563,7 +577,7 @@ public class PmemPartition implements Partition
         }
         if (slices.size() == 1)
         {
-            return PmemRowAndRtmIterator.create(key, current.deletionInfo, columns, staticRow, reversed, pmemRtmMap.getRangeTombstoneMarkerTree(), cartIterator, pmemRowMap.getRowMapTree(), heap, slices.get(0), ref.stats, pmemTableInfo);
+            return PmemRowAndRtmIterator.create(key, current.deletionInfo, columns, staticRow, reversed, pmemRtmMap == null ? null : pmemRtmMap.getRangeTombstoneMarkerTree(), cartIterator, pmemRowMap.getRowMapTree(), heap, slices.get(0), ref.stats, pmemTableInfo);
         }
         return new SlicesIterator(current, columns, slices, reversed);
     }
@@ -571,7 +585,7 @@ public class PmemPartition implements Partition
     //Get All the RTM from RangeMapTree and Build DeletionInfo
     private DeletionInfo buildDeletionInfoForUpdate()
     {
-        if (pmemRtmMap.getRangeTombstoneMarkerTree().size() == 0)
+        if (pmemRtmMap == null || pmemRtmMap.getRangeTombstoneMarkerTree().size() == 0)
             return DeletionInfo.LIVE;
 
         Iterator<LongART.Entry> tombstoneMarker = pmemRtmMap.getRangeTombstoneMarkerTree().getEntryIterator();
@@ -768,7 +782,7 @@ public class PmemPartition implements Partition
                         return endOfData();
 
                     int sliceIdx = isReversed ? slices.size() - idx - 1 : idx;
-                    currentSlice = PmemRowAndRtmIterator.create(key, current.deletionInfo, columnFilter, staticRow, isReversed, pmemRtmMap.getRangeTombstoneMarkerTree(), cartIterator, pmemRowMap.getRowMapTree(), heap, slices.get(sliceIdx), ref.stats, pmemTableInfo);
+                    currentSlice = PmemRowAndRtmIterator.create(key, current.deletionInfo, columnFilter, staticRow, isReversed, pmemRtmMap == null ? null : pmemRtmMap.getRangeTombstoneMarkerTree(), cartIterator, pmemRowMap.getRowMapTree(), heap, slices.get(sliceIdx), ref.stats, pmemTableInfo);
                     idx++;
                 }
                 if (currentSlice.hasNext())
@@ -870,7 +884,7 @@ public class PmemPartition implements Partition
 
         private Iterator<Unfiltered> nextIterator(Clustering<?> clustering)
         {
-            return PmemRowAndRtmIterator.create(key, ref.deletionInfo, selection, staticRow, reversed, pmemRtmMap.getRangeTombstoneMarkerTree(), cartIterator, pmemRowTree, heap, Slice.make(clustering), ref.stats, pmemTableInfo);
+            return PmemRowAndRtmIterator.create(key, ref.deletionInfo, selection, staticRow, reversed, pmemRtmMap == null ? null : pmemRtmMap.getRangeTombstoneMarkerTree(), cartIterator, pmemRowTree, heap, Slice.make(clustering), ref.stats, pmemTableInfo);
         }
 
         @Override

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.memtable.pmem;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 
@@ -396,6 +397,9 @@ public class PmemRowAndRtmIterator extends AbstractIterator<Unfiltered> implemen
 
     private Iterator<LongART.Entry> buildRtmTreeIterator(LongART pmemRtmMapTree, Slice slice)
     {
+        if(pmemRtmMapTree == null ){
+            return Collections.emptyIterator();
+        }
         Iterator<LongART.Entry> rtmTreeIterator;
         boolean includeStart = slice.start().isInclusive();
         boolean includeEnd = slice.end().isInclusive();
