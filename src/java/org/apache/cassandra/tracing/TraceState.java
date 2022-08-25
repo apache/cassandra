@@ -23,12 +23,14 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
 import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.TracingClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
@@ -40,6 +42,7 @@ import org.apache.cassandra.utils.progress.ProgressListener;
  */
 public abstract class TraceState implements ProgressEventNotifier
 {
+
     public final UUID sessionId;
     public final InetAddressAndPort coordinator;
     public final Stopwatch watch;
@@ -47,6 +50,8 @@ public abstract class TraceState implements ProgressEventNotifier
     public final Tracing.TraceType traceType;
     public final int ttl;
     public final ClientState clientState;
+
+    private String tracedKeyspace;
 
     private boolean notify;
     private final List<ProgressListener> listeners = new CopyOnWriteArrayList<>();
@@ -104,6 +109,24 @@ public abstract class TraceState implements ProgressEventNotifier
     {
         assert traceType == Tracing.TraceType.REPAIR;
         listeners.remove(listener);
+    }
+
+    /**
+     * @return the keyspace being traced.
+     */
+    public @Nullable String tracedKeyspace()
+    {
+        if (clientState instanceof TracingClientState)
+            return ((TracingClientState) clientState).tracedKeyspace();
+        return tracedKeyspace;
+    }
+
+    /**
+     * @param tracedKeyspace the keyspace being traced.
+     */
+    public void tracedKeyspace(String tracedKeyspace)
+    {
+        this.tracedKeyspace = tracedKeyspace;
     }
 
     public int elapsed()

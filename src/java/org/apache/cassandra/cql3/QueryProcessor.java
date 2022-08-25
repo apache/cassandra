@@ -269,6 +269,8 @@ public class QueryProcessor implements QueryHandler
         statement.authorize(clientState);
         statement.validate(queryState);
 
+        Tracing.setupTracedKeyspace(statement);
+
         for (QueryInterceptor interceptor: interceptors)
         {
             ResultMessage result = interceptor.interceptStatement(statement, queryState, options, queryStartNanoTime);
@@ -788,6 +790,7 @@ public class QueryProcessor implements QueryHandler
     throws RequestExecutionException, RequestValidationException
     {
         ClientState clientState = queryState.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace());
+        Tracing.setupTracedKeyspace(batch);
         batch.authorize(clientState);
         batch.validate();
         batch.validate(queryState);
