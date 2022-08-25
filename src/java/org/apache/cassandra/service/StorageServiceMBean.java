@@ -387,9 +387,21 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void forceTerminateAllRepairSessions();
 
+    /**
+     * @deprecated use setRepairSessionMaximumTreeDepth instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setRepairSessionMaxTreeDepth(int depth);
 
+    /**
+     * @deprecated use getRepairSessionMaximumTreeDepth instead
+     */
+    @Deprecated
     public int getRepairSessionMaxTreeDepth();
+
+    public void setRepairSessionMaximumTreeDepth(int depth);
+
+    public int getRepairSessionMaximumTreeDepth();
 
     /**
      * transfer this node's data to other machines and remove it from service.

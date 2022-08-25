@@ -3799,12 +3799,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ActiveRepairService.instance.terminateSessions();
     }
 
+    @Deprecated
+    @Override
     public void setRepairSessionMaxTreeDepth(int depth)
     {
         DatabaseDescriptor.setRepairSessionMaxTreeDepth(depth);
     }
 
+    @Deprecated
+    @Override
     public int getRepairSessionMaxTreeDepth()
+    {
+        return DatabaseDescriptor.getRepairSessionMaxTreeDepth();
+    }
+
+    @Override
+    public void setRepairSessionMaximumTreeDepth(int depth)
+    {
+        try
+        {
+            DatabaseDescriptor.setRepairSessionMaxTreeDepth(depth);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+    }
+
+    @Override
+    public int getRepairSessionMaximumTreeDepth()
     {
         return DatabaseDescriptor.getRepairSessionMaxTreeDepth();
     }

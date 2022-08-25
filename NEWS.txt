@@ -82,6 +82,12 @@ Statement re-prepare storms
       loops caused by the driver. This new behaviour will be picked up only when the entire cluster has been updated
       to 3.0.26 or higher. In case of a mixed version cluster, different major versions will be taken as a minimum
       required version.
+      
+Deprecation
+-----------
+    - In the JMX MBean `org.apache.cassandra.db:type=StorageService`:
+        - deprecate the getter/setter methods `getRepairSessionMaxTreeDepth` and `setRepairSessionMaxTreeDepth`
+          in favor of `getRepairSessionMaximumTreeDepth` and `setRepairSessionMaximumTreeDepth`
 
 3.11.11
 =======
