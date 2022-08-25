@@ -198,9 +198,7 @@ public class LongLeveledCompactionStrategyTest
                 }
                 return null;
             }
-        }, true, true);
-
-
+        }, OperationType.COMPACTION, true, true);
     }
 
     @Test

@@ -1,4 +1,5 @@
 4.2
+ * Introduce compaction priorities to prevent upgrade compaction inability to finish (CASSANDRA-17851)
  * Prevent a user from manually removing ephemeral snapshots (CASSANDRA-17757)
  * Remove dependency on Maven Ant Tasks (CASSANDRA-17750)
  * Update ASM(9.1 to 9.3), Mockito(1.10.10 to 1.12.13) and ByteBuddy(3.2.4 to 4.7.0) (CASSANDRA-17835)
