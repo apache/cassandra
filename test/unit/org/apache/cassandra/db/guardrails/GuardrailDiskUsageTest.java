@@ -40,6 +40,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
@@ -201,6 +202,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
     @Test
     public void testMemtableSizeIncluded() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DiskUsageMonitor monitor = new DiskUsageMonitor();
 
         createTable(keyspace(), "CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = { 'enabled': false }");

@@ -364,6 +364,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
             case USER_FORCED:
             case UNIT_TESTS:
             case OWNED_RANGES_CHANGE:
+            case DRAIN:
                 return false;
             case INDEX_REMOVED:
                 memtableMemoryReclaim();
