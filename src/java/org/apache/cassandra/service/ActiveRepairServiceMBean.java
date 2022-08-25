@@ -35,10 +35,10 @@ public interface ActiveRepairServiceMBean
      */
     @Deprecated
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes);
-    @Deprecated
     /**
      * use getRepairSessionSpaceInMB instead
      */
+    @Deprecated
     public int getRepairSessionSpaceInMegabytes();
 
     public void setRepairSessionSpaceInMB(int sizeInMegabytes);
