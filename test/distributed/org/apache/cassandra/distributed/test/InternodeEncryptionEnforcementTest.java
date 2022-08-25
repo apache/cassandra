@@ -32,7 +32,6 @@ import org.apache.cassandra.net.OutboundConnections;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -87,8 +86,7 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
 
             cluster.get(1).runOnInstance(() ->
             {
-                InboundMessageHandlers inbound = getOnlyElement(MessagingService.instance().messageHandlers.values());
-                assertEquals(0, inbound.count());
+                assertTrue(MessagingService.instance().messageHandlers.isEmpty());
 
                 OutboundConnections outbound = getOnlyElement(MessagingService.instance().channelManagers.values());
                 assertFalse(outbound.small.isConnected() || outbound.large.isConnected() || outbound.urgent.isConnected());
