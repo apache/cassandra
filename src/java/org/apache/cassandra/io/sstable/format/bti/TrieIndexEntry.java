@@ -22,6 +22,7 @@ import java.io.IOException;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -86,13 +87,13 @@ final class TrieIndexEntry extends AbstractRowIndexEntry
         throw new AssertionError("BTI SSTables index entries should not be persisted in any in-memory structure");
     }
 
-    public void serialize(DataOutputPlus indexFile, long basePosition) throws IOException
+    public void serialize(DataOutputPlus indexFile, long basePosition, Version version) throws IOException
     {
         assert indexTrieRoot != -1 && rowIndexBlockCount > 0 && deletionTime != null;
         indexFile.writeUnsignedVInt(position);
         indexFile.writeVInt(indexTrieRoot - basePosition);
         indexFile.writeUnsignedVInt32(rowIndexBlockCount);
-        DeletionTime.serializer.serialize(deletionTime, indexFile);
+        DeletionTime.getSerializer(version).serialize(deletionTime, indexFile);
     }
 
     /**
@@ -107,12 +108,12 @@ final class TrieIndexEntry extends AbstractRowIndexEntry
         return new TrieIndexEntry(dataStartPosition, trieRoot, trieRoot == -1 ? 0 : rowIndexBlockCount, partitionLevelDeletion);
     }
 
-    public static TrieIndexEntry deserialize(DataInputPlus in, long basePosition) throws IOException
+    public static TrieIndexEntry deserialize(DataInputPlus in, long basePosition, Version version) throws IOException
     {
         long dataFilePosition = in.readUnsignedVInt();
         long indexTrieRoot = in.readVInt() + basePosition;
         int rowIndexBlockCount = in.readUnsignedVInt32();
-        DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
+        DeletionTime deletionTime = DeletionTime.getSerializer(version).deserialize(in);
         return new TrieIndexEntry(dataFilePosition, indexTrieRoot, rowIndexBlockCount, deletionTime);
     }
 

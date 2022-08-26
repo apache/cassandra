@@ -571,7 +571,7 @@ public class PaxosRepair extends AbstractPaxosRepair
             Ballot latestWitnessed;
             Accepted acceptedButNotCommited;
             Committed committed;
-            int nowInSec = FBUtilities.nowInSeconds();
+            long nowInSec = FBUtilities.nowInSeconds();
             try (PaxosState state = PaxosState.get(request.partitionKey, request.table))
             {
                 PaxosState.Snapshot snapshot = state.current(nowInSec);

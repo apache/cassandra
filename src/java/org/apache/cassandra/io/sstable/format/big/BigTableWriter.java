@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,7 +123,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
                                                    partitionWriter.indexInfoSerializedSize(),
                                                    partitionWriter.indexSamples(),
                                                    partitionWriter.offsets(),
-                                                   rowIndexEntrySerializer.indexInfoSerializer());
+                                                   rowIndexEntrySerializer.indexInfoSerializer(),
+                                                   descriptor.version);
 
         indexWriter.append(key, entry, dataWriter.position(), partitionWriter.buffer());
 

@@ -204,7 +204,7 @@ public class Operation extends RangeIterator<Long, Token>
         if (currentCluster == null || !currentCluster.isRow())
             return false;
 
-        final int now = FBUtilities.nowInSeconds();
+        final long now = FBUtilities.nowInSeconds();
         boolean result = false;
         int idx = 0;
 

@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.WrappedException;
@@ -587,7 +588,12 @@ public class UnfilteredSerializer
             {
                 long timestamp = header.readTimestamp(in);
                 int ttl = hasTTL ? header.readTTL(in) : LivenessInfo.NO_TTL;
-                int localDeletionTime = hasTTL ? header.readLocalDeletionTime(in) : LivenessInfo.NO_EXPIRATION_TIME;
+                long localDeletionTime = hasTTL ? header.readLocalDeletionTime(in) : LivenessInfo.NO_EXPIRATION_TIME;
+                if (localDeletionTime < 0)
+                    localDeletionTime = helper.version < MessagingService.VERSION_50
+                                        ? Cell.INVALID_DELETION_TIME
+                                        : Cell.deletionTimeUnsignedIntegerToLong((int) localDeletionTime);
+
                 rowLiveness = LivenessInfo.withExpirationTime(timestamp, ttl, localDeletionTime);
             }
 
@@ -658,6 +664,13 @@ public class UnfilteredSerializer
             if (hasComplexDeletion)
             {
                 DeletionTime complexDeletion = header.readDeletionTime(in);
+                if (complexDeletion.localDeletionTime() < 0)
+                {
+                    if (helper.version < MessagingService.VERSION_50)
+                        complexDeletion = DeletionTime.build(complexDeletion.markedForDeleteAt(), Cell.INVALID_DELETION_TIME);
+                    else
+                        complexDeletion = DeletionTime.build(complexDeletion.markedForDeleteAt(), Cell.deletionTimeUnsignedIntegerToLong((int) complexDeletion.localDeletionTime()));
+                }
                 if (!helper.isDroppedComplexDeletion(complexDeletion))
                     builder.addComplexDeletion(column, complexDeletion);
             }

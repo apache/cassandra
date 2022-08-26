@@ -254,6 +254,8 @@ delete_repeated_jobs()
     delete_job "$1" "j17_utests_compression_repeat"
     delete_job "$1" "j11_utests_trie_repeat"
     delete_job "$1" "j17_utests_trie_repeat"
+    delete_job "$1" "j11_utests_oa_repeat"
+    delete_job "$1" "j17_utests_oa_repeat"
     delete_job "$1" "j11_utests_system_keyspace_directory_repeat"
     delete_job "$1" "j17_utests_system_keyspace_directory_repeat"
   fi

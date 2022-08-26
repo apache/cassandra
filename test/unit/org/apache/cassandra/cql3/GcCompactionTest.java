@@ -467,14 +467,14 @@ public class GcCompactionTest extends CQLTester
 
     int countTombstoneMarkers(SSTableReader reader)
     {
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         return count(reader, x -> x.isRangeTombstoneMarker() || x.isRow() && ((Row) x).hasDeletion(nowInSec) ? 1 : 0, x -> x.partitionLevelDeletion().isLive() ? 0 : 1);
     }
 
     int countRows(SSTableReader reader)
     {
         boolean enforceStrictLiveness = reader.metadata().enforceStrictLiveness();
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         return count(reader, x -> x.isRow() && ((Row) x).hasLiveData(nowInSec, enforceStrictLiveness) ? 1 : 0, x -> 0);
     }
 

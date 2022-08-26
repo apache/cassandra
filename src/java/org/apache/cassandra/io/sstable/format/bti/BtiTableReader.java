@@ -190,7 +190,7 @@ public class BtiTableReader extends SSTableReaderWithFilter
                     if (searchOp.apply(decorated.compareTo(searchKey)) != 0)
                         return null;
                 }
-                return TrieIndexEntry.deserialize(in, in.getFilePointer());
+                return TrieIndexEntry.deserialize(in, in.getFilePointer(), descriptor.version);
             }
         }
         else
@@ -264,7 +264,7 @@ public class BtiTableReader extends SSTableReaderWithFilter
             {
                 if (ByteBufferUtil.equalsWithShortLength(in, dk.getKey()))
                 {
-                    TrieIndexEntry rie = indexPos >= 0 ? TrieIndexEntry.deserialize(in, in.getFilePointer())
+                    TrieIndexEntry rie = indexPos >= 0 ? TrieIndexEntry.deserialize(in, in.getFilePointer(), descriptor.version)
                                                        : new TrieIndexEntry(~indexPos);
                     notifySelected(SelectionReason.INDEX_ENTRY_FOUND, listener, EQ, updateStats, rie);
                     return rie;
@@ -297,18 +297,19 @@ public class BtiTableReader extends SSTableReaderWithFilter
                                         rowIndexFile,
                                         dfile,
                                         bounds.left, bounds.inclusiveLeft() ? -1 : 0,
-                                        bounds.right, bounds.inclusiveRight() ? 0 : -1);
+                                        bounds.right, bounds.inclusiveRight() ? 0 : -1,
+                                        descriptor.version);
     }
 
     public ScrubPartitionIterator scrubPartitionsIterator() throws IOException
     {
-        return new ScrubIterator(partitionIndex, rowIndexFile);
+        return new ScrubIterator(partitionIndex, rowIndexFile, descriptor.version);
     }
 
     @Override
     public PartitionIterator keyReader() throws IOException
     {
-        return PartitionIterator.create(partitionIndex, metadata().partitioner, rowIndexFile, dfile);
+        return PartitionIterator.create(partitionIndex, metadata().partitioner, rowIndexFile, dfile, descriptor.version);
     }
 
     @Override

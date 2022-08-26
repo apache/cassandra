@@ -47,7 +47,7 @@ public class ReadExecutionController implements AutoCloseable
     private final long createdAtNanos; // Only used while sampling
 
     private final RepairedDataInfo repairedDataInfo;
-    private int oldestUnrepairedTombstone = Integer.MAX_VALUE;
+    private long oldestUnrepairedTombstone = Long.MAX_VALUE;
 
     ReadExecutionController(ReadCommand command,
                             OpOrder.Group baseOp,
@@ -91,12 +91,12 @@ public class ReadExecutionController implements AutoCloseable
         return writeContext;
     }
 
-    int oldestUnrepairedTombstone()
+    long oldestUnrepairedTombstone()
     {
         return oldestUnrepairedTombstone;
     }
     
-    void updateMinOldestUnrepairedTombstone(int candidate)
+    void updateMinOldestUnrepairedTombstone(long candidate)
     {
         oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, candidate);
     }

@@ -53,7 +53,7 @@ public final class FilteredRows extends BaseRows<Row, BaseRowIterator<?>> implem
     /**
      * Filter any RangeTombstoneMarker from the iterator, transforming it into a RowIterator.
      */
-    public static RowIterator filter(UnfilteredRowIterator iterator, int nowInSecs)
+    public static RowIterator filter(UnfilteredRowIterator iterator, long nowInSecs)
     {
         return new Filter(nowInSecs, iterator.metadata().enforceStrictLiveness()).applyToPartition(iterator);
     }

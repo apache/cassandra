@@ -22,7 +22,6 @@ package org.apache.cassandra.io.util;
 
 import com.google.common.base.Charsets;
 import com.google.common.primitives.UnsignedBytes;
-import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
 import org.junit.Test;
 
@@ -33,6 +32,8 @@ import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Random;
+
+import org.apache.cassandra.utils.CassandraUInt;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
@@ -331,7 +332,7 @@ public class NIODataInputStreamTest
         long values[] = new long[] {
                 0, 1
                 , UnsignedLong.MAX_VALUE.longValue(), UnsignedLong.MAX_VALUE.longValue() - 1, UnsignedLong.MAX_VALUE.longValue() + 1
-                , UnsignedInteger.MAX_VALUE.longValue(), UnsignedInteger.MAX_VALUE.longValue() - 1, UnsignedInteger.MAX_VALUE.longValue() + 1
+                , CassandraUInt.MAX_VALUE_LONG, CassandraUInt.MAX_VALUE_LONG - 1, CassandraUInt.MAX_VALUE_LONG + 1
                 , UnsignedBytes.MAX_VALUE, UnsignedBytes.MAX_VALUE - 1, UnsignedBytes.MAX_VALUE + 1
                 , 65536, 65536 - 1, 65536 + 1 };
         values = BufferedDataOutputStreamTest.enrich(values);

@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -29,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -40,7 +42,7 @@ import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 import org.apache.cassandra.utils.memory.NativePool;
 
-public class NativeCellTest
+public class NativeCellTest extends CQLTester
 {
 
     private static final Logger logger = LoggerFactory.getLogger(NativeCellTest.class);
@@ -126,7 +128,7 @@ public class NativeCellTest
     {
         long timestamp = rand.nextLong();
         int ttl = rand.nextInt();
-        int localDeletionTime = rand.nextInt();
+        long localDeletionTime = ThreadLocalRandom.current().nextLong(Cell.getVersionedMaxDeletiontionTime() + 1);
         byte[] value = new byte[rand.nextInt(sanesize(expdecay()))];
         rand.nextBytes(value);
         CellPath path = null;

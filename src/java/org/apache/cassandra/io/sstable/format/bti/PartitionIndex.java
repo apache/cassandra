@@ -447,7 +447,7 @@ public class PartitionIndex implements SharedCloseable
     {
         try (Reader rdr = openReader())
         {
-            rdr.dumpTrie(out, (buf, ppos, pbits) -> Long.toString(getIndexPos(buf, ppos, pbits)));
+            rdr.dumpTrie(out, (buf, ppos, pbits, version) -> Long.toString(getIndexPos(buf, ppos, pbits)), null);
         }
     }
 

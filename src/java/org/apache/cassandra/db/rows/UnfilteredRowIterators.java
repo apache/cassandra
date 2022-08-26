@@ -123,7 +123,7 @@ public abstract class UnfilteredRowIterators
      * infos (and since an UnfilteredRowIterator cannot shadow it's own data, we know everyting
      * returned isn't shadowed by a tombstone).
      */
-    public static RowIterator filter(UnfilteredRowIterator iter, int nowInSec)
+    public static RowIterator filter(UnfilteredRowIterator iter, long nowInSec)
     {
         return FilteredRows.filter(iter, nowInSec);
     }

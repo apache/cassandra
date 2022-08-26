@@ -102,7 +102,7 @@ public class Ballots
         }
     }
 
-    public static LatestBallots read(Permit permit, DecoratedKey key, TableMetadata metadata, int nowInSec, boolean includeEmptyProposals)
+    public static LatestBallots read(Permit permit, DecoratedKey key, TableMetadata metadata, long nowInSec, boolean includeEmptyProposals)
     {
         return NonInterceptible.apply(permit, () -> {
             PaxosState.Snapshot state = unsafeGetIfPresent(key, metadata);
@@ -141,7 +141,7 @@ public class Ballots
         });
     }
 
-    public static String paxosDebugInfo(DecoratedKey key, TableMetadata metadata, int nowInSec)
+    public static String paxosDebugInfo(DecoratedKey key, TableMetadata metadata, long nowInSec)
     {
         return NonInterceptible.apply(OPTIONAL, () -> {
             PaxosState.Snapshot state = unsafeGetIfPresent(key, metadata);

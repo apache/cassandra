@@ -52,7 +52,7 @@ public class RowAndDeletionMergeIteratorTest
     private static final String KEYSPACE1 = "RowTest";
     private static final String CF_STANDARD1 = "Standard1";
 
-    private int nowInSeconds;
+    private long nowInSeconds;
     private DecoratedKey dk;
     private ColumnFamilyStore cfs;
     private TableMetadata cfm;
@@ -110,7 +110,7 @@ public class RowAndDeletionMergeIteratorTest
     @Test
     public void testWithOnlyRangeTombstones()
     {
-        int delTime = nowInSeconds + 1;
+        long delTime = nowInSeconds + 1L;
         long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(rt(1, false, 3, false, timestamp, delTime),
@@ -137,7 +137,7 @@ public class RowAndDeletionMergeIteratorTest
     {
         Iterator<Row> rowIterator = createRowIterator();
 
-        int delTime = nowInSeconds + 1;
+        long delTime = nowInSeconds + 1L;
         long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, timestamp, delTime));
@@ -170,7 +170,7 @@ public class RowAndDeletionMergeIteratorTest
     {
         Iterator<Row> rowIterator = createRowIterator();
 
-        int delTime = nowInSeconds + 1;
+        long delTime = nowInSeconds + 1L;
         long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(greaterThan(2, timestamp, delTime));
@@ -200,7 +200,7 @@ public class RowAndDeletionMergeIteratorTest
     {
         Iterator<Row> rowIterator = createRowIterator();
 
-        int delTime = nowInSeconds + 1;
+        long delTime = nowInSeconds + 1L;
         long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, timestamp, delTime),
@@ -241,9 +241,9 @@ public class RowAndDeletionMergeIteratorTest
     {
         Iterator<Row> rowIterator = createRowIterator();
 
-        int delTime1 = nowInSeconds + 1;
+        long delTime1 = nowInSeconds + 1L;
         long timestamp1 = toMillis(delTime1);
-        int delTime2 = delTime1 + 1;
+        long delTime2 = delTime1 + 1L;
         long timestamp2 = toMillis(delTime2);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(2, timestamp1, delTime1),
@@ -268,9 +268,9 @@ public class RowAndDeletionMergeIteratorTest
     {
         Iterator<Row> rowIterator = createRowIterator();
 
-        int delTime1 = nowInSeconds + 1;
+        long delTime1 = nowInSeconds + 1L;
         long timestamp1 = toMillis(delTime1);
-        int delTime2 = delTime1 + 1;
+        long delTime2 = delTime1 + 1L;
         long timestamp2 = toMillis(delTime2);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(lessThan(2, timestamp1, delTime1),
@@ -328,18 +328,18 @@ public class RowAndDeletionMergeIteratorTest
     {
         Iterator<Row> rowIterator = createRowIterator();
 
-        int delTime = nowInSeconds - 1;
+        long delTime = nowInSeconds - 1L;
         long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, timestamp, delTime),
                                                                                        greaterThan(2, timestamp, delTime));
 
-        int partitionDelTime = nowInSeconds + 1;
+        long partitionDelTime = nowInSeconds + 1L;
         long partitionTimestamp = toMillis(partitionDelTime);
 
         UnfilteredRowIterator iterator = createMergeIterator(rowIterator,
                                                              rangeTombstoneIterator,
-                                                             new DeletionTime(partitionTimestamp, partitionDelTime),
+                                                             DeletionTime.build(partitionTimestamp, partitionDelTime),
                                                              false);
 
         assertFalse(iterator.hasNext());
@@ -431,32 +431,32 @@ public class RowAndDeletionMergeIteratorTest
         return BufferCell.live(columnMetadata, timestamp, ((AbstractType) columnMetadata.cellValueType()).decompose(value));
     }
 
-    private static RangeTombstone atLeast(int start, long tstamp, int delTime)
+    private static RangeTombstone atLeast(int start, long tstamp, long delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.TOP), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.TOP), DeletionTime.build(tstamp, delTime));
     }
 
-    private static RangeTombstone atMost(int end, long tstamp, int delTime)
+    private static RangeTombstone atMost(int end, long tstamp, long delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.inclusiveEndOf(bb(end))), DeletionTime.build(tstamp, delTime));
     }
 
-    private static RangeTombstone lessThan(int end, long tstamp, int delTime)
+    private static RangeTombstone lessThan(int end, long tstamp, long delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.exclusiveEndOf(bb(end))), DeletionTime.build(tstamp, delTime));
     }
 
-    private static RangeTombstone greaterThan(int start, long tstamp, int delTime)
+    private static RangeTombstone greaterThan(int start, long tstamp, long delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.TOP), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.TOP), DeletionTime.build(tstamp, delTime));
     }
 
-    private static RangeTombstone rt(int start, boolean startInclusive, int end, boolean endInclusive, long tstamp, int delTime)
+    private static RangeTombstone rt(int start, boolean startInclusive, int end, boolean endInclusive, long tstamp, long delTime)
     {
         ClusteringBound<?> startBound = startInclusive ? BufferClusteringBound.inclusiveStartOf(bb(start)) : BufferClusteringBound.exclusiveStartOf(bb(start));
         ClusteringBound<?> endBound = endInclusive ? BufferClusteringBound.inclusiveEndOf(bb(end)) : BufferClusteringBound.exclusiveEndOf(bb(end));
 
-        return new RangeTombstone(Slice.make(startBound, endBound), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(startBound, endBound), DeletionTime.build(tstamp, delTime));
     }
 
     private static RangeTombstone rt(int start, int end, long tstamp, int delTime)
@@ -469,7 +469,7 @@ public class RowAndDeletionMergeIteratorTest
         return ByteBufferUtil.bytes(i);
     }
 
-    private long toMillis(int timeInSeconds)
+    private long toMillis(long timeInSeconds)
     {
         return timeInSeconds * 1000L;
     }

@@ -418,13 +418,13 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public double getEstimatedDroppableTombstoneRatio(int gcBefore)
+    public double getEstimatedDroppableTombstoneRatio(long gcBefore)
     {
         return delegate.getEstimatedDroppableTombstoneRatio(gcBefore);
     }
 
     @Override
-    public double getDroppableTombstonesBefore(int gcBefore)
+    public double getDroppableTombstonesBefore(long gcBefore)
     {
         return delegate.getDroppableTombstonesBefore(gcBefore);
     }
@@ -448,13 +448,13 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public int getMinLocalDeletionTime()
+    public long getMinLocalDeletionTime()
     {
         return delegate.getMinLocalDeletionTime();
     }
 
     @Override
-    public int getMaxLocalDeletionTime()
+    public long getMaxLocalDeletionTime()
     {
         return delegate.getMaxLocalDeletionTime();
     }

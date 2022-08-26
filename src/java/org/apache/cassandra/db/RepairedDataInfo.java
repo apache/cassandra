@@ -112,7 +112,7 @@ class RepairedDataInfo
         return calculatedDigest;
     }
 
-    void prepare(ColumnFamilyStore cfs, int nowInSec, int oldestUnrepairedTombstone)
+    void prepare(ColumnFamilyStore cfs, long nowInSec, long oldestUnrepairedTombstone)
     {
         this.purger = new RepairedDataPurger(cfs, nowInSec, oldestUnrepairedTombstone);
         this.metrics = cfs.metric;
@@ -326,8 +326,8 @@ class RepairedDataInfo
     private static class RepairedDataPurger extends PurgeFunction
     {
         RepairedDataPurger(ColumnFamilyStore cfs,
-                           int nowInSec,
-                           int oldestUnrepairedTombstone)
+                           long nowInSec,
+                           long oldestUnrepairedTombstone)
         {
             super(nowInSec,
                   cfs.gcBefore(nowInSec),

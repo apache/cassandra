@@ -193,7 +193,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * Returns a task for the compaction strategy that needs it the most (most estimated remaining tasks)
      */
-    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
     {
         maybeReloadDiskBoundaries();
         readLock.lock();
@@ -1017,7 +1017,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         return maxSSTableSizeBytes;
     }
 
-    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, long gcBefore, long maxSSTableBytes)
     {
         maybeReloadDiskBoundaries();
         readLock.lock();
@@ -1060,7 +1060,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public CompactionTasks getMaximalTasks(final int gcBefore, final boolean splitOutput, OperationType operationType)
+    public CompactionTasks getMaximalTasks(final long gcBefore, final boolean splitOutput, OperationType operationType)
     {
         maybeReloadDiskBoundaries();
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
@@ -1096,7 +1096,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param gcBefore gc grace period, throw away tombstones older than this
      * @return a list of compaction tasks corresponding to the sstables requested
      */
-    public CompactionTasks getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
+    public CompactionTasks getUserDefinedTasks(Collection<SSTableReader> sstables, long gcBefore)
     {
         maybeReloadDiskBoundaries();
         List<AbstractCompactionTask> ret = new ArrayList<>();
