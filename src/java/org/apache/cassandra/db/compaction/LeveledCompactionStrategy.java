@@ -127,7 +127,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
      * (by explicit user request) even when compaction is disabled.
      */
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
-    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
     {
         Collection<SSTableReader> previousCandidate = null;
         while (true)
@@ -180,7 +180,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
-    public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore, boolean splitOutput)
+    public synchronized Collection<AbstractCompactionTask> getMaximalTask(long gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> sstables = manifest.getSSTables();
 
@@ -196,7 +196,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     @Override
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
-    public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
+    public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, long gcBefore)
     {
 
         if (sstables.isEmpty())
@@ -213,7 +213,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
-    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, long gcBefore, long maxSSTableBytes)
     {
         assert txn.originals().size() > 0;
         int level = -1;
@@ -522,7 +522,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         return String.format("LCS@%d(%s)", hashCode(), cfs.name);
     }
 
-    private SSTableReader findDroppableSSTable(final int gcBefore)
+    private SSTableReader findDroppableSSTable(final long gcBefore)
     {
         level:
         for (int i = manifest.getLevelCount(); i >= 0; i--)

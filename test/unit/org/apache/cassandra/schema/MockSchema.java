@@ -198,12 +198,20 @@ public class MockSchema
                 maybeSetDataLength(descriptor, size);
                 SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
                 MetadataCollector collector = new MetadataCollector(cfs.metadata().comparator);
-                collector.update(new DeletionTime(timestamp, minLocalDeletionTime));
+                collector.update(DeletionTime.build(timestamp, minLocalDeletionTime));
                 BufferDecoratedKey first = readerBounds(firstToken);
                 BufferDecoratedKey last = readerBounds(lastToken);
-                StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
-                                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header, first.retainable().getKey().slice(), last.retainable().getKey().slice())
-                                                                  .get(MetadataType.STATS);
+                StatsMetadata metadata =
+                                       (StatsMetadata) collector.sstableLevel(level)
+                                                                .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(),
+                                                                                  0.01f,
+                                                                                  UNREPAIRED_SSTABLE,
+                                                                                  null,
+                                                                                  false,
+                                                                                  header,
+                                                                                  first.retainable().getKey().slice(),
+                                                                                  last.retainable().getKey().slice())
+                                                                .get(MetadataType.STATS);
                 BigTableReader reader = new BigTableReader.Builder(descriptor).setComponents(components)
                                                                               .setTableMetadataRef(cfs.metadata)
                                                                               .setDataFile(fileHandle.sharedCopy())
@@ -216,7 +224,8 @@ public class MockSchema
                                                                               .setSerializationHeader(header)
                                                                               .setFirst(first)
                                                                               .setLast(last)
-                                                                              .setKeyCache(cfs.metadata().params.caching.cacheKeys ? new KeyCache(CacheService.instance.keyCache) : KeyCache.NO_CACHE)
+                                                                              .setKeyCache(cfs.metadata().params.caching.cacheKeys ? new KeyCache(CacheService.instance.keyCache)
+                                                                                                                                   : KeyCache.NO_CACHE)
                                                                               .build(cfs, false, false);
                 if (!keepRef)
                     reader.selfRef().release();
@@ -237,7 +246,7 @@ public class MockSchema
                 maybeSetDataLength(descriptor, size);
                 SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
                 MetadataCollector collector = new MetadataCollector(cfs.metadata().comparator);
-                collector.update(new DeletionTime(timestamp, minLocalDeletionTime));
+                collector.update(DeletionTime.build(timestamp, minLocalDeletionTime));
                 BufferDecoratedKey first = readerBounds(firstToken);
                 BufferDecoratedKey last = readerBounds(lastToken);
                 StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)

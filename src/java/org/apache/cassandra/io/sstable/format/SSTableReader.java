@@ -1095,12 +1095,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return sstableMetadata.estimatedCellPerPartitionCount;
     }
 
-    public double getEstimatedDroppableTombstoneRatio(int gcBefore)
+    public double getEstimatedDroppableTombstoneRatio(long gcBefore)
     {
         return sstableMetadata.getEstimatedDroppableTombstoneRatio(gcBefore);
     }
 
-    public double getDroppableTombstonesBefore(int gcBefore)
+    public double getDroppableTombstonesBefore(long gcBefore)
     {
         return sstableMetadata.getDroppableTombstonesBefore(gcBefore);
     }
@@ -1120,12 +1120,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return sstableMetadata.maxTimestamp;
     }
 
-    public int getMinLocalDeletionTime()
+    public long getMinLocalDeletionTime()
     {
         return sstableMetadata.minLocalDeletionTime;
     }
 
-    public int getMaxLocalDeletionTime()
+    public long getMaxLocalDeletionTime()
     {
         return sstableMetadata.maxLocalDeletionTime;
     }

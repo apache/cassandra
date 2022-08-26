@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.tries.SerializationNode;
 import org.apache.cassandra.io.tries.TrieNode;
 import org.apache.cassandra.io.tries.TrieSerializer;
@@ -47,6 +48,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 @NotThreadSafe
 public class RowIndexReader extends Walker<RowIndexReader>
 {
+    public final Version version;
     private static final int FLAG_OPEN_MARKER = 8;
 
     public static class IndexInfo
@@ -61,14 +63,15 @@ public class RowIndexReader extends Walker<RowIndexReader>
         }
     }
 
-    public RowIndexReader(FileHandle file, long root)
+    public RowIndexReader(FileHandle file, long root, Version version)
     {
         super(file.instantiateRebufferer(null), root);
+        this.version = version;
     }
 
-    public RowIndexReader(FileHandle file, TrieIndexEntry entry)
+    public RowIndexReader(FileHandle file, TrieIndexEntry entry, Version version)
     {
-        this(file, entry.indexTrieRoot);
+        this(file, entry.indexTrieRoot, version);
     }
 
     /**
@@ -106,10 +109,10 @@ public class RowIndexReader extends Walker<RowIndexReader>
 
     protected IndexInfo readPayload(int ppos, int bits)
     {
-        return readPayload(buf, ppos, bits);
+        return readPayload(buf, ppos, bits, version);
     }
 
-    static IndexInfo readPayload(ByteBuffer buf, int ppos, int bits)
+    static IndexInfo readPayload(ByteBuffer buf, int ppos, int bits, Version version)
     {
         long dataOffset;
         if (bits == 0)
@@ -118,73 +121,76 @@ public class RowIndexReader extends Walker<RowIndexReader>
         dataOffset = SizedInts.read(buf, ppos, bytes);
         ppos += bytes;
         DeletionTime deletion = (bits & FLAG_OPEN_MARKER) != 0
-                ? DeletionTime.serializer.deserialize(buf, ppos)
+                ? DeletionTime.getSerializer(version).deserialize(buf, ppos)
                 : null;
         return new IndexInfo(dataOffset, deletion);
     }
 
     // The trie serializer describes how the payloads are written. Placed here (instead of writer) so that reading and
     // writing the payload are close together should they need to be changed.
-    static final TrieSerializer<IndexInfo, DataOutputPlus> trieSerializer = new TrieSerializer<IndexInfo, DataOutputPlus>()
+    static final TrieSerializer<IndexInfo, DataOutputPlus> getSerializer(Version version)
     {
-        @Override
-        public int sizeofNode(SerializationNode<IndexInfo> node, long nodePosition)
+        return new TrieSerializer<IndexInfo, DataOutputPlus>()
         {
-            return TrieNode.typeFor(node, nodePosition).sizeofNode(node) + sizeof(node.payload());
-        }
-
-        @Override
-        public void write(DataOutputPlus dest, SerializationNode<IndexInfo> node, long nodePosition) throws IOException
-        {
-            write(dest, TrieNode.typeFor(node, nodePosition), node, nodePosition);
-        }
-
-        private int sizeof(IndexInfo payload)
-        {
-            int size = 0;
-            if (payload != null)
+            @Override
+            public int sizeofNode(SerializationNode<IndexInfo> node, long nodePosition)
             {
-                size += SizedInts.nonZeroSize(payload.offset);
-                if (!payload.openDeletion.isLive())
-                    size += DeletionTime.serializer.serializedSize(payload.openDeletion);
+                return TrieNode.typeFor(node, nodePosition).sizeofNode(node) + sizeof(node.payload());
             }
-            return size;
-        }
 
-        private void write(DataOutputPlus dest, TrieNode type, SerializationNode<IndexInfo> node, long nodePosition) throws IOException
-        {
-            IndexInfo payload = node.payload();
-            int bytes = 0;
-            int hasOpenMarker = 0;
-            if (payload != null)
+            @Override
+            public void write(DataOutputPlus dest, SerializationNode<IndexInfo> node, long nodePosition) throws IOException
             {
-                bytes = SizedInts.nonZeroSize(payload.offset);
-                assert bytes < 8 : "Row index does not support rows larger than 32 PiB";
-                if (!payload.openDeletion.isLive())
-                    hasOpenMarker = FLAG_OPEN_MARKER;
+                write(dest, TrieNode.typeFor(node, nodePosition), node, nodePosition);
             }
-            type.serialize(dest, node, bytes | hasOpenMarker, nodePosition);
-            if (payload != null)
+
+            private int sizeof(IndexInfo payload)
             {
-                SizedInts.write(dest, payload.offset, bytes);
-
-                if (hasOpenMarker == FLAG_OPEN_MARKER)
-                    DeletionTime.serializer.serialize(payload.openDeletion, dest);
+                int size = 0;
+                if (payload != null)
+                {
+                    size += SizedInts.nonZeroSize(payload.offset);
+                    if (!payload.openDeletion.isLive())
+                        size += DeletionTime.getSerializer(version).serializedSize(payload.openDeletion);
+                }
+                return size;
             }
-        }
 
-    };
+            private void write(DataOutputPlus dest, TrieNode type, SerializationNode<IndexInfo> node, long nodePosition) throws IOException
+            {
+                IndexInfo payload = node.payload();
+                int bytes = 0;
+                int hasOpenMarker = 0;
+                if (payload != null)
+                {
+                    bytes = SizedInts.nonZeroSize(payload.offset);
+                    assert bytes < 8 : "Row index does not support rows larger than 32 PiB";
+                    if (!payload.openDeletion.isLive())
+                        hasOpenMarker = FLAG_OPEN_MARKER;
+                }
+                type.serialize(dest, node, bytes | hasOpenMarker, nodePosition);
+                if (payload != null)
+                {
+                    SizedInts.write(dest, payload.offset, bytes);
+
+                    if (hasOpenMarker == FLAG_OPEN_MARKER)
+                        DeletionTime.getSerializer(version).serialize(payload.openDeletion, dest);
+                }
+            }
+
+        };
+    }
 
     // debug/test code
     @SuppressWarnings("unused")
     public void dumpTrie(PrintStream out)
     {
-        dumpTrie(out, RowIndexReader::dumpRowIndexEntry);
+        dumpTrie(out, RowIndexReader::dumpRowIndexEntry, version);
     }
 
-    static String dumpRowIndexEntry(ByteBuffer buf, int ppos, int bits)
+    static String dumpRowIndexEntry(ByteBuffer buf, int ppos, int bits, Version version)
     {
-        IndexInfo ii = readPayload(buf, ppos, bits);
+        IndexInfo ii = readPayload(buf, ppos, bits, version);
 
         return ii != null
                ? String.format("pos %x %s", ii.offset, ii.openDeletion == null ? "" : ii.openDeletion)

@@ -367,7 +367,7 @@ public abstract class Selector
             index++;
         }
 
-        public void add(ColumnData columnData, int nowInSec)
+        public void add(ColumnData columnData, long nowInSec)
         {
             ColumnMetadata column = columns.get(index);
             if (columnData == null)
@@ -387,7 +387,7 @@ public abstract class Selector
             }
         }
 
-        private void add(Cell<?> c, int nowInSec)
+        private void add(Cell<?> c, long nowInSec)
         {
             values[index] = value(c);
             writetimes.addTimestamp(index, c, nowInSec);
@@ -395,7 +395,7 @@ public abstract class Selector
             index++;
         }
 
-        private void add(ComplexColumnData ccd, int nowInSec)
+        private void add(ComplexColumnData ccd, long nowInSec)
         {
             AbstractType<?> type = columns.get(index).type;
             if (type.isCollection())

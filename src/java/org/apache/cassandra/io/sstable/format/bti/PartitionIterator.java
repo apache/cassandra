@@ -24,6 +24,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.KeyReader;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -47,6 +48,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
     private final int exclusiveLimit;
     private final FileHandle dataFile;
     private final FileHandle rowIndexFile;
+    private final Version version;
 
     private FileDataInput dataInput;
     private FileDataInput indexInput;
@@ -58,7 +60,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
 
     @SuppressWarnings({ "resource", "RedundantSuppression" })
     static PartitionIterator create(PartitionIndex partitionIndex, IPartitioner partitioner, FileHandle rowIndexFile, FileHandle dataFile,
-                                    PartitionPosition left, int inclusiveLeft, PartitionPosition right, int exclusiveRight) throws IOException
+                                    PartitionPosition left, int inclusiveLeft, PartitionPosition right, int exclusiveRight, Version version) throws IOException
     {
         PartitionIterator partitionIterator = null;
         PartitionIndex partitionIndexCopy = null;
@@ -71,7 +73,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
             dataFileCopy = dataFile.sharedCopy();
             rowIndexFileCopy = rowIndexFile.sharedCopy();
 
-            partitionIterator = new PartitionIterator(partitionIndexCopy, partitioner, rowIndexFileCopy, dataFileCopy, left, right, exclusiveRight);
+            partitionIterator = new PartitionIterator(partitionIndexCopy, partitioner, rowIndexFileCopy, dataFileCopy, left, right, exclusiveRight, version);
 
             partitionIterator.readNext();
             // Because the index stores prefixes, the first value can be in any relationship with the left bound.
@@ -96,18 +98,18 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
         }
     }
 
-    static PartitionIterator create(PartitionIndex partitionIndex, IPartitioner partitioner, FileHandle rowIndexFile, FileHandle dataFile) throws IOException
+    static PartitionIterator create(PartitionIndex partitionIndex, IPartitioner partitioner, FileHandle rowIndexFile, FileHandle dataFile, Version version) throws IOException
     {
-        return create(partitionIndex, partitioner, rowIndexFile, dataFile, partitionIndex.firstKey(), -1, partitionIndex.lastKey(), 0);
+        return create(partitionIndex, partitioner, rowIndexFile, dataFile, partitionIndex.firstKey(), -1, partitionIndex.lastKey(), 0, version);
     }
 
     static PartitionIterator empty(PartitionIndex partitionIndex)
     {
-        return new PartitionIterator(partitionIndex.sharedCopy());
+        return new PartitionIterator(partitionIndex.sharedCopy(), null);
     }
 
     private PartitionIterator(PartitionIndex partitionIndex, IPartitioner partitioner, FileHandle rowIndexFile, FileHandle dataFile,
-                              PartitionPosition left, PartitionPosition right, int exclusiveRight)
+                              PartitionPosition left, PartitionPosition right, int exclusiveRight, Version version)
     {
         super(partitionIndex, left, right);
         this.partitionIndex = partitionIndex;
@@ -116,9 +118,10 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
         this.exclusiveLimit = exclusiveRight;
         this.rowIndexFile = rowIndexFile;
         this.dataFile = dataFile;
+        this.version = version;
     }
 
-    private PartitionIterator(PartitionIndex partitionIndex)
+    private PartitionIterator(PartitionIndex partitionIndex, Version version)
     {
         super(partitionIndex, partitionIndex.firstKey(), partitionIndex.firstKey());
         this.partitionIndex = partitionIndex;
@@ -132,6 +135,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
         this.currentKey = null;
         this.nextEntry = null;
         this.nextKey = null;
+        this.version = version;
     }
 
     @Override
@@ -201,7 +205,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
             {
                 seekIndexInput(pos);
                 nextKey = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(indexInput));
-                nextEntry = TrieIndexEntry.deserialize(indexInput, indexInput.getFilePointer());
+                nextEntry = TrieIndexEntry.deserialize(indexInput, indexInput.getFilePointer(), version);
             }
             else
             {

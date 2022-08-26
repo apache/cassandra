@@ -235,7 +235,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
                 try
                 {
                     ByteBufferUtil.writeWithShortLength(key.getKey(), rowIndexWriter);
-                    ((TrieIndexEntry) indexEntry).serialize(rowIndexWriter, rowIndexWriter.position());
+                    ((TrieIndexEntry) indexEntry).serialize(rowIndexWriter, rowIndexWriter.position(), descriptor.version);
                 }
                 catch (IOException e)
                 {

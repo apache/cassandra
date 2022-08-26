@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.PageAware;
 import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
@@ -357,20 +358,20 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
 
     public interface PayloadToString
     {
-        String payloadAsString(ByteBuffer buf, int payloadPos, int payloadFlags);
+        String payloadAsString(ByteBuffer buf, int payloadPos, int payloadFlags, Version version);
     }
 
-    public void dumpTrie(PrintStream out, PayloadToString payloadReader)
+    public void dumpTrie(PrintStream out, PayloadToString payloadReader, Version version)
     {
         out.print("ROOT");
-        dumpTrie(out, payloadReader, root, "");
+        dumpTrie(out, payloadReader, root, "", version);
     }
 
-    private void dumpTrie(PrintStream out, PayloadToString payloadReader, long node, String indent)
+    private void dumpTrie(PrintStream out, PayloadToString payloadReader, long node, String indent, Version version)
     {
         go(node);
         int bits = payloadFlags();
-        out.format(" %s@%x %s%n", nodeType.toString(), node, bits == 0 ? "" : payloadReader.payloadAsString(buf, payloadPosition(), bits));
+        out.format(" %s@%x %s%n", nodeType.toString(), node, bits == 0 ? "" : payloadReader.payloadAsString(buf, payloadPosition(), bits, version));
         int range = transitionRange();
         for (int i = 0; i < range; ++i)
         {
@@ -378,7 +379,7 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
             if (child == NONE)
                 continue;
             out.format("%s%02x %s>", indent, transitionByte(i), PageAware.pageStart(position) == PageAware.pageStart(child) ? "--" : "==");
-            dumpTrie(out, payloadReader, child, indent + "  ");
+            dumpTrie(out, payloadReader, child, indent + "  ", version);
             go(node);
         }
     }

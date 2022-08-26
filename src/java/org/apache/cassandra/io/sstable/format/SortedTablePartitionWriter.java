@@ -41,7 +41,7 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
     private final SerializationHeader header;
     private final SequentialWriter writer;
     private final SerializationHelper helper;
-    private final int version;
+    private final Version version;
 
     private long previousRowStart;
     private long initialPosition;
@@ -73,7 +73,7 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
         this.writer = writer;
         this.unfilteredSerializer = UnfilteredSerializer.serializer;
         this.helper = new SerializationHelper(header);
-        this.version = version.correspondingMessagingVersion();
+        this.version = version;
     }
 
     protected void reset()
@@ -102,7 +102,7 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
         checkState(state == State.AWAITING_PARTITION_HEADER);
 
         ByteBufferUtil.writeWithShortLength(key.getKey(), writer);
-        DeletionTime.serializer.serialize(partitionLevelDeletion, writer);
+        DeletionTime.getSerializer(version).serialize(partitionLevelDeletion, writer);
 
         if (!header.hasStatic())
         {
@@ -119,7 +119,7 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
         checkState(state == State.AWAITING_STATIC_ROW);
         checkState(staticRow.isStatic());
 
-        UnfilteredSerializer.serializer.serializeStaticRow(staticRow, helper, writer, version);
+        UnfilteredSerializer.serializer.serializeStaticRow(staticRow, helper, writer, version.correspondingMessagingVersion());
 
         this.headerLength = writer.position() - initialPosition;
         state = State.AWAITING_ROWS;
@@ -140,7 +140,7 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
         }
 
         long unfilteredPosition = writer.position();
-        unfilteredSerializer.serialize(unfiltered, helper, writer, pos - previousRowStart, version);
+        unfilteredSerializer.serialize(unfiltered, helper, writer, pos - previousRowStart, version.correspondingMessagingVersion());
 
         lastClustering = unfiltered.clustering();
         previousRowStart = pos;

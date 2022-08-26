@@ -269,7 +269,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.concurrent.RefCounted",
     "org.apache.cassandra.utils.concurrent.SelfRefCounted",
     "org.apache.cassandra.utils.concurrent.Transactional",
-    "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException"
+    "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException",
+    "org.apache.cassandra.utils.StorageCompatibilityMode"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

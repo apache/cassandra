@@ -120,7 +120,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      *                              normally retrieved from {@link TableMetadata#enforceStrictLiveness()}
      * @return true if there is some live information
      */
-    public boolean hasLiveData(int nowInSec, boolean enforceStrictLiveness);
+    public boolean hasLiveData(long nowInSec, boolean enforceStrictLiveness);
 
     /**
      * Returns a cell for a simple column.
@@ -203,7 +203,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      *
      * @param nowInSec the current time in seconds to decid if a cell is expired.
      */
-    public boolean hasDeletion(int nowInSec);
+    public boolean hasDeletion(long nowInSec);
 
     /**
      * An iterator to efficiently search data for a given column.
@@ -267,7 +267,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * @return this row but without any deletion info purged by {@code purger}. If the purged row is empty, returns
      *         {@code null}.
      */
-    public Row purge(DeletionPurger purger, int nowInSec, boolean enforceStrictLiveness);
+    public Row purge(DeletionPurger purger, long nowInSec, boolean enforceStrictLiveness);
 
     /**
      * Returns a copy of this row which only include the data queried by {@code filter}, excluding anything _fetched_ for
@@ -361,7 +361,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public static class Deletion
     {
         public static final Deletion LIVE = new Deletion(DeletionTime.LIVE, false);
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(DeletionTime.build(0, 0));
 
         private final DeletionTime time;
         private final boolean isShadowable;

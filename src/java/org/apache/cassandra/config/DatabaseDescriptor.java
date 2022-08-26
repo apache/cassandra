@@ -103,6 +103,7 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
@@ -4774,5 +4775,14 @@ public class DatabaseDescriptor
         return conf.severity_during_decommission > 0 ?
                OptionalDouble.of(conf.severity_during_decommission) :
                OptionalDouble.empty();
+    }
+
+    public static StorageCompatibilityMode getStorageCompatibilityMode()
+    {
+        // Config is null for junits that don't load the config. Get from env var that CI/build.xml sets
+        if (conf == null)
+            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
+        else
+            return conf.storage_compatibility_mode;
     }
 }

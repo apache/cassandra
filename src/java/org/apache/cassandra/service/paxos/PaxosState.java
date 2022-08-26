@@ -242,7 +242,7 @@ public class PaxosState implements PaxosOperationLock
             return new Snapshot(promised, promisedWrite, accepted, committed);
         }
 
-        Snapshot removeExpired(int nowInSec)
+        Snapshot removeExpired(long nowInSec)
         {
             boolean isAcceptedExpired = accepted != null && accepted.isExpired(nowInSec);
             boolean isCommittedExpired = committed.isExpired(nowInSec);
@@ -532,7 +532,7 @@ public class PaxosState implements PaxosOperationLock
         return current((int)ballot.unix(SECONDS));
     }
 
-    Snapshot current(int nowInSec)
+    Snapshot current(long nowInSec)
     {
         // CASSANDRA-12043 is not an issue for v2, as we perform Commit+Prepare and PrepareRefresh
         // which are able to make progress whether or not the old commit is shadowed by the TTL (since they
@@ -732,7 +732,7 @@ public class PaxosState implements PaxosOperationLock
                     // ignore nowInSec when merging as this can only be an issue during the transition period, so the unbounded
                     // problem of CASSANDRA-12043 is not an issue
                     Snapshot realBefore = unsafeState.current;
-                    Snapshot before = realBefore.removeExpired((int)toPrepare.ballot.unix(SECONDS));
+                    Snapshot before = realBefore.removeExpired(toPrepare.ballot.unix(SECONDS));
                     Ballot latest = before.latestWitnessedOrLowBound();
                     if (toPrepare.isAfter(latest))
                     {

@@ -59,8 +59,8 @@ public class LocalSessionInfo
         Map<String, String> m = new HashMap<>();
         m.put(SESSION_ID, session.sessionID.toString());
         m.put(STATE, session.getState().toString());
-        m.put(STARTED, Integer.toString(session.getStartedAt()));
-        m.put(LAST_UPDATE, Integer.toString(session.getLastUpdate()));
+        m.put(STARTED, Long.toString(session.getStartedAt()));
+        m.put(LAST_UPDATE, Long.toString(session.getLastUpdate()));
         m.put(COORDINATOR, session.coordinator.toString());
         m.put(PARTICIPANTS, Joiner.on(',').join(Iterables.transform(session.participants.stream().map(peer -> peer.getAddress()).collect(Collectors.toList()), InetAddress::getHostAddress)));
         m.put(PARTICIPANTS_WP, Joiner.on(',').join(Iterables.transform(session.participants, InetAddressAndPort::getHostAddressAndPort)));

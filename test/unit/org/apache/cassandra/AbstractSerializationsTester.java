@@ -32,11 +32,12 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SERIA
 
 public class AbstractSerializationsTester
 {
-    protected static final String CUR_VER = CASSANDRA_VERSION.getString("4.0");
+    protected static final String CUR_VER = CASSANDRA_VERSION.getString("5.0");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
     {{
         put("3.0", MessagingService.VERSION_30);
         put("4.0", MessagingService.VERSION_40);
+        put("5.0", MessagingService.VERSION_50);
     }};
 
     protected static final boolean EXECUTE_WRITES = TEST_SERIALIZATION_WRITES.getBoolean();

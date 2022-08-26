@@ -73,7 +73,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                                                   .pooled("SASI-Memtable", POOL_SIZE);
     }
 
-    private final int nowInSec = FBUtilities.nowInSeconds();
+    private final long nowInSec = FBUtilities.nowInSeconds();
 
     private final Descriptor descriptor;
     private final OperationType source;

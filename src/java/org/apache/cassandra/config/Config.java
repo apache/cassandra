@@ -40,6 +40,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTOCOMPACTION_ON_STARTUP_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_CACHE_ENABLED;
@@ -1231,5 +1232,8 @@ public class Config
     public volatile boolean dump_heap_on_uncaught_exception = false;
     public String heap_dump_path = "heapdump";
 
+
     public double severity_during_decommission = 0;
+
+    public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.CASSANDRA_4;
 }

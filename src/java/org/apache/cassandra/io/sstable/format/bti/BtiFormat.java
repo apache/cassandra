@@ -420,6 +420,12 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
             return isCompatible() && version.charAt(0) == current_version.charAt(0);
         }
 
+        @Override
+        public boolean hasUIntDeletionTime()
+        {
+            return true;
+        }
+
     }
 
     private static class BtiTableSpecificMetricsProviders implements MetricsProviders

@@ -41,7 +41,7 @@ public class UpdateParameters
     public final ClientState clientState;
     public final QueryOptions options;
 
-    private final int nowInSec;
+    private final long nowInSec;
     private final long timestamp;
     private final int ttl;
 
@@ -61,7 +61,7 @@ public class UpdateParameters
                             ClientState clientState,
                             QueryOptions options,
                             long timestamp,
-                            int nowInSec,
+                            long nowInSec,
                             int ttl,
                             Map<DecoratedKey, Partition> prefetchedRows)
     throws InvalidRequestException
@@ -75,7 +75,7 @@ public class UpdateParameters
         this.timestamp = timestamp;
         this.ttl = ttl;
 
-        this.deletionTime = new DeletionTime(timestamp, nowInSec);
+        this.deletionTime = DeletionTime.build(timestamp, nowInSec);
 
         this.prefetchedRows = prefetchedRows;
 
@@ -201,7 +201,7 @@ public class UpdateParameters
 
     public void setComplexDeletionTimeForOverwrite(ColumnMetadata column)
     {
-        builder.addComplexDeletion(column, new DeletionTime(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
+        builder.addComplexDeletion(column, DeletionTime.build(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
     }
 
     public Row buildRow()

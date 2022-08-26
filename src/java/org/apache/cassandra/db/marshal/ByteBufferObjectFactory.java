@@ -46,7 +46,7 @@ class ByteBufferObjectFactory implements ValueAccessor.ObjectFactory<ByteBuffer>
 
     private ByteBufferObjectFactory() {}
 
-    public Cell<ByteBuffer> cell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
+    public Cell<ByteBuffer> cell(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, ByteBuffer value, CellPath path)
     {
         return new BufferCell(column, timestamp, ttl, localDeletionTime, value, path);
     }

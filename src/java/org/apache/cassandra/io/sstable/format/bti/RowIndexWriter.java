@@ -22,6 +22,7 @@ import java.io.IOException;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
 import org.apache.cassandra.io.tries.IncrementalTrieWriter;
 import org.apache.cassandra.io.tries.Walker;
@@ -43,10 +44,10 @@ class RowIndexWriter implements AutoCloseable
     private ByteComparable prevMax = null;
     private ByteComparable prevSep = null;
 
-    RowIndexWriter(ClusteringComparator comparator, DataOutputPlus out)
+    RowIndexWriter(ClusteringComparator comparator, DataOutputPlus out, Version version)
     {
         this.comparator = comparator;
-        this.trie = IncrementalTrieWriter.open(RowIndexReader.trieSerializer, out);
+        this.trie = IncrementalTrieWriter.open(RowIndexReader.getSerializer(version), out);
     }
 
     void reset()
