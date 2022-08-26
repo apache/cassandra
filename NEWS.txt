@@ -235,6 +235,17 @@ Deprecation
     - The functionality behind the property `windows_timer_interval` was removed as part of CASSANDRA-16956. The
       property is still present but it is deprecated and it is just a place-holder to prevent breaking upgrades. This
       property is expected to be fully removed in the next major release of Cassandra.
+    - In the JMX MBean org.apache.cassandra.db:type=RepairService`:
+        - deprecate the getter/setter methods `getRepairSessionSpaceInMebibytes` and `setRepairSessionSpaceInMebibytes`
+          in favor of `getRepairSessionSpaceInMiB` and `setRepairSessionSpaceInMiB` respectively
+    - In the JMX MBean `org.apache.cassandra.db:type=StorageService`:
+        - deprecate the getter/setter methods `getRepairSessionMaxTreeDepth` and `setRepairSessionMaxTreeDepth`
+          in favor of `getRepairSessionMaximumTreeDepth` and `setRepairSessionMaximumTreeDepth`
+        - deprecate the setter method `setColumnIndexSize` in favor of `setColumnIndexSizeInKiB`
+        - deprecate the getter/setter methods `getColumnIndexCacheSize` and `setColumnIndexCacheSize` in favor of
+          `getColumnIndexCacheSizeInKiB` and `setColumnIndexCacheSizeInKiB` respectively
+        - deprecate the getter/setter methods `getBatchSizeWarnThreshold` and `setBatchSizeWarnThreshold` in favor of
+          `getBatchSizeWarnThresholdInKiB` and `setBatchSizeWarnThresholdInKiB` respectively
 
 4.0
 ===

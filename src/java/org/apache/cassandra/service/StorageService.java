@@ -4456,12 +4456,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                ImmutableList.<String>builder().add(pair.left.name()).addAll(pair.right).build();
     }
 
+    @Deprecated
+    @Override
     public void setRepairSessionMaxTreeDepth(int depth)
     {
         DatabaseDescriptor.setRepairSessionMaxTreeDepth(depth);
     }
 
+    @Deprecated
+    @Override
     public int getRepairSessionMaxTreeDepth()
+    {
+        return DatabaseDescriptor.getRepairSessionMaxTreeDepth();
+    }
+
+    @Override
+    public void setRepairSessionMaximumTreeDepth(int depth)
+    {
+        try
+        {
+            DatabaseDescriptor.setRepairSessionMaxTreeDepth(depth);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+    }
+
+    @Override
+    public int getRepairSessionMaximumTreeDepth()
     {
         return DatabaseDescriptor.getRepairSessionMaxTreeDepth();
     }
@@ -6075,11 +6098,29 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated replica_filtering_protection.cached_rows_fail_threshold to {}", threshold);
     }
 
+    @Override
     public int getColumnIndexSizeInKiB()
     {
         return DatabaseDescriptor.getColumnIndexSizeInKiB();
     }
 
+    @Override
+    public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB)
+    {
+        int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        try
+        {
+            DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKiB);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKiB, oldValueInKiB);
+    }
+
+    @Deprecated
+    @Override
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
         int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
@@ -6087,15 +6128,39 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKiB);
     }
 
+    @Deprecated
+    @Override
     public int getColumnIndexCacheSize()
     {
         return DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
     }
 
+    @Deprecated
+    @Override
     public void setColumnIndexCacheSize(int cacheSizeInKB)
     {
         DatabaseDescriptor.setColumnIndexCacheSize(cacheSizeInKB);
         logger.info("Updated column_index_cache_size to {}", cacheSizeInKB);
+    }
+
+    @Override
+    public int getColumnIndexCacheSizeInKiB()
+    {
+        return DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
+    }
+
+    @Override
+    public void setColumnIndexCacheSizeInKiB(int cacheSizeInKiB)
+    {
+        try
+        {
+            DatabaseDescriptor.setColumnIndexCacheSize(cacheSizeInKiB);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        logger.info("Updated column_index_cache_size to {}", cacheSizeInKiB);
     }
 
     public int getBatchSizeFailureThreshold()
@@ -6109,15 +6174,40 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated batch_size_fail_threshold to {}", threshold);
     }
 
+    @Deprecated
+    @Override
     public int getBatchSizeWarnThreshold()
     {
         return DatabaseDescriptor.getBatchSizeWarnThresholdInKiB();
     }
 
+    @Deprecated
+    @Override
     public void setBatchSizeWarnThreshold(int threshold)
     {
         DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(threshold);
         logger.info("Updated batch_size_warn_threshold to {}", threshold);
+    }
+
+    @Override
+    public int getBatchSizeWarnThresholdInKiB()
+    {
+        return DatabaseDescriptor.getBatchSizeWarnThresholdInKiB();
+    }
+
+    @Override
+    public void setBatchSizeWarnThresholdInKiB(int thresholdInKiB)
+    {
+        try
+        {
+            DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(thresholdInKiB);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+
+        logger.info("Updated batch_size_warn_threshold to {}", thresholdInKiB);
     }
 
     public int getInitialRangeTombstoneListAllocationSize()
