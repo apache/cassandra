@@ -36,10 +36,10 @@ public class GroupCommitLogTest extends CommitLogTest
     @BeforeClass
     public static void setCommitLogModeDetails()
     {
-        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.group);
         DatabaseDescriptor.setCommitLogSyncGroupWindow(1);
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         beforeClass();
     }
 }
