@@ -252,8 +252,7 @@ public class PmemPartition implements Partition
             long rtmTreeHandle = block.getLong(RTM_INFO_OFFSET);
             if (rtmTreeHandle > 0)
             {
-                pmemRtmMap = PmemRowMap.loadFromRtmHandle(heap, rtmTreeHandle, UpdateTransaction.NO_OP,pmemTableInfo);
-                ;//gets handle of RTM arTree
+                pmemRtmMap = PmemRowMap.loadFromRtmHandle(heap, rtmTreeHandle, UpdateTransaction.NO_OP, pmemTableInfo);//gets handle of RTM arTree
             }
             else
             {
@@ -284,7 +283,7 @@ public class PmemPartition implements Partition
                                                                                   Collections.emptyIterator(), ranges,
                                                                                   false))
             {
-                while (iterator != null && iterator.hasNext())
+                while (iterator.hasNext())
                 {
                     Unfiltered unfiltered = iterator.next();
                     pmemRtmMap.putRangeTombstoneMarker(unfiltered, update);
