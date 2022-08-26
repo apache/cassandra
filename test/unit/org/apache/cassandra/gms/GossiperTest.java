@@ -131,22 +131,22 @@ public class GossiperTest
         Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
 
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
+        assertFalse(Gossiper.instance.upgradeFromVersion().value().compareTo(new CassandraVersion("3.0")) < 0);
+        assertTrue(Gossiper.instance.upgradeFromVersion().value().compareTo(new CassandraVersion("3.1")) < 0);
         assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
 
         Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.3"));
         Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.3"));
 
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.12")) < 0);
+        assertFalse(Gossiper.instance.upgradeFromVersion().value().compareTo(new CassandraVersion("3.0")) < 0);
+        assertFalse(Gossiper.instance.upgradeFromVersion().value().compareTo(new CassandraVersion("3.1")) < 0);
+        assertTrue(Gossiper.instance.upgradeFromVersion().value().compareTo(new CassandraVersion("3.12")) < 0);
         assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
 
         Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
         Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
 
-        assertEquals(SystemKeyspace.CURRENT_VERSION, Gossiper.instance.upgradeFromVersionSupplier.get().value());
+        assertEquals(SystemKeyspace.CURRENT_VERSION, Gossiper.instance.upgradeFromVersion().value());
     }
 
     @Test

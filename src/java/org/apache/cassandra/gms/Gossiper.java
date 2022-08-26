@@ -194,7 +194,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return epStates.isEmpty() || epStates.keySet().equals(Collections.singleton(FBUtilities.getBroadcastAddressAndPort()));
     }
 
-    final Supplier<ExpiringMemoizingSupplier.ReturnValue<CassandraVersion>> upgradeFromVersionSupplier = () ->
+    ExpiringMemoizingSupplier.ReturnValue<CassandraVersion> upgradeFromVersion()
     {
         // Once there are no prior version nodes we don't need to keep rechecking
         if (!upgradeInProgressPossible)
@@ -234,7 +234,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return new ExpiringMemoizingSupplier.Memoized<>(null);
     };
 
-    private final Supplier<CassandraVersion> upgradeFromVersionMemoized = ExpiringMemoizingSupplier.memoizeWithExpiration(upgradeFromVersionSupplier, 1, TimeUnit.MINUTES);
+    private final Supplier<CassandraVersion> upgradeFromVersionMemoized = ExpiringMemoizingSupplier.memoizeWithExpiration(this::upgradeFromVersion, 1, TimeUnit.MINUTES);
 
     @VisibleForTesting
     public void expireUpgradeFromVersion()
