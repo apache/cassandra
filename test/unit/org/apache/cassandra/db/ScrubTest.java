@@ -23,11 +23,13 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -62,6 +64,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -107,6 +110,12 @@ public class ScrubTest
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2_BYTEORDERED, true).copy(ByteOrderedPartitioner.instance));
     }
 
+    @After
+    public void after()
+    {
+        ColumnFamilyStore.getIfExists(KEYSPACE, CF).truncateBlockingWithoutSnapshot();
+    }
+
     @Test
     public void testScrubOneRow() throws ExecutionException, InterruptedException
     {
@@ -123,6 +132,28 @@ public class ScrubTest
 
         // check data is still there
         assertOrderedAll(cfs, 1);
+    }
+
+    @Test
+    public void testScrubLastBrokenPartition() throws ExecutionException, InterruptedException, IOException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, CF);
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, 1);
+        assertOrderedAll(cfs, 1);
+
+        Set<SSTableReader> liveSSTables = cfs.getLiveSSTables();
+        assertThat(liveSSTables).hasSize(1);
+        String fileName = liveSSTables.iterator().next().getFilename();
+        Files.write(Paths.get(fileName), new byte[10], StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        ChunkCache.instance.invalidateFile(fileName);
+
+        CompactionManager.instance.performScrub(cfs, true, true, false, 2);
+
+        // check data is still there
+        assertOrderedAll(cfs, 0);
     }
 
     @Test
