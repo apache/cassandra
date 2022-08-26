@@ -338,6 +338,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 if (!sstable.isRepaired())
                     controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
             }
+            cfs.metric.updateSSTableIterated(view.sstables.size());
             // iterators can be empty for offline tools
             if (inputCollector.isEmpty())
                 return EmptyIterators.unfilteredPartition(metadata());
@@ -384,23 +385,30 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 // Note that we rely on the fact that until we actually advance 'iter', no really costly operation is actually done
                 // (except for reading the partition key from the index file) due to the call to mergeLazily in queryStorage.
                 DecoratedKey dk = iter.partitionKey();
+                cfs.metric.topReadPartitionFrequency.addSample(dk.getKey(), 1);
 
                 // Check if this partition is in the rowCache and if it is, if  it covers our filter
                 CachedPartition cached = cfs.getRawCachedPartition(dk);
                 ClusteringIndexFilter filter = dataRange().clusteringIndexFilter(dk);
 
-                if (cached != null && cfs.isFilterFullyCoveredBy(filter,
+                if (cached != null)
+                {
+                    if (cfs.isFilterFullyCoveredBy(filter,
+                
                                                                  limits(),
                                                                  cached,
                                                                  nowInSec(),
                                                                  iter.metadata().enforceStrictLiveness()))
-                {
-                    // We won't use 'iter' so close it now.
-                    iter.close();
-
-                    return filter.getUnfilteredRowIterator(columnFilter(), cached);
+                    {
+                        cfs.metric.rowCacheHit.inc();
+                        // We won't use 'iter' so close it now.
+                        iter.close();
+    
+                        return filter.getUnfilteredRowIterator(columnFilter(), cached);
+                    }
+                    cfs.metric.rowCacheHitOutOfRange.inc();
                 }
-
+                cfs.metric.rowCacheMiss.inc();
                 return iter;
             }
         }
