@@ -450,7 +450,7 @@ public interface Index
      */
     public Indexer indexerFor(DecoratedKey key,
                               RegularAndStaticColumns columns,
-                              int nowInSec,
+                              long nowInSec,
                               WriteContext ctx,
                               IndexTransaction.Type transactionType);
 

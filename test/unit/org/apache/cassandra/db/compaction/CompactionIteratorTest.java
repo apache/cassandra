@@ -256,7 +256,7 @@ public class CompactionIteratorTest extends CQLTester
             int del = Integer.parseInt(m.group(1));
             input = input.substring(m.end());
             List<Unfiltered> list = generator.parse(input, NOW - 1);
-            deletionTimes.put(list, new DeletionTime(del, del));
+            deletionTimes.put(list, DeletionTime.build(del, del));
             return list;
         }
         else
@@ -386,7 +386,7 @@ public class CompactionIteratorTest extends CQLTester
     {
         private final Map<DecoratedKey, Iterable<UnfilteredRowIterator>> tombstoneSources;
 
-        public Controller(ColumnFamilyStore cfs, Map<DecoratedKey, Iterable<UnfilteredRowIterator>> tombstoneSources, int gcBefore)
+        public Controller(ColumnFamilyStore cfs, Map<DecoratedKey, Iterable<UnfilteredRowIterator>> tombstoneSources, long gcBefore)
         {
             super(cfs, Collections.emptySet(), gcBefore);
             this.tombstoneSources = tombstoneSources;

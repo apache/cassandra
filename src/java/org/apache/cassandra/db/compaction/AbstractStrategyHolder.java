@@ -169,11 +169,11 @@ public abstract class AbstractStrategyHolder
 
     public abstract Iterable<AbstractCompactionStrategy> allStrategies();
 
-    public abstract Collection<TaskSupplier> getBackgroundTaskSuppliers(int gcBefore);
+    public abstract Collection<TaskSupplier> getBackgroundTaskSuppliers(long gcBefore);
 
-    public abstract Collection<AbstractCompactionTask> getMaximalTasks(int gcBefore, boolean splitOutput);
+    public abstract Collection<AbstractCompactionTask> getMaximalTasks(long gcBefore, boolean splitOutput);
 
-    public abstract Collection<AbstractCompactionTask> getUserDefinedTasks(GroupedSSTableContainer sstables, int gcBefore);
+    public abstract Collection<AbstractCompactionTask> getUserDefinedTasks(GroupedSSTableContainer sstables, long gcBefore);
 
     public GroupedSSTableContainer createGroupedSSTableContainer()
     {

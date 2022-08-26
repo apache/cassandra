@@ -505,7 +505,7 @@ public class PaxosRepair2Test extends TestBaseImpl
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (400, 2, 2) IF NOT EXISTS", ConsistencyLevel.QUORUM);
 
                 // expire the cache entries
-                int nowInSec = FBUtilities.nowInSeconds();
+                long nowInSec = FBUtilities.nowInSeconds();
                 cluster.get(1).runOnInstance(() -> {
                     TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
                     DecoratedKey dk = table.partitioner.decorateKey(ByteBufferUtil.bytes(400));

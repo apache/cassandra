@@ -128,7 +128,7 @@ public abstract class CassandraIndex implements Index
      * @param nowInSec
      * @return true if the index is out of date and the entry should be dropped
      */
-    public abstract boolean isStale(Row row, ByteBuffer indexValue, int nowInSec);
+    public abstract boolean isStale(Row row, ByteBuffer indexValue, long nowInSec);
 
     /**
      * Extract the value to be inserted into the index from the components of the base data
@@ -338,7 +338,7 @@ public abstract class CassandraIndex implements Index
 
     public Indexer indexerFor(final DecoratedKey key,
                               final RegularAndStaticColumns columns,
-                              final int nowInSec,
+                              final long nowInSec,
                               final WriteContext ctx,
                               final IndexTransaction.Type transactionType)
     {
@@ -535,14 +535,14 @@ public abstract class CassandraIndex implements Index
                         Clustering<?> clustering,
                         Cell<?> cell,
                         WriteContext ctx,
-                        int nowInSec)
+                        long nowInSec)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
                                                                clustering,
                                                                cell));
         doDelete(valueKey,
                  buildIndexClustering(rowKey, clustering, cell),
-                 new DeletionTime(cell.timestamp(), nowInSec),
+                 DeletionTime.build(cell.timestamp(), nowInSec),
                  ctx);
     }
 

@@ -45,6 +45,7 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
 import org.apache.cassandra.io.tries.Walker;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
@@ -64,6 +65,7 @@ import static org.junit.Assert.assertTrue;
 public class RowIndexTest
 {
     private final static Logger logger = LoggerFactory.getLogger(RowIndexTest.class);
+    private final Version version = new BtiFormat(null).getLatestVersion();
 
     static final ByteComparable.Version VERSION = Walker.BYTE_COMPARABLE_VERSION;
 
@@ -122,7 +124,7 @@ public class RowIndexTest
 
             // check other data
             assertEquals(i + 2, ii.openDeletion.markedForDeleteAt());
-            assertEquals(i - 3, ii.openDeletion.localDeletionTime());
+            assertEquals(i + 3, ii.openDeletion.localDeletionTime());
 
             // before entry. hopefully here, but could end up in prev if matches prevMax too well
             ii = summary.separatorFloor(comparator.asByteComparable(keys.get(4 * i)));
@@ -182,7 +184,7 @@ public class RowIndexTest
         dos.writeUTF("JUNK");
         dos.writeUTF("JUNK");
 
-        writer = new RowIndexWriter(comparator, dos);
+        writer = new RowIndexWriter(comparator, dos, version);
     }
 
     public void complete() throws IOException
@@ -205,7 +207,7 @@ public class RowIndexTest
             assertEquals("JUNK", rdr.readUTF());
             assertEquals("JUNK", rdr.readUTF());
         }
-        return new RowIndexReader(fh, root);
+        return new RowIndexReader(fh, root, version);
     }
 
     @Test
@@ -325,7 +327,7 @@ public class RowIndexTest
                 exactRight = b;
             }
 
-            try (RowIndexReverseIterator iter = new RowIndexReverseIterator(fh, root, comparator.asByteComparable(left), comparator.asByteComparable(right)))
+            try (RowIndexReverseIterator iter = new RowIndexReverseIterator(fh, root, comparator.asByteComparable(left), comparator.asByteComparable(right), random.right.version))
             {
                 IndexInfo indexInfo = iter.nextIndexInfo();
                 if (indexInfo == null)
@@ -377,7 +379,7 @@ public class RowIndexTest
                                 .map(bc -> bc.byteComparableAsString(VERSION))
                                 .collect(Collectors.joining(", ")));
                 logger.info("Left {}{} Right {}{}", comparator.asByteComparable(left), exactLeft ? "#" : "", comparator.asByteComparable(right), exactRight ? "#" : "");
-                try (RowIndexReverseIterator iter2 = new RowIndexReverseIterator(fh, root, comparator.asByteComparable(left), comparator.asByteComparable(right)))
+                try (RowIndexReverseIterator iter2 = new RowIndexReverseIterator(fh, root, comparator.asByteComparable(left), comparator.asByteComparable(right), version))
                 {
                     IndexInfo ii;
                     while ((ii = iter2.nextIndexInfo()) != null)
@@ -403,7 +405,7 @@ public class RowIndexTest
             ClusteringPrefix<?> right = exactRight ? keys.get(RANDOM.nextInt(keys.size())) : generateRandomKey();
 
             int idx = 0;
-            try (RowIndexReverseIterator iter = new RowIndexReverseIterator(fh, root, ByteComparable.EMPTY, comparator.asByteComparable(right)))
+            try (RowIndexReverseIterator iter = new RowIndexReverseIterator(fh, root, ByteComparable.EMPTY, comparator.asByteComparable(right), random.right.version))
             {
                 IndexInfo indexInfo = iter.nextIndexInfo();
                 if (indexInfo == null)
@@ -446,7 +448,7 @@ public class RowIndexTest
                                 .map(bc -> bc.byteComparableAsString(VERSION))
                                 .collect(Collectors.joining(", ")));
                 logger.info("Right {}{}", comparator.asByteComparable(right), exactRight ? "#" : "");
-                try (RowIndexReverseIterator iter2 = new RowIndexReverseIterator(fh, root, ByteComparable.EMPTY, comparator.asByteComparable(right)))
+                try (RowIndexReverseIterator iter2 = new RowIndexReverseIterator(fh, root, ByteComparable.EMPTY, comparator.asByteComparable(right), version))
                 {
                     IndexInfo ii;
                     while ((ii = iter2.nextIndexInfo()) != null)
@@ -495,7 +497,7 @@ public class RowIndexTest
     {
         List<ClusteringPrefix<?>> list = generateList(4 * size + 1);
         for (int i = 0; i < size; i++)
-            writer.add(list.get(i * 4 + 1), list.get(i * 4 + 3), new IndexInfo(i, new DeletionTime(i + 2, i - 3)));
+            writer.add(list.get(i * 4 + 1), list.get(i * 4 + 3), new IndexInfo(i, DeletionTime.build(i + 2, i + 3)));
 
         RowIndexReader summary = completeAndRead();
         return Pair.create(list, summary);

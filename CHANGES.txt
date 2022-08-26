@@ -1,4 +1,5 @@
 5.0
+ * Extend maximum expiration date (CASSANDRA-14227)
  * Add guardrail for partition tombstones and deprecate compaction_tombstone_warning_threshold (CASSANDRA-17194)
  * Print header and statistics for cassandra-stress output with arbitrary frequency (CASSANDRA-12972)
  * CEP-25: Trie-indexed SSTable format (CASSANDRA-18398)

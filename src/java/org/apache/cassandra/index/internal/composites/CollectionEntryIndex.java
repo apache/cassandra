@@ -52,7 +52,7 @@ public class CollectionEntryIndex extends CollectionKeyIndexBase
         return CompositeType.build(ByteBufferAccessor.instance, path.get(0), cellValue);
     }
 
-    public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
+    public boolean isStale(Row data, ByteBuffer indexValue, long nowInSec)
     {
         ByteBuffer[] components = ((CompositeType)functions.getIndexedValueType(indexedColumn)).split(indexValue);
         ByteBuffer mapKey = components[0];

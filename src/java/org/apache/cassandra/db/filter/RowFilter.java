@@ -130,7 +130,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return false;
     }
 
-    protected abstract Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec);
+    protected abstract Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec);
 
     /**
      * Filters the provided iterator so that only the row satisfying the expression of this filter
@@ -140,7 +140,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the time of query in seconds.
      * @return the filtered iterator.
      */
-    public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
+    public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, long nowInSec)
     {
         return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(iter.metadata(), nowInSec));
     }
@@ -153,7 +153,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the time of query in seconds.
      * @return the filtered iterator.
      */
-    public PartitionIterator filter(PartitionIterator iter, TableMetadata metadata, int nowInSec)
+    public PartitionIterator filter(PartitionIterator iter, TableMetadata metadata, long nowInSec)
     {
         return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(metadata, nowInSec));
     }
@@ -167,7 +167,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the current time in seconds (to know what is live and what isn't).
      * @return {@code true} if {@code row} in partition {@code partitionKey} satisfies this row filter.
      */
-    public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row, int nowInSec)
+    public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row, long nowInSec)
     {
         // We purge all tombstones as the expressions isSatisfiedBy methods expects it
         Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
@@ -308,7 +308,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             super(expressions);
         }
 
-        protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec)
+        protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec)
         {
             List<Expression> partitionLevelExpressions = new ArrayList<>();
             List<Expression> rowLevelExpressions = new ArrayList<>();

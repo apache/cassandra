@@ -26,14 +26,14 @@ import org.apache.cassandra.db.transform.Transformation;
 public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator>
 {
     private final DeletionPurger purger;
-    private final int nowInSec;
+    private final long nowInSec;
 
     private final boolean enforceStrictLiveness;
     private boolean isReverseOrder;
 
     private boolean ignoreGcGraceSeconds;
 
-    public PurgeFunction(int nowInSec, int gcBefore, int oldestUnrepairedTombstone, boolean onlyPurgeRepairedTombstones,
+    public PurgeFunction(long nowInSec, long gcBefore, long oldestUnrepairedTombstone, boolean onlyPurgeRepairedTombstones,
                          boolean enforceStrictLiveness)
     {
         this.nowInSec = nowInSec;

@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -77,6 +78,8 @@ public class EmptyValuesTest extends CQLTester
             {
                 ProcessBuilder pb = new ProcessBuilder("tools/bin/sstabledump", ssTable.getFilename());
                 pb.redirectErrorStream(true);
+                if (CassandraRelevantProperties.CASSANDRA_CONFIG.isPresent())
+                    pb.environment().put("JVM_OPTS", "-Dcassandra.config=" + CassandraRelevantProperties.CASSANDRA_CONFIG.getString());
                 Process process = pb.start();
                 exitValue = process.waitFor();
                 IOUtils.copy(process.getInputStream(), buf);

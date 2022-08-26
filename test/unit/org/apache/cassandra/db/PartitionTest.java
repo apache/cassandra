@@ -169,7 +169,7 @@ public class PartitionTest
     public void testColumnStatsRecordsRowDeletesCorrectly()
     {
         long timestamp = System.currentTimeMillis();
-        int localDeletionTime = (int) (timestamp / 1000);
+        long localDeletionTime = timestamp / 1000;
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_TENCOL);
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 5, "key1").clustering("c").add("val", "val1");

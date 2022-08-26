@@ -99,7 +99,7 @@ public abstract class AbstractReadResponseTest
     public static ColumnMetadata m;
 
     public static DecoratedKey dk;
-    static int nowInSec;
+    static long nowInSec;
 
     static final InetAddressAndPort EP1;
     static final InetAddressAndPort EP2;
@@ -272,16 +272,16 @@ public abstract class AbstractReadResponseTest
         return response(command, from, data, false, MessagingService.current_version, ByteBufferUtil.EMPTY_BYTE_BUFFER, false);
     }
 
-    public RangeTombstone tombstone(Object start, Object end, long markedForDeleteAt, int localDeletionTime)
+    public RangeTombstone tombstone(Object start, Object end, long markedForDeleteAt, long localDeletionTime)
     {
         return tombstone(start, true, end, true, markedForDeleteAt, localDeletionTime);
     }
 
-    public RangeTombstone tombstone(Object start, boolean inclusiveStart, Object end, boolean inclusiveEnd, long markedForDeleteAt, int localDeletionTime)
+    public RangeTombstone tombstone(Object start, boolean inclusiveStart, Object end, boolean inclusiveEnd, long markedForDeleteAt, long localDeletionTime)
     {
         ClusteringBound<?> startBound = rtBound(start, true, inclusiveStart);
         ClusteringBound<?> endBound = rtBound(end, false, inclusiveEnd);
-        return new RangeTombstone(Slice.make(startBound, endBound), new DeletionTime(markedForDeleteAt, localDeletionTime));
+        return new RangeTombstone(Slice.make(startBound, endBound), DeletionTime.build(markedForDeleteAt, localDeletionTime));
     }
 
     public ClusteringBound<?> rtBound(Object value, boolean isStart, boolean inclusive)
@@ -301,19 +301,19 @@ public abstract class AbstractReadResponseTest
         return BufferClusteringBoundary.create(kind, cfm.comparator.make(value).getBufferArray());
     }
 
-    public RangeTombstoneBoundMarker marker(Object value, boolean isStart, boolean inclusive, long markedForDeleteAt, int localDeletionTime)
+    public RangeTombstoneBoundMarker marker(Object value, boolean isStart, boolean inclusive, long markedForDeleteAt, long localDeletionTime)
     {
-        return new RangeTombstoneBoundMarker(rtBound(value, isStart, inclusive), new DeletionTime(markedForDeleteAt, localDeletionTime));
+        return new RangeTombstoneBoundMarker(rtBound(value, isStart, inclusive), DeletionTime.build(markedForDeleteAt, localDeletionTime));
     }
 
-    public RangeTombstoneBoundaryMarker boundary(Object value, boolean inclusiveOnEnd, long markedForDeleteAt1, int localDeletionTime1, long markedForDeleteAt2, int localDeletionTime2)
+    public RangeTombstoneBoundaryMarker boundary(Object value, boolean inclusiveOnEnd, long markedForDeleteAt1, long localDeletionTime1, long markedForDeleteAt2, long localDeletionTime2)
     {
         return new RangeTombstoneBoundaryMarker(rtBoundary(value, inclusiveOnEnd),
-                                                new DeletionTime(markedForDeleteAt1, localDeletionTime1),
-                                                new DeletionTime(markedForDeleteAt2, localDeletionTime2));
+                                                DeletionTime.build(markedForDeleteAt1, localDeletionTime1),
+                                                DeletionTime.build(markedForDeleteAt2, localDeletionTime2));
     }
 
-    public UnfilteredPartitionIterator fullPartitionDelete(TableMetadata table, DecoratedKey dk, long timestamp, int nowInSec)
+    public UnfilteredPartitionIterator fullPartitionDelete(TableMetadata table, DecoratedKey dk, long timestamp, long nowInSec)
     {
         return new SingletonUnfilteredPartitionIterator(PartitionUpdate.fullPartitionDelete(table, dk, timestamp, nowInSec).unfilteredIterator());
     }

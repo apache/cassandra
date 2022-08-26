@@ -287,7 +287,7 @@ public abstract class ColumnData implements IMeasurableMemory
 
     public abstract ColumnData markCounterLocalToBeCleared();
 
-    public abstract ColumnData purge(DeletionPurger purger, int nowInSec);
+    public abstract ColumnData purge(DeletionPurger purger, long nowInSec);
     public abstract ColumnData purgeDataOlderThan(long timestamp);
 
     public abstract long maxTimestamp();

@@ -25,10 +25,10 @@ import org.apache.cassandra.db.rows.*;
 
 public final class Filter extends Transformation
 {
-    private final int nowInSec;
+    private final long nowInSec;
     private final boolean enforceStrictLiveness;
 
-    public Filter(int nowInSec, boolean enforceStrictLiveness)
+    public Filter(long nowInSec, boolean enforceStrictLiveness)
     {
         this.nowInSec = nowInSec;
         this.enforceStrictLiveness = enforceStrictLiveness;

@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.format.bti;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -30,11 +31,13 @@ public class ScrubIterator extends PartitionIndex.IndexPosIterator implements Sc
     ByteBuffer key;
     long dataPosition;
     final FileHandle rowIndexFile;
+    private final Version version;
 
-    ScrubIterator(PartitionIndex partitionIndex, FileHandle rowIndexFile) throws IOException
+    ScrubIterator(PartitionIndex partitionIndex, FileHandle rowIndexFile, Version version) throws IOException
     {
         super(partitionIndex);
         this.rowIndexFile = rowIndexFile.sharedCopy();
+        this.version = version;
         advance();
     }
 
@@ -68,7 +71,7 @@ public class ScrubIterator extends PartitionIndex.IndexPosIterator implements Sc
                 try (FileDataInput in = rowIndexFile.createReader(pos))
                 {
                     key = ByteBufferUtil.readWithShortLength(in);
-                    dataPosition = TrieIndexEntry.deserialize(in, in.getFilePointer()).position;
+                    dataPosition = TrieIndexEntry.deserialize(in, in.getFilePointer(), version).position;
                 }
             }
             else

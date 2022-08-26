@@ -31,7 +31,7 @@ public interface CASRequest
     /**
      * The command to use to fetch the value to compare for the CAS.
      */
-    public SinglePartitionReadCommand readCommand(int nowInSec);
+    public SinglePartitionReadCommand readCommand(long nowInSec);
 
     /**
      * Returns whether the provided CF, that represents the values fetched using the

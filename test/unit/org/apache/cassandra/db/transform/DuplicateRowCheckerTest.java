@@ -220,7 +220,7 @@ public class DuplicateRowCheckerTest extends CQLTester
 
     private static PartitionIterator applyChecker(UnfilteredPartitionIterator unfiltered)
     {
-        int nowInSecs = 0;
+        long nowInSecs = 0;
         return DuplicateRowChecker.duringRead(FilteredPartitions.filter(unfiltered, nowInSecs),
                                               Collections.singletonList(FBUtilities.getBroadcastAddressAndPort()));
     }

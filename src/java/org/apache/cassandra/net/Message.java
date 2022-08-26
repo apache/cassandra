@@ -51,7 +51,11 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
-import static org.apache.cassandra.net.MessagingService.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_50;
+import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.vint.VIntCoding.*;
@@ -1425,6 +1429,7 @@ public class Message<T>
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize50;
 
     /**
      * Serialized size of the entire message, for the provided messaging version. Caches the calculated value.
@@ -1445,14 +1450,19 @@ public class Message<T>
                 if (serializedSize40 == 0)
                     serializedSize40 = serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+            case VERSION_50:
+                if (serializedSize50 == 0)
+                    serializedSize50 = serializer.serializedSize(this, VERSION_50);
+                return serializedSize50;
             default:
-                throw new IllegalStateException();
+                throw new IllegalStateException("Unkown serialization version " + version);
         }
     }
 
     private int payloadSize30   = -1;
     private int payloadSize3014 = -1;
     private int payloadSize40   = -1;
+    private int payloadSize50   = -1;
 
     private int payloadSize(int version)
     {
@@ -1470,8 +1480,13 @@ public class Message<T>
                 if (payloadSize40 < 0)
                     payloadSize40 = serializer.payloadSize(this, VERSION_40);
                 return payloadSize40;
+            case VERSION_50:
+                if (payloadSize50 < 0)
+                    payloadSize50 = serializer.payloadSize(this, VERSION_50);
+                return payloadSize50;
+
             default:
-                throw new IllegalStateException();
+                throw new IllegalStateException("Unkown serialization version " + version);
         }
     }
 

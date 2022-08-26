@@ -90,7 +90,7 @@ public class SSTableExpiredBlockers
             System.exit(1);
         }
 
-        int gcBefore = (int)(currentTimeMillis() / 1000) - metadata.params.gcGraceSeconds;
+        long gcBefore = (currentTimeMillis() / 1000) - metadata.params.gcGraceSeconds;
         Multimap<SSTableReader, SSTableReader> blockers = checkForExpiredSSTableBlockers(sstables, gcBefore);
         for (SSTableReader blocker : blockers.keySet())
         {
@@ -103,7 +103,7 @@ public class SSTableExpiredBlockers
         System.exit(0);
     }
 
-    public static Multimap<SSTableReader, SSTableReader> checkForExpiredSSTableBlockers(Iterable<SSTableReader> sstables, int gcBefore)
+    public static Multimap<SSTableReader, SSTableReader> checkForExpiredSSTableBlockers(Iterable<SSTableReader> sstables, long gcBefore)
     {
         Multimap<SSTableReader, SSTableReader> blockers = ArrayListMultimap.create();
         for (SSTableReader sstable : sstables)

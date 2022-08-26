@@ -26,6 +26,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Joiner;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -38,6 +39,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -77,6 +79,23 @@ public class RangeTombstoneListTest
         assertRT(rtei(10, 13, 1), iter.next());
 
         assert !iter.hasNext();
+    }
+
+    @Test
+    public void invalidDeletionTimesHandlingTest()
+    {
+        // create an invalid deletion time
+        DeletionTime dt = DeletionTime.build(1, -1);
+        assertFalse(dt.validate());
+
+        // use the invalid deletion time for a range tombstone and aggregate it
+        RangeTombstoneList rtl = new RangeTombstoneList(null, 1);
+        rtl.add(new RangeTombstone(Slice.ALL, dt));
+
+        // undo the aggregation and see if the deletion time is still invalid
+        dt = rtl.iterator().next().deletionTime();
+        assertNotNull(dt);
+        assertFalse(dt.validate());
     }
 
     @Test
@@ -422,7 +441,7 @@ public class RangeTombstoneListTest
 
         RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
 
-        l.add(new RangeTombstone(Slice.ALL, new DeletionTime(2, 0)));
+        l.add(new RangeTombstone(Slice.ALL, DeletionTime.build(2, 0)));
         l.add(atLeast(12, 4, 0));
 
         Iterator<RangeTombstone> iter = l.iterator();
@@ -704,12 +723,12 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rt(int start, boolean startInclusive, int end, boolean endInclusive, long tstamp)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.create(cmp, true, startInclusive, start), ClusteringBound.create(cmp, false, endInclusive, end)), new DeletionTime(tstamp, 0));
+        return new RangeTombstone(Slice.make(ClusteringBound.create(cmp, true, startInclusive, start), ClusteringBound.create(cmp, false, endInclusive, end)), DeletionTime.build(tstamp, 0));
     }
 
     private static RangeTombstone rt(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.inclusiveEndOf(bb(end))), DeletionTime.build(tstamp, delTime));
     }
 
     private static RangeTombstone rtei(int start, int end, long tstamp)
@@ -719,7 +738,7 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rtei(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.inclusiveEndOf(bb(end))), DeletionTime.build(tstamp, delTime));
     }
 
     private static RangeTombstone rtie(int start, int end, long tstamp)
@@ -729,26 +748,26 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rtie(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.exclusiveEndOf(bb(end))), DeletionTime.build(tstamp, delTime));
     }
 
     private static RangeTombstone atLeast(int start, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.TOP), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.TOP), DeletionTime.build(tstamp, delTime));
     }
 
     private static RangeTombstone atMost(int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.inclusiveEndOf(bb(end))), DeletionTime.build(tstamp, delTime));
     }
 
     private static RangeTombstone lessThan(int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.exclusiveEndOf(bb(end))), DeletionTime.build(tstamp, delTime));
     }
 
     private static RangeTombstone greaterThan(int start, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.TOP), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.TOP), DeletionTime.build(tstamp, delTime));
     }
 }

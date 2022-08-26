@@ -99,7 +99,7 @@ public class PendingRepairStatTest extends AbstractRepairTest
         builder.withRanges(Collections.singleton(FULL_RANGE));
         builder.withParticipants(Sets.newHashSet(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
 
-        int now = FBUtilities.nowInSeconds();
+        long now = FBUtilities.nowInSeconds();
         builder.withStartedAt(now);
         builder.withLastUpdate(now);
 

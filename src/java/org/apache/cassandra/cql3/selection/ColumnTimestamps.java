@@ -91,7 +91,7 @@ abstract class ColumnTimestamps
     /**
      * Appends the timestamp of the specified cell at the end of this list.
      */
-    public abstract void addTimestampFrom(Cell<?> cell, int nowInSecond);
+    public abstract void addTimestampFrom(Cell<?> cell, long nowInSecond);
 
     /**
      * Creates a new {@link ColumnTimestamps} instance for the specified column type.
@@ -120,7 +120,7 @@ abstract class ColumnTimestamps
         WRITETIMES
         {
             @Override
-            long getTimestamp(Cell<?> cell, int nowInSecond)
+            long getTimestamp(Cell<?> cell, long nowInSecond)
             {
                 return cell.timestamp();
             }
@@ -140,12 +140,12 @@ abstract class ColumnTimestamps
         TTLS
         {
             @Override
-            long getTimestamp(Cell<?> cell, int nowInSecond)
+            long getTimestamp(Cell<?> cell, long nowInSecond)
             {
                 if (!cell.isExpiring())
                     return defaultValue();
 
-                int remaining = cell.localDeletionTime() - nowInSecond;
+                long remaining = cell.localDeletionTime() - nowInSecond;
                 return remaining >= 0 ? remaining : defaultValue();
             }
 
@@ -169,7 +169,7 @@ abstract class ColumnTimestamps
          * @param nowInSecond the query timestamp insecond
          * @return the timestamp corresponding to this type
          */
-        abstract long getTimestamp(Cell<?> cell, int nowInSecond);
+        abstract long getTimestamp(Cell<?> cell, long nowInSecond);
 
         /**
          * Returns the value to use when there is no timestamp.
@@ -223,7 +223,7 @@ abstract class ColumnTimestamps
         }
 
         @Override
-        public void addTimestampFrom(Cell<?> cell, int nowInSecond)
+        public void addTimestampFrom(Cell<?> cell, long nowInSecond)
         {
             throw new UnsupportedOperationException();
         }
@@ -260,7 +260,7 @@ abstract class ColumnTimestamps
         }
 
         @Override
-        public void addTimestampFrom(Cell<?> cell, int nowInSecond)
+        public void addTimestampFrom(Cell<?> cell, long nowInSecond)
         {
             timestamp = type.getTimestamp(cell, nowInSecond);
         }
@@ -323,7 +323,7 @@ abstract class ColumnTimestamps
         }
 
         @Override
-        public void addTimestampFrom(Cell<?> cell, int nowInSecond)
+        public void addTimestampFrom(Cell<?> cell, long nowInSecond)
         {
             timestamps.add(type.getTimestamp(cell, nowInSecond));
         }

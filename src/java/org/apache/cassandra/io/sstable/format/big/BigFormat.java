@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -286,7 +287,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         @Override
         public void skip(DataInputPlus input) throws IOException
         {
-            RowIndexEntry.Serializer.skipForCache(input);
+            RowIndexEntry.Serializer.skipForCache(input, getInstance().latestVersion);
         }
 
         @Override
@@ -352,7 +353,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
     static class BigVersion extends Version
     {
-        public static final String current_version = "nc";
+        public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nc" : "oa";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -365,8 +366,11 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
         // nb (4.0.0): originating host id
         // nc (4.1): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
+        // oa (5.0): Long deletionTime to prevent TTL overflow
         //
-        // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
+        // NOTE: When adding a new version:
+        //  - Please add it to LegacySSTableTest
+        //  - Please maybe add it to hasOriginatingHostId's regexp
 
         private final boolean isLatestVersion;
         private final int correspondingMessagingVersion;
@@ -382,6 +386,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasImprovedMinMax;
         private final boolean hasPartitionLevelDeletionPresenceMarker;
         private final boolean hasKeyRange;
+        private final boolean hasUintDeletionTime;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -400,7 +405,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.matches("(m[d-z])|(n[a-z])"); // deprecated in 'nc' and to be removed in 'oa'
             hasLegacyMinMax = version.matches("(m[a-z])|(n[a-z])"); // deprecated in 'nc' and to be removed in 'oa'
-            hasOriginatingHostId = version.matches("(m[e-z])") || version.compareTo("nb") >= 0;
+            // When adding a new version you might need to add it here
+            hasOriginatingHostId = version.compareTo("nb") >= 0 || version.matches("(m[e-z])");
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;
@@ -409,6 +415,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasImprovedMinMax = version.compareTo("nc") >= 0;
             hasPartitionLevelDeletionPresenceMarker = version.compareTo("nc") >= 0;
             hasKeyRange = version.compareTo("nc") >= 0;
+            hasUintDeletionTime = version.compareTo("oa") >= 0;
         }
 
         @Override
@@ -493,6 +500,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public boolean hasPartitionLevelDeletionsPresenceMarker()
         {
             return hasPartitionLevelDeletionPresenceMarker;
+        }
+
+        @Override
+        public boolean hasUIntDeletionTime()
+        {
+            return hasUintDeletionTime;
         }
 
         @Override

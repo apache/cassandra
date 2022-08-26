@@ -107,12 +107,12 @@ public final class ResultSetBuilder
         inputRow.add(v);
     }
 
-    public void add(Cell<?> c, int nowInSec)
+    public void add(Cell<?> c, long nowInSec)
     {
         inputRow.add(c, nowInSec);
     }
 
-    public void add(ColumnData columnData, int nowInSec)
+    public void add(ColumnData columnData, long nowInSec)
     {
         inputRow.add(columnData, nowInSec);
     }

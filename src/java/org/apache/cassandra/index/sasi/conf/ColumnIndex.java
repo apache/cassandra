@@ -230,7 +230,7 @@ public class ColumnIndex
                && mode.supports(operator); // for all other cases let's refer to index itself
     }
 
-    public static ByteBuffer getValueOf(ColumnMetadata column, Row row, int nowInSecs)
+    public static ByteBuffer getValueOf(ColumnMetadata column, Row row, long nowInSecs)
     {
         if (row == null)
             return null;

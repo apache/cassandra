@@ -30,6 +30,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
 import org.agrona.collections.IntArrayList;
+import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.io.util.TailOverridingRebufferer;
@@ -56,7 +58,8 @@ public class WalkerTest extends AbstractTrieTestBase
         Walker<?> it = new Walker<>(source, rootPos);
 
         DataOutputBuffer dumpBuf = new DataOutputBuffer();
-        it.dumpTrie(new PrintStream(dumpBuf), (buf1, payloadPos, payloadFlags) -> String.format("%d/%d", payloadPos, payloadFlags));
+        Version sstableVersion = new BtiFormat(null).getLatestVersion();
+        it.dumpTrie(new PrintStream(dumpBuf), (buf1, payloadPos, payloadFlags, version) -> String.format("%d/%d", payloadPos, payloadFlags), sstableVersion);
         logger.info("Trie dump: \n{}", new String(dumpBuf.getData()));
         logger.info("Trie toString: {}", it);
 

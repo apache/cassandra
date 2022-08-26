@@ -28,7 +28,7 @@ public class TimeWindowCompactionTask extends CompactionTask
 {
     private final boolean ignoreOverlaps;
 
-    public TimeWindowCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, boolean ignoreOverlaps)
+    public TimeWindowCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, long gcBefore, boolean ignoreOverlaps)
     {
         super(cfs, txn, gcBefore);
         this.ignoreOverlaps = ignoreOverlaps;

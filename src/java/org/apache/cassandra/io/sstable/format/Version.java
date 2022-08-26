@@ -59,6 +59,11 @@ public abstract class Version
     public abstract boolean hasIsTransient();
 
     public abstract boolean hasMetadataChecksum();
+    
+    /**
+     * This format raises the legacy int year 2038 limit to 2106 by using an uint instead
+     */
+    public abstract boolean hasUIntDeletionTime();
 
     /**
      * The old bloomfilter format serializes the data as BIG_ENDIAN long's, the new one uses the

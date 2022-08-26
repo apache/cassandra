@@ -1266,6 +1266,7 @@
             <concat destfile="${trie_yaml}">
                 <fileset file="${test.conf}/cassandra.yaml"/>
                 <fileset file="${test.conf}/trie_memtable.yaml"/>
+                <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
             </concat>
             <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
                              exclude="**/*.java" timeout="${test.timeout}" testtag="trie">
@@ -1274,10 +1275,32 @@
                 <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
                 <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
                 <jvmarg value="-Dcassandra.config=file:///${trie_yaml}"/>
+                <jvmarg value="-Dcassandra.junit_storage_compatibility_mode=NONE"/>
                 <jvmarg value="-Dcassandra.skip_sync=true" />
             </testmacrohelper>
         </sequential>
     </macrodef>
+
+    <macrodef name="testlist-oa">
+    <attribute name="test.file.list"/>
+    <sequential>
+      <property name="scm_none_yaml" value="${build.test.dir}/cassandra.scm_none.yaml"/>
+        <concat destfile="${scm_none_yaml}">
+          <fileset file="${test.conf}/cassandra.yaml"/>
+          <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
+        </concat>
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" 
+                       exclude="**/*.java" timeout="${test.timeout}" testtag="oa">
+        <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+        <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
+        <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+        <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+        <jvmarg value="-Dcassandra.config=file:///${scm_none_yaml}"/>
+        <jvmarg value="-Dcassandra.junit_storage_compatibility_mode=NONE"/>
+        <jvmarg value="-Dcassandra.skip_sync=true" />
+      </testmacrohelper>
+    </sequential>
+  </macrodef>
 
     <macrodef name="testlist-system-keyspace-directory">
     <attribute name="test.file.list" />
@@ -1393,6 +1416,14 @@
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testhelper testdelegate="testlist-trie" />
+  </target>
+
+  <target name="test-oa" depends="maybe-build-test" description="Test Runner for the oa sstable format">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-oa"/>
   </target>
 
   <target name="test-system-keyspace-directory" depends="maybe-build-test" description="Execute unit tests with a system keyspaces directory configured">
@@ -1635,6 +1666,13 @@
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testhelper testdelegate="testlist"/>
   </target>
+  <target name="testclasslist-oa" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-oa"/>
+  </target>
   <target name="testclasslist-compression" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
@@ -1721,6 +1759,10 @@
     </testmacro>
   </target>
 
+  <!-- To run them you'll need to:
+         - `ant dtest-jar` on each version involved, including your current feature branch
+         - copy the build/dtest-*.jar for each version into your feature branch build folder
+         - You can use 'test-jvm-dtest-some' if you only need to run one -->
   <target name="test-jvm-upgrade-dtest" depends="maybe-build-test" description="Execute in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/upgrade/*Test.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
@@ -1730,7 +1772,7 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+  <!-- Use this with an FQDN for test class or upgrade test, and an optional csv list of methods like this:
       ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest
       ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest -Dtest.methods=looperTest
     -->

@@ -20,7 +20,9 @@ package org.apache.cassandra.utils.streamhist;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.DataHolder;
@@ -30,8 +32,6 @@ import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.
  */
 public class TombstoneHistogram
 {
-    public static final HistogramSerializer serializer = new HistogramSerializer();
-
     // Buffer with point-value pair
     private final DataHolder bin;
 
@@ -69,8 +69,15 @@ public class TombstoneHistogram
         this.bin.forEach(histogramDataConsumer);
     }
 
+    public static HistogramSerializer getSerializer(Version version)
+    {
+        return version.hasUIntDeletionTime() ? HistogramSerializer.instance : LegacyHistogramSerializer.instance;
+    }
+
     public static class HistogramSerializer implements ISerializer<TombstoneHistogram>
     {
+        public static final HistogramSerializer instance = new HistogramSerializer();
+
         public void serialize(TombstoneHistogram histogram, DataOutputPlus out) throws IOException
         {
             final int size = histogram.size();
@@ -79,8 +86,8 @@ public class TombstoneHistogram
             out.writeInt(size);
             histogram.forEach((point, value) ->
                               {
-                                  out.writeDouble((double) point);
-                                  out.writeLong((long) value);
+                                  out.writeLong(point);
+                                  out.writeInt(value);
                               });
         }
 
@@ -93,8 +100,8 @@ public class TombstoneHistogram
             {
                 // Already serialized sstable metadata may contain negative deletion-time values (see CASSANDRA-14092).
                 // Just do a "safe cast" and it should be good. For safety, also do that for the 'value' (tombstone count).
-                int localDeletionTime = StreamingTombstoneHistogramBuilder.saturatingCastToMaxDeletionTime((long) in.readDouble());
-                int count = StreamingTombstoneHistogramBuilder.saturatingCastToInt(in.readLong());
+                long localDeletionTime = StreamingTombstoneHistogramBuilder.saturatingCastToMaxDeletionTime((long) in.readLong());
+                int count = StreamingTombstoneHistogramBuilder.saturatingCastToInt(in.readInt());
 
                 dataHolder.addValue(localDeletionTime, count);
             }
@@ -131,5 +138,59 @@ public class TombstoneHistogram
     public int hashCode()
     {
         return bin.hashCode();
+    }
+    
+    public static class LegacyHistogramSerializer extends HistogramSerializer
+    {
+        public static final LegacyHistogramSerializer instance = new LegacyHistogramSerializer();
+
+        public void serialize(TombstoneHistogram histogram, DataOutputPlus out) throws IOException
+        {
+            final int size = histogram.size();
+            final int maxBinSize = size; // we write this for legacy reasons
+            out.writeInt(maxBinSize);
+            out.writeInt(size);
+            histogram.forEach((point, value) ->
+                              {
+                                  out.writeDouble((double) point);
+                                  out.writeLong((long) value);
+                              });
+        }
+
+        public TombstoneHistogram deserialize(DataInputPlus in) throws IOException
+        {
+            in.readInt(); // max bin size
+            int size = in.readInt();
+            DataHolder dataHolder = new DataHolder(size, 1);
+            for (int i = 0; i < size; i++)
+            {
+                // Already serialized sstable metadata may contain negative deletion-time values (see CASSANDRA-14092).
+                // Just do a "safe cast" and it should be good. For safety, also do that for the 'value' (tombstone count).
+                int localDeletionTime = saturatingCastToLegacyMaxDeletionTime((long) in.readDouble());
+                int count = StreamingTombstoneHistogramBuilder.saturatingCastToInt(in.readLong());
+
+                dataHolder.addValue(localDeletionTime, count);
+            }
+
+            return new TombstoneHistogram(dataHolder);
+        }
+
+        public long serializedSize(TombstoneHistogram histogram)
+        {
+            int maxBinSize = 0;
+            long size = TypeSizes.sizeof(maxBinSize);
+            final int histSize = histogram.size();
+            size += TypeSizes.sizeof(histSize);
+            // size of entries = size * (8(double) + 8(long))
+            size += histSize * (8L + 8L);
+            return size;
+        }
+
+        private static int saturatingCastToLegacyMaxDeletionTime(long value)
+        {
+            return (value < 0L || value > Cell.MAX_DELETION_TIME_2038_LEGACY_CAP)
+                   ? Cell.MAX_DELETION_TIME_2038_LEGACY_CAP
+                   : (int) value;
+        }
     }
 }

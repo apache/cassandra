@@ -272,7 +272,7 @@ public class SASIIndex implements Index, INotificationConsumer
         return false;
     }
 
-    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext context, IndexTransaction.Type transactionType)
+    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, long nowInSec, WriteContext context, IndexTransaction.Type transactionType)
     {
         return new Indexer()
         {

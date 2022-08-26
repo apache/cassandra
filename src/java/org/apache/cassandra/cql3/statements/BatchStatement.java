@@ -271,7 +271,7 @@ public class BatchStatement implements CQLStatement
                                                   BatchQueryOptions options,
                                                   boolean local,
                                                   long batchTimestamp,
-                                                  int nowInSeconds,
+                                                  long nowInSeconds,
                                                   long queryStartNanoTime)
     {
         if (statements.isEmpty())
@@ -405,7 +405,7 @@ public class BatchStatement implements CQLStatement
     public ResultMessage execute(QueryState queryState, BatchQueryOptions options, long queryStartNanoTime)
     {
         long timestamp = options.getTimestamp(queryState);
-        int nowInSeconds = options.getNowInSeconds(queryState);
+        long nowInSeconds = options.getNowInSeconds(queryState);
 
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
@@ -489,7 +489,7 @@ public class BatchStatement implements CQLStatement
     private Pair<CQL3CasRequest,Set<ColumnMetadata>> makeCasRequest(BatchQueryOptions options, QueryState state)
     {
         long batchTimestamp = options.getTimestamp(state);
-        int nowInSeconds = options.getNowInSeconds(state);
+        long nowInSeconds = options.getNowInSeconds(state);
         DecoratedKey key = null;
         CQL3CasRequest casRequest = null;
         Set<ColumnMetadata> columnsWithConditions = new LinkedHashSet<>();
@@ -570,7 +570,7 @@ public class BatchStatement implements CQLStatement
     private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions, long queryStartNanoTime)
     {
         long timestamp = batchOptions.getTimestamp(queryState);
-        int nowInSeconds = batchOptions.getNowInSeconds(queryState);
+        long nowInSeconds = batchOptions.getNowInSeconds(queryState);
 
         for (IMutation mutation : getMutations(queryState.getClientState(), batchOptions, true, timestamp, nowInSeconds, queryStartNanoTime))
             mutation.apply();
@@ -587,7 +587,7 @@ public class BatchStatement implements CQLStatement
         String tableName = request.metadata.name;
 
         long timestamp = options.getTimestamp(state);
-        int nowInSeconds = options.getNowInSeconds(state);
+        long nowInSeconds = options.getNowInSeconds(state);
 
         try (RowIterator result = ModificationStatement.casInternal(state.getClientState(), request, timestamp, nowInSeconds))
         {

@@ -94,7 +94,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final AbstractCompactionController controller;
     private final List<ISSTableScanner> scanners;
     private final ImmutableSet<SSTableReader> sstables;
-    private final int nowInSec;
+    private final long nowInSec;
     private final TimeUUID compactionId;
     private final long totalBytes;
     private long bytesRead;
@@ -113,7 +113,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final UnfilteredPartitionIterator compacted;
     private final ActiveCompactionsTracker activeCompactions;
 
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, TimeUUID compactionId)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, long nowInSec, TimeUUID compactionId)
     {
         this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP, null);
     }
@@ -122,7 +122,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     public CompactionIterator(OperationType type,
                               List<ISSTableScanner> scanners,
                               AbstractCompactionController controller,
-                              int nowInSec,
+                              long nowInSec,
                               TimeUUID compactionId,
                               ActiveCompactionsTracker activeCompactions,
                               TopPartitionTracker.Collector topPartitionCollector)
@@ -340,9 +340,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         private long compactedUnfiltered;
 
-        private Purger(AbstractCompactionController controller, int nowInSec)
+        private Purger(AbstractCompactionController controller, long nowInSec)
         {
-            super(nowInSec, controller.gcBefore, controller.compactingRepaired() ? Integer.MAX_VALUE : Integer.MIN_VALUE,
+            super(nowInSec, controller.gcBefore, controller.compactingRepaired() ? Long.MAX_VALUE : Integer.MIN_VALUE,
                   controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
                   controller.cfs.metadata.get().enforceStrictLiveness());
             this.controller = controller;

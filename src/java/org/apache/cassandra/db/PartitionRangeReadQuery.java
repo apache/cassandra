@@ -32,7 +32,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 public interface PartitionRangeReadQuery extends ReadQuery
 {
     static ReadQuery create(TableMetadata table,
-                            int nowInSec,
+                            long nowInSec,
                             ColumnFilter columnFilter,
                             RowFilter rowFilter,
                             DataLimits limits,

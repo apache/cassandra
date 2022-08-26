@@ -62,7 +62,7 @@ class BtiFormatPartitionWriter extends SortedTablePartitionWriter
     {
         super(header, dataWriter, version);
         this.rowIndexBlockSize = rowIndexBlockSize;
-        this.rowTrie = new RowIndexWriter(comparator, rowIndexWriter);
+        this.rowTrie = new RowIndexWriter(comparator, rowIndexWriter, version);
     }
 
     @Override

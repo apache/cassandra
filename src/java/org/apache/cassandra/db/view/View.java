@@ -147,7 +147,7 @@ public class View
      * @param nowInSec the current time in seconds (to decide what is live and what isn't).
      * @return {@code true} if {@code baseRow} matches the view filters, {@code false} otherwise.
      */
-    public boolean matchesViewFilter(DecoratedKey partitionKey, Row baseRow, int nowInSec)
+    public boolean matchesViewFilter(DecoratedKey partitionKey, Row baseRow, long nowInSec)
     {
         return getReadQuery().selectsClustering(partitionKey, baseRow.clustering())
             && getSelectStatement().rowFilterForInternalCalls().isSatisfiedBy(baseCfs.metadata(), partitionKey, baseRow, nowInSec);

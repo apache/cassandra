@@ -145,8 +145,8 @@ public class UnfilteredRowsGenerator
                     includesStart = false;
                     includesEnd = r.nextBoolean();
                 }
-                int deltime = r.nextInt(del_range);
-                DeletionTime dt = new DeletionTime(deltime, deltime);
+                long deltime = r.nextInt(del_range);
+                DeletionTime dt = DeletionTime.build(deltime, deltime);
                 content.add(new RangeTombstoneBoundMarker(boundFor(pos, true, includesStart), dt));
                 content.add(new RangeTombstoneBoundMarker(boundFor(pos + span, false, includesEnd), dt));
                 prev = pos + span - (includesEnd ? 0 : 1);
@@ -196,20 +196,20 @@ public class UnfilteredRowsGenerator
             Matcher m = open.matcher(s);
             if (m.matches())
             {
-                out.add(openMarker(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(3)), m.group(2) != null));
+                out.add(openMarker(Integer.parseInt(m.group(1)), Long.parseLong(m.group(3)), m.group(2) != null));
                 continue;
             }
             m = close.matcher(s);
             if (m.matches())
             {
-                out.add(closeMarker(Integer.parseInt(m.group(3)), Integer.parseInt(m.group(1)), m.group(2) != null));
+                out.add(closeMarker(Integer.parseInt(m.group(3)), Long.parseLong(m.group(1)), m.group(2) != null));
                 continue;
             }
             m = row.matcher(s);
             if (m.matches())
             {
                 int live = m.group(3) != null ? Integer.parseInt(m.group(3)) : default_liveness;
-                int delTime = m.group(4) != null ? Integer.parseInt(m.group(4)) : -1;
+                long delTime = m.group(4) != null ? Long.parseLong(m.group(4)) : -1;
                 out.add(emptyRowAt(Integer.parseInt(m.group(1)), live, delTime));
                 continue;
             }
@@ -226,11 +226,11 @@ public class UnfilteredRowsGenerator
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
-    static Row emptyRowAt(int pos, int time, int deletionTime)
+    static Row emptyRowAt(int pos, int time, long deletionTime)
     {
         final Clustering<?> clustering = clusteringFor(pos);
         final LivenessInfo live = LivenessInfo.create(time, UnfilteredRowIteratorsMergeTest.nowInSec);
-        final DeletionTime delTime = deletionTime == -1 ? DeletionTime.LIVE : new DeletionTime(deletionTime, deletionTime);
+        final DeletionTime delTime = deletionTime == -1 ? DeletionTime.LIVE : DeletionTime.build(deletionTime, deletionTime);
         return BTreeRow.create(clustering, live, Row.Deletion.regular(delTime), BTree.empty());
     }
 
@@ -272,21 +272,21 @@ public class UnfilteredRowsGenerator
             content.remove(pos);
     }
 
-    static RangeTombstoneMarker openMarker(int pos, int delTime, boolean inclusive)
+    static RangeTombstoneMarker openMarker(int pos, long delTime, boolean inclusive)
     {
         return marker(pos, delTime, true, inclusive);
     }
 
-    static RangeTombstoneMarker closeMarker(int pos, int delTime, boolean inclusive)
+    static RangeTombstoneMarker closeMarker(int pos, long delTime, boolean inclusive)
     {
         return marker(pos, delTime, false, inclusive);
     }
 
-    private static RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
+    private static RangeTombstoneMarker marker(int pos, long delTime, boolean isStart, boolean inclusive)
     {
         return new RangeTombstoneBoundMarker(BufferClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
                                                                     new ByteBuffer[] {clusteringFor(pos).bufferAt(0)}),
-                                             new DeletionTime(delTime, delTime));
+                                             DeletionTime.build(delTime, delTime));
     }
 
     public static UnfilteredRowIterator source(Iterable<Unfiltered> content, TableMetadata metadata, DecoratedKey partitionKey)

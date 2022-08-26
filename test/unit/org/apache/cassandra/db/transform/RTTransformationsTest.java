@@ -50,7 +50,7 @@ public final class RTTransformationsTest
     private static final String KEYSPACE = "RTBoundCloserTest";
     private static final String TABLE = "table";
 
-    private final int nowInSec = FBUtilities.nowInSeconds();
+    private final long nowInSec = FBUtilities.nowInSeconds();
 
     private TableMetadata metadata;
     private DecoratedKey key;
@@ -375,7 +375,7 @@ public final class RTTransformationsTest
         for (int i = 0; i < clusteringValues.length; i++)
             clusteringByteBuffers[i] = decompose(metadata.clusteringColumns().get(i).type, clusteringValues[i]);
 
-        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(kind, clusteringByteBuffers), new DeletionTime(timestamp, nowInSec));
+        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(kind, clusteringByteBuffers), DeletionTime.build(timestamp, nowInSec));
     }
 
     private RangeTombstoneBoundaryMarker boundary(ClusteringPrefix.Kind kind, long closeTimestamp, long openTimestamp, Object... clusteringValues)
@@ -385,8 +385,8 @@ public final class RTTransformationsTest
             clusteringByteBuffers[i] = decompose(metadata.clusteringColumns().get(i).type, clusteringValues[i]);
 
         return new RangeTombstoneBoundaryMarker(BufferClusteringBoundary.create(kind, clusteringByteBuffers),
-                                                new DeletionTime(closeTimestamp, nowInSec),
-                                                new DeletionTime(openTimestamp, nowInSec));
+                                                DeletionTime.build(closeTimestamp, nowInSec),
+                                                DeletionTime.build(openTimestamp, nowInSec));
     }
 
     private Row row(long timestamp, Object... clusteringValues)

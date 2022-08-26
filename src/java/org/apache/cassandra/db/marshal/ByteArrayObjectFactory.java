@@ -74,7 +74,7 @@ class ByteArrayObjectFactory implements ValueAccessor.ObjectFactory<byte[]>
     private static final ArrayClusteringBound MIN_END_BOUND = new ArrayClusteringBound(ClusteringPrefix.Kind.EXCL_END_BOUND,
                                                                                    AbstractArrayClusteringPrefix.EMPTY_VALUES_ARRAY);
 
-    public Cell<byte[]> cell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, byte[] value, CellPath path)
+    public Cell<byte[]> cell(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, byte[] value, CellPath path)
     {
         return new ArrayCell(column, timestamp, ttl, localDeletionTime, value, path);
     }

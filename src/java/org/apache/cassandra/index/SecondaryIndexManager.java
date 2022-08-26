@@ -912,7 +912,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                                                                key,
                                                                                new ClusteringIndexSliceFilter(Slices.ALL, false));
 
-            int nowInSec = cmd.nowInSec();
+            long nowInSec = cmd.nowInSec();
             boolean readStatic = false;
 
             SinglePartitionPager pager = new SinglePartitionPager(cmd, null, ProtocolVersion.CURRENT);
@@ -1031,7 +1031,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * <p>
      * TODO : improve cleanup transaction to batch updates and perform them async
      */
-    public void deletePartition(UnfilteredRowIterator partition, int nowInSec)
+    public void deletePartition(UnfilteredRowIterator partition, long nowInSec)
     {
         // we need to acquire memtable lock because secondary index deletion may
         // cause a race (see CASSANDRA-3712). This is done internally by the
@@ -1040,7 +1040,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                                                     partition.columns(),
                                                                     nowInSec);
         indexTransaction.start();
-        indexTransaction.onPartitionDeletion(new DeletionTime(FBUtilities.timestampMicros(), nowInSec));
+        indexTransaction.onPartitionDeletion(DeletionTime.build(FBUtilities.timestampMicros(), nowInSec));
         indexTransaction.commit();
 
         while (partition.hasNext())
@@ -1196,7 +1196,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * Transaction for updates on the write path.
      */
-    public UpdateTransaction newUpdateTransaction(PartitionUpdate update, WriteContext ctx, int nowInSec)
+    public UpdateTransaction newUpdateTransaction(PartitionUpdate update, WriteContext ctx, long nowInSec)
     {
         if (!hasIndexes())
             return UpdateTransaction.NO_OP;
@@ -1221,7 +1221,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     public CompactionTransaction newCompactionTransaction(DecoratedKey key,
                                                           RegularAndStaticColumns regularAndStaticColumns,
                                                           int versions,
-                                                          int nowInSec)
+                                                          long nowInSec)
     {
         // the check for whether there are any registered indexes is already done in CompactionIterator
         return new IndexGCTransaction(key, regularAndStaticColumns, keyspace, versions, nowInSec, writableIndexes.values());
@@ -1232,7 +1232,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public CleanupTransaction newCleanupTransaction(DecoratedKey key,
                                                     RegularAndStaticColumns regularAndStaticColumns,
-                                                    int nowInSec)
+                                                    long nowInSec)
     {
         if (!hasIndexes())
             return CleanupTransaction.NO_OP;
@@ -1352,7 +1352,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         private final RegularAndStaticColumns columns;
         private final Keyspace keyspace;
         private final int versions;
-        private final int nowInSec;
+        private final long nowInSec;
         private final Collection<Index> indexes;
 
         private Row[] rows;
@@ -1361,7 +1361,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                    RegularAndStaticColumns columns,
                                    Keyspace keyspace,
                                    int versions,
-                                   int nowInSec,
+                                   long nowInSec,
                                    Collection<Index> indexes)
         {
             this.key = key;
@@ -1457,7 +1457,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         private final DecoratedKey key;
         private final RegularAndStaticColumns columns;
         private final Keyspace keyspace;
-        private final int nowInSec;
+        private final long nowInSec;
         private final Collection<Index> indexes;
 
         private Row row;
@@ -1466,7 +1466,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         private CleanupGCTransaction(DecoratedKey key,
                                      RegularAndStaticColumns columns,
                                      Keyspace keyspace,
-                                     int nowInSec,
+                                     long nowInSec,
                                      Collection<Index> indexes)
         {
             this.key = key;

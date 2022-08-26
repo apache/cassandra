@@ -74,7 +74,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
                                             "coordinator",
                                             "participants",
                                             "participants_wp"));
-                int now = FBUtilities.nowInSeconds();
+                long now = FBUtilities.nowInSeconds();
                 for (Map<String, String> session : sessions)
                 {
                     int updated = Integer.parseInt(session.get(LocalSessionInfo.LAST_UPDATE));

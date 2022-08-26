@@ -32,14 +32,14 @@ public class QueryState
     private final ClientState clientState;
 
     private long timestamp = Long.MIN_VALUE;
-    private int nowInSeconds = Integer.MIN_VALUE;
+    private long nowInSeconds = Integer.MIN_VALUE;
 
     public QueryState(ClientState clientState)
     {
         this.clientState = clientState;
     }
 
-    public QueryState(ClientState clientState, long timestamp, int nowInSeconds)
+    public QueryState(ClientState clientState, long timestamp, long nowInSeconds)
     {
         this(clientState);
         this.timestamp = timestamp;
@@ -82,7 +82,7 @@ public class QueryState
      *
      * @return server-generated, recorded timestamp in seconds
      */
-    public int getNowInSeconds()
+    public long getNowInSeconds()
     {
         if (nowInSeconds == Integer.MIN_VALUE)
             nowInSeconds = FBUtilities.nowInSeconds();
@@ -100,7 +100,7 @@ public class QueryState
     /**
      * @return server-generated nowInSeconds value, if one had been requested, or Integer.MIN_VALUE otherwise
      */
-    public int generatedNowInSeconds()
+    public long generatedNowInSeconds()
     {
         return nowInSeconds;
     }

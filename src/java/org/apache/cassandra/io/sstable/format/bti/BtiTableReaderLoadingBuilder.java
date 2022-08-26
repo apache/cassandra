@@ -76,7 +76,8 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
             return PartitionIterator.create(index,
                                             tableMetadataRef.getLocal().partitioner,
                                             riFile,
-                                            dFile);
+                                            dFile,
+                                            descriptor.version);
         }
     }
 

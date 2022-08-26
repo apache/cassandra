@@ -357,7 +357,7 @@ public class ReadCommandTest
         String[] expectedRows = new String[] { "aa", "ff", "ee", "cc", "dd", "cc", "bb"};
 
         List<ByteBuffer> buffers = new ArrayList<>(groups.length);
-        int nowInSeconds = FBUtilities.nowInSeconds();
+        long nowInSeconds = FBUtilities.nowInSeconds();
         ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
         RowFilter rowFilter = RowFilter.create();
         Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
@@ -524,7 +524,7 @@ public class ReadCommandTest
         };
 
         List<ByteBuffer> buffers = new ArrayList<>(groups.length);
-        int nowInSeconds = FBUtilities.nowInSeconds();
+        long nowInSeconds = FBUtilities.nowInSeconds();
         ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
         RowFilter rowFilter = RowFilter.create();
         Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
@@ -600,7 +600,7 @@ public class ReadCommandTest
         };
 
         List<ByteBuffer> buffers = new ArrayList<>(groups.length);
-        int nowInSeconds = FBUtilities.nowInSeconds();
+        long nowInSeconds = FBUtilities.nowInSeconds();
         ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
         RowFilter rowFilter = RowFilter.create();
         Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
@@ -795,7 +795,7 @@ public class ReadCommandTest
         setGCGrace(cfs, 600);
 
         DecoratedKey[] keys = new DecoratedKey[] { Util.dk("key0"), Util.dk("key1"), Util.dk("key2"), Util.dk("key3") };
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
 
         // A simple tombstone
         new RowUpdateBuilder(cfs.metadata(), 0, keys[0]).clustering("cc").delete("a").build().apply();
@@ -1115,7 +1115,7 @@ public class ReadCommandTest
         new RowUpdateBuilder(cfs.metadata(), 1, key).clustering("cc").add("a", ByteBufferUtil.bytes("a")).build().apply();
         Util.flush(cfs);
 
-        int nowInSec = FBUtilities.nowInSeconds() + 10;
+        long nowInSec = FBUtilities.nowInSeconds() + 10;
         ReadCommand cmd = Util.cmd(cfs, key).withNowInSeconds(nowInSec).build();
 
         try (ReadExecutionController controller = cmd.executionController(true))

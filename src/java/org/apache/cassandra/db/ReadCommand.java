@@ -30,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +39,7 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.net.MessageFlag;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.db.partitions.*;
@@ -67,6 +69,7 @@ import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
@@ -114,7 +117,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 int digestVersion,
                                                 boolean acceptsTransient,
                                                 TableMetadata metadata,
-                                                int nowInSec,
+                                                long nowInSec,
                                                 ColumnFilter columnFilter,
                                                 RowFilter rowFilter,
                                                 DataLimits limits,
@@ -139,7 +142,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                           int digestVersion,
                           boolean acceptsTransient,
                           TableMetadata metadata,
-                          int nowInSec,
+                          long nowInSec,
                           ColumnFilter columnFilter,
                           RowFilter rowFilter,
                           DataLimits limits,
@@ -942,7 +945,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
 
         @SuppressWarnings("resource") // the returned iterators are closed by the caller
-        List<T> finalizeIterators(ColumnFamilyStore cfs, int nowInSec, int oldestUnrepairedTombstone)
+        List<T> finalizeIterators(ColumnFamilyStore cfs, long nowInSec, long oldestUnrepairedTombstone)
         {
             if (repairedIters.isEmpty())
                 return unrepairedIters;
@@ -1070,7 +1073,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
             command.metadata().id.serialize(out);
-            out.writeInt(command.nowInSec());
+            out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(command.nowInSec()) : (int) command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
             DataLimits.serializer.serialize(command.limits(), out, version, command.metadata().comparator);
@@ -1097,7 +1100,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             boolean hasIndex = hasIndex(flags);
             int digestVersion = isDigest ? in.readUnsignedVInt32() : 0;
             TableMetadata metadata = schema.getExistingTableMetadata(TableId.deserialize(in));
-            int nowInSec = in.readInt();
+            long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
             DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata);
@@ -1128,7 +1131,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
-                   + TypeSizes.sizeof(command.nowInSec())
+                   + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)
                    + DataLimits.serializer.serializedSize(command.limits(), version, command.metadata().comparator)

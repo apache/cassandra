@@ -24,6 +24,8 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.utils.FBUtilities;
+
 import static org.junit.Assert.assertEquals;
 
 public class SSTableMetadataTrackingTest extends CQLTester
@@ -44,11 +46,11 @@ public class SSTableMetadataTrackingTest extends CQLTester
         Util.flush(cfs);
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
-        assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime);
+        assertEquals(Long.MAX_VALUE, metadata.maxLocalDeletionTime);
         cfs.forceMajorCompaction();
         metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
-        assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime);
+        assertEquals(Long.MAX_VALUE, metadata.maxLocalDeletionTime);
     }
 
     @Test
@@ -62,12 +64,12 @@ public class SSTableMetadataTrackingTest extends CQLTester
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(10000, metadata.maxTimestamp);
-        assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime, DELTA);
+        assertEquals(Long.MAX_VALUE, metadata.maxLocalDeletionTime, DELTA);
         cfs.forceMajorCompaction();
         metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(10000, metadata.maxTimestamp);
-        assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime, DELTA);
+        assertEquals(Long.MAX_VALUE, metadata.maxLocalDeletionTime, DELTA);
     }
 
     @Test
@@ -81,12 +83,12 @@ public class SSTableMetadataTrackingTest extends CQLTester
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(10000, metadata.maxTimestamp);
-        assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime, DELTA);
+        assertEquals(Long.MAX_VALUE, metadata.maxLocalDeletionTime, DELTA);
         cfs.forceMajorCompaction();
         metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(10000, metadata.maxTimestamp);
-        assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime, DELTA);
+        assertEquals(Long.MAX_VALUE, metadata.maxLocalDeletionTime, DELTA);
     }
 
 
@@ -141,7 +143,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         StatsMetadata metadata = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(9999, metadata.minTimestamp);
         assertEquals(9999, metadata.maxTimestamp);
-        assertEquals(Integer.MAX_VALUE, metadata.maxLocalDeletionTime);
+        assertEquals(Long.MAX_VALUE, metadata.maxLocalDeletionTime);
         cfs.forceMajorCompaction();
         StatsMetadata metadata2 = cfs.getLiveSSTables().iterator().next().getSSTableMetadata();
         assertEquals(metadata.maxLocalDeletionTime, metadata2.maxLocalDeletionTime);
@@ -168,8 +170,8 @@ public class SSTableMetadataTrackingTest extends CQLTester
         assertEquals(metadata.maxTimestamp, metadata2.maxTimestamp);
     }
 
-    private static int nowInSec()
+    private static long nowInSec()
     {
-        return (int) (System.currentTimeMillis() / 1000);
+        return FBUtilities.nowInSeconds();
     }
 }

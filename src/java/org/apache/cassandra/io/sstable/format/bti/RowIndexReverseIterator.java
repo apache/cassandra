@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable.format.bti;
 
 import java.io.PrintStream;
 
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
 import org.apache.cassandra.io.tries.ReverseValueIterator;
 import org.apache.cassandra.io.util.FileHandle;
@@ -30,15 +31,17 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 class RowIndexReverseIterator extends ReverseValueIterator<RowIndexReverseIterator>
 {
     private long currentNode = -1;
+    private final Version version;
 
-    public RowIndexReverseIterator(FileHandle file, long root, ByteComparable start, ByteComparable end)
+    public RowIndexReverseIterator(FileHandle file, long root, ByteComparable start, ByteComparable end, Version version)
     {
         super(file.instantiateRebufferer(null), root, start, end, true);
+        this.version = version;
     }
 
-    public RowIndexReverseIterator(FileHandle file, TrieIndexEntry entry, ByteComparable end)
+    public RowIndexReverseIterator(FileHandle file, TrieIndexEntry entry, ByteComparable end, Version version)
     {
-        this(file, entry.indexTrieRoot, ByteComparable.EMPTY, end);
+        this(file, entry.indexTrieRoot, ByteComparable.EMPTY, end, version);
     }
 
     public IndexInfo nextIndexInfo()
@@ -51,7 +54,7 @@ class RowIndexReverseIterator extends ReverseValueIterator<RowIndexReverseIterat
         }
 
         go(currentNode);
-        IndexInfo info = RowIndexReader.readPayload(buf, payloadPosition(), payloadFlags());
+        IndexInfo info = RowIndexReader.readPayload(buf, payloadPosition(), payloadFlags(), version);
 
         currentNode = -1;
         return info;
@@ -61,6 +64,6 @@ class RowIndexReverseIterator extends ReverseValueIterator<RowIndexReverseIterat
     @SuppressWarnings("unused")
     public void dumpTrie(PrintStream out)
     {
-        dumpTrie(out, RowIndexReader::dumpRowIndexEntry);
+        dumpTrie(out, RowIndexReader::dumpRowIndexEntry, version);
     }
 }

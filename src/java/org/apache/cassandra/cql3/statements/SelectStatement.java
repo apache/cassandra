@@ -273,7 +273,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         cl.validateForRead();
         Guardrails.readConsistencyLevels.guard(EnumSet.of(cl), state.getClientState());
 
-        int nowInSec = options.getNowInSeconds(state);
+        long nowInSec = options.getNowInSeconds(state);
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
@@ -319,7 +319,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return aggregationSpecFactory == null ? null : aggregationSpecFactory.newInstance(options);
     }
 
-    public ReadQuery getQuery(QueryOptions options, int nowInSec) throws RequestValidationException
+    public ReadQuery getQuery(QueryOptions options, long nowInSec) throws RequestValidationException
     {
         Selectors selectors = selection.newSelectors(options);
         return getQuery(options,
@@ -335,7 +335,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     public ReadQuery getQuery(QueryOptions options,
                               ClientState state,
                               ColumnFilter columnFilter,
-                              int nowInSec,
+                              long nowInSec,
                               int userLimit,
                               int perPartitionLimit,
                               int pageSize,
@@ -355,7 +355,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                        QueryOptions options,
                                        ClientState state,
                                        Selectors selectors,
-                                       int nowInSec,
+                                       long nowInSec,
                                        int userLimit,
                                        AggregationSpecification aggregationSpec,
                                        long queryStartNanoTime,
@@ -445,7 +445,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                        QueryOptions options,
                                        Selectors selectors,
                                        int pageSize,
-                                       int nowInSec,
+                                       long nowInSec,
                                        int userLimit,
                                        AggregationSpecification aggregationSpec,
                                        long queryStartNanoTime,
@@ -498,7 +498,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private ResultMessage.Rows processResults(PartitionIterator partitions,
                                               QueryOptions options,
                                               Selectors selectors,
-                                              int nowInSec,
+                                              long nowInSec,
                                               int userLimit,
                                               AggregationSpecification aggregationSpec,
                                               boolean unmask) throws RequestValidationException
@@ -514,7 +514,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     public ResultMessage.Rows executeInternal(QueryState state,
                                               QueryOptions options,
-                                              int nowInSec,
+                                              long nowInSec,
                                               long queryStartNanoTime)
     {
         int userLimit = getLimit(options);
@@ -568,7 +568,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return new AggregationQueryPager(pager, query.limits());
     }
 
-    public Map<DecoratedKey, List<Row>> executeRawInternal(QueryOptions options, ClientState state, int nowInSec) throws RequestExecutionException, RequestValidationException
+    public Map<DecoratedKey, List<Row>> executeRawInternal(QueryOptions options, ClientState state, long nowInSec) throws RequestExecutionException, RequestValidationException
     {
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
@@ -612,7 +612,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
     }
 
-    public ResultSet process(PartitionIterator partitions, int nowInSec, boolean unmask) throws InvalidRequestException
+    public ResultSet process(PartitionIterator partitions, long nowInSec, boolean unmask) throws InvalidRequestException
     {
         QueryOptions options = QueryOptions.DEFAULT;
         Selectors selectors = selection.newSelectors(options);
@@ -647,7 +647,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     private ReadQuery getSliceCommands(QueryOptions options, ClientState state, ColumnFilter columnFilter,
-                                       DataLimits limit, int nowInSec)
+                                       DataLimits limit, long nowInSec)
     {
         Collection<ByteBuffer> keys = restrictions.getPartitionKeys(options, state);
         if (keys.isEmpty())
@@ -701,7 +701,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
      * Returns a read command that can be used internally to query all the rows queried by this SELECT for a
      * give key (used for materialized views).
      */
-    public SinglePartitionReadCommand internalReadForView(DecoratedKey key, int nowInSec)
+    public SinglePartitionReadCommand internalReadForView(DecoratedKey key, long nowInSec)
     {
         QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
         ClientState state = ClientState.forInternalCalls();
@@ -719,7 +719,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return getRowFilter(QueryOptions.forInternalCalls(Collections.emptyList()));
     }
 
-    private ReadQuery getRangeCommand(QueryOptions options, ClientState state, ColumnFilter columnFilter, DataLimits limit, int nowInSec)
+    private ReadQuery getRangeCommand(QueryOptions options, ClientState state, ColumnFilter columnFilter, DataLimits limit, long nowInSec)
     {
         ClusteringIndexFilter clusteringIndexFilter = makeClusteringIndexFilter(options, state, columnFilter);
         if (clusteringIndexFilter == null)
@@ -920,7 +920,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private ResultSet process(PartitionIterator partitions,
                               QueryOptions options,
                               Selectors selectors,
-                              int nowInSec,
+                              long nowInSec,
                               int userLimit,
                               AggregationSpecification aggregationSpec,
                               boolean unmask) throws InvalidRequestException
@@ -1009,7 +1009,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     // Used by ModificationStatement for CAS operations
-    public void processPartition(RowIterator partition, QueryOptions options, ResultSetBuilder result, int nowInSec)
+    public void processPartition(RowIterator partition, QueryOptions options, ResultSetBuilder result, long nowInSec)
     throws InvalidRequestException
     {
         maybeFail(result, options);

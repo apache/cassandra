@@ -105,7 +105,7 @@ public class RegularColumnIndex extends CassandraIndex
         return type.compare(cell.value(), cell.accessor(), value, ByteBufferAccessor.instance) == 0;
     }
 
-    public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
+    public boolean isStale(Row data, ByteBuffer indexValue, long nowInSec)
     {
         Cell<?> cell = data.getCell(indexedColumn);
         return cell == null

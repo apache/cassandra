@@ -25,6 +25,7 @@ import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.AbstractSSTableIterator;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
@@ -50,10 +51,10 @@ class SSTableIterator extends AbstractSSTableIterator<AbstractRowIndexEntry>
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    protected Reader createReaderInternal(AbstractRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    protected Reader createReaderInternal(AbstractRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
     {
         if (indexEntry.isIndexed())
-            return new ForwardIndexedReader(indexEntry, file, shouldCloseFile);
+            return new ForwardIndexedReader(indexEntry, file, shouldCloseFile, version);
         else
             return new ForwardReader(file, shouldCloseFile);
     }
@@ -79,12 +80,14 @@ class SSTableIterator extends AbstractSSTableIterator<AbstractRowIndexEntry>
     {
         private final RowIndexReader indexReader;
         private final long basePosition;
+        private final Version version;
 
-        private ForwardIndexedReader(AbstractRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+        private ForwardIndexedReader(AbstractRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
         {
             super(file, shouldCloseFile);
             basePosition = indexEntry.position;
-            indexReader = new RowIndexReader(ifile, (TrieIndexEntry) indexEntry);
+            this.version = version;
+            indexReader = new RowIndexReader(ifile, (TrieIndexEntry) indexEntry, version);
         }
 
         @Override

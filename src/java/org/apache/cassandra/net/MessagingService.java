@@ -211,8 +211,9 @@ public class MessagingService extends MessagingServiceMBeanImpl
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
+    public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
     public static final int minimum_version = VERSION_30;
-    public static final int current_version = VERSION_40;
+    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
     static Map<Integer, Integer> versionOrdinalMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
@@ -237,7 +238,8 @@ public class MessagingService extends MessagingServiceMBeanImpl
     {
         VERSION_30(10),
         VERSION_3014(11),
-        VERSION_40(12);
+        VERSION_40(12),
+        VERSION_50(13);
 
         public final int value;
 

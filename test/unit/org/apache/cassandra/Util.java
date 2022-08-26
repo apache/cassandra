@@ -308,7 +308,7 @@ public class Util
             assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
     }
 
-    public static Future<?> compactAll(ColumnFamilyStore cfs, int gcBefore)
+    public static Future<?> compactAll(ColumnFamilyStore cfs, long gcBefore)
     {
         List<Descriptor> descriptors = new ArrayList<>();
         for (SSTableReader sstable : cfs.getLiveSSTables())
@@ -318,7 +318,7 @@ public class Util
 
     public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
-        int gcBefore = cfs.gcBefore(FBUtilities.nowInSeconds());
+        long gcBefore = cfs.gcBefore(FBUtilities.nowInSeconds());
         try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore))
         {
             for (AbstractCompactionTask task : tasks)

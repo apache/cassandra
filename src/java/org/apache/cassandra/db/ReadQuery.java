@@ -87,7 +87,7 @@ public interface ReadQuery
             }
 
             @Override
-            public int nowInSec()
+            public long nowInSec()
             {
                 return FBUtilities.nowInSeconds();
             }
@@ -201,7 +201,7 @@ public interface ReadQuery
      *
      * @return the time (in seconds) to use as "now".
      */
-    public int nowInSec();
+    public long nowInSec();
 
     /**
      * Checks if this {@code ReadQuery} selects full partitions, that is it has no filtering on clustering or regular columns.

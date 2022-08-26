@@ -411,7 +411,7 @@ public class CacheService implements CacheServiceMBean
 
             return Stage.READ.submit(() -> {
                 DecoratedKey key = cfs.decorateKey(buffer);
-                int nowInSec = FBUtilities.nowInSeconds();
+                long nowInSec = FBUtilities.nowInSeconds();
                 SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fullPartitionRead(cfs.metadata(), nowInSec, key);
                 try (ReadExecutionController controller = cmd.executionController(); UnfilteredRowIterator iter = cmd.queryMemtableAndDisk(cfs, controller))
                 {
