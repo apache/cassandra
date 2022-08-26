@@ -920,6 +920,7 @@ public class CompactionManager implements CompactionManagerMBean
             return submitMaximal(cfStore, gcBefore, splitOutput, OperationType.MAJOR_COMPACTION);
     }
 
+    @SuppressWarnings("resource")
     public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final int gcBefore, boolean splitOutput, OperationType operationType)
     {
         // here we compute the task off the compaction executor, so having that present doesn't
