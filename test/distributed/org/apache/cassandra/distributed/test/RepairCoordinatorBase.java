@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -78,6 +79,8 @@ public class RepairCoordinatorBase extends TestBaseImpl
                               .withConfig(c -> c.with(Feature.NETWORK)
                                                 .with(Feature.GOSSIP))
                               .start());
+
+        CLUSTER.setUncaughtExceptionsFilter(throwable -> throwable instanceof RejectedExecutionException && "RepairJobTask has shut down".equals(throwable.getMessage()));
     }
 
     @AfterClass
