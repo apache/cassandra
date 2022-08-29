@@ -134,6 +134,8 @@ public class Config
     public volatile Integer repair_session_max_tree_depth = null;
     public volatile Integer repair_session_space_in_mb = null;
 
+    public volatile long repair_request_timeout_in_ms = TimeUnit.MILLISECONDS.convert(1, TimeUnit.MINUTES);
+
     public volatile boolean use_offheap_merkle_trees = true;
 
     public int storage_port = 7000;

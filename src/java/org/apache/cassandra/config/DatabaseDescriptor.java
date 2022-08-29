@@ -1723,6 +1723,16 @@ public class DatabaseDescriptor
         return unit.convert(getBlockForPeersTimeoutInSeconds(), TimeUnit.SECONDS);
     }
 
+    public static long getRepairRpcTimeout(TimeUnit unit)
+    {
+        return unit.convert(conf.repair_request_timeout_in_ms, MILLISECONDS);
+    }
+
+    public static void setRepairRpcTimeout(long time, TimeUnit unit)
+    {
+        conf.repair_request_timeout_in_ms = MILLISECONDS.convert(time, unit);
+    }
+
     public static double getPhiConvictThreshold()
     {
         return conf.phi_convict_threshold;
