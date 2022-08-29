@@ -42,7 +42,7 @@ import static org.apache.cassandra.net.MessageFlag.CALL_BACK_ON_FAILURE;
  */
 public abstract class RepairMessage
 {
-    private static final CassandraVersion SUPPORTS_TIMEOUTS = new CassandraVersion("4.0.6-SNAPSHOT"); // todo: bump to 4.0.7 before commit
+    private static final CassandraVersion SUPPORTS_TIMEOUTS = new CassandraVersion("4.0.7-SNAPSHOT");
     private static final Logger logger = LoggerFactory.getLogger(RepairMessage.class);
     public final RepairJobDesc desc;
 
