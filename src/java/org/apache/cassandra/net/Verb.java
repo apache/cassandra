@@ -159,7 +159,7 @@ public enum Verb
 
     // repair; mostly doesn't use callbacks and sends responses as their own request messages, with matching sessions by uuid; should eventually harmonize and make idiomatic
     REPAIR_RSP             (100, P1, repairTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    VALIDATION_RSP         (102, P1, repairTimeout,   ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
+    VALIDATION_RSP         (102, P1, longTimeout,     ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     VALIDATION_REQ         (101, P1, repairTimeout,   ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     SYNC_RSP               (104, P1, repairTimeout,   ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     SYNC_REQ               (103, P1, repairTimeout,   ANTI_ENTROPY,      () -> SyncRequest.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
