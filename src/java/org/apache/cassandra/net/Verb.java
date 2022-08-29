@@ -217,37 +217,37 @@ public enum Verb
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
 
     // accord
-    ACCORD_PREACCEPT_RSP            (121, P2, writeTimeout,    REQUEST_RESPONSE,  () -> PreacceptSerializers.reply,           () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_PREACCEPT_RSP            (121, P2, writeTimeout,    REQUEST_RESPONSE,  () -> PreacceptSerializers.reply,           () -> ResponseVerbHandler.instance),
     ACCORD_PREACCEPT_REQ            (120, P2, writeTimeout,    ACCORD,            () -> PreacceptSerializers.request,         AccordService.instance::verbHandler,       ACCORD_PREACCEPT_RSP),
 
-    ACCORD_ACCEPT_RSP               (124, P2, writeTimeout,    REQUEST_RESPONSE,  () -> AcceptSerializers.reply,              () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_ACCEPT_RSP               (124, P2, writeTimeout,    REQUEST_RESPONSE,  () -> AcceptSerializers.reply,              () -> ResponseVerbHandler.instance),
     ACCORD_ACCEPT_REQ               (122, P2, writeTimeout,    ACCORD,            () -> AcceptSerializers.request,            AccordService.instance::verbHandler,       ACCORD_ACCEPT_RSP   ),
     ACCORD_ACCEPT_INVALIDATE_REQ    (123, P2, writeTimeout,    ACCORD,            () -> AcceptSerializers.invalidate,         AccordService.instance::verbHandler,       ACCORD_ACCEPT_RSP   ),
 
-    ACCORD_READ_RSP                 (128, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ReadDataSerializers.reply,            () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_READ_RSP                 (128, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ReadDataSerializers.reply,            () -> ResponseVerbHandler.instance),
     ACCORD_READ_REQ                 (127, P2, writeTimeout,    ACCORD,            () -> ReadDataSerializers.request,          AccordService.instance::verbHandler,       ACCORD_READ_RSP     ),
     ACCORD_COMMIT_REQ               (125, P2, writeTimeout,    ACCORD,            () -> CommitSerializers.request,            AccordService.instance::verbHandler, ACCORD_READ_RSP     ),
-    ACCORD_COMMIT_INVALIDATE_REQ    (126, P2, writeTimeout,    ACCORD,            () -> CommitSerializers.invalidate,         AccordService.instance::verbHandler, AccordService::isFinalReply),
+    ACCORD_COMMIT_INVALIDATE_REQ    (126, P2, writeTimeout,    ACCORD,            () -> CommitSerializers.invalidate,         AccordService.instance::verbHandler),
 
-    ACCORD_APPLY_RSP                (130, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ApplySerializers.reply,               () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_APPLY_RSP                (130, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ApplySerializers.reply,               () -> ResponseVerbHandler.instance),
     ACCORD_APPLY_REQ                (129, P2, writeTimeout,    ACCORD,            () -> ApplySerializers.request,             AccordService.instance::verbHandler, ACCORD_APPLY_RSP),
-    ACCORD_APPLY_AND_CHECK_RSP      (132, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ApplyAndCheckSerializers.reply,       () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_APPLY_AND_CHECK_RSP      (132, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ApplyAndCheckSerializers.reply,       () -> ResponseVerbHandler.instance),
     ACCORD_APPLY_AND_CHECK_REQ      (131, P2, writeTimeout,    ACCORD,            () -> ApplyAndCheckSerializers.request,     AccordService.instance::verbHandler, ACCORD_APPLY_AND_CHECK_RSP),
 
-    ACCORD_RECOVER_RSP              (134, P2, writeTimeout,    REQUEST_RESPONSE,  () -> RecoverySerializers.reply,            () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_RECOVER_RSP              (134, P2, writeTimeout,    REQUEST_RESPONSE,  () -> RecoverySerializers.reply,            () -> ResponseVerbHandler.instance),
     ACCORD_RECOVER_REQ              (133, P2, writeTimeout,    ACCORD,            () -> RecoverySerializers.request,          AccordService.instance::verbHandler,       ACCORD_RECOVER_RSP  ),
-    ACCORD_BEGIN_INVALIDATE_RSP     (136, P2, writeTimeout,    REQUEST_RESPONSE,  () -> BeginInvalidateSerializers.reply,     () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_BEGIN_INVALIDATE_RSP     (136, P2, writeTimeout,    REQUEST_RESPONSE,  () -> BeginInvalidateSerializers.reply,     () -> ResponseVerbHandler.instance),
     ACCORD_BEGIN_INVALIDATE_REQ     (135, P2, writeTimeout,    ACCORD,            () -> BeginInvalidateSerializers.request,   AccordService.instance::verbHandler,ACCORD_BEGIN_INVALIDATE_RSP),
-    ACCORD_WAIT_COMMIT_RSP          (138, P2, writeTimeout,    REQUEST_RESPONSE,  () -> WaitOnCommitSerializer.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_WAIT_COMMIT_RSP          (138, P2, writeTimeout,    REQUEST_RESPONSE,  () -> WaitOnCommitSerializer.reply,         () -> ResponseVerbHandler.instance),
     ACCORD_WAIT_COMMIT_REQ          (137, P2, writeTimeout,    ACCORD,            () -> WaitOnCommitSerializer.request,       AccordService.instance::verbHandler,     ACCORD_WAIT_COMMIT_RSP),
 
-    ACCORD_INFORM_OF_TXN_RSP        (140, P2, writeTimeout, REQUEST_RESPONSE,     () -> InformOfTxnSerializers.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_INFORM_OF_TXN_RSP        (140, P2, writeTimeout, REQUEST_RESPONSE,     () -> InformOfTxnSerializers.reply,         () -> ResponseVerbHandler.instance),
     ACCORD_INFORM_OF_TXN_REQ        (139, P2, writeTimeout,    ACCORD,            () -> InformOfTxnSerializers.request,       AccordService.instance::verbHandler,   ACCORD_INFORM_OF_TXN_RSP),
 
-    ACCORD_INFORM_OF_PERSISTENCE_RSP(142, P2, writeTimeout, REQUEST_RESPONSE,     () -> InformOfTxnSerializers.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_INFORM_OF_PERSISTENCE_RSP(142, P2, writeTimeout, REQUEST_RESPONSE,     () -> InformOfTxnSerializers.reply,         () -> ResponseVerbHandler.instance),
     ACCORD_INFORM_OF_PERSIETENCE_REQ(141, P2, writeTimeout, ACCORD,               () -> InformOfPersistenceSerializers.request, AccordService.instance::verbHandler, ACCORD_INFORM_OF_TXN_RSP),
 
-    ACCORD_CHECK_STATUS_RSP         (144, P2, writeTimeout, REQUEST_RESPONSE,     () -> CheckStatusSerializers.reply,         () -> ResponseVerbHandler.instance, AccordService::isFinalReply),
+    ACCORD_CHECK_STATUS_RSP         (144, P2, writeTimeout, REQUEST_RESPONSE,     () -> CheckStatusSerializers.reply,         () -> ResponseVerbHandler.instance),
     ACCORD_CHECK_STATUS_REQ         (143, P2, writeTimeout, ACCORD,               () -> CheckStatusSerializers.request,       AccordService.instance::verbHandler, ACCORD_CHECK_STATUS_RSP),
 
     // generic failure response
@@ -306,12 +306,6 @@ public enum Verb
      */
     private final Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer;
     private final Supplier<? extends IVerbHandler<?>> handler;
-
-    /**
-     * Predicate used by the response verb handler to determine if more responses are expected for the given
-     * peer/id tuple. If no more are expected, the callback info is discarded.
-     */
-    private final Predicate<?> isFinalReply;
 
     public final Verb responseVerb;
 
@@ -372,7 +366,6 @@ public enum Verb
         this.responseVerb = responseVerb;
         this.expiration = expiration;
         this.kind = kind;
-        this.isFinalReply = isFinalReply != null ? isFinalReply : response -> true;
     }
 
     public <In, Out> IVersionedAsymmetricSerializer<In, Out> serializer()
@@ -383,11 +376,6 @@ public enum Verb
     public <T> IVerbHandler<T> handler()
     {
         return (IVerbHandler<T>) handler.get();
-    }
-
-    public <T> Predicate<T> isFinalReply()
-    {
-        return (Predicate<T>) isFinalReply;
     }
 
     public long expiresAtNanos(long nowNanos)

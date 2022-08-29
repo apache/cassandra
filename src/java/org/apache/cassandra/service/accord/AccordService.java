@@ -83,11 +83,6 @@ public class AccordService implements Shutdownable
         configService.createEpochFromConfig();
     }
 
-    public static boolean isFinalReply(Object reply)
-    {
-        return ((Reply) reply).isFinal();
-    }
-
     public static long nowInMicros()
     {
         return TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());

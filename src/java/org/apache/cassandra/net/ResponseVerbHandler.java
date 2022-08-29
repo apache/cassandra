@@ -35,7 +35,7 @@ public class ResponseVerbHandler implements IVerbHandler
     @Override
     public void doVerb(Message message)
     {
-        RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.getOrRemove(message);
+        RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
         if (callbackInfo == null)
         {
             String msg = "Callback already removed for {} (from {})";
