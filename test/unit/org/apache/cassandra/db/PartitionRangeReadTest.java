@@ -31,8 +31,9 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.exceptions.Configurati
-import org.apache.cassandra.metrics.ClearableHistogram;onException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.ClearableHistogram;
+import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
