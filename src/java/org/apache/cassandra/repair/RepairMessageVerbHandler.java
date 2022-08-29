@@ -33,7 +33,6 @@ import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.Verb.VALIDATION_RSP;
@@ -149,6 +148,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
                 case VALIDATION_REQ:
                 {
+                    // notify initiator that the message has been received, allowing this method to take as long as it needs to
+                    MessagingService.instance().send(message.emptyResponse(), message.from());
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
 
@@ -206,6 +207,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
                 case SYNC_REQ:
                 {
+                    // notify initiator that the message has been received, allowing this method to take as long as it needs to
+                    MessagingService.instance().send(message.emptyResponse(), message.from());
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
                     logger.debug("Syncing {}", request);

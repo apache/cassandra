@@ -20,19 +20,16 @@ package org.apache.cassandra.repair;
 
 import java.util.List;
 
+
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-
-import static org.apache.cassandra.net.Verb.SYNC_REQ;
 
 /**
  * AsymmetricRemoteSyncTask sends {@link SyncRequest} to target node to repair(stream)
@@ -53,7 +50,7 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
         SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, true);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         Tracing.traceRepair(message);
-        MessagingService.instance().send(Message.out(SYNC_REQ, request), request.src);
+        sendRequest(request, request.src);
     }
 
     public void syncComplete(boolean success, List<SessionSummary> summaries)
