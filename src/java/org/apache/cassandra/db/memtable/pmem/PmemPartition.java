@@ -317,6 +317,7 @@ public class PmemPartition implements Partition
     }
 
     // AtomicBTreePartition.addAllWithSizeDelta & RowUpdater are the places to look to see how classic storage engine stashes things
+    @SuppressWarnings({ "resource" })
     private Row updateStaticRow(Row staticRow, UpdateTransaction indexer) throws IOException
     {
         Row newStaticRow = staticRow;
