@@ -21,6 +21,8 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.rmi.AccessException;
@@ -39,6 +41,7 @@ import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
+import javax.management.remote.MBeanServerForwarder;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
 
@@ -100,6 +103,7 @@ public class CassandraDaemon
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
     private static JMXConnectorServer jmxServer = null;
+    private static MBeanServerForwarder authzProxy = null;
 
     private static final Logger logger;
 
@@ -137,6 +141,8 @@ public class CassandraDaemon
         if (jmxPort == null)
             return;
 
+        MBeanServerForwarder authzProxy = createAuthzProxy();
+
         System.setProperty("java.rmi.server.hostname", InetAddress.getLoopbackAddress().getHostAddress());
         RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl();
         Map<String, Object> env = new HashMap<>();
@@ -153,6 +159,10 @@ public class CassandraDaemon
                                                              (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
                                                              env);
             jmxServer = new RMIConnectorServer(url, env, server, ManagementFactory.getPlatformMBeanServer());
+
+            if (authzProxy != null)
+                jmxServer.setMBeanServerForwarder(authzProxy);
+
             jmxServer.start();
             ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
         }
@@ -160,6 +170,24 @@ public class CassandraDaemon
         {
             exitOrFail(1, e.getMessage(), e.getCause());
         }
+    }
+
+    private MBeanServerForwarder createAuthzProxy()
+    {
+        // If a custom authz proxy is supplied (Cassandra ships with AuthorizationProxy, which
+        // delegates to its own role based IAuthorizer), then instantiate and return one which
+        // can be set as the JMXConnectorServer's MBeanServerForwarder.
+        // If no custom proxy is supplied, check system properties for the location of the
+        // standard access file & stash it in env
+        String authzProxyClass = System.getProperty("cassandra.jmx.authorizer");
+        if (authzProxyClass == null)
+            return null;
+
+        final InvocationHandler handler = FBUtilities.construct(authzProxyClass, "JMX authz proxy");
+        final Class[] interfaces = { MBeanServerForwarder.class };
+
+        Object proxy = Proxy.newProxyInstance(MBeanServerForwarder.class.getClassLoader(), interfaces, handler);
+        return MBeanServerForwarder.class.cast(proxy);
     }
 
     private static final CassandraDaemon instance = new CassandraDaemon();
