@@ -6,7 +6,7 @@ data in the table. Tables are located in _keyspaces_.
 A keyspace defines options that apply to all the keyspace's tables. 
 The xref:cql/ddl.adoc#replication-strategy[replication strategy] is an important keyspace option, as is the replication factor. 
 A good general rule is one keyspace per application.
-It is common for a cluster to define only one keyspace for an actie application.
+It is common for a cluster to define only one keyspace for an active application.
 
 This section describes the statements used to create, modify, and remove
 those keyspace and tables.
