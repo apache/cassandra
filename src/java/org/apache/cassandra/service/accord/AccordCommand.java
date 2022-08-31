@@ -540,8 +540,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     protected void postApply()
     {
-        super.postApply();
         cache().clearWriteFuture(txnId);
+        super.postApply();
     }
 
     @Override
