@@ -121,15 +121,15 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     }
 
     /**
-     * Check that when auto_snapshot_ttl=5s, snapshots created from TRUNCATE are expired after 10s
+     * Check that when auto_snapshot_ttl=60s, snapshots created from DROP TABLE are expired after a node restart
      */
     @Test
     public void testAutoSnapshotTTlOnDropAfterRestart() throws IOException
     {
-        int TWENTY_SECONDS = 20; // longer TTL to allow snapshot to survive node restart
+        int ONE_MINUTE = 60; // longer TTL to allow snapshot to survive node restart
         try (Cluster cluster = init(build().withNodes(1)
                                            .withConfig(c -> c.with(Feature.GOSSIP)
-                                                             .set("auto_snapshot_ttl", String.format("%ds", TWENTY_SECONDS)))
+                                                             .set("auto_snapshot_ttl", String.format("%ds", ONE_MINUTE)))
                                            .start()))
         {
             IInvokableInstance instance = cluster.get(1);
@@ -148,8 +148,8 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
             // Check snapshot is listed after restart
             instance.nodetoolResult("listsnapshots").asserts().success().stdoutContains(SNAPSHOT_DROP_PREFIX);
 
-            // Check snapshot is removed after at most 21s
-            await().timeout(TWENTY_SECONDS + 1, SECONDS)
+            // Check snapshot is removed after at most auto_snapshot_ttl + 1s
+            await().timeout(ONE_MINUTE + 1, SECONDS)
                    .pollInterval(1, SECONDS)
                    .until(() -> !instance.nodetoolResult("listsnapshots").getStdout().contains(SNAPSHOT_DROP_PREFIX));
         }
