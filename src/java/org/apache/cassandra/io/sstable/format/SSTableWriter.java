@@ -85,7 +85,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected final MetadataCollector metadataCollector;
     protected final SerializationHeader header;
     protected final Collection<SSTableFlushObserver> observers;
-    private static boolean isInternalKeyspace;
+    private boolean isInternalKeyspace;
 
     protected abstract AbstractTransactional txnProxy();
 
@@ -439,47 +439,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         long dataSize();
     }
 
-    public static void guardCollectionSize(TableMetadata metadata, DecoratedKey partitionKey, Unfiltered unfiltered)
-    {
-//        if (!unfiltered.isRow() || SchemaConstants.isInternalKeyspace(metadata.keyspace))
-        if (!unfiltered.isRow() || isInternalKeyspace)
-                return;
-
-        if (!Guardrails.collectionSize.enabled(null) && !Guardrails.itemsPerCollection.enabled(null))
-            return;
-
-        Row row = (Row) unfiltered;
-        for (ColumnMetadata column : row.columns())
-        {
-            if (!column.type.isCollection() || !column.type.isMultiCell())
-                continue;
-
-            ComplexColumnData cells = row.getComplexColumnData(column);
-            if (cells == null)
-                continue;
-
-            ComplexColumnData liveCells = cells.purge(DeletionPurger.PURGE_ALL, FBUtilities.nowInSeconds());
-            if (liveCells == null)
-                continue;
-
-            int cellsSize = liveCells.dataSize();
-            int cellsCount = liveCells.cellsCount();
-
-            if (!Guardrails.collectionSize.triggersOn(cellsSize, null) &&
-                !Guardrails.itemsPerCollection.triggersOn(cellsCount, null))
-                continue;
-
-            ByteBuffer key = partitionKey.getKey();
-            String keyString = metadata.primaryKeyAsCQLLiteral(key, row.clustering());
-            String msg = String.format("%s in row %s in table %s",
-                                       column.name.toString(),
-                                       keyString,
-                                       metadata);
-            Guardrails.collectionSize.guard(cellsSize, msg, true, null);
-            Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
-        }
-    }
-
     public static abstract class Factory
     {
         public abstract long estimateSize(SSTableSizeParameters parameters);
@@ -499,9 +458,8 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
     {
-//        if (SchemaConstants.isInternalKeyspace(metadata().keyspace))
         if (isInternalKeyspace)
-                return;
+            return;
 
         if (Guardrails.partitionSize.triggersOn(rowSize, null))
         {
