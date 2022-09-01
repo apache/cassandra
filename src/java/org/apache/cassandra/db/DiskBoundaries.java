@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -162,5 +163,12 @@ public class DiskBoundaries
         int firstIndex = getDiskIndex(first);
         int lastIndex = getDiskIndex(last);
         return directories.subList(firstIndex, lastIndex + 1);
+    }
+
+    public boolean isEquivalentTo(DiskBoundaries oldBoundaries)
+    {
+        return oldBoundaries != null &&
+               Objects.equals(positions, oldBoundaries.positions) &&
+               Objects.equals(directories, oldBoundaries.directories);
     }
 }
