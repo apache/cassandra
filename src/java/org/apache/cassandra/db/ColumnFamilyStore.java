@@ -385,7 +385,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             for (ColumnFamilyStore cfs : concatWithIndexes())
                 cfs.crcCheckChance = new DefaultValue(metadata().params.crcCheckChance);
 
-        compactionStrategyManager.maybeReload(metadata());
+        compactionStrategyManager.maybeReloadParamsFromSchema(metadata().params.compaction);
 
         indexManager.reload();
 
@@ -418,7 +418,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             CompactionParams compactionParams = CompactionParams.fromMap(options);
             compactionParams.validate();
-            compactionStrategyManager.setNewLocalCompactionStrategy(compactionParams);
+            compactionStrategyManager.overrideLocalParams(compactionParams);
         }
         catch (Throwable t)
         {
