@@ -116,30 +116,10 @@
     <property name="jacoco.partials.dir" value="${jacoco.export.dir}/partials" />
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
-<<<<<<< HEAD
 
-    <property name="byteman.version" value="3.0.3"/>
-    <property name="bytebuddy.version" value="1.10.10"/>
     <property name="jamm.version" value="0.3.0"/>
-
     <property name="ecj.version" value="4.4.2"/>
     <property name="asm.version" value="5.0.4"/>
-
-    <condition property="maven-ant-tasks.jar.exists">
-      <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
-    </condition>
-
-    <condition property="maven-ant-tasks.jar.local">
-      <available file="${maven-ant-tasks.local}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
-    </condition>
-=======
-
-    <property name="jflex.version" value="1.8.2"/>
-    <property name="jamm.version" value="0.3.2"/>
-    <property name="ecj.version" value="4.6.1"/>
-    <property name="asm.version" value="9.3"/>
-    <property name="allocation-instrumenter.version" value="3.1.0"/>
->>>>>>> 1e27ffc6ad (Remove dependency on Maven Ant Tasks)
 
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
@@ -331,29 +311,14 @@
         </javac>
     </target>
 
-<<<<<<< HEAD
-	<target name="_write-poms" depends="maven-declare-dependencies">
-	    <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
-	    <artifact:writepom pomRefId="thrift-pom" file="${build.dir}/${ant.project.name}-thrift-${version}.pom"/>
-	    <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
-	    <artifact:writepom pomRefId="clientutil-pom" file="${build.dir}/${ant.project.name}-clientutil-${version}.pom"/>
-	    <artifact:writepom pomRefId="build-deps-pom" file="${build.dir}/tmp-${final.name}-deps.pom"/>
-	</target>
-
-	<target name="write-poms" unless="without.maven">
-	    <antcall target="_write-poms" />
-	</target>
-=======
     <target name="write-poms" unless="without.maven">
         <filterset id="pom-template">
             <filter token="version" value="${version}"/>
             <filter token="final.name" value="${final.name}"/>
             <filter token="jamm.version" value="${jamm.version}"/>
-            <filter token="allocation-instrumenter.version" value="${allocation-instrumenter.version}"/>
             <filter token="ecj.version" value="${ecj.version}"/>
             <filter token="asm.version" value="${asm.version}"/>
             <filter token="jacoco.version" value="${jacoco.version}"/>
-            <filter token="jflex.version" value="${jflex.version}"/>
         </filterset>
 
         <copy file=".build/cassandra-deps-template.xml" tofile="${build.dir}/${final.name}.pom">
@@ -365,8 +330,13 @@
         <copy file=".build/cassandra-build-deps-template.xml" tofile="${build.dir}/tmp-${final.name}-deps.pom">
             <filterset refid="pom-template"/>
         </copy>
+        <copy file=".build/cassandra-thrift-template.xml" tofile="${build.dir}/${ant.project.name}-thrift-${version}.pom">
+            <filterset refid="pom-template"/>
+        </copy>
+        <copy file=".build/cassandra-clientutil-template.xml" tofile="${build.dir}/${ant.project.name}-clientutil-${version}.pom">
+            <filterset refid="pom-template"/>
+        </copy>
     </target>
->>>>>>> 1e27ffc6ad (Remove dependency on Maven Ant Tasks)
 
     <!--
         The jar target makes cassandra.jar output.
