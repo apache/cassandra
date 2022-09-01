@@ -154,7 +154,7 @@
     </target>
 
     <target name="resolver-dist-lib" depends="resolver-retrieve-build">
-        <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
+        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom" />
 
         <resolver:resolve failOnMissingAttachments="true">
             <remoterepos refid="all"/>
