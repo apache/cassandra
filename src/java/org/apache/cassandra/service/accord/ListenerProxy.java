@@ -24,6 +24,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Listener;
@@ -38,6 +41,8 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class ListenerProxy implements Listener, Comparable<ListenerProxy>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ListenerProxy.class);
+
     public enum Kind { COMMAND, COMMANDS_FOR_KEY }
 
     public abstract Kind kind();
@@ -132,11 +137,13 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             TxnOperation scope = TxnOperation.scopeFor(List.of(command.txnId(), txnId), Collections.emptyList());
             if (context.containsScopedItems(scope))
             {
+                logger.trace("{}: synchronously updating listening command {}", c.txnId(), txnId);
                 commandStore.command(txnId).onChange(c);
             }
             else
             {
                 TxnId callingTxnId = command.txnId();
+                logger.trace("{}: asynchronously updating listening command {}", c.txnId(), txnId);
                 commandStore.process(scope, instance -> {
                     Command caller = instance.command(callingTxnId);
                     commandStore.command(txnId).onChange(caller);
@@ -229,11 +236,13 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             TxnOperation scope = TxnOperation.scopeFor(List.of(command.txnId()), List.of(key));
             if (context.containsScopedItems(scope))
             {
+                logger.trace("{}: synchronously updating listening cfk {}", c.txnId(), key);
                 commandStore.commandsForKey(key).onChange(c);
             }
             else
             {
                 TxnId callingTxnId = command.txnId();
+                logger.trace("{}: asynchronously updating listening cfk {}", c.txnId(), key);
                 commandStore.process(scope, instance -> {
                     Command caller = instance.command(callingTxnId);
                     commandStore.commandsForKey(key).onChange(caller);

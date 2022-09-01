@@ -25,6 +25,9 @@ import java.util.TreeSet;
 
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Key;
 import accord.api.Read;
 import accord.api.Result;
@@ -57,6 +60,8 @@ import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySet
 
 public class AccordCommand extends Command implements AccordState<TxnId>
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordCommand.class);
+
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
 
     public static class WriteOnly extends AccordCommand implements AccordState.WriteOnly<TxnId, AccordCommand>
@@ -610,10 +615,12 @@ public class AccordCommand extends Command implements AccordState<TxnId>
             AsyncContext context = commandStore().getContext();
             if (context.containsScopedItems(scope))
             {
+                logger.trace("{}: synchronously updating listener {}", txnId(), listener);
                 listener.onChange(this);;
             }
             else
             {
+                logger.trace("{}: asynchronously updating listener {}", txnId(), listener);
                 commandStore().process(scope, instance -> {
                     listener.onChange(instance.command(txnId()));
                 });
