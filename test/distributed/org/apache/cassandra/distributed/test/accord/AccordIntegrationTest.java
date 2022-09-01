@@ -22,11 +22,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -36,9 +38,14 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.coordinate.Preempted;
+import accord.local.Status;
 import accord.messages.Commit;
 import accord.primitives.Keys;
+import accord.primitives.TxnId;
 import accord.topology.Topologies;
 import accord.txn.Txn;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -54,23 +61,29 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTxnBuilder;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FailingConsumer;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.EQUAL;
 import static org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type.NOT_EXISTS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 //TODO there are too many new clusters, this will cause Metaspace issues.  Once Schema and topology are integrated, can switch
 // to a shared cluster with isolated tables
 public class AccordIntegrationTest extends TestBaseImpl
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordIntegrationTest.class);
+
     private static final String keyspace = "ks";
 
     private static void assertRow(Cluster cluster, String query, int k, int c, int v)
@@ -81,7 +94,7 @@ public class AccordIntegrationTest extends TestBaseImpl
                                                    .build());
     }
 
-    private static void test(Consumer<Cluster> fn) throws IOException
+    private static void test(FailingConsumer<Cluster> fn) throws IOException
     {
         try (Cluster cluster = createCluster())
         {
@@ -186,7 +199,7 @@ public class AccordIntegrationTest extends TestBaseImpl
     }
 
     @Test
-    public void multipleShards() throws IOException
+    public void multipleShards() throws IOException, TimeoutException
     {
         // can't reuse test() due to it using "int" for pk; this test needs "blob"
         try (Cluster cluster = createCluster())
@@ -276,14 +289,33 @@ public class AccordIntegrationTest extends TestBaseImpl
         });
     }
 
-    private static void awaitAsyncApply(Cluster cluster)
+    private static void awaitAsyncApply(Cluster cluster) throws TimeoutException
     {
-        //TODO figure out a way to block so tests can be stable
-        // I tried to check the stores but you have to be in the correct threads and we attempt to load from table but this isn't updated
-        //TODO can't send PreAccept as we don't know the Keys (empty tx)
-//        cluster.get(1).runOnInstance(() -> execute(txn())); // TODO why does this hang?
-
-        Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+        long deadlineNanos = nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        AtomicReference<TimeoutException> timeout = new AtomicReference<>(null);
+        cluster.stream().filter(i -> !i.isShutdown()).forEach(inst -> {
+            while (timeout.get() == null)
+            {
+                SimpleQueryResult pending = inst.executeInternalWithResult("SELECT store_generation, store_index, txn_id, status FROM system_accord.commands WHERE status < ? ALLOW FILTERING", Status.Executed.ordinal());
+                pending = QueryResultUtil.map(pending, Map.of(
+                "txn_id", (ByteBuffer bb) -> AccordKeyspace.deserializeTimestampOrNull(bb, TxnId::new),
+                "status", (Integer ordinal) -> Status.values()[ordinal]
+                ));
+                logger.info("[node{}] Pending:\n{}", inst.config().num(), QueryResultUtil.expand(pending));
+                pending.reset();
+                if (!pending.hasNext())
+                    break;
+                if (nanoTime() > deadlineNanos)
+                {
+                    pending.reset();
+                    timeout.set(new TimeoutException("Timeout waiting on Accord Txn to complete; node" + inst.config().num() + " Pending:\n" + QueryResultUtil.expand(pending)));
+                    break;
+                }
+                Uninterruptibles.sleepUninterruptibly(500, TimeUnit.MILLISECONDS);
+            }
+        });
+        if (timeout.get() != null)
+            throw timeout.get();
     }
 
     private static AccordTxnBuilder txn()

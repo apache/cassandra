@@ -138,7 +138,7 @@ public class AccordUpdate implements Update
 
         public boolean applies(FilteredPartition partition)
         {
-            return applies(partition.getRow(clustering));
+            return applies(partition == null ? null : partition.getRow(clustering));
         }
 
         public boolean supportedByRead(SinglePartitionReadCommand read)

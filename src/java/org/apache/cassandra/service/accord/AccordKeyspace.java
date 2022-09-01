@@ -542,12 +542,12 @@ public class AccordKeyspace
         return TupleType.buildValue(new ByteBuffer[]{bytes(timestamp.epoch), bytes(timestamp.real), bytes(timestamp.logical), bytes(timestamp.node.id)});
     }
 
-    private interface TimestampFactory<T extends Timestamp>
+    public interface TimestampFactory<T extends Timestamp>
     {
         T create(long epoch, long real, int logical, Node.Id node);
     }
 
-    private static <T extends Timestamp> T deserializeTimestampOrNull(ByteBuffer bytes, TimestampFactory<T> factory)
+    public static <T extends Timestamp> T deserializeTimestampOrNull(ByteBuffer bytes, TimestampFactory<T> factory)
     {
         if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
