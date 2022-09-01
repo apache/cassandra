@@ -153,8 +153,8 @@
         </unzip>
     </target>
 
-    <target name="resolver-dist-lib" depends="resolver-retrieve-build">
-        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom" />
+    <target name="resolver-dist-lib" depends="resolver-retrieve-build,write-poms">
+        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
 
         <resolver:resolve failOnMissingAttachments="true">
             <remoterepos refid="all"/>
