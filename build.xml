@@ -901,10 +901,9 @@
           <exclude name="ide/nbproject/private/**" />
         </tarfileset>
 
-        <!-- python driver, puresasl for SASL / GSSAPI -->
+        <!-- python driver -->
         <tarfileset dir="${basedir}" prefix="${final.name}-src">
           <include name="lib/cassandra-driver-internal-only-**" />
-          <include name="lib/puresasl-internal-only-**" />
         </tarfileset>
 
         <!-- Shell includes in bin/ and tools/bin/ -->
