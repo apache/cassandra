@@ -563,11 +563,11 @@ public class CQLSSTableWriter implements Closeable
                 String keyspaceName = schemaStatement.keyspace();
 
                 Schema.instance.transform(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspaceName,
-                                                                                                           KeyspaceParams.simple(1),
-                                                                                                           Tables.none(),
-                                                                                                           Views.none(),
-                                                                                                           Types.none(),
-                                                                                                           Functions.none()), true));
+                                                                                                    KeyspaceParams.simple(1),
+                                                                                                    Tables.none(),
+                                                                                                    Views.none(),
+                                                                                                    Types.none(),
+                                                                                                    UserFunctions.none()), true));
 
                 KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
 
