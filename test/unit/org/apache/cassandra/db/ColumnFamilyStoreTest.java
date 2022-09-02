@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
@@ -58,6 +59,7 @@ import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -74,9 +76,11 @@ public class ColumnFamilyStoreTest
 {
     public static final String KEYSPACE1 = "ColumnFamilyStoreTest1";
     public static final String KEYSPACE2 = "ColumnFamilyStoreTest2";
+    public static final String KEYSPACE3 = "ColumnFamilyStoreTest3";
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
     public static final String CF_INDEX1 = "Indexed1";
+    public static final String CF_SPEC_RETRY1 = "SpeculativeRetryTest1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -90,6 +94,11 @@ public class ColumnFamilyStoreTest
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1));
+        SchemaLoader.createKeyspace(KEYSPACE3,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE3, CF_SPEC_RETRY1)
+                                                .speculativeRetry(SpeculativeRetryPolicy.fromString("50PERCENTILE"))
+                                                .additionalWritePolicy(SpeculativeRetryPolicy.fromString("75PERCENTILE")));
     }
 
     @Before
@@ -321,6 +330,46 @@ public class ColumnFamilyStoreTest
             for (Component c : liveSSTable.getComponents())
                 assertTrue("Cannot find backed-up file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
         }
+    }
+
+    @Test
+    public void speculationThreshold()
+    {
+        // CF_SPEC_RETRY1 configured to use the 50th percentile for read and 75th percentile for write
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE3).getColumnFamilyStore(CF_SPEC_RETRY1);
+
+        cfs.sampleReadLatencyMicros = 123000;
+        cfs.additionalWriteLatencyMicros = 234000;
+
+        // test updating before any stats are present
+        cfs.updateSpeculationThreshold();
+        assertThat(cfs.sampleReadLatencyMicros).isEqualTo(123000);
+        assertThat(cfs.additionalWriteLatencyMicros).isEqualTo(234000);
+
+        // Seed the column family with some latency data.
+        final int count = 10000;
+        for (int millis = 0; millis < count; millis++)
+        {
+            cfs.metric.coordinatorReadLatency.update(millis, TimeUnit.MILLISECONDS);
+            cfs.metric.coordinatorWriteLatency.update(millis, TimeUnit.MILLISECONDS);
+        }
+        // Sanity check the metrics - 50th percentile of linear 0-10000ms
+        // remember, latencies are only an estimate - off by up to 20% by the 1.2 factor between buckets.
+        assertThat(cfs.metric.coordinatorReadLatency.getCount()).isEqualTo(count);
+        assertThat(cfs.metric.coordinatorReadLatency.getSnapshot().getValue(0.5))
+            .isBetween((double) TimeUnit.MILLISECONDS.toMicros(5839),
+                       (double) TimeUnit.MILLISECONDS.toMicros(5840));
+        // Sanity check the metrics - 75th percentileof linear 0-10000ms
+        assertThat(cfs.metric.coordinatorWriteLatency.getCount()).isEqualTo(count);
+        assertThat(cfs.metric.coordinatorWriteLatency.getSnapshot().getValue(0.75))
+        .isBetween((double) TimeUnit.MILLISECONDS.toMicros(8409),
+                   (double) TimeUnit.MILLISECONDS.toMicros(8410));
+
+        // CF_SPEC_RETRY1 configured to use the 50th percentile for speculation
+        cfs.updateSpeculationThreshold();
+
+        assertThat(cfs.sampleReadLatencyMicros).isBetween(TimeUnit.MILLISECONDS.toMicros(5839), TimeUnit.MILLISECONDS.toMicros(5840));
+        assertThat(cfs.additionalWriteLatencyMicros).isBetween(TimeUnit.MILLISECONDS.toMicros(8409), TimeUnit.MILLISECONDS.toMicros(8410));
     }
 
     // TODO: Fix once we have working supercolumns in 8099

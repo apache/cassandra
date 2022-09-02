@@ -49,6 +49,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.Long.MAX_VALUE;
 import static java.lang.Math.min;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -328,15 +329,15 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                                               .map(instance::getColumnFamilyStoreInstance)
                                               .collect(toList());
         for (ColumnFamilyStore cf : cfs)
-            timeout = min(timeout, cf.additionalWriteLatencyNanos);
+            timeout = min(timeout, cf.additionalWriteLatencyMicros);
 
         // no latency information, or we're overloaded
-        if (timeout > mutation.getTimeout(NANOSECONDS))
+        if (timeout > mutation.getTimeout(MICROSECONDS))
             return;
 
         try
         {
-            if (!condition.await(timeout, NANOSECONDS))
+            if (!condition.await(timeout, MICROSECONDS))
             {
                 for (ColumnFamilyStore cf : cfs)
                     cf.metric.additionalWrites.inc();

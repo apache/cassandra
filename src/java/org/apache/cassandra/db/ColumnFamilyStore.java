@@ -174,7 +174,6 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Throwables.propagate;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
@@ -308,8 +307,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     private final Directories directories;
 
     public final TableMetrics metric;
-    public volatile long sampleReadLatencyNanos;
-    public volatile long additionalWriteLatencyNanos;
+    public volatile long sampleReadLatencyMicros;
+    public volatile long additionalWriteLatencyMicros;
 
     private final CassandraTableWriteHandler writeHandler;
     private final CassandraStreamManager streamManager;
@@ -478,8 +477,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         crcCheckChance = new DefaultValue<>(metadata.get().params.crcCheckChance);
         viewManager = keyspace.viewManager.forTable(metadata.id);
         this.sstableIdGenerator = sstableIdGenerator;
-        sampleReadLatencyNanos = DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS) / 2;
-        additionalWriteLatencyNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) / 2;
+        sampleReadLatencyMicros = DatabaseDescriptor.getReadRpcTimeout(TimeUnit.MICROSECONDS) / 2;
+        additionalWriteLatencyMicros = DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MICROSECONDS) / 2;
         memtableFactory = metadata.get().params.memtable.factory();
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
@@ -574,8 +573,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         try
         {
-            sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency, sampleReadLatencyNanos);
-            additionalWriteLatencyNanos = metadata().params.additionalWritePolicy.calculateThreshold(metric.coordinatorWriteLatency, additionalWriteLatencyNanos);
+            sampleReadLatencyMicros = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency, sampleReadLatencyMicros);
+            additionalWriteLatencyMicros = metadata().params.additionalWritePolicy.calculateThreshold(metric.coordinatorWriteLatency, additionalWriteLatencyMicros);
         }
         catch (Throwable e)
         {

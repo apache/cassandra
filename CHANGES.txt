@@ -1,4 +1,5 @@
 4.1-alpha2
+ * Speculative execution threshold unit mismatch (CASSANDRA-17877)
  * Fix BulkLoader to load entireSSTableThrottle and entireSSTableInterDcThrottle (CASSANDRA-17677)
  * Fix a race condition where a keyspace can be oopened while it is being removed (CASSANDRA-17658)
  * DatabaseDescriptor will set the default failure detector during client initialization (CASSANDRA-17782)

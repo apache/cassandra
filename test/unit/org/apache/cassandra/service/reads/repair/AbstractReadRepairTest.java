@@ -228,8 +228,8 @@ public abstract  class AbstractReadRepairTest
         ks = Keyspace.open(ksName);
         cfs = ks.getColumnFamilyStore("tbl");
 
-        cfs.sampleReadLatencyNanos = 0;
-        cfs.additionalWriteLatencyNanos = 0;
+        cfs.sampleReadLatencyMicros = 0;
+        cfs.additionalWriteLatencyMicros = 0;
 
         target1 = InetAddressAndPort.getByName("127.0.0.255");
         target2 = InetAddressAndPort.getByName("127.0.0.254");
@@ -274,8 +274,8 @@ public abstract  class AbstractReadRepairTest
     {
         assert configured : "configureClass must be called in a @BeforeClass method";
 
-        cfs.sampleReadLatencyNanos = 0;
-        cfs.additionalWriteLatencyNanos = 0;
+        cfs.sampleReadLatencyMicros = 0;
+        cfs.additionalWriteLatencyMicros = 0;
     }
 
     static ReplicaPlan.ForRangeRead replicaPlan(ConsistencyLevel consistencyLevel, EndpointsForRange replicas)

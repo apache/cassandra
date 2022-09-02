@@ -48,7 +48,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.all;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 /**
  * Sends a read request to the replicas needed to satisfy a given ConsistencyLevel.
@@ -220,10 +220,16 @@ public abstract class AbstractReadExecutor
     boolean shouldSpeculateAndMaybeWait()
     {
         // no latency information, or we're overloaded
-        if (cfs.sampleReadLatencyNanos > command.getTimeout(NANOSECONDS))
+        if (cfs.sampleReadLatencyMicros > command.getTimeout(MICROSECONDS))
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Decided not to speculate as {} > {}", cfs.sampleReadLatencyMicros, command.getTimeout(MICROSECONDS));
             return false;
+        }
 
-        return !handler.await(cfs.sampleReadLatencyNanos, NANOSECONDS);
+        if (logger.isTraceEnabled())
+            logger.trace("Awaiting {} microseconds before speculating", cfs.sampleReadLatencyMicros);
+        return !handler.await(cfs.sampleReadLatencyMicros, MICROSECONDS);
     }
 
     ReplicaPlan.ForTokenRead replicaPlan()
