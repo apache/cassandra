@@ -454,8 +454,8 @@ public class Tuples
      * @param mapper the mapper used to retrieve the element types from the  items
      * @return the exact TupleType from the items if it can be known or <code>null</code>
      */
-    public static <T> AbstractType<?> getExactTupleTypeIfKnown(List<T> items,
-                                                               java.util.function.Function<T, AbstractType<?>> mapper)
+    public static <T> TupleType getExactTupleTypeIfKnown(List<T> items,
+                                                         java.util.function.Function<T, AbstractType<?>> mapper)
     {
         List<AbstractType<?>> types = new ArrayList<>(items.size());
         for (T item : items)

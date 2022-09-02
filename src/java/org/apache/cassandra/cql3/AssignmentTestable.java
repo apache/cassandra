@@ -19,6 +19,10 @@ package org.apache.cassandra.cql3;
 
 import java.util.Collection;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.db.marshal.AbstractType;
+
 public interface AssignmentTestable
 {
     /**
@@ -31,6 +35,25 @@ public interface AssignmentTestable
      * testing "strong" equality to decide the most precise overload to pick when multiple could match.
      */
     public TestResult testAssignment(String keyspace, ColumnSpecification receiver);
+
+    /**
+     * @return A data type that can represent this, or {@code null} if we can't determine that type. The returned type
+     * won't necessarely be the exact type, but one that is compatible with it.
+     */
+    @Nullable
+    public AbstractType<?> getCompatibleTypeIfKnown(String keyspace);
+
+    /**
+     * @return A data type that can represent all the specified types, or {@code null} if there isn't one.
+     */
+    @Nullable
+    public static AbstractType<?> getCompatibleTypeIfKnown(Collection<AbstractType<?>> types)
+    {
+        return types.stream()
+                    .filter(type -> types.stream().allMatch(t -> t.testAssignment(type).isAssignable()))
+                    .findFirst()
+                    .orElse(null);
+    }
 
     public enum TestResult
     {

@@ -21,13 +21,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
-import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -37,10 +32,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
  */
 public abstract class AggregateFcts
 {
-    public static Collection<AggregateFunction> all()
+    public static void addFunctionsTo(NativeFunctions functions)
     {
-        Collection<AggregateFunction> functions = new ArrayList<>();
-
         functions.add(countRowsFunction);
 
         // sum for primitives
@@ -65,35 +58,37 @@ public abstract class AggregateFcts
         functions.add(avgFunctionForVarint);
         functions.add(avgFunctionForCounter);
 
-        // count, max, and min for all standard types
-        Set<AbstractType<?>> types = new HashSet<>();
-        for (CQL3Type type : CQL3Type.Native.values())
+        // count for all types
+        functions.add(makeCountFunction(BytesType.instance));
+
+        // max for all types
+        functions.add(new FunctionFactory("max", FunctionParameter.anyType(true))
         {
-            AbstractType<?> udfType = type.getType().udfType();
-            if (!types.add(udfType))
-                continue;
-
-            functions.add(AggregateFcts.makeCountFunction(udfType));
-            if (type != CQL3Type.Native.COUNTER)
+            @Override
+            protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
             {
-                functions.add(AggregateFcts.makeMaxFunction(udfType));
-                functions.add(AggregateFcts.makeMinFunction(udfType));
+                AbstractType<?> type = argTypes.get(0);
+                return type.isCounter() ? maxFunctionForCounter : makeMaxFunction(type);
             }
-            else
-            {
-                functions.add(AggregateFcts.maxFunctionForCounter);
-                functions.add(AggregateFcts.minFunctionForCounter);
-            }
-        }
+        });
 
-        return functions;
+        // min for all types
+        functions.add(new FunctionFactory("min", FunctionParameter.anyType(true))
+        {
+            @Override
+            protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
+            {
+                AbstractType<?> type = argTypes.get(0);
+                return type.isCounter() ? minFunctionForCounter : makeMinFunction(type);
+            }
+        });
     }
 
     /**
      * The function used to count the number of rows of a result set. This function is called when COUNT(*) or COUNT(1)
      * is specified.
      */
-    public static final AggregateFunction countRowsFunction =
+    public static final NativeAggregateFunction countRowsFunction =
             new NativeAggregateFunction("countRows", LongType.instance)
             {
                 public Aggregate newAggregate()
@@ -129,7 +124,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for decimal values.
      */
-    public static final AggregateFunction sumFunctionForDecimal =
+    public static final NativeAggregateFunction sumFunctionForDecimal =
             new NativeAggregateFunction("sum", DecimalType.instance, DecimalType.instance)
             {
                 @Override
@@ -166,7 +161,7 @@ public abstract class AggregateFcts
     /**
      * The AVG function for decimal values.
      */
-    public static final AggregateFunction avgFunctionForDecimal =
+    public static final NativeAggregateFunction avgFunctionForDecimal =
             new NativeAggregateFunction("avg", DecimalType.instance, DecimalType.instance)
             {
                 public Aggregate newAggregate()
@@ -209,7 +204,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for varint values.
      */
-    public static final AggregateFunction sumFunctionForVarint =
+    public static final NativeAggregateFunction sumFunctionForVarint =
             new NativeAggregateFunction("sum", IntegerType.instance, IntegerType.instance)
             {
                 public Aggregate newAggregate()
@@ -245,7 +240,7 @@ public abstract class AggregateFcts
     /**
      * The AVG function for varint values.
      */
-    public static final AggregateFunction avgFunctionForVarint =
+    public static final NativeAggregateFunction avgFunctionForVarint =
             new NativeAggregateFunction("avg", IntegerType.instance, IntegerType.instance)
             {
                 public Aggregate newAggregate()
@@ -288,7 +283,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for byte values (tinyint).
      */
-    public static final AggregateFunction sumFunctionForByte =
+    public static final NativeAggregateFunction sumFunctionForByte =
             new NativeAggregateFunction("sum", ByteType.instance, ByteType.instance)
             {
                 public Aggregate newAggregate()
@@ -324,7 +319,7 @@ public abstract class AggregateFcts
     /**
      * AVG function for byte values (tinyint).
      */
-    public static final AggregateFunction avgFunctionForByte =
+    public static final NativeAggregateFunction avgFunctionForByte =
             new NativeAggregateFunction("avg", ByteType.instance, ByteType.instance)
             {
                 public Aggregate newAggregate()
@@ -342,7 +337,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for short values (smallint).
      */
-    public static final AggregateFunction sumFunctionForShort =
+    public static final NativeAggregateFunction sumFunctionForShort =
             new NativeAggregateFunction("sum", ShortType.instance, ShortType.instance)
             {
                 public Aggregate newAggregate()
@@ -378,7 +373,7 @@ public abstract class AggregateFcts
     /**
      * AVG function for for short values (smallint).
      */
-    public static final AggregateFunction avgFunctionForShort =
+    public static final NativeAggregateFunction avgFunctionForShort =
             new NativeAggregateFunction("avg", ShortType.instance, ShortType.instance)
             {
                 public Aggregate newAggregate()
@@ -396,7 +391,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for int32 values.
      */
-    public static final AggregateFunction sumFunctionForInt32 =
+    public static final NativeAggregateFunction sumFunctionForInt32 =
             new NativeAggregateFunction("sum", Int32Type.instance, Int32Type.instance)
             {
                 public Aggregate newAggregate()
@@ -432,7 +427,7 @@ public abstract class AggregateFcts
     /**
      * AVG function for int32 values.
      */
-    public static final AggregateFunction avgFunctionForInt32 =
+    public static final NativeAggregateFunction avgFunctionForInt32 =
             new NativeAggregateFunction("avg", Int32Type.instance, Int32Type.instance)
             {
                 public Aggregate newAggregate()
@@ -450,7 +445,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for long values.
      */
-    public static final AggregateFunction sumFunctionForLong =
+    public static final NativeAggregateFunction sumFunctionForLong =
             new NativeAggregateFunction("sum", LongType.instance, LongType.instance)
             {
                 public Aggregate newAggregate()
@@ -462,7 +457,7 @@ public abstract class AggregateFcts
     /**
      * AVG function for long values.
      */
-    public static final AggregateFunction avgFunctionForLong =
+    public static final NativeAggregateFunction avgFunctionForLong =
             new NativeAggregateFunction("avg", LongType.instance, LongType.instance)
             {
                 public Aggregate newAggregate()
@@ -480,7 +475,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for float values.
      */
-    public static final AggregateFunction sumFunctionForFloat =
+    public static final NativeAggregateFunction sumFunctionForFloat =
             new NativeAggregateFunction("sum", FloatType.instance, FloatType.instance)
             {
                 public Aggregate newAggregate()
@@ -498,7 +493,7 @@ public abstract class AggregateFcts
     /**
      * AVG function for float values.
      */
-    public static final AggregateFunction avgFunctionForFloat =
+    public static final NativeAggregateFunction avgFunctionForFloat =
             new NativeAggregateFunction("avg", FloatType.instance, FloatType.instance)
             {
                 public Aggregate newAggregate()
@@ -516,7 +511,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for double values.
      */
-    public static final AggregateFunction sumFunctionForDouble =
+    public static final NativeAggregateFunction sumFunctionForDouble =
             new NativeAggregateFunction("sum", DoubleType.instance, DoubleType.instance)
             {
                 public Aggregate newAggregate()
@@ -541,9 +536,9 @@ public abstract class AggregateFcts
         private double compensation;
         private double simpleSum;
 
-        private final AbstractType numberType;
+        private final AbstractType<?> numberType;
 
-        public FloatSumAggregate(AbstractType numberType)
+        public FloatSumAggregate(AbstractType<?> numberType)
         {
             this.numberType = numberType;
         }
@@ -599,9 +594,9 @@ public abstract class AggregateFcts
         private BigDecimal bigSum = null;
         private boolean overflow = false;
 
-        private final AbstractType numberType;
+        private final AbstractType<?> numberType;
 
-        public FloatAvgAggregate(AbstractType numberType)
+        public FloatAvgAggregate(AbstractType<?> numberType)
         {
             this.numberType = numberType;
         }
@@ -676,7 +671,7 @@ public abstract class AggregateFcts
     /**
      * AVG function for double values.
      */
-    public static final AggregateFunction avgFunctionForDouble =
+    public static final NativeAggregateFunction avgFunctionForDouble =
             new NativeAggregateFunction("avg", DoubleType.instance, DoubleType.instance)
             {
                 public Aggregate newAggregate()
@@ -694,7 +689,7 @@ public abstract class AggregateFcts
     /**
      * The SUM function for counter column values.
      */
-    public static final AggregateFunction sumFunctionForCounter =
+    public static final NativeAggregateFunction sumFunctionForCounter =
     new NativeAggregateFunction("sum", CounterColumnType.instance, CounterColumnType.instance)
     {
         public Aggregate newAggregate()
@@ -706,7 +701,7 @@ public abstract class AggregateFcts
     /**
      * AVG function for counter column values.
      */
-    public static final AggregateFunction avgFunctionForCounter =
+    public static final NativeAggregateFunction avgFunctionForCounter =
     new NativeAggregateFunction("avg", CounterColumnType.instance, CounterColumnType.instance)
     {
         public Aggregate newAggregate()
@@ -724,7 +719,7 @@ public abstract class AggregateFcts
     /**
      * The MIN function for counter column values.
      */
-    public static final AggregateFunction minFunctionForCounter =
+    public static final NativeAggregateFunction minFunctionForCounter =
     new NativeAggregateFunction("min", CounterColumnType.instance, CounterColumnType.instance)
     {
         public Aggregate newAggregate()
@@ -762,7 +757,7 @@ public abstract class AggregateFcts
     /**
      * MAX function for counter column values.
      */
-    public static final AggregateFunction maxFunctionForCounter =
+    public static final NativeAggregateFunction maxFunctionForCounter =
     new NativeAggregateFunction("max", CounterColumnType.instance, CounterColumnType.instance)
     {
         public Aggregate newAggregate()
@@ -803,7 +798,7 @@ public abstract class AggregateFcts
      * @param inputType the function input and output type
      * @return a MAX function for the specified type.
      */
-    public static AggregateFunction makeMaxFunction(final AbstractType<?> inputType)
+    public static NativeAggregateFunction makeMaxFunction(final AbstractType<?> inputType)
     {
         return new NativeAggregateFunction("max", inputType, inputType)
         {
@@ -844,7 +839,7 @@ public abstract class AggregateFcts
      * @param inputType the function input and output type
      * @return a MIN function for the specified type.
      */
-    public static AggregateFunction makeMinFunction(final AbstractType<?> inputType)
+    public static NativeAggregateFunction makeMinFunction(final AbstractType<?> inputType)
     {
         return new NativeAggregateFunction("min", inputType, inputType)
         {
@@ -885,7 +880,7 @@ public abstract class AggregateFcts
      * @param inputType the function input type
      * @return a COUNT function for the specified type.
      */
-    public static AggregateFunction makeCountFunction(AbstractType<?> inputType)
+    public static NativeAggregateFunction makeCountFunction(AbstractType<?> inputType)
     {
         return new NativeAggregateFunction("count", LongType.instance, inputType)
         {
@@ -957,9 +952,9 @@ public abstract class AggregateFcts
         private BigInteger bigSum = null;
         private boolean overflow = false;
 
-        private final AbstractType numberType;
+        private final AbstractType<?> numberType;
 
-        public AvgAggregate(AbstractType type)
+        public AvgAggregate(AbstractType<?> type)
         {
             this.numberType = type;
         }

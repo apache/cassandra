@@ -274,7 +274,7 @@ public class SchemaLoader
 
     public static void createKeyspace(String name, KeyspaceParams params, Tables tables, Types types)
     {
-        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, Functions.none()));
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, UserFunctions.none()));
     }
 
     public static void setupAuth(IRoleManager roleManager, IAuthenticator authenticator, IAuthorizer authorizer, INetworkAuthorizer networkAuthorizer)
