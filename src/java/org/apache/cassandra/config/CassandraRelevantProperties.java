@@ -304,7 +304,12 @@ public enum CassandraRelevantProperties
     CUSTOM_HINTS_HANDLER("cassandra.custom_hints_handler"),
     CUSTOM_HINTS_ENDPOINT_PROVIDER("cassandra.custom_hints_endpoint_provider"),
 
-    USE_RANDOM_ALLOCATION_IF_NOT_SUPPORTED("cassandra.token_allocation.use_random_if_not_supported");
+    USE_RANDOM_ALLOCATION_IF_NOT_SUPPORTED("cassandra.token_allocation.use_random_if_not_supported"),
+
+    COMPACTION_HISTORY_ENABLED("cassandra.compaction_history_enabled", "true"),
+
+    // Allows one to turn off cursors in compaction.
+    CURSORS_ENABLED("cassandra.allow_cursor_compaction", "true");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
