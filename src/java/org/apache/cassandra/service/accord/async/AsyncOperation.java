@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.async;
 
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -32,7 +33,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
-public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<CommandStore, R>
+public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<CommandStore, R>, BiConsumer<Object, Throwable>
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncOperation.class);
 
@@ -65,6 +66,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         this.commandStore = commandStore;
         this.loader = loader;
         this.writer = new AsyncWriter(commandStore);
+        logger.trace("Created {} on {}", this, commandStore);
     }
 
     public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
@@ -78,7 +80,11 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         return "AsyncOperation{" + state + "}-0x" + Integer.toHexString(System.identityHashCode(this));
     }
 
-    private void callback(Object unused, Throwable throwable)
+    /**
+     * callback for loader and writer
+     */
+    @Override
+    public void accept(Object o, Throwable throwable)
     {
         if (throwable != null)
         {
@@ -93,6 +99,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     @Override
     public void run()
     {
+        logger.trace("Running {} with state {}", this, state);
         commandStore.checkInStoreThread();
         commandStore.setContext(context);
         try
@@ -102,7 +109,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
                 case INITIALIZED:
                     state = State.LOADING;
                 case LOADING:
-                    if (!loader.load(context, this::callback))
+                    if (!loader.load(context, this))
                         return;
 
                     state = State.RUNNING;
@@ -111,7 +118,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
                     state = State.SAVING;
                 case SAVING:
                 case AWAITING_SAVE:
-                    boolean updatesPersisted = writer.save(context, this::callback);
+                    boolean updatesPersisted = writer.save(context, this);
 
                     if (state != State.AWAITING_SAVE)
                     {
@@ -141,6 +148,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         finally
         {
             commandStore.unsetContext(context);
+            logger.trace("Exiting {}", this);
         }
     }
 

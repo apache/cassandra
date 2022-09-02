@@ -137,6 +137,8 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             TxnOperation scope = TxnOperation.scopeFor(List.of(command.txnId(), txnId), Collections.emptyList());
             if (context.containsScopedItems(scope))
             {
+                // TODO (soon): determine if this can break anything by not waiting for the current operation to denormalize it's data
+                //  the summary loader may default to commands in context, in case it wouldn't
                 logger.trace("{}: synchronously updating listening command {}", c.txnId(), txnId);
                 commandStore.command(txnId).onChange(c);
             }

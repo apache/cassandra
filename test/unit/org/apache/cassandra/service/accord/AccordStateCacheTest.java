@@ -253,6 +253,10 @@ public class AccordStateCacheTest
 
         // all should have been evicted except 0
         assertCacheState(cache, 0, 1, DEFAULT_NODE_SIZE);
+        Assert.assertTrue(cache.keyIsCached(0));
+        Assert.assertFalse(cache.keyIsCached(1));
+        Assert.assertFalse(cache.keyIsCached(2));
+        Assert.assertFalse(cache.keyIsCached(3));
     }
 
     static class SetItem implements AccordState<Integer>

@@ -27,6 +27,9 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.primitives.TxnId;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.service.accord.AccordCommand;
@@ -42,6 +45,7 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 public class AsyncLoader
 {
+    private static final Logger logger = LoggerFactory.getLogger(AsyncLoader.class);
     enum State
     {
         INITIALIZED,
@@ -68,7 +72,8 @@ public class AsyncLoader
     private <K, V extends AccordState<K>> Future<?> referenceAndDispatch(K key,
                                                                          AccordStateCache.Instance<K, V> cache,
                                                                          Map<K, V> context,
-                                                                         Function<V, Future<?>> readFunction)
+                                                                         Function<V, Future<?>> readFunction,
+                                                                         Object callback)
     {
         V item;
         Future<?> future = cache.getLoadFuture(key);
@@ -78,16 +83,24 @@ public class AsyncLoader
             item = cache.getOrNull(key);
             Preconditions.checkState(item != null);
             context.put(key, item);
+            if (logger.isTraceEnabled())
+                logger.trace("Existing load future found for {} while loading for {}. ({})", item.key(), callback, item);
             return future;
         }
 
         item = cache.getOrCreate(key);
         context.put(key, item);
         if (item.isLoaded())
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Cached item found for {} while loading for {}. ({})", item.key(), callback, item);
             return null;
+        }
 
         future = readFunction.apply(item);
         cache.setLoadFuture(item.key(), future);
+        if (logger.isTraceEnabled())
+            logger.trace("Loading new item for {} while loading for {}. ({})", item.key(), callback, item);
         return future;
     }
 
@@ -96,11 +109,12 @@ public class AsyncLoader
                                                                                            AccordStateCache.Instance<K, V> cache,
                                                                                            Map<K, V> context,
                                                                                            Function<V, Future<?>> readFunction,
-                                                                                           List<Future<?>> futures)
+                                                                                           List<Future<?>> futures,
+                                                                                           Object callback)
     {
         for (K key : keys)
         {
-            Future<?> future = referenceAndDispatch(key, cache, context, readFunction);
+            Future<?> future = referenceAndDispatch(key, cache, context, readFunction, callback);
             if (future == null)
                 continue;
 
@@ -114,40 +128,66 @@ public class AsyncLoader
     }
 
     @VisibleForTesting
-    Function<AccordCommand, Future<?>> loadCommandFunction()
+    Function<AccordCommand, Future<?>> loadCommandFunction(Object callback)
     {
-        return command -> Stage.READ.submit(() -> AccordKeyspace.loadCommand(command));
+        return command -> Stage.READ.submit(() -> {
+            try
+            {
+                logger.trace("Starting load of {} for {}", command.txnId(), callback);
+                AccordKeyspace.loadCommand(command);
+                logger.trace("Completed load of {} for {}", command.txnId(), callback);
+            }
+            catch (Throwable t)
+            {
+                logger.error(String.format("Exception loading %s for %s", command.txnId(), callback), t);
+                throw t;
+            }
+        });
     }
 
     @VisibleForTesting
-    Function<AccordCommandsForKey, Future<?>> loadCommandsPerKeyFunction()
+    Function<AccordCommandsForKey, Future<?>> loadCommandsPerKeyFunction(Object callback)
     {
-        return cfk -> Stage.READ.submit(() -> AccordKeyspace.loadCommandsForKey(cfk));
+        return cfk -> Stage.READ.submit(() -> {
+            try
+            {
+                logger.trace("Starting load of {} for {}", cfk.key(), callback);
+                AccordKeyspace.loadCommandsForKey(cfk);
+                logger.trace("Completed load of {} for {}", cfk.key(), callback);
+            }
+            catch (Throwable t)
+            {
+                logger.error(String.format("Exception loading %s for %s", cfk.key(), callback), t);
+                throw t;
+            }
+        });
     }
 
-    private Future<?> referenceAndDispatchReads(AsyncContext context)
+    private Future<?> referenceAndDispatchReads(AsyncContext context, Object callback)
     {
         List<Future<?>> futures = null;
 
         futures = referenceAndDispatchReads(txnIds,
                                             commandStore.commandCache(),
                                             context.commands.items,
-                                            loadCommandFunction(),
-                                            futures);
+                                            loadCommandFunction(callback),
+                                            futures,
+                                            callback);
 
         futures = referenceAndDispatchReads(keys,
                                             commandStore.commandsForKeyCache(),
                                             context.commandsForKey.items,
-                                            loadCommandsPerKeyFunction(),
-                                            futures);
+                                            loadCommandsPerKeyFunction(callback),
+                                            futures,
+                                            callback);
 
         return futures != null ? FutureCombiner.allOf(futures) : null;
     }
 
     public boolean load(AsyncContext context, BiConsumer<Object, Throwable> callback)
     {
+        logger.trace("Running load for {} with state {}: {} {}", callback, state, txnIds, keys);
         commandStore.checkInStoreThread();
-
         switch (state)
         {
             case INITIALIZED:
@@ -156,18 +196,20 @@ public class AsyncLoader
                 // notify any pending write only groups we're loading a full instance so the pending changes aren't removed
                 txnIds.forEach(commandStore.commandCache()::lockWriteOnlyGroupIfExists);
                 keys.forEach(commandStore.commandsForKeyCache()::lockWriteOnlyGroupIfExists);
-                readFuture = referenceAndDispatchReads(context);
+                readFuture = referenceAndDispatchReads(context, callback);
                 state = State.LOADING;
             case LOADING:
                 if (readFuture != null)
                 {
                     if (readFuture.isSuccess())
                     {
+                        logger.trace("Read future succeeded for {}", callback);
                         context.verifyLoaded();
                         readFuture = null;
                     }
                     else
                     {
+                        logger.trace("Adding callback for read future: {}", callback);
                         readFuture.addCallback(callback, commandStore.executor());
                         break;
                     }
@@ -184,6 +226,7 @@ public class AsyncLoader
                 throw new IllegalStateException();
         }
 
+        logger.trace("Exiting load for {} with state {}: {} {}", callback, state, txnIds, keys);
         return state == State.FINISHED;
     }
 }

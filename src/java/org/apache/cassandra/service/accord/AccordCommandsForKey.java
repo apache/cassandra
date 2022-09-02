@@ -29,6 +29,9 @@ import java.util.stream.Stream;
 
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
@@ -49,6 +52,8 @@ import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySet
 
 public class AccordCommandsForKey extends CommandsForKey implements AccordState<PartitionKey>
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordCommandsForKey.class);
+
     private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordCommandsForKey(null, null));
 
     public static class Defaults
@@ -336,6 +341,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         if (isEmpty() || blindWitnessed.getView().isEmpty())
             return;
 
+        logger.trace("Applying blind witnessed timestamps for {}: {}", key(), blindWitnessed.getView());
         blindWitnessed.getView().forEach(this::updateMax);
         blindWitnessed.clear();
     }

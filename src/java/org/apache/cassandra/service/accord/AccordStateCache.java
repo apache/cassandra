@@ -30,6 +30,9 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Read;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -40,13 +43,26 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
  *
  * Supports dynamic object sizes. After each acquire/free cycle, the cacheable objects size is recomputed to
  * account for data added/removed during txn processing if it's modified flag is set
+ *
+ * TODO: explain how items move to and from the active pool and are evicted
  */
 public class AccordStateCache
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordStateCache.class);
+
     private static class WriteOnlyGroup<K, V extends AccordState<K>>
     {
         private boolean locked = false;
         private List<AccordState.WriteOnly<K, V>> items = new ArrayList<>();
+
+        @Override
+        public String toString()
+        {
+            return "WriteOnlyGroup{" +
+                   "locked=" + locked +
+                   ", items=" + items +
+                   '}';
+        }
 
         void lock()
         {
@@ -122,16 +138,26 @@ public class AccordStateCache
         private long misses;
     }
 
+    private static class NamedMap<K, V> extends HashMap<K, V>
+    {
+        final String name;
+
+        public NamedMap(String name)
+        {
+            this.name = name;
+        }
+    }
+
     public final Map<Object, Node<?, ?>> active = new HashMap<>();
     private final Map<Object, Node<?, ?>> cache = new HashMap<>();
     private final Map<Object, WriteOnlyGroup<?, ?>> pendingWriteOnly = new HashMap<>();
     private final Set<Instance<?, ?>> instances = new HashSet<>();
 
-    private final Map<Object, Future<?>> loadFutures = new HashMap<>();
-    private final Map<Object, Future<?>> saveFutures = new HashMap<>();
+    private final NamedMap<Object, Future<?>> loadFutures = new NamedMap<>("loadFutures");
+    private final NamedMap<Object, Future<?>> saveFutures = new NamedMap<>("saveFutures");
 
-    private final Map<Object, Read.ReadFuture> readFutures = new HashMap<>();
-    private final Map<Object, Future<?>> writeFutures = new HashMap<>();
+    private final NamedMap<Object, Read.ReadFuture> readFutures = new NamedMap<>("readFutures");
+    private final NamedMap<Object, Future<?>> writeFutures = new NamedMap<>("writeFutures");
 
     Node<?, ?> head;
     Node<?, ?> tail;
@@ -221,13 +247,14 @@ public class AccordStateCache
             if (!canEvict(evict.key()))
                 continue;
 
+            logger.trace("Evicting {} {}", evict.value.getClass().getSimpleName(), evict.key());
             unlink(evict);
             cache.remove(evict.key());
             bytesCached -= evict.size();
         }
     }
 
-    private static <K, F extends Future<?>> F getFuture(Map<Object, F> futuresMap, K key)
+    private static <K, F extends Future<?>> F getFuture(NamedMap<Object, F> futuresMap, K key)
     {
         F r = futuresMap.get(key);
         if (r == null)
@@ -236,6 +263,8 @@ public class AccordStateCache
         if (!r.isDone())
             return r;
 
+        if (logger.isTraceEnabled())
+            logger.trace("Clearning future for {} from {}: {}", key, futuresMap.name, r);
         futuresMap.remove(key);
         return null;
     }
@@ -250,7 +279,10 @@ public class AccordStateCache
     {
         Future<?> existing = futuresMap.get(key);
         if (existing != null && !existing.isDone())
+        {
+            logger.trace("Merging future {} with existing {}", future, existing);
             future = FutureCombiner.allOf(List.of(existing, future));
+        }
 
         futuresMap.put(key, future);
     }
@@ -348,12 +380,14 @@ public class AccordStateCache
         public void release(V value)
         {
             K key = value.key();
+            logger.trace("Releasing resources for {}: {}", key, value);
             maybeClearFuture(key);
             Node<K, V> node = (Node<K, V>) active.get(key);
             Preconditions.checkState(node != null && node.references > 0);
             Preconditions.checkState(node.value == value);
             if (--node.references == 0)
             {
+                logger.trace("Moving {} from active pool to cache", key);
                 active.remove(key);
                 cache.put(key, node);
                 push(node);
@@ -393,6 +427,7 @@ public class AccordStateCache
             if (group == null)
                 return;
 
+            logger.trace("Locking write only group for {} ({})", key, group);
             group.purge();
             if (!group.isEmpty())
                 group.lock();
@@ -404,6 +439,7 @@ public class AccordStateCache
             if (group == null)
                 return;
 
+            logger.trace("Applying and removing write only group for {} ({})", instance.key(), group);
             for (AccordState.WriteOnly<K, V> writeOnly : group.items)
             {
                 writeOnly.applyChanges(instance);
@@ -454,6 +490,7 @@ public class AccordStateCache
 
         public void addSaveFuture(K key, Future<?> future)
         {
+            logger.trace("Adding save future for {}: {}", key, future);
             mergeFuture(saveFutures, key, future);
         }
 

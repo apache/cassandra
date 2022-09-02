@@ -30,6 +30,9 @@ import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Key;
 import accord.local.Status;
 import accord.primitives.TxnId;
@@ -50,6 +53,8 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 public class AsyncWriter
 {
+    private static final Logger logger = LoggerFactory.getLogger(AsyncWriter.class);
+
     enum State
     {
         INITIALIZED,
@@ -81,7 +86,8 @@ public class AsyncWriter
                                                                                 StateMutationFunction<K, V> mutationFunction,
                                                                                 long timestamp,
                                                                                 AccordCommandStore commandStore,
-                                                                                List<Future<?>> futures)
+                                                                                List<Future<?>> futures,
+                                                                                Object callback)
     {
         for (V item : ctxGroup.items.values())
         {
@@ -89,8 +95,23 @@ public class AsyncWriter
                 continue;
 
             if (futures == null) futures = new ArrayList<>();
+            K key = item.key();
             Mutation mutation = mutationFunction.apply(item, timestamp);
-            Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
+            Future<?> future = Stage.MUTATION.submit(() -> {
+                try
+                {
+                    if (logger.isTraceEnabled())
+                        logger.trace("Applying mutation for {} for {}: {}", key, callback, mutation);
+                    mutation.apply();
+                    if (logger.isTraceEnabled())
+                        logger.trace("Completed applying mutation for {} for {}: {}", key, callback, mutation);
+                }
+                catch (Throwable t)
+                {
+                    logger.error(String.format("Exception applying mutation for %s for %s: %s", key, callback, mutation), t);
+                    throw t;
+                }
+            });
             cache.addSaveFuture(item.key(), future);
             futures.add(future);
         }
@@ -109,7 +130,7 @@ public class AsyncWriter
         return futures;
     }
 
-    private Future<?> maybeDispatchWrites(AsyncContext context) throws IOException
+    private Future<?> maybeDispatchWrites(AsyncContext context, Object callback) throws IOException
     {
         List<Future<?>> futures = null;
 
@@ -119,14 +140,16 @@ public class AsyncWriter
                                  AccordKeyspace::getCommandMutation,
                                  timestamp,
                                  commandStore,
-                                 futures);
+                                 futures,
+                                 callback);
 
         futures = dispatchWrites(context.commandsForKey,
                                  commandStore.commandsForKeyCache(),
                                  AccordKeyspace::getCommandsForKeyMutation,
                                  timestamp,
                                  commandStore,
-                                 futures);
+                                 futures,
+                                 callback);
 
         return futures != null ? FutureCombiner.allOf(futures) : null;
     }
@@ -194,7 +217,7 @@ public class AsyncWriter
         return (AccordCommandsForKey) getForDenormalization(key, commandStore, context.commandsForKey, cfkCache, AccordCommandsForKey.WriteOnly::new, addToCtx);
     }
 
-    private void denormalize(AccordCommand command, AsyncContext context)
+    private void denormalize(AccordCommand command, AsyncContext context, Object callback)
     {
         if (!command.hasModifications())
             return;
@@ -226,14 +249,20 @@ public class AsyncWriter
             }
         }
 
+        if (logger.isTraceEnabled())
+        {
+            context.commands.items.forEach((txnId, cmd) -> logger.trace("Denormalized command {} for {}: {}", txnId, callback, cmd));
+            context.commandsForKey.items.forEach((key, cfk) -> logger.trace("Denormalized cfk {} for {}: {}", key, callback, cfk));
+        }
+
         context.commands.items.putAll(addCmdToCtx);
         context.commandsForKey.items.putAll(addCfkToCtx);
     }
 
-    private void denormalize(AsyncContext context)
+    private void denormalize(AsyncContext context, Object callback)
     {
         // need to clone "values" as denormalize will mutate it
-        new ArrayList<>(context.commands.items.values()).forEach(command -> denormalize(command, context));
+        new ArrayList<>(context.commands.items.values()).forEach(command -> denormalize(command, context, callback));
     }
 
     private static void confirmNoSummaryChanges(AsyncContext context)
@@ -244,8 +273,8 @@ public class AsyncWriter
 
     public boolean save(AsyncContext context, BiConsumer<Object, Throwable> callback)
     {
+        logger.trace("Running save for {} with state {}", callback, state);
         commandStore.checkInStoreThread();
-
         try
         {
             switch (state)
@@ -254,13 +283,14 @@ public class AsyncWriter
                     state = State.SETUP;
                 case SETUP:
                     confirmNoSummaryChanges(context);
-                    denormalize(context);
-                    writeFuture = maybeDispatchWrites(context);
+                    denormalize(context, callback);
+                    writeFuture = maybeDispatchWrites(context, callback);
 
                     state = State.SAVING;
                 case SAVING:
                     if (writeFuture != null && !writeFuture.isSuccess())
                     {
+                        logger.trace("Adding callback for write future: {}", callback);
                         writeFuture.addCallback(callback, commandStore.executor());
                         break;
                     }
@@ -276,6 +306,7 @@ public class AsyncWriter
             throw new RuntimeException(e);
         }
 
+        logger.trace("Exiting save for {} with state {}", callback, state);
         return state == State.FINISHED;
     }
 
