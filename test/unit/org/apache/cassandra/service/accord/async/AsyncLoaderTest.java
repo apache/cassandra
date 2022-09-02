@@ -311,7 +311,7 @@ public class AsyncLoaderTest
             AtomicInteger loadCalls = new AtomicInteger();
             AsyncLoader loader = new AsyncLoader(commandStore, List.of(txnId1, txnId2), Collections.emptyList()){
                 @Override
-                Function<AccordCommand, Future<?>> loadCommandFunction()
+                Function<AccordCommand, Future<?>> loadCommandFunction(Object callback)
                 {
                     return cmd -> {
                         TxnId txnId = cmd.txnId();
