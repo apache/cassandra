@@ -222,7 +222,7 @@ public class AccordKeyspace
         static final ColumnMetadata data = getColumn(CommandsForKey, "data");
 
         static final Columns statics = Columns.from(Lists.newArrayList(max_timestamp, last_executed_timestamp, last_executed_micros, blind_witnessed));
-        static final Columns regulars = Columns.from(Lists.newArrayList(timestamp, data));
+        static final Columns regulars = Columns.from(Lists.newArrayList(data));
         private static final RegularAndStaticColumns all = new RegularAndStaticColumns(statics, regulars);
         private static final RegularAndStaticColumns justStatic = new RegularAndStaticColumns(statics, Columns.NONE);
         private static final RegularAndStaticColumns justRegular = new RegularAndStaticColumns(Columns.NONE, regulars);
