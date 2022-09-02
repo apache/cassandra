@@ -104,7 +104,7 @@ public class AsyncWriter
                         logger.trace("Applying mutation for {} for {}: {}", key, callback, mutation);
                     mutation.apply();
                     if (logger.isTraceEnabled())
-                        logger.trace("Completed applying mutation for {} for {}: {}", key, callback, mutation);
+                    logger.trace("Completed applying mutation for {} for {}: {}", key, callback, mutation);
                 }
                 catch (Throwable t)
                 {

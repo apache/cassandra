@@ -148,8 +148,8 @@ public class AccordKeyspace
               + "writes blob,"
               + "result_version int,"
               + "result blob,"
-              + format("waiting_on_commit map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
-              + format("waiting_on_apply map<%s, %s>,", TIMESTAMP_TUPLE, TIMESTAMP_TUPLE)
+              + format("waiting_on_commit map<%s, blob>,", TIMESTAMP_TUPLE)
+              + format("waiting_on_apply map<%s, blob>,", TIMESTAMP_TUPLE)
               + "listeners set<blob>, "
               + format("blocking_commit_on set<%s>, ", TIMESTAMP_TUPLE)
               + format("blocking_apply_on set<%s>, ", TIMESTAMP_TUPLE)
