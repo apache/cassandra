@@ -28,6 +28,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordKey;
 
@@ -35,26 +36,7 @@ public class KeySerializers
 {
     private KeySerializers() {}
 
-    public static final IVersionedSerializer<Key> key = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(Key key, DataOutputPlus out, int version) throws IOException
-        {
-            AccordKey.PartitionKey.serializer.serialize((AccordKey.PartitionKey) key, out, version);
-        }
-
-        @Override
-        public Key deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return AccordKey.PartitionKey.serializer.deserialize(in, version);
-        }
-
-        @Override
-        public long serializedSize(Key key, int version)
-        {
-            return AccordKey.PartitionKey.serializer.serializedSize((AccordKey.PartitionKey) key, version);
-        }
-    };
+    public static final IVersionedSerializer<Key> key = (IVersionedSerializer<Key>) (IVersionedSerializer<?>) AccordKey.serializer;
 
     public static final IVersionedSerializer<Keys> keys = new IVersionedSerializer<>()
     {
