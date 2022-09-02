@@ -264,7 +264,7 @@ public class AccordStateCache
             return r;
 
         if (logger.isTraceEnabled())
-            logger.trace("Clearning future for {} from {}: {}", key, futuresMap.name, r);
+            logger.trace("Clearing future for {} from {}: {}", key, futuresMap.name, r);
         futuresMap.remove(key);
         return null;
     }
