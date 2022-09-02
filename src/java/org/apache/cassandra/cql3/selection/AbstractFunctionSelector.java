@@ -22,14 +22,14 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
 import org.apache.commons.lang3.text.StrBuilder;
+
+import org.apache.cassandra.cql3.functions.FunctionResolver;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -64,16 +64,14 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                 argTypes.add(readType(metadata, in));
             }
 
-            Optional<Function> optional = Schema.instance.findFunction(name, argTypes);
+            Function function = FunctionResolver.get(metadata.keyspace, name, argTypes, metadata.keyspace, metadata.name, null);
 
-            if (!optional.isPresent())
+            if (function == null)
                 throw new IOException(String.format("Unknown serialized function %s(%s)",
                                                     name,
                                                     argTypes.stream()
                                                             .map(p -> p.asCQL3Type().toString())
                                                             .collect(joining(", "))));
-
-            Function function = optional.get();
 
             boolean isPartial = in.readBoolean();
             if (isPartial)
@@ -102,8 +100,8 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         }
 
         protected abstract Selector newFunctionSelector(Function function, List<Selector> argSelectors);
-    };
-    
+    }
+
     protected final T fun;
 
     /**

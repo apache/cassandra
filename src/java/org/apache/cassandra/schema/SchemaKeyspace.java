@@ -63,7 +63,7 @@ import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
 
 /**
  * system_schema.* tables and methods for manipulating them.
- * 
+ *
  * Please notice this class is _not_ thread safe and all methods which reads or updates the data in schema keyspace
  * should be accessed only from the implementation of {@link SchemaUpdateHandler} in synchronized blocks.
  */
@@ -471,8 +471,8 @@ public final class SchemaKeyspace
         keyspace.tables.forEach(table -> addTableToSchemaMutation(table, true, builder));
         keyspace.views.forEach(view -> addViewToSchemaMutation(view, true, builder));
         keyspace.types.forEach(type -> addTypeToSchemaMutation(type, builder));
-        keyspace.functions.udfs().forEach(udf -> addFunctionToSchemaMutation(udf, builder));
-        keyspace.functions.udas().forEach(uda -> addAggregateToSchemaMutation(uda, builder));
+        keyspace.userFunctions.udfs().forEach(udf -> addFunctionToSchemaMutation(udf, builder));
+        keyspace.userFunctions.udas().forEach(uda -> addAggregateToSchemaMutation(uda, builder));
 
         return builder;
     }
@@ -871,7 +871,7 @@ public final class SchemaKeyspace
         Types types = fetchTypes(keyspaceName);
         Tables tables = fetchTables(keyspaceName, types);
         Views views = fetchViews(keyspaceName, types);
-        Functions functions = fetchFunctions(keyspaceName, types);
+        UserFunctions functions = fetchFunctions(keyspaceName, types);
         return KeyspaceMetadata.create(keyspaceName, params, tables, views, types, functions);
     }
 
@@ -1139,12 +1139,12 @@ public final class SchemaKeyspace
         return new ViewMetadata(baseTableId, baseTableName, includeAll, whereClause, metadata);
     }
 
-    private static Functions fetchFunctions(String keyspaceName, Types types)
+    private static UserFunctions fetchFunctions(String keyspaceName, Types types)
     {
         Collection<UDFunction> udfs = fetchUDFs(keyspaceName, types);
         Collection<UDAggregate> udas = fetchUDAs(keyspaceName, udfs, types);
 
-        return org.apache.cassandra.schema.Functions.builder().add(udfs).add(udas).build();
+        return UserFunctions.builder().add(udfs).add(udas).build();
     }
 
     private static Collection<UDFunction> fetchUDFs(String keyspaceName, Types types)
@@ -1181,7 +1181,7 @@ public final class SchemaKeyspace
          * TODO: find a way to get rid of Schema.instance dependency; evaluate if the opimisation below makes a difference
          * in the first place. Remove if it isn't.
          */
-        org.apache.cassandra.cql3.functions.Function existing = Schema.instance.findFunction(name, argTypes).orElse(null);
+        UserFunction existing = Schema.instance.findUserFunction(name, argTypes).orElse(null);
         if (existing instanceof UDFunction)
         {
             // This check prevents duplicate compilation of effectively the same UDF.
