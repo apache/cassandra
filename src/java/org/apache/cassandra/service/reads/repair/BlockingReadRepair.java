@@ -39,6 +39,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.tracing.Tracing;
 
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
@@ -74,7 +75,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     {
         for (BlockingPartitionRepair repair: repairs)
         {
-            repair.maybeSendAdditionalWrites(cfs.additionalWriteLatencyNanos, TimeUnit.NANOSECONDS);
+            repair.maybeSendAdditionalWrites(cfs.additionalWriteLatencyMicros, MICROSECONDS);
         }
     }
 

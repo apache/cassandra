@@ -28,6 +28,13 @@ public interface SpeculativeRetryPolicy
         NEVER, FIXED, PERCENTILE, HYBRID, ALWAYS
     }
 
+    /**
+     * Calculate the delay in microseconds after which speculation takes place
+     *
+     * @param latency       snapshot of coordinator latencies (in microseconds)
+     * @param existingValue existing speculation threshold (in microseconds)
+     * @return speculation delay (in microseconds).
+     */
     long calculateThreshold(SnapshottingTimer latency, long existingValue);
 
     Kind kind();

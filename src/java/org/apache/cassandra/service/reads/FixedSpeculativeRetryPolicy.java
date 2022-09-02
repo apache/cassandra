@@ -42,7 +42,7 @@ public class FixedSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     @Override
     public long calculateThreshold(SnapshottingTimer latency, long existingValue)
     {
-        return TimeUnit.MILLISECONDS.toNanos(speculateAtMilliseconds);
+        return TimeUnit.MILLISECONDS.toMicros(speculateAtMilliseconds);
     }
 
     @Override
