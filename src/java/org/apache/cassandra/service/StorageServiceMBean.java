@@ -417,9 +417,21 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void forceTerminateAllRepairSessions();
 
+    /**
+     * @deprecated use setRepairSessionMaximumTreeDepth instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setRepairSessionMaxTreeDepth(int depth);
 
+    /**
+     * @deprecated use getRepairSessionMaximumTreeDepth instead
+     */
+    @Deprecated
     public int getRepairSessionMaxTreeDepth();
+
+    public void setRepairSessionMaximumTreeDepth(int depth);
+
+    public int getRepairSessionMaximumTreeDepth();
 
     /**
      * Get the status of a given parent repair session.
@@ -865,23 +877,59 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Returns the granularity of the collation index of rows within a partition **/
     public int getColumnIndexSizeInKiB();
+
     /** Sets the granularity of the collation index of rows within a partition **/
+    public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB);
+
+    /**
+     * Sets the granularity of the collation index of rows within a partition
+     * @deprecated use setColumnIndexSizeInKiB instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setColumnIndexSize(int columnIndexSizeInKB);
 
-    /** Returns the threshold for skipping the column index when caching partition info **/
+    /**
+     * Returns the threshold for skipping the column index when caching partition info
+     * @deprecated use getColumnIndexCacheSizeInKiB
+     */
+    @Deprecated
     public int getColumnIndexCacheSize();
-    /** Sets the threshold for skipping the column index when caching partition info **/
+
+    /**
+     * Sets the threshold for skipping the column index when caching partition info
+     * @deprecated use setColumnIndexCacheSizeInKiB instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setColumnIndexCacheSize(int cacheSizeInKB);
+
+    /** Returns the threshold for skipping the column index when caching partition info **/
+    public int getColumnIndexCacheSizeInKiB();
+
+    /** Sets the threshold for skipping the column index when caching partition info **/
+    public void setColumnIndexCacheSizeInKiB(int cacheSizeInKiB);
 
     /** Returns the threshold for rejecting queries due to a large batch size */
     public int getBatchSizeFailureThreshold();
     /** Sets the threshold for rejecting queries due to a large batch size */
     public void setBatchSizeFailureThreshold(int batchSizeDebugThreshold);
 
-    /** Returns the threshold for warning queries due to a large batch size */
+    /**
+     * Returns the threshold for warning queries due to a large batch size
+     * @deprecated use getBatchSizeWarnThresholdInKiB instead
+     */
+    @Deprecated
     public int getBatchSizeWarnThreshold();
-    /** Sets the threshold for warning queries due to a large batch size */
+    /**
+     * Sets the threshold for warning queries due to a large batch size
+     * @deprecated use setBatchSizeWarnThresholdInKiB instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setBatchSizeWarnThreshold(int batchSizeDebugThreshold);
+
+    /** Returns the threshold for warning queries due to a large batch size */
+    public int getBatchSizeWarnThresholdInKiB();
+    /** Sets the threshold for warning queries due to a large batch size **/
+    public void setBatchSizeWarnThresholdInKiB(int batchSizeDebugThreshold);
 
     /** Sets the hinted handoff throttle in KiB per second, per delivery thread. */
     public void setHintedHandoffThrottleInKB(int throttleInKB);
