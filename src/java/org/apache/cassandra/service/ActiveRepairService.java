@@ -46,6 +46,7 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -297,14 +298,40 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
+    @Deprecated
     @Override
     public void setRepairSessionSpaceInMebibytes(int sizeInMebibytes)
     {
         DatabaseDescriptor.setRepairSessionSpaceInMiB(sizeInMebibytes);
     }
 
+    @Deprecated
     @Override
     public int getRepairSessionSpaceInMebibytes()
+    {
+        return DatabaseDescriptor.getRepairSessionSpaceInMiB();
+    }
+
+    @Override
+    public void setRepairSessionSpaceInMiB(int sizeInMebibytes)
+    {
+        try
+        {
+            DatabaseDescriptor.setRepairSessionSpaceInMiB(sizeInMebibytes);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+    }
+
+    /*
+     * In CASSANDRA-17668, JMX setters that did not throw standard exceptions were deprecated in favor of ones that do.
+     * For consistency purposes, the respective getter "getRepairSessionSpaceInMebibytes" was also deprecated and
+     * replaced by this method.
+     */
+    @Override
+    public int getRepairSessionSpaceInMiB()
     {
         return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
