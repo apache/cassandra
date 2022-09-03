@@ -1,4 +1,6 @@
 4.2
+ * Fix leak of non-standard Java types in JMX MBeans `org.apache.cassandra.db:type=StorageService`
+   and `org.apache.cassandra.db:type=RepairService` as clients using JMX cannot handle them. More details in NEWS.txt (CASSANDRA-17668)
  * Deprecate Throwables.propagate usage (CASSANDRA-14218)
  * Allow disabling hotness persistence for high sstable counts (CASSANDRA-17868)
  * Prevent NullPointerException when changing neverPurgeTombstones from true to false (CASSANDRA-17897)
