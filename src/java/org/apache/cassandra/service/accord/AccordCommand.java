@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Preconditions;
 
@@ -63,6 +64,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     private static final Logger logger = LoggerFactory.getLogger(AccordCommand.class);
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
+
+    private static final AtomicInteger INSTANCE_COUNTER = new AtomicInteger(0);
 
     public static class WriteOnly extends AccordCommand implements AccordState.WriteOnly<TxnId, AccordCommand>
     {
@@ -106,6 +109,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private final AccordCommandStore commandStore;
     private final TxnId txnId;
+    private final int instanceCount = INSTANCE_COUNTER.getAndIncrement();
     public final StoredValue<Key> homeKey;
     public final StoredValue<Key> progressKey;
     public final StoredValue<Txn> txn;
@@ -166,11 +170,11 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                ", promised=" + promised +
                ", accepted=" + accepted +
                ", deps=" + deps +
-               ", homeKey=" + homeKey +
-               ", progressKey=" + progressKey +
-               ", txn=" + txn +
-               ", writes=" + writes +
-               ", result=" + result +
+//               ", homeKey=" + homeKey +
+//               ", progressKey=" + progressKey +
+//               ", txn=" + txn +
+//               ", writes=" + writes +
+//               ", result=" + result +
                ", isGloballyPersistent=" + isGloballyPersistent +
                ", waitingOnCommit=" + waitingOnCommit +
                ", waitingOnApply=" + waitingOnApply +
@@ -337,7 +341,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private int instanceHash()
     {
-        return System.identityHashCode(this);
+//        return System.identityHashCode(this);
+        return instanceCount;
     }
 
     @Override
