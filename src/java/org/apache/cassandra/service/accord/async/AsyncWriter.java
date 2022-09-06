@@ -92,11 +92,17 @@ public class AsyncWriter
         for (V item : ctxGroup.items.values())
         {
             if (!item.hasModifications())
+            {
+                if (logger.isTraceEnabled())
+                    logger.trace("No modifications for {} for {}, {}", item.key(), callback, item);
                 continue;
+            }
 
             if (futures == null) futures = new ArrayList<>();
             K key = item.key();
             Mutation mutation = mutationFunction.apply(item, timestamp);
+            if (logger.isTraceEnabled())
+                logger.trace("Dispatching mutation for {} for {}, {} -> {}", key, callback, item, mutation);
             Future<?> future = Stage.MUTATION.submit(() -> {
                 try
                 {
