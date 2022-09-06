@@ -226,8 +226,7 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
 
             cluster.get(1).runOnInstance(() ->
             {
-                InboundMessageHandlers inbound = getOnlyElement(MessagingService.instance().messageHandlers.values());
-                assertEquals(0, inbound.count());
+                assertTrue(MessagingService.instance().messageHandlers.isEmpty());
 
                 OutboundConnections outbound = getOnlyElement(MessagingService.instance().channelManagers.values());
                 assertFalse(outbound.small.isConnected() || outbound.large.isConnected() || outbound.urgent.isConnected());
