@@ -130,6 +130,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     public AccordCommand(AccordCommandStore commandStore, TxnId txnId)
     {
+        logger.trace("Instantiating new command {} @ {}", txnId, instanceHash());
         this.commandStore = commandStore;
         this.txnId = txnId;
         homeKey = new StoredValue<>(kind());
@@ -159,16 +160,17 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         return "AccordCommand{" +
                "txnId=" + txnId +
+               ", instanceHash=" + instanceHash() +
+               ", status=" + status +
+               ", executeAt=" + executeAt +
+               ", promised=" + promised +
+               ", accepted=" + accepted +
+               ", deps=" + deps +
                ", homeKey=" + homeKey +
                ", progressKey=" + progressKey +
                ", txn=" + txn +
-               ", promised=" + promised +
-               ", accepted=" + accepted +
-               ", executeAt=" + executeAt +
-               ", deps=" + deps +
                ", writes=" + writes +
                ", result=" + result +
-               ", status=" + status +
                ", isGloballyPersistent=" + isGloballyPersistent +
                ", waitingOnCommit=" + waitingOnCommit +
                ", waitingOnApply=" + waitingOnApply +
@@ -222,6 +224,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     public AccordCommand initialize()
     {
+        logger.trace("Initializing command {} @ {}", txnId, instanceHash());
         status.set(Status.NotWitnessed);
         homeKey.set(null);
         progressKey.set(null);
@@ -286,6 +289,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public void clearModifiedFlag()
     {
+        logger.trace("Clearing modified flag on command {} @ {}", txnId, instanceHash());
         homeKey.clearModifiedFlag();
         progressKey.clearModifiedFlag();
         txn.clearModifiedFlag();
@@ -329,6 +333,11 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                && blockingApplyOn.equals(command.blockingApplyOn)
                && storedListeners.equals(command.storedListeners)
                && transientListeners.equals(command.transientListeners);
+    }
+
+    private int instanceHash()
+    {
+        return System.identityHashCode(this);
     }
 
     @Override
