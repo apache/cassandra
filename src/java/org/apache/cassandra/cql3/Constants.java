@@ -485,6 +485,8 @@ public abstract class Constants
                 @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
                 ByteBuffer increment = t.bindAndGet(params.options);
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                if (current == null)
+                    return;
                 ByteBuffer newValue = type.add(type, current, type, increment);
                 params.addCell(column, newValue);
             }
@@ -494,15 +496,10 @@ public abstract class Constants
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 ByteBuffer newValue;
                 if (current == null)
-                {
-                    newValue = append;
-                }
-                else
-                {
-                    newValue = ByteBuffer.allocate(current.remaining() + append.remaining());
-                    FastByteOperations.copy(current, current.position(), newValue, newValue.position(), current.remaining());
-                    FastByteOperations.copy(append, append.position(), newValue, newValue.position() + current.remaining(), append.remaining());
-                }
+                    return;
+                newValue = ByteBuffer.allocate(current.remaining() + append.remaining());
+                FastByteOperations.copy(current, current.position(), newValue, newValue.position(), current.remaining());
+                FastByteOperations.copy(append, append.position(), newValue, newValue.position() + current.remaining(), append.remaining());
                 params.addCell(column, newValue);
             }
         }
