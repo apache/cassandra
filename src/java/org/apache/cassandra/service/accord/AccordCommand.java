@@ -63,9 +63,9 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommand.class);
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
-
     private static final AtomicInteger INSTANCE_COUNTER = new AtomicInteger(0);
+
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
 
     public static class WriteOnly extends AccordCommand implements AccordState.WriteOnly<TxnId, AccordCommand>
     {
