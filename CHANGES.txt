@@ -1,4 +1,5 @@
 4.1-alpha2
+ * upsert with adder support is not consistent with numbers and strings in LWT (CASSANDRA-17857)
  * Fix race and return after failing connections (CASSANDRA-17618)
  * Speculative execution threshold unit mismatch (CASSANDRA-17877)
  * Fix BulkLoader to load entireSSTableThrottle and entireSSTableInterDcThrottle (CASSANDRA-17677)
