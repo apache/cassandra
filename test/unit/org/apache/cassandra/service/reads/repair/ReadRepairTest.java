@@ -124,7 +124,7 @@ public class ReadRepairTest
         ks = Keyspace.open(ksName);
         cfs = ks.getColumnFamilyStore("tbl");
 
-        cfs.sampleReadLatencyNanos = 0;
+        cfs.sampleReadLatencyMicros = 0;
 
         target1 = full(InetAddressAndPort.getByName("127.0.0.255"));
         target2 = full(InetAddressAndPort.getByName("127.0.0.254"));
