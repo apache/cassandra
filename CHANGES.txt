@@ -1,4 +1,5 @@
 4.2
+ * Make sure preview repairs don't optimise streams unless configured to (CASSANDRA-17865)
  * Introduce compaction priorities to prevent upgrade compaction inability to finish (CASSANDRA-17851)
  * Prevent a user from manually removing ephemeral snapshots (CASSANDRA-17757)
  * Remove dependency on Maven Ant Tasks (CASSANDRA-17750)
