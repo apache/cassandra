@@ -58,7 +58,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     private final AccordCommandStore commandStore;
     private final AsyncLoader loader;
     private final AsyncWriter writer;
-    private AsyncContext context = new AsyncContext();
+    private final AsyncContext context = new AsyncContext();
     private R result;
 
     public AsyncOperation(AccordCommandStore commandStore, AsyncLoader loader)
