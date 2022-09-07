@@ -22,9 +22,11 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.MonotonicClock;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYNC_LAG_FACTOR;
+
 class PeriodicCommitLogService extends AbstractCommitLogService
 {
-    private static final long blockWhenSyncLagsNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getPeriodicCommitLogSyncBlock());
+    private static final long blockWhenSyncLagsNanos = (long) (TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCommitLogSyncPeriod()) * SYNC_LAG_FACTOR.getDouble());
 
     public PeriodicCommitLogService(final CommitLog commitLog, MonotonicClock clock)
     {
