@@ -44,6 +44,7 @@
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.1:
+ * upsert with adder support is not consistent with numbers and strings in LWT (CASSANDRA-17857)
  * Fix race and return after failing connections (CASSANDRA-17618)
  * Speculative execution threshold unit mismatch (CASSANDRA-17877)
  * Fix BulkLoader to load entireSSTableThrottle and entireSSTableInterDcThrottle (CASSANDRA-17677)
