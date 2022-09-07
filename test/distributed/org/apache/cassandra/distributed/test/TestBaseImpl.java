@@ -104,6 +104,16 @@ public class TestBaseImpl extends DistributedTestBase
         return TupleType.buildValue(bbs);
     }
 
+    public static String batch(String... queries)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN UNLOGGED BATCH\n");
+        for (String q : queries)
+            sb.append(q).append(";\n");
+        sb.append("APPLY BATCH;");
+        return sb.toString();
+    }
+
     protected void bootstrapAndJoinNode(Cluster cluster)
     {
         IInstanceConfig config = cluster.newInstanceConfig();
