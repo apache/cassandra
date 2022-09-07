@@ -15,19 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.dht;
 
-import accord.api.Key;
+package org.apache.cassandra.service.accord.serializers;
 
-/**
- * Interface representing a position on the ring.
- * Both Token and DecoratedKey represent a position in the ring, a token being
- * less precise than a DecoratedKey (a token is really a range of keys).
- */
-public interface RingPosition<C extends RingPosition<C>> extends Comparable<C>, Key<C>
+public class TxnSerializer
 {
-    public Token getToken();
-    public IPartitioner getPartitioner();
-    public boolean isMinimum();
-    public C minValue();
 }

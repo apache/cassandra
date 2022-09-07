@@ -15,19 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.dht;
 
-import accord.api.Key;
+package org.apache.cassandra.distributed.test.accord;
 
-/**
- * Interface representing a position on the ring.
- * Both Token and DecoratedKey represent a position in the ring, a token being
- * less precise than a DecoratedKey (a token is really a range of keys).
- */
-public interface RingPosition<C extends RingPosition<C>> extends Comparable<C>, Key<C>
+import org.junit.Test;
+
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
+
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+
+public class AccordTopologyTest extends TestBaseImpl
 {
-    public Token getToken();
-    public IPartitioner getPartitioner();
-    public boolean isMinimum();
-    public C minValue();
+    @Test
+    public void name() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                        .createWithoutStarting())
+        {
+            cluster.get(1).startup();
+
+        }
+    }
 }

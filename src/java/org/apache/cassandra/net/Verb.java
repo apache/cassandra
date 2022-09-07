@@ -202,6 +202,10 @@ public enum Verb
     PAXOS2_CLEANUP_COMPLETE_RSP      (59, P2, repairTimeout, PAXOS_REPAIR,      () -> NoPayload.serializer,                    () -> ResponseVerbHandler.instance                                                            ),
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
 
+    // accord
+    ACCORD_PREACCEPT_RSP   (121, P2, writeTimeout,    REQUEST_RESPONSE,  () -> null, () -> null),
+    ACCORD_PREACCEPT_REQ   (120, P2, writeTimeout,    MUTATION, () -> null, () -> null, ACCORD_PREACCEPT_RSP),
+
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             ),
 

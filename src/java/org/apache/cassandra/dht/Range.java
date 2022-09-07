@@ -24,6 +24,7 @@ import java.util.function.Predicate;
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.ObjectUtils;
 
+import accord.api.KeyRange;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.utils.Pair;
 

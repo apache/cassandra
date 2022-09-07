@@ -15,19 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.dht;
 
-import accord.api.Key;
+package org.apache.cassandra.service.accord;
 
-/**
- * Interface representing a position on the ring.
- * Both Token and DecoratedKey represent a position in the ring, a token being
- * less precise than a DecoratedKey (a token is really a range of keys).
- */
-public interface RingPosition<C extends RingPosition<C>> extends Comparable<C>, Key<C>
+import java.util.concurrent.TimeUnit;
+
+import accord.txn.Timestamp;
+
+public class AccordTimestamps
 {
-    public Token getToken();
-    public IPartitioner getPartitioner();
-    public boolean isMinimum();
-    public C minValue();
+    public static long uniqueNow()
+    {
+        return System.currentTimeMillis();
+    }
+
+    public static long timestampToMicros(Timestamp timestamp)
+    {
+        // FIXME: how to get node id in here
+        return TimeUnit.MILLISECONDS.toMicros(timestamp.real) + timestamp.logical;
+    }
 }

@@ -15,19 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.dht;
 
-import accord.api.Key;
+package org.apache.cassandra.service.accord;
 
-/**
- * Interface representing a position on the ring.
- * Both Token and DecoratedKey represent a position in the ring, a token being
- * less precise than a DecoratedKey (a token is really a range of keys).
- */
-public interface RingPosition<C extends RingPosition<C>> extends Comparable<C>, Key<C>
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.local.Node;
+import org.apache.cassandra.locator.InetAddressAndPort;
+
+public class EndpointMappingTest
 {
-    public Token getToken();
-    public IPartitioner getPartitioner();
-    public boolean isMinimum();
-    public C minValue();
+    private static final Logger logger = LoggerFactory.getLogger(EndpointMappingTest.class);
+
+    @Test
+    public void identityTest() throws Throwable
+    {
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName("127.0.0.1:9000");
+        Node.Id id = EndpointMapping.endpointToId(endpoint);
+        Assert.assertEquals(endpoint, EndpointMapping.idToEndpoint(id));
+        logger.info("{} -> {}", endpoint, id);
+    }
 }

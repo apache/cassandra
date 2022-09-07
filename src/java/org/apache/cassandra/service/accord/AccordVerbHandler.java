@@ -15,19 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.dht;
 
-import accord.api.Key;
+package org.apache.cassandra.service.accord;
 
-/**
- * Interface representing a position on the ring.
- * Both Token and DecoratedKey represent a position in the ring, a token being
- * less precise than a DecoratedKey (a token is really a range of keys).
- */
-public interface RingPosition<C extends RingPosition<C>> extends Comparable<C>, Key<C>
+import java.io.IOException;
+
+import accord.local.Node;
+import accord.messages.Request;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+
+public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 {
-    public Token getToken();
-    public IPartitioner getPartitioner();
-    public boolean isMinimum();
-    public C minValue();
+    private final Node node;
+
+    public AccordVerbHandler(Node node)
+    {
+        this.node = node;
+    }
+
+    @Override
+    public void doVerb(Message<T> message) throws IOException
+    {
+        message.payload.process(node, EndpointMapping.getId(message.from()), message);
+    }
 }
