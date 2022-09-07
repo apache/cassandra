@@ -43,6 +43,7 @@ NONALTERBALE_KEYSPACES = ('system', 'system_schema', 'system_views', 'system_vir
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
 
     columnfamily_layout_options = (
+        ('allow_auto_snapshot', None),
         ('bloom_filter_fp_chance', None),
         ('comment', None),
         ('gc_grace_seconds', None),
@@ -514,6 +515,8 @@ def cf_prop_val_completer(ctxt, cass):
         return [Hint('<true|false>')]
     if this_opt in ('read_repair'):
         return [Hint('<\'none\'|\'blocking\'>')]
+    if this_opt == 'allow_auto_snapshot':
+        return [Hint('<boolean>')]
     return [Hint('<option_value>')]
 
 

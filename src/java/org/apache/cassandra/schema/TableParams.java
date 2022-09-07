@@ -41,6 +41,7 @@ public final class TableParams
 {
     public enum Option
     {
+        ALLOW_AUTO_SNAPSHOT,
         BLOOM_FILTER_FP_CHANCE,
         CACHING,
         COMMENT,
@@ -67,6 +68,7 @@ public final class TableParams
     }
 
     public final String comment;
+    public final boolean allowAutoSnapshot;
     public final double bloomFilterFpChance;
     public final double crcCheckChance;
     public final int gcGraceSeconds;
@@ -87,6 +89,7 @@ public final class TableParams
     private TableParams(Builder builder)
     {
         comment = builder.comment;
+        allowAutoSnapshot = builder.allowAutoSnapshot;
         bloomFilterFpChance = builder.bloomFilterFpChance == null
                             ? builder.compaction.defaultBloomFilterFbChance()
                             : builder.bloomFilterFpChance;
@@ -114,7 +117,8 @@ public final class TableParams
 
     public static Builder builder(TableParams params)
     {
-        return new Builder().bloomFilterFpChance(params.bloomFilterFpChance)
+        return new Builder().allowAutoSnapshot(params.allowAutoSnapshot)
+                            .bloomFilterFpChance(params.bloomFilterFpChance)
                             .caching(params.caching)
                             .comment(params.comment)
                             .compaction(params.compaction)
@@ -204,6 +208,7 @@ public final class TableParams
         TableParams p = (TableParams) o;
 
         return comment.equals(p.comment)
+            && allowAutoSnapshot == p.allowAutoSnapshot
             && bloomFilterFpChance == p.bloomFilterFpChance
             && crcCheckChance == p.crcCheckChance
             && gcGraceSeconds == p.gcGraceSeconds
@@ -225,6 +230,7 @@ public final class TableParams
     public int hashCode()
     {
         return Objects.hashCode(comment,
+                                allowAutoSnapshot,
                                 bloomFilterFpChance,
                                 crcCheckChance,
                                 gcGraceSeconds,
@@ -247,6 +253,7 @@ public final class TableParams
     {
         return MoreObjects.toStringHelper(this)
                           .add(Option.COMMENT.toString(), comment)
+                          .add(Option.ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
                           .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
                           .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
@@ -269,6 +276,8 @@ public final class TableParams
     {
         // option names should be in alphabetical order
         builder.append("additional_write_policy = ").appendWithSingleQuotes(additionalWritePolicy.toString())
+               .newLine()
+               .append("AND allow_auto_snapshot = ").append(allowAutoSnapshot)
                .newLine()
                .append("AND bloom_filter_fp_chance = ").append(bloomFilterFpChance)
                .newLine()
@@ -315,6 +324,7 @@ public final class TableParams
     public static final class Builder
     {
         private String comment = "";
+        private boolean allowAutoSnapshot = true;
         private Double bloomFilterFpChance;
         private double crcCheckChance = 1.0;
         private int gcGraceSeconds = 864000; // 10 days
@@ -344,6 +354,12 @@ public final class TableParams
         public Builder comment(String val)
         {
             comment = val;
+            return this;
+        }
+
+        public Builder allowAutoSnapshot(boolean val)
+        {
+            allowAutoSnapshot = val;
             return this;
         }
 
