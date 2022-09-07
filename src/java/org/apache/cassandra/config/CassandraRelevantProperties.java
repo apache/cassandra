@@ -309,7 +309,9 @@ public enum CassandraRelevantProperties
     COMPACTION_HISTORY_ENABLED("cassandra.compaction_history_enabled", "true"),
 
     // Allows one to turn off cursors in compaction.
-    CURSORS_ENABLED("cassandra.allow_cursor_compaction", "true");
+    CURSORS_ENABLED("cassandra.allow_cursor_compaction", "true"),
+
+    SYNC_LAG_FACTOR("cassandra.commitlog_sync_block_lag_factor", "1.5");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
@@ -461,6 +463,39 @@ public enum CassandraRelevantProperties
     public void setLong(long value)
     {
         System.setProperty(key, Long.toString(value));
+    }
+
+    /**
+     * Gets the value of a system property as a double.
+     * @return system property double value if it exists, defaultValue otherwise.
+     */
+    public double getDouble()
+    {
+        String value = System.getProperty(key);
+
+        return DOUBLE_CONVERTER.convert(value == null ? defaultVal : value);
+    }
+
+    /**
+     * Gets the value of a system property as a double.
+     * @return system property double value if it exists, overrideDefaultValue otherwise.
+     */
+    public double getDouble(double overrideDefaultValue)
+    {
+        String value = System.getProperty(key);
+        if (value == null)
+            return overrideDefaultValue;
+
+        return DOUBLE_CONVERTER.convert(value);
+    }
+
+    /**
+     * Sets the value into system properties.
+     * @param value to set
+     */
+    public void setDouble(double value)
+    {
+        System.setProperty(key, Double.toString(value));
     }
 
     private interface PropertyConverter<T>
