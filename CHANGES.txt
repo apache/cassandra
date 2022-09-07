@@ -1,4 +1,5 @@
 4.2
+ * Make sure preview repairs don't optimise streams unless configured to (CASSANDRA-17865)
  * Optionally avoid hint transfer during decommission (CASSANDRA-17808)
  * Make disabling auto snapshot on selected tables possible (CASSANDRA-10383)
  * Introduce compaction priorities to prevent upgrade compaction inability to finish (CASSANDRA-17851)
