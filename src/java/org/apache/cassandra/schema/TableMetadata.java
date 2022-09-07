@@ -777,6 +777,12 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder allowAutoSnapshot(boolean val)
+        {
+            params.allowAutoSnapshot(val);
+            return this;
+        }
+
         public Builder bloomFilterFpChance(double val)
         {
             params.bloomFilterFpChance(val);

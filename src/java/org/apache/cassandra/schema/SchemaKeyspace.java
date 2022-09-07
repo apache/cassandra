@@ -100,6 +100,7 @@ public final class SchemaKeyspace
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "table_name text,"
+              + "allow_auto_snapshot boolean,"
               + "bloom_filter_fp_chance double,"
               + "caching frozen<map<text, text>>,"
               + "comment text,"
@@ -168,6 +169,7 @@ public final class SchemaKeyspace
               + "base_table_id uuid,"
               + "base_table_name text,"
               + "where_clause text,"
+              + "allow_auto_snapshot boolean,"
               + "bloom_filter_fp_chance double,"
               + "caching frozen<map<text, text>>,"
               + "comment text,"
@@ -563,6 +565,11 @@ public final class SchemaKeyspace
         // in mixed operation with pre-4.1 versioned node during upgrades.
         if (params.memtable != MemtableParams.DEFAULT)
             builder.add("memtable", params.memtable.configurationKey());
+
+        // As above, only add the allow_auto_snapshot column if the value is not default (true) and
+        // auto-snapshotting is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
+        if (!params.allowAutoSnapshot)
+            builder.add("allow_auto_snapshot", false);
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -954,27 +961,32 @@ public final class SchemaKeyspace
     @VisibleForTesting
     static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
-        return TableParams.builder()
-                          .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
-                          .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
-                          .comment(row.getString("comment"))
-                          .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
-                          .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
-                          .memtable(MemtableParams.get(row.has("memtable") ? row.getString("memtable") : null)) // memtable column was introduced in 4.1
-                          .defaultTimeToLive(row.getInt("default_time_to_live"))
-                          .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
-                          .gcGraceSeconds(row.getInt("gc_grace_seconds"))
-                          .maxIndexInterval(row.getInt("max_index_interval"))
-                          .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
-                          .minIndexInterval(row.getInt("min_index_interval"))
-                          .crcCheckChance(row.getDouble("crc_check_chance"))
-                          .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
-                          .additionalWritePolicy(row.has("additional_write_policy") ?
-                                                     SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
-                                                     SpeculativeRetryPolicy.fromString("99PERCENTILE"))
-                          .cdc(row.has("cdc") && row.getBoolean("cdc"))
-                          .readRepair(getReadRepairStrategy(row))
-                          .build();
+        TableParams.Builder builder = TableParams.builder()
+                                                 .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
+                                                 .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
+                                                 .comment(row.getString("comment"))
+                                                 .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
+                                                 .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
+                                                 .memtable(MemtableParams.get(row.has("memtable") ? row.getString("memtable") : null)) // memtable column was introduced in 4.1
+                                                 .defaultTimeToLive(row.getInt("default_time_to_live"))
+                                                 .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
+                                                 .gcGraceSeconds(row.getInt("gc_grace_seconds"))
+                                                 .maxIndexInterval(row.getInt("max_index_interval"))
+                                                 .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
+                                                 .minIndexInterval(row.getInt("min_index_interval"))
+                                                 .crcCheckChance(row.getDouble("crc_check_chance"))
+                                                 .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
+                                                 .additionalWritePolicy(row.has("additional_write_policy") ?
+                                                                        SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
+                                                                        SpeculativeRetryPolicy.fromString("99PERCENTILE"))
+                                                 .cdc(row.has("cdc") && row.getBoolean("cdc"))
+                                                 .readRepair(getReadRepairStrategy(row));
+
+        // allow_auto_snapshot column was introduced in 4.2
+        if (row.has("allow_auto_snapshot"))
+            builder.allowAutoSnapshot(row.getBoolean("allow_auto_snapshot"));
+
+        return builder.build();
     }
 
     private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types)

@@ -297,6 +297,7 @@ public class SchemaCQLHelperTest extends CQLTester
         assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), cfs.keyspace.getMetadata()),
                    containsString("CLUSTERING ORDER BY (cl1 ASC)\n" +
                             "    AND additional_write_policy = 'ALWAYS'\n" +
+                            "    AND allow_auto_snapshot = true\n" +
                             "    AND bloom_filter_fp_chance = 1.0\n" +
                             "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                             "    AND cdc = false\n" +

@@ -98,6 +98,9 @@ public final class TableAttributes extends PropertyDefinitions
 
     private TableParams build(TableParams.Builder builder)
     {
+        if (hasOption(Option.ALLOW_AUTO_SNAPSHOT))
+            builder.allowAutoSnapshot(getBoolean(Option.ALLOW_AUTO_SNAPSHOT.toString(), true));
+
         if (hasOption(Option.BLOOM_FILTER_FP_CHANCE))
             builder.bloomFilterFpChance(getDouble(Option.BLOOM_FILTER_FP_CHANCE));
 

@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,11 +34,13 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -61,6 +64,7 @@ import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 @RunWith(BMUnitRunner.class)
 public class SchemaKeyspaceTest
@@ -179,6 +183,42 @@ public class SchemaKeyspaceTest
         TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
         Assert.assertEquals(ReadRepairStrategy.NONE, metadata.params.readRepair);
 
+    }
+
+    @Test
+    public void testAutoSnapshotEnabledOnTable()
+    {
+        Assume.assumeTrue(DatabaseDescriptor.isAutoSnapshot());
+        String keyspaceName = "AutoSnapshot";
+        String tableName = "table1";
+
+        createTable(keyspaceName, "CREATE TABLE " + tableName + " (a text primary key, b int) WITH allow_auto_snapshot = true");
+
+        ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
+
+        assertTrue(cfs.isAutoSnapshotEnabled());
+
+        SchemaTestUtil.announceTableDrop(keyspaceName, tableName);
+
+        assertFalse(cfs.listSnapshots().isEmpty());
+    }
+
+    @Test
+    public void testAutoSnapshotDisabledOnTable()
+    {
+        Assume.assumeTrue(DatabaseDescriptor.isAutoSnapshot());
+        String keyspaceName = "AutoSnapshot";
+        String tableName = "table2";
+
+        createTable(keyspaceName, "CREATE TABLE " + tableName + " (a text primary key, b int) WITH allow_auto_snapshot = false");
+
+        ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
+
+        assertFalse(cfs.isAutoSnapshotEnabled());
+
+        SchemaTestUtil.announceTableDrop(keyspaceName, tableName);
+
+        assertTrue(cfs.listSnapshots().isEmpty());
     }
 
     private static void updateTable(String keyspace, TableMetadata oldTable, TableMetadata newTable)

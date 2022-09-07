@@ -85,6 +85,9 @@ New features
       isEmptyWithoutStatus() our usage of hbState() + applicationState), however there are other failure cases which
       block host replacements and require intrusive workarounds and human intervention to recover from when you
       have something in hbState() you don't expect. See CASSANDRA-17842 for further details.
+    - Added new CQL table property 'allow_auto_snapshot' which is by default true. When set to false and 'auto_snapshot: true'
+      in cassandra.yaml, there will be no snapshot taken when a table is truncated or dropped. When auto_snapshot in
+      casandra.yaml is set to false, the newly added table property does not have any effect.
 
 Upgrading
 ---------
@@ -92,6 +95,8 @@ Upgrading
       there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there
       are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
       will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
+    - There was new table property introduced called 'allow_auto_snapshot' (see section 'New features'). Hence, upgraded
+      node will be on a new schema version. Please do a rolling upgrade of nodes of a cluster to converge to one schema version.
 
 Deprecation
 -----------

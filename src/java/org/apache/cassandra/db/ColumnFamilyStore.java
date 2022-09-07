@@ -2581,7 +2581,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         if (!noSnapshot &&
                ((keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
-               || DatabaseDescriptor.isAutoSnapshot())) // need sstable for snapshot
+               || isAutoSnapshotEnabled()))
         {
             replayAfter = forceBlockingFlush(FlushReason.TRUNCATE);
             viewManager.forceBlockingFlush(FlushReason.TRUNCATE);
@@ -2614,7 +2614,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                    "Stopping parent sessions {} due to truncation of tableId="+metadata.id);
                 data.notifyTruncated(truncatedAt);
 
-            if (!noSnapshot && DatabaseDescriptor.isAutoSnapshot())
+            if (!noSnapshot && isAutoSnapshotEnabled())
                 snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
 
             discardSSTables(truncatedAt);
@@ -3073,6 +3073,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return metadata().params.caching.cacheKeys() && CacheService.instance.keyCache.getCapacity() > 0;
     }
 
+    public boolean isAutoSnapshotEnabled()
+    {
+        return metadata().params.allowAutoSnapshot && DatabaseDescriptor.isAutoSnapshot();
+    }
+
     /**
      * Discard all SSTables that were created before given timestamp.
      *
@@ -3207,7 +3212,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
 
-        if (DatabaseDescriptor.isAutoSnapshot())
+        if (isAutoSnapshotEnabled())
             snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
 
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));

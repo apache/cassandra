@@ -616,7 +616,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) W',
                             immediate='ITH ')
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH ',
-                            choices=['bloom_filter_fp_chance', 'compaction',
+                            choices=['allow_auto_snapshot',
+                                     'bloom_filter_fp_chance', 'compaction',
                                      'compression',
                                      'default_time_to_live', 'gc_grace_seconds',
                                      'max_index_interval',
@@ -625,7 +626,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'COMPACT', 'caching', 'comment',
                                      'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH ',
-                            choices=['bloom_filter_fp_chance', 'compaction',
+                            choices=['allow_auto_snapshot',
+                                     'bloom_filter_fp_chance', 'compaction',
                                      'compression',
                                      'default_time_to_live', 'gc_grace_seconds',
                                      'max_index_interval',
@@ -673,7 +675,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=[';', 'AND'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'SizeTieredCompactionStrategy'} AND ",
-                            choices=['bloom_filter_fp_chance', 'compaction',
+                            choices=['allow_auto_snapshot', 'bloom_filter_fp_chance', 'compaction',
                                      'compression',
                                      'default_time_to_live', 'gc_grace_seconds',
                                      'max_index_interval',
