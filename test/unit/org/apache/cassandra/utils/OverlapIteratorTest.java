@@ -20,7 +20,6 @@ package org.apache.cassandra.utils;
  *
  */
 
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,27 +30,22 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 
-public class OverlapIteratorTest
-{
+public class OverlapIteratorTest {
 
-    private static List<Interval<Integer, Integer>> randomIntervals(int range, int increment, int count)
-    {
+    private static List<Interval<Integer, Integer>> randomIntervals(int range, int increment, int count) {
         List<Integer> a = random(range, increment, count);
         List<Integer> b = random(range, increment, count);
         List<Interval<Integer, Integer>> r = new ArrayList<>();
-        for (int i = 0 ; i < count ; i++)
-        {
+        for (int i = 0; i < count; i++) {
             r.add(a.get(i) < b.get(i) ? Interval.create(a.get(i), b.get(i), i)
-                                      : Interval.create(b.get(i), a.get(i), i));
+                    : Interval.create(b.get(i), a.get(i), i));
         }
         return r;
     }
 
-    private static List<Integer> random(int range, int increment, int count)
-    {
+    private static List<Integer> random(int range, int increment, int count) {
         List<Integer> random = new ArrayList<>();
-        for (int i = 0 ; i < count ; i++)
-        {
+        for (int i = 0; i < count; i++) {
             int base = i * increment;
             random.add(ThreadLocalRandom.current().nextInt(base, base + range));
         }
@@ -59,32 +53,27 @@ public class OverlapIteratorTest
     }
 
     @Test
-    public void test()
-    {
-        for (int i = 0 ; i < 10 ; i++)
-        {
+    public void test() {
+        for (int i = 0; i < 10; i++) {
             test(1000, 0, 1000);
             test(100000, 100, 1000);
             test(1000000, 0, 1000);
         }
     }
 
-    private void test(int range, int increment, int count)
-    {
+    private void test(int range, int increment, int count) {
         compare(randomIntervals(range, increment, count), random(range, increment, count), 1);
         compare(randomIntervals(range, increment, count), random(range, increment, count), 2);
         compare(randomIntervals(range, increment, count), random(range, increment, count), 3);
     }
 
-    private <I extends Comparable<I>, V> void compare(List<Interval<I, V>> intervals, List<I> points, int initCount)
-    {
+    private <I extends Comparable<I>, V> void compare(List<Interval<I, V>> intervals, List<I> points, int initCount) {
         Collections.sort(points);
-        IntervalTree<I, V, Interval<I, V>> tree = IntervalTree.build(intervals);
+        IntervalList<I, V, Interval<I, V>> tree = IntervalList.build(intervals);
         OverlapIterator<I, V> iter = new OverlapIterator<>(intervals);
         int initPoint = points.size() / initCount;
         int i = 0;
-        for (I point : points)
-        {
+        for (I point : points) {
             if (i++ == initPoint)
                 iter = new OverlapIterator<>(intervals);
             iter.update(point);
