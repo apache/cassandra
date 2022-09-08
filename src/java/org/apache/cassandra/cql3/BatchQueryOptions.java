@@ -59,6 +59,11 @@ public abstract class BatchQueryOptions
         forStatement(i).prepare(boundNames);
     }
 
+    public void updateConsistency(ConsistencyLevel updatedLevel)
+    {
+        wrapped.updateConsistency(updatedLevel);
+    }
+
     public ConsistencyLevel getConsistency()
     {
         return wrapped.getConsistency();

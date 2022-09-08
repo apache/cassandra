@@ -104,6 +104,7 @@ public abstract class QueryOptions
         return new OptionsWithColumnSpecifications(options, columnSpecs);
     }
 
+    public abstract void updateConsistency(ConsistencyLevel updatedLevel);
     public abstract ConsistencyLevel getConsistency();
     public abstract List<ByteBuffer> getValues();
     public abstract boolean skipMetadata();
@@ -224,7 +225,7 @@ public abstract class QueryOptions
 
     static class DefaultQueryOptions extends QueryOptions
     {
-        private final ConsistencyLevel consistency;
+        private volatile ConsistencyLevel consistency;
         private final List<ByteBuffer> values;
         private final boolean skipMetadata;
 
@@ -239,6 +240,12 @@ public abstract class QueryOptions
             this.skipMetadata = skipMetadata;
             this.options = options;
             this.protocolVersion = protocolVersion;
+        }
+
+        @Override
+        public void updateConsistency(ConsistencyLevel updatedLevel)
+        {
+            consistency = updatedLevel;
         }
 
         public ConsistencyLevel getConsistency()
@@ -279,6 +286,11 @@ public abstract class QueryOptions
         public List<ByteBuffer> getValues()
         {
             return this.wrapped.getValues();
+        }
+
+        public void updateConsistency(ConsistencyLevel updatedLevel)
+        {
+            wrapped.updateConsistency(updatedLevel);
         }
 
         public ConsistencyLevel getConsistency()
