@@ -120,7 +120,6 @@ public class KeyspaceActions extends ClusterActions
         currentRf = initialRf.clone();
         membersOfQuorumDcs = serialConsistency == LOCAL_SERIAL ? all.dcs[0] : all.toArray();
         ops.addAll(Arrays.asList(options.allChoices.options));
-
     }
 
     public ActionPlan plan()

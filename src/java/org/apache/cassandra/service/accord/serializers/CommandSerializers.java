@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
-import java.util.Map;
 
 import com.google.common.base.Preconditions;
 
@@ -121,7 +120,7 @@ public class CommandSerializers
         }
     }
 
-    public static final IVersionedSerializer<Txn> txn = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Txn> txn = new IVersionedSerializer<Txn>()
     {
         @Override
         public void serialize(Txn txn, DataOutputPlus out, int version) throws IOException
@@ -160,7 +159,7 @@ public class CommandSerializers
         }
     };
 
-    public static final IVersionedSerializer<Status> status = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Status> status = new IVersionedSerializer<Status>()
     {
         @Override
         public void serialize(Status status, DataOutputPlus out, int version) throws IOException
@@ -182,7 +181,7 @@ public class CommandSerializers
         }
     };
 
-    public static final IVersionedSerializer<Deps> deps = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Deps> deps = new IVersionedSerializer<Deps>()
     {
         @Override
         public void serialize(Deps deps, DataOutputPlus out, int version) throws IOException
@@ -234,7 +233,7 @@ public class CommandSerializers
         }
     };
 
-    public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<Writes>()
     {
         @Override
         public void serialize(Writes writes, DataOutputPlus out, int version) throws IOException

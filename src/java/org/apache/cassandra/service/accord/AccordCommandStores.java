@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import accord.api.Agent;
 import accord.api.DataStore;
@@ -27,7 +26,7 @@ import accord.api.ProgressLog;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.Node;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.utils.ExecutorUtils;
 
 public class AccordCommandStores extends CommandStores
@@ -41,13 +40,7 @@ public class AccordCommandStores extends CommandStores
         this.executors = new ExecutorService[numShards];
         for (int i=0; i<numShards; i++)
         {
-            int index = i;
-            executors[i] = Executors.newSingleThreadExecutor(r -> {
-                Thread thread = new Thread(r);
-                thread.setDaemon(true);
-                thread.setName(NamedThreadFactory.globalPrefix() + CommandStore.class.getSimpleName() + '[' + node + ':' + index + ']');
-                return thread;
-            });
+            executors[i] = ExecutorFactory.Global.executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + node + ':' + i + ']');
         }
     }
 

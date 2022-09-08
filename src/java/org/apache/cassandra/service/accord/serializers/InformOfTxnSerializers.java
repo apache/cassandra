@@ -31,7 +31,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class InformOfTxnSerializers
 {
-    public static final IVersionedSerializer<InformOfTxn> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<InformOfTxn> request = new IVersionedSerializer<InformOfTxn>()
     {
         @Override
         public void serialize(InformOfTxn inform, DataOutputPlus out, int version) throws IOException
@@ -59,7 +59,7 @@ public class InformOfTxnSerializers
         }
     };
 
-    public static final IVersionedSerializer<InformOfTxnReply> reply = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<InformOfTxnReply> reply = new IVersionedSerializer<InformOfTxnReply>()
     {
         @Override
         public void serialize(InformOfTxnReply reply, DataOutputPlus out, int version) throws IOException

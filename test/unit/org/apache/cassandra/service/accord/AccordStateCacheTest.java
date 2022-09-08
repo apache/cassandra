@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -347,17 +348,17 @@ public class AccordStateCacheTest
         AccordStateCache cache = new AccordStateCache(500);
         AccordStateCache.Instance<Integer, SetItem> instance = cache.instance(Integer.class, SetItem.class, SetItem::new);
         SetItem onDisk = new SetItem(5);
-        onDisk.set.addAll(Set.of(1, 2, 3));
+        onDisk.set.addAll(ImmutableSet.of(1, 2, 3));
         Assert.assertEquals(0, instance.pendingWriteOnlyOperations(5));
 
         SetItem.WriteOnly writeOnly1 = new SetItem.WriteOnly(5);
-        writeOnly1.added.addAll(Set.of(4, 5));
+        writeOnly1.added.addAll(ImmutableSet.of(4, 5));
         writeOnly1.future(new AsyncPromise<>());
         instance.addWriteOnly(writeOnly1);
         Assert.assertEquals(1, instance.pendingWriteOnlyOperations(5));
 
         SetItem.WriteOnly writeOnly2 = new SetItem.WriteOnly(5);
-        writeOnly2.remove.addAll(Set.of(2, 4));
+        writeOnly2.remove.addAll(ImmutableSet.of(2, 4));
         writeOnly2.future(new AsyncPromise<>());
         instance.addWriteOnly(writeOnly2);
         Assert.assertEquals(2, instance.pendingWriteOnlyOperations(5));
@@ -367,12 +368,12 @@ public class AccordStateCacheTest
 
         instance.lockWriteOnlyGroupIfExists(5);
         Assert.assertTrue(instance.writeOnlyGroupIsLocked(5));
-        Assert.assertEquals(Set.of(1, 2, 3), onDisk.set);
+        Assert.assertEquals(ImmutableSet.of(1, 2, 3), onDisk.set);
         Assert.assertTrue(instance.canEvict(5));
 
         instance.applyAndRemoveWriteOnlyGroup(onDisk);
         Assert.assertFalse(instance.writeOnlyGroupIsLocked(5));
-        Assert.assertEquals(Set.of(1, 3, 5), onDisk.set);
+        Assert.assertEquals(ImmutableSet.of(1, 3, 5), onDisk.set);
 
         // write only futures should have been merged and promoted to normal save futures, which would
         // prevent the cached object from being purged until they were completed

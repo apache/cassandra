@@ -38,7 +38,7 @@ public class KeySerializers
 
     public static final IVersionedSerializer<Key> key = (IVersionedSerializer<Key>) (IVersionedSerializer<?>) AccordKey.serializer;
 
-    public static final IVersionedSerializer<Keys> keys = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Keys> keys = new IVersionedSerializer<Keys>()
     {
         @Override
         public void serialize(Keys keys, DataOutputPlus out, int version) throws IOException
@@ -67,7 +67,7 @@ public class KeySerializers
         }
     };
 
-    public static final IVersionedSerializer<KeyRanges> ranges = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<KeyRanges> ranges = new IVersionedSerializer<KeyRanges>()
     {
         @Override
         public void serialize(KeyRanges ranges, DataOutputPlus out, int version) throws IOException

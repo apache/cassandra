@@ -387,7 +387,7 @@ public class AccordUpdate implements Update
         return size;
     }
 
-    static final IVersionedSerializer<UpdatePredicate> predicateSerializer = new IVersionedSerializer<>()
+    static final IVersionedSerializer<UpdatePredicate> predicateSerializer = new IVersionedSerializer<UpdatePredicate>()
     {
         @Override
         public void serialize(UpdatePredicate predicate, DataOutputPlus out, int version) throws IOException
@@ -458,7 +458,7 @@ public class AccordUpdate implements Update
         }
     };
 
-    public static final IVersionedSerializer<AccordUpdate> serializer = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<AccordUpdate> serializer = new IVersionedSerializer<AccordUpdate>()
     {
         @Override
         public void serialize(AccordUpdate update, DataOutputPlus out, int version) throws IOException

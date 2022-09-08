@@ -29,6 +29,7 @@ import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -281,7 +282,7 @@ public class AccordStateCache
         if (existing != null && !existing.isDone())
         {
             logger.trace("Merging future {} with existing {}", future, existing);
-            future = FutureCombiner.allOf(List.of(existing, future));
+            future = FutureCombiner.allOf(ImmutableList.of(existing, future));
         }
 
         futuresMap.put(key, future);

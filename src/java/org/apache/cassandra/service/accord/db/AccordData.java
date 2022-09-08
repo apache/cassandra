@@ -148,7 +148,7 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
         return left.merge(right);
     }
 
-    private static final IVersionedSerializer<FilteredPartition> partitionSerializer = new IVersionedSerializer<>()
+    private static final IVersionedSerializer<FilteredPartition> partitionSerializer = new IVersionedSerializer<FilteredPartition>()
     {
         @Override
         public void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException

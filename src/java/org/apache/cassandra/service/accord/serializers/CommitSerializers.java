@@ -29,7 +29,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class CommitSerializers
 {
-    public static final IVersionedSerializer<Commit> request = new TxnRequestSerializer<>()
+    public static final IVersionedSerializer<Commit> request = new TxnRequestSerializer<Commit>()
     {
         @Override
         public void serializeBody(Commit msg, DataOutputPlus out, int version) throws IOException
@@ -66,7 +66,7 @@ public class CommitSerializers
         }
     };
 
-    public static final IVersionedSerializer<Commit.Invalidate> invalidate = new TxnRequestSerializer<>()
+    public static final IVersionedSerializer<Commit.Invalidate> invalidate = new TxnRequestSerializer<Commit.Invalidate>()
     {
         @Override
         public void serializeBody(Commit.Invalidate invalidate, DataOutputPlus out, int version) throws IOException

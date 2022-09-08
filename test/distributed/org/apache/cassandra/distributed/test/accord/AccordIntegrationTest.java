@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
@@ -298,7 +299,7 @@ public class AccordIntegrationTest extends TestBaseImpl
             while (timeout.get() == null)
             {
                 SimpleQueryResult pending = inst.executeInternalWithResult("SELECT store_generation, store_index, txn_id, status FROM system_accord.commands WHERE status < ? ALLOW FILTERING", Status.Executed.ordinal());
-                pending = QueryResultUtil.map(pending, Map.of(
+                pending = QueryResultUtil.map(pending, ImmutableMap.of(
                 "txn_id", (ByteBuffer bb) -> AccordKeyspace.deserializeTimestampOrNull(bb, TxnId::new),
                 "status", (Integer ordinal) -> Status.values()[ordinal]
                 ));

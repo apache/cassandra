@@ -33,7 +33,7 @@ import org.apache.cassandra.service.accord.db.AccordData;
 
 public class ReadDataSerializers
 {
-    public static final IVersionedSerializer<ReadData> request = new TxnRequestSerializer<>()
+    public static final IVersionedSerializer<ReadData> request = new TxnRequestSerializer<ReadData>()
     {
         @Override
         public void serializeBody(ReadData read, DataOutputPlus out, int version) throws IOException
@@ -67,7 +67,7 @@ public class ReadDataSerializers
         }
     };
 
-    public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<ReadReply>()
     {
         @Override
         public void serialize(ReadReply reply, DataOutputPlus out, int version) throws IOException

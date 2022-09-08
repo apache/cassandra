@@ -29,7 +29,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class WaitOnCommitSerializer
 {
-    public static final IVersionedSerializer<WaitOnCommit> request = new TxnRequestSerializer<>()
+    public static final IVersionedSerializer<WaitOnCommit> request = new TxnRequestSerializer<WaitOnCommit>()
     {
         @Override
         public void serializeBody(WaitOnCommit wait, DataOutputPlus out, int version) throws IOException
@@ -50,7 +50,7 @@ public class WaitOnCommitSerializer
         }
     };
 
-    public static final IVersionedSerializer<WaitOnCommitOk> reply = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<WaitOnCommitOk> reply = new IVersionedSerializer<WaitOnCommitOk>()
     {
         @Override
         public void serialize(WaitOnCommitOk ok, DataOutputPlus out, int version) throws IOException

@@ -35,7 +35,7 @@ public class AcceptSerializers
 {
     private AcceptSerializers() {}
 
-    public static final IVersionedSerializer<Accept> request = new TxnRequestSerializer.WithUnsyncedSerializer<>()
+    public static final IVersionedSerializer<Accept> request = new TxnRequestSerializer.WithUnsyncedSerializer<Accept>()
     {
         @Override
         public void serializeBody(Accept accept, DataOutputPlus out, int version) throws IOException
@@ -69,7 +69,7 @@ public class AcceptSerializers
         }
     };
 
-    public static final IVersionedSerializer<Accept.Invalidate> invalidate = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Accept.Invalidate> invalidate = new IVersionedSerializer<Accept.Invalidate>()
     {
         @Override
         public void serialize(Accept.Invalidate invalidate, DataOutputPlus out, int version) throws IOException
@@ -96,7 +96,7 @@ public class AcceptSerializers
         }
     };
 
-    private static final IVersionedSerializer<AcceptOk> acceptOk = new IVersionedSerializer<>()
+    private static final IVersionedSerializer<AcceptOk> acceptOk = new IVersionedSerializer<AcceptOk>()
     {
         @Override
         public void serialize(AcceptOk acceptOk, DataOutputPlus out, int version) throws IOException
@@ -145,7 +145,7 @@ public class AcceptSerializers
         }
     };
 
-    public static final IVersionedSerializer<AcceptReply> reply = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<AcceptReply> reply = new IVersionedSerializer<AcceptReply>()
     {
         @Override
         public void serialize(AcceptReply reply, DataOutputPlus out, int version) throws IOException

@@ -49,6 +49,7 @@ class AccordCallback<T extends Reply> implements RequestCallback<T>
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
         logger.debug("Received failure {} from {}", failureReason, from);
+        // TODO (now): we should distinguish timeout failures with some placeholder Exception
         callback.onFailure(EndpointMapping.endpointToId(from), new RuntimeException(failureReason.toString()));
     }
 

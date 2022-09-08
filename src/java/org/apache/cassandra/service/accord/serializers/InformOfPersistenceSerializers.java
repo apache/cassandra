@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.CollectionSerializer;
 
 public class InformOfPersistenceSerializers
 {
-    public static final IVersionedSerializer<InformOfPersistence> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<InformOfPersistence> request = new IVersionedSerializer<InformOfPersistence>()
     {
         @Override
         public void serialize(InformOfPersistence inform, DataOutputPlus out, int version) throws IOException

@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -76,7 +77,7 @@ public class AsyncLoaderTest
 
     private static void load(AccordCommandStore commandStore, AsyncContext context, TxnId... txnIds)
     {
-        load(commandStore, context, List.of(txnIds), Collections.emptyList());
+        load(commandStore, context, ImmutableList.copyOf(txnIds), Collections.emptyList());
     }
 
     /**
@@ -278,7 +279,7 @@ public class AsyncLoaderTest
             cache.addWriteOnly(writeOnly2);
 
             AsyncContext context = new AsyncContext();
-            AsyncLoader loader = new AsyncLoader(commandStore, List.of(txnId), Collections.emptyList());
+            AsyncLoader loader = new AsyncLoader(commandStore, ImmutableList.of(txnId), Collections.emptyList());
             while (true)
             {
                 if (loader.load(context, (o, t) -> Assert.assertNull(t)))
@@ -309,7 +310,7 @@ public class AsyncLoaderTest
         execute(commandStore, () -> {
             AsyncContext context = new AsyncContext();
             AtomicInteger loadCalls = new AtomicInteger();
-            AsyncLoader loader = new AsyncLoader(commandStore, List.of(txnId1, txnId2), Collections.emptyList()){
+            AsyncLoader loader = new AsyncLoader(commandStore, ImmutableList.of(txnId1, txnId2), Collections.emptyList()){
                 @Override
                 Function<AccordCommand, Future<?>> loadCommandFunction(Object callback)
                 {

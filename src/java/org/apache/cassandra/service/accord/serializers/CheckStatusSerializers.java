@@ -37,7 +37,7 @@ import static org.apache.cassandra.service.accord.serializers.NullableSerializer
 
 public class CheckStatusSerializers
 {
-    public static final IVersionedSerializer<CheckStatus> request = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<CheckStatus> request = new IVersionedSerializer<CheckStatus>()
     {
         @Override
         public void serialize(CheckStatus check, DataOutputPlus out, int version) throws IOException

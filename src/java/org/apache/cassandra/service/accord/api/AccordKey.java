@@ -384,7 +384,7 @@ public interface AccordKey extends Key
                    '}';
         }
 
-        public static final IVersionedSerializer<TokenKey> serializer = new IVersionedSerializer<>()
+        public static final IVersionedSerializer<TokenKey> serializer = new IVersionedSerializer<TokenKey>()
         {
             @Override
             public void serialize(TokenKey key, DataOutputPlus out, int version) throws IOException
@@ -416,7 +416,7 @@ public interface AccordKey extends Key
         };
     }
 
-    IVersionedSerializer<AccordKey> serializer = new IVersionedSerializer<>()
+    IVersionedSerializer<AccordKey> serializer = new IVersionedSerializer<AccordKey>()
     {
         @Override
         public void serialize(AccordKey key, DataOutputPlus out, int version) throws IOException

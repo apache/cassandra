@@ -131,6 +131,6 @@ public class AccordTopologyUtils
             shards.addAll(createShards(tableMetadata, tokenMetadata));
         }
 
-        return new Topology(epoch, shards.toArray(Shard[]::new));
+        return new Topology(epoch, shards.toArray(new Shard[0]));
     }
 }

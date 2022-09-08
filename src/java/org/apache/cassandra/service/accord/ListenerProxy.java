@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -134,7 +135,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             AccordCommand command = (AccordCommand) c;
             AccordCommandStore commandStore = command.commandStore();
             AsyncContext context = commandStore.getContext();
-            TxnOperation scope = TxnOperation.scopeFor(List.of(command.txnId(), txnId), Collections.emptyList());
+            TxnOperation scope = TxnOperation.scopeFor(ImmutableList.of(command.txnId(), txnId), Collections.emptyList());
             if (context.containsScopedItems(scope))
             {
                 // TODO (soon): determine if this can break anything by not waiting for the current operation to denormalize it's data
@@ -235,7 +236,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             AccordCommand command = (AccordCommand) c;
             AccordCommandStore commandStore = command.commandStore();
             AsyncContext context = commandStore.getContext();
-            TxnOperation scope = TxnOperation.scopeFor(List.of(command.txnId()), List.of(key));
+            TxnOperation scope = TxnOperation.scopeFor(ImmutableList.of(command.txnId()), ImmutableList.of(key));
             if (context.containsScopedItems(scope))
             {
                 logger.trace("{}: synchronously updating listening cfk {}", c.txnId(), key);

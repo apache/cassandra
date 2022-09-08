@@ -270,11 +270,6 @@
     </path>
 
     <target name="_build-accord">
-      <fail message="Accord requires JDK11 or higher">
-        <condition>
-          <isset property="java.version.8"/>
-        </condition>
-      </fail>
       <exec executable=".build/include-accord.sh" dir="${basedir}" logError="true" failonerror="true" failifexecutionfails="true" />
     </target>
   <macrodef name="create-javadoc">

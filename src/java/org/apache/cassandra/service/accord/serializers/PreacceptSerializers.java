@@ -35,7 +35,7 @@ public class PreacceptSerializers
 {
     private PreacceptSerializers() {}
 
-    public static final IVersionedSerializer<PreAccept> request = new WithUnsyncedSerializer<>()
+    public static final IVersionedSerializer<PreAccept> request = new WithUnsyncedSerializer<PreAccept>()
     {
         @Override
         public void serializeBody(PreAccept msg, DataOutputPlus out, int version) throws IOException
@@ -60,7 +60,7 @@ public class PreacceptSerializers
         }
     };
 
-    public static final IVersionedSerializer<PreAcceptReply> reply = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<PreAcceptReply> reply = new IVersionedSerializer<PreAcceptReply>()
     {
         @Override
         public void serialize(PreAcceptReply reply, DataOutputPlus out, int version) throws IOException

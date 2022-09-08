@@ -64,7 +64,7 @@ public abstract class AccordQuery implements Query
         return SIZE;
     }
 
-    public static final IVersionedSerializer<AccordQuery> serializer = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<AccordQuery> serializer = new IVersionedSerializer<AccordQuery>()
     {
         @Override
         public void serialize(AccordQuery query, DataOutputPlus out, int version) throws IOException
