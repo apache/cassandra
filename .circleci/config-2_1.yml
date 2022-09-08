@@ -39,7 +39,7 @@ j8_par_executor: &j8_par_executor
   executor:
     name: java8-executor
     #exec_resource_class: xlarge
-  parallelism: 4
+  parallelism: 20
 
 j8_small_par_executor: &j8_small_par_executor
   executor:
