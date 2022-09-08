@@ -1,4 +1,5 @@
 4.2
+ * Introduce auto_snapshot_ttl table parameter (CASSANDRA-16791)
  * Allow disabling hotness persistence for high sstable counts (CASSANDRA-17868)
  * Prevent NullPointerException when changing neverPurgeTombstones from true to false (CASSANDRA-17897)
  * Add metrics around storage usage and compression (CASSANDRA-17898)
