@@ -20,10 +20,10 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -100,6 +100,9 @@ public final class TableAttributes extends PropertyDefinitions
     {
         if (hasOption(Option.ALLOW_AUTO_SNAPSHOT))
             builder.allowAutoSnapshot(getBoolean(Option.ALLOW_AUTO_SNAPSHOT.toString(), true));
+
+        if (hasOption(Option.AUTO_SNAPSHOT_TTL))
+            builder.autoSnapshotTtl(new DurationSpec.IntSecondsBound(getString(Option.AUTO_SNAPSHOT_TTL)));
 
         if (hasOption(Option.BLOOM_FILTER_FP_CHANCE))
             builder.bloomFilterFpChance(getDouble(Option.BLOOM_FILTER_FP_CHANCE));

@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.SchemaElement;
@@ -780,6 +781,12 @@ public class TableMetadata implements SchemaElement
         public Builder allowAutoSnapshot(boolean val)
         {
             params.allowAutoSnapshot(val);
+            return this;
+        }
+
+        public Builder autoSnapshotTtl(DurationSpec.IntSecondsBound val)
+        {
+            params.autoSnapshotTtl(val);
             return this;
         }
 

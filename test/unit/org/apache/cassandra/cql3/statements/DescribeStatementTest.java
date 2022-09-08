@@ -840,6 +840,7 @@ public class DescribeStatementTest extends CQLTester
     {
         return "additional_write_policy = '99p'\n" +
                "    AND allow_auto_snapshot = true\n" +
+               "    AND auto_snapshot_ttl = 0s\n" +
                "    AND bloom_filter_fp_chance = 0.01\n" +
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
@@ -862,6 +863,7 @@ public class DescribeStatementTest extends CQLTester
     {
         return "additional_write_policy = '99p'\n" +
                "    AND allow_auto_snapshot = true\n" +
+               "    AND auto_snapshot_ttl = 0s\n" +
                "    AND bloom_filter_fp_chance = 0.01\n" +
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +

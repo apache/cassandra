@@ -63,7 +63,7 @@ public class SnapshotManifest
     {
         this.files = files;
         this.createdAt = creationTime;
-        this.expiresAt = ttl == null ? null : createdAt.plusSeconds(ttl.toSeconds());
+        this.expiresAt = (ttl == null || ttl.toSeconds() == 0) ? null : createdAt.plusSeconds(ttl.toSeconds());
         this.ephemeral = ephemeral;
     }
 

@@ -86,8 +86,8 @@ public class AutoSnapshotTest extends CQLTester
         return Arrays.asList(new Object[][] {
         { true, new DurationSpec.IntSecondsBound(TTL_SECS, SECONDS) },
         { false, new DurationSpec.IntSecondsBound(TTL_SECS, SECONDS) },
-        { true, null },
-        { false, null },
+        { true, new DurationSpec.IntSecondsBound(0) },
+        { false, new DurationSpec.IntSecondsBound(0) },
         });
     }
 
@@ -170,7 +170,7 @@ public class AutoSnapshotTest extends CQLTester
             assertThat(snapshots).hasKeySatisfying(new Condition<>(k -> k.startsWith(snapshotPrefix), "is dropped snapshot"));
             TableSnapshot snapshot = snapshots.values().iterator().next();
             assertThat(snapshot.getTableName()).isEqualTo(expectedTableName);
-            if (autoSnapshotTTl == null)
+            if (autoSnapshotTTl.toSeconds() == 0)
             {
                 // check that the snapshot has NO TTL
                 assertThat(snapshot.isExpiring()).isFalse();

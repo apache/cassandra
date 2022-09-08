@@ -2615,7 +2615,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 data.notifyTruncated(truncatedAt);
 
             if (!noSnapshot && isAutoSnapshotEnabled())
-                snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
+                snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX), getAutoSnapshotTtl());
 
             discardSSTables(truncatedAt);
 
@@ -3078,6 +3078,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return metadata().params.allowAutoSnapshot && DatabaseDescriptor.isAutoSnapshot();
     }
 
+    public DurationSpec.IntSecondsBound getAutoSnapshotTtl()
+    {
+        // If it is not set as a table parameter (which is by default 0s), then take the default value from descriptor.
+        // It is possible that it is unset in descriptor, which again defaults to 0s.
+        // When SnapshotManifest receives ttl with null or 0s, it will not write expiration time to manifest file
+        // Hence, table parameter has precedence over descriptor value.
+        DurationSpec.IntSecondsBound ttlFromTable = metadata().params.autoSnapshotTtl;
+        return ttlFromTable.toSeconds() != 0 ? ttlFromTable : DatabaseDescriptor.getAutoSnapshotTtl();
+    }
+
     /**
      * Discard all SSTables that were created before given timestamp.
      *
@@ -3213,7 +3223,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
 
         if (isAutoSnapshotEnabled())
-            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
+            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX), getAutoSnapshotTtl());
 
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 
