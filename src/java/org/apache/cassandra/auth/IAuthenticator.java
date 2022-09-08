@@ -18,10 +18,9 @@
 package org.apache.cassandra.auth;
 
 import java.net.InetAddress;
+import java.security.cert.Certificate;
 import java.util.Map;
 import java.util.Set;
-
-import javax.security.cert.X509Certificate;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -73,11 +72,14 @@ public interface IAuthenticator
      * override this method to gain access to client's certificate chain, if present.
      * @param clientAddress the IP address of the client whom we wish to authenticate, or null
      *                      if an internal client (one not connected over the remote transport).
-     * @param certificates the peer's X509 Certificate chain, if present.
+     * @param certificates the peer's Certificate chain, if present.
+     *                     It is expected that these will all be instances of {@link java.security.cert.X509Certificate},
+     *                     but we pass them as the base {@link Certificate} in case future implementations leverage
+     *                     other certificate types.
      * @return org.apache.cassandra.auth.IAuthenticator.SaslNegotiator implementation
      * (see {@link org.apache.cassandra.auth.PasswordAuthenticator.PlainTextSaslAuthenticator})
      */
-    default SaslNegotiator newSaslNegotiator(InetAddress clientAddress, X509Certificate[] certificates)
+    default SaslNegotiator newSaslNegotiator(InetAddress clientAddress, Certificate[] certificates)
     {
         return newSaslNegotiator(clientAddress);
     }
