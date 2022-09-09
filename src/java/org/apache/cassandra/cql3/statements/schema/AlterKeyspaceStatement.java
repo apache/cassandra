@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -47,7 +48,7 @@ import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.utils.FBUtilities;
 
-public final class AlterKeyspaceStatement extends AlterSchemaStatement
+public final class AlterKeyspaceStatement extends AlterSchemaStatement implements AlterSchemaStatement.WithKeyspaceAttributes
 {
     private static final boolean allow_alter_rf_during_range_movement = Boolean.getBoolean(Config.PROPERTY_PREFIX + "allow_alter_rf_during_range_movement");
     private static final boolean allow_unsafe_transient_changes = Boolean.getBoolean(Config.PROPERTY_PREFIX + "allow_unsafe_transient_changes");
@@ -58,6 +59,23 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     {
         super(queryString, keyspaceName);
         this.attrs = attrs;
+    }
+
+    public Object getAttribute(String key)
+    {
+        return attrs.getProperty(key);
+    }
+
+    public void overrideAttribute(String oldKey, String newKey, String newValue)
+    {
+        attrs.removeProperty(oldKey);
+        attrs.addProperty(newKey, newValue);
+    }
+
+    public void overrideAttribute(String oldKey, String newKey, Map<String, String> newValue)
+    {
+        attrs.removeProperty(oldKey);
+        attrs.addProperty(newKey, newValue);
     }
 
     public Keyspaces apply(Keyspaces schema)

@@ -24,7 +24,10 @@ import org.junit.After;
 import org.junit.Test;
 import org.junit.Before;
 
+import org.apache.cassandra.exceptions.SyntaxException;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 public class PropertyDefinitionsTest {
     
@@ -41,7 +44,21 @@ public class PropertyDefinitionsTest {
     {
         pd = null;
     }
-    
+
+    @Test
+    public void testGetProperty()
+    {
+        String key = "k";
+        String value = "v";
+        pd.addProperty(key, value);
+        assertEquals(value, pd.getProperty(key).toString());
+    }
+
+    @Test
+    public void testGetMissingProperty()
+    {
+        assertThrows(SyntaxException.class, () -> pd.getProperty("missing"));
+    }
 
     @Test
     public void testGetBooleanExistant()

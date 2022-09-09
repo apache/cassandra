@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.Iterables;
 
@@ -71,22 +72,27 @@ public class PaxosStateTest
         // CFS should be empty initially
         assertNoDataPresent(cfs, Util.dk(key));
 
+        AtomicBoolean committed = new AtomicBoolean();
+
         // Commit the proposal & verify the data is present
         Commit beforeTruncate = newProposal(0, update);
-        PaxosState.commit(beforeTruncate);
+        PaxosState.commit(beforeTruncate, ignored -> committed.set(true));
         assertDataPresent(cfs, Util.dk(key), "val", value);
+        assertTrue(committed.getAndSet(false));
 
         // Truncate then attempt to commit again, mutation should
         // be ignored as the proposal predates the truncation
         cfs.truncateBlocking();
-        PaxosState.commit(beforeTruncate);
+        PaxosState.commit(beforeTruncate, ignored -> committed.set(true));
         assertNoDataPresent(cfs, Util.dk(key));
+        assertFalse(committed.getAndSet(false));
 
         // Now try again with a ballot created after the truncation
         long timestamp = Nodes.local().getTruncatedAt(update.metadata().id) + 1;
         Commit afterTruncate = newProposal(timestamp, update);
-        PaxosState.commit(afterTruncate);
+        PaxosState.commit(afterTruncate, ignored -> committed.set(true));
         assertDataPresent(cfs, Util.dk(key), "val", value);
+        assertTrue(committed.getAndSet(false));
     }
 
     private Commit newProposal(long ballotMillis, PartitionUpdate update)

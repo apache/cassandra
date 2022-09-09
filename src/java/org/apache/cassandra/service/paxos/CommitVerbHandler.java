@@ -23,6 +23,7 @@ package org.apache.cassandra.service.paxos;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.MutatorProvider;
 import org.apache.cassandra.tracing.Tracing;
 
 public class CommitVerbHandler implements IVerbHandler<Commit>
@@ -31,7 +32,7 @@ public class CommitVerbHandler implements IVerbHandler<Commit>
 
     public void doVerb(Message<Commit> message)
     {
-        PaxosState.commit(message.payload);
+        PaxosState.commit(message.payload, p -> MutatorProvider.getCustomOrDefault().onAppliedProposal(p));
 
         Tracing.trace("Enqueuing acknowledge to {}", message.from());
         MessagingService.instance().send(message.emptyResponse(), message.from());
