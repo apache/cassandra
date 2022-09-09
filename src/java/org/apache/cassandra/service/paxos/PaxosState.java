@@ -21,6 +21,7 @@
 package org.apache.cassandra.service.paxos;
 
 import java.util.concurrent.locks.Lock;
+import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.Striped;
 
@@ -133,7 +134,7 @@ public class PaxosState
         }
     }
 
-    public static void commit(Commit proposal)
+    public static void commit(Commit proposal, Consumer<Commit> callback)
     {
         long start = System.nanoTime();
         try
@@ -150,6 +151,7 @@ public class PaxosState
                 Tracing.trace("Committing proposal {}", proposal);
                 Mutation mutation = proposal.makeMutation();
                 Keyspace.open(mutation.getKeyspaceName()).apply(mutation, WriteOptions.FOR_PAXOS_COMMIT);
+                callback.accept(proposal);
             }
             else
             {

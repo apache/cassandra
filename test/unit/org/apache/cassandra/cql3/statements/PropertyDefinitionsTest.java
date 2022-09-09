@@ -24,6 +24,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.exceptions.SyntaxException;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+
 import static org.apache.cassandra.cql3.statements.PropertyDefinitions.parseBoolean;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -49,6 +52,23 @@ public class PropertyDefinitionsTest
         assertFalse(parseBoolean("prop3", "False"));
         assertFalse(parseBoolean("prop4", "FaLse"));
         assertFalse(parseBoolean("prop6", "No"));
+    }
+
+    @Test
+    public void testGetProperty()
+    {
+        String key = "k";
+        String value = "v";
+        PropertyDefinitions pd = new PropertyDefinitions();
+        pd.addProperty(key, value);
+        assertEquals(value, pd.getProperty(key).toString());
+    }
+
+    @Test(expected = SyntaxException.class)
+    public void testGetMissingProperty()
+    {
+        PropertyDefinitions pd = new PropertyDefinitions();
+        pd.getProperty("missing");
     }
 
     @Test(expected = SyntaxException.class)

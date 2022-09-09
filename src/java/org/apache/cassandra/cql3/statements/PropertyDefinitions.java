@@ -169,4 +169,13 @@ public class PropertyDefinitions
     {
         properties.remove(name);
     }
+
+    public Object getProperty(String name)
+    {
+        Object ret = properties.get(name);
+        if (ret == null)
+            throw new SyntaxException(String.format("Invalid value for property '%s'. It should not be null.", name));
+
+        return ret;
+    }
 }

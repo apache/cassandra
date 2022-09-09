@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -175,4 +176,12 @@ public abstract class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         return new InvalidRequestException(String.format(format, args));
     }
 
+    public static interface WithKeyspaceAttributes
+    {
+        Object getAttribute(String key);
+
+        void overrideAttribute(String oldKey, String newKey, String newValue);
+
+        void overrideAttribute(String oldKey, String newKey, Map<String, String> newValue);
+    }
 }

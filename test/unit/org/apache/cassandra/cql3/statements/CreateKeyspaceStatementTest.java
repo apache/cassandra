@@ -21,15 +21,33 @@ package org.apache.cassandra.cql3.statements;
 import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement;
+import org.apache.cassandra.service.ClientState;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class CreateKeyspaceStatementTest extends CQLTester
 {
+    @Test
+    public void testAttributeOverride()
+    {
+        String keyspaceName = createKeyspaceName();
+        CQLStatement.Raw raw = QueryProcessor.parseStatement(String.format("CREATE KEYSPACE %s WITH REPLICATION = " +
+                                                                           "{ 'class' : 'SimpleStrategy', 'replication_factor' : '1' }",
+                                                                           keyspaceName));
+
+        CQLStatement stm = raw.prepare(ClientState.forInternalCalls());
+        ((CreateKeyspaceStatement) stm).overrideAttribute("replication_factor", "replication_factor", "2");
+        assertEquals("2", ((CreateKeyspaceStatement) stm).getAttribute("replication_factor"));
+    }
+
     @Test
     public void ignoreUnsupportedGraphEngineProperty() throws Throwable
     {

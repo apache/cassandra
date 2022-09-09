@@ -18,11 +18,11 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 
 import com.google.common.collect.ImmutableSet;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +45,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 
-public final class CreateKeyspaceStatement extends AlterSchemaStatement
+public final class CreateKeyspaceStatement extends AlterSchemaStatement implements AlterSchemaStatement.WithKeyspaceAttributes
 {
     private static final Logger logger = LoggerFactory.getLogger(CreateKeyspaceStatement.class);
 
@@ -58,6 +58,23 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         super(queryString, keyspaceName);
         this.attrs = attrs;
         this.ifNotExists = ifNotExists;
+    }
+
+    public Object getAttribute(String key)
+    {
+        return attrs.getProperty(key);
+    }
+
+    public void overrideAttribute(String oldKey, String newKey, String newValue)
+    {
+        attrs.removeProperty(oldKey);
+        attrs.addProperty(newKey, newValue);
+    }
+
+    public void overrideAttribute(String oldKey, String newKey, Map<String, String> newValue)
+    {
+        attrs.removeProperty(oldKey);
+        attrs.addProperty(newKey, newValue);
     }
 
     public Keyspaces apply(Keyspaces schema)

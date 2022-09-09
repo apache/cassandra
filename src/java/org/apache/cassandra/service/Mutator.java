@@ -58,4 +58,28 @@ public interface Mutator
      */
     @Nullable
     AbstractWriteResponseHandler<Commit> mutatePaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, long queryStartNanoTime);
+
+    /**
+     * Callback invoked when the given {@code mutation} is localy applied.
+     */
+    default void onAppliedMutation(IMutation mutation)
+    {
+        // no-op
+    }
+
+    /**
+     * Callback invoked when the given {@code counter} is localy applied.
+     */
+    default void onAppliedCounter(IMutation counter)
+    {
+        // no-op
+    }
+
+    /**
+     * Callback invoked when the given {@code proposal} is localy committed.
+     */
+    default void onAppliedProposal(Commit proposal)
+    {
+        // no-op
+    }
 }

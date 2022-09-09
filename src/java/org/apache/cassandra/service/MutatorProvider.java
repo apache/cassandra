@@ -35,8 +35,7 @@ public abstract class MutatorProvider
 {
     static final Mutator instance = getCustomOrDefault();
 
-    @VisibleForTesting
-    static Mutator getCustomOrDefault()
+    public static Mutator getCustomOrDefault()
     {
         if (CUSTOM_MUTATOR_CLASS.isPresent())
         {
