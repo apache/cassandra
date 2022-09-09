@@ -505,12 +505,12 @@ public class AccordStateCache
             setFuture(readFutures, key, future);
         }
 
-        public Future<?> getWriteFuture(K key)
+        public Future<Void> getWriteFuture(K key)
         {
-            return getFuture(writeFutures, key);
+            return (Future<Void>) getFuture(writeFutures, key);
         }
 
-        public void setWriteFuture(K key, Future<?> future)
+        public void setWriteFuture(K key, Future<Void> future)
         {
             setFuture(writeFutures, key, future);
         }

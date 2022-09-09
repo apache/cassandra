@@ -85,7 +85,7 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
     }
 
     @Override
-    public Future<?> apply(Key key, CommandStore commandStore, Timestamp executeAt, DataStore store)
+    public Future<Void> apply(Key key, CommandStore commandStore, Timestamp executeAt, DataStore store)
     {
         PartitionUpdate update = getDeserialized((PartitionKey) key);
         if (update == null)
@@ -95,7 +95,7 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
         int nowInSeconds = cfk.nowInSecondsFor(executeAt);
         update = new PartitionUpdate.Builder(update, 0).updateAllTimestampAndLocalDeletionTime(timestamp, nowInSeconds).build();
         Mutation mutation = new Mutation(update);
-        return Stage.MUTATION.submit((Runnable) mutation::apply);
+        return (Future<Void>) Stage.MUTATION.submit((Runnable) mutation::apply);
     }
 
     public static final IVersionedSerializer<AccordWrite> serializer = new Serializer<>(AccordWrite::new);

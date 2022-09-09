@@ -564,9 +564,9 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public Future<?> apply()
+    public Future<Void> apply()
     {
-        Future<?> future = cache().getWriteFuture(txnId);
+        Future<Void> future = cache().getWriteFuture(txnId);
         if (future != null)
             return future;
         future = super.apply();
