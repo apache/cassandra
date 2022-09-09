@@ -96,7 +96,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         }
     }
 
-    public enum SeriesKind {
+    public enum SeriesKind
+    {
         UNCOMMITTED(Command::txnId),
         COMMITTED_BY_ID(Command::txnId),
         COMMITTED_BY_EXECUTE_AT(Command::executeAt);
