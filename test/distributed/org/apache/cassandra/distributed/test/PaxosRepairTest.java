@@ -197,9 +197,18 @@ public class PaxosRepairTest extends TestBaseImpl
         repair(cluster, keyspace, table, false);
     }
 
-    private static final Consumer<IInstanceConfig> CONFIG_CONSUMER = cfg -> {
+    private static final Consumer<IInstanceConfig> WITH_NETWORK = cfg -> {
         cfg.with(Feature.NETWORK);
         cfg.with(Feature.GOSSIP);
+        cfg.set("paxos_purge_grace_period", "0s");
+        cfg.set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString());
+        cfg.set("paxos_variant", "v2_without_linearizable_reads");
+        cfg.set("truncate_request_timeout", "1000ms");
+        cfg.set("partitioner", "ByteOrderedPartitioner");
+        cfg.set("initial_token", ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(cfg.num() * 100)));
+    };
+
+    private static final Consumer<IInstanceConfig> WITHOUT_NETWORK = cfg -> {
         cfg.set("paxos_purge_grace_period", "0s");
         cfg.set("paxos_state_purging", Config.PaxosStatePurging.repaired.toString());
         cfg.set("paxos_variant", "v2_without_linearizable_reads");
@@ -212,7 +221,7 @@ public class PaxosRepairTest extends TestBaseImpl
     public void paxosRepairTest() throws Throwable
     {
         // TODO: fails with vnode enabled
-        try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).withoutVNodes().start()))
+        try (Cluster cluster = init(Cluster.build(3).withConfig(WITH_NETWORK).withoutVNodes().start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
@@ -262,7 +271,7 @@ public class PaxosRepairTest extends TestBaseImpl
     public void topologyChangePaxosTest() throws Throwable
     {
         // TODO: fails with vnode enabled
-        try (Cluster cluster = Cluster.build(4).withConfig(CONFIG_CONSUMER).withoutVNodes().createWithoutStarting())
+        try (Cluster cluster = Cluster.build(4).withConfig(WITH_NETWORK).withoutVNodes().createWithoutStarting())
         {
             for (int i=1; i<=3; i++)
                 cluster.get(i).startup();
@@ -505,7 +514,8 @@ public class PaxosRepairTest extends TestBaseImpl
 
     private static void assertRepairFailsWithVersion(Cluster cluster, String version)
     {
-        setVersion(cluster.get(1), cluster.get(2).broadcastAddress(), version);
+        for (int i = 1 ; i <= cluster.size() ; ++i)
+            setVersion(cluster.get(i), cluster.get(2).broadcastAddress(), version);
         try
         {
             repair(cluster, KEYSPACE, TABLE);
@@ -519,7 +529,8 @@ public class PaxosRepairTest extends TestBaseImpl
 
     private static void assertRepairSucceedsWithVersion(Cluster cluster, String version)
     {
-        setVersion(cluster.get(1), cluster.get(2).broadcastAddress(), version);
+        for (int i = 1 ; i <= cluster.size() ; ++i)
+            setVersion(cluster.get(i), cluster.get(2).broadcastAddress(), version);
         repair(cluster, KEYSPACE, TABLE);
     }
 
@@ -527,7 +538,7 @@ public class PaxosRepairTest extends TestBaseImpl
     public void paxosRepairVersionGate() throws Throwable
     {
         // TODO: fails with vnode enabled
-        try (Cluster cluster = init(Cluster.build(3).withConfig(CONFIG_CONSUMER).withoutVNodes().start()))
+        try (Cluster cluster = init(Cluster.build(3).withConfig(WITHOUT_NETWORK).withoutVNodes().start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
