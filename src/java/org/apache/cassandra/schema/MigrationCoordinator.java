@@ -58,6 +58,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -311,7 +312,10 @@ public class MigrationCoordinator
         if (state == null)
             return false;
 
-        final String releaseVersion = state.getApplicationState(ApplicationState.RELEASE_VERSION).value;
+        VersionedValue releaseVersionValue = state.getApplicationState(ApplicationState.RELEASE_VERSION);
+        if (releaseVersionValue == null)
+            return false;
+        final String releaseVersion = releaseVersionValue.value;
         final String ourMajorVersion = FBUtilities.getReleaseVersionMajor();
 
         if (!releaseVersion.startsWith(ourMajorVersion))
