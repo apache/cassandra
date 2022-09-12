@@ -58,7 +58,6 @@ public class CompactionBench extends CQLTester
         execute("use "+keyspace+";");
         writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";
         readStatement = "SELECT * from "+table+" limit 100";
-
         Keyspace.system().forEach(k -> k.getColumnFamilyStores().forEach(c -> c.disableAutoCompaction()));
 
         cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
