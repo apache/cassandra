@@ -19,6 +19,7 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -27,26 +28,27 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundaryMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -56,7 +58,9 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
@@ -71,6 +75,8 @@ public abstract class SortedTableWriter extends SSTableWriter
     protected DeletionTime currentPartitionLevelDeletion;
     protected long currentStartPosition;
     private long lastEarlyOpenLength = 0;
+    private boolean isInternalKeyspace;
+
 
     protected SortedTableWriter(Descriptor descriptor,
                                 Set<Component> components,
@@ -90,6 +96,7 @@ public abstract class SortedTableWriter extends SSTableWriter
 
         dataFile = constructDataFileWriter(descriptor, metadata, metadataCollector, lifecycleNewTracker, writerOption);
         dbuilder = SSTableReaderBuilder.defaultDataHandleBuilder(descriptor).compressed(compression);
+        isInternalKeyspace = SchemaConstants.isInternalKeyspace(metadata.keyspace);
     }
 
     protected static SequentialWriter constructDataFileWriter(Descriptor descriptor,
@@ -186,10 +193,49 @@ public abstract class SortedTableWriter extends SSTableWriter
         return true;
     }
 
+    private void guardCollectionSize(DecoratedKey partitionKey, Unfiltered unfiltered)
+    {
+        if (isInternalKeyspace || !unfiltered.isRow())
+            return;
+
+        if (!Guardrails.collectionSize.enabled(null) && !Guardrails.itemsPerCollection.enabled(null))
+            return;
+
+        Row row = (Row) unfiltered;
+        for (ColumnMetadata column : row.columns())
+        {
+            if (!column.type.isCollection() || !column.type.isMultiCell())
+                continue;
+
+            ComplexColumnData cells = row.getComplexColumnData(column);
+            if (cells == null)
+                continue;
+
+            ComplexColumnData liveCells = cells.purge(DeletionPurger.PURGE_ALL, FBUtilities.nowInSeconds());
+            if (liveCells == null)
+                continue;
+
+            int cellsSize = liveCells.dataSize();
+            int cellsCount = liveCells.cellsCount();
+
+            if (!Guardrails.collectionSize.triggersOn(cellsSize, null) &&
+                !Guardrails.itemsPerCollection.triggersOn(cellsCount, null))
+                continue;
+
+            ByteBuffer key = partitionKey.getKey();
+            String keyString = metadata().primaryKeyAsCQLLiteral(key, row.clustering());
+            String msg = String.format("%s in row %s in table %s",
+                                       column.name.toString(),
+                                       keyString,
+                                       metadata);
+            Guardrails.collectionSize.guard(cellsSize, msg, true, null);
+            Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
+        }
+    }
+
     protected void addUnfilteredMetadata(Unfiltered unfiltered)
     {
-        SSTableWriter.guardCollectionSize(metadata(), currentKey, unfiltered);
-
+        guardCollectionSize(currentKey, unfiltered);
         if (unfiltered.isRow())
         {
             Row row = (Row) unfiltered;
