@@ -21,12 +21,18 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+
+import static java.lang.String.format;
+import static org.apache.cassandra.auth.AuthKeyspace.PREVIOUS_PASSWORDS;
+import static org.apache.cassandra.auth.CassandraAuthorizer.authWriteConsistencyLevel;
+import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 
 public class DropRoleStatement extends AuthenticationStatement
 {
@@ -57,7 +63,7 @@ public class DropRoleStatement extends AuthenticationStatement
         state.ensureNotAnonymous();
 
         if (!ifExists && !DatabaseDescriptor.getRoleManager().isExistingRole(role))
-            throw new InvalidRequestException(String.format("%s doesn't exist", role.getRoleName()));
+            throw new InvalidRequestException(format("%s doesn't exist", role.getRoleName()));
 
         AuthenticatedUser user = state.getUser();
         if (user != null && user.getName().equals(role.getRoleName()))
@@ -75,6 +81,12 @@ public class DropRoleStatement extends AuthenticationStatement
         DatabaseDescriptor.getAuthorizer().revokeAllFrom(role);
         DatabaseDescriptor.getAuthorizer().revokeAllOn(role);
         DatabaseDescriptor.getNetworkAuthorizer().drop(role);
+
+        QueryProcessor.execute(format("DELETE FROM %s.%s WHERE role = ?",
+                                      AUTH_KEYSPACE_NAME, PREVIOUS_PASSWORDS),
+                               authWriteConsistencyLevel(),
+                               escape(role.getRoleName()));
+
         return null;
     }
     

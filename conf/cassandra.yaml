@@ -150,7 +150,7 @@ batchlog_replay_throttle: 1024KiB
 #   users. It keeps usernames and hashed passwords in system_auth.roles table.
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
-authenticator: AllowAllAuthenticator
+authenticator: PasswordAuthenticator
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
@@ -159,7 +159,7 @@ authenticator: AllowAllAuthenticator
 # - AllowAllAuthorizer allows any action to any user - set it to disable authorization.
 # - CassandraAuthorizer stores permissions in system_auth.role_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-authorizer: AllowAllAuthorizer
+authorizer: CassandraAuthorizer
 
 # Part of the Authentication & Authorization backend, implementing IRoleManager; used
 # to maintain grants and memberships between roles.
@@ -1855,6 +1855,51 @@ drop_compact_storage_enabled: false
 # This would also apply to system keyspaces.
 # maximum_replication_factor_warn_threshold: -1
 # maximum_replication_factor_fail_threshold: -1
+#
+# Guardrail to warn or fail when setting / altering a password.
+password_validator:
+  # Implementation class of a validator. When not in form of FQCN, the
+  # package name org.apache.cassandra.db.guardrails.validators is prepended.
+  class_name: DefaultPasswordValidator
+  # If set to true, alter role statements which are changing passwords
+  # will be checking if that password was not already used in the past.
+  # Password validation fails if it was used already. Defaults to false.
+  validate_against_historical_values: true
+  # Maximum previous passwords to validate a password to be altered against
+  # If a password to validate is found among the last 5, the validation will fail.
+  max_historical_values: 5
+  # Number of characteristics a password has to have in order to be valid either
+  # for warning or failing of a validation. There are four characteristics:
+  # upper-case, lower-case, special character and digit.
+  # If this value is set e.g. to 3, a password has to consist of 3 out of 4 characteristics.
+  # For example, it has to contain at least 2 upper-case characters, 2 lower-case, and 2 digits to pass,
+  # but it does not have to contain any special characters.
+  # This value can not be lower than 1 and bigger than 4.
+  characteristics: 3
+  # If password is shorter than this value, the validator will emit a warning.
+  min_length_warn: 8
+  # If a password is shorter than this value, the validator will emit a failure.
+  min_length_fail: 5
+  # If a password does not contain at least n upper-case characters, the validator will emit a warning.
+  min_upper_case_chars_warn: 2
+  # If a password does not contain at least n upper-case characters, the validator will emit a failure.
+  min_upper_case_chars_fail: 1
+  # If a password does not contain at least n lower-case characters, the validator will emit a warning.
+  min_lower_case_chars_warn: 2
+  # If a password does not contain at least n lower-case characters, the validator will emit a failure.
+  min_lower_case_chars_fail: 1
+  # If a password does not contain at least n digits, the validator will emit a warning.
+  min_digits_chars_warn: 2
+  # If a password does not contain at least n digits, the validator will emit a failure.
+  min_digits_chars_fail: 1
+  # If a password does not contain at least n special characters, the validator will emit a warning.
+  min_special_chars_warn: 2
+  # If a password does not contain at least n special characters, the validator will emit a failure.
+  min_special_chars_fail: 1
+  # illegal sequences that will fail when they are >= 5 characters long
+  # illegal sequences might be either alphabetical (form 'abcde'),
+  # numerical (form '34567'), or US qwery (form 'asdfg').
+  illegal_sequence_length: 5
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

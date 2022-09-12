@@ -319,4 +319,9 @@ public interface GuardrailsConfig
      * @return The threshold to fail when replication factor is greater than threshold.
      */
     int getMaximumReplicationFactorFailThreshold();
+
+    /**
+     * @return configuration for password validation guardrail.
+     */
+    CustomGuardrailConfig getPasswordValidatorConfig();
 }

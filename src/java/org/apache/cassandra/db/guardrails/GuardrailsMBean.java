@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -620,4 +622,10 @@ public interface GuardrailsMBean
      *             -1 means disabled.
      */
     void setMaximumReplicationFactorThreshold (int warn, int fail);
+
+    /**
+     * @return the configuration of password validator.
+     */
+    @Nonnull
+    Map<String, Object> getPasswordValidatorConfig();
 }

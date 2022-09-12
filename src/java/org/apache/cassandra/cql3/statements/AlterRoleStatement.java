@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
@@ -24,11 +25,15 @@ import org.apache.cassandra.auth.IRoleManager.Option;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.RoleName;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.statements.RequestValidations.*;
 
 public class AlterRoleStatement extends AuthenticationStatement
@@ -105,10 +110,24 @@ public class AlterRoleStatement extends AuthenticationStatement
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
+        opts.getPassword().ifPresent(password -> {
+            if (Guardrails.password.isValidatingAgainstHistoricalValues())
+                Guardrails.password.guard(Guardrails.password.retrieveHistoricalValues(escape(role.getRoleName())),
+                                          password,
+                                          state);
+            else
+                Guardrails.password.guard(password, state);
+        });
+
         if (!opts.isEmpty())
             DatabaseDescriptor.getRoleManager().alterRole(state.getUser(), role, opts);
         if (dcPermissions != null)
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
+
+        opts.getPassword().ifPresent(password -> Guardrails.password.save(state,
+                                                                          role.getRoleName(),
+                                                                          getSaltedHash(escape(role.getRoleName()))));
+
         return null;
     }
 

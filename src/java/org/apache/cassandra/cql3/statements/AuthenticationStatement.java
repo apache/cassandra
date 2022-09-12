@@ -17,16 +17,24 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+
+import static java.lang.String.format;
+import static org.apache.cassandra.auth.AuthKeyspace.ROLES;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 
 public abstract class AuthenticationStatement extends CQLStatement.Raw implements CQLStatement
 {
@@ -67,6 +75,28 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
     public String obfuscatePassword(String query)
     {
         return query;
+    }
+
+    protected static String escape(String name)
+    {
+        return StringUtils.replace(name, "'", "''");
+    }
+
+    protected String getSaltedHash(String roleName)
+    {
+        UntypedResultSet rows = executeInternal(format("SELECT salted_hash FROM %s.%s WHERE role = ?",
+                                                       AUTH_KEYSPACE_NAME, ROLES),
+                                                roleName);
+        if (rows != null)
+        {
+            UntypedResultSet.Row row = rows.one();
+            if (row.has("salted_hash"))
+            {
+                return row.getString("salted_hash");
+            }
+        }
+
+        return null;
     }
 }
 
