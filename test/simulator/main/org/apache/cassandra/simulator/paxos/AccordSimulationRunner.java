@@ -19,14 +19,10 @@
 package org.apache.cassandra.simulator.paxos;
 
 import java.io.IOException;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.SimulationRunner;
 
 public class AccordSimulationRunner extends SimulationRunner
@@ -35,6 +31,13 @@ public class AccordSimulationRunner extends SimulationRunner
     public static class Run extends SimulationRunner.Run<AccordClusterSimulation.Builder>
     {
         public Run() {}
+
+        @Override
+        protected void run(long seed, AccordClusterSimulation.Builder builder) throws IOException
+        {
+            builder.applyHandicaps();
+            super.run(seed, builder);
+        }
     }
 
     @Command(name = "record")
