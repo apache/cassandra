@@ -1052,6 +1052,8 @@ public class Config
      */
     public volatile int paxos_repair_parallelism = -1;
 
+    public volatile boolean sstable_read_rate_persistence_enabled = false;
+
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
     public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");

@@ -138,4 +138,7 @@ public interface StorageProxyMBean
 
     public boolean getDumpHeapOnUncaughtException();
     public void setDumpHeapOnUncaughtException(boolean enabled);
+
+    boolean getSStableReadRatePersistenceEnabled();
+    void setSStableReadRatePersistenceEnabled(boolean enabled);
 }
