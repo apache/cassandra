@@ -2160,17 +2160,16 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
             readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.id);
             // sync the average read rate to system.sstable_activity every five minutes, starting one minute from now
-            readMeterSyncFuture = new WeakReference<>(syncExecutor.scheduleAtFixedRate(new Runnable()
+            readMeterSyncFuture = new WeakReference<>(syncExecutor.scheduleAtFixedRate(this::maybePersistSSTableReadMeter, 1, 5, TimeUnit.MINUTES));
+        }
+
+        void maybePersistSSTableReadMeter()
+        {
+            if (obsoletion == null && DatabaseDescriptor.getSStableReadRatePersistenceEnabled())
             {
-                public void run()
-                {
-                    if (obsoletion == null)
-                    {
-                        meterSyncThrottle.acquire();
-                        SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.id, readMeter);
-                    }
-                }
-            }, 1, 5, TimeUnit.MINUTES));
+                meterSyncThrottle.acquire();
+                SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.id, readMeter);
+            }
         }
 
         private void stopReadMeterPersistence()
@@ -2359,5 +2358,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
         ExecutorUtils.shutdownNowAndWait(timeout, unit, syncExecutor);
         resetTidying();
+    }
+
+    @VisibleForTesting
+    public void maybePersistSSTableReadMeter()
+    {
+        tidy.global.maybePersistSSTableReadMeter();
     }
 }

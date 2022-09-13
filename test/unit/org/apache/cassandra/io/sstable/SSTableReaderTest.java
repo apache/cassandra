@@ -26,7 +26,7 @@ import java.util.concurrent.*;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
-import org.apache.cassandra.io.util.File;
+
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -34,7 +34,9 @@ import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -50,6 +52,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedRegions;
 import org.apache.cassandra.schema.CachingParams;
@@ -59,6 +62,7 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -178,7 +182,7 @@ public class SSTableReaderTest
                 DecoratedKey dk = Util.dk(String.valueOf(j));
                 FileDataInput file = sstable.getFileDataInput(sstable.getPosition(dk, SSTableReader.Operator.EQ).position);
                 DecoratedKey keyInDisk = sstable.decorateKey(ByteBufferUtil.readWithShortLength(file));
-                assert keyInDisk.equals(dk) : String.format("%s != %s in %s", keyInDisk, dk, file.getPath());
+                assert keyInDisk.equals(dk) : format("%s != %s in %s", keyInDisk, dk, file.getPath());
             }
 
             // check no false positives
@@ -238,6 +242,8 @@ public class SSTableReaderTest
 
         Util.flush(store);
 
+        DatabaseDescriptor.setSStableReadRatePersistenceEnabled(true);
+
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
         assertEquals(0, sstable.getReadMeter().count());
 
@@ -247,6 +253,23 @@ public class SSTableReaderTest
 
         Util.getAll(Util.cmd(store, key).includeRow("0").build());
         assertEquals(2, sstable.getReadMeter().count());
+
+        // With persistence enabled, we should be able to retrieve the state of the meter.
+        sstable.maybePersistSSTableReadMeter();
+
+        UntypedResultSet meter = SystemKeyspace.readSSTableActivity(store.keyspace.getName(), store.name, sstable.descriptor.id);
+        // So this is the only issue atm; seems like it's empty
+        assertFalse(meter.isEmpty());
+
+        Util.getAll(Util.cmd(store, key).includeRow("0").build());
+        assertEquals(3, sstable.getReadMeter().count());
+
+        // After cleaning existing state and disabling persistence, there should be no meter state to read.
+        SystemKeyspace.clearSSTableReadMeter(store.keyspace.getName(), store.name, sstable.descriptor.id);
+        DatabaseDescriptor.setSStableReadRatePersistenceEnabled(false);
+        sstable.maybePersistSSTableReadMeter();
+        meter = SystemKeyspace.readSSTableActivity(store.keyspace.getName(), store.name, sstable.descriptor.id);
+        assertTrue(meter.isEmpty());
     }
 
     @Test
@@ -432,7 +455,7 @@ public class SSTableReaderTest
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
 
-        executeInternal(String.format("ALTER TABLE \"%s\".\"%s\" WITH bloom_filter_fp_chance = 0.3", ks, cf));
+        executeInternal(format("ALTER TABLE \"%s\".\"%s\" WITH bloom_filter_fp_chance = 0.3", ks, cf));
 
         File summaryFile = new File(desc.filenameFor(Component.SUMMARY));
         Path bloomPath = new File(desc.filenameFor(Component.FILTER)).toPath();
@@ -613,9 +636,9 @@ public class SSTableReaderTest
         final int NUM_PARTITIONS = 512;
         for (int j = 0; j < NUM_PARTITIONS; j++)
         {
-            new RowUpdateBuilder(store.metadata(), j, String.format("%3d", j))
+            new RowUpdateBuilder(store.metadata(), j, format("%3d", j))
             .clustering("0")
-            .add("val", String.format("%3d", j))
+            .add("val", format("%3d", j))
             .build()
             .applyUnsafe();
 
@@ -631,7 +654,7 @@ public class SSTableReaderTest
         List<Future<?>> futures = new ArrayList<>(NUM_PARTITIONS * 2);
         for (int i = 0; i < NUM_PARTITIONS; i++)
         {
-            final ByteBuffer key = ByteBufferUtil.bytes(String.format("%3d", i));
+            final ByteBuffer key = ByteBufferUtil.bytes(format("%3d", i));
             final int index = i;
 
             futures.add(executor.submit(new Runnable()
@@ -639,7 +662,7 @@ public class SSTableReaderTest
                 public void run()
                 {
                     Row row = Util.getOnlyRowUnfiltered(Util.cmd(store, key).build());
-                    assertEquals(0, ByteBufferUtil.compare(String.format("%3d", index).getBytes(), row.cells().iterator().next().buffer()));
+                    assertEquals(0, ByteBufferUtil.compare(format("%3d", index).getBytes(), row.cells().iterator().next().buffer()));
                 }
             }));
 
@@ -690,9 +713,9 @@ public class SSTableReaderTest
         final int NUM_PARTITIONS = 512;
         for (int j = 0; j < NUM_PARTITIONS; j++)
         {
-            new RowUpdateBuilder(store.metadata(), j, String.format("%3d", j))
+            new RowUpdateBuilder(store.metadata(), j, format("%3d", j))
             .clustering("0")
-            .add("val", String.format("%3d", j))
+            .add("val", format("%3d", j))
             .build()
             .applyUnsafe();
 
@@ -791,7 +814,7 @@ public class SSTableReaderTest
         {
             File f = new File(notLiveDesc.filenameFor(c));
             assertTrue(f.exists());
-            assertTrue(f.toString().contains(String.format("-%s-", id)));
+            assertTrue(f.toString().contains(format("-%s-", id)));
             f.deleteOnExit();
             assertFalse(new File(sstable.descriptor.filenameFor(c)).exists());
         }
