@@ -110,17 +110,20 @@ public class SchemaTest extends TestBaseImpl
     /**
      * The purpose of this test is to verify manual schema reset functinality.
      * <p>
-     * There is a 2-node cluster and a table one created. The schema version is agreed on both nodes. Then the 2nd node
-     * is shutdown, and we introduce a disagreement by dropping table one and creating table two. Therefore, 1st node
-     * has a newer schema version with table two, while the shutdown 2nd node has older schema version with table one.
+     * There is a 2-node cluster and a TABLE_ONE created. The schema version is agreed on both nodes. Then the 2nd node
+     * is shutdown. We introduce a disagreement by dropping TABLE_ONE and creating TABLE_TWO on the 1st node. Therefore,
+     * the 1st node has a newer schema version with TABLE_TWO, while the shutdown 2nd node has older schema version with
+     * TABLE_ONE.
      * <p>
-     * At this point, if we just start 2nd node, it synces its schema by getting the fresh mutations from 1st node which
-     * results that both nodes have only the definition of table two.
+     * At this point, if we just started the 2nd node, it would sync its schema by getting fresh mutations from the 1st
+     * node which would result in both nodes having only the definition of TABLE_TWO.
      * <p>
-     * However, before starting 2nd we reset the schema on 1st node, so that its schema is discarded whenever it manages
-     * to fetch schema from any node. So in this case, it ends up with both nodes having only the definition of table one.
+     * However, before starting the 2nd node the schema is reset on the 1st node, so the 1st node will discard its local
+     * schema whenever it manages to fetch a schema definition from some other node (the 2nd node in this case).
+     * It is expected to end up with both nodes having only the definition of TABLE_ONE.
      * <p>
-     * In the second phase of the test, we simply break the schema on 1st node and call reset to fetch it from 2nd node.
+     * In the second phase of the test we simply break the schema on the 1st node and call reset to fetch the schema
+     * definition it from the 2nd node.
      */
     @Test
     public void schemaReset() throws Throwable
@@ -129,12 +132,12 @@ public class SchemaTest extends TestBaseImpl
         CassandraRelevantProperties.SCHEMA_PULL_INTERVAL_MS.setLong(10000);
         try (Cluster cluster = init(Cluster.build(2).withConfig(cfg -> cfg.with(Feature.GOSSIP, Feature.NETWORK)).start()))
         {
-            // crate table one and make sure it got propagated
+            // create TABLE_ONE and make sure it is propagated
             cluster.schemaChange(String.format("CREATE TABLE %s.%s (pk INT PRIMARY KEY, v TEXT)", KEYSPACE, TABLE_ONE));
-            assertTrue(checkTables(cluster.get(1), true, false));
-            assertTrue(checkTables(cluster.get(2), true, false));
+            assertTrue(checkTablesPropagated(cluster.get(1), true, false));
+            assertTrue(checkTablesPropagated(cluster.get(2), true, false));
 
-            // shutdown node 2 and make sure that node 1 does see it any longer as alive
+            // shutdown the 2nd node and make sure that the 1st does not see it any longer as alive
             cluster.get(2).shutdown().get();
             await(30).until(() -> cluster.get(1).callOnInstance(() -> {
                 return Gossiper.instance.getLiveMembers()
@@ -147,37 +150,38 @@ public class SchemaTest extends TestBaseImpl
                 cluster.get(1).runOnInstance(() -> Schema.instance.resetLocalSchema());
             }).withMessageContaining("Cannot reset local schema when there are no other live nodes");
 
-            // now, let's make a disagreement, the shutdown node 2 has a definition of table one, while
-            // the running node 2 will have definitions of table two
+            // now, let's make a disagreement, the shutdown node 2 has a definition of TABLE_ONE, while the running
+            // node 1 will have a definition of TABLE_TWO
             cluster.coordinator(1).execute(String.format("DROP TABLE %s.%s", KEYSPACE, TABLE_ONE), ConsistencyLevel.ONE);
             cluster.coordinator(1).execute(String.format("CREATE TABLE %s.%s (pk INT PRIMARY KEY, v TEXT)", KEYSPACE, TABLE_TWO), ConsistencyLevel.ONE);
-            await(30).until(() -> checkTables(cluster.get(1), false, true));
+            await(30).until(() -> checkTablesPropagated(cluster.get(1), false, true));
 
             // Schema.resetLocalSchema is guarded by some conditions which would not let us reset schema if there is no
-            // live node in the cluster; therefore we simply call SchemaUpdateHandler.clear
+            // live node in the cluster, therefore we simply call SchemaUpdateHandler.clear (this is the only real thing
+            // being done by Schema.resetLocalSchema under the hood)
             SerializableCallable<Boolean> clear = () -> Schema.instance.updateHandler.clear().awaitUninterruptibly(1, TimeUnit.MINUTES);
             Future<Boolean> clear1 = cluster.get(1).asyncCallsOnInstance(clear).call();
             assertFalse(clear1.isDone());
 
-            // when the other node is started, schema should be back in sync
+            // when the 2nd node is started, schema should be back in sync
             cluster.get(2).startup();
             await(30).until(() -> clear1.isDone() && clear1.get());
 
-            // this proves node1 reset schema works - the most recent change should be discarded because it receives
-            // the schema from node2 and applies it on a clean schema
-            await(60).until(() -> checkTables(cluster.get(1), true, false));
+            // this proves that reset schema works on the 1st node - the most recent change should be discarded because
+            // it receives the schema from the 2nd node and applies it on empty schema
+            await(60).until(() -> checkTablesPropagated(cluster.get(1), true, false));
 
             // now let's break schema locally and let it be reset
             cluster.get(1).runOnInstance(() -> Schema.instance.getLocalKeyspaces()
                                                               .get(SchemaConstants.SCHEMA_KEYSPACE_NAME)
                                                               .get().tables.forEach(t -> ColumnFamilyStore.getIfExists(t.keyspace, t.name).truncateBlockingWithoutSnapshot()));
 
-            // when schema is removed and there is a node to fetch it from, node 1 should immediatelly restore the schema
+            // when schema is removed and there is a node to fetch it from, the 1st node should immediately restore it
             cluster.get(1).runOnInstance(() -> Schema.instance.resetLocalSchema());
             // note that we should not wait for this to be true because resetLocalSchema is blocking
             // and after successfully completing it, the schema should be already back in sync
-            assertTrue(checkTables(cluster.get(1), true, false));
-            assertTrue(checkTables(cluster.get(2), true, false));
+            assertTrue(checkTablesPropagated(cluster.get(1), true, false));
+            assertTrue(checkTablesPropagated(cluster.get(2), true, false));
         }
     }
 
@@ -186,7 +190,7 @@ public class SchemaTest extends TestBaseImpl
         return Awaitility.await().atMost(ofSeconds(seconds)).pollDelay(ofSeconds(1));
     }
 
-    private static boolean checkTables(IInvokableInstance instance, boolean one, boolean two)
+    private static boolean checkTablesPropagated(IInvokableInstance instance, boolean one, boolean two)
     {
         return instance.callOnInstance(() -> {
             return (Schema.instance.getTableMetadata(KEYSPACE, TABLE_ONE) != null ^ !one)
