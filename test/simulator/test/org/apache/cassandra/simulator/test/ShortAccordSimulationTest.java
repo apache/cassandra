@@ -22,16 +22,16 @@ import java.io.IOException;
 
 import org.junit.Test;
 
-import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
+import org.apache.cassandra.simulator.paxos.AccordSimulationRunner;
 
 public class ShortAccordSimulationTest
 {
     @Test
     public void simulationTest() throws IOException
     {
-        PaxosSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
+        AccordSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "-s", "30"});
     }
-//
+
 // fails due to OOM DirectMemory - unclear why
 //
 //    @Test
