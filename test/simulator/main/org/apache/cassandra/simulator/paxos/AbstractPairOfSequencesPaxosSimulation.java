@@ -116,11 +116,12 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
     abstract Operation verifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker);
     abstract Operation nonVerifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker);
     abstract Operation modifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker);
+    abstract boolean joinAll();
 
     public ActionPlan plan()
     {
         ActionPlan plan = new KeyspaceActions(simulated, KEYSPACE, TABLE, CREATE_TABLE, cluster,
-                                              clusterOptions, serialConsistency, this, primaryKeys, debug).plan();
+                                              clusterOptions, serialConsistency, this, primaryKeys, debug).plan(joinAll());
 
         plan = plan.encapsulate(ActionPlan.setUpTearDown(
             ActionList.of(

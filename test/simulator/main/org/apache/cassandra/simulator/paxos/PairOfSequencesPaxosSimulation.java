@@ -154,4 +154,10 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
     {
         return new ModifyingOperation(operationId, instance, ANY, serialConsistency, primaryKey, historyChecker);
     }
+
+    @Override
+    boolean joinAll()
+    {
+        return false;
+    }
 }

@@ -287,4 +287,10 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     {
         return new ModifyingOperation(operationId, instance, ANY, serialConsistency, primaryKey, historyChecker);
     }
+
+    @Override
+    boolean joinAll()
+    {
+        return true;
+    }
 }
