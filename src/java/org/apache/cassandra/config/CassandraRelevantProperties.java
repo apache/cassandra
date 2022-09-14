@@ -210,7 +210,7 @@ public enum CassandraRelevantProperties
     /**
      * Repair progress reporter, default using system distributed keyspace
      */
-    REPAIR_PROGRESS_REPORTER("cassandra.repair_progress_reporter_class"),
+    REPAIR_PROGRESS_REPORTER("cassandra.custom_repair_progress_reporter_class"),
 
     /**
      * Listen to repair parent session lifecycle
