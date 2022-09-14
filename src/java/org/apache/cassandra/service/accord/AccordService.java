@@ -33,6 +33,7 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -49,7 +50,7 @@ public class AccordService implements Shutdownable
 
     public static long uniqueNow()
     {
-        return TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
+        return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
     }
 
     private AccordService()
@@ -85,7 +86,7 @@ public class AccordService implements Shutdownable
 
     public static long nowInMicros()
     {
-        return TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
+        return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
     }
 
     @VisibleForTesting

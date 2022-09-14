@@ -101,6 +101,7 @@ import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Clock;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -765,7 +766,7 @@ public class AccordKeyspace
     {
         Preconditions.checkArgument(!cfk.isLoaded());
         ((AccordCommandStore) cfk.commandStore()).checkNotInStoreThread();
-        long timestampMicros = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
+        long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
         SinglePartitionReadCommand command = getCommandsForKeyRead(cfk.commandStore(), cfk.key(), nowInSeconds);
