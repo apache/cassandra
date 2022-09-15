@@ -1,4 +1,5 @@
 4.0.7
+ * Mitigate direct buffer memory OOM on replacements (CASSANDRA-17895)
  * Better handle null state in Gossip schema migration to avoid NPE (CASSANDRA-17864)
  * HintedHandoffAddRemoveNodesTest now accounts for the fact that StorageMetrics.totalHints is not updated synchronously w/ writes (CASSANDRA-16679)
  * Avoid getting hanging repairs due to repair message timeouts (CASSANDRA-17613)
