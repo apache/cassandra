@@ -1758,15 +1758,23 @@ public class DatabaseDescriptor
 
     public static Collection<String> getReplaceTokens()
     {
+        return tokensFromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_addresses_token"));
+    }
+
+    @Deprecated
+    public static Collection<String> getDeprecatedReplaceTokens()
+    {
         return tokensFromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_token", null));
     }
 
-    public static UUID getReplaceNode()
+    @Deprecated
+    public static UUID getDeprecatedReplaceNode()
     {
         try
         {
             return UUID.fromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_node", null));
-        } catch (NullPointerException e)
+        }
+        catch (NullPointerException e)
         {
             return null;
         }

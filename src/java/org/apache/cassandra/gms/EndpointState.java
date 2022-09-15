@@ -264,6 +264,25 @@ public class EndpointState
                : null;
     }
 
+    /**
+     * This is 100% unsafe, and only exists for tests... DO NOT USE THIS outside tests!
+     */
+    @VisibleForTesting
+    void unsafeRemoveApplicationStates(ApplicationState... keys)
+    {
+        while (true)
+        {
+            Map<ApplicationState, VersionedValue> orig = applicationState.get();
+            Map<ApplicationState, VersionedValue> copy = new EnumMap<>(orig);
+
+            for (ApplicationState key : keys)
+                copy.remove(key);
+
+            if (applicationState.compareAndSet(orig, copy))
+                return;
+        }
+    }
+
     public String toString()
     {
         return "EndpointState: HeartBeatState = " + hbState + ", AppStateMap = " + applicationState.get();

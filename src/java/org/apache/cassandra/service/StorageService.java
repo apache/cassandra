@@ -575,6 +575,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                        "-Dcassandra.allow_unsafe_replace=true");
 
         InetAddressAndPort replaceAddress = DatabaseDescriptor.getReplaceAddress();
+        // these may not be defined
+        Collection<Token> replaceTokens = getReplaceTokensOrNull();
         logger.info("Gathering node replacement information for {}", replaceAddress);
         Map<InetAddressAndPort, EndpointState> epStates = Gossiper.instance.doShadowRound();
         // as we've completed the shadow round of gossip, we should be able to find the node we're replacing
@@ -586,12 +588,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         try
         {
-            VersionedValue tokensVersionedValue = state.getApplicationState(ApplicationState.TOKENS);
-            if (tokensVersionedValue == null)
-                throw new RuntimeException(String.format("Could not find tokens for %s to replace", replaceAddress));
+            Collection<Token> tokens = getTokens(replaceAddress, replaceTokens, state);
 
-            Collection<Token> tokens = TokenSerializer.deserialize(tokenMetadata.partitioner, new DataInputStream(new ByteArrayInputStream(tokensVersionedValue.toBytes())));
             bootstrapTokens = validateReplacementBootstrapTokens(tokenMetadata, replaceAddress, tokens);
+
+            // if the tokens are not present, they were derived from an external source. Update tokenMetadata
+            if (!state.containsApplicationState(ApplicationState.TOKENS))
+                tokenMetadata.updateNormalTokens(bootstrapTokens, replaceAddress);
 
             if (state.isEmptyWithoutStatus() && REPLACEMENT_ALLOW_EMPTY.getBoolean())
             {
@@ -619,7 +622,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // * we are going to completely take over replaceAddress's ownership of
                 //   these tokens.
                 tokenMetadata.updateNormalTokens(bootstrapTokens, replaceAddress);
-                UUID hostId = Gossiper.instance.getHostId(replaceAddress, epStates);
+                UUID hostId = Gossiper.instance.getHostIdOrNull(replaceAddress, epStates);
                 if (hostId != null)
                     tokenMetadata.updateHostId(hostId, replaceAddress);
 
@@ -655,6 +658,36 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         return localHostId;
+    }
+
+    private Collection<Token> getTokens(InetAddressAndPort replaceAddress, Collection<Token> replaceTokens, EndpointState state) throws IOException
+    {
+        VersionedValue tokensVersionedValue = state.getApplicationState(ApplicationState.TOKENS);
+        if (tokensVersionedValue == null)
+        {
+            if (replaceTokens == null || replaceTokens.isEmpty())
+                throw new RuntimeException(String.format("Could not find tokens for %s to replace", replaceAddress));
+            return replaceTokens;
+        }
+        Collection<Token> tokens = TokenSerializer.deserialize(tokenMetadata.partitioner, new DataInputStream(new ByteArrayInputStream(tokensVersionedValue.toBytes())));
+        if (replaceTokens != null && !replaceTokens.isEmpty() && !tokens.equals(replaceTokens))
+        {
+            throw new RuntimeException(String.format("Provided tokens (-D%s=%s) does not match found tokens %s",
+                                                     "cassandra.replace_addresses_token",
+                                                     replaceTokens.stream().map(Object::toString).collect(Collectors.joining(",")),
+                                                     tokens.stream().map(Object::toString).collect(Collectors.joining(","))));
+        }
+        return tokens;
+    }
+
+    private Collection<Token> getReplaceTokensOrNull()
+    {
+        Collection<String> tokens = DatabaseDescriptor.getReplaceTokens();
+        if (tokens == null || tokens.isEmpty())
+            return null;
+        return tokens.stream()
+                     .map(tokenMetadata.partitioner.getTokenFactory()::fromString)
+                     .collect(Collectors.toList());
     }
 
     private static Collection<Token> validateReplacementBootstrapTokens(TokenMetadata tokenMetadata,
@@ -966,7 +999,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true has been set, or all existing data is removed and the node is bootstrapped again");
             }
 
-            if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
+            if (DatabaseDescriptor.getDeprecatedReplaceTokens().size() > 0 || DatabaseDescriptor.getDeprecatedReplaceNode() != null)
                 throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
 
             MessagingService.instance().listen();
