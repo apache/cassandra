@@ -1,4 +1,5 @@
 4.2
+ * Prevent NullPointerException when changing neverPurgeTombstones from true to false (CASSANDRA-17897)
  * Add metrics around storage usage and compression (CASSANDRA-17898)
  * Remove usage of deprecated javax certificate classes (CASSANDRA-17867)
  * Make sure preview repairs don't optimise streams unless configured to (CASSANDRA-17865)
