@@ -262,11 +262,15 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                          entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
             ColumnFamilyStore cfs = Keyspace.open(sstable.metadata().keyspace).getColumnFamilyStore(sstable.metadata().id);
             long oldSize = sstable.bytesOnDisk();
+            long oldSizeUncompressed = sstable.logicalBytesOnDisk();
+
             SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(cfs, entry.newSamplingLevel);
             long newSize = replacement.bytesOnDisk();
+            long newSizeUncompressed = replacement.logicalBytesOnDisk();
+
             newSSTables.add(replacement);
             transactions.get(sstable.metadata().id).update(replacement, true);
-            addHooks(cfs, transactions, oldSize, newSize);
+            addHooks(cfs, transactions, oldSize, newSize, oldSizeUncompressed, newSizeUncompressed);
         }
 
         return newSSTables;
@@ -276,20 +280,28 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
      * Add hooks to correctly update the storage load metrics once the transaction is closed/aborted
      */
     @SuppressWarnings("resource") // Transactions are closed in finally outside of this method
-    private void addHooks(ColumnFamilyStore cfs, Map<TableId, LifecycleTransaction> transactions, long oldSize, long newSize)
+    private void addHooks(ColumnFamilyStore cfs, Map<TableId, LifecycleTransaction> transactions, long oldSize, long newSize, long oldSizeUncompressed, long newSizeUncompressed)
     {
         LifecycleTransaction txn = transactions.get(cfs.metadata.id);
         txn.runOnCommit(() -> {
             // The new size will be added in Transactional.commit() as an updated SSTable, more details: CASSANDRA-13738
             StorageMetrics.load.dec(oldSize);
+            StorageMetrics.uncompressedLoad.dec(oldSizeUncompressed);
+
             cfs.metric.liveDiskSpaceUsed.dec(oldSize);
+            cfs.metric.uncompressedLiveDiskSpaceUsed.dec(oldSizeUncompressed);
             cfs.metric.totalDiskSpaceUsed.dec(oldSize);
         });
         txn.runOnAbort(() -> {
-            // the local disk was modified but book keeping couldn't be commited, apply the delta
+            // the local disk was modified but bookkeeping couldn't be commited, apply the delta
             long delta = oldSize - newSize; // if new is larger this will be negative, so dec will become a inc
+            long deltaUncompressed = oldSizeUncompressed - newSizeUncompressed;
+
             StorageMetrics.load.dec(delta);
+            StorageMetrics.uncompressedLoad.dec(deltaUncompressed);
+
             cfs.metric.liveDiskSpaceUsed.dec(delta);
+            cfs.metric.uncompressedLiveDiskSpaceUsed.dec(deltaUncompressed);
             cfs.metric.totalDiskSpaceUsed.dec(delta);
         });
     }

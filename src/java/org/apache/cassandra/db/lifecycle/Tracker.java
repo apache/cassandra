@@ -152,6 +152,8 @@ public class Tracker
             return accumulate;
 
         long add = 0;
+        long addUncompressed = 0;
+
         for (SSTableReader sstable : newSSTables)
         {
             if (logger.isTraceEnabled())
@@ -159,13 +161,17 @@ public class Tracker
             try
             {
                 add += sstable.bytesOnDisk();
+                addUncompressed += sstable.logicalBytesOnDisk();
             }
             catch (Throwable t)
             {
                 accumulate = merge(accumulate, t);
             }
         }
+
         long subtract = 0;
+        long subtractUncompressed = 0;
+
         for (SSTableReader sstable : oldSSTables)
         {
             if (logger.isTraceEnabled())
@@ -173,6 +179,7 @@ public class Tracker
             try
             {
                 subtract += sstable.bytesOnDisk();
+                subtractUncompressed += sstable.logicalBytesOnDisk();
             }
             catch (Throwable t)
             {
@@ -181,7 +188,10 @@ public class Tracker
         }
 
         StorageMetrics.load.inc(add - subtract);
+        StorageMetrics.uncompressedLoad.inc(addUncompressed - subtractUncompressed);
+
         cfstore.metric.liveDiskSpaceUsed.inc(add - subtract);
+        cfstore.metric.uncompressedLiveDiskSpaceUsed.inc(addUncompressed - subtractUncompressed);
 
         // we don't subtract from total until the sstable is deleted, see TransactionLogs.SSTableTidier
         cfstore.metric.totalDiskSpaceUsed.inc(add);

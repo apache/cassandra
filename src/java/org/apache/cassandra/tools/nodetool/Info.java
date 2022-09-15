@@ -51,6 +51,8 @@ public class Info extends NodeToolCmd
         out.printf("%-23s: %s%n", "Gossip active", gossipInitialized);
         out.printf("%-23s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
         out.printf("%-23s: %s%n", "Load", probe.getLoadString());
+        out.printf("%-23s: %s%n", "Uncompressed load", probe.getUncompressedLoadString());
+
         if (gossipInitialized)
             out.printf("%-23s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
         else

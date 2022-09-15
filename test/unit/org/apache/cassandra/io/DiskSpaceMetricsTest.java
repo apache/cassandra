@@ -21,6 +21,7 @@ package org.apache.cassandra.io;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMap;
@@ -38,8 +39,12 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
 
 public class DiskSpaceMetricsTest extends CQLTester
 {
@@ -102,18 +107,36 @@ public class DiskSpaceMetricsTest extends CQLTester
 
     private void assertDiskSpaceEqual(ColumnFamilyStore cfs)
     {
+        Set<SSTableReader> liveSSTables = cfs.getTracker().getView().liveSSTables();
         long liveDiskSpaceUsed = cfs.metric.liveDiskSpaceUsed.getCount();
-        long actual = 0;
-        for (SSTableReader sstable : cfs.getTracker().getView().liveSSTables())
-            actual += sstable.bytesOnDisk();
+        long actual = liveSSTables.stream().mapToLong(SSTableReader::bytesOnDisk).sum();
+        long uncompressedLiveDiskSpaceUsed = cfs.metric.uncompressedLiveDiskSpaceUsed.getCount();
+        long actualUncompressed = liveSSTables.stream().mapToLong(SSTableReader::logicalBytesOnDisk).sum();
 
-        Assert.assertEquals("bytes on disk does not match current metric liveDiskSpaceUsed", actual, liveDiskSpaceUsed);
+        assertEquals("bytes on disk does not match current metric LiveDiskSpaceUsed", actual, liveDiskSpaceUsed);
+        assertEquals("bytes on disk does not match current metric UncompressedLiveDiskSpaceUsed", actualUncompressed, uncompressedLiveDiskSpaceUsed);
+
+        // Keyspace-level metrics should be equivalent to table-level metrics, as there is only one table.
+        assertEquals(cfs.keyspace.metric.liveDiskSpaceUsed.getValue().longValue(), liveDiskSpaceUsed);
+        assertEquals(cfs.keyspace.metric.uncompressedLiveDiskSpaceUsed.getValue().longValue(), uncompressedLiveDiskSpaceUsed);
+        assertEquals(cfs.keyspace.metric.unreplicatedLiveDiskSpaceUsed.getValue().longValue(), liveDiskSpaceUsed);
+        assertEquals(cfs.keyspace.metric.unreplicatedUncompressedLiveDiskSpaceUsed.getValue().longValue(), uncompressedLiveDiskSpaceUsed);
+
+        // Global load metrics should be internally consistent, given there is no replication, but slightly greater
+        // than table and keyspace-level metrics, given the global versions account for non-user tables.
+        long globalLoad = StorageMetrics.load.getCount();
+        assertEquals(globalLoad, StorageMetrics.unreplicatedLoad.getValue().longValue());
+        assertThat(globalLoad).isGreaterThan(liveDiskSpaceUsed);
+
+        long globalUncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
+        assertEquals(globalUncompressedLoad, StorageMetrics.unreplicatedUncompressedLoad.getValue().longValue());
+        assertThat(globalUncompressedLoad).isGreaterThan(uncompressedLiveDiskSpaceUsed);
 
         // totalDiskSpaceUsed is based off SStable delete, which is async: LogTransaction's tidy enqueues in ScheduledExecutors.nonPeriodicTasks
         // wait for there to be no more pending sstable releases
         LifecycleTransaction.waitForDeletions();
         long totalDiskSpaceUsed = cfs.metric.totalDiskSpaceUsed.getCount();
-        Assert.assertEquals("bytes on disk does not match current metric totalDiskSpaceUsed", actual, totalDiskSpaceUsed);
+        assertEquals("bytes on disk does not match current metric totalDiskSpaceUsed", actual, totalDiskSpaceUsed);
     }
 
     private static void indexDownsampleCancelLastSSTable(ColumnFamilyStore cfs)

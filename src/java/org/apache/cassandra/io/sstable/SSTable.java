@@ -320,16 +320,6 @@ public abstract class SSTable
         return estimatedRows;
     }
 
-    public long bytesOnDisk()
-    {
-        long bytes = 0;
-        for (Component component : components)
-        {
-            bytes += new File(descriptor.filenameFor(component)).length();
-        }
-        return bytes;
-    }
-
     @Override
     public String toString()
     {
