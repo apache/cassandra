@@ -2360,4 +2360,33 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         ExecutorUtils.shutdownNowAndWait(timeout, unit, syncExecutor);
         resetTidying();
     }
+
+    /**
+     * @return the physical size on disk of all components for this SSTable in bytes
+     */
+    public long bytesOnDisk()
+    {
+        return bytesOnDisk(false);
+    }
+
+    /**
+     * @return the total logical/uncompressed size in bytes of all components for this SSTable
+     */
+    public long logicalBytesOnDisk()
+    {
+        return bytesOnDisk(true);
+    }
+
+    private long bytesOnDisk(boolean logical)
+    {
+        long bytes = 0;
+        for (Component component : components)
+        {
+            // Only the data file is compressable.
+            bytes += logical && component == Component.DATA && compression
+                     ? getCompressionMetadata().dataLength
+                     : new File(descriptor.filenameFor(component)).length();
+        }
+        return bytes;
+    }
 }

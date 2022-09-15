@@ -209,6 +209,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Human-readable load value */
     public String getLoadString();
 
+    /** Human-readable uncompressed load value */
+    public String getUncompressedLoadString();
+
     /** Human-readable load value.  Keys are IP addresses. */
     @Deprecated public Map<String, String> getLoadMap();
     public Map<String, String> getLoadMapWithPort();

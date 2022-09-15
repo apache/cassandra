@@ -205,7 +205,9 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
         long startStorageMetricsLoad = StorageMetrics.load.getCount();
+        long startUncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
         long sBytesOnDisk = s.bytesOnDisk();
+        long sBytesOnDiskUncompressed = s.logicalBytesOnDisk();
         Set<SSTableReader> compacting = Sets.newHashSet(s);
 
         List<SSTableReader> sstables;
@@ -236,11 +238,15 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         LifecycleTransaction.waitForDeletions();
 
-        long sum = 0;
-        for (SSTableReader x : cfs.getLiveSSTables())
-            sum += x.bytesOnDisk();
+        long sum = cfs.getLiveSSTables().stream().mapToLong(SSTableReader::bytesOnDisk).sum();
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(startStorageMetricsLoad - sBytesOnDisk + sum, StorageMetrics.load.getCount());
+        long endLoad = StorageMetrics.load.getCount();
+        assertEquals(startStorageMetricsLoad - sBytesOnDisk + sum, endLoad);
+
+        long uncompressedSum = cfs.getLiveSSTables().stream().mapToLong(t -> t.logicalBytesOnDisk()).sum();
+        long endUncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
+        assertEquals(startUncompressedLoad - sBytesOnDiskUncompressed + uncompressedSum, endUncompressedLoad);
+
         assertEquals(files, sstables.size());
         assertEquals(files, cfs.getLiveSSTables().size());
         LifecycleTransaction.waitForDeletions();

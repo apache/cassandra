@@ -32,6 +32,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -68,8 +69,12 @@ public class IndexSummaryRedistributionTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
         int numSSTables = 1;
         int numRows = 1024 * 10;
+
         long load = StorageMetrics.load.getCount();
         StorageMetrics.load.dec(load); // reset the load metric
+        long uncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
+        StorageMetrics.uncompressedLoad.dec(uncompressedLoad); // reset the uncompressed load metric
+
         createSSTables(ksname, cfname, numSSTables, numRows);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
@@ -77,14 +82,20 @@ public class IndexSummaryRedistributionTest
             sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
         long oldSize = 0;
+        long oldSizeUncompressed = 0;
+
         for (SSTableReader sstable : sstables)
         {
             assertEquals(cfs.metadata().params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
             oldSize += sstable.bytesOnDisk();
+            oldSizeUncompressed += sstable.logicalBytesOnDisk();
         }
 
         load = StorageMetrics.load.getCount();
         long others = load - oldSize; // Other SSTables size, e.g. schema and other system SSTables
+
+        uncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
+        long othersUncompressed = uncompressedLoad - oldSizeUncompressed;
 
         int originalMinIndexInterval = cfs.metadata().params.minIndexInterval;
         // double the min_index_interval
@@ -92,17 +103,24 @@ public class IndexSummaryRedistributionTest
         IndexSummaryManager.instance.redistributeSummaries();
 
         long newSize = 0;
+        long newSizeUncompressed = 0;
+
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             assertEquals(cfs.metadata().params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
             assertEquals(numRows / cfs.metadata().params.minIndexInterval, sstable.getIndexSummarySize());
             newSize += sstable.bytesOnDisk();
+            newSizeUncompressed += sstable.logicalBytesOnDisk();
         }
+
         newSize += others;
         load = StorageMetrics.load.getCount();
-
         // new size we calculate should be almost the same as the load in metrics
-        assertEquals(newSize, load, newSize / 10);
+        assertEquals(newSize, load, newSize / 10.0);
+
+        newSizeUncompressed += othersUncompressed;
+        uncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
+        assertEquals(newSizeUncompressed, uncompressedLoad, newSizeUncompressed / 10.0);
     }
 
     private void createSSTables(String ksname, String cfname, int numSSTables, int numRows)
@@ -112,7 +130,7 @@ public class IndexSummaryRedistributionTest
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
 
-        ArrayList<Future> futures = new ArrayList<>(numSSTables);
+        ArrayList<Future<CommitLogPosition>> futures = new ArrayList<>(numSSTables);
         ByteBuffer value = ByteBuffer.wrap(new byte[100]);
         for (int sstable = 0; sstable < numSSTables; sstable++)
         {
@@ -127,7 +145,7 @@ public class IndexSummaryRedistributionTest
             }
             futures.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
         }
-        for (Future future : futures)
+        for (Future<CommitLogPosition> future : futures)
         {
             try
             {
