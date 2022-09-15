@@ -88,6 +88,13 @@ New features
     - Added new CQL table property 'allow_auto_snapshot' which is by default true. When set to false and 'auto_snapshot: true'
       in cassandra.yaml, there will be no snapshot taken when a table is truncated or dropped. When auto_snapshot in
       casandra.yaml is set to false, the newly added table property does not have any effect.
+    - Host replacements require host ID and token, however reporting of this info is typically blocked when the
+      status field is missing. We have exposed a new system environment (-D) param, cassandra.replace_addresses_token,
+      so operators have the ability to specify the token to be used during host replacement in cases where Gossip gets into
+      a bad state. This is an unsafe and high risk operation if you aren't intimately familiar with the gossiping and
+      membership state in your cluster, however can be vital when you run into a situation where Gossip has gotten into
+      a bad state. See CASSANDRA-17896 for more details, and this functionality should no longer be necessary after
+      CEP-21: Transactional Metadata.
 
 Upgrading
 ---------

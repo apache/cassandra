@@ -1197,6 +1197,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return UUID.fromString(epStates.get(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
     }
 
+    public UUID getHostIdOrNull(InetAddressAndPort endpoint, Map<InetAddressAndPort, EndpointState> epStates)
+    {
+        EndpointState state = epStates.get(endpoint);
+        if (state == null)
+            return null;
+        VersionedValue applicationState = state.getApplicationState(ApplicationState.HOST_ID);
+        if (applicationState == null)
+            return null;
+        return UUID.fromString(applicationState.value);
+    }
+
     /**
      * The value for the provided application state for the provided endpoint as currently known by this Gossip instance.
      *
