@@ -114,7 +114,7 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
                 out.write(buff, 0, count);
                 bytesRead += count;
             }
-            out.sync();
+            out.sync(); // finish will also call sync(). Leaving here to get stuff flushed as early as possible
         }
         catch (IOException e)
         {
@@ -138,6 +138,10 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
     public Collection<SSTableReader> finish(boolean openResult)
     {
         setOpenResult(openResult);
+
+        for (SequentialWriter writer : componentWriters.values())
+            writer.finish();
+
         return finished();
     }
 
