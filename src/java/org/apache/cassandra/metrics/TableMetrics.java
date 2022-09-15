@@ -122,6 +122,8 @@ public class TableMetrics
     public final Gauge<Integer> oldVersionSSTableCount;
     /** Disk space used by SSTables belonging to this table */
     public final Counter liveDiskSpaceUsed;
+    /** Uncompressed/logical disk space used by SSTables belonging to this table */
+    public final Counter uncompressedLiveDiskSpaceUsed;
     /** Total disk space used by SSTables belonging to this table, including obsolete ones waiting to be GC'd */
     public final Counter totalDiskSpaceUsed;
     /** Size of the smallest compacted partition */
@@ -605,6 +607,7 @@ public class TableMetrics
             }
         });
         liveDiskSpaceUsed = createTableCounter("LiveDiskSpaceUsed");
+        uncompressedLiveDiskSpaceUsed = createTableCounter("UncompressedLiveDiskSpaceUsed");
         totalDiskSpaceUsed = createTableCounter("TotalDiskSpaceUsed");
         minPartitionSize = createTableGauge("MinPartitionSize", "MinRowSize", new Gauge<Long>()
         {

@@ -59,9 +59,14 @@ public class KeyspaceMetrics
     public final Gauge<Long> pendingFlushes;
     /** Estimate of number of pending compactios for this CF */
     public final Gauge<Long> pendingCompactions;
-    /** Disk space used by SSTables belonging to this CF */
+    /** Disk space used by SSTables belonging to tables in this keyspace */
     public final Gauge<Long> liveDiskSpaceUsed;
-    /** Total disk space used by SSTables belonging to this CF, including obsolete ones waiting to be GC'd */
+    /** Disk space used by SSTables belonging to tables in this keyspace, scaled down by replication factor */
+    public final Gauge<Long> unreplicatedLiveDiskSpaceUsed;
+    /** Uncompressed/logical size of SSTables belonging to tables in this keyspace */
+    public final Gauge<Long> uncompressedLiveDiskSpaceUsed;
+    /** Uncompressed/logical size of SSTables belonging to tables in this keyspace, scaled down by replication factor */
+    public final Gauge<Long> unreplicatedUncompressedLiveDiskSpaceUsed;
     public final Gauge<Long> totalDiskSpaceUsed;
     /** Disk space used by bloom filter */
     public final Gauge<Long> bloomFilterDiskSpaceUsed;
@@ -169,7 +174,7 @@ public class KeyspaceMetrics
     public final Histogram rowIndexSize;
 
     public final MetricNameFactory factory;
-    private Keyspace keyspace;
+    private final Keyspace keyspace;
 
     /** set containing names of all the metrics stored here, for releasing later */
     private Set<ReleasableMetric> allMetrics = Sets.newHashSet();
@@ -201,8 +206,15 @@ public class KeyspaceMetrics
                 metric -> metric.memtableSwitchCount.getCount());
         pendingCompactions = createKeyspaceGauge("PendingCompactions", metric -> metric.pendingCompactions.getValue());
         pendingFlushes = createKeyspaceGauge("PendingFlushes", metric -> metric.pendingFlushes.getCount());
+
         liveDiskSpaceUsed = createKeyspaceGauge("LiveDiskSpaceUsed", metric -> metric.liveDiskSpaceUsed.getCount());
+        uncompressedLiveDiskSpaceUsed = createKeyspaceGauge("UncompressedLiveDiskSpaceUsed", metric -> metric.uncompressedLiveDiskSpaceUsed.getCount());
+        unreplicatedLiveDiskSpaceUsed = createKeyspaceGauge("UnreplicatedLiveDiskSpaceUsed",
+                                                            metric -> metric.liveDiskSpaceUsed.getCount() / keyspace.getReplicationStrategy().getReplicationFactor().fullReplicas);
+        unreplicatedUncompressedLiveDiskSpaceUsed = createKeyspaceGauge("UnreplicatedUncompressedLiveDiskSpaceUsed",
+                                                                        metric -> metric.uncompressedLiveDiskSpaceUsed.getCount() / keyspace.getReplicationStrategy().getReplicationFactor().fullReplicas);
         totalDiskSpaceUsed = createKeyspaceGauge("TotalDiskSpaceUsed", metric -> metric.totalDiskSpaceUsed.getCount());
+
         bloomFilterDiskSpaceUsed = createKeyspaceGauge("BloomFilterDiskSpaceUsed",
                 metric -> metric.bloomFilterDiskSpaceUsed.getValue());
         bloomFilterOffHeapMemoryUsed = createKeyspaceGauge("BloomFilterOffHeapMemoryUsed",
@@ -280,8 +292,10 @@ public class KeyspaceMetrics
 
     /**
      * Creates a gauge that will sum the current value of a metric for all column families in this keyspace
-     * @param name
-     * @param extractor
+     *
+     * @param name the name of the metric being created
+     * @param extractor a function that produces a specified metric value for a given table
+     *
      * @return Gauge&gt;Long> that computes sum of MetricValue.getValue()
      */
     private Gauge<Long> createKeyspaceGauge(String name, final ToLongFunction<TableMetrics> extractor)
