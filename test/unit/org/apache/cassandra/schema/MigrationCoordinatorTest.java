@@ -42,7 +42,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -63,7 +62,6 @@ import org.mockito.internal.creation.MockSettingsImpl;
 
 import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
@@ -398,25 +396,27 @@ public class MigrationCoordinatorTest
     }
 
     @Test
-    public void pullSchemaFromAnyNode() throws UnknownHostException
+    public void reset() throws UnknownHostException
     {
         Collection<Mutation> mutations = Arrays.asList(mock(Mutation.class));
 
         Wrapper wrapper = new Wrapper();
-
-        // no live nodes
-        when(wrapper.gossiper.getLiveMembers()).thenReturn(Collections.emptySet());
-        Collection<Mutation> result = wrapper.coordinator.pullSchemaFromAnyNode().syncThrowUncheckedOnInterrupt().getNow();
-        assertThat(result).isEmpty();
+        wrapper.localSchemaVersion = SchemaConstants.emptyVersion;
 
         EndpointState invalidVersionState = mock(EndpointState.class);
         when(invalidVersionState.getApplicationState(ApplicationState.RELEASE_VERSION)).thenReturn(VersionedValue.unsafeMakeVersionedValue("3.0", 0));
+        when(invalidVersionState.getSchemaVersion()).thenReturn(V1);
 
         EndpointState validVersionState = mock(EndpointState.class);
         when(validVersionState.getApplicationState(ApplicationState.RELEASE_VERSION)).thenReturn(VersionedValue.unsafeMakeVersionedValue(FBUtilities.getReleaseVersionString(), 0));
+        when(validVersionState.getSchemaVersion()).thenReturn(V2);
+
+        EndpointState localVersionState = mock(EndpointState.class);
+        when(localVersionState.getApplicationState(ApplicationState.RELEASE_VERSION)).thenReturn(VersionedValue.unsafeMakeVersionedValue(FBUtilities.getReleaseVersionString(), 0));
+        when(localVersionState.getSchemaVersion()).thenReturn(SchemaConstants.emptyVersion);
 
         // some nodes
-        InetAddressAndPort thisNode = wrapper.configureMocksForEndpoint(FBUtilities.getBroadcastAddressAndPort(), validVersionState, MessagingService.current_version, false);
+        InetAddressAndPort thisNode = wrapper.configureMocksForEndpoint(FBUtilities.getBroadcastAddressAndPort(), localVersionState, MessagingService.current_version, false);
         InetAddressAndPort noStateNode = wrapper.configureMocksForEndpoint("10.0.0.1:8000", null, MessagingService.current_version, false);
         InetAddressAndPort diffMajorVersionNode = wrapper.configureMocksForEndpoint("10.0.0.2:8000", invalidVersionState, MessagingService.current_version, false);
         InetAddressAndPort unkonwnNode = wrapper.configureMocksForEndpoint("10.0.0.2:8000", validVersionState, null, false);
@@ -436,22 +436,8 @@ public class MigrationCoordinatorTest
             callback.onResponse(Message.remoteResponse(regularNode1, Verb.SCHEMA_PULL_RSP, mutations));
             return null;
         }).when(wrapper.messagingService).sendWithCallback(any(Message.class), any(InetAddressAndPort.class), any(RequestCallback.class));
-        result = wrapper.coordinator.pullSchemaFromAnyNode().syncThrowUncheckedOnInterrupt().getNow();
-        assertThat(result).isEqualTo(mutations);
-
-        // failures
-        doAnswer(a -> {
-            Message msg = a.getArgument(0, Message.class);
-            InetAddressAndPort endpoint = a.getArgument(1, InetAddressAndPort.class);
-            RequestCallback callback = a.getArgument(2, RequestCallback.class);
-
-            assertThat(msg.verb()).isEqualTo(Verb.SCHEMA_PULL_REQ);
-            assertThat(endpoint).isEqualTo(regularNode1);
-            callback.onFailure(regularNode1, RequestFailureReason.UNKNOWN);
-            return null;
-        }).when(wrapper.messagingService).sendWithCallback(any(Message.class), any(InetAddressAndPort.class), any(RequestCallback.class));
-        assertThatExceptionOfType(RuntimeException.class).isThrownBy(() -> wrapper.coordinator.pullSchemaFromAnyNode().syncThrowUncheckedOnInterrupt().getNow())
-                                                         .withMessageContaining("Failed to get schema from");
-
+        wrapper.coordinator.reset();
+        assertThat(wrapper.mergedSchemasFrom).anyMatch(ep -> regularNode1.equals(ep) || regularNode2.equals(ep));
+        assertThat(wrapper.mergedSchemasFrom).hasSize(1);
     }
 }
