@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResult;
 import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.concurrent.Awaitable;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 /**
  * Update handler which works only in memory. It does not load or save the schema anywhere. It is used in client mode
@@ -77,17 +79,18 @@ public class OfflineSchemaUpdateHandler implements SchemaUpdateHandler
     }
 
     @Override
-    public SchemaTransformationResult reset(boolean local)
+    public void reset(boolean local)
     {
         if (!local)
             throw new UnsupportedOperationException();
 
-        return apply(ignored -> SchemaKeyspace.fetchNonSystemKeyspaces(), local);
+        apply(ignored -> SchemaKeyspace.fetchNonSystemKeyspaces(), local);
     }
 
     @Override
-    public synchronized void clear()
+    public synchronized Awaitable clear()
     {
         this.schema = DistributedSchema.EMPTY;
+        return ImmediateFuture.success(true);
     }
 }
