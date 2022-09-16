@@ -46,11 +46,8 @@ Merged from 4.0:
 4.0.7
  * Better handle null state in Gossip schema migration to avoid NPE (CASSANDRA-17864)
  * HintedHandoffAddRemoveNodesTest now accounts for the fact that StorageMetrics.totalHints is not updated synchronously w/ writes (CASSANDRA-16679)
-
-
-4.0.7
  * Avoid getting hanging repairs due to repair message timeouts (CASSANDRA-17613)
-
+ * Fix resetting schema (CASSANDRA-17819)
 
 4.0.6
  * Prevent infinite loop in repair coordinator on FailSession (CASSANDRA-17834)
