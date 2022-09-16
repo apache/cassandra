@@ -213,6 +213,9 @@ New features
       When the node is restarted with UUID based generation identifiers enabled, each newly created sstable will have
       a UUID based generation identifier and such files are not readable by previous Cassandra versions. In the future
       those new identifiers will become enabled by default.
+    - Resetting schema behavior has changed in 4.1 so that: 1) resetting schema is prohibited when there is no live node
+      where the schema could be fetched from, and 2) truncating local schema keyspace is postponed to the moment when
+      the node receives schema from some other node.
 
 Upgrading
 ---------
