@@ -54,8 +54,9 @@
 
         <typedef uri="antlib:org.apache.maven.resolver.ant" resource="org/apache/maven/resolver/ant/antlib.xml" classpathref="resolver-ant-tasks.classpath" />
         <resolver:remoterepos id="all">
-            <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
-            <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
+            <remoterepo id="resolver-central"  url="${artifact.remoteRepository.central}"/>
+            <remoterepo id="resolver-apache"   url="${artifact.remoteRepository.apache}"/>
+            <remoterepo id="resolver-datastax" url="${artifact.remoteRepository.datastax}"/>
         </resolver:remoterepos>
 
         <macrodef name="resolve">
