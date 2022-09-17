@@ -118,7 +118,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             restartNode(cluster, 1, true);
 
             createSSTables(cluster.get(1), KEYSPACE, "tbl", 3, 4);
-            assertSSTablesCount(cluster.get(1), 2, 3, KEYSPACE, "tbl");
+            assertSSTablesCount(cluster.get(1), 2, 2, KEYSPACE, "tbl");
             verfiySSTableActivity(cluster, false);
 
             checkRowsNumber(cluster.get(1), KEYSPACE, "tbl", 9);
@@ -191,7 +191,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
                 createSSTables(cluster.get(1), KEYSPACE, tableName, 3, 4);
 
                 // expect to have a mix of sstables with sequential id and uuid
-                assertSSTablesCount(cluster.get(1), 2, 3, KEYSPACE, tableName);
+                assertSSTablesCount(cluster.get(1), 2, 2, KEYSPACE, tableName);
 
                 // after compaction, we expect to have a single sstable with uuid
                 cluster.get(1).forceCompact(KEYSPACE, tableName);
@@ -241,7 +241,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             // create 2 sstables with overlapping partitions on node 1 (with UUID ids)
             createSSTables(cluster.get(1), KEYSPACE, "tbl", 3, 4);
 
-            assertSSTablesCount(cluster.get(1), 2, 3, KEYSPACE, "tbl");
+            assertSSTablesCount(cluster.get(1), 2, 2, KEYSPACE, "tbl");
 
             // now start node with UUID disabled and perform repair
             cluster.get(2).config().set(ENABLE_UUID_FIELD_NAME, uuidEnabledOnTargetNode);
@@ -255,9 +255,9 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             cluster.get(2).nodetool("repair", KEYSPACE);
 
             if (uuidEnabledOnTargetNode)
-                assertSSTablesCount(cluster.get(2), 0, 5, KEYSPACE, "tbl");
+                assertSSTablesCount(cluster.get(2), 0, 4, KEYSPACE, "tbl");
             else
-                assertSSTablesCount(cluster.get(2), 5, 0, KEYSPACE, "tbl");
+                assertSSTablesCount(cluster.get(2), 4, 0, KEYSPACE, "tbl");
 
             waitOn(cluster.get(1).shutdown());
 
@@ -314,16 +314,16 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             uuidOnlyBackupDirs = getBackupDirs(cluster.get(1), KEYSPACE, "tbl_uuid_only");
 
             // at this point, we should have sstables with backups and snapshots for all tables
-            assertSSTablesCount(cluster.get(1), 4, 1, KEYSPACE, "tbl_seq_only");
-            assertSSTablesCount(cluster.get(1), 2, 3, KEYSPACE, "tbl_seq_and_uuid");
+            assertSSTablesCount(cluster.get(1), 4, 0, KEYSPACE, "tbl_seq_only");
+            assertSSTablesCount(cluster.get(1), 2, 2, KEYSPACE, "tbl_seq_and_uuid");
             assertSSTablesCount(cluster.get(1), 0, 4, KEYSPACE, "tbl_uuid_only");
 
-            assertBackupSSTablesCount(cluster.get(1), 4, 1, KEYSPACE, "tbl_seq_only");
-            assertBackupSSTablesCount(cluster.get(1), 2, 3, KEYSPACE, "tbl_seq_and_uuid");
+            assertBackupSSTablesCount(cluster.get(1), 4, 0, KEYSPACE, "tbl_seq_only");
+            assertBackupSSTablesCount(cluster.get(1), 2, 2, KEYSPACE, "tbl_seq_and_uuid");
             assertBackupSSTablesCount(cluster.get(1), 0, 4, KEYSPACE, "tbl_uuid_only");
 
-            assertSnapshotSSTablesCount(cluster.get(1), 4, 1, KEYSPACE, "tbl_seq_only");
-            assertSnapshotSSTablesCount(cluster.get(1), 2, 3, KEYSPACE, "tbl_seq_and_uuid");
+            assertSnapshotSSTablesCount(cluster.get(1), 4, 0, KEYSPACE, "tbl_seq_only");
+            assertSnapshotSSTablesCount(cluster.get(1), 2, 2, KEYSPACE, "tbl_seq_and_uuid");
             assertSnapshotSSTablesCount(cluster.get(1), 0, 4, KEYSPACE, "tbl_uuid_only");
 
             checkRowsNumber(cluster.get(1), KEYSPACE, "tbl_seq_only", 9);
