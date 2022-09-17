@@ -149,7 +149,6 @@ public class MultipleSSTableFormatsTest extends CQLTester
     {
         Map<Integer, Integer> content = createSSTables();
         System.setProperty(SSTableFormat.FORMAT_DEFAULT_PROP, format.getType().name);
-        enableCompaction();
         compact();
         List<SSTableFormat.Type> createdFormats = createdFormats();
         Assertions.assertThat(createdFormats).hasSize(1);
