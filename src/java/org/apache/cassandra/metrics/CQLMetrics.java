@@ -31,6 +31,9 @@ public class CQLMetrics
     public final Counter regularStatementsExecuted;
     public final Counter preparedStatementsExecuted;
     public final Counter preparedStatementsEvicted;
+    public final Counter preparedStatementCollisionFound;
+    public final Counter emptyPreparedStatementFound;
+    public final Counter preparedCacheIsUsed;
 
     public final Gauge<Integer> preparedStatementsCount;
     public final Gauge<Double> preparedStatementsRatio;
@@ -40,6 +43,9 @@ public class CQLMetrics
         regularStatementsExecuted = Metrics.counter(factory.createMetricName("RegularStatementsExecuted"));
         preparedStatementsExecuted = Metrics.counter(factory.createMetricName("PreparedStatementsExecuted"));
         preparedStatementsEvicted = Metrics.counter(factory.createMetricName("PreparedStatementsEvicted"));
+        preparedStatementCollisionFound = Metrics.counter(factory.createMetricName("PreparedStatementCollisionFound"));
+        emptyPreparedStatementFound = Metrics.counter(factory.createMetricName("EmptyPreparedStatementFound"));
+        preparedCacheIsUsed = Metrics.counter(factory.createMetricName("PreparedCacheIsUsed"));
 
         preparedStatementsCount = Metrics.register(factory.createMetricName("PreparedStatementsCount"), new Gauge<Integer>()
         {
