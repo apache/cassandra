@@ -144,7 +144,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             c.set("client_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("enabled", true)
-                              .put("accepted_protocols", Collections.singletonList("TLSv1.1"))
+                              .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
                               .build());
         }).start())
         {
@@ -158,13 +158,18 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
 
             TlsConnection tls11Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.1"));
             Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
-                                ConnectResult.NEGOTIATED, tls11Connection.connect());
-            Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
+                                ConnectResult.FAILED_TO_NEGOTIATE, tls11Connection.connect());
+            tls11Connection.assertReceivedHandshakeException();
 
             TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
             Assert.assertEquals("Should be possible to establish a TLSv1.2 connection",
-                                ConnectResult.FAILED_TO_NEGOTIATE, tls12Connection.connect());
-            tls12Connection.assertReceivedHandshakeException();
+                                ConnectResult.NEGOTIATED, tls12Connection.connect());
+            Assert.assertEquals("TLSv1.2", tls12Connection.lastProtocol());
+
+            TlsConnection tls13Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.3"));
+            Assert.assertEquals("Should be possible to establish a TLSv1.3 connection",
+                                ConnectResult.FAILED_TO_NEGOTIATE, tls13Connection.connect());
+            tls13Connection.assertReceivedHandshakeException();
         }
     }
 
