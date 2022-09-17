@@ -70,6 +70,7 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
             withVersion(CURRENT_VERSION);
             this.appendConfig(c -> {
                 c.set("auto_repair_enabled", false);
+                c.set("block_unqualified_prepared_statement_enabled", false);
             });
         }
 

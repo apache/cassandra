@@ -4865,6 +4865,11 @@ public class DatabaseDescriptor
         return conf.auto_repair_table_max_repair_time_in_sec;
     }
 
+    public static boolean isBlockUnqualifiedPreparedStatementEnabled()
+    {
+        return conf.block_unqualified_prepared_statement_enabled;
+    }
+
     public static boolean isOrphanNodeHintFilesCleanupEnabled() {
         return conf.orphan_node_hint_files_cleanup_enabled;
     }

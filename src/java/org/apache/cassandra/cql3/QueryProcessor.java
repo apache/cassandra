@@ -735,20 +735,33 @@ public class QueryProcessor implements QueryHandler
         Prepared cachedWithKeyspace = preparedStatements.getIfPresent(hashWithKeyspace);
         // We assume it is only safe to return cached prepare if we have both instances
         boolean safeToReturnCached = cachedWithoutKeyspace != null && cachedWithKeyspace != null;
+        if (!safeToReturnCached && cachedWithoutKeyspace == null && cachedWithKeyspace != null && clientState.getRawKeyspace() != null && !cachedWithKeyspace.fullyQualified)
+        {
+            // if the prepared statement is non-fully qualified one, then we would never ever generate `cachedWithoutKeyspace` i.e.
+            // it will always be null. In such case, we just need to check 'cachedWithKeyspace' and if it is non-null, then it is safe to return from cache
+            safeToReturnCached =  true;
+        }
 
         if (safeToReturnCached)
         {
             if (useNewPreparedStatementBehaviour)
             {
-                if (cachedWithoutKeyspace.fullyQualified) // For fully qualified statements, we always skip keyspace to avoid digest switching
+                if (cachedWithoutKeyspace != null && cachedWithoutKeyspace.fullyQualified) // For fully qualified statements, we always skip keyspace to avoid digest switching
+                {
+                    metrics.preparedCacheIsUsed.inc();
                     return createResultMessage(hashWithoutKeyspace, cachedWithoutKeyspace);
+                }
+
 
                 if (clientState.getRawKeyspace() != null && !cachedWithKeyspace.fullyQualified) // For non-fully qualified statements, we always include keyspace to avoid ambiguity
+                {
+                    metrics.preparedCacheIsUsed.inc();
                     return createResultMessage(hashWithKeyspace, cachedWithKeyspace);
-
+                }
             }
             else // legacy caches, pre-CASSANDRA-15252 behaviour
             {
+                metrics.preparedCacheIsUsed.inc();
                 return createResultMessage(hashWithKeyspace, cachedWithKeyspace);
             }
         }
@@ -780,14 +793,7 @@ public class QueryProcessor implements QueryHandler
         }
         else
         {
-            clientState.warnAboutUseWithPreparedStatements(hashWithKeyspace, clientState.getRawKeyspace());
-
-            ResultMessage.Prepared nonQualifiedWithKeyspace = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared);
-            ResultMessage.Prepared nonQualifiedWithNullKeyspace = storePreparedStatement(queryString, null, prepared);
-            if (!useNewPreparedStatementBehaviour)
-                return nonQualifiedWithNullKeyspace;
-
-            return nonQualifiedWithKeyspace;
+            return storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared);
         }
     }
 

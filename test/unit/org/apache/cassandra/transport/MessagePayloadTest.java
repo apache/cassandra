@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -157,6 +158,7 @@ public class MessagePayloadTest extends CQLTester
                 reqMap = Collections.singletonMap("foo", bytes(43));
                 responsePayload = respMap = Collections.singletonMap("bar", bytes(43));
                 prepareMessage.setCustomPayload(reqMap);
+                client.execute("USE " + KEYSPACE, ConsistencyLevel.ONE);
                 ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
                 payloadEquals(reqMap, requestPayload);
                 payloadEquals(respMap, prepareResponse.getCustomPayload());

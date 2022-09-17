@@ -1028,4 +1028,70 @@ public class UFTest extends CQLTester
               .hasRootCauseMessage("Function name '%s' is invalid", funcName);
         }
     }
+
+    @Test
+    public void testEnsureNonFullyQualifiedPreparedDoNotCollide() throws Throwable
+    {
+        execute("CREATE TABLE " + KEYSPACE + ".test_nonfullyqualified(a int primary key, b int)");
+        execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".test_nonfullyqualified(a int primary key, b int)");
+
+        ClientState state = ClientState.forInternalCalls();
+        state.setKeyspace(KEYSPACE);
+        ResultMessage.Prepared preparedSelect1 = QueryProcessor.instance.prepare(String.format("SELECT b FROM test_nonfullyqualified where a = 10"), state);
+        Assert.assertNotNull(preparedSelect1.statementId);
+
+        state.setKeyspace(KEYSPACE_PER_TEST);
+        ResultMessage.Prepared preparedSelect2 = QueryProcessor.instance.prepare(String.format("SELECT b FROM test_nonfullyqualified where a = 10"), state);
+        Assert.assertNotNull(preparedSelect2.statementId);
+        Assert.assertNotEquals(preparedSelect1.statementId, preparedSelect2.statementId);
+
+        state.setKeyspace(KEYSPACE_PER_TEST);
+        ResultMessage.Prepared preparedSelect3 = QueryProcessor.instance.prepare(String.format("SELECT b FROM test_nonfullyqualified where a = 10"), state);
+        Assert.assertNotNull(preparedSelect3.statementId);
+        Assert.assertEquals(preparedSelect2.statementId, preparedSelect3.statementId);
+        Assert.assertEquals(0, QueryProcessor.metrics.preparedStatementCollisionFound.getCount());
+    }
+
+    @Test
+    public void testEnsureFullyQualifiedPreparedNoKeyspaceDoNotCollide() throws Throwable
+    {
+        execute("CREATE TABLE " + KEYSPACE + ".test_fullyqualified_noks(a int primary key, b int)");
+        execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".test_fullyqualified_noks(a int primary key, b int)");
+
+        ClientState state = ClientState.forInternalCalls();
+        ResultMessage.Prepared preparedSelect1 = QueryProcessor.instance.prepare(String.format("SELECT b FROM %s.test_fullyqualified_noks where a = 10", KEYSPACE), state);
+        Assert.assertNotNull(preparedSelect1.statementId);
+
+        ResultMessage.Prepared preparedSelect2 = QueryProcessor.instance.prepare(String.format("SELECT b FROM %s.test_fullyqualified_noks where a = 10", KEYSPACE_PER_TEST), state);
+        Assert.assertNotNull(preparedSelect2.statementId);
+        Assert.assertNotEquals(preparedSelect1.statementId, preparedSelect2.statementId);
+
+        ResultMessage.Prepared preparedSelect3 = QueryProcessor.instance.prepare(String.format("SELECT b FROM %s.test_fullyqualified_noks where a = 10", KEYSPACE_PER_TEST), state);
+        Assert.assertNotNull(preparedSelect3.statementId);
+        Assert.assertEquals(preparedSelect2.statementId, preparedSelect3.statementId);
+        Assert.assertEquals(0, QueryProcessor.metrics.preparedStatementCollisionFound.getCount());
+    }
+
+    @Test
+    public void testEnsureFullyQualifiedPreparedWithKeyspaceDoNotCollide() throws Throwable
+    {
+        execute("CREATE TABLE " + KEYSPACE + ".test_fullyqualified_withks(a int primary key, b int)");
+        execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".test_fullyqualified_withks(a int primary key, b int)");
+
+        ClientState state = ClientState.forInternalCalls();
+        state.setKeyspace(KEYSPACE);
+        ResultMessage.Prepared preparedSelect1 = QueryProcessor.instance.prepare(String.format("SELECT b FROM %s.test_fullyqualified_withks where a = 10", KEYSPACE), state);
+        Assert.assertNotNull(preparedSelect1.statementId);
+
+        state.setKeyspace(KEYSPACE_PER_TEST);
+        ResultMessage.Prepared preparedSelect2 = QueryProcessor.instance.prepare(String.format("SELECT b FROM %s.test_fullyqualified_withks where a = 10", KEYSPACE_PER_TEST), state);
+        Assert.assertNotNull(preparedSelect2.statementId);
+        Assert.assertNotEquals(preparedSelect1.statementId, preparedSelect2.statementId);
+
+        state.setKeyspace(KEYSPACE_PER_TEST);
+        ResultMessage.Prepared preparedSelect3 = QueryProcessor.instance.prepare(String.format("SELECT b FROM %s.test_fullyqualified_withks where a = 10", KEYSPACE_PER_TEST), state);
+        Assert.assertNotNull(preparedSelect3.statementId);
+        Assert.assertEquals(preparedSelect2.statementId, preparedSelect3.statementId);
+        Assert.assertEquals(0, QueryProcessor.metrics.preparedStatementCollisionFound.getCount());
+    }
 }

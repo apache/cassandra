@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryEvents;
@@ -31,6 +32,8 @@ import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -136,7 +139,10 @@ public class ExecuteMessage extends Message.Request
             QueryHandler handler = ClientState.getCQLQueryHandler();
             prepared = handler.getPrepared(statementId);
             if (prepared == null)
+            {
+                QueryProcessor.metrics.emptyPreparedStatementFound.inc();
                 throw new PreparedQueryNotFoundException(statementId);
+            }
 
             if (!prepared.fullyQualified
                 && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace)
@@ -149,6 +155,18 @@ public class ExecuteMessage extends Message.Request
                                            " Executing the resulting prepared statement will return unexpected results: %s (on keyspace %s, previously prepared on %s)",
                                            statementId, state.getClientState().getRawKeyspace(), prepared.keyspace);
                 nospam.error(msg);
+
+                // The exception thrown beblow will fail multiple JVM dtests, adding this config so we can disable this part during jvm dtests
+                if (DatabaseDescriptor.isBlockUnqualifiedPreparedStatementEnabled())
+                {
+                    // 'KeyspaceNotDefinedException' exception name does not match the issues here, but we cannot add a new type as that would require
+                    // a protocol change, hence using 'KeyspaceNotDefinedException' as the closet match. Basically, whenever there is a collision, we should not
+                    // execute the statement at all. We should just throw an error back to the client. This should never ever happen unless any bug on the server,
+                    // which was introduced as part of (https://issues.apache.org/jira/browse/CASSANDRA-17248)
+                    QueryProcessor.metrics.preparedStatementCollisionFound.inc();
+                    throw new KeyspaceNotDefinedException("Keyspace collision: " + msg);
+                }
+
             }
 
             CQLStatement statement = prepared.statement;
