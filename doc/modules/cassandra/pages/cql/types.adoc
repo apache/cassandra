@@ -279,7 +279,7 @@ of the map remaining unaffected.
 === Sets
 
 A `set` is a (sorted) collection of unique values. You can define and
-insert a map with:
+insert a set with:
 
 [source,cql]
 ----
