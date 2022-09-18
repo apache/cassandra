@@ -32,7 +32,7 @@ double-quotes (`"myTable"` is different from `mytable`).
 Further, a table is always part of a keyspace and a table name can be
 provided fully-qualified by the keyspace it is part of. If is is not
 fully-qualified, the table is assumed to be in the _current_ keyspace
-(see xref:cql/ddl.adoc#use-statement[USE] statement.
+(see xref:cql/ddl.adoc#use-statement[USE] statement).
 
 Further, the valid names for columns are defined as:
 
