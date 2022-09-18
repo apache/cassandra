@@ -265,7 +265,7 @@ Note that for removing multiple elements in a `map`, you remove from it
 a `set` of keys.
 
 Lastly, TTLs are allowed for both `INSERT` and `UPDATE`, but in both
-case the TTL set only apply to the newly inserted/updated elements. In
+cases the TTL set only apply to the newly inserted/updated elements. In
 other words:
 
 [source,cql]
