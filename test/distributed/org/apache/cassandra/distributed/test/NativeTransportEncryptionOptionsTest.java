@@ -157,7 +157,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             tls10Connection.assertReceivedHandshakeException();
 
             TlsConnection tls11Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.1"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
+            Assert.assertEquals("Should not be possible to establish a TLSv1.1 connection",
                                 ConnectResult.FAILED_TO_NEGOTIATE, tls11Connection.connect());
             tls11Connection.assertReceivedHandshakeException();
 
@@ -167,7 +167,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             Assert.assertEquals("TLSv1.2", tls12Connection.lastProtocol());
 
             TlsConnection tls13Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.3"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.3 connection",
+            Assert.assertEquals("Should not be possible to establish a TLSv1.3 connection",
                                 ConnectResult.FAILED_TO_NEGOTIATE, tls13Connection.connect());
             tls13Connection.assertReceivedHandshakeException();
         }
