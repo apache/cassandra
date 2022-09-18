@@ -222,7 +222,7 @@ collections have the following noteworthy characteristics and
 limitations:
 
 * Individual collections are not indexed internally. Which means that
-even to access a single element of a collection, the while collection
+even to access a single element of a collection, the whole collection
 has to be read (and reading one is not paged internally).
 * While insertion operations on sets and maps never incur a
 read-before-write internally, some operations on lists do. Further, some
