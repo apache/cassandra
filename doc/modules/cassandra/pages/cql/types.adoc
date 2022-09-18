@@ -317,7 +317,7 @@ xref:cql/types.adoc#sets[set] instead of list, always prefer a set.
 ====
 
 A `list` is a (sorted) collection of non-unique values where
-elements are ordered by there position in the list. You can define and
+elements are ordered by their position in the list. You can define and
 insert a list with:
 
 [source,cql]
