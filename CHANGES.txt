@@ -1,4 +1,5 @@
 4.2
+ * Fix "open RT bound as its last item" exception (CASSANDRA-17810)
  * Fix leak of non-standard Java types in JMX MBeans `org.apache.cassandra.db:type=StorageService`
    and `org.apache.cassandra.db:type=RepairService` as clients using JMX cannot handle them. More details in NEWS.txt (CASSANDRA-17668)
  * Deprecate Throwables.propagate usage (CASSANDRA-14218)

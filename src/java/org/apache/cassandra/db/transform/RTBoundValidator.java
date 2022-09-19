@@ -17,11 +17,12 @@
  */
 package org.apache.cassandra.db.transform;
 
+import java.util.Objects;
+
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * A validating transformation that sanity-checks the sequence of RT bounds and boundaries in every partition.
@@ -51,29 +52,27 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
     public static UnfilteredRowIterator validate(UnfilteredRowIterator partition, Stage stage, boolean enforceIsClosed)
     {
-        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
+        return Transformation.apply(partition, new RowsTransformation(stage, partition, enforceIsClosed));
     }
 
     @Override
     public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
-        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
+        return Transformation.apply(partition, new RowsTransformation(stage, partition, enforceIsClosed));
     }
 
     private final static class RowsTransformation extends Transformation
     {
         private final Stage stage;
-        private final TableMetadata metadata;
-        private final boolean isReverseOrder;
         private final boolean enforceIsClosed;
+        private final UnfilteredRowIterator partition;
 
         private DeletionTime openMarkerDeletionTime;
 
-        private RowsTransformation(Stage stage, TableMetadata metadata, boolean isReverseOrder, boolean enforceIsClosed)
+        private RowsTransformation(Stage stage, UnfilteredRowIterator partition, boolean enforceIsClosed)
         {
             this.stage = stage;
-            this.metadata = metadata;
-            this.isReverseOrder = isReverseOrder;
+            this.partition = partition;
             this.enforceIsClosed = enforceIsClosed;
         }
 
@@ -83,25 +82,25 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
             if (null == openMarkerDeletionTime)
             {
                  // there is no open RT in the stream - we are expecting a *_START_BOUND
-                if (marker.isClose(isReverseOrder))
-                    throw ise("unexpected end bound or boundary " + marker.toString(metadata));
+                if (marker.isClose(partition.isReverseOrder()))
+                    throw ise("unexpected end bound or boundary " + marker.toString(partition.metadata()));
             }
             else
             {
                 // there is an open RT in the stream - we are expecting a *_BOUNDARY or an *_END_BOUND
-                if (!marker.isClose(isReverseOrder))
-                    throw ise("start bound followed by another start bound " + marker.toString(metadata));
+                if (!marker.isClose(partition.isReverseOrder()))
+                    throw ise("start bound followed by another start bound " + marker.toString(partition.metadata()));
 
                 // deletion times of open/close markers must match
-                DeletionTime deletionTime = marker.closeDeletionTime(isReverseOrder);
+                DeletionTime deletionTime = marker.closeDeletionTime(partition.isReverseOrder());
                 if (!deletionTime.equals(openMarkerDeletionTime))
-                    throw ise("open marker and close marker have different deletion times");
+                    throw ise("open marker and close marker have different deletion times, close=" + deletionTime);
 
                 openMarkerDeletionTime = null;
             }
 
-            if (marker.isOpen(isReverseOrder))
-                openMarkerDeletionTime = marker.openDeletionTime(isReverseOrder);
+            if (marker.isOpen(partition.isReverseOrder()))
+                openMarkerDeletionTime = marker.openDeletionTime(partition.isReverseOrder());
 
             return marker;
         }
@@ -115,9 +114,17 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
         private IllegalStateException ise(String why)
         {
-            String message =
-                String.format("%s UnfilteredRowIterator for %s has an illegal RT bounds sequence: %s", stage, metadata, why);
-            throw new IllegalStateException(message);
+            throw new IllegalStateException(message(why));
+        }
+
+        private String message(String why)
+        {
+            return String.format("%s UnfilteredRowIterator for %s (key: %s omdt: [%s]) has an illegal RT bounds sequence: %s",
+                                 stage,
+                                 partition.metadata(),
+                                 partition.metadata().partitionKeyType.getString(partition.partitionKey().getKey()),
+                                 Objects.toString(openMarkerDeletionTime, "not present"),
+                                 why);
         }
     }
 }
