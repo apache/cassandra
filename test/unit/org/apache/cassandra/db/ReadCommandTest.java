@@ -56,6 +56,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -232,7 +233,16 @@ public class ReadCommandTest
         assertEquals(2, Util.getAll(readCommand).size());
 
         readCommand.abort();
-        assertEquals(0, Util.getAll(readCommand).size());
+        boolean cancelled = false;
+        try
+        {
+            Util.getAll(readCommand);
+        }
+        catch (QueryCancelledException e)
+        {
+            cancelled = true;
+        }
+        assertTrue(cancelled);
     }
 
     @Test
@@ -263,7 +273,16 @@ public class ReadCommandTest
         assertEquals(2, partitions.get(0).rowCount());
 
         readCommand.abort();
-        assertEquals(0, Util.getAll(readCommand).size());
+        boolean cancelled = false;
+        try
+        {
+            Util.getAll(readCommand);
+        }
+        catch (QueryCancelledException e)
+        {
+            cancelled = true;
+        }
+        assertTrue(cancelled);
     }
 
     @Test
@@ -294,7 +313,16 @@ public class ReadCommandTest
         assertEquals(2, partitions.get(0).rowCount());
 
         readCommand.abort();
-        assertEquals(0, Util.getAll(readCommand).size());
+        boolean cancelled = false;
+        try
+        {
+            Util.getAll(readCommand);
+        }
+        catch (QueryCancelledException e)
+        {
+            cancelled = true;
+        }
+        assertTrue(cancelled);
     }
 
     @Test
