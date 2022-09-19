@@ -217,3 +217,4 @@ https://issues.apache.org/jira/browse/CASSANDRA-17379[CASSANDRA-17379] was opene
 By default, we refuse starting Cassandra with a config containing both old and new config keys for the same parameter. Start
 Cassandra with `-Dcassandra.allow_new_old_config_keys=true` to override. For historical reasons duplicate config keys
 in `cassandra.yaml` are allowed by default, start Cassandra with `-Dcassandra.allow_duplicate_config_keys=false` to disallow this.
+Please note that `key_cache_save_period`, `row_cache_save_period`, `counter_cache_save_period` will be affected only by `-Dcassandra.allow_duplicate_config_keys`.
