@@ -785,7 +785,7 @@ public class VerifyTest
     }
 
     @Test
-    public void testVerifyWithoutRealmBTI()
+    public void testVerifyWithoutRealm()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -795,44 +795,12 @@ public class VerifyTest
 
         Descriptor descriptor = cfs.getLiveSSTables().iterator().next().getDescriptor();
         Set<Component> components = SSTableReader.componentsFor(descriptor);
-        SSTableFormat trieFormat = descriptor.getFormat();
-        SSTableReader.Factory readerFactory = trieFormat.getReaderFactory();
-
-        assertTrue(trieFormat instanceof TrieIndexFormat);
+        SSTableFormat format = descriptor.getFormat();
+        SSTableReader.Factory readerFactory = format.getReaderFactory();
 
         SSTableReader sstable = readerFactory.openNoValidation(descriptor, components, cfs.metadata);
         Verifier.Options options = Verifier.options().invokeDiskFailurePolicy(true).build();
-
-        try (Verifier verifier = new Verifier(sstable, true, options))
-        {
-            verifier.verify();
-        }
-        catch (CorruptSSTableException err)
-        {
-            fail("Unexpected CorruptSSTableException");
-        }
-    }
-
-    @Test
-    public void testVerifyWithoutRealmBIG()
-    {
-        System.setProperty(SSTableFormat.FORMAT_DEFAULT_PROP, SSTableFormat.Type.BIG.name);
-        CompactionManager.instance.disableAutoCompaction();
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-
-        fillCF(cfs, 2);
-
-        Descriptor descriptor = cfs.getLiveSSTables().iterator().next().getDescriptor();
-        Set<Component> components = SSTableReader.componentsFor(descriptor);
-        SSTableFormat bigFormat = descriptor.getFormat();
-        SSTableReader.Factory readerFactory = bigFormat.getReaderFactory();
-
-        assertTrue(bigFormat instanceof BigFormat);
-
-        SSTableReader sstable = readerFactory.openNoValidation(descriptor, components, cfs.metadata);
         OutputHandler.CustomLogOutput handler = new OutputHandler.CustomLogOutput(LoggerFactory.getLogger(Verifier.class));
-        Verifier.Options options = Verifier.options().invokeDiskFailurePolicy(true).build();
 
         try (Verifier verifier = new Verifier(sstable, handler, true, options))
         {
