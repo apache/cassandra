@@ -612,6 +612,19 @@ public class ClusterUtils
     }
 
     /**
+     * Get the metadata directory where the information about nodes is stored.
+     *
+     * @param instance to get the metadata directory for
+     * @return metadata directory
+     */
+    public static File getMetadataDirectory(IInstance instance)
+    {
+        IInstanceConfig conf = instance.config();
+        String d = conf.getString("metadata_directory");
+        return new File(d);
+    }
+
+    /**
      * Get the commit log directory for the given instance.
      *
      * @param instance to get the commit log directory for
@@ -669,6 +682,7 @@ public class ClusterUtils
         out.add(getCommitLogDirectory(instance));
         out.add(getHintsDirectory(instance));
         out.add(getSavedCachesDirectory(instance));
+        out.add(getMetadataDirectory(instance));
         return out;
     }
 
