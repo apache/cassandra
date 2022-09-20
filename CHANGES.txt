@@ -45,6 +45,7 @@
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
 4.0.7
+ * Fix repair failure on assertion if two peers have overlapping mismatching ranges (CASSANDRA-17900)
  * Better handle null state in Gossip schema migration to avoid NPE (CASSANDRA-17864)
  * HintedHandoffAddRemoveNodesTest now accounts for the fact that StorageMetrics.totalHints is not updated synchronously w/ writes (CASSANDRA-16679)
  * Avoid getting hanging repairs due to repair message timeouts (CASSANDRA-17613)
