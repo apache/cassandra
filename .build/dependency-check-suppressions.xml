@@ -24,6 +24,11 @@
         <!--  https://issues.apache.org/jira/browse/CASSANDRA-16150 -->
         <packageUrl regex="true">^pkg:maven/org\.yaml/snakeyaml@.*$</packageUrl>
         <cve>CVE-2017-18640</cve>
+        <cve>CVE-2022-25857</cve>
+        <cve>CVE-2022-38749</cve>
+        <cve>CVE-2022-38750</cve>
+        <cve>CVE-2022-38751</cve>
+        <cve>CVE-2022-38752</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-15417 -->
