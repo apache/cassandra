@@ -155,6 +155,11 @@ public enum CassandraRelevantProperties
     BOOTSTRAP_SCHEMA_DELAY_MS("cassandra.schema_delay_ms"),
 
     /**
+     * Whether we reset any found data from previously run bootstraps.
+     */
+    RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
+
+    /**
      * When draining, how long to wait for mutating executors to shutdown.
      */
     DRAIN_EXECUTOR_TIMEOUT_MS("cassandra.drain_executor_timeout_ms", String.valueOf(TimeUnit.MINUTES.toMillis(5))),
@@ -410,6 +415,14 @@ public enum CassandraRelevantProperties
     public void setBoolean(boolean value)
     {
         System.setProperty(key, Boolean.toString(value));
+    }
+
+    /**
+     * Clears the value set in the system property.
+     */
+    public void clearValue()
+    {
+        System.clearProperty(key);
     }
 
     /**
