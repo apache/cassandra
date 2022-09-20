@@ -105,14 +105,14 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     }
 
     @Override
-    public Future<Data> read(Key key, CommandStore commandStore, Timestamp executeAt, DataStore store)
+    public Future<Data> read(Key key, boolean isForWriteTxn, CommandStore commandStore, Timestamp executeAt, DataStore store)
     {
         SinglePartitionReadCommand command = getDeserialized((PartitionKey) key);
         if (command == null)
             return ImmediateFuture.success(new AccordData());
 
         AccordCommandsForKey cfk = (AccordCommandsForKey) commandStore.commandsForKey(key);
-        int nowInSeconds = cfk.nowInSecondsFor(executeAt);
+        int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
         AsyncPromise<Data> future = new AsyncPromise<>();
         Stage.READ.execute(() -> {
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);

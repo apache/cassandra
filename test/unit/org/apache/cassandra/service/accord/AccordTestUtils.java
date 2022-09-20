@@ -149,7 +149,7 @@ public class AccordTestUtils
                                 .map(key -> {
                                     try
                                     {
-                                        return read.read(key, command.commandStore(), command.executeAt(), null).get();
+                                        return read.read(key, command.txn().isWrite(), command.commandStore(), command.executeAt(), null).get();
                                     }
                                     catch (InterruptedException e)
                                     {

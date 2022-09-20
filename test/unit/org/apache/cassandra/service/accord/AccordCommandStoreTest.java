@@ -134,8 +134,8 @@ public class AccordCommandStoreTest
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
         cfk.updateMax(maxTimestamp);
 
-        Assert.assertEquals(txnId1.real, cfk.timestampMicrosFor(txnId1));
-        Assert.assertEquals(txnId2.real, cfk.timestampMicrosFor(txnId2));
+        Assert.assertEquals(txnId1.real, cfk.timestampMicrosFor(txnId1, true));
+        Assert.assertEquals(txnId2.real, cfk.timestampMicrosFor(txnId2, true));
         Assert.assertEquals(txnId2, cfk.lastExecutedTimestamp.get());
         Assert.assertEquals(txnId2.real, cfk.lastExecutedMicros.get());
 

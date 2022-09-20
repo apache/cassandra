@@ -91,8 +91,8 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
         if (update == null)
             return SUCCESS;
         AccordCommandsForKey cfk = (AccordCommandsForKey) commandStore.commandsForKey(key);
-        long timestamp = cfk.timestampMicrosFor(executeAt);
-        int nowInSeconds = cfk.nowInSecondsFor(executeAt);
+        long timestamp = cfk.timestampMicrosFor(executeAt, true);
+        int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
         update = new PartitionUpdate.Builder(update, 0).updateAllTimestampAndLocalDeletionTime(timestamp, nowInSeconds).build();
         Mutation mutation = new Mutation(update);
         return (Future<Void>) Stage.MUTATION.submit((Runnable) mutation::apply);

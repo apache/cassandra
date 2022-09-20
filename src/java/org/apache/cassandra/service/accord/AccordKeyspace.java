@@ -202,6 +202,7 @@ public class AccordKeyspace
               + format("max_timestamp %s static, ", TIMESTAMP_TUPLE)
               + format("last_executed_timestamp %s static, ", TIMESTAMP_TUPLE)
               + format("last_executed_micros bigint static, ")
+              + format("last_write_timestamp %s static, ", TIMESTAMP_TUPLE)
               + format("blind_witnessed set<%s> static, ", TIMESTAMP_TUPLE)
               + "series int, "
               + format("timestamp %s, ", TIMESTAMP_TUPLE)
@@ -216,13 +217,14 @@ public class AccordKeyspace
         static final ColumnMetadata max_timestamp = getColumn(CommandsForKey, "max_timestamp");
         static final ColumnMetadata last_executed_timestamp = getColumn(CommandsForKey, "last_executed_timestamp");
         static final ColumnMetadata last_executed_micros = getColumn(CommandsForKey, "last_executed_micros");
+        static final ColumnMetadata last_write_timestamp = getColumn(CommandsForKey, "last_write_timestamp");
         static final ColumnMetadata blind_witnessed = getColumn(CommandsForKey, "blind_witnessed");
 
         static final ColumnMetadata series = getColumn(CommandsForKey, "series");
         static final ColumnMetadata timestamp = getColumn(CommandsForKey, "timestamp");
         static final ColumnMetadata data = getColumn(CommandsForKey, "data");
 
-        static final Columns statics = Columns.from(Lists.newArrayList(max_timestamp, last_executed_timestamp, last_executed_micros, blind_witnessed));
+        static final Columns statics = Columns.from(Lists.newArrayList(max_timestamp, last_executed_timestamp, last_executed_micros, last_write_timestamp, blind_witnessed));
         static final Columns regulars = Columns.from(Lists.newArrayList(data));
         private static final RegularAndStaticColumns all = new RegularAndStaticColumns(statics, regulars);
         private static final RegularAndStaticColumns justStatic = new RegularAndStaticColumns(statics, Columns.NONE);
@@ -713,6 +715,9 @@ public class AccordKeyspace
         if (cfk.lastExecutedMicros.hasModifications())
             rowBuilder.addCell(live(CommandsForKeyColumns.last_executed_micros, timestampMicros, ByteBufferUtil.bytes(cfk.lastExecutedMicros.get())));
 
+        if (cfk.lastWriteTimestamp.hasModifications())
+            rowBuilder.addCell(live(CommandsForKeyColumns.last_write_timestamp, timestampMicros, serializeTimestamp(cfk.lastWriteTimestamp.get())));
+
         if (cfk.blindWitnessed.hasModifications())
             addStoredSetChanges(rowBuilder, CommandsForKeyColumns.blind_witnessed,
                                 timestampMicros, nowInSeconds, cfk.blindWitnessed,
@@ -800,6 +805,10 @@ public class AccordKeyspace
                 ByteBuffer microsBytes = cell != null && !cell.isTombstone() ? cellValue(cell) : null;
                 cfk.lastExecutedMicros.load(microsBytes != null ? microsBytes.getLong(microsBytes.position())
                                                                 : AccordCommandsForKey.Defaults.lastExecutedMicros);
+
+                cell = staticRow.getCell(CommandsForKeyColumns.last_write_timestamp);
+                cfk.lastWriteTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new)
+                                                                                   : AccordCommandsForKey.Defaults.lastWriteTimestamp);
 
                 TreeSet<Timestamp> blindWitnessed = new TreeSet<>();
                 ComplexColumnData cmplx = staticRow.getComplexColumnData(CommandsForKeyColumns.blind_witnessed);
