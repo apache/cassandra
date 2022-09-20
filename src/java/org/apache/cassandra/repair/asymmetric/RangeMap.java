@@ -156,11 +156,13 @@ public class RangeMap<T> implements Map<Range<Token>, T>
         }
         protected Map.Entry<Range<Token>, T> computeNext()
         {
-            if ((currentIter == null || !currentIter.hasNext()) && iterators.hasNext())
+            while (currentIter == null || !currentIter.hasNext())
+            {
+                if (!iterators.hasNext())
+                    return endOfData();
                 currentIter = iterators.next();
-            if (currentIter != null && currentIter.hasNext())
-                return currentIter.next();
-            return endOfData();
+            }
+            return currentIter.next();
         }
     }
 
