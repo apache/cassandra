@@ -45,7 +45,6 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -283,7 +282,6 @@ public class MetadataSerializer implements IMetadataSerializer
         if (FBUtilities.isWindows)
             descriptor.fileFor(Component.STATS).tryDelete();
         filePath.move(descriptor.fileFor(Component.STATS));
-
     }
 
     public void updateSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> updatedComponents) throws IOException
