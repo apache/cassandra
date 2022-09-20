@@ -1946,7 +1946,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (Boolean.getBoolean("cassandra.reset_bootstrap_progress"))
         {
             logger.info("Resetting bootstrap progress to start fresh");
-            SystemKeyspace.resetAvailableRanges();
+            SystemKeyspace.resetAvailableStreamedRanges();
         }
 
         // Force disk boundary invalidation now that local tokens are set
