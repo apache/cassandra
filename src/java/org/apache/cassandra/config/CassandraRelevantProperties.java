@@ -295,7 +295,10 @@ public enum CassandraRelevantProperties
     ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),
     ORG_APACHE_CASSANDRA_DB_VIRTUAL_SYSTEM_PROPERTIES_TABLE_TEST("org.apache.cassandra.db.virtual.SystemPropertiesTableTest"),
 
+    /** Used when running in Client mode and the system and schema keyspaces need to be initialized outside of their normal initialization path **/
+    FORCE_LOAD_LOCAL_KEYSPACES("cassandra.schema.force_load_local_keyspaces"),
     ;
+
 
 
     CassandraRelevantProperties(String key, String defaultVal)
