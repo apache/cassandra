@@ -68,11 +68,6 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
 
     static final String KEYSPACE = "simple_paxos_simulation";
     static final String TABLE = "tbl";
-    static final String CREATE_TABLE = "CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))";
-    static final String INSERT = "INSERT INTO " + KEYSPACE + ".tbl (pk, count, seq1, seq2) VALUES (?, 0, '', []) IF NOT EXISTS";
-    static final String INSERT1 = "INSERT INTO " + KEYSPACE + ".tbl (pk, count, seq1, seq2) VALUES (?, 0, '', []) USING TIMESTAMP 0";
-    static final String UPDATE = "UPDATE " + KEYSPACE + ".tbl SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS";
-    static final String SELECT = "SELECT pk, count, seq1, seq2 FROM  " + KEYSPACE + ".tbl WHERE pk = ?";
     static final ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
 
     final ClusterActions.Options clusterOptions;
@@ -113,6 +108,10 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
         Arrays.sort(this.primaryKeys);
     }
 
+    protected abstract String createTableStmt();
+
+    protected abstract String preInsertStmt();
+
     abstract Operation verifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker);
     abstract Operation nonVerifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker);
     abstract Operation modifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker);
@@ -120,12 +119,12 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
 
     public ActionPlan plan()
     {
-        ActionPlan plan = new KeyspaceActions(simulated, KEYSPACE, TABLE, CREATE_TABLE, cluster,
+        ActionPlan plan = new KeyspaceActions(simulated, KEYSPACE, TABLE, createTableStmt(), cluster,
                                               clusterOptions, serialConsistency, this, primaryKeys, debug).plan(joinAll());
 
         plan = plan.encapsulate(ActionPlan.setUpTearDown(
             ActionList.of(
-                cluster.stream().map(i -> simulated.run("Insert Partitions", i, executeForPrimaryKeys(INSERT1, primaryKeys)))
+                cluster.stream().map(i -> simulated.run("Insert Partitions", i, executeForPrimaryKeys(preInsertStmt(), primaryKeys)))
             ).andThen(
                 // TODO (now): this is temporary until we have correct epoch handling
                 ActionList.of(

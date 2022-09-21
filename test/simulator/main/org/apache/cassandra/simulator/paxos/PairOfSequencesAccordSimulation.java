@@ -72,6 +72,7 @@ import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
 public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxosSimulation
 {
     private static final Logger logger = LoggerFactory.getLogger(PairOfSequencesAccordSimulation.class);
+    private static final String SELECT = "SELECT pk, count, seq FROM  " + KEYSPACE + ".tbl WHERE pk = ?";
 
     class VerifyingOperation extends Operation
     {
@@ -95,20 +96,15 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
             Object[] row = outcome.result[0];
             // first verify internally consistent
             int count = row[1] == null ? 0 : (Integer) row[1];
-            int[] seq1 = Arrays.stream((row[2] == null ? "" : (String) row[2]).split(","))
+            int[] seq = Arrays.stream((row[2] == null ? "" : (String) row[2]).split(","))
                                .filter(s -> !s.isEmpty())
                                .mapToInt(Integer::parseInt)
                                .toArray();
-            int[] seq2 = ((List<Integer>) (row[3] == null ? emptyList() : row[3]))
-                         .stream().mapToInt(x -> x).toArray();
 
-            if (!Arrays.equals(seq1, seq2))
-                throw fail(primaryKey, "%s != %s", seq1, seq2);
+            if (seq.length != count)
+                throw fail(primaryKey, "%d != #%s", count, seq);
 
-            if (seq1.length != count)
-                throw fail(primaryKey, "%d != #%s", count, seq1);
-
-            historyChecker.witness(outcome, seq1, outcome.start, outcome.end);
+            historyChecker.witness(outcome, seq, outcome.start, outcome.end);
         }
     }
 
@@ -118,7 +114,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
             AccordTxnBuilder builder = new AccordTxnBuilder();
             builder.withRead(SELECT, primaryKey);
             // TODO (now): support complex columns
-            return execute(builder.build(), "pk", "count", "seq1", "seq2");
+            return execute(builder.build(), "pk", "count", "seq");
         };
     }
 
@@ -126,7 +122,8 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     {
         return () -> {
             AccordTxnBuilder builder = new AccordTxnBuilder();
-            builder.withWrite(UPDATE, id + ",", singletonList(id), primaryKey);
+            builder.withRead(SELECT, primaryKey);
+            builder.withAppend(KEYSPACE, TABLE, primaryKey, "seq", id + ",");
             return execute(builder.build());
         };
     }
@@ -268,6 +265,18 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
               scheduler, debug,
               seed, primaryKeys,
               runForNanos, jitter);
+    }
+
+    @Override
+    protected String createTableStmt()
+    {
+        return "CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq text, PRIMARY KEY (pk))";
+    }
+
+    @Override
+    protected String preInsertStmt()
+    {
+        return "INSERT INTO " + KEYSPACE + ".tbl (pk, count, seq) VALUES (?, 0, '') USING TIMESTAMP 0";
     }
 
     @Override

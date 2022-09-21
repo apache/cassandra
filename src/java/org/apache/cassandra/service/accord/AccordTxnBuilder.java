@@ -22,8 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -61,7 +63,7 @@ public class AccordTxnBuilder
     private Set<AccordKey.PartitionKey> keys = new HashSet<>();
     private List<SinglePartitionReadCommand> reads = new ArrayList<>();
     private AccordQuery query = AccordQuery.ALL;
-    private List<PartitionUpdate> updates = new ArrayList<>();
+    private List<AccordUpdate.AbstractUpdate> updates = new ArrayList<>();
     private List<UpdatePredicate> predicates = new ArrayList<>();
 
     public AccordTxnBuilder withRead(String query, Object... values)
@@ -86,16 +88,38 @@ public class AccordTxnBuilder
         Preconditions.checkArgument(prepared.statement instanceof ModificationStatement);
         ModificationStatement modification = (ModificationStatement) prepared.statement;
         // TODO: look into getting partition updates directly
+        Preconditions.checkArgument(!modification.requiresRead());
         List<? extends IMutation> mutations = modification.getMutations(ClientState.forInternalCalls(), QueryProcessor.makeInternalOptions(prepared.statement, values), false, 0, 0, 0);
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
                 keys.add(new AccordKey.PartitionKey(update.metadata().id, update.partitionKey()));
-                updates.add(update);
+                updates.add(new AccordUpdate.SimpleUpdate(update));
             }
         }
         return this;
+    }
+
+    public AccordTxnBuilder withAppend(String keyspace, String table, Object key, Map<String, String> appends)
+    {
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+        Preconditions.checkNotNull(metadata);
+
+        DecoratedKey partitionKey = metadata.partitioner.decorateKey(decompose(metadata.partitionKeyType, key));
+        AccordKey.PartitionKey accordKey = new AccordKey.PartitionKey(metadata.id, partitionKey);
+
+        keys.add(accordKey);
+        updates.add(new AccordUpdate.AppendingUpdate(accordKey, appends));
+
+        return this;
+    }
+
+    public AccordTxnBuilder withAppend(String keyspace, String table, Object key, String column, String append)
+    {
+        Map<String, String> appends = new HashMap<>();
+        appends.put(column, append);
+        return withAppend(keyspace, table, key, appends);
     }
 
     private static ByteBuffer decompose(AbstractType<?> type, Object value)

@@ -22,26 +22,35 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 
 import accord.api.Data;
 import accord.api.Key;
 import accord.api.Update;
 import accord.api.Write;
 import accord.primitives.Keys;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
@@ -59,6 +68,10 @@ import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+
+import static org.apache.cassandra.utils.CollectionSerializer.deserializeMap;
+import static org.apache.cassandra.utils.CollectionSerializer.serializeMap;
+import static org.apache.cassandra.utils.CollectionSerializer.serializedSizeMap;
 
 public class AccordUpdate implements Update
 {
@@ -304,21 +317,254 @@ public class AccordUpdate implements Update
         }
     }
 
-    private static Keys keysFrom(List<PartitionUpdate> updates, List<UpdatePredicate> predicates)
+    public abstract static class AbstractUpdate
+    {
+        interface Serializer<T extends AbstractUpdate>
+        {
+            void serializeBody(T update, DataOutputPlus out, int version) throws IOException;
+            T deserializeBody(Kind kind, DataInputPlus in, int version) throws IOException;
+            long serializedBodySize(T update, int version);
+        }
+        enum Kind { SIMPLE, APPEND }
+        public abstract Kind kind();
+        public abstract PartitionKey partitionKey();
+        public abstract PartitionUpdate apply(FilteredPartition partition);
+        public abstract Serializer serializer();
+
+        public static final IVersionedSerializer<AbstractUpdate> serializer = new IVersionedSerializer<AbstractUpdate>()
+        {
+            @Override
+            public void serialize(AbstractUpdate updater, DataOutputPlus out, int version) throws IOException
+            {
+                out.writeInt(updater.kind().ordinal());
+                updater.serializer().serializeBody(updater, out, version);
+            }
+
+            @Override
+            public AbstractUpdate deserialize(DataInputPlus in, int version) throws IOException
+            {
+                Kind kind = Kind.values()[in.readInt()];
+                switch (kind)
+                {
+                    case SIMPLE:
+                        return SimpleUpdate.serializer.deserializeBody(kind, in, version);
+                    case APPEND:
+                        return AppendingUpdate.serializer.deserializeBody(kind, in, version);
+                    default: throw new IllegalArgumentException();
+                }
+            }
+
+            @Override
+            public long serializedSize(AbstractUpdate updater, int version)
+            {
+                return TypeSizes.INT_SIZE + updater.serializer().serializedBodySize(updater, version);
+            }
+        };
+    }
+
+    public static class SimpleUpdate extends AbstractUpdate
+    {
+        private final PartitionUpdate update;
+        private final PartitionKey accordKey;
+
+        public SimpleUpdate(PartitionUpdate update)
+        {
+            this.update = update;
+            this.accordKey = new PartitionKey(update.metadata().id, update.partitionKey());
+        }
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.SIMPLE;
+        }
+
+        @Override
+        public PartitionKey partitionKey()
+        {
+            return accordKey;
+        }
+
+        @Override
+        public PartitionUpdate apply(FilteredPartition partition)
+        {
+            return update;
+        }
+
+        @Override
+        public Serializer serializer()
+        {
+            return serializer;
+        }
+
+        static final Serializer<SimpleUpdate> serializer = new Serializer<SimpleUpdate>()
+        {
+            @Override
+            public void serializeBody(SimpleUpdate update, DataOutputPlus out, int version) throws IOException
+            {
+                PartitionUpdate.serializer.serialize(update.update, out, version);
+            }
+
+            @Override
+            public SimpleUpdate deserializeBody(Kind kind, DataInputPlus in, int version) throws IOException
+            {
+                Preconditions.checkArgument(kind == Kind.SIMPLE);
+                return new SimpleUpdate(PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE));
+            }
+
+            @Override
+            public long serializedBodySize(SimpleUpdate update, int version)
+            {
+                return PartitionUpdate.serializer.serializedSize(update.update, version);
+            }
+        };
+    }
+
+    public static class AppendingUpdate extends AbstractUpdate
+    {
+        private final PartitionKey key;
+        private final Map<String, String> appends;
+
+        public AppendingUpdate(PartitionKey key, Map<String, String> appends)
+        {
+            Preconditions.checkArgument(appends != null);
+            TableMetadata metadata = Schema.instance.getTableMetadata(key.tableId());
+            Preconditions.checkArgument(metadata != null);
+            for (String column : appends.keySet())
+            {
+                ColumnMetadata cdef = metadata.getColumn(new ColumnIdentifier(column, true));
+                Preconditions.checkArgument(cdef != null);
+                Preconditions.checkArgument(cdef.type == UTF8Type.instance);
+                Preconditions.checkArgument(appends.get(column) != null);
+            }
+
+            this.key = key;
+            this.appends = appends;
+        }
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.APPEND;
+        }
+
+        @Override
+        public PartitionKey partitionKey()
+        {
+            return key;
+        }
+
+        private static <T> String getString(Cell<T> cell)
+        {
+            return cell == null || cell.isTombstone() ? "" : UTF8Type.instance.getString(cell.value(), cell.accessor());
+        }
+
+        private static void apply(Row.Builder builder, Row current, ColumnMetadata cdef, String append)
+        {
+            Preconditions.checkArgument(append != null);
+            String value = getString(current.getCell(cdef)) + append;
+            builder.addCell(BufferCell.live(cdef, 0, UTF8Type.instance.fromString(value)));
+        }
+
+        private static Row apply(Row.Builder builder, Row current, Columns columns, Map<ColumnMetadata, String> appendMap)
+        {
+            if (columns.isEmpty())
+                return current;
+
+            builder.newRow(current.clustering());
+            for (ColumnMetadata column : columns)
+                apply(builder, current, column, appendMap.get(column));
+
+            return builder.build();
+        }
+
+        @Override
+        public PartitionUpdate apply(FilteredPartition partition)
+        {
+            Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
+            TableMetadata metadata = Schema.instance.getTableMetadata(key.tableId());
+            RegularAndStaticColumns.Builder cbuilder = RegularAndStaticColumns.builder();
+            Map<ColumnMetadata, String> appendMap = new HashMap<>();
+            for (Map.Entry<String, String> entry : appends.entrySet())
+            {
+                ColumnMetadata cdef = metadata.getColumn(new ColumnIdentifier(entry.getKey(), true));
+                cbuilder.add(cdef);
+                appendMap.put(cdef, entry.getValue());
+            }
+
+            RegularAndStaticColumns columns = cbuilder.build();
+            Row staticRow = apply(rowBuilder, partition.staticRow(), columns.statics, appendMap);
+
+
+            Preconditions.checkArgument(metadata != null);
+            PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(metadata,
+                                                                                partition.partitionKey(),
+                                                                                columns,
+                                                                                staticRow,
+                                                                                partition.rowCount());
+            for (Row row : partition)
+                updateBuilder.add(apply(rowBuilder, row, columns.regulars, appendMap));
+
+            return updateBuilder.build();
+        }
+
+        @Override
+        public Serializer serializer()
+        {
+            return serializer;
+        }
+
+        private static final IVersionedSerializer<String> strSerializer = new IVersionedSerializer<String>()
+        {
+            @Override
+            public void serialize(String s, DataOutputPlus out, int version) throws IOException { out.writeUTF(s); }
+            @Override
+            public String deserialize(DataInputPlus in, int version) throws IOException { return in.readUTF(); }
+            @Override
+            public long serializedSize(String s, int version) { return TypeSizes.sizeof(s); }
+        };
+
+        static final Serializer<AppendingUpdate> serializer = new Serializer<AppendingUpdate>()
+        {
+            @Override
+            public void serializeBody(AppendingUpdate update, DataOutputPlus out, int version) throws IOException
+            {
+                PartitionKey.serializer.serialize(update.key, out, version);
+                serializeMap(strSerializer, strSerializer, update.appends, out, version);
+            }
+
+            @Override
+            public AppendingUpdate deserializeBody(Kind kind, DataInputPlus in, int version) throws IOException
+            {
+                Preconditions.checkArgument(kind == Kind.APPEND);
+                return new AppendingUpdate(PartitionKey.serializer.deserialize(in, version),
+                                           deserializeMap(strSerializer, strSerializer, Maps::newHashMapWithExpectedSize, in, version));
+            }
+
+            @Override
+            public long serializedBodySize(AppendingUpdate update, int version)
+            {
+                return PartitionKey.serializer.serializedSize(update.key) +
+                       serializedSizeMap(strSerializer, strSerializer, update.appends, version);
+            }
+        };
+    }
+
+    private static Keys keysFrom(List<AbstractUpdate> updates, List<UpdatePredicate> predicates)
     {
         Set<Key> keys = new HashSet<>();
-        for (PartitionUpdate update : updates)
-            keys.add(new PartitionKey(update.metadata().id, update.partitionKey()));
+        for (AbstractUpdate update : updates)
+            keys.add(update.partitionKey());
         for (UpdatePredicate predicate : predicates)
             keys.add(new PartitionKey(predicate.table.id, predicate.key));
 
         return new Keys(keys);
     }
 
-    public AccordUpdate(List<PartitionUpdate> updates, List<UpdatePredicate> predicates)
+    public AccordUpdate(List<AbstractUpdate> updates, List<UpdatePredicate> predicates)
     {
         this.keys = keysFrom(updates, predicates);
-        this.updates = serialize(updates, updateSerializer);
+        this.updates = serialize(updates, AbstractUpdate.serializer);
         this.predicates = serialize(predicates, predicateSerializer);
     }
 
@@ -369,7 +615,12 @@ public class AccordUpdate implements Update
             if (!predicate.applies(read.get(predicate.partitionKey())))
                 return AccordWrite.EMPTY;
         }
-        return new AccordWrite(deserialize(updates, updateSerializer));
+        List<PartitionUpdate> partitionUpdates = new ArrayList<>();
+        for (AbstractUpdate updater : deserialize(updates, AbstractUpdate.serializer))
+        {
+            partitionUpdates.add(updater.apply(read.get(updater.partitionKey())));
+        }
+        return new AccordWrite(partitionUpdates);
     }
 
     UpdatePredicate getPredicate(int i)
@@ -434,27 +685,6 @@ public class AccordUpdate implements Update
             size += ByteBufferUtil.serializedSizeWithVIntLength(predicate.key.getKey());
             size += Clustering.serializer.serializedSize(predicate.clustering, version, predicate.table.comparator.subtypes());
             return size + predicate.serializedBodySize(version);
-        }
-    };
-
-    private static final IVersionedSerializer<PartitionUpdate> updateSerializer = new IVersionedSerializer<PartitionUpdate>()
-    {
-        @Override
-        public void serialize(PartitionUpdate upd, DataOutputPlus out, int version) throws IOException
-        {
-            PartitionUpdate.serializer.serialize(upd, out, version);
-        }
-
-        @Override
-        public PartitionUpdate deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);
-        }
-
-        @Override
-        public long serializedSize(PartitionUpdate upd, int version)
-        {
-            return PartitionUpdate.serializer.serializedSize(upd, version);
         }
     };
 

@@ -45,6 +45,8 @@ import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
 public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxosSimulation
 {
     private static final Logger logger = LoggerFactory.getLogger(PairOfSequencesPaxosSimulation.class);
+    private static final String UPDATE = "UPDATE " + KEYSPACE + ".tbl SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS";
+    private static final String SELECT = "SELECT pk, count, seq1, seq2 FROM  " + KEYSPACE + ".tbl WHERE pk = ?";
 
     class VerifyingOperation extends Operation
     {
@@ -135,6 +137,18 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
               scheduler, debug,
               seed, primaryKeys,
               runForNanos, jitter);
+    }
+
+    @Override
+    protected String createTableStmt()
+    {
+        return "CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))";
+    }
+
+    @Override
+    protected String preInsertStmt()
+    {
+        return "INSERT INTO " + KEYSPACE + ".tbl (pk, count, seq1, seq2) VALUES (?, 0, '', []) USING TIMESTAMP 0";
     }
 
     @Override
