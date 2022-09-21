@@ -851,7 +851,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance.shutdownNowAndWait(1L, MINUTES),
                                 () -> SnapshotManager.shutdownAndWait(1L, MINUTES),
-                                () -> AccordService.instance.shutdownAndWait(1l, MINUTES)
+                                () -> AccordService.instance().shutdownAndWait(1l, MINUTES)
             );
 
             internodeMessagingStarted = false;

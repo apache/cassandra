@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ExecutionException;
@@ -102,8 +101,8 @@ public class AccordIntegrationTest extends TestBaseImpl
         {
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
             cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k int, c int, v int, primary key (k, c))");
-            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
-            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
             fn.accept(cluster);
         }
@@ -208,8 +207,8 @@ public class AccordIntegrationTest extends TestBaseImpl
         {
             cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
             cluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k blob, c int, v int, primary key (k, c))");
-            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.createEpochFromConfigUnsafe()));
-            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance.setCacheSize(0)));
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
             List<String> tokens = cluster.stream()
                                          .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
@@ -231,7 +230,7 @@ public class AccordIntegrationTest extends TestBaseImpl
                              .withCondition(keyspace, "tbl", key, 0, NOT_EXISTS);
                 }
                 Keys keySet = txn.build().keys();
-                Topologies topology = AccordService.instance.node.topology().withUnsyncedEpochs(keySet, 1);
+                Topologies topology = AccordService.instance().node.topology().withUnsyncedEpochs(keySet, 1);
                 // currently we don't detect out-of-bounds read/write, so need this logic to validate we reach different
                 // shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);
@@ -344,7 +343,7 @@ public class AccordIntegrationTest extends TestBaseImpl
     {
         try
         {
-            AccordData result = (AccordData) AccordService.instance.node.coordinate(txn).get();
+            AccordData result = (AccordData) AccordService.instance().node.coordinate(txn).get();
             Assert.assertNotNull(result);
             QueryResults.Builder builder = QueryResults.builder();
             boolean addedHeader = false;

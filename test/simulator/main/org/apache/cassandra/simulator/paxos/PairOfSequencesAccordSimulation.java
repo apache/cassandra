@@ -135,7 +135,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     {
         try
         {
-            AccordData result = (AccordData) AccordService.instance.node.coordinate(txn).get();
+            AccordData result = (AccordData) AccordService.instance().node.coordinate(txn).get();
             Assert.assertNotNull(result);
             QueryResults.Builder builder = QueryResults.builder();
             boolean addedHeader = false;

@@ -39,14 +39,22 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class AccordService implements Shutdownable
 {
-    public static final AccordService instance = new AccordService();
-
     public final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     public final AccordConfigurationService configService;
     private final AccordScheduler scheduler;
     private final AccordVerbHandler verbHandler;
+
+    private static class Handle
+    {
+        public static final AccordService instance = new AccordService();
+    }
+
+    public static AccordService instance()
+    {
+        return Handle.instance;
+    }
 
     public static long uniqueNow()
     {

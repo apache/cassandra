@@ -129,7 +129,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
             ).andThen(
                 // TODO (now): this is temporary until we have correct epoch handling
                 ActionList.of(
-                    cluster.stream().map(i -> simulated.run("Create Accord Epoch", i, () -> AccordService.instance.createEpochFromConfigUnsafe()))
+                    cluster.stream().map(i -> simulated.run("Create Accord Epoch", i, () -> AccordService.instance().createEpochFromConfigUnsafe()))
                 )
 //            ).andThen(
 //                // TODO (now): this is temporary until we have parameterisation of simulation
