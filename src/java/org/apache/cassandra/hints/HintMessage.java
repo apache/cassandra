@@ -84,6 +84,11 @@ public final class HintMessage implements SerializableHintMessage
         return hint;
     }
 
+    public TableId unknownTableID()
+    {
+        return unknownTableID;
+    }
+
     public static class Serializer implements IVersionedAsymmetricSerializer<SerializableHintMessage, HintMessage>
     {
         public long serializedSize(SerializableHintMessage obj, int version)
