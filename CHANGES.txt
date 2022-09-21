@@ -44,12 +44,17 @@
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
-4.0.7
  * Mitigate direct buffer memory OOM on replacements (CASSANDRA-17895)
  * Fix repair failure on assertion if two peers have overlapping mismatching ranges (CASSANDRA-17900)
  * Better handle null state in Gossip schema migration to avoid NPE (CASSANDRA-17864)
  * HintedHandoffAddRemoveNodesTest now accounts for the fact that StorageMetrics.totalHints is not updated synchronously w/ writes (CASSANDRA-16679)
  * Avoid getting hanging repairs due to repair message timeouts (CASSANDRA-17613)
+ * Prevent infinite loop in repair coordinator on FailSession (CASSANDRA-17834)
+Merged from 3.11:
+ * Suppress CVE-2022-25857 and other snakeyaml CVEs (CASSANDRA-17907)
+ * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)
+Merged from 3.0:
+ * Fix scrubber falling into infinite loop when the last partition is broken (CASSANDRA-17862)
  * Fix resetting schema (CASSANDRA-17819)
 
 4.0.6
