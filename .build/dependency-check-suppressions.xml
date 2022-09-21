@@ -29,6 +29,15 @@
         <cve>CVE-2021-44521</cve>
     </suppress>
     <suppress>
+        <!--  https://issues.apache.org/jira/browse/CASSANDRA-17907 -->
+        <packageUrl regex="true">^pkg:maven/org\.yaml/snakeyaml@.*$</packageUrl>
+        <cve>CVE-2022-25857</cve>
+        <cve>CVE-2022-38749</cve>
+        <cve>CVE-2022-38750</cve>
+        <cve>CVE-2022-38751</cve>
+        <cve>CVE-2022-38752</cve>
+    </suppress>
+    <suppress>
         <!-- dependency checker identified this as a completely different package (wire) -->
         <packageUrl regex="true">^pkg:maven/net\.openhft/chronicle\-wire@.*$</packageUrl>
         <cpe>cpe:/a:wire:wire</cpe>
