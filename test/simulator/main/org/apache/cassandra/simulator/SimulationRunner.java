@@ -365,7 +365,7 @@ public class SimulationRunner
                 }
                 catch (Throwable t)
                 {
-                    logger.error("Failed on seed {}", Long.toHexString(seed), t);
+                    logger.error("Failed on seed 0x{}", Long.toHexString(seed), t);
                 }
             }
         }
