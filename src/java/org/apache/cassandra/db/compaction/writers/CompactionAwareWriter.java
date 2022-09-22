@@ -39,8 +39,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
-import org.apache.cassandra.db.compaction.OperationType;
-
 
 /**
  * Class that abstracts away the actual writing of files to make it possible to use CompactionTask for more

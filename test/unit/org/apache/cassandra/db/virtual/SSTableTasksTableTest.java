@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 

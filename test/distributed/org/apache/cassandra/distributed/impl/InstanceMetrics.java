@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;

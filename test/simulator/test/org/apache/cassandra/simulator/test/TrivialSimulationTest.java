@@ -19,7 +19,6 @@
 package org.apache.cassandra.simulator.test;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.IdentityHashMap;
 

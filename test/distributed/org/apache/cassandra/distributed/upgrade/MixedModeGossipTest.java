@@ -33,7 +33,6 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.net.Verb;
 import org.assertj.core.api.Assertions;
 

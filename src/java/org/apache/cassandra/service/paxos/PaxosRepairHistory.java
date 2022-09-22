@@ -30,7 +30,6 @@ import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;

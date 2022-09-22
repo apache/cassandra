@@ -23,7 +23,6 @@ import java.util.Collection;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.paxos.Ballot;
 
 public class TablePaxosRepairHistory
 {

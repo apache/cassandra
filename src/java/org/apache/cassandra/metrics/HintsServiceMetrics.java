@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

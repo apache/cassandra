@@ -22,7 +22,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.utils.CassandraVersion;
 

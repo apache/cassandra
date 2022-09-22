@@ -105,6 +105,9 @@
       <property name="format" value="toFile\(\)"/>
       <property name="message" value="Avoid Path#toFile(), as some implementations may not support it." />
     </module>
+
+    <module name="RedundantImport"/>
+    <module name="UnusedImports"/>
   </module>
 
 </module>

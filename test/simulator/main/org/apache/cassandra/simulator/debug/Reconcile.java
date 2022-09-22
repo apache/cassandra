@@ -40,7 +40,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
-import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.Closeable;

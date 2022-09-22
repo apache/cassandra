@@ -23,8 +23,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import org.apache.cassandra.utils.Shared;
-
 /**
  * Tells jvm-dtest that a class should be isolated and loaded into the instance class loader.
  *

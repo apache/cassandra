@@ -26,7 +26,6 @@ import java.util.concurrent.ConcurrentMap;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 

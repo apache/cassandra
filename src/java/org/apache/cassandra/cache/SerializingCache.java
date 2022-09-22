@@ -33,8 +33,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Iterator;
 
-import com.google.common.util.concurrent.MoreExecutors;
-
 /**
  * Serializes cache values off-heap.
  */

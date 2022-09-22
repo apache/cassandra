@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.fuzz;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
