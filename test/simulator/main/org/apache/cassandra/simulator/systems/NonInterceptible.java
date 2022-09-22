@@ -23,8 +23,6 @@ import java.util.function.Supplier;
 
 import org.apache.cassandra.utils.Shared;
 
-import static java.lang.Boolean.FALSE;
-import static java.lang.Boolean.TRUE;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @Shared(scope = SIMULATION)

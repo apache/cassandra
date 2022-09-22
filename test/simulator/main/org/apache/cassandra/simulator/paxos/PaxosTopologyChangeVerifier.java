@@ -21,7 +21,6 @@ package org.apache.cassandra.simulator.paxos;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.TopologyChangeValidator;
 import org.apache.cassandra.simulator.cluster.Topology;
-import org.apache.cassandra.simulator.systems.NonInterceptible;
 
 import static java.util.Arrays.stream;
 import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;

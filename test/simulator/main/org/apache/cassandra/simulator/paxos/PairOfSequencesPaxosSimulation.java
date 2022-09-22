@@ -21,7 +21,6 @@ package org.apache.cassandra.simulator.paxos;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -53,7 +52,6 @@ import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.Boolean.TRUE;
 import static java.util.Collections.emptyList;

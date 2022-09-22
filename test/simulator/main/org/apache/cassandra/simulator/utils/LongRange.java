@@ -21,8 +21,6 @@ package org.apache.cassandra.simulator.utils;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.cassandra.simulator.RandomSource;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;

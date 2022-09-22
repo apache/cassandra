@@ -23,8 +23,6 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.UUID;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;

@@ -19,7 +19,6 @@
 package org.apache.cassandra.simulator.test;
 
 import java.io.IOException;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Ignore;
 import org.junit.Test;
@@ -33,12 +32,11 @@ public class ShortPaxosSimulationTest
     {
         PaxosSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
     }
-//
-// fails due to OOM DirectMemory - unclear why
-//
-//    @Test
-//    public void selfReconcileTest() throws IOException
-//    {
-//        PaxosSimulationRunner.main(new String[] { "reconcile", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30", "--with-self" });
-//    }
+
+    @Test
+    @Ignore("fails due to OOM DirectMemory - unclear why")
+    public void selfReconcileTest() throws IOException
+    {
+        PaxosSimulationRunner.main(new String[] { "reconcile", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30", "--with-self" });
+    }
 }

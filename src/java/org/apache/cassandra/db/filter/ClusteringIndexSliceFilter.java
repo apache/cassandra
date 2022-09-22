@@ -30,7 +30,6 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.stringtemplate.v4.ST;
 
 /**
  * A filter over a single partition.
