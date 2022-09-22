@@ -71,6 +71,7 @@ import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
@@ -367,6 +368,12 @@ public class JMXTool
             }
         }
 
+        private static final org.yaml.snakeyaml.LoaderOptions LOADER_CONFIG = new org.yaml.snakeyaml.LoaderOptions();
+        {
+            // Set the max yaml file size to 30 mb.
+            LOADER_CONFIG.setCodePointLimit(31_457_280);
+        }
+
         public enum Format
         {
             json
@@ -381,7 +388,7 @@ public class JMXTool
             {
                 Map<String, Info> load(InputStream input) throws IOException
                 {
-                    Yaml yaml = new Yaml(new CustomConstructor());
+                    Yaml yaml = new Yaml(new CustomConstructor(), new Representer(), new DumperOptions(), LOADER_CONFIG);
                     return (Map<String, Info>) yaml.load(input);
                 }
             };
@@ -396,6 +403,8 @@ public class JMXTool
 
             public CustomConstructor()
             {
+                super(LOADER_CONFIG);
+
                 this.rootTag = new Tag(ROOT);
                 this.addTypeDescription(INFO_TYPE);
             }
