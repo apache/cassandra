@@ -1304,7 +1304,7 @@ h3(#alterRoleStmt). ALTER ROLE
 __Syntax:__
 
 bc(syntax).. 
-<alter-role-stmt> ::= ALTER ROLE <identifier> ( WITH <option> ( AND <option> )* )?
+<alter-role-stmt> ::= ALTER ROLE (IF EXISTS)? <identifier> ( WITH <option> ( AND <option> )* )?
 
 <option> ::= PASSWORD = <string>
            | LOGIN = <boolean>
@@ -1323,7 +1323,7 @@ Conditions on executing @ALTER ROLE@ statements:
 * A client cannot alter the @SUPERUSER@ status of any role it currently holds
 * A client can only modify certain properties of the role with which it identified at login (e.g. @PASSWORD@)
 * To modify properties of a role, the client must be granted @ALTER@ "permission":#permissions on that role
-
+If the role does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#dropRoleStmt). DROP ROLE
 
@@ -1451,11 +1451,12 @@ h3(#alterUserStmt). ALTER USER
 __Syntax:__ 
 
 bc(syntax).. 
-<alter-user-statement> ::= ALTER USER <identifier> ( WITH PASSWORD <string> )? ( <option> )?
+<alter-user-statement> ::= ALTER USER (IF EXISTS)? <identifier> ( WITH PASSWORD <string> )? ( <option> )?
 
 <option> ::= SUPERUSER
            | NOSUPERUSER
 p. 
+If the user does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 bc(sample). 
 ALTER USER alice WITH PASSWORD 'PASSWORD_A';
@@ -1585,7 +1586,7 @@ h3(#grantPermissionsStmt). GRANT PERMISSION
 __Syntax:__ 
 
 bc(syntax).. 
-<grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? ) ON <resource> TO <identifier>
+<grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> TO <identifier>
 
 <permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
 
@@ -1641,7 +1642,7 @@ h3(#revokePermissionsStmt). REVOKE PERMISSION
 __Syntax:__ 
 
 bc(syntax).. 
-<revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? ) ON <resource> FROM <identifier>
+<revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> FROM <identifier>
 
 <permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
 
@@ -2555,6 +2556,11 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+h3. 3.4.6
+
+* Add support for @IF EXISTS@ and @IF NOT EXISTS@ in @ALTER@ statements (see "CASSANDRA-16916":https://issues.apache.org/jira/browse/CASSANDRA-16916).
+* Allow @GRANT/REVOKE@ multiple permissions in a single statement (see "CASSANDRA-17030":https://issues.apache.org/jira/browse/CASSANDRA-17030).
+
 
 h3. 3.4.5
 
