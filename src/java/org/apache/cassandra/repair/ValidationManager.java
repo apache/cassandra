@@ -30,13 +30,17 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
+import org.apache.cassandra.utils.NonThrowingCloseable;
 
 public class ValidationManager
 {
@@ -112,7 +116,8 @@ public class ValidationManager
         try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator))
         {
             MerkleTrees tree = createMerkleTrees(vi, validator.desc.ranges, cfs);
-            try
+            TableOperation op = vi.getCompactionIterator().getOperation();
+            try (NonThrowingCloseable cls = CompactionManager.instance.active.onOperationStart(op))
             {
                 // validate the CF as we iterate over it
                 validator.prepare(cfs, tree);
