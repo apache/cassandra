@@ -216,7 +216,37 @@ public class CommandSummaries
         }
     };
 
-    public static final SummarySerializer waitingOn = statusExecute;
+    public static final SummarySerializer waitingOn = new SummarySerializer()
+    {
+        @Override
+        public void serializeBody(AccordCommand command, DataOutputPlus out, Version version) throws IOException
+        {
+            statusExecute.serializeBody(command, out, version);
+            // TODO: switch to KeysOnlyTxn once we don't need to transmit txns everywhere
+            serializeNullable(command.txn(), out, version.msg_version, CommandSerializers.txn);
+        }
+
+        @Override
+        public void deserializeBody(AccordCommand.ReadOnly command, DataInputPlus in, Version version) throws IOException
+        {
+            statusExecute.deserializeBody(command, in, version);
+            command.txn.load(deserializeNullable(in, version.msg_version, CommandSerializers.txn));
+        }
+
+        @Override
+        public int serializedBodySize(AccordCommand command, Version version)
+        {
+            int size = statusExecute.serializedBodySize(command, version);
+            size += serializedSizeNullable(command.txn(), version.msg_version, CommandSerializers.txn);
+            return size;
+        }
+
+        @Override
+        public boolean needsUpdate(AccordCommand command)
+        {
+            return statusExecute.needsUpdate(command) || command.txn.hasModifications();
+        }
+    };
 
     public static final SummarySerializer commandsPerKey = new SummarySerializer(){
 
