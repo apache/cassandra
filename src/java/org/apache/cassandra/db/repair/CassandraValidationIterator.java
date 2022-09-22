@@ -279,6 +279,12 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     }
 
     @Override
+    public CompactionIterator getCompactionIterator()
+    {
+        return ci;
+    }
+
+    @Override
     public boolean hasNext()
     {
         return ci.hasNext();
