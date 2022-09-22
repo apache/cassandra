@@ -164,7 +164,7 @@ public class AccordCommandStore extends CommandStore
         if (command == null)
             throw new IllegalArgumentException("No command in context for txnId " + txnId);
 
-        Preconditions.checkState(command.isLoaded());
+        Preconditions.checkState(command.isLoaded() || (command.isReadOnly() && command.isPartiallyLoaded()));
 
         return command;
     }

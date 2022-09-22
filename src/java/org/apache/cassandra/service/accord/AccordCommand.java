@@ -105,6 +105,12 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         {
             super(commandStore, txnId);
         }
+
+        @Override
+        boolean isReadOnly()
+        {
+            return true;
+        }
     }
 
     private final AccordCommandStore commandStore;
@@ -269,6 +275,26 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                && storedListeners.isLoaded();
     }
 
+    public boolean isPartiallyLoaded()
+    {
+        return homeKey.isLoaded()
+               || progressKey.isLoaded()
+               || txn.isLoaded()
+               || promised.isLoaded()
+               || accepted.isLoaded()
+               || executeAt.isLoaded()
+               || deps.isLoaded()
+               || writes.isLoaded()
+               || result.isLoaded()
+               || status.isLoaded()
+               || isGloballyPersistent.isLoaded()
+               || waitingOnCommit.isLoaded()
+               || blockingCommitOn.isLoaded()
+               || waitingOnApply.isLoaded()
+               || blockingApplyOn.isLoaded()
+               || storedListeners.isLoaded();
+    }
+
     @Override
     public boolean hasModifications()
     {
@@ -337,6 +363,11 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                && blockingApplyOn.equals(command.blockingApplyOn)
                && storedListeners.equals(command.storedListeners)
                && transientListeners.equals(command.transientListeners);
+    }
+
+    boolean isReadOnly()
+    {
+        return false;
     }
 
     private int instanceHash()
