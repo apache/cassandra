@@ -45,6 +45,8 @@ public abstract class AbstractStoredField
     {
         if (!hasValue())
             return "<empty>";
+        if (check(WRITE_ONLY_FLAG))
+            return "<write-only>";
         preGet();
         if (hasModifications())
             return '*' + valueString();
@@ -88,18 +90,6 @@ public abstract class AbstractStoredField
         return check(EMPTY_FLAG);
     }
 
-    void checkWritesAllowed()
-    {
-        if (check(READ_ONLY_FLAG))
-            throw new IllegalStateException("Cannot write to read only state");
-    }
-
-    void checkReadsAllowed()
-    {
-        if (check(WRITE_ONLY_FLAG))
-            throw new IllegalStateException("Cannot read from write only state");
-    }
-
     void preUnload()
     {
         if (hasModifications())
@@ -117,6 +107,8 @@ public abstract class AbstractStoredField
 
     void preChange()
     {
+        if (check(READ_ONLY_FLAG))
+            throw new IllegalStateException("Cannot update a read only field");
         clear(EMPTY_FLAG);
         set(LOADED_FLAG | CHANGED_FLAG);
     }
@@ -132,6 +124,8 @@ public abstract class AbstractStoredField
             throw new IllegalStateException("Cannot read unloaded fields");
         if (check(EMPTY_FLAG))
             throw new IllegalStateException("Cannot read empty fields");
+        if (check(WRITE_ONLY_FLAG))
+            throw new IllegalStateException("Cannot read write only fields");
     }
 
     void preClear()
