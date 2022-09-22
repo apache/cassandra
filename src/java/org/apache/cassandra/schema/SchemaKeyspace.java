@@ -101,6 +101,7 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "table_name text,"
               + "allow_auto_snapshot boolean,"
+              + "auto_snapshot_ttl text,"
               + "bloom_filter_fp_chance double,"
               + "caching frozen<map<text, text>>,"
               + "comment text,"
@@ -170,6 +171,7 @@ public final class SchemaKeyspace
               + "base_table_name text,"
               + "where_clause text,"
               + "allow_auto_snapshot boolean,"
+              + "auto_snapshot_ttl text,"
               + "bloom_filter_fp_chance double,"
               + "caching frozen<map<text, text>>,"
               + "comment text,"
@@ -567,9 +569,14 @@ public final class SchemaKeyspace
             builder.add("memtable", params.memtable.configurationKey());
 
         // As above, only add the allow_auto_snapshot column if the value is not default (true) and
-        // auto-snapshotting is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
+        // to avoid RTE in pre-4.2 versioned node during upgrades
         if (!params.allowAutoSnapshot)
             builder.add("allow_auto_snapshot", false);
+
+        // As above, only add the auto_snapshot_ttl column if the value is not default (0) and
+        // to avoid RTE in pre-4.2 versioned node during upgrades
+        if (params.autoSnapshotTtl.toSeconds() != 0)
+            builder.add("auto_snapshot_ttl", params.autoSnapshotTtl.toString());
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -985,6 +992,10 @@ public final class SchemaKeyspace
         // allow_auto_snapshot column was introduced in 4.2
         if (row.has("allow_auto_snapshot"))
             builder.allowAutoSnapshot(row.getBoolean("allow_auto_snapshot"));
+
+        // auto_snapshot_ttl was introduced in 4.2
+        if (row.has("auto_snapshot_ttl"))
+            builder.autoSnapshotTtl(new DurationSpec.IntSecondsBound(row.getString("auto_snapshot_ttl")));
 
         return builder.build();
     }

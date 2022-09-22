@@ -25,6 +25,8 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -42,6 +44,7 @@ public final class TableParams
     public enum Option
     {
         ALLOW_AUTO_SNAPSHOT,
+        AUTO_SNAPSHOT_TTL,
         BLOOM_FILTER_FP_CHANCE,
         CACHING,
         COMMENT,
@@ -69,6 +72,7 @@ public final class TableParams
 
     public final String comment;
     public final boolean allowAutoSnapshot;
+    public final DurationSpec.IntSecondsBound autoSnapshotTtl;
     public final double bloomFilterFpChance;
     public final double crcCheckChance;
     public final int gcGraceSeconds;
@@ -90,6 +94,9 @@ public final class TableParams
     {
         comment = builder.comment;
         allowAutoSnapshot = builder.allowAutoSnapshot;
+        autoSnapshotTtl = builder.autoSnapshotTtl.toSeconds() == 0
+                          ? DatabaseDescriptor.getAutoSnapshotTtl()
+                          : builder.autoSnapshotTtl;
         bloomFilterFpChance = builder.bloomFilterFpChance == null
                             ? builder.compaction.defaultBloomFilterFbChance()
                             : builder.bloomFilterFpChance;
@@ -118,6 +125,7 @@ public final class TableParams
     public static Builder builder(TableParams params)
     {
         return new Builder().allowAutoSnapshot(params.allowAutoSnapshot)
+                            .autoSnapshotTtl(params.autoSnapshotTtl)
                             .bloomFilterFpChance(params.bloomFilterFpChance)
                             .caching(params.caching)
                             .comment(params.comment)
@@ -209,6 +217,7 @@ public final class TableParams
 
         return comment.equals(p.comment)
             && allowAutoSnapshot == p.allowAutoSnapshot
+            && autoSnapshotTtl.equals(p.autoSnapshotTtl)
             && bloomFilterFpChance == p.bloomFilterFpChance
             && crcCheckChance == p.crcCheckChance
             && gcGraceSeconds == p.gcGraceSeconds
@@ -231,6 +240,7 @@ public final class TableParams
     {
         return Objects.hashCode(comment,
                                 allowAutoSnapshot,
+                                autoSnapshotTtl,
                                 bloomFilterFpChance,
                                 crcCheckChance,
                                 gcGraceSeconds,
@@ -254,6 +264,7 @@ public final class TableParams
         return MoreObjects.toStringHelper(this)
                           .add(Option.COMMENT.toString(), comment)
                           .add(Option.ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
+                          .add(Option.AUTO_SNAPSHOT_TTL.toString(), autoSnapshotTtl)
                           .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
                           .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
@@ -278,6 +289,8 @@ public final class TableParams
         builder.append("additional_write_policy = ").appendWithSingleQuotes(additionalWritePolicy.toString())
                .newLine()
                .append("AND allow_auto_snapshot = ").append(allowAutoSnapshot)
+               .newLine()
+               .append("AND auto_snapshot_ttl = ").append(autoSnapshotTtl.toString())
                .newLine()
                .append("AND bloom_filter_fp_chance = ").append(bloomFilterFpChance)
                .newLine()
@@ -325,6 +338,7 @@ public final class TableParams
     {
         private String comment = "";
         private boolean allowAutoSnapshot = true;
+        private DurationSpec.IntSecondsBound autoSnapshotTtl = new DurationSpec.IntSecondsBound(0);
         private Double bloomFilterFpChance;
         private double crcCheckChance = 1.0;
         private int gcGraceSeconds = 864000; // 10 days
@@ -354,6 +368,12 @@ public final class TableParams
         public Builder comment(String val)
         {
             comment = val;
+            return this;
+        }
+
+        public Builder autoSnapshotTtl(DurationSpec.IntSecondsBound val)
+        {
+            this.autoSnapshotTtl = val;
             return this;
         }
 

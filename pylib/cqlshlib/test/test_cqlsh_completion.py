@@ -617,6 +617,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             immediate='ITH ')
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH ',
                             choices=['allow_auto_snapshot',
+                                     'auto_snapshot_ttl',
                                      'bloom_filter_fp_chance', 'compaction',
                                      'compression',
                                      'default_time_to_live', 'gc_grace_seconds',
@@ -627,6 +628,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH ',
                             choices=['allow_auto_snapshot',
+                                     'auto_snapshot_ttl',
                                      'bloom_filter_fp_chance', 'compaction',
                                      'compression',
                                      'default_time_to_live', 'gc_grace_seconds',
@@ -675,9 +677,13 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=[';', 'AND'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'SizeTieredCompactionStrategy'} AND ",
-                            choices=['allow_auto_snapshot', 'bloom_filter_fp_chance', 'compaction',
+                            choices=['allow_auto_snapshot',
+                                     'auto_snapshot_ttl',
+                                     'bloom_filter_fp_chance',
+                                     'compaction',
                                      'compression',
-                                     'default_time_to_live', 'gc_grace_seconds',
+                                     'default_time_to_live',
+                                     'gc_grace_seconds',
                                      'max_index_interval',
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',

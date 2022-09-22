@@ -44,6 +44,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
 
     columnfamily_layout_options = (
         ('allow_auto_snapshot', None),
+        ('auto_snapshot_ttl', None),
         ('bloom_filter_fp_chance', None),
         ('comment', None),
         ('gc_grace_seconds', None),
@@ -517,6 +518,8 @@ def cf_prop_val_completer(ctxt, cass):
         return [Hint('<\'none\'|\'blocking\'>')]
     if this_opt == 'allow_auto_snapshot':
         return [Hint('<boolean>')]
+    if this_opt == 'auto_snapshot_ttl':
+        return [Hint('<duration>')]
     return [Hint('<option_value>')]
 
 

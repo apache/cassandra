@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.FileReader;
 import org.junit.Assert;
 import org.junit.Before;
@@ -274,6 +275,8 @@ public class SchemaCQLHelperTest extends CQLTester
         builder.addPartitionKeyColumn("pk1", IntegerType.instance)
                .addClusteringColumn("cl1", IntegerType.instance)
                .addRegularColumn("reg1", AsciiType.instance)
+               .allowAutoSnapshot(true)
+               .autoSnapshotTtl(new DurationSpec.IntSecondsBound(5))
                .bloomFilterFpChance(1.0)
                .comment("comment")
                .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")))
@@ -298,6 +301,7 @@ public class SchemaCQLHelperTest extends CQLTester
                    containsString("CLUSTERING ORDER BY (cl1 ASC)\n" +
                             "    AND additional_write_policy = 'ALWAYS'\n" +
                             "    AND allow_auto_snapshot = true\n" +
+                            "    AND auto_snapshot_ttl = 5s\n" +
                             "    AND bloom_filter_fp_chance = 1.0\n" +
                             "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                             "    AND cdc = false\n" +
