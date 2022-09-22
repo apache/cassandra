@@ -608,7 +608,7 @@ public class AccordUpdate implements Update
     @Override
     public Write apply(Data data)
     {
-        AccordData read = (AccordData) data;
+        AccordData read = data != null ? (AccordData) data : new AccordData();
         for (ByteBuffer bytes : predicates)
         {
             UpdatePredicate predicate = deserialize(bytes, predicateSerializer);
