@@ -19,12 +19,10 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Date;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamingState;

@@ -50,7 +50,6 @@ import static org.apache.cassandra.net.ConnectionType.URGENT_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
 import static org.apache.cassandra.net.ResourceLimits.*;
-import static org.apache.cassandra.net.Verb.Priority.P0;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 /**

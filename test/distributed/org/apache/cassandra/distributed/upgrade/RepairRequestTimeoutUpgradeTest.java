@@ -20,13 +20,8 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
-import com.vdurmont.semver4j.Semver;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 
-import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
-import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.apache.cassandra.net.Verb.SYNC_REQ;
 import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
 
 public class RepairRequestTimeoutUpgradeTest extends UpgradeTestBase

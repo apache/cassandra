@@ -22,8 +22,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import com.google.common.util.concurrent.MoreExecutors;
-
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.tartarus.snowball.SnowballStemmer;
 import org.tartarus.snowball.ext.*;

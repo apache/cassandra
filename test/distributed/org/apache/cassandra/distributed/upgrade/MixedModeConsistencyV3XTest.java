@@ -20,8 +20,6 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
-import org.apache.cassandra.distributed.shared.Versions;
-
 /**
  * {@link MixedModeConsistencyTestBase} for upgrades from v3X.
  */

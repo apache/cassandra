@@ -27,7 +27,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.Int64Serializer;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
 import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.fwdFrmSerializer;

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils.memory;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,9 +29,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
-import org.apache.cassandra.utils.concurrent.SyncFuture;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
