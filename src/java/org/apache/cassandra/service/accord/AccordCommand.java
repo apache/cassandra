@@ -35,6 +35,7 @@ import accord.api.Result;
 import accord.local.Command;
 import accord.local.Listener;
 import accord.local.Listeners;
+import accord.local.PartialCommand;
 import accord.local.Status;
 import accord.local.TxnOperation;
 import accord.primitives.Ballot;
@@ -686,7 +687,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void removeWaitingOnCommit(Command command)
+    public void removeWaitingOnCommit(PartialCommand command)
     {
         waitingOnCommit.blindRemove(command.txnId());
     }
@@ -701,7 +702,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void addWaitingOnApplyIfAbsent(Command command)
+    public void addWaitingOnApplyIfAbsent(PartialCommand command)
     {
         waitingOnApply.blindPut(command.txnId(), CommandSummaries.waitingOn.serialize((AccordCommand) command));
     }
@@ -713,7 +714,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void removeWaitingOnApply(Command command)
+    public void removeWaitingOnApply(PartialCommand command)
     {
         waitingOnApply.blindRemove(command.txnId());
     }

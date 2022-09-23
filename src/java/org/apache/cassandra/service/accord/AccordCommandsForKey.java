@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
+import accord.local.PartialCommand;
 import accord.local.Status;
 import accord.primitives.Timestamp;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
@@ -143,7 +144,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
             map.blindRemove(timestamp);
         }
 
-        private Stream<Command> idsToCommands(Collection<ByteBuffer> blobs)
+        private Stream<PartialCommand.WithDeps> idsToCommands(Collection<ByteBuffer> blobs)
         {
             return blobs.stream().map(blob -> CommandSummaries.commandsPerKey.deserialize(commandStore, blob));
         }
@@ -155,25 +156,25 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         }
 
         @Override
-        public Stream<Command> before(Timestamp timestamp)
+        public Stream<PartialCommand.WithDeps> before(Timestamp timestamp)
         {
             return idsToCommands(map.getView().headMap(timestamp, false).values());
         }
 
         @Override
-        public Stream<Command> after(Timestamp timestamp)
+        public Stream<PartialCommand.WithDeps> after(Timestamp timestamp)
         {
             return idsToCommands(map.getView().tailMap(timestamp, false).values());
         }
 
         @Override
-        public Stream<Command> between(Timestamp min, Timestamp max)
+        public Stream<PartialCommand.WithDeps> between(Timestamp min, Timestamp max)
         {
             return idsToCommands(map.getView().subMap(min, true, max, true).values());
         }
 
         @Override
-        public Stream<Command> all()
+        public Stream<PartialCommand.WithDeps> all()
         {
             return idsToCommands(map.getView().values());
         }
