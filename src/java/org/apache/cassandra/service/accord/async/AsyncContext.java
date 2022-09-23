@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.service.accord.async;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -31,6 +33,7 @@ import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
+import org.apache.cassandra.service.accord.AccordPartialCommand;
 import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.AccordState.WriteOnly;
@@ -74,29 +77,24 @@ public class AsyncContext
         }
     }
 
-    public static class SummaryGroup<K, V extends AccordState<K>, R extends AccordState.ReadOnly<K, V>> extends Group<K, V>
+    public static class CommandGroup extends Group<TxnId, AccordCommand>
     {
-        final Map<K, R> summaries = new HashMap<>();
+        List<AccordPartialCommand> partials = new ArrayList<>();
 
-        public R summary(K key)
+        public void addPartialCommand(AccordPartialCommand partial)
         {
-            return summaries.get(key);
-        }
-
-        public void addSummary(R summary)
-        {
-            summaries.put(summary.key(), summary);
+            partials.add(partial);
         }
 
         @Override
-        void releaseResources(AccordStateCache.Instance<K, V> cache)
+        void releaseResources(AccordStateCache.Instance<TxnId, AccordCommand> cache)
         {
             super.releaseResources(cache);
-            summaries.clear();
+            partials.clear();
         }
     }
 
-    public final SummaryGroup<TxnId, AccordCommand, AccordCommand.ReadOnly> commands = new SummaryGroup<>();
+    public final CommandGroup commands = new CommandGroup();
     public final Group<PartitionKey, AccordCommandsForKey> commandsForKey = new Group<>();
 
     public boolean containsScopedItems(TxnOperation scope)
@@ -107,7 +105,6 @@ public class AsyncContext
     void verifyLoaded()
     {
         commands.items.forEach((key, command) -> Preconditions.checkState(command.isLoaded()));
-        commands.summaries.forEach((key, command) -> Preconditions.checkState(command.isLoaded()));
         commandsForKey.items.forEach((key, cfk) -> Preconditions.checkState(cfk.isLoaded()));
     }
 

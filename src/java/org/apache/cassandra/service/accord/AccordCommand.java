@@ -48,7 +48,6 @@ import accord.txn.Writes;
 import accord.utils.DeterministicIdentitySet;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.db.AccordData;
-import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredBoolean;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
@@ -440,7 +439,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         if (blockingCommitOn.getView().isEmpty() && blockingApplyOn.getView().isEmpty())
             return false;
-        return CommandSummaries.waitingOn.needsUpdate(this);
+        return AccordPartialCommand.serializer.needsUpdate(this);
     }
 
     @Override
@@ -677,7 +676,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public void addWaitingOnCommit(Command command)
     {
-        waitingOnCommit.blindPut(command.txnId(), CommandSummaries.waitingOn.serialize((AccordCommand) command));
+        waitingOnCommit.blindPut(command.txnId(), AccordPartialCommand.serializer.serialize(command));
     }
 
     @Override
@@ -693,18 +692,18 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public Command firstWaitingOnCommit()
+    public PartialCommand firstWaitingOnCommit()
     {
         if (!isWaitingOnCommit())
             return null;
         ByteBuffer bytes = waitingOnCommit.getView().firstEntry().getValue();
-        return CommandSummaries.waitingOn.deserialize(commandStore, bytes);
+        return AccordPartialCommand.serializer.deserialize(commandStore, bytes);
     }
 
     @Override
     public void addWaitingOnApplyIfAbsent(PartialCommand command)
     {
-        waitingOnApply.blindPut(command.txnId(), CommandSummaries.waitingOn.serialize((AccordCommand) command));
+        waitingOnApply.blindPut(command.txnId(), AccordPartialCommand.serializer.serialize(command));
     }
 
     @Override
@@ -720,11 +719,11 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public Command firstWaitingOnApply()
+    public PartialCommand firstWaitingOnApply()
     {
         if (!isWaitingOnApply())
             return null;
         ByteBuffer bytes = waitingOnApply.getView().firstEntry().getValue();
-        return CommandSummaries.waitingOn.deserialize(commandStore, bytes);
+        return AccordPartialCommand.serializer.deserialize(commandStore, bytes);
     }
 }

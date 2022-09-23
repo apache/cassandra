@@ -39,7 +39,6 @@ import accord.local.PartialCommand;
 import accord.local.Status;
 import accord.primitives.Timestamp;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredLong;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
@@ -124,18 +123,18 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         }
 
         @Override
-        public Command get(Timestamp timestamp)
+        public PartialCommand.WithDeps get(Timestamp timestamp)
         {
             ByteBuffer bytes = map.getView().get(timestamp);
             if (bytes == null)
                 return null;
-            return CommandSummaries.commandsPerKey.deserialize(commandStore, bytes);
+            return AccordPartialCommand.WithDeps.serializer.deserialize(commandStore, bytes);
         }
 
         @Override
         public void add(Timestamp timestamp, Command command)
         {
-            map.blindPut(timestamp, CommandSummaries.commandsPerKey.serialize((AccordCommand) command));
+            map.blindPut(timestamp, AccordPartialCommand.WithDeps.serializer.serialize(command));
         }
 
         @Override
@@ -146,7 +145,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
 
         private Stream<PartialCommand.WithDeps> idsToCommands(Collection<ByteBuffer> blobs)
         {
-            return blobs.stream().map(blob -> CommandSummaries.commandsPerKey.deserialize(commandStore, blob));
+            return blobs.stream().map(blob -> AccordPartialCommand.WithDeps.serializer.deserialize(commandStore, blob));
         }
 
         @Override
@@ -365,12 +364,12 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
             if (!command.status.previous().hasBeen(Status.Committed))
                 uncommitted.map.blindRemove(command.txnId());
 
-            committedById.map.blindPut(command.txnId(), CommandSummaries.commandsPerKey.serialize(command));
-            committedByExecuteAt.map.blindPut(command.executeAt(), CommandSummaries.commandsPerKey.serialize(command));
+            committedById.map.blindPut(command.txnId(), AccordPartialCommand.WithDeps.serializer.serialize(command));
+            committedByExecuteAt.map.blindPut(command.executeAt(), AccordPartialCommand.WithDeps.serializer.serialize(command));
         }
         else
         {
-            uncommitted.map.blindPut(command.txnId(), CommandSummaries.commandsPerKey.serialize(command));
+            uncommitted.map.blindPut(command.txnId(), AccordPartialCommand.WithDeps.serializer.serialize(command));
         }
     }
 

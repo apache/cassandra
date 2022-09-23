@@ -42,10 +42,10 @@ import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.AccordPartialCommand;
 import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.CommandSummaries;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -238,14 +238,14 @@ public class AsyncWriter
 
         if (command.shouldUpdateDenormalizedWaitingOn())
         {
-            ByteBuffer summary = CommandSummaries.waitingOn.serialize(command);
+            ByteBuffer summary = AccordPartialCommand.serializer.serialize(command);
             denormalizeWaitingOnSummaries(command, context, addCmdToCtx, summary, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
             denormalizeWaitingOnSummaries(command, context, addCmdToCtx, summary, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
         }
 
         Map<PartitionKey, AccordCommandsForKey> addCfkToCtx = new HashMap<>();
         // There won't be a txn to denormalize against until the command has been preaccepted
-        if (command.status().hasBeen(Status.PreAccepted) && CommandSummaries.commandsPerKey.needsUpdate(command))
+        if (command.status().hasBeen(Status.PreAccepted) && AccordPartialCommand.WithDeps.serializer.needsUpdate(command))
         {
             for (Key key : command.txn().keys())
             {
@@ -273,8 +273,7 @@ public class AsyncWriter
 
     private static void confirmNoSummaryChanges(AsyncContext context)
     {
-        context.commands.summaries.values().forEach(summary -> Preconditions.checkState(!summary.hasModifications(),
-                                                                                        "Summaries cannot be modified"));
+        throw new UnsupportedOperationException("Write out removed listeners");
     }
 
     public boolean save(AsyncContext context, BiConsumer<Object, Throwable> callback)

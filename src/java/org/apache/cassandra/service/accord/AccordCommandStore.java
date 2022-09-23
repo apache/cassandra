@@ -159,9 +159,6 @@ public class AccordCommandStore extends CommandStore
         Preconditions.checkState(currentCtx != null);
         AccordCommand command = currentCtx.commands.get(txnId);
         if (command == null)
-            command = currentCtx.commands.summary(txnId);
-
-        if (command == null)
             throw new IllegalArgumentException("No command in context for txnId " + txnId);
 
         Preconditions.checkState(command.isLoaded() || (command.isReadOnly() && command.isPartiallyLoaded()));
