@@ -21,9 +21,7 @@ package org.apache.cassandra.service.accord.async;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -256,15 +254,21 @@ public class AsyncWriter
         }
     }
 
+    private void denormalizePartial(AccordPartialCommand partial, AsyncContext context, Object callback)
+    {
+        if (!partial.hasRemovedListeners())
+            return;
+
+        logger.trace("Denormalizing partial command change on {} for {}", partial, callback);
+        AccordCommand forUpdate = commandForDenormalization(partial.txnId(), context);
+        partial.forEachRemovedListener(forUpdate::removeListener);
+    }
+
     private void denormalize(AsyncContext context, Object callback)
     {
         // need to clone "values" as denormalize will mutate it
         new ArrayList<>(context.commands.items.values()).forEach(command -> denormalize(command, context, callback));
-    }
-
-    private static void confirmNoSummaryChanges(AsyncContext context)
-    {
-        throw new UnsupportedOperationException("Write out removed listeners");
+        context.commands.partials.forEach(command -> denormalizePartial(command, context, callback));
     }
 
     public boolean save(AsyncContext context, BiConsumer<Object, Throwable> callback)
@@ -278,7 +282,6 @@ public class AsyncWriter
                 case INITIALIZED:
                     state = State.SETUP;
                 case SETUP:
-                    confirmNoSummaryChanges(context);
                     denormalize(context, callback);
                     writeFuture = maybeDispatchWrites(context, callback);
 

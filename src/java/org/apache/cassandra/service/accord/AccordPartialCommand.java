@@ -20,8 +20,8 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import accord.local.Listener;
 import accord.local.PartialCommand;
@@ -36,33 +36,11 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 
 public class AccordPartialCommand implements PartialCommand
 {
-    interface RemovedListener {}
-    private static class RemovedCommand implements RemovedListener
-    {
-        private final TxnId txnId;
-
-        public RemovedCommand(TxnId txnId)
-        {
-            this.txnId = txnId;
-        }
-    }
-
-    private static class RemovedCommandsForKey implements RemovedListener
-    {
-        private final PartitionKey key;
-
-        public RemovedCommandsForKey(PartitionKey key)
-        {
-            this.key = key;
-        }
-    }
-
     public static final PartialCommandSerializer<PartialCommand> serializer = new PartialCommandSerializer<PartialCommand>()
     {
         @Override
@@ -88,7 +66,7 @@ public class AccordPartialCommand implements PartialCommand
     private final Txn txn;
     private final Timestamp executeAt;
     private final Status status;
-    private List<RemovedListener> removedListeners = null;
+    private List<Listener> removedListeners = null;
 
     public AccordPartialCommand(TxnId txnId, Txn txn, Timestamp executeAt, Status status)
     {
@@ -125,26 +103,17 @@ public class AccordPartialCommand implements PartialCommand
     @Override
     public void removeListener(Listener listener)
     {
-        if (listener.isTransient())
-            return;
+        removedListeners.add(listener);
+    }
 
-        if (removedListeners == null)
-            removedListeners = new ArrayList<>();
+    public boolean hasRemovedListeners()
+    {
+        return removedListeners != null && !removedListeners.isEmpty();
+    }
 
-        if (listener instanceof AccordCommand)
-        {
-            AccordCommand command = (AccordCommand) listener;
-            removedListeners.add(new RemovedCommand(command.txnId()));
-        }
-        else if (listener instanceof AccordCommandsForKey)
-        {
-            AccordCommandsForKey cfk = (AccordCommandsForKey) listener;
-            removedListeners.add(new RemovedCommandsForKey(cfk.key()));
-        }
-        else
-        {
-            throw new IllegalArgumentException("Unhandled listener type: " + listener.getClass());
-        }
+    public void forEachRemovedListener(Consumer<Listener> consumer)
+    {
+        removedListeners.forEach(consumer);
     }
 
     public static class WithDeps extends AccordPartialCommand implements PartialCommand.WithDeps

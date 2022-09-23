@@ -46,6 +46,7 @@ import accord.primitives.TxnId;
 import accord.txn.Txn;
 import accord.txn.Writes;
 import accord.utils.DeterministicIdentitySet;
+import accord.utils.VisibleForImplementation;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.store.StoredBoolean;
@@ -649,6 +650,12 @@ public class AccordCommand extends Command implements AccordState<TxnId>
             storedListeners.blindRemove((ListenerProxy) listener);
         else
             transientListeners.remove(listener);
+    }
+
+    @VisibleForImplementation
+    public boolean hasListenerFor(TxnId txnId)
+    {
+        return storedListeners.getView().contains(new ListenerProxy.CommandListenerProxy(commandStore, txnId));
     }
 
     @Override

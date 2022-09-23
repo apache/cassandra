@@ -25,7 +25,10 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.local.Command;
+import accord.local.PartialCommand;
 import accord.local.Status;
+import accord.local.TxnOperation;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.txn.Txn;
@@ -190,6 +193,59 @@ public class AsyncWriterTest
 
             Assert.assertTrue(cfkCommitted.uncommitted.isEmpty());
             commandStore.unsetContext(ctx);
+        });
+    }
+
+    @Test
+    public void partialCommandDenormalization()
+    {
+        AtomicLong clock = new AtomicLong(0);
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+
+        TxnId blockingId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId waitingId = txnId(1, clock.incrementAndGet(), 0, 1);
+        Txn txn = createTxn(0);
+        AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
+
+        {
+            AccordCommand blocking = new AccordCommand(commandStore, blockingId).initialize();
+            blocking.txn(txn);
+            blocking.executeAt(blockingId);
+            blocking.status(Status.Committed);
+
+            AccordCommand waiting = new AccordCommand(commandStore, waitingId).initialize();
+            waiting.txn(txn);
+            waiting.executeAt(waitingId);
+            waiting.status(Status.Committed);
+            waiting.addWaitingOnApplyIfAbsent(blocking);
+
+            blocking.addListener(waiting);
+
+            AccordKeyspace.getCommandMutation(blocking, commandStore.nextSystemTimestampMicros()).apply();
+            AccordKeyspace.getCommandMutation(waiting, commandStore.nextSystemTimestampMicros()).apply();
+            blocking.clearModifiedFlag();
+            waiting.clearModifiedFlag();
+        }
+
+        // confirm the blocking operation has the waiting one as a listener
+        commandStore.process(TxnOperation.scopeFor(blockingId), cs -> {
+            AccordCommand blocking = (AccordCommand) cs.command(blockingId);
+            Assert.assertTrue(blocking.hasListenerFor(waitingId));
+        });
+
+        // remove listener from PartialCommand
+        commandStore.process(TxnOperation.scopeFor(waitingId), cs -> {
+            Command waiting = cs.command(waitingId);
+            PartialCommand blocking = waiting.firstWaitingOnApply();
+            Assert.assertNotNull(blocking);
+            Assert.assertEquals(blockingId, blocking.txnId());
+            blocking.removeListener(waiting);
+        });
+
+        // confirm it was propagated to the full command
+        commandStore.process(TxnOperation.scopeFor(blockingId), cs -> {
+            AccordCommand blocking = (AccordCommand) cs.command(blockingId);
+            Assert.assertFalse(blocking.hasListenerFor(waitingId));
         });
     }
 }
