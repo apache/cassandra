@@ -409,26 +409,26 @@ RequestType::
 Description::
   Metrics related to transactional read requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
 
-  |Failures |Counter |Number of transaction failures encountered.
+|Failures |Counter |Number of transaction failures encountered.
 
-  |  |Latency |Transaction read latency.
+|  |Latency |Transaction read latency.
 
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
 
-  |UnfinishedCommit |Counter |Number of transactions that were committed
-  on read.
+|UnfinishedCommit |Counter |Number of transactions that were committed
+on read.
 
-  |ConditionNotMet |Counter |Number of transaction preconditions did not
-  match current values.
+|ConditionNotMet |Counter |Number of transaction preconditions did not
+match current values.
 
-  |ContentionHistogram |Histogram |How many contended reads were
-  encountered
-  |===
+|ContentionHistogram |Histogram |How many contended reads were
+encountered
+|===
 RequestType::
   CASWrite
 Description::
