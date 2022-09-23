@@ -37,7 +37,7 @@
   </licenses>
   <properties>
     <bytebuddy.version>1.12.13</bytebuddy.version>
-    <byteman.version>4.0.6</byteman.version>
+    <byteman.version>4.0.20</byteman.version>
     <ohc.version>0.5.1</ohc.version>
 
     <!-- These are referenced in build.xml, so need to be propagated from there -->

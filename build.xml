@@ -118,7 +118,7 @@
     <property name="cassandra.test.flush_local_schema_changes" value="false" />
 
     <!-- https://www.eclemma.org/jacoco/ -->
-    <property name="jacoco.version" value="0.8.6"/>
+    <property name="jacoco.version" value="0.8.8"/>
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
     <property name="jacoco.partials.dir" value="${jacoco.export.dir}/partials" />
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
