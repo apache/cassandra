@@ -434,97 +434,97 @@ RequestType::
 Description::
   Metrics related to transactional write requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
 
-  |Failures |Counter |Number of transaction failures encountered.
+|Failures |Counter |Number of transaction failures encountered.
 
-  |  |Latency |Transaction write latency.
+|  |Latency |Transaction write latency.
 
-  |UnfinishedCommit |Counter |Number of transactions that were committed
-  on write.
+|UnfinishedCommit |Counter |Number of transactions that were committed
+on write.
 
-  |ConditionNotMet |Counter |Number of transaction preconditions did not
-  match current values.
+|ConditionNotMet |Counter |Number of transaction preconditions did not
+match current values.
 
-  |ContentionHistogram |Histogram |How many contended writes were
-  encountered
+|ContentionHistogram |Histogram |How many contended writes were
+encountered
 
-  |MutationSizeHistogram |Histogram |Total size in bytes of the requests
-  mutations.
-  |===
+|MutationSizeHistogram |Histogram |Total size in bytes of the requests
+mutations.
+|===
 RequestType::
   Read
 Description::
   Metrics related to standard read requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
-  |Failures |Counter |Number of read failures encountered.
-  |  |Latency |Read latency.
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
-  |===
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
+|Failures |Counter |Number of read failures encountered.
+|  |Latency |Read latency.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
+|===
 RequestType::
   RangeSlice
 Description::
   Metrics related to token range read requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
-  |Failures |Counter |Number of range query failures encountered.
-  |  |Latency |Range query latency.
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
-  |===
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
+|Failures |Counter |Number of range query failures encountered.
+|  |Latency |Range query latency.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
+|===
 RequestType::
   Write
 Description::
   Metrics related to regular write requests.
 Metrics::
-  [cols=",,",options="header",]
-  |===
-  |Name |Type |Description
-  |Timeouts |Counter |Number of timeouts encountered.
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|Timeouts |Counter |Number of timeouts encountered.
 
-  |Failures |Counter |Number of write failures encountered.
+|Failures |Counter |Number of write failures encountered.
 
-  |  |Latency |Write latency.
+|  |Latency |Write latency.
 
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
 
-  |MutationSizeHistogram |Histogram |Total size in bytes of the requests
-  mutations.
-  |===
+|MutationSizeHistogram |Histogram |Total size in bytes of the requests
+mutations.
+|===
 RequestType::
   ViewWrite
 Description::
   Metrics related to materialized view write wrtes.
 Metrics::
-  [cols=",,",]
-  |===
-  |Timeouts |Counter |Number of timeouts encountered.
+[cols=",,",]
+|===
+|Timeouts |Counter |Number of timeouts encountered.
 
-  |Failures |Counter |Number of transaction failures encountered.
+|Failures |Counter |Number of transaction failures encountered.
 
-  |Unavailables |Counter |Number of unavailable exceptions encountered.
+|Unavailables |Counter |Number of unavailable exceptions encountered.
 
-  |ViewReplicasAttempted |Counter |Total number of attempted view
-  replica writes.
+|ViewReplicasAttempted |Counter |Total number of attempted view
+replica writes.
 
-  |ViewReplicasSuccess |Counter |Total number of succeded view replica
-  writes.
+|ViewReplicasSuccess |Counter |Total number of succeded view replica
+writes.
 
-  |ViewPendingMutations |Gauge<Long> |ViewReplicasAttempted -
-  ViewReplicasSuccess.
+|ViewPendingMutations |Gauge<Long> |ViewReplicasAttempted -
+ViewReplicasSuccess.
 
-  |ViewWriteLatency |Timer |Time between when mutation is applied to
-  base table and when CL.ONE is achieved on view.
-  |===
+|ViewWriteLatency |Timer |Time between when mutation is applied to
+base table and when CL.ONE is achieved on view.
+|===
 
 == Cache Metrics
 
