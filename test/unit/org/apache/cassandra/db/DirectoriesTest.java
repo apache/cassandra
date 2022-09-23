@@ -873,9 +873,9 @@ public class DirectoriesTest
     public void testFreeCompactionSpace()
     {
         double oldMaxSpaceForCompactions = DatabaseDescriptor.getMaxSpaceForCompactionsPerDrive();
-        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
+        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInMebibytes();
         DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(100.0);
-        DatabaseDescriptor.setMinFreeSpacePerDriveInBytes(0);
+        DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(0);
         FileStore fstore = new FakeFileStore();
         try
         {
@@ -889,7 +889,7 @@ public class DirectoriesTest
         finally
         {
             DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(oldMaxSpaceForCompactions);
-            DatabaseDescriptor.setMinFreeSpacePerDriveInBytes(oldFreeSpace);
+            DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(oldFreeSpace / FileUtils.ONE_MIB);
         }
     }
 
@@ -897,9 +897,9 @@ public class DirectoriesTest
     public void testHasAvailableSpace()
     {
         double oldMaxSpaceForCompactions = DatabaseDescriptor.getMaxSpaceForCompactionsPerDrive();
-        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
+        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInMebibytes();
         DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(1.0);
-        DatabaseDescriptor.setMinFreeSpacePerDriveInBytes(0);
+        DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(0);
         try
         {
             FakeFileStore fs1 = new FakeFileStore();
@@ -922,7 +922,7 @@ public class DirectoriesTest
         finally
         {
             DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(oldMaxSpaceForCompactions);
-            DatabaseDescriptor.setMinFreeSpacePerDriveInBytes(oldFreeSpace);
+            DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(oldFreeSpace);
         }
     }
 
@@ -930,9 +930,9 @@ public class DirectoriesTest
     public void testHasAvailableSpaceSumming()
     {
         double oldMaxSpaceForCompactions = DatabaseDescriptor.getMaxSpaceForCompactionsPerDrive();
-        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
+        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInMebibytes();
         DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(1.0);
-        DatabaseDescriptor.setMinFreeSpacePerDriveInBytes(0);
+        DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(0);
         try
         {
             FakeFileStore fs1 = new FakeFileStore();
@@ -984,7 +984,7 @@ public class DirectoriesTest
         finally
         {
             DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(oldMaxSpaceForCompactions);
-            DatabaseDescriptor.setMinFreeSpacePerDriveInBytes(oldFreeSpace);
+            DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(oldFreeSpace / FileUtils.ONE_MIB);
         }
     }
 

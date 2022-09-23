@@ -47,8 +47,7 @@ public class StreamsDiskSpaceTest extends TestBaseImpl
     public void testAbortStreams() throws Exception
     {
         try(Cluster cluster = init(Cluster.build(2)
-                                          .withConfig(config -> config.set("disable_incremental_repair", false)
-                                                                      .set("hinted_handoff_enabled", false)
+                                          .withConfig(config -> config.set("hinted_handoff_enabled", false)
                                                                       .with(GOSSIP)
                                                                       .with(NETWORK))
                                           .withInstanceInitializer((cl, id) -> BB.doInstall(cl, id, StreamManager.class, "getTotalRemainingOngoingBytes"))
@@ -70,8 +69,7 @@ public class StreamsDiskSpaceTest extends TestBaseImpl
     public void testAbortStreamsWhenOngoingCompactionsLeaveInsufficientSpace() throws Exception
     {
         try(Cluster cluster = init(Cluster.build(2)
-                                          .withConfig(config -> config.set("disable_incremental_repair", false)
-                                                                      .set("hinted_handoff_enabled", false)
+                                          .withConfig(config -> config.set("hinted_handoff_enabled", false)
                                                                       .with(GOSSIP)
                                                                       .with(NETWORK))
                                           .withInstanceInitializer((cl, id) -> BB.doInstall(cl, id, ActiveCompactions.class, "estimatedRemainingWriteBytes"))
@@ -98,8 +96,7 @@ public class StreamsDiskSpaceTest extends TestBaseImpl
     public void testAbortStreamsWhenTooManyPendingCompactions() throws Exception
     {
         try(Cluster cluster = init(Cluster.build(2)
-                                          .withConfig(config -> config.set("disable_incremental_repair", false)
-                                                                      .set("hinted_handoff_enabled", false)
+                                          .withConfig(config -> config.set("hinted_handoff_enabled", false)
                                                                       .with(GOSSIP)
                                                                       .with(NETWORK))
                                           .withInstanceInitializer(BB::installCSMGetEstimatedRemainingTasks)

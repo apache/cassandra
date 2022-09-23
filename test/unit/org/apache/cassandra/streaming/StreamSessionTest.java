@@ -78,7 +78,7 @@ public class StreamSessionTest extends CQLTester
                                    new File("/tmp/2"),
                                    new File("/tmp/3"));
         datadirs = files.stream().map(Directories.DataDirectory::new).collect(Collectors.toList());
-        DatabaseDescriptor.setMinFreeSpacePerDriveInBytes(0);
+        DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(0);
         DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(1.0);
     }
 

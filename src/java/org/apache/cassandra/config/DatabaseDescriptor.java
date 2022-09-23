@@ -2073,15 +2073,20 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_builders = value;
     }
 
+    public static long getMinFreeSpacePerDriveInMebibytes()
+    {
+        return conf.min_free_space_per_drive.toMebibytes();
+    }
+
     public static long getMinFreeSpacePerDriveInBytes()
     {
         return conf.min_free_space_per_drive.toBytesInLong();
     }
 
     @VisibleForTesting
-    public static long setMinFreeSpacePerDriveInBytes(long value)
+    public static long setMinFreeSpacePerDriveInMebibytes(long mebiBytes)
     {
-        conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(value, DataStorageSpec.DataStorageUnit.BYTES);
+        conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(mebiBytes);
         return getMinFreeSpacePerDriveInBytes();
     }
 

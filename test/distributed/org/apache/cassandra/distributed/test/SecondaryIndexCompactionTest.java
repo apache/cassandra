@@ -42,7 +42,6 @@ public class SecondaryIndexCompactionTest extends TestBaseImpl
     public void test2iCompaction() throws IOException
     {
         try (Cluster cluster = init(Cluster.build(1)
-                                           .withConfig(c -> c.set("enable_secondary_index", "true"))
                                            .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int, ck int, something int, else int, primary key (id, ck));"));
