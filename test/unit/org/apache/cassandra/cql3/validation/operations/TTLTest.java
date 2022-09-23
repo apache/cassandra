@@ -42,7 +42,6 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.tools.StandaloneScrubber;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;

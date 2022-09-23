@@ -36,7 +36,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;

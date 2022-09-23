@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import javax.management.openmbean.*;
 
-import com.google.common.base.Throwables;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 
