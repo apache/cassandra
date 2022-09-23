@@ -566,24 +566,6 @@ public class Directories
                      .collect(Collectors.toSet());
     }
 
-    public boolean hasAvailableDiskSpace(long estimatedSSTables, long expectedTotalWriteSize)
-    {
-        long writeSize = expectedTotalWriteSize / estimatedSSTables;
-        long totalAvailable = 0L;
-
-        for (DataDirectory dataDir : paths)
-        {
-            if (DisallowedDirectories.isUnwritable(getLocationForDisk(dataDir)))
-                  continue;
-            DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
-            // exclude directory if its total writeSize does not fit to data directory
-            if (candidate.availableSpace < writeSize)
-                continue;
-            totalAvailable += candidate.availableSpace;
-        }
-        return totalAvailable > expectedTotalWriteSize;
-    }
-
     /**
      * Gets the filestore for the actual directory where the sstables are stored
      *
