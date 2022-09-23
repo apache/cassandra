@@ -261,4 +261,14 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     {
         return Iterables.any(strategies, acs -> acs.getSSTables().contains(sstable));
     }
+
+    public int getEstimatedRemainingTasks()
+    {
+        int tasks = 0;
+        for (AbstractCompactionStrategy strategy : strategies)
+        {
+            tasks += strategy.getEstimatedRemainingTasks();
+        }
+        return tasks;
+    }
 }

@@ -80,4 +80,25 @@ public enum OperationType
     {
         return type;
     }
+
+    public boolean writesData()
+    {
+        switch(this)
+        {
+            case COMPACTION:
+            case CLEANUP:
+            case SCRUB:
+            case UPGRADE_SSTABLES:
+            case TOMBSTONE_COMPACTION:
+            case ANTICOMPACTION:
+            case FLUSH:
+            case STREAM:
+            case WRITE:
+            case RELOCATE:
+            case GARBAGE_COLLECT:
+                return true;
+            default:
+                return false;
+        }
+    }
 }

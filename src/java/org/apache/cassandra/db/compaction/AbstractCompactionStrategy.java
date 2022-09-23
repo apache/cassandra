@@ -207,6 +207,15 @@ public abstract class AbstractCompactionStrategy
     public abstract int getEstimatedRemainingTasks();
 
     /**
+     * @return the estimated number of background tasks needed, assuming an additional number of SSTables and bytes
+     * on top of currently managed data
+     */
+    int getEstimatedRemainingTasks(int additionalSSTables, long additionalBytes)
+    {
+        return getEstimatedRemainingTasks() + (int)Math.ceil((double)additionalSSTables / cfs.getMaximumCompactionThreshold());
+    }
+
+    /**
      * @return size in bytes of the largest sstables for this strategy
      */
     public abstract long getMaxSSTableBytes();
