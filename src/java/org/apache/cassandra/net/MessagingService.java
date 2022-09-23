@@ -20,10 +20,14 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -212,6 +216,32 @@ public class MessagingService extends MessagingServiceMBeanImpl
     public static final int current_version = VERSION_40;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
+
+    static Map<Integer, Integer> versionIndexMap = new HashMap<>();
+
+    static
+    {
+        versionIndexMap.put(VERSION_30, 0);
+        versionIndexMap.put(VERSION_3014, 1);
+        versionIndexMap.put(VERSION_40, 2);
+        versionIndexMap.put(VERSION_41, 3);
+    }
+
+    /**
+     * This is an optimisation to speed up the translation of the serialization
+     * version to the {@link Version} enum.
+     *
+     * @param version the serialization version
+     * @return a {@link Version}
+     */
+    public static int getVersionIndex(int version)
+    {
+        if (versionIndexMap.containsKey(version))
+            return versionIndexMap.get(version);
+        throw new IllegalStateException("Unkown serialization version: " + version);
+    }
+
+    public final static boolean NON_GRACEFUL_SHUTDOWN = Boolean.getBoolean("cassandra.test.messagingService.nonGracefulShutdown");
 
     public enum Version
     {
