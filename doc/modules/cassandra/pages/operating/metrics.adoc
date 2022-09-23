@@ -60,7 +60,8 @@ Reported name format:
 There is a special table called '`all`' without a keyspace. This
 represents the aggregation of metrics across *all* tables and keyspaces
 on the node.
-====[cols=",,",options="header",]
+====
+[cols=",,",options="header",]
 |===
 |Name |Type |Description
 |MemtableOnHeapSize |Gauge<Long> |Total amount of data stored in the
