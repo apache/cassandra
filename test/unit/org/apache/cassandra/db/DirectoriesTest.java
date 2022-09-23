@@ -18,8 +18,11 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileStoreAttributeView;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -865,6 +869,125 @@ public class DirectoriesTest
         assertFalse(iter.hasNext());
     }
 
+    @Test
+    public void testFreeCompactionSpace()
+    {
+        double oldMaxSpaceForCompactions = DatabaseDescriptor.getMaxSpaceForCompactionsPerDrive();
+        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInMebibytes();
+        DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(100.0);
+        DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(0);
+        FileStore fstore = new FakeFileStore();
+        try
+        {
+            DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(1);
+            assertEquals(100, Directories.getAvailableSpaceForCompactions(fstore));
+            DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(.5);
+            assertEquals(50, Directories.getAvailableSpaceForCompactions(fstore));
+            DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(0);
+            assertEquals(0, Directories.getAvailableSpaceForCompactions(fstore));
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(oldMaxSpaceForCompactions);
+            DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(oldFreeSpace / FileUtils.ONE_MIB);
+        }
+    }
+
+    @Test
+    public void testHasAvailableSpace()
+    {
+        double oldMaxSpaceForCompactions = DatabaseDescriptor.getMaxSpaceForCompactionsPerDrive();
+        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInMebibytes();
+        DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(1.0);
+        DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(0);
+        try
+        {
+            FakeFileStore fs1 = new FakeFileStore();
+            FakeFileStore fs2 = new FakeFileStore();
+            FakeFileStore fs3 = new FakeFileStore();
+            Map<FileStore, Long> writes = new HashMap<>();
+
+            fs1.usableSpace = 30;
+            fs2.usableSpace = 30;
+            fs3.usableSpace = 30;
+
+            writes.put(fs1, 20L);
+            writes.put(fs2, 20L);
+            writes.put(fs3, 20L);
+            assertTrue(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
+
+            fs1.usableSpace = 19;
+            assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(oldMaxSpaceForCompactions);
+            DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(oldFreeSpace);
+        }
+    }
+
+    @Test
+    public void testHasAvailableSpaceSumming()
+    {
+        double oldMaxSpaceForCompactions = DatabaseDescriptor.getMaxSpaceForCompactionsPerDrive();
+        long oldFreeSpace = DatabaseDescriptor.getMinFreeSpacePerDriveInMebibytes();
+        DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(1.0);
+        DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(0);
+        try
+        {
+            FakeFileStore fs1 = new FakeFileStore();
+            FakeFileStore fs2 = new FakeFileStore();
+            Map<File, Long> expectedNewWriteSizes = new HashMap<>();
+            Map<File, Long> totalCompactionWriteRemaining = new HashMap<>();
+
+            fs1.usableSpace = 100;
+            fs2.usableSpace = 100;
+
+            File f1 = new File("f1");
+            File f2 = new File("f2");
+            File f3 = new File("f3");
+
+            expectedNewWriteSizes.put(f1, 20L);
+            expectedNewWriteSizes.put(f2, 20L);
+            expectedNewWriteSizes.put(f3, 20L);
+
+            totalCompactionWriteRemaining.put(f1, 20L);
+            totalCompactionWriteRemaining.put(f2, 20L);
+            totalCompactionWriteRemaining.put(f3, 20L);
+            Function<File, FileStore> filestoreMapper = (f) -> {
+                if (f == f1 || f == f2)
+                    return fs1;
+                return fs2;
+            };
+            assertTrue(Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSizes, totalCompactionWriteRemaining, filestoreMapper));
+            fs1.usableSpace = 79;
+            assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSizes, totalCompactionWriteRemaining, filestoreMapper));
+            fs1.usableSpace = 81;
+            assertTrue(Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSizes, totalCompactionWriteRemaining, filestoreMapper));
+
+            expectedNewWriteSizes.clear();
+            expectedNewWriteSizes.put(f1, 100L);
+            totalCompactionWriteRemaining.clear();
+            totalCompactionWriteRemaining.put(f2, 100L);
+            fs1.usableSpace = 150;
+
+            assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSizes, totalCompactionWriteRemaining, filestoreMapper));
+            expectedNewWriteSizes.clear();
+            expectedNewWriteSizes.put(f1, 100L);
+            totalCompactionWriteRemaining.clear();
+            totalCompactionWriteRemaining.put(f3, 500L);
+            fs1.usableSpace = 150;
+            fs2.usableSpace = 400; // too little space for the ongoing compaction, but this filestore does not affect the new compaction so it should be allowed
+
+            assertTrue(Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSizes, totalCompactionWriteRemaining, filestoreMapper));
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(oldMaxSpaceForCompactions);
+            DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(oldFreeSpace / FileUtils.ONE_MIB);
+        }
+    }
+
     private String getNewFilename(TableMetadata tm, boolean oldStyle)
     {
         return tm.keyspace + File.pathSeparator() + tm.name + (oldStyle ? "" : Component.separator + tm.id.toHexString()) + "/na-1-big-Data.db";
@@ -890,5 +1013,23 @@ public class DirectoriesTest
         Directories.sortWriteableCandidates(candidates, totalAvailable);
 
         return candidates;
+    }
+
+    private static class FakeFileStore extends FileStore
+    {
+        public long usableSpace = 100;
+        public long getUsableSpace()
+        {
+            return usableSpace;
+        }
+        public String name() {return null;}
+        public String type() {return null;}
+        public boolean isReadOnly() {return false;}
+        public long getTotalSpace() {return 0;}
+        public long getUnallocatedSpace() {return 0;}
+        public boolean supportsFileAttributeView(Class<? extends FileAttributeView> type) {return false;}
+        public boolean supportsFileAttributeView(String name) {return false;}
+        public <V extends FileStoreAttributeView> V getFileStoreAttributeView(Class<V> type) {return null;}
+        public Object getAttribute(String attribute) {return null;}
     }
 }

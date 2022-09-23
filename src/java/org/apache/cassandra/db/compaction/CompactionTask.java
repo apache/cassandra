@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.compaction.writers.DefaultCompactionWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -130,8 +132,9 @@ public class CompactionTask extends AbstractCompactionTask
 
             final Set<SSTableReader> fullyExpiredSSTables = controller.getFullyExpiredSSTables();
 
+            TimeUUID taskId = transaction.opId();
             // select SSTables to compact based on available disk space.
-            buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables);
+            buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables, taskId);
 
             // sanity check: all sstables must belong to the same cfs
             assert !Iterables.any(transaction.originals(), new Predicate<SSTableReader>()
@@ -142,8 +145,6 @@ public class CompactionTask extends AbstractCompactionTask
                     return !sstable.descriptor.cfname.equals(cfs.name);
                 }
             });
-
-            TimeUUID taskId = transaction.opId();
 
             // new sstables from flush can be added during a compaction, but only the compaction can remove them,
             // so in our single-threaded compaction world this is a valid way of determining if we're compacting
@@ -351,10 +352,9 @@ public class CompactionTask extends AbstractCompactionTask
 
     /*
      * Checks if we have enough disk space to execute the compaction.  Drops the largest sstable out of the Task until
-     * there's enough space (in theory) to handle the compaction.  Does not take into account space that will be taken by
-     * other compactions.
+     * there's enough space (in theory) to handle the compaction.
      */
-    protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables)
+    protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables, TimeUUID taskId)
     {
         if(!cfs.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
         {
@@ -369,13 +369,29 @@ public class CompactionTask extends AbstractCompactionTask
         while(!nonExpiredSSTables.isEmpty())
         {
             // Only consider write size of non expired SSTables
-            long expectedWriteSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType);
-            long estimatedSSTables = Math.max(1, expectedWriteSize / strategy.getMaxSSTableBytes());
+            long writeSize;
+            try
+            {
+                writeSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType);
+                Map<File, Long> expectedNewWriteSize = new HashMap<>();
+                List<File> newCompactionDatadirs = cfs.getDirectoriesForFiles(nonExpiredSSTables);
+                long writeSizePerOutputDatadir = writeSize / Math.max(newCompactionDatadirs.size(), 1);
+                for (File directory : newCompactionDatadirs)
+                    expectedNewWriteSize.put(directory, writeSizePerOutputDatadir);
 
-            if(cfs.getDirectories().hasAvailableDiskSpace(estimatedSSTables, expectedWriteSize))
+                Map<File, Long> expectedWriteSize = CompactionManager.instance.active.estimatedRemainingWriteBytes();
+
+                // todo: abort streams if they block compactions
+                if (Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSize, expectedWriteSize))
+                    break;
+            }
+            catch (Exception e)
+            {
+                logger.error("Could not check if there is enough disk space for compaction {}", taskId, e);
                 break;
+            }
 
-            if (!reduceScopeForLimitedSpace(nonExpiredSSTables, expectedWriteSize))
+            if (!reduceScopeForLimitedSpace(nonExpiredSSTables, writeSize))
             {
                 // we end up here if we can't take any more sstables out of the compaction.
                 // usually means we've run out of disk space
@@ -388,15 +404,20 @@ public class CompactionTask extends AbstractCompactionTask
                     break;
                 }
 
-                String msg = String.format("Not enough space for compaction, estimated sstables = %d, expected write size = %d", estimatedSSTables, expectedWriteSize);
+                String msg = String.format("Not enough space for compaction (%s) of %s.%s, estimated sstables = %d, expected write size = %d",
+                                           taskId,
+                                           cfs.keyspace.getName(),
+                                           cfs.name,
+                                           Math.max(1, writeSize / strategy.getMaxSSTableBytes()),
+                                           writeSize);
                 logger.warn(msg);
                 CompactionManager.instance.incrementAborted();
                 throw new RuntimeException(msg);
             }
 
             sstablesRemoved++;
-            logger.warn("Not enough space for compaction, {}MiB estimated.  Reducing scope.",
-                        (float) expectedWriteSize / 1024 / 1024);
+            logger.warn("Not enough space for compaction {}, {}MiB estimated. Reducing scope.",
+                        taskId, (float) writeSize / 1024 / 1024);
         }
 
         if(sstablesRemoved > 0)
@@ -404,7 +425,6 @@ public class CompactionTask extends AbstractCompactionTask
             CompactionManager.instance.incrementCompactionsReduced();
             CompactionManager.instance.incrementSstablesDropppedFromCompactions(sstablesRemoved);
         }
-
     }
 
     protected int getLevel()

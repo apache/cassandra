@@ -1061,6 +1061,46 @@ public class CompactionStrategyManager implements INotificationConsumer
         return tasks;
     }
 
+    public int getEstimatedRemainingTasks(int additionalSSTables, long additionalBytes, boolean isIncremental)
+    {
+        if (additionalBytes == 0 || additionalSSTables == 0)
+            return getEstimatedRemainingTasks();
+
+        maybeReloadDiskBoundaries();
+        readLock.lock();
+        try
+        {
+            int tasks = pendingRepairs.getEstimatedRemainingTasks();
+
+            Iterable<AbstractCompactionStrategy> strategies;
+            if (isIncremental)
+            {
+                // Note that it is unlikely that we are behind in the pending strategies (as they only have a small fraction
+                // of the total data), so we assume here that any pending sstables go directly to the repaired bucket.
+                strategies = repaired.allStrategies();
+                tasks += unrepaired.getEstimatedRemainingTasks();
+            }
+            else
+            {
+                // Here we assume that all sstables go to unrepaired, which can be wrong if we are running
+                // both incremental and full repairs.
+                strategies = unrepaired.allStrategies();
+                tasks += repaired.getEstimatedRemainingTasks();
+
+            }
+            int strategyCount = Math.max(1, Iterables.size(strategies));
+            int sstablesPerStrategy = additionalSSTables / strategyCount;
+            long bytesPerStrategy = additionalBytes / strategyCount;
+            for (AbstractCompactionStrategy strategy : strategies)
+                tasks += strategy.getEstimatedRemainingTasks(sstablesPerStrategy, bytesPerStrategy);
+            return tasks;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+    }
+
     public boolean shouldBeEnabled()
     {
         return params.isEnabled();

@@ -206,4 +206,6 @@ public abstract class AbstractStrategyHolder
     public abstract int getStrategyIndex(AbstractCompactionStrategy strategy);
 
     public abstract boolean containsSSTable(SSTableReader sstable);
+
+    public abstract int getEstimatedRemainingTasks();
 }
