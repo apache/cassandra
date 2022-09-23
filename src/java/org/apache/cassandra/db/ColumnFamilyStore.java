@@ -3182,6 +3182,36 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return Objects.requireNonNull(getIfExists(tableId)).metric;
     }
 
+    /**
+     * Grabs the global first/last tokens among sstables and returns the range of data directories that start/end with those tokens.
+     *
+     * This is done to avoid grabbing the disk boundaries for every sstable in case of huge compactions.
+     */
+    public List<File> getDirectoriesForFiles(Set<SSTableReader> sstables)
+    {
+        Directories.DataDirectory[] writeableLocations = directories.getWriteableLocations();
+        if (writeableLocations.length == 1 || sstables.isEmpty())
+        {
+            List<File> ret = new ArrayList<>(writeableLocations.length);
+            for (Directories.DataDirectory ddir : writeableLocations)
+                ret.add(getDirectories().getLocationForDisk(ddir));
+            return ret;
+        }
+
+        DecoratedKey first = null;
+        DecoratedKey last = null;
+        for (SSTableReader sstable : sstables)
+        {
+            if (first == null || first.compareTo(sstable.first) > 0)
+                first = sstable.first;
+            if (last == null || last.compareTo(sstable.last) < 0)
+                last = sstable.last;
+        }
+
+        DiskBoundaries diskBoundaries = getDiskBoundaries();
+        return diskBoundaries.getDisksInBounds(first, last).stream().map(directories::getLocationForDisk).collect(Collectors.toList());
+    }
+
     public DiskBoundaries getDiskBoundaries()
     {
         return diskBoundaryManager.getDiskBoundaries(this);

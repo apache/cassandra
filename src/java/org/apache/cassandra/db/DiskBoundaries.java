@@ -154,4 +154,13 @@ public class DiskBoundaries
         assert pos < 0;
         return -pos - 1;
     }
+
+    public List<Directories.DataDirectory> getDisksInBounds(DecoratedKey first, DecoratedKey last)
+    {
+        if (positions == null || first == null || last == null)
+            return directories;
+        int firstIndex = getDiskIndex(first);
+        int lastIndex = getDiskIndex(last);
+        return directories.subList(firstIndex, lastIndex + 1);
+    }
 }

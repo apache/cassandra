@@ -913,6 +913,9 @@ public class DatabaseDescriptor
 
         logInitializationOutcome(logger);
 
+        if (conf.max_space_usable_for_compactions_in_percentage < 0 || conf.max_space_usable_for_compactions_in_percentage > 1)
+            throw new ConfigurationException("max_space_usable_for_compactions_in_percentage must be between 0 and 1", false);
+
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
     }
@@ -2070,9 +2073,31 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_builders = value;
     }
 
+    public static long getMinFreeSpacePerDriveInMebibytes()
+    {
+        return conf.min_free_space_per_drive.toMebibytes();
+    }
+
     public static long getMinFreeSpacePerDriveInBytes()
     {
         return conf.min_free_space_per_drive.toBytesInLong();
+    }
+
+    @VisibleForTesting
+    public static long setMinFreeSpacePerDriveInMebibytes(long mebiBytes)
+    {
+        conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(mebiBytes);
+        return getMinFreeSpacePerDriveInBytes();
+    }
+
+    public static double getMaxSpaceForCompactionsPerDrive()
+    {
+        return conf.max_space_usable_for_compactions_in_percentage;
+    }
+
+    public static void setMaxSpaceForCompactionsPerDrive(double percentage)
+    {
+        conf.max_space_usable_for_compactions_in_percentage = percentage;
     }
 
     public static boolean getDisableSTCSInL0()
@@ -3389,6 +3414,16 @@ public class DatabaseDescriptor
     public static boolean streamEntireSSTables()
     {
         return conf.stream_entire_sstables;
+    }
+
+    public static boolean getSkipStreamDiskSpaceCheck()
+    {
+        return conf.skip_stream_disk_space_check;
+    }
+
+    public static void setSkipStreamDiskSpaceCheck(boolean value)
+    {
+        conf.skip_stream_disk_space_check = value;
     }
 
     public static String getLocalDataCenter()

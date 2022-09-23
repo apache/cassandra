@@ -20,16 +20,21 @@ package org.apache.cassandra.streaming;
 import java.io.EOFException;
 import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -40,29 +45,34 @@ import com.google.common.collect.Sets;
 
 import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
-import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.RangesAtEndpoint;
 
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -273,7 +283,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public StreamOperation streamOperation()
     {
-        return streamResult == null ? null : streamResult.streamOperation;
+        if (streamResult == null)
+        {
+            logger.warn("StreamResultFuture not initialized {} {}", channel.connectedTo(), isFollower ? "follower" : "initiator");
+            return null;
+        }
+        else
+        {
+            return streamResult.streamOperation;
+        }
     }
 
     public StreamOperation getStreamOperation()
@@ -728,6 +746,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     private void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
+        if (StreamOperation.REPAIR == streamOperation())
+            checkAvailableDiskSpaceAndCompactions(summaries);
         for (StreamRequest request : requests)
             addTransferRanges(request.keyspace, RangesAtEndpoint.concat(request.full, request.transientReplicas), request.columnFamilies, true); // always flush on stream request
         for (StreamSummary summary : summaries)
@@ -756,6 +776,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private void prepareSynAck(PrepareSynAckMessage msg)
     {
+        if (StreamOperation.REPAIR == streamOperation())
+            checkAvailableDiskSpaceAndCompactions(msg.summaries);
         if (!msg.summaries.isEmpty())
         {
             for (StreamSummary summary : msg.summaries)
@@ -777,6 +799,163 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (isPreview())
             throw new RuntimeException(String.format("[Stream #%s] Cannot receive PrepareAckMessage for preview session", planId()));
         startStreamingFiles(true);
+    }
+
+    /**
+     * In the case where we have an error checking disk space we allow the Operation to continue.
+     * In the case where we do _not_ have available space, this method raises a RTE.
+     * TODO: Consider revising this to returning a boolean and allowing callers upstream to handle that.
+     */
+    private void checkAvailableDiskSpaceAndCompactions(Collection<StreamSummary> summaries)
+    {
+        if (DatabaseDescriptor.getSkipStreamDiskSpaceCheck())
+            return;
+
+        boolean hasAvailableSpace = true;
+
+        try
+        {
+            hasAvailableSpace = checkAvailableDiskSpaceAndCompactions(summaries, planId(), peer.getHostAddress(true), pendingRepair != null);
+        }
+        catch (Exception e)
+        {
+            logger.error("[Stream #{}] Could not check available disk space and compactions for {}, summaries = {}", planId(), this, summaries, e);
+        }
+        if (!hasAvailableSpace)
+            throw new RuntimeException(String.format("Not enough disk space for stream %s), summaries=%s", this, summaries));
+    }
+
+    /**
+     * Makes sure that we expect to have enough disk space available for the new streams, taking into consideration
+     * the ongoing compactions and streams.
+     */
+    @VisibleForTesting
+    public static boolean checkAvailableDiskSpaceAndCompactions(Collection<StreamSummary> summaries,
+                                                                @Nullable TimeUUID planId,
+                                                                @Nullable String remoteAddress,
+                                                                boolean isForIncremental)
+    {
+        Map<TableId, Long> perTableIdIncomingBytes = new HashMap<>();
+        Map<TableId, Integer> perTableIdIncomingFiles = new HashMap<>();
+        long newStreamTotal = 0;
+        for (StreamSummary summary : summaries)
+        {
+            perTableIdIncomingFiles.merge(summary.tableId, summary.files, Integer::sum);
+            perTableIdIncomingBytes.merge(summary.tableId, summary.totalSize, Long::sum);
+            newStreamTotal += summary.totalSize;
+        }
+        if (perTableIdIncomingBytes.isEmpty() || newStreamTotal == 0)
+            return true;
+
+        return checkDiskSpace(perTableIdIncomingBytes, planId, Directories::getFileStore) &&
+               checkPendingCompactions(perTableIdIncomingBytes, perTableIdIncomingFiles, planId, remoteAddress, isForIncremental, newStreamTotal);
+    }
+
+    @VisibleForTesting
+    static boolean checkDiskSpace(Map<TableId, Long> perTableIdIncomingBytes,
+                                  TimeUUID planId,
+                                  Function<File, FileStore> fileStoreMapper)
+    {
+        Map<FileStore, Long> newStreamBytesToWritePerFileStore = new HashMap<>();
+        Set<FileStore> allFileStores = new HashSet<>();
+        // Sum up the incoming bytes per file store - we assume that the stream is evenly distributed over the writable
+        // file stores for the table.
+        for (Map.Entry<TableId, Long> entry : perTableIdIncomingBytes.entrySet())
+        {
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(entry.getKey());
+            if (cfs == null || perTableIdIncomingBytes.get(entry.getKey()) == 0)
+                continue;
+
+            Set<FileStore> allWriteableFileStores = cfs.getDirectories().allFileStores(fileStoreMapper);
+            if (allWriteableFileStores.isEmpty())
+            {
+                logger.error("[Stream #{}] Could not get any writeable FileStores for {}.{}", planId, cfs.keyspace.getName(), cfs.getTableName());
+                continue;
+            }
+            allFileStores.addAll(allWriteableFileStores);
+            long totalBytesInPerFileStore = entry.getValue() / allWriteableFileStores.size();
+            for (FileStore fs : allWriteableFileStores)
+                newStreamBytesToWritePerFileStore.merge(fs, totalBytesInPerFileStore, Long::sum);
+        }
+        Map<FileStore, Long> totalCompactionWriteRemaining = Directories.perFileStore(CompactionManager.instance.active.estimatedRemainingWriteBytes(),
+                                                                                      fileStoreMapper);
+        long totalStreamRemaining = StreamManager.instance.getTotalRemainingOngoingBytes();
+        long totalBytesStreamRemainingPerFileStore = totalStreamRemaining / Math.max(1, allFileStores.size());
+        Map<FileStore, Long> allWriteData = new HashMap<>();
+        for (Map.Entry<FileStore, Long> fsBytes : newStreamBytesToWritePerFileStore.entrySet())
+            allWriteData.put(fsBytes.getKey(), fsBytes.getValue() +
+                                               totalBytesStreamRemainingPerFileStore +
+                                               totalCompactionWriteRemaining.getOrDefault(fsBytes.getKey(), 0L));
+
+        if (!Directories.hasDiskSpaceForCompactionsAndStreams(allWriteData))
+        {
+            logger.error("[Stream #{}] Not enough disk space to stream {} to {} (stream ongoing remaining={}, compaction ongoing remaining={}, all ongoing writes={})",
+                         planId,
+                         newStreamBytesToWritePerFileStore,
+                         perTableIdIncomingBytes.keySet().stream()
+                                                .map(ColumnFamilyStore::getIfExists).filter(Objects::nonNull)
+                                                .map(cfs -> cfs.keyspace.getName() + '.' + cfs.name)
+                                                .collect(Collectors.joining(",")),
+                         totalStreamRemaining,
+                         totalCompactionWriteRemaining,
+                         allWriteData);
+            return false;
+        }
+        return true;
+    }
+
+    @VisibleForTesting
+    static boolean checkPendingCompactions(Map<TableId, Long> perTableIdIncomingBytes,
+                                           Map<TableId, Integer> perTableIdIncomingFiles,
+                                           TimeUUID planId, String remoteAddress,
+                                           boolean isForIncremental,
+                                           long newStreamTotal)
+    {
+
+        int pendingCompactionsBeforeStreaming = 0;
+        int pendingCompactionsAfterStreaming = 0;
+        List<String> tables = new ArrayList<>(perTableIdIncomingFiles.size());
+        for (Keyspace ks : Keyspace.all())
+        {
+            Map<ColumnFamilyStore, TableId> cfStreamed = perTableIdIncomingBytes.keySet().stream()
+                                                                                .filter(ks::hasColumnFamilyStore)
+                                                                                .collect(Collectors.toMap(ks::getColumnFamilyStore, Function.identity()));
+            for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
+            {
+                CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
+                int tasksOther = csm.getEstimatedRemainingTasks();
+                int tasksStreamed = tasksOther;
+                if (cfStreamed.containsKey(cfs))
+                {
+                    TableId tableId = cfStreamed.get(cfs);
+                    tasksStreamed = csm.getEstimatedRemainingTasks(perTableIdIncomingFiles.get(tableId),
+                                                                   perTableIdIncomingBytes.get(tableId),
+                                                                   isForIncremental);
+                    tables.add(String.format("%s.%s", cfs.keyspace.getName(), cfs.name));
+                }
+                pendingCompactionsBeforeStreaming += tasksOther;
+                pendingCompactionsAfterStreaming += tasksStreamed;
+            }
+        }
+        Collections.sort(tables);
+        int pendingThreshold = ActiveRepairService.instance.getRepairPendingCompactionRejectThreshold();
+        if (pendingCompactionsAfterStreaming > pendingThreshold)
+        {
+            logger.error("[Stream #{}] Rejecting incoming files based on pending compactions calculation " +
+                         "pendingCompactionsBeforeStreaming={} pendingCompactionsAfterStreaming={} pendingThreshold={} remoteAddress={}",
+                         planId, pendingCompactionsBeforeStreaming, pendingCompactionsAfterStreaming, pendingThreshold, remoteAddress);
+            return false;
+        }
+
+        long newStreamFiles = perTableIdIncomingFiles.values().stream().mapToInt(i -> i).sum();
+
+        logger.info("[Stream #{}] Accepting incoming files newStreamTotalSSTables={} newStreamTotalBytes={} " +
+                    "pendingCompactionsBeforeStreaming={} pendingCompactionsAfterStreaming={} pendingThreshold={} remoteAddress={} " +
+                    "streamedTables=\"{}\"",
+                    planId, newStreamFiles, newStreamTotal,
+                    pendingCompactionsBeforeStreaming, pendingCompactionsAfterStreaming, pendingThreshold, remoteAddress,
+                    String.join(",", tables));
+        return true;
     }
 
     /**
@@ -1138,5 +1317,21 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             logger.error("[Stream #{}] Error aborting stream session with peer {}", planId(), peer);
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return "StreamSession{" +
+               "streamOperation=" + streamOperation +
+               ", peer=" + peer +
+               ", channel=" + channel +
+               ", requests=" + requests +
+               ", transfers=" + transfers +
+               ", isFollower=" + isFollower +
+               ", pendingRepair=" + pendingRepair +
+               ", previewKind=" + previewKind +
+               ", state=" + state +
+               '}';
     }
 }

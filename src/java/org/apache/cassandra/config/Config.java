@@ -327,6 +327,9 @@ public class Config
     public DataStorageSpec.IntMebibytesBound min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound("50MiB");
     public volatile Integer compaction_tombstone_warning_threshold = 100000;
 
+    // fraction of free disk space available for compaction after min free space is subtracted
+    public volatile Double max_space_usable_for_compactions_in_percentage = .95;
+
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
@@ -661,6 +664,8 @@ public class Config
     public volatile boolean automatic_sstable_upgrade = false;
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
     public boolean stream_entire_sstables = true;
+
+    public volatile boolean skip_stream_disk_space_check = false;
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
     public volatile FullQueryLoggerOptions full_query_logging_options = new FullQueryLoggerOptions();
