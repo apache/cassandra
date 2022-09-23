@@ -1489,6 +1489,15 @@ public class StorageProxy implements StorageProxyMBean
 
         List<InetAddressAndPort> backPressureHosts = null;
 
+        // For performance, Mutation caches serialized buffers that are computed lazily in serializedBuffer(). That
+        // computation is not synchronized however and we will potentially call that method concurrently for each
+        // dispatched message (not that concurrent calls to serializedBuffer() are "unsafe" per se, just that they
+        // may result in multiple computations, making the caching optimization moot). So forcing the serialization
+        // here to make sure it's already cached/computed when it's concurrently used later.
+        // Side note: we have one cached buffers for each used EncodingVersion and this only pre-compute the one for
+        // the current version, but it's just an optimization and we're ok not optimizing for mixed-version clusters.
+        Mutation.serializer.prepareSerializedBuffer(mutation, MessagingService.current_version);
+
         for (Replica destination : plan.contacts())
         {
             checkHintOverload(destination);
