@@ -400,7 +400,7 @@ versions. In Cassandra's gossip system, nodes exchange state information
 not only about themselves but also about other nodes they know about.
 This information is versioned with a vector clock of
 `(generation, version)` tuples, where the generation is a monotonic
-timestamp and version is a logical clock the increments roughly every
+timestamp and version is a logical clock that increments roughly every
 second. These logical clocks allow Cassandra gossip to ignore old
 versions of cluster state just by inspecting the logical clocks
 presented with gossip messages.
