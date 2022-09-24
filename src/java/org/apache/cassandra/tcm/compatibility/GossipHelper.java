@@ -55,6 +55,7 @@ import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.GuardrailsMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
@@ -283,6 +284,7 @@ public class GossipHelper
                                    DataPlacements.empty(),
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
+                                   GuardrailsMetadata.EMPTY,
                                    Collections.emptyMap());
     }
 
@@ -353,6 +355,7 @@ public class GossipHelper
                                                                       DataPlacements.empty(),
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
+                                                                      GuardrailsMetadata.EMPTY,
                                                                       extensions);
         return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
                                    partitioner,
@@ -362,6 +365,7 @@ public class GossipHelper
                                    new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP, forPlacementCalculation, schema.getKeyspaces()),
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
+                                   GuardrailsMetadata.EMPTY,
                                    extensions);
     }
 

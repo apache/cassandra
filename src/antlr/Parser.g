@@ -1373,6 +1373,7 @@ roleOptions[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Bui
 
 roleOption[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Builder cidrperms]
     :  K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
+    |  K_GENERATED K_PASSWORD { opts.setOption(IRoleManager.Option.GENERATED_PASSWORD, Boolean.TRUE); } 
     |  K_HASHED K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
     |  K_OPTIONS '=' m=fullMapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
     |  K_SUPERUSER '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.SUPERUSER, Boolean.valueOf($b.text)); }
@@ -1395,6 +1396,7 @@ cidrPermission[CIDRPermissions.Builder builder]
 userPassword[RoleOptions opts]
     :  K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
     |  K_HASHED K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
+    |  K_GENERATED K_PASSWORD { opts.setOption(IRoleManager.Option.GENERATED_PASSWORD, Boolean.TRUE); }
     ;
 
 /**
@@ -1977,6 +1979,7 @@ basic_unreserved_keyword returns [String str]
         | K_NOLOGIN
         | K_OPTIONS
         | K_PASSWORD
+        | K_GENERATED
         | K_HASHED
         | K_EXISTS
         | K_CUSTOM

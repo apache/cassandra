@@ -34,9 +34,9 @@ class UnexpectedTableStructure(UserWarning):
 
 
 SYSTEM_KEYSPACES = ('system', 'system_schema', 'system_traces', 'system_auth', 'system_distributed', 'system_views',
-                    'system_metrics', 'system_virtual_schema', 'system_cluster_metadata')
+                    'system_metrics', 'system_virtual_schema', 'system_cluster_metadata', 'system_guardrails')
 NONALTERBALE_KEYSPACES = ('system', 'system_schema', 'system_views', 'system_metrics', 'system_virtual_schema',
-                          'system_cluster_metadata')
+                          'system_cluster_metadata', 'system_guardrails')
 
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
@@ -1479,12 +1479,12 @@ syntax_rules += r'''
              ;
 
 <createUserStatement> ::= "CREATE" "USER" ( "IF" "NOT" "EXISTS" )? <username>
-                              ( "WITH" ("HASHED")? "PASSWORD" <stringLiteral> )?
+                              ( ("WITH" ("HASHED")? "PASSWORD" <stringLiteral>) | ("WITH" "GENERATED" "PASSWORD") )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                         ;
 
 <alterUserStatement> ::= "ALTER" "USER" ("IF" "EXISTS")? <username>
-                              ( "WITH" "PASSWORD" <stringLiteral> )?
+                              ( ("WITH" "PASSWORD" <stringLiteral>) | ("WITH" "GENERATED" "PASSWORD") )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                        ;
 
@@ -1510,6 +1510,7 @@ syntax_rules += r'''
                        ;
 
 <roleProperty> ::= (("HASHED")? "PASSWORD") "=" <stringLiteral>
+                 | "GENERATED" "PASSWORD"
                  | "OPTIONS" "=" <mapLiteral>
                  | "SUPERUSER" "=" <boolean>
                  | "LOGIN" "=" <boolean>

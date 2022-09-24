@@ -51,6 +51,7 @@ public final class SchemaConstants
 
     public static final String VIRTUAL_VIEWS = "system_views";
     public static final String VIRTUAL_METRICS = "system_metrics";
+    public static final String VIRTUAL_GUARDRAILS = "system_guardrails";
 
     public static final String DUMMY_KEYSPACE_OR_TABLE_NAME = "--dummy--";
 

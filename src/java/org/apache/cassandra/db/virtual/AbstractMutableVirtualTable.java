@@ -57,7 +57,7 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
     }
 
     @Override
-    public final void apply(PartitionUpdate update)
+    public void apply(PartitionUpdate update)
     {
         ColumnValues partitionKey = ColumnValues.from(metadata(), update.partitionKey());
 
@@ -110,7 +110,7 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
         throw invalidRequest("Partition deletion is not supported by table %s", metadata);
     }
 
-    private Range<ColumnValues> toRange(Slice slice)
+    public Range<ColumnValues> toRange(Slice slice)
     {
         ClusteringBound<?> startBound = slice.start();
         ClusteringBound<?> endBound = slice.end();
@@ -162,7 +162,14 @@ public abstract class AbstractMutableVirtualTable extends AbstractVirtualTable
         throw invalidRequest("Column modification is not supported by table %s", metadata);
     }
 
-    private static String columnName(Cell<?> cell)
+    protected void applyColumnUpdates(ColumnValues partitionKey,
+                                      ColumnValues clusteringColumns,
+                                      List<Optional<ColumnValue>> columnValues)
+    {
+        throw invalidRequest("Columns modification is not supported by table %s", metadata);
+    }
+
+    protected static String columnName(Cell<?> cell)
     {
         return cell.column().name.toCQLString();
     }
