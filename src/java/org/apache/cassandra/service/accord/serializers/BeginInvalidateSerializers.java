@@ -27,18 +27,19 @@ import accord.local.Status;
 import accord.messages.BeginInvalidate;
 import accord.messages.BeginInvalidate.InvalidateNack;
 import accord.messages.BeginInvalidate.InvalidateOk;
-import accord.messages.BeginRecovery;
 import accord.messages.BeginRecovery.RecoverReply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.txn.Writes;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.db.AccordData;
+
+import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
 
 public class BeginInvalidateSerializers
 {
@@ -75,24 +76,24 @@ public class BeginInvalidateSerializers
         void serializeNack(InvalidateNack recoverNack, DataOutputPlus out, int version) throws IOException
         {
             super.serializeNack(recoverNack, out, version);
-            CommandSerializers.txn.serialize(recoverNack.txn, out, version);
-            KeySerializers.key.serialize(recoverNack.homeKey, out, version);
+            serializeNullable(CommandSerializers.txn, recoverNack.txn, out, version);
+            serializeNullable(KeySerializers.key, recoverNack.homeKey, out, version);
         }
 
         @Override
         void serializeOk(InvalidateOk recoverOk, DataOutputPlus out, int version) throws IOException
         {
             super.serializeOk(recoverOk, out, version);
-            CommandSerializers.txn.serialize(recoverOk.txn, out, version);
-            KeySerializers.key.serialize(recoverOk.homeKey, out, version);
+            serializeNullable(CommandSerializers.txn, recoverOk.txn, out, version);
+            serializeNullable(KeySerializers.key, recoverOk.homeKey, out, version);
         }
 
         @Override
         InvalidateNack deserializeNack(Ballot supersededBy, DataInputPlus in, int version) throws IOException
         {
             return new InvalidateNack(supersededBy,
-                                      CommandSerializers.txn.deserialize(in, version),
-                                      KeySerializers.key.deserialize(in, version));
+                                      deserializeNullable(CommandSerializers.txn, in, version),
+                                      deserializeNullable(KeySerializers.key, in, version));
         }
 
         @Override
@@ -102,24 +103,24 @@ public class BeginInvalidateSerializers
             Preconditions.checkArgument(earlierAcceptedNoWitness == null);
             Preconditions.checkArgument(!rejectsFastPath);
             return new InvalidateOk(txnId, status, accepted, executeAt, deps, writes, result,
-                                    CommandSerializers.txn.deserialize(in, version),
-                                    KeySerializers.key.deserialize(in, version));
+                                    deserializeNullable(CommandSerializers.txn, in, version),
+                                    deserializeNullable(KeySerializers.key, in, version));
         }
 
         @Override
         long serializedNackSize(InvalidateNack recoverNack, int version)
         {
             return super.serializedNackSize(recoverNack, version)
-                   + CommandSerializers.txn.serializedSize(recoverNack.txn, version)
-                   + KeySerializers.key.serializedSize(recoverNack.homeKey, version);
+                   + serializedSizeNullable(CommandSerializers.txn, recoverNack.txn, version)
+                   + serializedSizeNullable(KeySerializers.key, recoverNack.homeKey, version);
         }
 
         @Override
         long serializedOkSize(InvalidateOk recoverOk, int version)
         {
             return super.serializedOkSize(recoverOk, version)
-                   + CommandSerializers.txn.serializedSize(recoverOk.txn, version)
-                   + KeySerializers.key.serializedSize(recoverOk.homeKey, version);
+                   + serializedSizeNullable(CommandSerializers.txn, recoverOk.txn, version)
+                   + serializedSizeNullable(KeySerializers.key, recoverOk.homeKey, version);
         }
     };
 }

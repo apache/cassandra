@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -38,6 +39,10 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
 
 public class AccordPartialCommand implements PartialCommand
 {
@@ -137,7 +142,7 @@ public class AccordPartialCommand implements PartialCommand
             @Override
             public PartialCommand.WithDeps deserializeBody(TxnId txnId, Txn txn, Timestamp executeAt, Status status, DataInputPlus in, Version version) throws IOException
             {
-                Deps deps = CommandSerializers.deps.deserialize(in, version.msg_version);
+                Deps deps = deserializeNullable(in, version.msg_version, CommandSerializers.deps);
                 return new AccordPartialCommand.WithDeps(txnId, txn, executeAt, status, deps);
             }
 
@@ -145,14 +150,14 @@ public class AccordPartialCommand implements PartialCommand
             public void serialize(PartialCommand.WithDeps command, DataOutputPlus out, Version version) throws IOException
             {
                 super.serialize(command, out, version);
-                CommandSerializers.deps.serialize(command.savedDeps(), out, version.msg_version);
+                serializeNullable(command.savedDeps(), out, version.msg_version, CommandSerializers.deps);
             }
 
             @Override
             public int serializedSize(PartialCommand.WithDeps command, Version version)
             {
                 int size = super.serializedSize(command, version) ;
-                size += CommandSerializers.deps.serializedSize(command.savedDeps(), version.msg_version);
+                size += serializedSizeNullable(command.savedDeps(), version.msg_version, CommandSerializers.deps);
                 return size;
             }
 
@@ -210,9 +215,9 @@ public class AccordPartialCommand implements PartialCommand
         {
             out.write(version.version);
             CommandSerializers.txnId.serialize(command.txnId(), out, version.msg_version);
-            CommandSerializers.txn.serialize(command.txn(), out, version.msg_version);
-            CommandSerializers.timestamp.serialize(command.executeAt(), out, version.msg_version);
             CommandSerializers.status.serialize(command.status(), out, version.msg_version);
+            serializeNullable(command.txn(), out, version.msg_version, CommandSerializers.txn);
+            serializeNullable(command.executeAt(), out, version.msg_version, CommandSerializers.timestamp);
         }
 
         public ByteBuffer serialize(T command)
@@ -245,9 +250,9 @@ public class AccordPartialCommand implements PartialCommand
             if (command != null)
                 return command;
 
-            Txn txn = CommandSerializers.txn.deserialize(in, version.msg_version);
-            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version.msg_version);
             Status status = CommandSerializers.status.deserialize(in, version.msg_version);
+            Txn txn = deserializeNullable(in, version.msg_version, CommandSerializers.txn);
+            Timestamp executeAt = deserializeNullable(in, version.msg_version, CommandSerializers.timestamp);
             T partial = deserializeBody(txnId, txn, executeAt, status, in, version);
             addToContext(partial, context);
             return partial;
@@ -269,9 +274,9 @@ public class AccordPartialCommand implements PartialCommand
         {
             int size = TypeSizes.sizeof(version.version);
             size += CommandSerializers.txnId.serializedSize();
-            size += CommandSerializers.txn.serializedSize(command.txn(), version.msg_version);
-            size += CommandSerializers.timestamp.serializedSize(command.executeAt(), version.msg_version);
             size += CommandSerializers.status.serializedSize(command.status(), version.msg_version);
+            size += serializedSizeNullable(command.txn(), version.msg_version, CommandSerializers.txn);
+            size += serializedSizeNullable(command.executeAt(), version.msg_version, CommandSerializers.timestamp);
             return size;
         }
 
