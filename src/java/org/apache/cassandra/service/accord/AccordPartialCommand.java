@@ -103,6 +103,8 @@ public class AccordPartialCommand implements PartialCommand
     @Override
     public void removeListener(Listener listener)
     {
+        if (removedListeners == null)
+            removedListeners = new ArrayList<>();
         removedListeners.add(listener);
     }
 

@@ -361,7 +361,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     {
         if (command.status.get().hasBeen(Status.Committed))
         {
-            if (!command.status.previous().hasBeen(Status.Committed))
+            if (command.status.previous() == null || !command.status.previous().hasBeen(Status.Committed))
                 uncommitted.map.blindRemove(command.txnId());
 
             committedById.map.blindPut(command.txnId(), AccordPartialCommand.WithDeps.serializer.serialize(command));
