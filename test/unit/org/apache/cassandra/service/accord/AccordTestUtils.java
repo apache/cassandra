@@ -41,6 +41,7 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Node.Id;
+import accord.local.PartialCommand;
 import accord.local.TxnOperation;
 import accord.primitives.Ballot;
 import accord.primitives.KeyRange;
@@ -81,7 +82,7 @@ public class AccordTestUtils
         @Override public void execute(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
         @Override public void invalidate(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
         @Override public void executedOnAllShards(TxnId txnId, Set<Id> persistedOn) {}
-        @Override public void waiting(TxnId blockedBy, @Nullable Keys someKeys) {}
+        @Override public void waiting(PartialCommand blockedBy, @Nullable Keys someKeys) {}
     };
 
     public static Topology simpleTopology(TableId... tables)
