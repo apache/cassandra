@@ -48,8 +48,8 @@ Keyspaces contain tables.
 * *Table*: Defines the typed schema for a collection of partitions.
 Tables contain partitions, which contain rows, which contain columns.
 Cassandra tables can flexibly add new columns to tables with zero downtime. 
-* *Partition*: Defines the mandatory part of the primary key all rows in
-Cassandra must have to identify the node in a cluster where the row is stored. 
+* *Partition*: Defines the mandatory part of the primary key. All rows in
+Cassandra must identify the node in a cluster where the row is stored. 
 All performant queries supply the partition key in the query.
 * *Row*: Contains a collection of columns identified by a unique primary
 key made up of the partition key and optionally additional clustering
