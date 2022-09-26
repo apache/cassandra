@@ -21,7 +21,6 @@ import javax.management.openmbean.*;
 import java.util.Map;
 import java.util.UUID;
 
-import com.google.common.base.Throwables;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net;
 
-import java.net.InetAddress;
 import java.util.function.Function;
 
 import com.google.common.base.Preconditions;

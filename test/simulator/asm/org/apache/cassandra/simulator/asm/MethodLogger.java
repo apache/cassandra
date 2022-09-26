@@ -27,7 +27,6 @@ import java.util.EnumSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.Printer;

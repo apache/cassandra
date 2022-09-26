@@ -21,8 +21,6 @@ package org.apache.cassandra.cql3.validation.operations;
 import java.util.Arrays;
 import java.util.Collection;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

@@ -29,7 +29,6 @@ import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.simulator.Action.Modifier.DISPLAY_ORIGIN;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
-import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.cluster.Utils.parseTokens;
 
 class OnInstanceBootstrap extends SimulatedActionTask

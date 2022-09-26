@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 

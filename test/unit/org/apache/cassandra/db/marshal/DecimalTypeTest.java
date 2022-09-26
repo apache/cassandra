@@ -24,7 +24,6 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.Test;
 

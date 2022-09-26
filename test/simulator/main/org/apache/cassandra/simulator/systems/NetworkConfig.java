@@ -19,7 +19,6 @@
 package org.apache.cassandra.simulator.systems;
 
 import org.apache.cassandra.simulator.utils.ChanceRange;
-import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.simulator.utils.LongRange;
 
 public class NetworkConfig

@@ -102,7 +102,6 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.impl.AbstractCluster.getSharedClassPredicate;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
-import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 import static org.apache.cassandra.utils.Shared.Scope.ANY;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 

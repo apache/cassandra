@@ -25,7 +25,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
 
 @NotThreadSafe

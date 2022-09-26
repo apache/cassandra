@@ -27,7 +27,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.ConfigurationException;
 
 public class PEMBasedSslContextFactoryConfigTest
 {
