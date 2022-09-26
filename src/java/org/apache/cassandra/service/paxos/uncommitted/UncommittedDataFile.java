@@ -46,7 +46,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.AbstractIterator;

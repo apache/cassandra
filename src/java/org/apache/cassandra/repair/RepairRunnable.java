@@ -88,7 +88,6 @@ import static org.apache.cassandra.repair.state.AbstractState.INIT;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNotifier
 {

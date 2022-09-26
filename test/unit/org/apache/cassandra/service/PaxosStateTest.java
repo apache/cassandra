@@ -23,7 +23,6 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
 

@@ -30,8 +30,6 @@ import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class CASAddTest extends TestBaseImpl
 {

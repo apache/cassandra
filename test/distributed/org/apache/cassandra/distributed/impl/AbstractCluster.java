@@ -97,7 +97,6 @@ import org.apache.cassandra.utils.Shared.Recursive;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
-import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
 import org.reflections.util.NameHelper;
 

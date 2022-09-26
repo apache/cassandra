@@ -30,10 +30,8 @@ import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 

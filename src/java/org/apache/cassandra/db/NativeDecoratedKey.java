@@ -21,9 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;

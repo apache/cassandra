@@ -21,7 +21,6 @@ package org.apache.cassandra.service.reads.repair;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.slf4j.Logger;

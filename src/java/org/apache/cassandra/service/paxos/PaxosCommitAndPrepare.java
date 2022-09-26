@@ -31,7 +31,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.service.paxos.Ballot;
 
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_COMMIT_AND_PREPARE_REQ;
