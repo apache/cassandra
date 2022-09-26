@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -455,7 +456,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return open(desc, componentsFor(desc), metadata);
     }
 
-    private static SSTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
+    @VisibleForTesting
+    public static SSTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
         return open(descriptor, components, metadata, true, false);
     }
@@ -805,6 +807,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public Descriptor getDescriptor()
     {
         return descriptor;
+    }
+
+    @Override
+    public Path getFile()
+    {
+        return descriptor.getDirectory().resolve(getFilename());
     }
 
     public void setupOnline()

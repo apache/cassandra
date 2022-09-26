@@ -812,7 +812,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      * @return a list of shards, where each shard contains sstables that are eligible for being compacted together
      */
     @VisibleForTesting
-    Collection<Shard> getCompactionShards()
+    public Collection<Shard> getCompactionShards()
     {
         return getCompactionShards(realm.getLiveSSTables(), true);
     }
@@ -925,7 +925,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      * A compaction shard contains the list of sstables that belong to this shard as well as the arena
      * selector used for comparison.
      */
-    final static class Shard implements Comparable<Shard>
+    public static class Shard implements Comparable<Shard>
     {
         final List<CompactionSSTable> sstables;
         final ArenaSelector selector;
@@ -959,6 +959,12 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         public String toString()
         {
             return String.format("%s, %d sstables", name(), sstables.size());
+        }
+
+        @VisibleForTesting
+        public List<CompactionSSTable> getSSTables()
+        {
+            return sstables;
         }
 
         /**

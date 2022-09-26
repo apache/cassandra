@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.UUID;
 
@@ -205,6 +206,7 @@ public interface CompactionSSTable
     boolean couldContain(DecoratedKey key);
 
     Descriptor getDescriptor();
+    Path getFile();
     default String getColumnFamilyName()
     {
         return getDescriptor().cfname;
