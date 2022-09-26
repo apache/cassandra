@@ -898,10 +898,10 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
             {
                 Set<Shard> shardsWithPrefix = shards.stream()
                                                     .filter(shard -> {
-                                                        if (shard.sstables.isEmpty())
+                                                        if (shard.getSSTables().isEmpty())
                                                             return false;
 
-                                                        SSTableReader shardSSTable = (SSTableReader) shard.sstables.get(0);
+                                                        SSTableReader shardSSTable = (SSTableReader) shard.getSSTables().get(0);
                                                         return shardSSTable.isRepaired() == expectedIsRepaired &&
                                                                shardSSTable.isTransient() == expectedIsTransient &&
                                                                shardSSTable.isPendingRepair() == expectedIsPending &&
@@ -921,13 +921,13 @@ public class UnifiedCompactionContainerPendingRepairTest extends AbstractPending
                                            expectedRepairStatus,
                                            expectedContainsSstable),
                              expectedContainsSstable,
-                             shardWithPrefix.sstables.contains(sstable));
+                             shardWithPrefix.getSSTables().contains(sstable));
             }
             else
             {
                 // not expecting any shard would contain the sstable
                 Set<Shard> shardsContainsSstable = shards.stream()
-                                                         .filter(shard -> shard.sstables.contains(sstable))
+                                                         .filter(shard -> shard.getSSTables().contains(sstable))
                                                          .collect(Collectors.toSet());
 
                 assertTrue(String.format("Expecting no shard should contain the sstable but found exists in %s",
