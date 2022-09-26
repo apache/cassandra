@@ -96,13 +96,13 @@
               value="https://repo.maven.apache.org/maven2/org/apache/maven/maven-ant-tasks" />
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
-    <condition property="maven-repository-url" value="https://repo.sjc.dsinternal.org/artifactory/datastax-releases-local">
+    <condition property="maven-repository-url" value="https://repo.aws.dsinternal.org/artifactory/datastax-releases-local">
       <isset property="release"/>
     </condition>
     <condition property="maven-repository-id" value="datastax.releases.https">
       <isset property="release"/>
     </condition>
-    <property name="maven-repository-url" value="https://repo.sjc.dsinternal.org/artifactory/datastax-snapshots-local"/>
+    <property name="maven-repository-url" value="https://repo.aws.dsinternal.org/artifactory/datastax-snapshots-local"/>
     <property name="maven-repository-id" value="datastax.snapshots.https"/>
 
     <property name="test.timeout" value="240000" />
