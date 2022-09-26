@@ -97,10 +97,10 @@ public final class DroppedColumn
             this.timestamp = timestamp;
         }
 
-        public DroppedColumn prepare(String keyspace, String table)
+        public DroppedColumn prepare(String keyspace, String table, Types types)
         {
             ColumnMetadata.Kind kind = isStatic ? ColumnMetadata.Kind.STATIC : ColumnMetadata.Kind.REGULAR;
-            AbstractType<?> parsedType = type.prepare(keyspace).getType();
+            AbstractType<?> parsedType = type.prepare(keyspace, types).getType();
             if (parsedType.referencesUserTypes())
                 throw invalidRequest("Invalid type %s for DROPPED COLUMN RECORD on %s: dropped column types should "
                                      + "not have user types", type, name);

@@ -446,7 +446,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             TableMetadata.Builder builder = table.unbuild().params(params);
             for (DroppedColumn.Raw record : attrs.droppedColumnRecords())
-                builder.recordColumnDrop(record.prepare(keyspaceName, tableName));
+                builder.recordColumnDrop(record.prepare(keyspaceName, tableName, keyspace.types));
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(builder.build()));
         }
