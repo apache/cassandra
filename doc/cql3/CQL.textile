@@ -2562,6 +2562,7 @@ h3. 3.4.6
 * Add support for @IF EXISTS@ and @IF NOT EXISTS@ in @ALTER@ statements (see "CASSANDRA-16916":https://issues.apache.org/jira/browse/CASSANDRA-16916).
 * Allow @GRANT/REVOKE@ multiple permissions in a single statement (see "CASSANDRA-17030":https://issues.apache.org/jira/browse/CASSANDRA-17030).
 * Pre hashed passwords in CQL (see "CASSANDRA-17334":https://issues.apache.org/jira/browse/CASSANDRA-17334).
+* Add support for type casting in @WHERE@ clause components and in the values of @INSERT/UPDATE@ statements (see "CASSANDRA-14337":https://issues.apache.org/jira/browse/CASSANDRA-14337).
 
 h3. 3.4.5
 
