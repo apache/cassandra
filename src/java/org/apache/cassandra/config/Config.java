@@ -331,7 +331,7 @@ public class Config
     public volatile Double max_space_usable_for_compactions_in_percentage = .95;
 
     public volatile int concurrent_materialized_view_builders = 1;
-    public volatile int reject_repair_compaction_threshold = 1024;
+    public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
     // The number of executors to use for building secondary indexes
     public int concurrent_index_builders = 2;
