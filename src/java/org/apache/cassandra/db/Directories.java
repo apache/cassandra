@@ -40,8 +40,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.io.FSReadError;
-import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,7 +49,9 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSNoDiskAvailableForWriteError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileStoreUtils;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.*;
@@ -493,7 +493,7 @@ public class Directories
 
     /**
      * Sums up the space required for ongoing streams + compactions + expected new write size per FileStore and checks
-     * if there is enough space available
+     * if there is enough space available.
      *
      * @param expectedNewWriteSizes where we expect to write the new compactions
      * @param totalCompactionWriteRemaining approximate amount of data current compactions are writing - keyed by
@@ -525,9 +525,8 @@ public class Directories
     }
 
     /**
-     * checks if there is enough space on all file stores to write the given amount of data
-     *
-     * the data to write should be the total amount, ongoing writes + new writes
+     * Checks if there is enough space on all file stores to write the given amount of data.
+     * The data to write should be the total amount, ongoing writes + new writes.
      */
     public static boolean hasDiskSpaceForCompactionsAndStreams(Map<FileStore, Long> totalToWrite)
     {
@@ -567,9 +566,8 @@ public class Directories
     }
 
     /**
-     * Gets the filestore for the actual directory where the sstables are stored
-     *
-     * Handles the fact that an operator can symlink a table directory to a different filestore
+     * Gets the filestore for the actual directory where the sstables are stored.
+     * Handles the fact that an operator can symlink a table directory to a different filestore.
      */
     public static FileStore getFileStore(File directory)
     {

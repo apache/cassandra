@@ -97,6 +97,7 @@ public class StreamsDiskSpaceTest extends TestBaseImpl
     {
         try(Cluster cluster = init(Cluster.build(2)
                                           .withConfig(config -> config.set("hinted_handoff_enabled", false)
+                                                                      .set("reject_repair_compaction_threshold", 1024)
                                                                       .with(GOSSIP)
                                                                       .with(NETWORK))
                                           .withInstanceInitializer(BB::installCSMGetEstimatedRemainingTasks)

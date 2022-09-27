@@ -233,14 +233,7 @@ class PendingRepairManager
 
     private int getEstimatedRemainingTasks(TimeUUID sessionID, AbstractCompactionStrategy strategy, int additionalSSTables, long additionalBytes)
     {
-        if (canCleanup(sessionID))
-        {
-            return 0;
-        }
-        else
-        {
-            return strategy.getEstimatedRemainingTasks();
-        }
+        return canCleanup(sessionID) ? 0 : strategy.getEstimatedRemainingTasks();
     }
 
     int getEstimatedRemainingTasks()

@@ -81,7 +81,7 @@ public class CompactionDiskSpaceTest extends TestBaseImpl
                 BB.freeSpace.set(10000);
                 cfs.forceMajorCompaction();
 
-                // make sure we fail if other ddir on the same file store runs out of disk
+                // make sure we fail if other dir on the same file store runs out of disk
                 BB.freeSpace.set(0);
                 for (Directories.DataDirectory newDir : cfs.getDirectories().getWriteableLocations())
                 {

@@ -3183,9 +3183,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     /**
-     * grabs the global first/last tokens among sstables and returns the range of data directories start/end with those tokens
+     * Grabs the global first/last tokens among sstables and returns the range of data directories that start/end with those tokens.
      *
-     * this is done to avoid grabbing the disk boundaries for every sstable in case of huge compactions
+     * This is done to avoid grabbing the disk boundaries for every sstable in case of huge compactions.
      */
     public List<File> getDirectoriesForFiles(Set<SSTableReader> sstables)
     {

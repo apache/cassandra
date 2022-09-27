@@ -207,8 +207,7 @@ public abstract class AbstractCompactionStrategy
     public abstract int getEstimatedRemainingTasks();
 
     /**
-     * @return the estimated number of background tasks needed, assuming an additional number of SSTables and bytes
-     * on top of currently managed data
+     * @return the estimated number of background tasks needed, assuming an additional number of SSTables
      */
     int getEstimatedRemainingTasks(int additionalSSTables, long additionalBytes)
     {

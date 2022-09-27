@@ -149,7 +149,7 @@ public final class CompactionInfo
     }
 
     /**
-     * Get the directories this compaction could possibly write to
+     * Get the directories this compaction could possibly write to.
      *
      * @return the directories that we might write to, or empty list if we don't know the metadata
      * (like for index summary redistribution), or null if we don't have any disk boundaries
@@ -182,7 +182,7 @@ public final class CompactionInfo
 
     /**
      * Note that this estimate is based on the amount of data we have left to read - it assumes input
-     * size = output size for a compaction, which is not really true, but should most often provide a worst case
+     * size == output size for a compaction, which is not really true, but should most often provide a worst case
      * remaining write size.
      */
     public long estimatedRemainingWriteBytes()

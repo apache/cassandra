@@ -280,6 +280,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         return n;
     }
 
+    @Override
     int getEstimatedRemainingTasks(int additionalSSTables, long additionalBytes)
     {
         return manifest.getEstimatedTasks(additionalBytes);

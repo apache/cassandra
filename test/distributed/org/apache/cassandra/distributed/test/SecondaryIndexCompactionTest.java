@@ -41,8 +41,7 @@ public class SecondaryIndexCompactionTest extends TestBaseImpl
     @Test
     public void test2iCompaction() throws IOException
     {
-        try (Cluster cluster = init(Cluster.build(1)
-                                           .start()))
+        try (Cluster cluster = init(Cluster.build(1).start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int, ck int, something int, else int, primary key (id, ck));"));
             cluster.schemaChange(withKeyspace("create index tbl_idx on %s.tbl (ck)"));
@@ -63,6 +62,7 @@ public class SecondaryIndexCompactionTest extends TestBaseImpl
             });
         }
     }
+
     static class MockHolder extends CompactionInfo.Holder
     {
         private final Set<SSTableReader> sstables;

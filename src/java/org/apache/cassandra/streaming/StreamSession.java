@@ -37,6 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
+import javax.xml.crypto.Data;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -45,34 +46,34 @@ import com.google.common.collect.Sets;
 
 import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
-import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.CompactionStrategyManager;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.locator.RangesAtEndpoint;
 
-import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -801,28 +802,33 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         startStreamingFiles(true);
     }
 
+    /**
+     * In the case where we have an error checking disk space we allow the Operation to continue.
+     * In the case where we do _not_ have available space, this method raises a RTE.
+     * TODO: Consider revising this to returning a boolean and allowing callers upstream to handle that.
+     */
     private void checkAvailableDiskSpaceAndCompactions(Collection<StreamSummary> summaries)
     {
-        if (!DatabaseDescriptor.getSkipStreamDiskSpaceCheck())
-        {
-            boolean hasAvailableSpace = true;
+        if (DatabaseDescriptor.getSkipStreamDiskSpaceCheck())
+            return;
 
-            try
-            {
-                hasAvailableSpace = checkAvailableDiskSpaceAndCompactions(summaries, planId(), peer.getHostAddress(true), pendingRepair != null);
-            }
-            catch (Exception e)
-            {
-                logger.error("[Stream #{}] Could not check available disk space and compactions for {}, summaries = {}", planId(), this, summaries, e);
-            }
-            if (!hasAvailableSpace)
-                throw new RuntimeException(String.format("Not enough disk space for stream %s), summaries=%s", this, summaries));
+        boolean hasAvailableSpace = true;
+
+        try
+        {
+            hasAvailableSpace = checkAvailableDiskSpaceAndCompactions(summaries, planId(), peer.getHostAddress(true), pendingRepair != null);
         }
+        catch (Exception e)
+        {
+            logger.error("[Stream #{}] Could not check available disk space and compactions for {}, summaries = {}", planId(), this, summaries, e);
+        }
+        if (!hasAvailableSpace)
+            throw new RuntimeException(String.format("Not enough disk space for stream %s), summaries=%s", this, summaries));
     }
 
     /**
-     * Makes sure that we expect to have enough disk space available for the new streams, taking in to consideration
-     * the ongoing compactions and streams
+     * Makes sure that we expect to have enough disk space available for the new streams, taking into consideration
+     * the ongoing compactions and streams.
      */
     @VisibleForTesting
     public static boolean checkAvailableDiskSpaceAndCompactions(Collection<StreamSummary> summaries,
@@ -853,8 +859,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         Map<FileStore, Long> newStreamBytesToWritePerFileStore = new HashMap<>();
         Set<FileStore> allFileStores = new HashSet<>();
-        // sum up the incoming bytes per file store - we assume that the
-        // stream is evenly distributed over the writable file stores for the table
+        // Sum up the incoming bytes per file store - we assume that the stream is evenly distributed over the writable
+        // file stores for the table.
         for (Map.Entry<TableId, Long> entry : perTableIdIncomingBytes.entrySet())
         {
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(entry.getKey());

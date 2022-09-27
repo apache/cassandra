@@ -1075,14 +1075,14 @@ public class CompactionStrategyManager implements INotificationConsumer
             Iterable<AbstractCompactionStrategy> strategies;
             if (isIncremental)
             {
-                // note that it is unlikely that we are behind in the pending strategies (as they only have a small fraction
+                // Note that it is unlikely that we are behind in the pending strategies (as they only have a small fraction
                 // of the total data), so we assume here that any pending sstables go directly to the repaired bucket.
                 strategies = repaired.allStrategies();
                 tasks += unrepaired.getEstimatedRemainingTasks();
             }
             else
             {
-                // and here we assume that all sstables go to unrepaired, which can be wrong if we are running
+                // Here we assume that all sstables go to unrepaired, which can be wrong if we are running
                 // both incremental and full repairs.
                 strategies = unrepaired.allStrategies();
                 tasks += repaired.getEstimatedRemainingTasks();

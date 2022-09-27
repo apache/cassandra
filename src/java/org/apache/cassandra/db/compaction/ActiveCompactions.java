@@ -54,7 +54,6 @@ public class ActiveCompactions implements ActiveCompactionsTracker
 
     /**
      * Get the estimated number of bytes remaining to write per sstable directory
-     *
      */
     public Map<File, Long> estimatedRemainingWriteBytes()
     {

@@ -24,6 +24,12 @@ import java.util.function.Consumer;
 
 public class FileStoreUtils
 {
+    /**
+     * Try and get the total space of the given filestore
+     * @return long value of available space if no errors
+     *         Long.MAX_VALUE if on a large file system that overflows
+     *         0 on exception during IOToLongFunction
+     */
     public static long tryGetSpace(FileStore filestore, PathUtils.IOToLongFunction<FileStore> getSpace)
     {
         return tryGetSpace(filestore, getSpace, ignore -> {});

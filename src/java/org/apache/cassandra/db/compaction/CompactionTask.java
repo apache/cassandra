@@ -380,8 +380,9 @@ public class CompactionTask extends AbstractCompactionTask
                     expectedNewWriteSize.put(directory, writeSizePerOutputDatadir);
 
                 Map<File, Long> expectedWriteSize = CompactionManager.instance.active.estimatedRemainingWriteBytes();
-                if (Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSize,
-                                                                     expectedWriteSize)) // todo: abort streams if they block compactions
+
+                // todo: abort streams if they block compactions
+                if (Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSize, expectedWriteSize))
                     break;
             }
             catch (Exception e)
@@ -389,6 +390,7 @@ public class CompactionTask extends AbstractCompactionTask
                 logger.error("Could not check if there is enough disk space for compaction {}", taskId, e);
                 break;
             }
+
             if (!reduceScopeForLimitedSpace(nonExpiredSSTables, writeSize))
             {
                 // we end up here if we can't take any more sstables out of the compaction.
