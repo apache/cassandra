@@ -181,6 +181,11 @@ public class AccordCommandStore extends CommandStore
         return !command.isEmpty() ? command : null;
     }
 
+    public boolean isCommandsForKeyInContext(PartitionKey key)
+    {
+        return currentCtx.commandsForKey.get(key) != null;
+    }
+
     private AccordCommandsForKey getCommandsForKeyInternal(Key key)
     {
         Preconditions.checkState(currentCtx != null);

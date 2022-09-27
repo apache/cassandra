@@ -40,6 +40,7 @@ import accord.local.Status;
 import accord.local.TxnOperation;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
+import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -47,6 +48,7 @@ import accord.txn.Txn;
 import accord.txn.Writes;
 import accord.utils.DeterministicIdentitySet;
 import accord.utils.VisibleForImplementation;
+import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.store.StoredBoolean;
@@ -55,6 +57,7 @@ import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
@@ -595,15 +598,66 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         super.postApply();
     }
 
-    @Override
-    public Future<Void> apply()
+    private boolean canApplyWithCurrentScope()
+    {
+        KeyRanges ranges = commandStore.ranges().at(executeAt().epoch);
+        Keys keys = txn().keys();
+        for (int i=0,mi=keys.size(); i<mi; i++)
+        {
+            Key key = keys.get(i);
+            if (commandStore.isCommandsForKeyInContext((AccordKey.PartitionKey) key))
+                continue;
+
+            if (!commandStore.hashIntersects(key))
+                continue;
+            if (!ranges.contains(key))
+                continue;
+
+            return false;
+        }
+        return true;
+    }
+
+    private Future<Void> applyWithCorrectScope()
+    {
+        TxnId txnId = txnId();
+        AsyncPromise<Void> promise = new AsyncPromise<>();
+        commandStore().process(this, commandStore -> {
+            AccordCommand command = (AccordCommand) commandStore.command(txnId);
+            command.apply(false).addCallback((v, throwable) -> {
+                if (throwable != null)
+                    promise.tryFailure(throwable);
+                else
+                    promise.trySuccess(null);
+            });
+        });
+        return promise;
+    }
+
+    private Future<Void> apply(boolean canReschedule)
     {
         Future<Void> future = cache().getWriteFuture(txnId);
         if (future != null)
             return future;
+
+        // this can be called via a listener callback, in which case we won't
+        // have the appropriate commandsForKey in scope, so start a new operation
+        // with the correct scope and notify the caller when that completes
+        if (!canApplyWithCurrentScope())
+        {
+            Preconditions.checkArgument(canReschedule);
+            return applyWithCorrectScope();
+        }
+
         future = super.apply();
         cache().setWriteFuture(txnId, future);
         return future;
+    }
+
+    @Override
+    public Future<Void> apply()
+    {
+        return apply(true);
     }
 
     @Override
