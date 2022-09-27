@@ -124,6 +124,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
             AccordTxnBuilder builder = new AccordTxnBuilder();
             builder.withRead(SELECT, primaryKey);
             builder.withAppend(KEYSPACE, TABLE, primaryKey, "seq", id + ",");
+            builder.withIncrement(KEYSPACE, TABLE, primaryKey, "count", 1);
             return execute(builder.build());
         };
     }
@@ -243,8 +244,6 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
             {
                 if (outcome.result.length != 1)
                     throw fail(primaryKey, "Result: 1 != #%s", Arrays.toString(outcome.result));
-                if (outcome.result[0][0] != TRUE)
-                    throw fail(primaryKey, "Result != TRUE");
             }
             historyChecker.applied(outcome.id, outcome.start, outcome.end, outcome.result != null);
         }

@@ -26,11 +26,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import accord.api.Data;
@@ -46,6 +49,7 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -64,6 +68,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -325,7 +330,7 @@ public class AccordUpdate implements Update
             T deserializeBody(Kind kind, DataInputPlus in, int version) throws IOException;
             long serializedBodySize(T update, int version);
         }
-        enum Kind { SIMPLE, APPEND }
+        enum Kind { SIMPLE, APPEND, INCREMENT }
         public abstract Kind kind();
         public abstract PartitionKey partitionKey();
         public abstract PartitionUpdate apply(FilteredPartition partition);
@@ -350,6 +355,8 @@ public class AccordUpdate implements Update
                         return SimpleUpdate.serializer.deserializeBody(kind, in, version);
                     case APPEND:
                         return AppendingUpdate.serializer.deserializeBody(kind, in, version);
+                    case INCREMENT:
+                        return IncrementingUpdate.serializer.deserializeBody(kind, in, version);
                     default: throw new IllegalArgumentException();
                 }
             }
@@ -420,6 +427,28 @@ public class AccordUpdate implements Update
         };
     }
 
+    private static final IVersionedSerializer<String> strSerializer = new IVersionedSerializer<String>()
+    {
+        @Override
+        public void serialize(String s, DataOutputPlus out, int version) throws IOException { out.writeUTF(s); }
+        @Override
+        public String deserialize(DataInputPlus in, int version) throws IOException { return in.readUTF(); }
+        @Override
+        public long serializedSize(String s, int version) { return TypeSizes.sizeof(s); }
+    };
+
+    private static final IVersionedSerializer<Integer> intSerializer = new IVersionedSerializer<Integer>()
+    {
+        @Override
+        public void serialize(Integer i, DataOutputPlus out, int version) throws IOException { out.writeInt(i); }
+
+        @Override
+        public Integer deserialize(DataInputPlus in, int version) throws IOException { return in.readInt(); }
+
+        @Override
+        public long serializedSize(Integer t, int version) { return TypeSizes.INT_SIZE; }
+    };
+
     public static class AppendingUpdate extends AbstractUpdate
     {
         private final PartitionKey key;
@@ -427,7 +456,7 @@ public class AccordUpdate implements Update
 
         public AppendingUpdate(PartitionKey key, Map<String, String> appends)
         {
-            Preconditions.checkArgument(appends != null);
+            Preconditions.checkArgument(appends != null && !appends.isEmpty());
             TableMetadata metadata = Schema.instance.getTableMetadata(key.tableId());
             Preconditions.checkArgument(metadata != null);
             for (String column : appends.keySet())
@@ -514,16 +543,6 @@ public class AccordUpdate implements Update
             return serializer;
         }
 
-        private static final IVersionedSerializer<String> strSerializer = new IVersionedSerializer<String>()
-        {
-            @Override
-            public void serialize(String s, DataOutputPlus out, int version) throws IOException { out.writeUTF(s); }
-            @Override
-            public String deserialize(DataInputPlus in, int version) throws IOException { return in.readUTF(); }
-            @Override
-            public long serializedSize(String s, int version) { return TypeSizes.sizeof(s); }
-        };
-
         static final Serializer<AppendingUpdate> serializer = new Serializer<AppendingUpdate>()
         {
             @Override
@@ -546,6 +565,126 @@ public class AccordUpdate implements Update
             {
                 return PartitionKey.serializer.serializedSize(update.key) +
                        serializedSizeMap(strSerializer, strSerializer, update.appends, version);
+            }
+        };
+    }
+
+    public static class IncrementingUpdate extends AbstractUpdate
+    {
+        private final PartitionKey key;
+        private final Map<String, Integer> increments;
+
+        public IncrementingUpdate(PartitionKey key, Map<String, Integer> increments)
+        {
+            Preconditions.checkArgument(increments != null && !increments.isEmpty());
+            TableMetadata metadata = Schema.instance.getTableMetadata(key.tableId());
+            Preconditions.checkArgument(metadata != null);
+
+            for (String column : increments.keySet())
+            {
+                ColumnMetadata cdef = metadata.getColumn(new ColumnIdentifier(column, true));
+                Preconditions.checkArgument(cdef != null);
+                Preconditions.checkArgument(cdef.type == Int32Type.instance);
+                Integer val = increments.get(column);
+                Preconditions.checkArgument(val != null && val != 0);
+            }
+            this.key = key;
+            this.increments = increments;
+        }
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.INCREMENT;
+        }
+
+        @Override
+        public PartitionKey partitionKey()
+        {
+            return key;
+        }
+
+        private static <T> int getInt(Cell<T> cell)
+        {
+            return cell == null || cell.isTombstone() ? 0 : Int32Type.instance.compose(cell.value(), cell.accessor());
+        }
+
+        private static void apply(Row.Builder builder, Row current, ColumnMetadata cdef, int increment)
+        {
+            int value = getInt(current.getCell(cdef)) + increment;
+            builder.addCell(BufferCell.live(cdef, 0, Int32Type.instance.decompose(value)));
+        }
+
+        private static Row apply(Row.Builder builder, Row current, Columns columns, Map<ColumnMetadata, Integer> appendMap)
+        {
+            if (columns.isEmpty())
+                return current;
+
+            builder.newRow(current.clustering());
+            for (ColumnMetadata column : columns)
+                apply(builder, current, column, appendMap.get(column));
+
+            return builder.build();
+        }
+
+        @Override
+        public PartitionUpdate apply(FilteredPartition partition)
+        {
+            Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
+            TableMetadata metadata = Schema.instance.getTableMetadata(key.tableId());
+            RegularAndStaticColumns.Builder cbuilder = RegularAndStaticColumns.builder();
+            Map<ColumnMetadata, Integer> incrementMap = new HashMap<>();
+            for (Map.Entry<String, Integer> entry : increments.entrySet())
+            {
+                ColumnMetadata cdef = metadata.getColumn(new ColumnIdentifier(entry.getKey(), true));
+                cbuilder.add(cdef);
+                incrementMap.put(cdef, entry.getValue());
+            }
+
+            RegularAndStaticColumns columns = cbuilder.build();
+            Row staticRow = apply(rowBuilder, partition.staticRow(), columns.statics, incrementMap);
+
+
+            Preconditions.checkArgument(metadata != null);
+            PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(metadata,
+                                                                                partition.partitionKey(),
+                                                                                columns,
+                                                                                staticRow,
+                                                                                partition.rowCount());
+            for (Row row : partition)
+                updateBuilder.add(apply(rowBuilder, row, columns.regulars, incrementMap));
+
+            return updateBuilder.build();
+        }
+
+        @Override
+        public Serializer serializer()
+        {
+            return serializer;
+        }
+
+        static final Serializer<IncrementingUpdate> serializer = new Serializer<IncrementingUpdate>()
+        {
+            @Override
+            public void serializeBody(IncrementingUpdate update, DataOutputPlus out, int version) throws IOException
+            {
+                PartitionKey.serializer.serialize(update.key, out, version);
+                serializeMap(strSerializer, intSerializer, update.increments, out, version);
+            }
+
+            @Override
+            public IncrementingUpdate deserializeBody(Kind kind, DataInputPlus in, int version) throws IOException
+            {
+                Preconditions.checkArgument(kind == Kind.INCREMENT);
+                return new IncrementingUpdate(PartitionKey.serializer.deserialize(in, version),
+                                           deserializeMap(strSerializer, intSerializer, Maps::newHashMapWithExpectedSize, in, version));
+            }
+
+            @Override
+            public long serializedBodySize(IncrementingUpdate update, int version)
+            {
+                return PartitionKey.serializer.serializedSize(update.key) +
+                       serializedSizeMap(strSerializer, intSerializer, update.increments, version);
             }
         };
     }
@@ -615,12 +754,16 @@ public class AccordUpdate implements Update
             if (!predicate.applies(read.get(predicate.partitionKey())))
                 return AccordWrite.EMPTY;
         }
-        List<PartitionUpdate> partitionUpdates = new ArrayList<>();
+        NavigableMap<PartitionKey, PartitionUpdate> updateMap = new TreeMap<>();
         for (AbstractUpdate updater : deserialize(updates, AbstractUpdate.serializer))
         {
-            partitionUpdates.add(updater.apply(read.get(updater.partitionKey())));
+            PartitionUpdate update = updater.apply(read.get(updater.partitionKey()));
+            PartitionKey key = AccordKey.of(update);
+            if (updateMap.containsKey(key))
+                update = PartitionUpdate.merge(Lists.newArrayList(updateMap.get(key), update));
+            updateMap.put(key, update);
         }
-        return new AccordWrite(partitionUpdates);
+        return new AccordWrite(new ArrayList<>(updateMap.values()));
     }
 
     UpdatePredicate getPredicate(int i)

@@ -122,6 +122,28 @@ public class AccordTxnBuilder
         return withAppend(keyspace, table, key, appends);
     }
 
+    public AccordTxnBuilder withIncrement(String keyspace, String table, Object key, Map<String, Integer> increments)
+    {
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+        Preconditions.checkNotNull(metadata);
+
+        DecoratedKey partitionKey = metadata.partitioner.decorateKey(decompose(metadata.partitionKeyType, key));
+        AccordKey.PartitionKey accordKey = new AccordKey.PartitionKey(metadata.id, partitionKey);
+
+        keys.add(accordKey);
+        updates.add(new AccordUpdate.IncrementingUpdate(accordKey, increments));
+
+        return this;
+    }
+
+    public AccordTxnBuilder withIncrement(String keyspace, String table, Object key, String column, int increment)
+    {
+        Map<String, Integer> increments = new HashMap<>();
+        increments.put(column, increment);
+        return withIncrement(keyspace, table, key, increments);
+    }
+
+
     private static ByteBuffer decompose(AbstractType<?> type, Object value)
     {
         return ((AbstractType<Object>) type).decompose(value);
