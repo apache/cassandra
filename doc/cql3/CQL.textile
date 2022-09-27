@@ -18,7 +18,7 @@
 #
 -->
 
-h1. Cassandra Query Language (CQL) v3.4.3
+h1. Cassandra Query Language (CQL) v3.4.6
 
 
 
@@ -2154,6 +2154,16 @@ A number of functions are provided to "convert" a @timeuuid@, a @timestamp@ or a
 |@dateOf@            |@timeuuid@      |Similar to @toTimestamp(timeuuid)@ (DEPRECATED)|
 |@unixTimestampOf@   |@timeuuid@      |Similar to @toUnixTimestamp(timeuuid)@ (DEPRECATED)|
 
+h4(#floorFun). Floor function
+
+Rounds date and time to the nearest value.
+
+|_. type |_. function |_. |
+|@timestamp@  | floor(timestamp, duration [, start_timestamp]) | If the start_timestamp is not used, then the start timestamp is January 1, 1970 00:00:00.000 GMT |
+|@timeuuid@  | floor(timeuuid, duration [, start_timestamp]) | If the start_timestamp is not used, then the start timestamp is January 1, 1970 00:00:00.000 GMT |
+|@date@  | floor(date, duration [, start_date]) | If the start_date is not used, then the start date is January 1, 1970 GMT |
+|@time@  | floor(time, duration [, start_time]) | ==If the start_time is not used, then the start time is 00:00:00[000000000]== |
+
 h3(#blobFun). Blob conversion functions
 
 A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @typeAsBlob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blobAsType@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigintAsBlob(3)@ is @0x0000000000000003@ and @blobAsBigint(0x0000000000000003)@ is @3@.
@@ -2568,7 +2578,8 @@ h3. 3.4.6
 * Add support for type casting in @WHERE@ clause components and in the values of @INSERT/UPDATE@ statements (see "CASSANDRA-14337":https://issues.apache.org/jira/browse/CASSANDRA-14337).
 * Add support for @CONTAINS@ and @CONTAINS KEY@ in conditional @UPDATE@ and @DELETE@ statement (see "CASSANDRA-10537":https://issues.apache.org/jira/browse/CASSANDRA-10537).
 * Allow to grant permission for all tables in a keyspace (see "CASSANDRA-17027":https://issues.apache.org/jira/browse/CASSANDRA-17027).
-
+* Allow to use pure monotonic functions on the last attribute of the @GROUP BY@ clause (see "CASSANDRA-11871":https://issues.apache.org/jira/browse/CASSANDRA-11871).
+* Add floor function to allow grouping by time range (see "CASSANDRA-11871":https://issues.apache.org/jira/browse/CASSANDRA-11871).
 
 h3. 3.4.5
 
