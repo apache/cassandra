@@ -1262,7 +1262,7 @@ __Syntax:__
 bc(syntax).. 
 <create-role-stmt> ::= CREATE ROLE ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
 
-<option> ::= PASSWORD = <string>
+<option> ::= ("HASHED")? PASSWORD = <string>
            | LOGIN = <boolean>
            | SUPERUSER = <boolean>
            | OPTIONS = <map_literal>
@@ -1415,7 +1415,7 @@ Prior to the introduction of roles in Cassandra 2.2, authentication and authoriz
 __Syntax:__ 
 
 bc(syntax).. 
-<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH PASSWORD <string> )? (<option>)?
+<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH ("HASHED")? PASSWORD <string> )? (<option>)?
 
 <option> ::= SUPERUSER
            | NOSUPERUSER
@@ -2556,11 +2556,12 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
 h3. 3.4.6
 
 * Add support for @IF EXISTS@ and @IF NOT EXISTS@ in @ALTER@ statements (see "CASSANDRA-16916":https://issues.apache.org/jira/browse/CASSANDRA-16916).
 * Allow @GRANT/REVOKE@ multiple permissions in a single statement (see "CASSANDRA-17030":https://issues.apache.org/jira/browse/CASSANDRA-17030).
-
+* Pre hashed passwords in CQL (see "CASSANDRA-17334":https://issues.apache.org/jira/browse/CASSANDRA-17334).
 
 h3. 3.4.5
 
