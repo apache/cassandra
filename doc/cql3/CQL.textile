@@ -913,7 +913,7 @@ bc(syntax)..
               | <identifier> '.' <field> <op> <term>
               | <identifier> '.' <field> IN <in-values>
 
-<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>'
+<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>' | CONTAINS ( KEY )?
 <in-values> ::= (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
 
 <where-clause> ::= <relation> ( AND <relation> )*
@@ -984,7 +984,7 @@ bc(syntax)..
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' IN <variable>
 
-<op> ::= '=' | '<' | '>' | '<=' | '>='
+<op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS ( KEY )?
 <in-values> ::= (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
 
 <condition> ::= <identifier> (<op> | '!=') <term>
@@ -2563,6 +2563,7 @@ h3. 3.4.6
 * Allow @GRANT/REVOKE@ multiple permissions in a single statement (see "CASSANDRA-17030":https://issues.apache.org/jira/browse/CASSANDRA-17030).
 * Pre hashed passwords in CQL (see "CASSANDRA-17334":https://issues.apache.org/jira/browse/CASSANDRA-17334).
 * Add support for type casting in @WHERE@ clause components and in the values of @INSERT/UPDATE@ statements (see "CASSANDRA-14337":https://issues.apache.org/jira/browse/CASSANDRA-14337).
+* Add support for @CONTAINS@ and @CONTAINS KEY@ in conditional @UPDATE@ and @DELETE@ statement (see "CASSANDRA-10537":https://issues.apache.org/jira/browse/CASSANDRA-10537).
 
 h3. 3.4.5
 
