@@ -704,6 +704,14 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE CO', immediate='LUMNFAMILY ')
         self.create_columnfamily_table_template('COLUMNFAMILY')
 
+    def test_complete_in_create_materializedview(self):
+        self.trycompletions('CREATE MAT', immediate='ERIALIZED VIEW ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS ', choices=['AS', 'SELECT'])
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * ', immediate='FROM ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers ', choices=['ALLOW','GROUP','LIMIT','ORDER','PER','PRIMARY', 'WHERE'])
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers PRIMARY', immediate=' KEY ( ')
+        #self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers PRIMARY KEY (peer) ', immediate=' WITH')
+
     def test_complete_in_create_table(self):
         self.trycompletions('CREATE T', choices=['TRIGGER', 'TABLE', 'TYPE'])
         self.trycompletions('CREATE TA', immediate='BLE ')
