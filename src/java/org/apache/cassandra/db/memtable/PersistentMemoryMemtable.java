@@ -400,7 +400,6 @@ public class PersistentMemoryMemtable extends AbstractMemtable
 
     public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason)
     {
-        System.out.println("Reason : "+ reason);
         // We want to avoid all flushing.
         switch (reason)
         {
@@ -483,21 +482,19 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         Path src = Paths.get(System.getProperty("pmem_path") + "/" + tableMetaId);
         String dest = DatabaseDescriptor.getRawConfig().data_file_directories[0] + "/" + metadata.keyspace + "/" + metadata.name + "-" + tableMetaId + "/snapshots/" + snapshotName;
 
-        try
-        {
+        try {
             Files.createDirectories(Paths.get(dest));
-            Files.walk(src)
-                 .forEach(source -> {
-                     try
-                     {
-                         Files.copy(source, Paths.get(dest).resolve(src.relativize(source)),
-                                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                     }
-                     catch (IOException e)
-                     {
-                         throw new IOError(e);
-                     }
-                 });
+            try (Stream<Path> pathStream = Files.walk(src)) {
+                pathStream
+                        .forEach(source -> {
+                            try {
+                                Files.copy(source, Paths.get(dest).resolve(src.relativize(source)),
+                                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            } catch (IOException e) {
+                                throw new IOError(e);
+                            }
+                        });
+            }
         }
         catch (Exception e)
         {
@@ -507,6 +504,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         {
             writeLock.compareAndSet(true, false);
         }
+
     }
 
     @Override

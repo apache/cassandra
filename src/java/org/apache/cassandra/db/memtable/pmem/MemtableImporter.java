@@ -56,10 +56,8 @@ public class MemtableImporter
         List<String> failedSnapshotTasks = new ArrayList<String>();
         for (String src : srcPath)
         {
-            try
-            {
-                Stream<Path> walk = Files.walk(Paths.get(src));
-                walk
+            try (Stream<Path> pathStream = Files.walk(Paths.get(src))) {
+                pathStream
                 .filter(p -> !Files.isDirectory(p) && (p.toString().endsWith(".pmem") || p.toString().endsWith(".set")  ))
                 .forEach(f -> {
                     try {
