@@ -15,40 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+package org.apache.cassandra.tools.nodetool;
 
-/**
- * No-Op implementation of {@link IAuditLogger} to be used as a default audit logger when audit logging is disabled.
- */
-public class NoOpAuditLogger implements IAuditLogger
+import io.airlift.airline.Command;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool;
+
+@Command(name = "disablediagnosticlog", description = "Disable the diagnostic log")
+public class DisableDiagnosticLog extends NodeTool.NodeToolCmd
 {
-    public NoOpAuditLogger()
-    {
-        this(DatabaseDescriptor.getAuditLoggingOptions());
-    }
-
-    public NoOpAuditLogger(AuditLogOptions options)
-    {
-
-    }
-
     @Override
-    public boolean isEnabled()
+    protected void execute(NodeProbe probe)
     {
-        return false;
-    }
-
-    @Override
-    public void log(AuditLogEntry logMessage)
-    {
-
-    }
-
-    @Override
-    public void stop()
-    {
-
+        probe.disableDiagnosticLog();
     }
 }

@@ -18,19 +18,8 @@
 
 package org.apache.cassandra.audit;
 
-public interface IAuditLogger
+import org.apache.cassandra.log.ILogger;
+
+public interface IAuditLogger extends ILogger<AuditLogEntry>
 {
-    boolean isEnabled();
-
-    /**
-     * Logs AuditLogEntry. This method might be called after {@link #stop()},
-     * hence implementations need to handle the race condition.
-     */
-    void log(AuditLogEntry auditLogEntry);
-
-    /**
-     * Stop and cleanup any resources of IAuditLogger implementations. Please note that
-     * {@link #log(AuditLogEntry)} might be called after being stopped.
-     */
-    void stop();
 }

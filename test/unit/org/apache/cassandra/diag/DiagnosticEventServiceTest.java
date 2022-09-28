@@ -43,6 +43,7 @@ public class DiagnosticEventServiceTest
     public static void setup()
     {
         DatabaseDescriptor.daemonInitialization();
+        DiagnosticEventService.instance().initialize();
     }
 
     @After

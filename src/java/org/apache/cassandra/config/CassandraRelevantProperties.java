@@ -189,6 +189,12 @@ public enum CassandraRelevantProperties
      */
     LOG_DIR_AUDIT("cassandra.logdir.audit"),
 
+    /**
+     * Directory where Cassandra persists logs from diagnostic logging. If this property is not set, the diagnostic log
+     * framework will set it automatically to {@link CassandraRelevantProperties#LOG_DIR} + "/diagnostic".
+     */
+    LOG_DIR_DIAGNOSTIC("cassandra.logdir.diagnostic"),
+
     CONSISTENT_DIRECTORY_LISTINGS("cassandra.consistent_directory_listings", "false"),
     CLOCK_GLOBAL("cassandra.clock", null),
     CLOCK_MONOTONIC_APPROX("cassandra.monotonic_clock.approx", null),
