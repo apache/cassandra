@@ -1295,11 +1295,15 @@ syntax_rules += r'''
                                ( "USING" <stringLiteral> ( "WITH" "OPTIONS" "=" <mapLiteral> )? )?
                          ;
 
+
+<colList> ::= "(" <cident> ( "," <cident> )* ")"
+          ;
+
 <createMaterializedViewStatement> ::= "CREATE" "MATERIALIZED" "VIEW" ("IF" "NOT" "EXISTS")? mvname=<materializedViewName>?
                                       "AS" "SELECT" <selectClause>
                                       "FROM" cf=<columnFamilyName>
                                       "WHERE" <cident> "IS" "NOT" "NULL" ( "AND" <cident> "IS" "NOT" "NULL")*
-                                      "PRIMARY" "KEY" "(" <cident> ( "," <cident> )* ")"
+                                      "PRIMARY" "KEY" (<colList> | ( "(" <colList> ( "," <cident> )* ")" ))
                                       ( "WITH" <cfamProperty> ( "AND" <cfamProperty> )* )?
                                     ;
 
