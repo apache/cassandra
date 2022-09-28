@@ -69,6 +69,7 @@ public class AccordCommandStore extends CommandStore
     }
 
     private final long threadId;
+    public final String loggingId;
     private final ExecutorService executor;
     private final AccordStateCache stateCache;
     private final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
@@ -88,6 +89,7 @@ public class AccordCommandStore extends CommandStore
                               ExecutorService executor)
     {
         super(generation, index, numShards, uniqueNow, currentEpoch, agent, store, progressLogFactory, rangesForEpoch);
+        this.loggingId = String.format("[%s:%s]", generation, index);
         this.executor = executor;
         this.threadId = getThreadId(executor);
         this.stateCache = new AccordStateCache(maxCacheSize() / numShards);

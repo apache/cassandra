@@ -24,6 +24,7 @@ import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import accord.api.Key;
 import accord.local.CommandStore;
@@ -36,6 +37,12 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<CommandStore, R>, BiConsumer<Object, Throwable>
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncOperation.class);
+
+    private static class LoggingProps
+    {
+        private static final String COMMAND_STORE = "command_store";
+        private static final String ASYNC_OPERATION = "async_op";
+    }
 
     enum State
     {
@@ -60,13 +67,29 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     private final AsyncWriter writer;
     private final AsyncContext context = new AsyncContext();
     private R result;
+    private final String loggingId;
+
+    private void setLoggingIds()
+    {
+        MDC.put(LoggingProps.COMMAND_STORE, commandStore.loggingId);
+        MDC.put(LoggingProps.ASYNC_OPERATION, loggingId);
+    }
+
+    private void clearLoggingIds()
+    {
+        MDC.remove(LoggingProps.COMMAND_STORE);
+        MDC.remove(LoggingProps.ASYNC_OPERATION);
+    }
 
     public AsyncOperation(AccordCommandStore commandStore, AsyncLoader loader)
     {
+        this.loggingId = "0x" + Integer.toHexString(System.identityHashCode(this));
         this.commandStore = commandStore;
         this.loader = loader;
+        setLoggingIds();
         this.writer = new AsyncWriter(commandStore);
         logger.trace("Created {} on {}", this, commandStore);
+        clearLoggingIds();
     }
 
     public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
@@ -99,6 +122,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     @Override
     public void run()
     {
+        setLoggingIds();
         logger.trace("Running {} with state {}", this, state);
         commandStore.checkInStoreThread();
         commandStore.setContext(context);
@@ -149,6 +173,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         {
             commandStore.unsetContext(context);
             logger.trace("Exiting {}", this);
+            clearLoggingIds();
         }
     }
 
