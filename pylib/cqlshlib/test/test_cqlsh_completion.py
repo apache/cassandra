@@ -708,9 +708,10 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE MAT', immediate='ERIALIZED VIEW ')
         self.trycompletions('CREATE MATERIALIZED VIEW AS ', choices=['AS', 'SELECT'])
         self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * ', immediate='FROM ')
-        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers ', choices=['ALLOW','GROUP','LIMIT','ORDER','PER','PRIMARY', 'WHERE'])
-        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers PRIMARY', immediate=' KEY ( ')
-        #self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers PRIMARY KEY (peer) ', immediate=' WITH')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers ', immediate = 'WHERE ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id ', immediate='IS NOT NULL ' )
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PR', immediate='IMARY KEY ( ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY (host_id) ', choices=[';','WITH'])
 
     def test_complete_in_create_table(self):
         self.trycompletions('CREATE T', choices=['TRIGGER', 'TABLE', 'TYPE'])
