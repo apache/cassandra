@@ -700,7 +700,7 @@ def get_ut_layout(ctxt, cass):
 
 
 def working_on_keyspace(ctxt):
-    wat = ctxt.get_binding('wat').upper()
+    wat = ctxt.get_binding('wat', '').upper()
     if wat in ('KEYSPACE', 'SCHEMA'):
         return True
     return False
@@ -1219,7 +1219,6 @@ def create_cf_clustering_order_colname_completer(ctxt, cass):
 
 @completer_for('createColumnFamilyStatement', 'wat')
 def create_cf_wat_completer(ctxt, cass):
-    # would prefer to get rid of the "columnfamily" nomenclature in cql3
     if ctxt.get_binding('partial', '') == '':
         return ['TABLE']
     return ['TABLE', 'COLUMNFAMILY']
@@ -1299,7 +1298,7 @@ syntax_rules += r'''
 <colList> ::= "(" <cident> ( "," <cident> )* ")"
           ;
 
-<createMaterializedViewStatement> ::= "CREATE" "MATERIALIZED" "VIEW" ("IF" "NOT" "EXISTS")? viewname=<materializedViewName>?
+<createMaterializedViewStatement> ::= "CREATE" wat="MATERIALIZED" "VIEW" ("IF" "NOT" "EXISTS")? viewname=<materializedViewName>?
                                       "AS" "SELECT" <selectClause>
                                       "FROM" cf=<columnFamilyName>
                                       "WHERE" <cident> "IS" "NOT" "NULL" ( "AND" <cident> "IS" "NOT" "NULL")*
