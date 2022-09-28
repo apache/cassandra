@@ -187,7 +187,7 @@ public final class CompactionInfo
      */
     public long estimatedRemainingWriteBytes()
     {
-        if (unit == Unit.BYTES && tasktype.writesData())
+        if (unit == Unit.BYTES && tasktype.writesData)
             return getTotal() - getCompleted();
         return 0;
     }
