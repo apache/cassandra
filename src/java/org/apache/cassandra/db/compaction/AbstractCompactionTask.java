@@ -154,6 +154,18 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
 
     public abstract CompactionAwareWriter getCompactionAwareWriter(CompactionRealm realm, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables);
 
+    @VisibleForTesting
+    public LifecycleTransaction getTransaction()
+    {
+        return transaction;
+    }
+
+    @VisibleForTesting
+    public OperationType getCompactionType()
+    {
+        return compactionType;
+    }
+
     protected abstract int executeInternal();
 
     // TODO Eventually these three setters should be passed in to the constructor.
