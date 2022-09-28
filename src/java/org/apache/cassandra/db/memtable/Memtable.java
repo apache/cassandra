@@ -420,6 +420,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 
     /**
      * Removes deleted data from memtable
+     * This operation iterates through all the partitions to find the deleted data without
+     * locking the entire table, the shard with the current partition will be locked.
+     * Write/read to other shards remain intact.
      */
     CompactionManager.AllSSTableOpStatus performGarbageCollect();
 

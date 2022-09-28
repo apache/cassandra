@@ -213,7 +213,7 @@ public class PmemPartition implements Partition
 
         for (Row r : update)
         {
-            pmemRowMap.put(r, update);
+           pmemRowMap.put(r, update);
         }
         indexer.commit();
         // Range Tombstones
@@ -317,9 +317,10 @@ public class PmemPartition implements Partition
     }
 
     // AtomicBTreePartition.addAllWithSizeDelta & RowUpdater are the places to look to see how classic storage engine stashes things
-    @SuppressWarnings({ "resource" })
+    @SuppressWarnings({"resource"})
     private Row updateStaticRow(Row staticRow, UpdateTransaction indexer) throws IOException
     {
+
         Row newStaticRow = staticRow;
         TransactionalMemoryBlock oldStaticBlock = null;
         long  oldStaticRowHandle = block.getLong(STATIC_ROW_OFFSET);
@@ -363,6 +364,7 @@ public class PmemPartition implements Partition
             {
                 throw new IOError(e);
             }
+
         });
         block.setLong(STATIC_ROW_OFFSET, staticRowBlock.handle());
         return newStaticRow;
@@ -635,7 +637,7 @@ public class PmemPartition implements Partition
             ranges.add(rtItrFromBuildDeletionInfo.next());
         }
         //Remove  Previously saved RTM from RangeTombstoneMarkerTree
-        pmemRtmMap.getRangeTombstoneMarkerTree().clear(PmemRowMap::clearData);
+        pmemRtmMap.getRangeTombstoneMarkerTree().clear(pmemRowMap::clearData);
         return ranges.iterator();
     }
 

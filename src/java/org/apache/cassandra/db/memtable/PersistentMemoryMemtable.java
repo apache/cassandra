@@ -18,18 +18,25 @@
 
 package org.apache.cassandra.db.memtable;
 
+import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.intel.pmem.llpl.util.AutoCloseableIterator;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -44,6 +51,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import com.intel.pmem.llpl.util.LongART;
 import com.intel.pmem.llpl.util.ConcurrentLongART;
+import com.intel.pmem.llpl.HeapException;
 import com.intel.pmem.llpl.Transaction;
 import com.intel.pmem.llpl.TransactionalHeap;
 import com.intel.pmem.llpl.util.LongLinkedList;
@@ -77,13 +85,15 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 public class PersistentMemoryMemtable extends AbstractMemtable
 {
     private static final Logger logger = LoggerFactory.getLogger(PersistentMemoryMemtable.class);
-    public static final TransactionalHeap heap;
-    private static final LongLinkedList tablesLinkedList;
+    public TransactionalHeap heap;
+    private LongLinkedList tablesLinkedList;
     private static final int CORES = FBUtilities.getAvailableProcessors();
     public static final ByteComparable.Version BYTE_COMPARABLE_VERSION = ByteComparable.Version.OSS42;
     protected StatsCollector statsCollector = new StatsCollector();
     private static final Map<TableId, PmemTableInfo> tablesMetadataMap = new ConcurrentHashMap<>();
     private PmemTableInfo pmemTableInfo;
+    private  final TableMetadataRef tableMetadataRef;
+    private static final AtomicBoolean writeLock = new AtomicBoolean(false);
 
     static
     {
@@ -93,37 +103,18 @@ public class PersistentMemoryMemtable extends AbstractMemtable
             logger.error("Failed to open pool. System property \"pmem_path\" in \"conf/jvm.options\" is unset!");
             System.exit(1);
         }
-        long size = 0;
         try
         {
-            size = Long.parseLong(System.getProperty("pool_size"));
+            Long.parseLong(System.getProperty("pool_size"));
         }
         catch (NumberFormatException e)
         {
             logger.error("Failed to open pool. System property \"pool_size\" in \"conf/jvm.options\" is invalid!");
             System.exit(1);
         }
-        heap = TransactionalHeap.exists(path) ?
-               TransactionalHeap.openHeap(path) :
-               TransactionalHeap.createHeap(path, size);
-        long rootHandle = heap.getRoot();
-        if (rootHandle == 0)
-        {
-            //Holds CART address for each table
-            tablesLinkedList = new LongLinkedList(heap);
-            heap.setRoot(tablesLinkedList.handle());
-        }
-        else
-        {
-            tablesLinkedList = LongLinkedList.fromHandle(heap, rootHandle);
-            if (tablesMetadataMap.size() == 0)
-            {
-                reloadTablesMap(tablesLinkedList);
-            }
-        }
     }
 
-    private static void reloadTablesMap(LongLinkedList tablesLinkedList)
+    private void reloadTablesMap(LongLinkedList tablesLinkedList)
     {
         Iterator<Long> tablesIterator = tablesLinkedList.iterator();
         while (tablesIterator.hasNext())
@@ -138,12 +129,55 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     public PersistentMemoryMemtable(TableMetadataRef metadataRef, Owner owner)
     {
         super(updateMetadataRef(metadataRef));
+        this.tableMetadataRef = metadataRef;
+        String heapPath = System.getProperty("pmem_path") + "/" + (metadataRef.get().id.toString()).replaceAll("\\-", "");
+        this.buildHeapRelatedStructures(heapPath);
+    }
 
+    private void buildHeapRelatedStructures(String heapPath){
+
+        boolean initialized = TransactionalHeap.exists(heapPath);
+
+        if (initialized)
+        {
+            heap = TransactionalHeap.openHeap(heapPath);
+        }
+        else
+        {
+            try
+            {
+                Files.createDirectories(Paths.get(heapPath));
+            }
+            catch (IOException e)
+            {
+                try {
+                    Files.deleteIfExists(Paths.get(heapPath));
+                } catch (IOException ioe) {
+                    throw new IOError(ioe);
+                }
+                throw new IOError(e);
+            }
+            heap = TransactionalHeap.createHeap(heapPath);
+        }
+        long rootHandle = heap.getRoot();
+
+        if (rootHandle == 0)
+        {
+            //Holds CART address for each table
+            tablesLinkedList = new LongLinkedList(heap);
+            heap.setRoot(tablesLinkedList.handle());
+        }
+        else
+        {
+            tablesLinkedList = LongLinkedList.fromHandle(heap, rootHandle);
+            reloadTablesMap(tablesLinkedList);
+        }
         if (tablesMetadataMap.get(metadata.get().id) == null)
             addToTablesMetadataMap(metadata.get());
         else
         {
             pmemTableInfo = tablesMetadataMap.get(metadata.get().id);
+            if (!validatePmemTableInfo(pmemTableInfo)) throw new RuntimeException("table not valid for this heap");
             if (!pmemTableInfo.isLoaded())
             {   //On cassandra restart we reload the metadata and SerializationHeaderList
                 pmemTableInfo.reload(metadata.get());
@@ -183,6 +217,10 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
     {
         long colUpdateTimeDelta = Long.MAX_VALUE;
+        String heapPath = System.getProperty("pmem_path") + "/" + (tableMetadataRef.get().id.toString()).replaceAll("\\-", "");
+        if (!TransactionalHeap.exists(heapPath) && !tableMetadataRef.get().isIndex()) {
+            this.buildHeapRelatedStructures(heapPath);
+        }
         Transaction tx = Transaction.create(heap);
         tx.run(() -> {
             ByteSource partitionByteSource = update.partitionKey().asComparableBytes(ByteComparable.Version.OSS42);
@@ -197,6 +235,13 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         return pair[1];
     }
 
+    boolean validatePmemTableInfo(PmemTableInfo info) {
+        Iterator<Long> it = tablesLinkedList.iterator();
+        while (it.hasNext()) {
+            if (info.handle() == it.next().longValue()) return true;
+        }
+        return false;
+    }
 
     @Override
     public UnfilteredRowIterator rowIterator(DecoratedKey key, Slices slices, ColumnFilter columnFilter, boolean reversed, SSTableReadsListener listener)
@@ -211,51 +256,57 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     @SuppressWarnings({ "resource" })
     public UnfilteredPartitionIterator partitionIterator(ColumnFilter columnFilter, DataRange dataRange, SSTableReadsListener listener)
     {
-            AbstractBounds<PartitionPosition> keyRange = dataRange.keyRange();
-            boolean startIsMin = keyRange.left.isMinimum();
-            boolean stopIsMin = keyRange.right.isMinimum();
-            boolean isBound = keyRange instanceof Bounds;
-            boolean includeStart = isBound || keyRange instanceof IncludingExcludingBounds;
-            boolean includeStop = isBound || keyRange instanceof Range;
+        AbstractBounds<PartitionPosition> keyRange = dataRange.keyRange();
+        boolean startIsMin = keyRange.left.isMinimum();
+        boolean stopIsMin = keyRange.right.isMinimum();
+        boolean isBound = keyRange instanceof Bounds;
+        boolean includeStart = isBound || keyRange instanceof IncludingExcludingBounds;
+        boolean includeStop = isBound || keyRange instanceof Range;
 
-            AutoCloseableIterator<LongART.Entry> entryIterator;
-            ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
-            if (startIsMin)
+        AutoCloseableIterator<LongART.Entry> entryIterator;
+        ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
+        
+        if (startIsMin)
+        {
+            if (stopIsMin)
             {
-                if (stopIsMin)
-                {
-                    entryIterator = memtableCart.getEntryIterator();
-                }
-                else
-                {
-                    ByteSource partitionByteSource = keyRange.right.asComparableBytes(ByteComparable.Version.OSS42);
-                    byte[] partitionKeyBytesRight = ByteSourceInverse.readBytes(partitionByteSource);
-                    entryIterator = memtableCart.getHeadEntryIterator(partitionKeyBytesRight, includeStop);
-                }
+                entryIterator = memtableCart.getEntryIterator();
             }
             else
             {
-                if (stopIsMin)
-                {
-                    ByteSource partitionByteSource = keyRange.left.asComparableBytes(ByteComparable.Version.OSS42);
-                    byte[] partitionKeyBytesLeft = ByteSourceInverse.readBytes(partitionByteSource);
-                    entryIterator = memtableCart.getTailEntryIterator(partitionKeyBytesLeft, includeStart);
-                }
-                else
-                {
-                    ByteSource partitionByteSource = keyRange.left.asComparableBytes(ByteComparable.Version.OSS42);
-                    byte[] partitionKeyBytesLeft = ByteSourceInverse.readBytes(partitionByteSource);
-                    partitionByteSource = keyRange.right.asComparableBytes(ByteComparable.Version.OSS42);
-                    byte[] partitionKeyBytesRight = ByteSourceInverse.readBytes(partitionByteSource);
-                    entryIterator = memtableCart.getEntryIterator(partitionKeyBytesLeft, includeStart, partitionKeyBytesRight, includeStop);
-                }
+                ByteSource partitionByteSource = keyRange.right.asComparableBytes(ByteComparable.Version.OSS42);
+                byte[] partitionKeyBytesRight = ByteSourceInverse.readBytes(partitionByteSource);
+                entryIterator = memtableCart.getHeadEntryIterator(partitionKeyBytesRight, includeStop);
             }
-            return new PmemUnfilteredPartitionIterator(heap, entryIterator, columnFilter, dataRange, pmemTableInfo);
+        }
+        else
+        {
+            if (stopIsMin)
+            {
+                ByteSource partitionByteSource = keyRange.left.asComparableBytes(ByteComparable.Version.OSS42);
+                byte[] partitionKeyBytesLeft = ByteSourceInverse.readBytes(partitionByteSource);
+                entryIterator = memtableCart.getTailEntryIterator(partitionKeyBytesLeft, includeStart);
             }
+            else
+            {
+                ByteSource partitionByteSource = keyRange.left.asComparableBytes(ByteComparable.Version.OSS42);
+                byte[] partitionKeyBytesLeft = ByteSourceInverse.readBytes(partitionByteSource);
+                partitionByteSource = keyRange.right.asComparableBytes(ByteComparable.Version.OSS42);
+                byte[] partitionKeyBytesRight = ByteSourceInverse.readBytes(partitionByteSource);
+                entryIterator = memtableCart.getEntryIterator(partitionKeyBytesLeft, includeStart, partitionKeyBytesRight, includeStop);
+            }
+        }
+        return new PmemUnfilteredPartitionIterator(heap, entryIterator, columnFilter, dataRange, pmemTableInfo);
+    }
 
     @SuppressWarnings({ "resource" })
     public Partition getPartition(DecoratedKey key)
     {
+        String heapPath = System.getProperty("pmem_path") + "/" + (tableMetadataRef.get().id.toString()).replaceAll("\\-", "");
+        if (!TransactionalHeap.exists(heapPath)) {
+            this.buildHeapRelatedStructures(heapPath);
+        }
+
         PmemPartition pMemPartition = null;
         ByteSource partitionByteSource = key.asComparableBytes(BYTE_COMPARABLE_VERSION);
         byte[] partitionKeyBytes = ByteSourceInverse.readBytes(partitionByteSource);
@@ -294,6 +345,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         ConcurrentLongART memtableCart = getMemtableCart(metadata.get());
         if (memtableCart == null)
             return 0;
+
         return memtableCart.size();
     }
 
@@ -348,6 +400,7 @@ public class PersistentMemoryMemtable extends AbstractMemtable
 
     public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason)
     {
+        System.out.println("Reason : "+ reason);
         // We want to avoid all flushing.
         switch (reason)
         {
@@ -364,7 +417,9 @@ public class PersistentMemoryMemtable extends AbstractMemtable
             case USER_FORCED:
             case UNIT_TESTS:
             case OWNED_RANGES_CHANGE:
+                return false;
             case DRAIN:
+                heap.close();
                 return false;
             case INDEX_REMOVED:
                 memtableMemoryReclaim();
@@ -422,8 +477,38 @@ public class PersistentMemoryMemtable extends AbstractMemtable
 
     public void performSnapshot(String snapshotName)
     {
-        // TODO: implement. Figure out how to restore snapshot (with external tools).
+        writeLock.compareAndSet(false, true);
+
+        String tableMetaId = (metadata.get().id.toString()).replaceAll("\\-", "");
+        Path src = Paths.get(System.getProperty("pmem_path") + "/" + tableMetaId);
+        String dest = DatabaseDescriptor.getRawConfig().data_file_directories[0] + "/" + metadata.keyspace + "/" + metadata.name + "-" + tableMetaId + "/snapshots/" + snapshotName;
+
+        try
+        {
+            Files.createDirectories(Paths.get(dest));
+            Files.walk(src)
+                 .forEach(source -> {
+                     try
+                     {
+                         Files.copy(source, Paths.get(dest).resolve(src.relativize(source)),
+                                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                     }
+                     catch (IOException e)
+                     {
+                         throw new IOError(e);
+                     }
+                 });
+        }
+        catch (Exception e)
+        {
+            throw new IOError(e);
+        }
+        finally
+        {
+            writeLock.compareAndSet(true, false);
+        }
     }
+
     @Override
     public CompactionManager.AllSSTableOpStatus performGarbageCollect()
     {
@@ -484,6 +569,42 @@ public class PersistentMemoryMemtable extends AbstractMemtable
             }
             i++;
         }
+        if(tablesLinkedList.size() == 0) {
+            heap.close();
+            String heapPath = System.getProperty("pmem_path") + "/" + (tableMetadataRef.get().id.toString()).replaceAll("\\-", "");
+            removePmemFilesFormDestination(heapPath, true);
+        }
+     }
+
+    public static void removePmemFilesFormDestination(String destination, boolean removeHeapTableDirectory) {
+        try
+        {
+
+            //heap.close();
+            Stream<Path> walk = Files.walk(Paths.get(destination));
+            walk
+            .filter(p -> !Files.isDirectory(p) && Files.isRegularFile(p))
+            .forEach(f -> {
+                try
+                {
+                    Files.deleteIfExists(f);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            });
+            if (removeHeapTableDirectory)
+            {
+
+                Files.deleteIfExists(Paths.get(destination));
+            }
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+
     }
 
     //Truncates base and index tables
@@ -507,11 +628,13 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         PmemTableInfo pmemIndexTableInfo = tablesMetadataMap.get(id);
         if (pmemIndexTableInfo != null)
         {
+            if (!validatePmemTableInfo(pmemIndexTableInfo)) throw new RuntimeException("table not valid for this heap");
             ConcurrentLongART memtableCartForIndex = pmemIndexTableInfo.getMemtableCart();
             memtableCartForIndex.clear(this::freeRowMemoryBlock);
+            tablesMetadataMap.remove(pmemIndexTableInfo.getMetadata().id);
         }
         else
-            logger.info("Cannot truncate {} index table ",id);
+            logger.info("Cannot truncate {} index table ", id);
     }
 
     public void discard()
@@ -541,13 +664,13 @@ public class PersistentMemoryMemtable extends AbstractMemtable
     @Override
     public LastCommitLogPosition getFinalCommitLogUpperBound()
     {
-       // We don't maintain commit log positions
-        return  new LastCommitLogPosition(CommitLogPosition.NONE);
+        // We don't maintain commit log positions
+        return new LastCommitLogPosition(CommitLogPosition.NONE);
     }
 
     public boolean isClean()
     {
-        return partitionCount() == 0;
+        return tablesMetadataMap.get(metadata.id) == null ? true : partitionCount() == 0;
     }
 
     public boolean mayContainDataBefore(CommitLogPosition position)
@@ -625,7 +748,12 @@ public class PersistentMemoryMemtable extends AbstractMemtable
      */
     public ConcurrentLongART getMemtableCart(TableMetadata metadata)
     {
-        if(tablesMetadataMap.get(metadata.id) ==null){
+        String heapPath = System.getProperty("pmem_path") + "/" + (tableMetadataRef.id.toString()).replaceAll("\\-", "");
+        if(!TransactionalHeap.exists(heapPath) && !tableMetadataRef.get().isIndex()) {
+            this.buildHeapRelatedStructures(heapPath);
+        }
+
+        if(TransactionalHeap.exists(heapPath) && tablesMetadataMap.get(metadata.id) == null) {
             addToTablesMetadataMap(metadata);
         }
         return tablesMetadataMap.get(metadata.id).getMemtableCart();
@@ -633,13 +761,24 @@ public class PersistentMemoryMemtable extends AbstractMemtable
 
     private void addToTablesMetadataMap(TableMetadata tableMetadata)
     {
+        String heapPath = System.getProperty("pmem_path") + "/" + (tableMetadata.id.toString()).replaceAll("\\-", "");
+        if (!TransactionalHeap.exists(heapPath) && !tableMetadata.isIndex()) {
+            this.buildHeapRelatedStructures(heapPath);
+        }
+
         pmemTableInfo = Transaction.create(heap, () -> {
             ConcurrentLongART memtableCart = new ConcurrentLongART(heap, CORES);
             PmemTableInfo tmpPmemTableInfo = new PmemTableInfo(heap, memtableCart, tableMetadata);
             tablesLinkedList.addFirst(tmpPmemTableInfo.handle());
             return tmpPmemTableInfo;
         });
-        tablesMetadataMap.putIfAbsent(metadata.get().id, pmemTableInfo);
+        tablesMetadataMap.putIfAbsent(tableMetadata.id, pmemTableInfo);
+    }
+
+
+    public static void removeFromTableMetadatMap(TableMetadataRef metadata)
+    {
+        tablesMetadataMap.remove(metadata.get().id);
     }
 
     //This class will provide PartitionUpdate and  UpdateTransaction object
@@ -685,9 +824,9 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         //Since Index TableMetadata will contain base table Id ,
         //converting Index name to Index table ID, which is required to differentiate Base and Index table.
         String indexName = metadataRef.get().indexName().orElse(null);
-        if (indexName !=null)
+        if (indexName != null)
         {
-            TableMetadata tableMetadata = metadataRef.get().unbuild().id(TableId.fromUUID(UUID.nameUUIDFromBytes(indexName.getBytes()))).build();
+            TableMetadata tableMetadata = metadataRef.get().unbuild().id(TableId.unsafeDeterministic(metadataRef.get().keyspace, metadataRef.get().name)).build();
             return TableMetadataRef.forOfflineTools(tableMetadata);
         }
         return metadataRef;

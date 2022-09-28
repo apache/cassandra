@@ -268,6 +268,7 @@ public class ColumnFamilyStoreTest
     public void testSnapshotSize() throws IOException
     {
         // cleanup any previous test gargbage
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         cfs.clearSnapshot("");
 
@@ -483,6 +484,7 @@ public class ColumnFamilyStoreTest
     @Test
     public void testSnapshotWithoutFlushWithSecondaryIndexes() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_INDEX1);
         cfs.truncateBlocking();

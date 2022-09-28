@@ -49,7 +49,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 // in one MemoryRegion
 // basically, this is a sorted hash map, persistent and unsafe, specific to a given partition
 public class PmemRowMap {
-    private static TransactionalHeap heap;
+    private TransactionalHeap heap;
     private final LongART rowMapTree;
     private TableMetadata tableMetadata;
     private final LongART rangeTombstoneMarkerTree;
@@ -254,7 +254,7 @@ public class PmemRowMap {
         rangeTombstoneMarkerTree.put(clusteringBytes, rtm, this::saveRTM);
     }
 
-    static void clearData(Long mb) {
+     void clearData(Long mb) {
         TransactionalMemoryBlock memoryBlock = heap.memoryBlockFromHandle(mb);
         memoryBlock.free();
     }
@@ -272,7 +272,7 @@ public class PmemRowMap {
     }
 
     public void deleteRowMapTree() {
-        rowMapTree.clear(PmemRowMap::clearData);
+        rowMapTree.clear(this::clearData);
         rowMapTree.free();
     }
 }

@@ -102,6 +102,10 @@ public class PmemIndexBuilder extends SecondaryIndexBuilder
 
     public static void buildBlocking(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata, Set<Index> indexers, PersistentMemoryMemtable memtable)
     {
+        if (indexMetadata.isCustom()) {
+            logger.warn("Custom Index is not supported for PersistentMemoryMemtables");
+            throw new UnsupportedOperationException();
+        }
         if (memtable.isClean())
         {
             logger.info("No  data for {}.{} to build index {} from, marking empty index as built",
