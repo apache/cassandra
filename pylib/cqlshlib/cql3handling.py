@@ -1299,7 +1299,7 @@ syntax_rules += r'''
 <colList> ::= "(" <cident> ( "," <cident> )* ")"
           ;
 
-<createMaterializedViewStatement> ::= "CREATE" "MATERIALIZED" "VIEW" ("IF" "NOT" "EXISTS")? mvname=<materializedViewName>?
+<createMaterializedViewStatement> ::= "CREATE" "MATERIALIZED" "VIEW" ("IF" "NOT" "EXISTS")? viewname=<materializedViewName>?
                                       "AS" "SELECT" <selectClause>
                                       "FROM" cf=<columnFamilyName>
                                       "WHERE" <cident> "IS" "NOT" "NULL" ( "AND" <cident> "IS" "NOT" "NULL")*
@@ -1338,6 +1338,7 @@ syntax_rules += r'''
 '''
 
 explain_completion('createIndexStatement', 'indexname', '<new_index_name>')
+explain_completion('createMaterializedViewStatement', 'viewname', '<new_view_name>')
 explain_completion('createUserTypeStatement', 'typename', '<new_type_name>')
 explain_completion('createUserTypeStatement', 'newcol', '<new_field_name>')
 
