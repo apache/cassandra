@@ -37,7 +37,7 @@
       <pattern>%-5level [%thread] ${instance_id} %replace(CS:%X{command_store} ){'CS\:\s+', ''}%replace(OP:%X{async_op} ){'OP\:\s+', ''}%date{ISO8601} %F:%L - %msg%n</pattern>
     </encoder>
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>INFO</level>
+      <level>WARN</level>
     </filter>
   </appender>
 
