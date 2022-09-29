@@ -53,34 +53,40 @@ for dir in "$DIR"/build/classes/*; do
 done
 
 for jar in "$DIR"/lib/*.jar; do
+  if [[ $jar != *"logback-classic"* ]]; then
     CLASSPATH="$CLASSPATH:$jar"
+  fi
 done
 for jar in "$DIR"/build/*.jar; do
+  if [[ $jar != *"logback-classic"* ]]; then
     CLASSPATH="$CLASSPATH:$jar"
+  fi
 done
 for jar in "$DIR"/build/lib/jars/*.jar; do
+  if [[ $jar != *"logback-classic"* ]]; then
     CLASSPATH="$CLASSPATH:$jar"
+  fi
 done
 for jar in "$DIR"/build/test/lib/jars/*.jar; do
+  if [[ $jar != *"logback-classic"* ]]; then
     CLASSPATH="$CLASSPATH:$jar"
+  fi
 done
-
-#echo $CLASSPATH
-# investigate: --seed 0x469585ddafce164e
-# investigate: 0x5601cd6944833327
 
 CLASS="org.apache.cassandra.simulator.paxos.AccordSimulationRunner"
 OPTS="run -n 3..6 -t 1000 --cluster-action-limit -1 -c 2 -s 30"
 
 echo "java -cp <...> $CLASS $OPTS $@"
 
+echo ""
 java -cp $CLASSPATH $JVM_OPTS $CLASS $OPTS $@
-#while true
-#do
-#  java -cp $CLASSPATH $JVM_OPTS $CLASS $OPTS $@
-#  status=$?
-#  if [ $status -ne 0 ] ; then
-#    exit $status
-#  fi
-#
-#done
+while true
+do
+  echo ""
+  java -cp $CLASSPATH $JVM_OPTS $CLASS $OPTS $@
+  status=$?
+  if [ $status -ne 0 ] ; then
+    exit $status
+  fi
+
+done
