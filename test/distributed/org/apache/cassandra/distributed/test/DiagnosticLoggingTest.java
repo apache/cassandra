@@ -67,11 +67,8 @@ public class DiagnosticLoggingTest extends TestBaseImpl
     @Test
     public void testDiagnosticLoggingEnableAndDisable()
     {
-        boolean diagnosticEnabled = node.callOnInstance((SerializableCallable<Boolean>) () -> DiagnosticEventService.instance().isDiagnosticsEnabled());
-        boolean diagnosticLogEnabled = node.callOnInstance((SerializableCallable<Boolean>) () -> DiagnosticEventService.instance().isDiagnosticLogEnabled());
-
-        assertTrue(diagnosticEnabled);
-        assertFalse(diagnosticLogEnabled);
+        assertTrue(node.callOnInstance((SerializableCallable<Boolean>) () -> DiagnosticEventService.instance().isDiagnosticsEnabled()));
+        assertFalse(node.callOnInstance((SerializableCallable<Boolean>) () -> DiagnosticEventService.instance().isDiagnosticLogEnabled()));
 
         node.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> DiagnosticEventService.instance().disableDiagnosticLog());
         assertFalse(node.callOnInstance((SerializableCallable<Boolean>) () -> DiagnosticEventService.instance().isDiagnosticLogEnabled()));

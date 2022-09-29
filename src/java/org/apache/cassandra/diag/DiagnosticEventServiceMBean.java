@@ -24,6 +24,8 @@ import java.util.SortedMap;
 
 import javax.management.openmbean.CompositeData;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 /**
  * Provides JMX enabled attributes and operations implemented by {@link DiagnosticEventService}.
  */
@@ -66,8 +68,15 @@ public interface DiagnosticEventServiceMBean
      */
     void disableEventPersistence(String eventClazz);
 
+    /**
+     * Enables logging of diagnostic events.
+     * Configuration properties are taken from {@link DatabaseDescriptor#getDiagnosticLoggingOptions()}
+     */
     void enableDiagnosticLog();
 
+    /**
+     * Enables logging of diagnostic events with given properties.
+     */
     void enableDiagnosticLog(String loggerName,
                              Map<String, String> parameters,
                              Integer maxArchiveRetries,
@@ -77,6 +86,9 @@ public interface DiagnosticEventServiceMBean
                              Integer maxQueueWeight,
                              String archiveCommand);
 
+    /**
+     * Disables logging of diagnostic events.
+     */
     void disableDiagnosticLog();
 
     boolean isDiagnosticLogEnabled();

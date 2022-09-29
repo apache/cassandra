@@ -120,7 +120,7 @@ public final class DiagnosticEventPersistence
         IDiagnosticLogger oldLogger = diagnosticLogger;
 
         diagnosticLogger = getDiagnosticLogger(options);
-        this.diagnosticLogOptions = options;
+        diagnosticLogOptions = options;
 
         // subscribe to all events there are some subscriptions for to log all events
         // which are somewhere subscribed

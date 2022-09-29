@@ -58,7 +58,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
     private static final DiagnosticEventService instance = new DiagnosticEventService();
 
-    private boolean initialized = false;
+    private volatile boolean initialized = false;
 
     private DiagnosticEventService()
     {
@@ -389,7 +389,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
         BinLogOptions binLogOptions = new BinLogOptions.Builder()
                                                        .withMaxArchiveRetries(maxArchiveRetries)
-                                                       .withBlock(block)
+                                                       .withBlock(block != null ? block : true)
                                                        .withRollCycle(rollCycle)
                                                        .withMaxLogSize(maxLogSize)
                                                        .withMaxQueueWeight(maxQueueWeight)

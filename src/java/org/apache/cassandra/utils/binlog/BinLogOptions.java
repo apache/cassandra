@@ -18,13 +18,16 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import com.google.common.base.Strings;
 import org.apache.commons.lang3.StringUtils;
+
+import static java.util.Arrays.stream;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.stream.Collectors.joining;
 
 public class BinLogOptions
 {
@@ -36,8 +39,8 @@ public class BinLogOptions
      */
     public String roll_cycle = "HOURLY";
     /**
-     * Indicates if the BinLog should block if the it falls behind or should drop bin log records.
-     * Default is set to true so that BinLog records wont be lost
+     * Indicates if the BinLog should block if it falls behind or should drop bin log records.
+     * Default is set to true so that BinLog records will not be lost.
      */
     public boolean block = true;
 
@@ -90,45 +93,34 @@ public class BinLogOptions
         public Builder withArchiveCommand(final String archiveCommand)
         {
             if (archiveCommand != null)
-            {
                 this.archiveCommand = archiveCommand;
-            }
             return this;
         }
 
-        public Builder withBlock(final Boolean block)
+        public Builder withBlock(final boolean block)
         {
-            if (block != null)
-            {
-                this.block = block;
-            }
+            this.block = block;
             return this;
         }
 
         public Builder withMaxLogSize(final long maxLogSize)
         {
             if (maxLogSize != Long.MIN_VALUE)
-            {
                 this.maxLogSize = maxLogSize;
-            }
             return this;
         }
 
         public Builder withMaxArchiveRetries(final int maxArchiveRetries)
         {
             if (maxArchiveRetries != Integer.MIN_VALUE)
-            {
                 this.maxArchiveRetries = maxArchiveRetries;
-            }
             return this;
         }
 
         public Builder withMaxQueueWeight(final int maxQueueWeight)
         {
             if (maxQueueWeight != Integer.MIN_VALUE)
-            {
                 this.maxQueueWeight = maxQueueWeight;
-            }
             return this;
         }
 
@@ -147,13 +139,13 @@ public class BinLogOptions
         public static Optional<String> sanitise(final String input)
         {
             if (input == null || input.trim().isEmpty())
-                return Optional.empty();
+                return empty();
 
-            return Optional.of(Arrays.stream(input.split(","))
-                                     .map(String::trim)
-                                     .map(Strings::emptyToNull)
-                                     .filter(Objects::nonNull)
-                                     .collect(Collectors.joining(",")));
+            return of(stream(input.split(","))
+                      .map(String::trim)
+                      .map(Strings::emptyToNull)
+                      .filter(Objects::nonNull)
+                      .collect(joining(",")));
         }
     }
 }
