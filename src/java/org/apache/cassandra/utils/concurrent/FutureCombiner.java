@@ -56,6 +56,7 @@ public class FutureCombiner<T> extends AsyncFuture<T>
      */
     private static class Listener<T> extends AtomicInteger implements GenericFutureListener<io.netty.util.concurrent.Future<Object>>
     {
+        private static final long serialVersionUID = 0;  // for simulator support
         Supplier<T> onSuccess; // non-final so we can release resources immediately when failing fast
         final FutureCombiner<T> complete;
 
