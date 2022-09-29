@@ -574,24 +574,25 @@ public class PersistentMemoryMemtable extends AbstractMemtable
         }
      }
 
+    /**
+     * Removing the pmem specific files after drop
+     * @param destination
+     * @param removeHeapTableDirectory
+     */
     public static void removePmemFilesFormDestination(String destination, boolean removeHeapTableDirectory) {
         try
         {
 
-            //heap.close();
-            Stream<Path> walk = Files.walk(Paths.get(destination));
+           try (Stream<Path> walk = Files.walk(Paths.get(destination))) {
             walk
             .filter(p -> !Files.isDirectory(p) && Files.isRegularFile(p))
             .forEach(f -> {
-                try
-                {
+                try {
                     Files.deleteIfExists(f);
-                }
-                catch (IOException e)
-                {
+                } catch (IOException e) {
                     throw new IOError(e);
-                }
-            });
+                } });
+            }
             if (removeHeapTableDirectory)
             {
 

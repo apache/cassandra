@@ -39,6 +39,13 @@ public class MemtableImporter
 {
     private java.util.stream.Collectors Collectors;
 
+    /**
+     * Imports the snapshotted pmem files for a restore
+     * @param srcPath
+     * @param metadata
+     * @param cfs
+     * @return
+     */
     public synchronized List<String> importMemtables(Set<String> srcPath, TableMetadataRef metadata, ColumnFamilyStore cfs)
     {
         String dest = System.getProperty("pmem_path") + "/" + (metadata.get().id.toString()).replaceAll("\\-", "");
