@@ -389,6 +389,10 @@ completer_for('property', 'propeq')(prop_equals_completer)
 def prop_name_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
         return ks_prop_name_completer(ctxt, cass)
+    elif 'MATERIALIZED' == ctxt.get_binding('wat', '').upper():
+        props = cf_prop_name_completer(ctxt, cass)
+        props.remove('default_time_to_live')
+        return props
     else:
         return cf_prop_name_completer(ctxt, cass)
 
