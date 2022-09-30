@@ -179,7 +179,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                ", executeAt=" + executeAt +
                ", promised=" + promised +
                ", accepted=" + accepted +
-               ", deps=" + deps +
+//               ", deps=" + deps +
 //               ", homeKey=" + homeKey +
 //               ", progressKey=" + progressKey +
 //               ", txn=" + txn +

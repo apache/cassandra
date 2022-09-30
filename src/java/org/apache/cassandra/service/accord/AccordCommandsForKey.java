@@ -449,10 +449,10 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
                ", lastExecutedTimestamp=" + lastExecutedTimestamp +
                ", lastExecutedMicros=" + lastExecutedMicros +
                ", lastWriteTimestamp=" + lastWriteTimestamp +
-               ", blindWitnessed=" + blindWitnessed +
-               ", uncommitted=" + uncommitted.map +
-               ", committedById=" + committedById.map +
-               ", committedByExecuteAt=" + committedByExecuteAt.map +
+//               ", blindWitnessed=" + blindWitnessed +
+//               ", uncommitted=" + uncommitted.map +
+//               ", committedById=" + committedById.map +
+//               ", committedByExecuteAt=" + committedByExecuteAt.map +
                '}';
     }
 }
