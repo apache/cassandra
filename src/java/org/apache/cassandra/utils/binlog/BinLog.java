@@ -20,7 +20,6 @@ package org.apache.cassandra.utils.binlog;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -36,19 +35,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.queue.ChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import net.openhft.chronicle.wire.WriteMarshallable;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
+
+import static java.lang.String.format;
 
 /**
  * Bin log is a is quick and dirty binary log that is kind of a NIH version of binary logging with a traditional logging
@@ -426,6 +427,10 @@ public class BinLog implements Runnable
             }
             try
             {
+                Throwable sanitationThrowable = sanitizeLogDirectory(path.toFile(), null);
+                if (sanitationThrowable != null)
+                    throw new RuntimeException(format("Unable to clean up %s directory from empty cq4 files.", path.toAbsolutePath()), sanitationThrowable);
+
                 // create the archiver before cleaning directories - ExternalArchiver will try to archive any existing file.
                 BinLogArchiver archiver = Strings.isNullOrEmpty(archiveCommand) ? new DeletingArchiver(maxLogSize) : new ExternalArchiver(archiveCommand, path, maxArchiveRetries);
                 if (cleanDirectory)
@@ -462,24 +467,45 @@ public class BinLog implements Runnable
         }
     }
 
+    /**
+     * ChronicleQueue fails to start on cq4 files which is empty. Find such files in log dir and remove them.
+     */
+    private static Throwable sanitizeLogDirectory(File directory, Throwable accumulate)
+    {
+        if (!directory.exists())
+            return Throwables.merge(accumulate, new RuntimeException(format("%s does not exists", directory)));
+
+        if (!directory.isDirectory())
+            return Throwables.merge(accumulate, new RuntimeException(format("%s is not directory", directory)));
+
+        File[] files = directory.listFiles(file -> !file.isDirectory() && file.length() == 0 && file.getName().endsWith(SingleChronicleQueue.SUFFIX));
+
+        if (files != null)
+            for (File file : files)
+                accumulate = FileUtils.deleteWithConfirm(file, accumulate);
+
+        if (accumulate instanceof FSError)
+            JVMStabilityInspector.inspectThrowable(accumulate);
+
+        return accumulate;
+    }
+
     public static Throwable cleanDirectory(File directory, Throwable accumulate)
     {
         if (!directory.exists())
-        {
-            return Throwables.merge(accumulate, new RuntimeException(String.format("%s does not exists", directory)));
-        }
+            return Throwables.merge(accumulate, new RuntimeException(format("%s does not exists", directory)));
+
         if (!directory.isDirectory())
-        {
-            return Throwables.merge(accumulate, new RuntimeException(String.format("%s is not a directory", directory)));
-        }
-        for (File f : directory.listFiles())
-        {
-            accumulate = deleteRecursively(f, accumulate);
-        }
+            return Throwables.merge(accumulate, new RuntimeException(format("%s is not a directory", directory)));
+
+        File[] files = directory.listFiles();
+        if (files != null)
+            for (File f : files)
+                accumulate = deleteRecursively(f, accumulate);
+
         if (accumulate instanceof FSError)
-        {
             JVMStabilityInspector.inspectThrowable(accumulate);
-        }
+
         return accumulate;
     }
 
@@ -487,10 +513,10 @@ public class BinLog implements Runnable
     {
         if (fileOrDirectory.isDirectory())
         {
-            for (File f : fileOrDirectory.listFiles())
-            {
-                accumulate = FileUtils.deleteWithConfirm(f, accumulate);
-            }
+            File[] files = fileOrDirectory.listFiles();
+            if (files != null)
+                for (File file : files)
+                    accumulate = FileUtils.deleteWithConfirm(file, accumulate);
         }
         return FileUtils.deleteWithConfirm(fileOrDirectory, accumulate);
     }
