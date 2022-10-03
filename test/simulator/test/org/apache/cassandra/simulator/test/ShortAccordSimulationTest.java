@@ -29,14 +29,6 @@ public class ShortAccordSimulationTest
     @Test
     public void simulationTest() throws IOException
     {
-        AccordSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "-s", "30"});
+        AccordSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "--cluster-action-limit", "-1", "-c", "2", "-s", "30"});
     }
-
-// fails due to OOM DirectMemory - unclear why
-//
-//    @Test
-//    public void selfReconcileTest() throws IOException
-//    {
-//        PaxosSimulationRunner.main(new String[] { "reconcile", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30", "--with-self" });
-//    }
 }
