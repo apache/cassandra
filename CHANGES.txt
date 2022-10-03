@@ -1,4 +1,5 @@
 4.2
+ * Revert Mockito downgrade from CASSANDRA-17750 (CASSANDRA-17496)
  * Add --older-than and --older-than-timestamp options for nodetool clearsnapshots (CASSANDRA-16860)
  * Fix "open RT bound as its last item" exception (CASSANDRA-17810)
  * Fix leak of non-standard Java types in JMX MBeans `org.apache.cassandra.db:type=StorageService`
