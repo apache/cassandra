@@ -9,6 +9,7 @@ Merged from 3.11:
  * Suppress CVE-2022-25857 and other snakeyaml CVEs (CASSANDRA-17907)
  * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)
 Merged from 3.0:
+ * Fix auto-completing "WITH" when creating a materialized view (CASSANDRA-17879)
  * Fix scrubber falling into infinite loop when the last partition is broken (CASSANDRA-17862)
  * Fix resetting schema (CASSANDRA-17819)
 
