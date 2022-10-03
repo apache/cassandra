@@ -18,9 +18,12 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Date;
@@ -33,6 +36,10 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.distributed.Cluster;
@@ -40,14 +47,20 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 
 public class TestBaseImpl extends DistributedTestBase
 {
     public static final Object[][] EMPTY_ROWS = new Object[0][];
     public static final boolean[] BOOLEANS = new boolean[]{ false, true };
+    private static final Logger logger = LoggerFactory.getLogger(TestBaseImpl.class);
 
     @After
     public void afterEach() {
@@ -197,5 +210,32 @@ public class TestBaseImpl extends DistributedTestBase
 
         // in real live repair is needed in this case, but in the test case it doesn't matter if the tables loose
         // anything, so ignoring repair to speed up the tests.
+    }
+
+    private static void logSystemInfo()
+    {
+        if (logger.isInfoEnabled())
+        {
+            try
+            {
+                logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName() + ":" + DatabaseDescriptor.getStoragePort() + ":" + DatabaseDescriptor.getSSLStoragePort());
+            }
+            catch (UnknownHostException e1)
+            {
+                logger.info("Could not resolve local host");
+            }
+
+            logger.info("JVM vendor/version: {}/{}", JAVA_VM_NAME.getString(), JAVA_VERSION.getString());
+            logger.info("Heap size: {}/{}",
+                        FBUtilities.prettyPrintMemory(Runtime.getRuntime().totalMemory()),
+                        FBUtilities.prettyPrintMemory(Runtime.getRuntime().maxMemory()));
+
+            for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
+                logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
+
+            logger.info("Classpath: {}", JAVA_CLASS_PATH.getString());
+
+            logger.info("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
+        }
     }
 }
