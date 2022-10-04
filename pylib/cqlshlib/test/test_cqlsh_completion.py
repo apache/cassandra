@@ -824,24 +824,28 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'aggmax'],
                             other_choices_ok=True)
 
-    # TODO: CASSANDRA-16640
-    # def test_complete_in_drop_columnfamily(self):
-    #     pass
-    #
-    # def test_complete_in_truncate(self):
-    #     pass
-    #
-    # def test_complete_in_alter_columnfamily(self):
-    #     pass
-    #
-    # def test_complete_in_use(self):
-    #     pass
-    #
-    # def test_complete_in_create_index(self):
-    #     pass
-    #
-    # def test_complete_in_drop_index(self):
-    #     pass
+    def test_complete_in_drop_table(self):
+        self.trycompletions('DROP T', choices=['TABLE', 'TRIGGER', 'TYPE'])
+        self.trycompletions('DROP TA', immediate='BLE ')
+
+    def test_complete_in_truncate(self):
+        self.trycompletions('TR', choices=['TRACING', 'TRUNCATE'])
+        self.trycompletions('TRU', immediate='NCATE ')
+        self.trycompletions('TRUNCATE T', choices=['TABLE', 'twenty_rows_composite_table', 'twenty_rows_table'])
+
+    def test_complete_in_use(self):
+        self.trycompletions('US', immediate='E ')
+        self.trycompletions('USE ', choices=[self.cqlsh.keyspace, 'system', 'system_auth',
+                                           'system_distributed', 'system_schema', 'system_traces', 'system_views', 
+                                           'system_virtual_schema' ])
+
+    def test_complete_in_create_index(self):
+        self.trycompletions('CREATE I', immediate='NDEX ')
+        self.trycompletions('CREATE INDEX ', choices=['<new_index_name>', 'IF', 'ON'])
+        self.trycompletions('CREATE INDEX example ', immediate='ON ')
+
+    def test_complete_in_drop_index(self):
+        self.trycompletions('DROP I', immediate='NDEX ')
 
     def test_complete_in_alter_keyspace(self):
         self.trycompletions('ALTER KEY', 'SPACE ')
