@@ -18,6 +18,8 @@
 #
 -->
 
+foo
+
 # Apache Cassandra and Pull Requests
 
 Apache Cassandra doesn't use GitHub pull requests as part of the development process.
