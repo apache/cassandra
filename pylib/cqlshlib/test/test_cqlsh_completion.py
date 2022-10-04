@@ -704,6 +704,17 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE CO', immediate='LUMNFAMILY ')
         self.create_columnfamily_table_template('COLUMNFAMILY')
 
+    def test_complete_in_create_materializedview(self):
+        self.trycompletions('CREATE MAT', immediate='ERIALIZED VIEW ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS ', choices=['AS', 'SELECT'])
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * ', immediate='FROM ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers ', immediate = 'WHERE ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id ', immediate='IS NOT NULL ' )
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PR', immediate='IMARY KEY ( ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY (host_id) ', choices=[';','WITH'])
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY (a, b) ', choices=[';','WITH'])
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY ((a,b), c) ', choices=[';','WITH'])
+
     def test_complete_in_create_table(self):
         self.trycompletions('CREATE T', choices=['TRIGGER', 'TABLE', 'TYPE'])
         self.trycompletions('CREATE TA', immediate='BLE ')
