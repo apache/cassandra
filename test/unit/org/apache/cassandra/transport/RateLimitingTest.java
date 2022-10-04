@@ -28,18 +28,19 @@ import java.util.stream.Collectors;
 
 import com.codahale.metrics.Meter;
 import com.google.common.base.Ticker;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.service.StorageService;
+import org.awaitility.Awaitility;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.utils.Throwables;
 
@@ -169,7 +170,7 @@ public class RateLimitingTest extends CQLTester
         finally
         {
             // Sanity check bytes in flight limiter.
-            assertEquals(0, ClientResourceLimits.getCurrentGlobalUsage());
+            Awaitility.await().untilAsserted(() -> assertEquals(0, ClientResourceLimits.getCurrentGlobalUsage()));
             StorageService.instance.setNativeTransportRateLimitingEnabled(false);
         }
     }
@@ -195,7 +196,7 @@ public class RateLimitingTest extends CQLTester
         finally
         {
             // Sanity the check bytes in flight limiter.
-            assertEquals(0, ClientResourceLimits.getCurrentGlobalUsage());
+            Awaitility.await().untilAsserted(() -> assertEquals(0, ClientResourceLimits.getCurrentGlobalUsage()));
             StorageService.instance.setNativeTransportRateLimitingEnabled(false);
         }
     }
