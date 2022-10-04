@@ -836,7 +836,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_use(self):
         self.trycompletions('US', immediate='E ')
         self.trycompletions('USE ', choices=[self.cqlsh.keyspace, 'system', 'system_auth',
-                                           'system_distributed', 'system_schema', 'system_traces', 'system_views', 
+                                           'system_distributed', 'system_schema', 'system_traces', 'system_views',
                                            'system_virtual_schema' ])
 
     def test_complete_in_create_index(self):
