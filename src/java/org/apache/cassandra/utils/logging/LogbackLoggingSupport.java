@@ -20,8 +20,11 @@ package org.apache.cassandra.utils.logging;
 
 import java.lang.management.ManagementFactory;
 import java.security.AccessControlException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.management.JMX;
 import javax.management.ObjectName;
@@ -57,6 +60,8 @@ public class LogbackLoggingSupport implements LoggingSupport
     @Override
     public void onStartup()
     {
+        checkOnlyOneVirtualTableAppender();
+
         // The default logback configuration in conf/logback.xml allows reloading the
         // configuration when the configuration file has changed (every 60 seconds by default).
         // This requires logback to use file I/O APIs. But file I/O is not allowed from UDFs.
@@ -130,6 +135,46 @@ public class LogbackLoggingSupport implements LoggingSupport
                 logLevelMaps.put(logBackLogger.getName(), logBackLogger.getLevel().toString());
         }
         return logLevelMaps;
+    }
+
+    @Override
+    public Optional<Appender<?>> getAppender(Class<?> appenderClass, String name)
+    {
+        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+        for (Logger logBackLogger : lc.getLoggerList())
+        {
+            for (Iterator<Appender<ILoggingEvent>> iterator = logBackLogger.iteratorForAppenders(); iterator.hasNext();)
+            {
+                Appender<ILoggingEvent> appender = iterator.next();
+                if (appender.getClass() == appenderClass && appender.getName().equals(name))
+                    return Optional.of(appender);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private void checkOnlyOneVirtualTableAppender()
+    {
+        int count = 0;
+        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+        List<String> virtualAppenderNames = new ArrayList<>();
+        for (Logger logBackLogger : lc.getLoggerList())
+        {
+            for (Iterator<Appender<ILoggingEvent>> iterator = logBackLogger.iteratorForAppenders(); iterator.hasNext();)
+            {
+                Appender<?> appender = iterator.next();
+                if (appender instanceof VirtualTableAppender)
+                {
+                    virtualAppenderNames.add(appender.getName());
+                    count += 1;
+                }
+            }
+        }
+
+        if (count > 1)
+            throw new IllegalStateException(String.format("There are multiple appenders of class %s of names %s. There is only one appender of such class allowed.",
+                                                          VirtualTableAppender.class.getName(), String.join(",", virtualAppenderNames)));
     }
 
     private boolean hasAppenders(Logger logBackLogger)
