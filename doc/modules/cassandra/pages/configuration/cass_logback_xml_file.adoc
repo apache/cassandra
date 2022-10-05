@@ -81,6 +81,27 @@ Specify the format of the message. Part of the rolling policy.
 <pattern>%-5level [%thread] %date\{ISO8601} %F:%L - %msg%n</pattern>
 </encoder>
 
+=== Logging to Cassandra virtual table
+
+It is possible to configure logback.xml in such a way that logs would appear in `system_views.system_log` table.
+This is achieved by appender implemented in class `VirtualTableAppender` which is called `CQLLOG` in the
+default configration. When the appender is commented out, no system logs are written to the virtual table.
+
+CQLLOG appender is special as the underlying structure it saves log messages into can not grow without any bound
+as a node would run out of memory. For this reason, `system_log` table is limited on its size.
+By default, it can hold at most 50 000 log messages, it can never hold more than 100 000 log messages.
+
+To specify how many rows you want that virtual table to hold at most, there is
+a system property called `cassandra.virtual.logs.max.rows` which takes an integer as value.
+
+You can execute CQL `truncate` query for `system_views.system_log` if you want to wipe out all the logs in virtual table
+to e.g. save some memory.
+
+It is recommended to set filter to at least `WARN` level so this table holds only important logging messages as
+each message will occupy memory.
+
+The appender to virtual table is commented out by default so logging to virtual table is not active.
+
 === Contents of default `logback.xml`
 
 [source,XML]
@@ -151,6 +172,14 @@ Specify the format of the message. Part of the rolling policy.
   <appender name="LogbackMetrics" class="com.codahale.metrics.logback.InstrumentedAppender" />
    -->
 
+  <!-- Uncomment below configuration and corresponding appender-ref to activate
+  logging into system_views.system_logs virtual table. -->
+  <!-- <appender name="CQLLOG" class="org.apache.cassandra.utils.logging.VirtualTableAppender">
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>WARN</level>
+    </filter>
+  </appender> -->
+
   <root level="INFO">
     <appender-ref ref="SYSTEMLOG" />
     <appender-ref ref="STDOUT" />
@@ -158,9 +187,11 @@ Specify the format of the message. Part of the rolling policy.
     <!--
     <appender-ref ref="LogbackMetrics" />
     -->
+    <!--
+    <appender-ref ref="CQLLOG"/>
+    -->
   </root>
 
   <logger name="org.apache.cassandra" level="DEBUG"/>
-  <logger name="com.thinkaurelius.thrift" level="ERROR"/>
 </configuration>
 ----

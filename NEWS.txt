@@ -92,6 +92,8 @@ New features
       clear snapshots which are older than some period for example, "--older-than 5h" to remove 
       snapshots older than 5 hours and it is possible to clear all snapshots older than some timestamp, for example
       --older-than-timestamp 2022-12-03T10:15:30Z.
+    - Cassandra logs can be viewed in the virtual table system_views.system_logs.
+      Please uncomment the respective appender in logback.xml file to make logs flow into this table. This feature is turned off by default.
 
 Upgrading
 ---------
