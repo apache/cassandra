@@ -19,6 +19,9 @@
 package org.apache.cassandra.utils.logging;
 
 import java.util.Map;
+import java.util.Optional;
+
+import ch.qos.logback.core.Appender;
 
 /**
  * Common abstraction of functionality which can be implemented for different logging backend implementations (slf4j bindings).
@@ -49,4 +52,9 @@ public interface LoggingSupport
      * @return a map of logger names and their associated log level as string representations.
      */
     Map<String, String> getLoggingLevels();
+
+    default Optional<Appender<?>> getAppender(Class<?> appenderClass, String appenderName)
+    {
+        return Optional.empty();
+    }
 }
