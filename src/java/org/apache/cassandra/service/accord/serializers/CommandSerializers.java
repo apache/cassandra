@@ -41,6 +41,9 @@ import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.service.accord.db.AccordUpdate;
 import org.apache.cassandra.service.accord.db.AccordWrite;
 
+import static accord.primitives.Deps.SerializerSupport.keyToTxnId;
+import static accord.primitives.Deps.SerializerSupport.keyToTxnIdCount;
+
 public class CommandSerializers
 {
     private CommandSerializers() {}
@@ -194,10 +197,10 @@ public class CommandSerializers
             for (int i=0; i<txnIdCount; i++)
                 CommandSerializers.txnId.serialize(deps.txnId(i), out, version);
 
-            int keyToTxnIdCount = deps.keyToTxnIdCount();
+            int keyToTxnIdCount = keyToTxnIdCount(deps);
             out.writeInt(keyToTxnIdCount);
             for (int i=0; i<keyToTxnIdCount; i++)
-                out.writeInt(deps.keyToTxnId(i));
+                out.writeInt(keyToTxnId(deps, i));
 
         }
 
@@ -225,10 +228,10 @@ public class CommandSerializers
             for (int i=0; i<txnIdCount; i++)
                 size += CommandSerializers.txnId.serializedSize(deps.txnId(i), version);
 
-            int keyToTxnIdCount = deps.keyToTxnIdCount();
+            int keyToTxnIdCount = keyToTxnIdCount(deps);
             size += TypeSizes.sizeof(keyToTxnIdCount);
             for (int i=0; i<keyToTxnIdCount; i++)
-                size += TypeSizes.sizeof(deps.keyToTxnId(i));
+                size += TypeSizes.sizeof(keyToTxnId(deps, i));
             return size;
         }
     };

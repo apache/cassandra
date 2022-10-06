@@ -75,13 +75,13 @@ public class AccordTestUtils
 
     public static final ProgressLog NOOP_PROGRESS_LOG = new ProgressLog()
     {
-        @Override public void preaccept(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void accept(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void commit(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void readyToExecute(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void execute(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void invalidate(TxnId txnId, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void executedOnAllShards(TxnId txnId, Set<Id> persistedOn) {}
+        @Override public void preaccept(Command command, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void accept(Command command, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void commit(Command command, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void readyToExecute(Command command, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void execute(Command command, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void invalidate(Command command, boolean isProgressShard, boolean isHomeShard) {}
+        @Override public void executedOnAllShards(Command command, Set<Id> persistedOn) {}
         @Override public void waiting(PartialCommand blockedBy, @Nullable Keys someKeys) {}
     };
 
@@ -120,20 +120,6 @@ public class AccordTestUtils
     public static Ballot ballot(long epoch, long real, int logical, long node)
     {
         return new Ballot(epoch, real, logical, new Node.Id(node));
-    }
-
-    /**
-     * Return a KeyRanges containing the full range for each unique tableId contained in keys
-     */
-    public static KeyRanges fullRangesFromKeys(Keys keys)
-    {
-        TokenRange[] ranges = keys.stream()
-                                  .map(AccordKey::of)
-                                  .map(AccordKey::tableId)
-                                  .distinct()
-                                  .map(TokenRange::fullRange)
-                                  .toArray(TokenRange[]::new);
-        return new KeyRanges(ranges);
     }
 
     /**

@@ -113,8 +113,7 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
 
         AccordCommandsForKey cfk = (AccordCommandsForKey) commandStore.commandsForKey(key);
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
-        AsyncPromise<Data> future = new AsyncPromise<>();
-        Stage.READ.execute(() -> {
+        Future<Data> future = Stage.READ.submit(() -> {
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
             try (ReadExecutionController controller = read.executionController();
                  UnfilteredPartitionIterator partition = read.executeLocally(controller))
@@ -122,7 +121,7 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec());
                 FilteredPartition filtered = FilteredPartition.create(PartitionIterators.getOnlyElement(iterator, read));
                 AccordData result = new AccordData(filtered);
-                future.trySuccess(result);
+                return result;
             }
         });
 

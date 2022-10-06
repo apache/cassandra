@@ -83,7 +83,7 @@ public class KeySerializers
             KeyRange[] ranges = new KeyRange[in.readInt()];
             for (int i=0; i<ranges.length; i++)
                 ranges[i] = TokenRange.serializer.deserialize(in, version);
-            return new KeyRanges(ranges);
+            return KeyRanges.ofSortedAndDeoverlapped(ranges);
         }
 
         @Override
