@@ -379,6 +379,18 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
         requires:
           - start_repeated_jvm_upgrade_dtest
           - j8_dtest_jars_build
+    # Java 8 offheap dtest
+    - j8_dtest-offheap:
+        requires:
+          - start_j8_dtests
+          - j8_build
+    # Java 11 offheap dtest
+    - start_j11_dtest-offheap:
+        type: approval
+    - j11_dtest-offheap:
+        requires:
+          - start_j11_dtest-offheap
+          - j8_build
 
 j8_pre-commit_jobs: &j8_pre-commit_jobs
   jobs:
@@ -1183,6 +1195,36 @@ jobs:
           stop_on_failure: ${REPEATED_UPGRADE_DTEST_STOP_ON_FAILURE}
           count: ${REPEATED_UPGRADE_DTEST_COUNT}
 
+  j8_dtest-offheap:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_with_vnodes
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql'"
+      - run_dtests:
+          file_tag: j8_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >> --use-off-heap-memtables --skip-resource-intensive-tests'
+
+  j11_dtest-offheap:
+    <<: *j11_par_executor
+    steps:
+    - attach_workspace:
+        at: /home/cassandra
+    - log_environment
+    - clone_dtest
+    - create_venv
+    - create_dtest_containers:
+        file_tag: j11_with_vnodes
+        run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql'"
+    - run_dtests:
+        file_tag: j11_with_vnodes
+        pytest_extra_args: '--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >> --use-off-heap-memtables --skip-resource-intensive-tests'
+
 commands:
   log_environment:
     steps:
@@ -1341,7 +1383,7 @@ commands:
         default: 30m
     steps:
     - run:
-        name: Run Simulator Tests 
+        name: Run Simulator Tests
         command: |
           set -x
           export PATH=$JAVA_HOME/bin:$PATH
@@ -1584,7 +1626,7 @@ commands:
             elif [ "<<parameters.count>>" -le 0 ]; then
               echo "Repeated utest count is lesser or equals than zero, exiting without running any test"
             else
-            
+
               # Calculate the number of test iterations to be run by the current parallel runner.
               # Since we are running the same test multiple times there is no need to use `circleci tests split`.
               count=$((<<parameters.count>> / CIRCLE_NODE_TOTAL))
@@ -1725,7 +1767,7 @@ commands:
                 echo "No tests to run in this runner"
               else
                 echo "Running <<parameters.tests>> $count times"
-            
+
                 source ~/env3.6/bin/activate
                 export PATH=$JAVA_HOME/bin:$PATH
 
