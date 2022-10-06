@@ -2158,10 +2158,31 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 throw new RuntimeException(e);
             }
         }
-        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
-            return endpoint.getAddress().getHostAddress() + ":" + DatabaseDescriptor.getNativeTransportPort();
         else
-            return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value + ":" + DatabaseDescriptor.getNativeTransportPort();
+        {
+             final String ipAddress;
+             // If RPC_ADDRESS present in gossip for this endpoint use it.  This is expected for 3.x nodes.
+             if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) != null)
+             {
+                 ipAddress = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value;
+             }
+             else
+             {
+                 // otherwise just use the IP of the endpoint itself.
+                 ipAddress = endpoint.getHostAddress(false);
+             }
+
+             // include the configured native_transport_port.
+             try
+             {
+                 InetAddressAndPort address = InetAddressAndPort.getByNameOverrideDefaults(ipAddress, DatabaseDescriptor.getNativeTransportPort());
+                 return address.getHostAddress(withPort);
+             }
+             catch (UnknownHostException e)
+             {
+                 throw new RuntimeException(e);
+             }
+         }
     }
 
     public Map<List<String>, List<String>> getRangeToRpcaddressMap(String keyspace)
