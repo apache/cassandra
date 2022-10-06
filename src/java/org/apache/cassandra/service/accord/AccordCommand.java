@@ -594,7 +594,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     protected void postApply()
     {
-        cache().clearWriteFuture(txnId);
+        cache().cleanupWriteFuture(txnId);
         super.postApply();
     }
 
@@ -661,12 +661,12 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public Read.ReadFuture read(Keys keyscope)
+    public Txn.ReadFuture read(Keys scope)
     {
-        Read.ReadFuture future = cache().getReadFuture(txnId);
+        Txn.ReadFuture future = cache().getReadFuture(txnId);
         if (future != null)
-            return future.keyScope.equals(keyscope) ? future : super.read(keyscope);
-        future = super.read(keyscope);
+            return future.scope.equals(scope) ? future : super.read(scope);
+        future = super.read(scope);
         cache().setReadFuture(txnId, future);
         return future;
     }

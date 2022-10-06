@@ -34,7 +34,7 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.Read;
+import accord.txn.Txn;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -157,7 +157,7 @@ public class AccordStateCache
     private final NamedMap<Object, Future<?>> loadFutures = new NamedMap<>("loadFutures");
     private final NamedMap<Object, Future<?>> saveFutures = new NamedMap<>("saveFutures");
 
-    private final NamedMap<Object, Read.ReadFuture> readFutures = new NamedMap<>("readFutures");
+    private final NamedMap<Object, Txn.ReadFuture> readFutures = new NamedMap<>("readFutures");
     private final NamedMap<Object, Future<?>> writeFutures = new NamedMap<>("writeFutures");
 
     Node<?, ?> head;
@@ -474,9 +474,31 @@ public class AccordStateCache
                 pendingWriteOnly.remove(key);
         }
 
+        public boolean writeOnlyGroupExists(K key)
+        {
+            return pendingWriteOnly.get(key) != null;
+        }
+
+        public int getWriteOnlyGroupSize(K key)
+        {
+            WriteOnlyGroup<?, ?> group = pendingWriteOnly.get(key);
+            return group != null ? group.items.size() : 0;
+        }
+
         public Future<?> getLoadFuture(K key)
         {
             return getFuture(loadFutures, key);
+        }
+
+        public void cleanupLoadFuture(K key)
+        {
+            getLoadFuture(key);
+        }
+
+        @VisibleForTesting
+        public boolean hasLoadFuture(K key)
+        {
+            return loadFutures.get(key) != null;
         }
 
         public void setLoadFuture(K key, Future<?> future)
@@ -495,14 +517,30 @@ public class AccordStateCache
             mergeFuture(saveFutures, key, future);
         }
 
-        public Read.ReadFuture getReadFuture(K key)
+        public void cleanupSaveFuture(K key)
+        {
+            getSaveFuture(key);
+        }
+
+        @VisibleForTesting
+        public boolean hasSaveFuture(K key)
+        {
+            return saveFutures.get(key) != null;
+        }
+
+        public Txn.ReadFuture getReadFuture(K key)
         {
             return getFuture(readFutures, key);
         }
 
-        public void setReadFuture(K key, Read.ReadFuture future)
+        public void setReadFuture(K key, Txn.ReadFuture future)
         {
             setFuture(readFutures, key, future);
+        }
+
+        public void cleanupReadFuture(K key)
+        {
+            getReadFuture(key);
         }
 
         public Future<Void> getWriteFuture(K key)
@@ -515,9 +553,8 @@ public class AccordStateCache
             setFuture(writeFutures, key, future);
         }
 
-        public void clearWriteFuture(K key)
+        public void cleanupWriteFuture(K key)
         {
-            // will clear if it's done
             getWriteFuture(key);
         }
 

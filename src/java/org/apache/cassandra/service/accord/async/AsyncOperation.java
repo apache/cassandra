@@ -22,6 +22,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -81,26 +82,43 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         MDC.remove(LoggingProps.ASYNC_OPERATION);
     }
 
-    public AsyncOperation(AccordCommandStore commandStore, AsyncLoader loader)
+    public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
     {
         this.loggingId = "0x" + Integer.toHexString(System.identityHashCode(this));
         this.commandStore = commandStore;
-        this.loader = loader;
+        this.loader = createAsyncLoader(commandStore, commandsToLoad, keyCommandsToLoad);
         setLoggingIds();
-        this.writer = new AsyncWriter(commandStore);
+        this.writer = createAsyncWriter(commandStore);
         logger.trace("Created {} on {}", this, commandStore);
         clearLoggingIds();
-    }
-
-    public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
-    {
-        this(commandStore, new AsyncLoader(commandStore, commandsToLoad, keyCommandsToLoad));
     }
 
     @Override
     public String toString()
     {
         return "AsyncOperation{" + state + "}-0x" + Integer.toHexString(System.identityHashCode(this));
+    }
+
+    AsyncWriter createAsyncWriter(AccordCommandStore commandStore)
+    {
+        return new AsyncWriter(commandStore);
+    }
+
+    AsyncLoader createAsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys)
+    {
+        return new AsyncLoader(commandStore, txnIds, keys);
+    }
+
+    @VisibleForTesting
+    State state()
+    {
+        return state;
+    }
+
+    @VisibleForTesting
+    protected void setState(State state)
+    {
+        this.state = state;
     }
 
     /**
@@ -119,6 +137,46 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
             run();
     }
 
+    protected void runInternal()
+    {
+        switch (state)
+        {
+            case INITIALIZED:
+                state = State.LOADING;
+            case LOADING:
+                if (!loader.load(context, this))
+                    return;
+
+                state = State.RUNNING;
+                result = apply(commandStore);
+
+                state = State.SAVING;
+            case SAVING:
+            case AWAITING_SAVE:
+                boolean updatesPersisted = writer.save(context, this);
+
+                if (state != State.AWAITING_SAVE)
+                {
+                    // with any updates on the way to disk, release resources so operations waiting
+                    // to use these objects don't have issues with fields marked as unsaved
+                    context.releaseResources(commandStore);
+                    state = State.AWAITING_SAVE;
+                }
+
+                if (!updatesPersisted)
+                    return;
+
+                state = State.COMPLETING;
+                setSuccess(result);
+                state = State.FINISHED;
+            case FINISHED:
+                break;
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+
     @Override
     public void run()
     {
@@ -128,41 +186,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         commandStore.setContext(context);
         try
         {
-            switch (state)
-            {
-                case INITIALIZED:
-                    state = State.LOADING;
-                case LOADING:
-                    if (!loader.load(context, this))
-                        return;
-
-                    state = State.RUNNING;
-                    result = apply(commandStore);
-
-                    state = State.SAVING;
-                case SAVING:
-                case AWAITING_SAVE:
-                    boolean updatesPersisted = writer.save(context, this);
-
-                    if (state != State.AWAITING_SAVE)
-                    {
-                        // with any updates on the way to disk, release resources so operations waiting
-                        // to use these objects don't have issues with fields marked as unsaved
-                        context.releaseResources(commandStore);
-                        state = State.AWAITING_SAVE;
-                    }
-
-                    if (!updatesPersisted)
-                        return;
-
-                    state = State.COMPLETING;
-                    setSuccess(result);
-                    state = State.FINISHED;
-                case FINISHED:
-                    break;
-                default:
-                    throw new IllegalStateException();
-            }
+            runInternal();
         }
         catch (Throwable t)
         {

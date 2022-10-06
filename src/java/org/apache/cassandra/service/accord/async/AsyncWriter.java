@@ -26,6 +26,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.slf4j.Logger;
@@ -271,6 +272,12 @@ public class AsyncWriter
         context.commands.partials.forEach(command -> denormalizePartial(command, context, callback));
     }
 
+    @VisibleForTesting
+    void setState(State state)
+    {
+        this.state = state;
+    }
+
     public boolean save(AsyncContext context, BiConsumer<Object, Throwable> callback)
     {
         logger.trace("Running save for {} with state {}", callback, state);
@@ -280,12 +287,12 @@ public class AsyncWriter
             switch (state)
             {
                 case INITIALIZED:
-                    state = State.SETUP;
+                    setState(State.SETUP);
                 case SETUP:
                     denormalize(context, callback);
                     writeFuture = maybeDispatchWrites(context, callback);
 
-                    state = State.SAVING;
+                    setState(State.SAVING);
                 case SAVING:
                     if (writeFuture != null && !writeFuture.isSuccess())
                     {
@@ -293,7 +300,9 @@ public class AsyncWriter
                         writeFuture.addCallback(callback, commandStore.executor());
                         break;
                     }
-                    state = State.FINISHED;
+                    context.commands.items.keySet().forEach(commandStore.commandCache()::cleanupSaveFuture);
+                    context.commandsForKey.items.keySet().forEach(commandStore.commandsForKeyCache()::cleanupSaveFuture);
+                    setState(State.FINISHED);
                 case FINISHED:
                     break;
                 default:

@@ -184,6 +184,12 @@ public class AsyncLoader
         return futures != null ? FutureCombiner.allOf(futures) : null;
     }
 
+    @VisibleForTesting
+    void state(State state)
+    {
+        this.state = state;
+    }
+
     public boolean load(AsyncContext context, BiConsumer<Object, Throwable> callback)
     {
         logger.trace("Running load for {} with state {}: {} {}", callback, state, txnIds, keys);
@@ -191,13 +197,13 @@ public class AsyncLoader
         switch (state)
         {
             case INITIALIZED:
-                state = State.SETUP;
+                state(State.SETUP);
             case SETUP:
                 // notify any pending write only groups we're loading a full instance so the pending changes aren't removed
                 txnIds.forEach(commandStore.commandCache()::lockWriteOnlyGroupIfExists);
                 keys.forEach(commandStore.commandsForKeyCache()::lockWriteOnlyGroupIfExists);
                 readFuture = referenceAndDispatchReads(context, callback);
-                state = State.LOADING;
+                state(State.LOADING);
             case LOADING:
                 if (readFuture != null)
                 {
@@ -215,11 +221,13 @@ public class AsyncLoader
                     }
                 }
                 // apply any pending write only changes that may not have made it to disk in time to be loaded
+                context.commands.items.keySet().forEach(commandStore.commandCache()::cleanupLoadFuture);
                 context.commands.items.values().forEach(commandStore.commandCache()::applyAndRemoveWriteOnlyGroup);
+                context.commandsForKey.items.keySet().forEach(commandStore.commandsForKeyCache()::cleanupLoadFuture);
                 context.commandsForKey.items.values().forEach(commandStore.commandsForKeyCache()::applyAndRemoveWriteOnlyGroup);
                 // apply blindly reported timestamps
                 context.commandsForKey.items.values().forEach(AccordCommandsForKey::applyBlindWitnessedTimestamps);
-                state = State.FINISHED;
+                state(State.FINISHED);
             case FINISHED:
                 break;
             default:
