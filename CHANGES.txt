@@ -1,7 +1,8 @@
-4.1-beta1
+4.1-beta2
  * Allow pre-V5 global limit on bytes in flight to revert to zero asynchronously in RateLimitingTest (CASSANDRA-17927)
 Merged from 4.0:
 Merged from 3.11:
+ * Make LongBufferPoolTest insensitive to timing (CASSANDRA-16681)
 Merged from 3.0:
  * Fix auto-completing "WITH" when creating a materialized view (CASSANDRA-17879)
 
