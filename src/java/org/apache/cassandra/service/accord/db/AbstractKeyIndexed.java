@@ -155,7 +155,7 @@ public abstract class AbstractKeyIndexed<T>
         @Override
         public void serialize(S items, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(items.serialized.size());
+            out.writeUnsignedVInt(items.serialized.size());
             for (Map.Entry<PartitionKey, ByteBuffer> entry : items.serialized.entrySet())
             {
                 PartitionKey.serializer.serialize(entry.getKey(), out, version);
@@ -166,7 +166,7 @@ public abstract class AbstractKeyIndexed<T>
         @Override
         public S deserialize(DataInputPlus in, int version) throws IOException
         {
-            int size = in.readInt();
+            int size = (int) in.readUnsignedVInt();
             NavigableMap<PartitionKey, ByteBuffer> items = new TreeMap<>();
             for (int i=0; i<size; i++)
                 items.put(PartitionKey.serializer.deserialize(in, version), ByteBufferUtil.readWithVIntLength(in));
@@ -176,7 +176,7 @@ public abstract class AbstractKeyIndexed<T>
         @Override
         public long serializedSize(S items, int version)
         {
-            long size = TypeSizes.sizeof(items.serialized.size());
+            long size = TypeSizes.sizeofUnsignedVInt(items.serialized.size());
             for (Map.Entry<PartitionKey, ByteBuffer> entry : items.serialized.entrySet())
             {
                 size += PartitionKey.serializer.serializedSize(entry.getKey());

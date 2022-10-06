@@ -167,20 +167,20 @@ public class CommandSerializers
         @Override
         public void serialize(Status status, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(status.ordinal());
+            out.writeUnsignedVInt(status.ordinal());
 
         }
 
         @Override
         public Status deserialize(DataInputPlus in, int version) throws IOException
         {
-            return Status.values()[in.readInt()];
+            return Status.values()[(int) in.readUnsignedVInt()];
         }
 
         @Override
         public long serializedSize(Status status, int version)
         {
-            return TypeSizes.sizeof(status.ordinal());
+            return TypeSizes.sizeofUnsignedVInt(status.ordinal());
         }
     };
 
@@ -193,14 +193,14 @@ public class CommandSerializers
             KeySerializers.keys.serialize(keys, out, version);
 
             int txnIdCount = deps.txnIdCount();
-            out.writeInt(txnIdCount);
+            out.writeUnsignedVInt(txnIdCount);
             for (int i=0; i<txnIdCount; i++)
                 CommandSerializers.txnId.serialize(deps.txnId(i), out, version);
 
             int keyToTxnIdCount = keyToTxnIdCount(deps);
-            out.writeInt(keyToTxnIdCount);
+            out.writeUnsignedVInt(keyToTxnIdCount);
             for (int i=0; i<keyToTxnIdCount; i++)
-                out.writeInt(keyToTxnId(deps, i));
+                out.writeUnsignedVInt(keyToTxnId(deps, i));
 
         }
 
@@ -208,12 +208,12 @@ public class CommandSerializers
         public Deps deserialize(DataInputPlus in, int version) throws IOException
         {
             Keys keys = KeySerializers.keys.deserialize(in, version);
-            TxnId[] txnIds = new TxnId[in.readInt()];
+            TxnId[] txnIds = new TxnId[(int) in.readUnsignedVInt()];
             for (int i=0; i<txnIds.length; i++)
                 txnIds[i] = CommandSerializers.txnId.deserialize(in, version);
-            int[] keyToTxnIds = new int[in.readInt()];
+            int[] keyToTxnIds = new int[(int) in.readUnsignedVInt()];
             for (int i=0; i<keyToTxnIds.length; i++)
-                keyToTxnIds[i] = in.readInt();
+                keyToTxnIds[i] = (int) in.readUnsignedVInt();
             return new Deps(keys, txnIds, keyToTxnIds);
         }
 
@@ -224,14 +224,14 @@ public class CommandSerializers
             long size = KeySerializers.keys.serializedSize(keys, version);
 
             int txnIdCount = deps.txnIdCount();
-            size += TypeSizes.sizeof(txnIdCount);
+            size += TypeSizes.sizeofUnsignedVInt(txnIdCount);
             for (int i=0; i<txnIdCount; i++)
                 size += CommandSerializers.txnId.serializedSize(deps.txnId(i), version);
 
             int keyToTxnIdCount = keyToTxnIdCount(deps);
-            size += TypeSizes.sizeof(keyToTxnIdCount);
+            size += TypeSizes.sizeofUnsignedVInt(keyToTxnIdCount);
             for (int i=0; i<keyToTxnIdCount; i++)
-                size += TypeSizes.sizeof(keyToTxnId(deps, i));
+                size += TypeSizes.sizeofUnsignedVInt(keyToTxnId(deps, i));
             return size;
         }
     };
