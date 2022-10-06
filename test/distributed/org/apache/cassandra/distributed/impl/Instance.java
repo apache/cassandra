@@ -832,7 +832,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         return CompletableFuture.runAsync(ThrowingRunnable.toRunnable(future::get), isolatedExecutor)
                                 .thenRun(super::shutdown)
-                                .thenRun(() -> startedAt.set(0L));
+                                .thenRun(() -> startedAt.set(0L))
+                                .thenRun(() -> {
+                                    // when the instance is eventually stopped, we need to release buffer pools manually
+                                    // they are assumed to gone along with JVM, but this is not the case in dtests
+                                    BufferPools.forNetworking().unsafeReset();
+                                    BufferPools.forChunkCache().unsafeReset();
+                                });
     }
 
     @Override

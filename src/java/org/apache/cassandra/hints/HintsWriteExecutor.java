@@ -70,6 +70,10 @@ final class HintsWriteExecutor
         {
             throw new AssertionError(e);
         }
+        finally
+        {
+            FileUtils.clean(writeBuffer);
+        }
     }
 
     /**

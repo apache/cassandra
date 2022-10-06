@@ -1524,7 +1524,7 @@ public class BufferPool
             if (parent != null)
                 parent.free(slab);
             else
-                FileUtils.clean(slab);
+                FileUtils.cleanWithAttachment(slab);
         }
 
         static void unsafeRecycle(Chunk chunk)
