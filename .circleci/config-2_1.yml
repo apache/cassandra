@@ -18,6 +18,12 @@
 
 version: 2.1
 
+parameters:
+  # For tests that use vnodes, this is the common value for the number of tokens
+  num-tokens:
+    type: integer
+    default: 16
+
 default_env_vars: &default_env_vars
 
     # The values of some of these environment variables are meant to be frequently changed by developers.
@@ -779,7 +785,7 @@ jobs:
       - run_parallel_junit_tests:
           classlistprefix: distributed
           target: "testclasslist"
-          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
+          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=<< pipeline.parameters.num-tokens >>'"
 
   j11_jvm_dtests:
     <<: *j11_small_par_executor
@@ -806,7 +812,7 @@ jobs:
       - run_parallel_junit_tests:
           classlistprefix: distributed
           target: "testclasslist"
-          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
+          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=<< pipeline.parameters.num-tokens >>'"
 
   j8_jvm_upgrade_dtests:
     <<: *j8_medium_par_executor
@@ -900,7 +906,7 @@ jobs:
           run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql'"
       - run_dtests:
           file_tag: j8_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >> --skip-resource-intensive-tests'
 
   j11_dtests-with-vnodes:
     <<: *j11_par_executor
@@ -915,7 +921,7 @@ jobs:
         run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql'"
     - run_dtests:
         file_tag: j11_with_vnodes
-        pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+        pytest_extra_args: '--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >> --skip-resource-intensive-tests'
 
   j8_dtests-no-vnodes:
     <<: *j8_par_executor
@@ -972,7 +978,7 @@ jobs:
           run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
       - run_dtests:
           file_tag: j8_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >> --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
   j8_cqlsh-dtests-py38-with-vnodes:
@@ -989,7 +995,7 @@ jobs:
           python_version: '3.8'
       - run_dtests:
           file_tag: j8_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >> --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
@@ -1038,7 +1044,7 @@ jobs:
           run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
       - run_dtests:
           file_tag: j11_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >> --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
   j11_cqlsh-dtests-py38-with-vnodes:
@@ -1055,7 +1061,7 @@ jobs:
           python_version: '3.8'
       - run_dtests:
           file_tag: j11_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          pytest_extra_args: '--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >> --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
@@ -1620,11 +1626,11 @@ commands:
                 else
                   methods="-Dtest.methods=<<parameters.methods>>"
                 fi
-            
+
                 # Prepare the JVM dtests vnodes argument, which is optional
                 vnodes_args=""
                 if <<parameters.vnodes>>; then
-                  vnodes_args="-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
+                  vnodes_args="-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=<< pipeline.parameters.num-tokens >>'"
                 fi
 
                 # Run the test target as many times as requested collecting the exit code,
@@ -1738,7 +1744,7 @@ commands:
 
                 vnodes_args=""
                 if <<parameters.vnodes>>; then
-                  vnodes_args="--use-vnodes --num-tokens=16"
+                  vnodes_args="--use-vnodes --num-tokens=<< pipeline.parameters.num-tokens >>"
                 fi
 
                 upgrade_arg=""
