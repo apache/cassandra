@@ -67,7 +67,7 @@ Merged from 3.0:
  * Fix snapshot true size calculation (CASSANDRA-17267)
  * dropping of a materialized view creates a snapshot with dropped- prefix (CASSANDRA-17415)
  * Validate existence of DCs when repairing (CASSANDRA-17407)
-Merged from 3.11.13:
+Merged from 3.11:
  * Upgrade jackson-databind to 2.13.2.2 (CASSANDRA-17556)
  * Upgrade slf4j to 1.7.25 (CASSANDRA-17474)
  * Upgrade jackson to 2.13.2 (CASSANDRA-17492)
