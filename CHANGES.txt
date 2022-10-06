@@ -1,4 +1,5 @@
 4.0.7
+ * Fix StorageService.getNativeaddress handling of IPv6 addresses (CASSANDRA-17945)
  * Mitigate direct buffer memory OOM on replacements (CASSANDRA-17895)
  * Fix repair failure on assertion if two peers have overlapping mismatching ranges (CASSANDRA-17900)
  * Better handle null state in Gossip schema migration to avoid NPE (CASSANDRA-17864)
