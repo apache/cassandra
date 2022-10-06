@@ -245,6 +245,10 @@ public class AccordStateCache
         {
             Node<?, ?> evict = current;
             current = current.prev;
+
+            // if there are any dangling write only groups, apply them and
+            // move their futures into write futures so we don't evict
+            applyAndRemoveWriteOnlyGroup(current.value);
             if (!canEvict(evict.key()))
                 continue;
 
@@ -295,6 +299,21 @@ public class AccordStateCache
         getFuture(saveFutures, key);
         getFuture(readFutures, key);
         getFuture(writeFutures, key);
+    }
+
+    public <K, V extends AccordState<K>> void applyAndRemoveWriteOnlyGroup(V instance)
+    {
+        WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.remove(instance.key());
+        if (group == null)
+            return;
+
+        logger.trace("Applying and removing write only group for {} ({})", instance.key(), group);
+        for (AccordState.WriteOnly<K, V> writeOnly : group.items)
+        {
+            writeOnly.applyChanges(instance);
+            if (!writeOnly.future().isDone())
+                mergeFuture(saveFutures, instance.key(), writeOnly.future());
+        }
     }
 
     public class Instance<K, V extends AccordState<K>>
@@ -436,17 +455,7 @@ public class AccordStateCache
 
         public void applyAndRemoveWriteOnlyGroup(V instance)
         {
-            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.remove(instance.key());
-            if (group == null)
-                return;
-
-            logger.trace("Applying and removing write only group for {} ({})", instance.key(), group);
-            for (AccordState.WriteOnly<K, V> writeOnly : group.items)
-            {
-                writeOnly.applyChanges(instance);
-                if (!writeOnly.future().isDone())
-                    mergeFuture(saveFutures, instance.key(), writeOnly.future());
-            }
+            AccordStateCache.this.applyAndRemoveWriteOnlyGroup(instance);
         }
 
         public void addWriteOnly(AccordState.WriteOnly<K, V> writeOnly)
