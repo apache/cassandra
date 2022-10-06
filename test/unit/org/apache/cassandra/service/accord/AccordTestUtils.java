@@ -42,7 +42,7 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.PartialCommand;
-import accord.local.TxnOperation;
+import accord.local.PreLoadContext;
 import accord.primitives.Ballot;
 import accord.primitives.KeyRange;
 import accord.primitives.KeyRanges;
@@ -128,7 +128,7 @@ public class AccordTestUtils
     public static void processCommandResult(Command command) throws Throwable
     {
 
-        command.commandStore().process(TxnOperation.scopeFor(Collections.emptyList(), command.txn().keys()),
+        command.commandStore().process(PreLoadContext.contextFor(Collections.emptyList(), command.txn().keys()),
                                        instance -> {
             Txn txn = command.txn();
             AccordRead read = (AccordRead) txn.read();

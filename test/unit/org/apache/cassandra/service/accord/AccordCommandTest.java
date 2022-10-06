@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -34,7 +32,6 @@ import accord.local.CommandStore;
 import accord.local.CommandsForKey;
 import accord.local.Node;
 import accord.local.Status;
-import accord.local.TxnOperation;
 import accord.messages.Accept;
 import accord.messages.Commit;
 import accord.messages.PreAccept;
@@ -68,29 +65,6 @@ public class AccordCommandTest
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks"));
         StorageService.instance.initServer();
-    }
-
-    private static TxnOperation op(Collection<TxnId> txnIds, Collection<Key> keys)
-    {
-        return new TxnOperation()
-        {
-            @Override
-            public Iterable<TxnId> txnIds()
-            {
-                return txnIds;
-            }
-
-            @Override
-            public Iterable<Key> keys()
-            {
-                return keys;
-            }
-        };
-    }
-
-    private static TxnOperation op(TxnId txnId)
-    {
-        return op(Collections.singleton(txnId), Collections.emptyList());
     }
 
     private static PartitionKey key(int k)

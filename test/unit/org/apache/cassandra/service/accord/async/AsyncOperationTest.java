@@ -32,6 +32,7 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
 import accord.local.PartialCommand;
+import accord.local.PreLoadContext;
 import accord.local.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -51,8 +52,7 @@ import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static accord.local.TxnOperation.scopeFor;
-import static com.google.common.collect.Lists.newArrayList;
+import static accord.local.PreLoadContext.contextFor;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -84,7 +84,7 @@ public class AsyncOperationTest
         Txn txn = createTxn(0);
         AccordKey.PartitionKey key = (AccordKey.PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.process(scopeFor(txnId), instance -> {
+        commandStore.process(contextFor(txnId), instance -> {
             Command command = instance.ifPresent(txnId);
             Assert.assertNull(command);
         }).get();
@@ -101,7 +101,7 @@ public class AsyncOperationTest
         Txn txn = createTxn(0);
         AccordKey.PartitionKey key = (AccordKey.PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.process(scopeFor(Collections.emptyList(), Collections.singleton(key)), instance -> {
+        commandStore.process(contextFor(Collections.emptyList(), Collections.singleton(key)), instance -> {
             CommandsForKey cfk = commandStore.maybeCommandsForKey(key);
             Assert.assertNull(cfk);
         }).get();

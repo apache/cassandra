@@ -30,14 +30,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
-import accord.api.Read;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.Listener;
 import accord.local.Listeners;
 import accord.local.PartialCommand;
+import accord.local.PreLoadContext;
 import accord.local.Status;
-import accord.local.TxnOperation;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.KeyRanges;
@@ -717,9 +716,9 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         storedListeners.getView().forEach(this);
         transientListeners.forEach(listener -> {
-            TxnOperation scope = listener.listenerScope(txnId());
+            PreLoadContext ctx = listener.listenerPreLoadContext(txnId());
             AsyncContext context = commandStore().getContext();
-            if (context.containsScopedItems(scope))
+            if (context.containsScopedItems(ctx))
             {
                 logger.trace("{}: synchronously updating listener {}", txnId(), listener);
                 listener.onChange(this);;
@@ -727,7 +726,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
             else
             {
                 logger.trace("{}: asynchronously updating listener {}", txnId(), listener);
-                commandStore().process(scope, instance -> {
+                commandStore().process(ctx, instance -> {
                     listener.onChange(instance.command(txnId()));
                 });
             }

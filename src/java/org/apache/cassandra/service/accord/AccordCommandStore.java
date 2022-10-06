@@ -34,7 +34,7 @@ import accord.api.ProgressLog;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
-import accord.local.TxnOperation;
+import accord.local.PreLoadContext;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
@@ -268,17 +268,17 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public <T> Future<T> process(TxnOperation scope, Function<? super CommandStore, T> function)
+    public <T> Future<T> process(PreLoadContext loadCtx, Function<? super CommandStore, T> function)
     {
-        AsyncOperation<T> operation = AsyncOperation.create(this, scope, function);
+        AsyncOperation<T> operation = AsyncOperation.create(this, loadCtx, function);
         executor.execute(operation);
         return operation;
     }
 
     @Override
-    public Future<Void> process(TxnOperation scope, Consumer<? super CommandStore> consumer)
+    public Future<Void> process(PreLoadContext loadCtx, Consumer<? super CommandStore> consumer)
     {
-        AsyncOperation<Void> operation = AsyncOperation.create(this, scope, consumer);
+        AsyncOperation<Void> operation = AsyncOperation.create(this, loadCtx, consumer);
         executor.execute(operation);
         return operation;
     }

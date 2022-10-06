@@ -27,8 +27,8 @@ import org.junit.Test;
 
 import accord.local.Command;
 import accord.local.PartialCommand;
+import accord.local.PreLoadContext;
 import accord.local.Status;
-import accord.local.TxnOperation;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.txn.Txn;
@@ -41,6 +41,7 @@ import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.api.AccordKey;
 
+import static accord.local.PreLoadContext.contextFor;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
@@ -228,13 +229,13 @@ public class AsyncWriterTest
         }
 
         // confirm the blocking operation has the waiting one as a listener
-        commandStore.process(TxnOperation.scopeFor(blockingId), cs -> {
+        commandStore.process(contextFor(blockingId), cs -> {
             AccordCommand blocking = (AccordCommand) cs.command(blockingId);
             Assert.assertTrue(blocking.hasListenerFor(waitingId));
         });
 
         // remove listener from PartialCommand
-        commandStore.process(TxnOperation.scopeFor(waitingId), cs -> {
+        commandStore.process(contextFor(waitingId), cs -> {
             Command waiting = cs.command(waitingId);
             PartialCommand blocking = waiting.firstWaitingOnApply();
             Assert.assertNotNull(blocking);
@@ -243,7 +244,7 @@ public class AsyncWriterTest
         });
 
         // confirm it was propagated to the full command
-        commandStore.process(TxnOperation.scopeFor(blockingId), cs -> {
+        commandStore.process(contextFor(blockingId), cs -> {
             AccordCommand blocking = (AccordCommand) cs.command(blockingId);
             Assert.assertFalse(blocking.hasListenerFor(waitingId));
         });

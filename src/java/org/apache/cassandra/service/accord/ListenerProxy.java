@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
@@ -31,7 +30,7 @@ import org.slf4j.LoggerFactory;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Listener;
-import accord.local.TxnOperation;
+import accord.local.PreLoadContext;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -109,7 +108,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        public TxnOperation listenerScope(TxnId caller)
+        public PreLoadContext listenerPreLoadContext(TxnId caller)
         {
             throw new UnsupportedOperationException();
         }
@@ -135,8 +134,8 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             AccordCommand command = (AccordCommand) c;
             AccordCommandStore commandStore = command.commandStore();
             AsyncContext context = commandStore.getContext();
-            TxnOperation scope = TxnOperation.scopeFor(ImmutableList.of(command.txnId(), txnId), Collections.emptyList());
-            if (context.containsScopedItems(scope))
+            PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId(), txnId), Collections.emptyList());
+            if (context.containsScopedItems(loadCtx))
             {
                 // TODO (soon): determine if this can break anything by not waiting for the current operation to denormalize it's data
                 //  the summary loader may default to commands in context, in case it wouldn't
@@ -147,7 +146,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             {
                 TxnId callingTxnId = command.txnId();
                 logger.trace("{}: asynchronously updating listening command {}", c.txnId(), txnId);
-                commandStore.process(scope, instance -> {
+                commandStore.process(loadCtx, instance -> {
                     Command caller = instance.command(callingTxnId);
                     commandStore.command(txnId).onChange(caller);
                 });
@@ -210,7 +209,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        public TxnOperation listenerScope(TxnId caller)
+        public PreLoadContext listenerPreLoadContext(TxnId caller)
         {
             throw new UnsupportedOperationException();
         }
@@ -236,8 +235,8 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             AccordCommand command = (AccordCommand) c;
             AccordCommandStore commandStore = command.commandStore();
             AsyncContext context = commandStore.getContext();
-            TxnOperation scope = TxnOperation.scopeFor(ImmutableList.of(command.txnId()), ImmutableList.of(key));
-            if (context.containsScopedItems(scope))
+            PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId()), ImmutableList.of(key));
+            if (context.containsScopedItems(loadCtx))
             {
                 logger.trace("{}: synchronously updating listening cfk {}", c.txnId(), key);
                 commandStore.commandsForKey(key).onChange(c);
@@ -246,7 +245,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
             {
                 TxnId callingTxnId = command.txnId();
                 logger.trace("{}: asynchronously updating listening cfk {}", c.txnId(), key);
-                commandStore.process(scope, instance -> {
+                commandStore.process(loadCtx, instance -> {
                     Command caller = instance.command(callingTxnId);
                     commandStore.commandsForKey(key).onChange(caller);
                 });

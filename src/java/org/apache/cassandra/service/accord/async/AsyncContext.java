@@ -28,7 +28,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
-import accord.local.TxnOperation;
+import accord.local.PreLoadContext;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
@@ -97,9 +97,9 @@ public class AsyncContext
     public final CommandGroup commands = new CommandGroup();
     public final Group<PartitionKey, AccordCommandsForKey> commandsForKey = new Group<>();
 
-    public boolean containsScopedItems(TxnOperation scope)
+    public boolean containsScopedItems(PreLoadContext loadContext)
     {
-        return Iterables.all(scope.txnIds(), commands.items::containsKey) && Iterables.all(scope.keys(), commandsForKey.items::containsKey);
+        return Iterables.all(loadContext.txnIds(), commands.items::containsKey) && Iterables.all(loadContext.keys(), commandsForKey.items::containsKey);
     }
 
     void verifyLoaded()

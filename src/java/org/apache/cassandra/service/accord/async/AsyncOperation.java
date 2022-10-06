@@ -29,7 +29,7 @@ import org.slf4j.MDC;
 
 import accord.api.Key;
 import accord.local.CommandStore;
-import accord.local.TxnOperation;
+import accord.local.PreLoadContext;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
@@ -223,9 +223,9 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         }
     }
 
-    public static <T> AsyncOperation<T> create(CommandStore commandStore, TxnOperation scope, Function<? super CommandStore, T> function)
+    public static <T> AsyncOperation<T> create(CommandStore commandStore, PreLoadContext loadCtx, Function<? super CommandStore, T> function)
     {
-        return new ForFunction<>((AccordCommandStore) commandStore, scope.txnIds(), AsyncOperation.toPartitionKeys(scope.keys()), function);
+        return new ForFunction<>((AccordCommandStore) commandStore, loadCtx.txnIds(), AsyncOperation.toPartitionKeys(loadCtx.keys()), function);
     }
 
     static class ForConsumer  extends AsyncOperation<Void>
@@ -246,8 +246,8 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         }
     }
 
-    public static AsyncOperation<Void> create(CommandStore commandStore, TxnOperation scope, Consumer<? super CommandStore> consumer)
+    public static AsyncOperation<Void> create(CommandStore commandStore, PreLoadContext loadCtx, Consumer<? super CommandStore> consumer)
     {
-        return new ForConsumer((AccordCommandStore) commandStore, scope.txnIds(), AsyncOperation.toPartitionKeys(scope.keys()), consumer);
+        return new ForConsumer((AccordCommandStore) commandStore, loadCtx.txnIds(), AsyncOperation.toPartitionKeys(loadCtx.keys()), consumer);
     }
 }
