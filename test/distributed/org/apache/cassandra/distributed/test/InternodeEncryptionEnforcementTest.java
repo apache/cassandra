@@ -189,16 +189,18 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
                 c.with(Feature.NETWORK);
                 c.with(Feature.NATIVE_PROTOCOL);
 
+                HashMap<String, Object> encryption = new HashMap<>();
+                encryption.put("optional", "false");
+                encryption.put("internode_encryption", "none");
                 if (c.num() == 1)
                 {
-                    HashMap<String, Object> encryption = new HashMap<>();
                     encryption.put("keystore", "test/conf/cassandra_ssl_test.keystore");
                     encryption.put("keystore_password", "cassandra");
                     encryption.put("truststore", "test/conf/cassandra_ssl_test.truststore");
                     encryption.put("truststore_password", "cassandra");
-                    encryption.put("internode_encryption", "dc");
-                    c.set("server_encryption_options", encryption);
+                    encryption.put("internode_encryption", "all");
                 }
+                c.set("server_encryption_options", encryption);
             })
             .withNodeIdTopology(ImmutableMap.of(1, NetworkTopology.dcAndRack("dc1", "r1a"),
                                                 2, NetworkTopology.dcAndRack("dc2", "r2a")));

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import java.nio.channels.ClosedChannelException;
 import java.security.cert.Certificate;
 import javax.net.ssl.SSLPeerUnverifiedException;
 
@@ -33,7 +34,7 @@ import io.netty.handler.ssl.SslHandler;
 /**
  * Class that contains certificate utility methods.
  */
-class InternodeConnectionUtils
+public class InternodeConnectionUtils
 {
     public static String SSL_HANDLER_NAME = "ssl";
     public static String DISCARD_HANDLER_NAME = "discard";
@@ -57,6 +58,14 @@ class InternodeConnectionUtils
             }
         }
         return certificates;
+    }
+
+    public static boolean isSSLError(final Throwable cause)
+    {
+        return (cause instanceof ClosedChannelException)
+               && cause.getCause() == null
+               && cause.getStackTrace()[0].getClassName().contains("SslHandler")
+               && cause.getStackTrace()[0].getMethodName().contains("channelInactive");
     }
 
     /**
