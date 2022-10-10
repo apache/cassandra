@@ -248,7 +248,7 @@ public class AccordStateCache
 
             // if there are any dangling write only groups, apply them and
             // move their futures into write futures so we don't evict
-            applyAndRemoveWriteOnlyGroup(current.value);
+            applyAndRemoveWriteOnlyGroup(evict.value);
             if (!canEvict(evict.key()))
                 continue;
 
