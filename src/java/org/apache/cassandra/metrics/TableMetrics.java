@@ -956,6 +956,11 @@ public class TableMetrics
         return usage;
     }
 
+    public void incLiveRows(long liveRows)
+    {
+        liveScannedHistogram.update(liveRows);
+    }
+
     public void incTombstones(long tombstones, boolean triggerWarning)
     {
         tombstoneScannedHistogram.update(tombstones);

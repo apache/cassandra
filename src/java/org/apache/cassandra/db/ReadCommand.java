@@ -578,12 +578,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             public void onClose()
             {
                 recordReadLatency(metric, System.nanoTime() - startTimeNanos);
-
-                metric.tombstoneScannedHistogram.update(tombstones.get());
-                metric.liveScannedHistogram.update(liveRows);
-
-                if (tombstones.checkAndTriggerWarning())
-                    metric.tombstoneWarnings.inc();
+                metric.incLiveRows(liveRows);
+                metric.incTombstones(tombstones.get(), tombstones.checkAndTriggerWarning());
 
                 Tracing.trace("Read {} live rows and {} tombstone ones", liveRows, tombstones.get());
             }
