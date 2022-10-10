@@ -757,6 +757,17 @@ public class DescribeStatementTest extends CQLTester
                       row(KEYSPACE_PER_TEST, "index", indexWithOptions, expectedIndexStmtWithOptions));
     }
 
+    @Test
+    public void testUsingReservedInCreateType() throws Throwable
+    {
+        String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (\"token\" text, \"desc\" text);");
+        assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE TYPE " + type),
+                      row(KEYSPACE_PER_TEST, "type", type, "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type + " (\n" +
+                                                           "    \"token\" text,\n" +
+                                                           "    \"desc\" text\n" +
+                                                           ");"));
+    }
+
     private static String allTypesTable()
     {
         return "CREATE TABLE test.has_all_types (\n" +
