@@ -1,4 +1,5 @@
 3.11.14
+ * Fix double quote parser (CASSANDRA-17918)
  * Make LongBufferPoolTest insensitive to timing (CASSANDRA-16681)
  * Suppress CVE-2022-25857 and other snakeyaml CVEs (CASSANDRA-17907)
  * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)
