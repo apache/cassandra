@@ -93,6 +93,9 @@ public class CompactionController extends AbstractCompactionController
         }
         else
             overlapTracker = realm.getOverlapTracker(compacting);
+
+        logger.debug("Compaction controller created for {} with {} compacting sstables, {} overlapping sstables, tsOption={}, ignoreOverlaps={}, compactingRepaired={}",
+                     realm.metadata(), compacting == null ? 0 : compacting.size(), overlapTracker == null ? 0 : overlapTracker.overlaps().size(), tombstoneOption, ignoreOverlaps(), compactingRepaired());
     }
 
     public void maybeRefreshOverlaps()
