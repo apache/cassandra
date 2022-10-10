@@ -1528,22 +1528,38 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * In that case above, the {@link Map#entrySet()} ordering can be random, causing h4 to apply before h2, which will
      * be rejected by subscripers (only after updating gossip causing zero retries).
      */
-    private static Comparator<Entry<InetAddressAndPort, EndpointState>> STATE_MAP_ORDERING =
-    ((Comparator<Entry<InetAddressAndPort, EndpointState>>) (e1, e2) -> {
-        // check status first, make sure bootstrap status happens-after all others
-        if (BOOTSTRAPPING_STATUS.contains(getGossipStatus(e1.getValue())))
-            return 1;
-        if (BOOTSTRAPPING_STATUS.contains(getGossipStatus(e2.getValue())))
-            return -1;
-        return 0;
-    })
-    .thenComparingInt((Entry<InetAddressAndPort, EndpointState> e) -> e.getValue().getHeartBeatState().getGeneration())
-    .thenComparing(Entry::getKey);
+    private static Comparator<Entry<InetAddressAndPort, EndpointState>> stateOrderMap()
+    {
+        // There apears to be some edge cases where the state we are ordering get added to the global state causing
+        // ordering to change... to avoid that rely on a cache
+        // see CASSANDRA-17908
+        class Cache extends HashMap<InetAddressAndPort, EndpointState>
+        {
+            EndpointState get(Entry<InetAddressAndPort, EndpointState> e)
+            {
+                if (containsKey(e.getKey()))
+                    return get(e.getKey());
+                put(e.getKey(), new EndpointState(e.getValue()));
+                return get(e.getKey());
+            }
+        }
+        Cache cache = new Cache();
+        return ((Comparator<Entry<InetAddressAndPort, EndpointState>>) (e1, e2) -> {
+            // check status first, make sure bootstrap status happens-after all others
+            if (BOOTSTRAPPING_STATUS.contains(getGossipStatus(cache.get(e1))))
+                return 1;
+            if (BOOTSTRAPPING_STATUS.contains(getGossipStatus(cache.get(e2))))
+                return -1;
+            return 0;
+        })
+        .thenComparingInt((Entry<InetAddressAndPort, EndpointState> e) -> cache.get(e).getHeartBeatState().getGeneration())
+        .thenComparing(Entry::getKey);
+    }
 
     private static Iterable<Entry<InetAddressAndPort, EndpointState>> order(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         List<Entry<InetAddressAndPort, EndpointState>> list = new ArrayList<>(epStateMap.entrySet());
-        Collections.sort(list, STATE_MAP_ORDERING);
+        Collections.sort(list, stateOrderMap());
         return list;
     }
 

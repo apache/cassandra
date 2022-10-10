@@ -1,4 +1,5 @@
 4.2
+ * IllegalArgumentException in Gossiper#order due to concurrent mutations to elements being applied (CASSANDRA-17908)
  * Include estimated active compaction remaining write size when starting a new compaction (CASSANDRA-17931)
  * Mixed mode support for internode authentication during TLS upgrades (CASSANDRA-17923)
  * Revert Mockito downgrade from CASSANDRA-17750 (CASSANDRA-17496)
