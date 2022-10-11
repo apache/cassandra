@@ -428,7 +428,7 @@ Metrics::
 
   |ContentionHistogram |Histogram |How many contended reads were
   encountered
-  |===gi
+  |===
 RequestType::
   CASWrite
 Description::
