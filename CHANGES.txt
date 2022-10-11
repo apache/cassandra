@@ -1,4 +1,5 @@
 4.0.7
+ * Remove empty cq4 files in log directory to not fail the startup of BinLog (CASSANDRA-17933)
  * Fix multiple BufferPool bugs (CASSANDRA-16681)
  * Fix StorageService.getNativeaddress handling of IPv6 addresses (CASSANDRA-17945)
  * Mitigate direct buffer memory OOM on replacements (CASSANDRA-17895)
