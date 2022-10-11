@@ -417,8 +417,8 @@ public class LoaderOptions
                 }
 
                 if (cmd.hasOption(SSL_STORAGE_PORT_OPTION))
-                    logger.info("ssl storage port is deprecated and not used, all communication goes though storage port " +
-                                "which is able to handle encrypted communication too.");
+                    System.out.println("ssl storage port is deprecated and not used, all communication goes through storage port " +
+                            "which is able to handle encrypted communication too.");
 
                 throttle = config.stream_throughput_outbound_megabits_per_sec;
                 // Copy the encryption options and apply the config so that argument parsing can accesss isEnabled.
