@@ -157,7 +157,7 @@ public class AccordStateCache
     private final NamedMap<Object, Future<?>> loadFutures = new NamedMap<>("loadFutures");
     private final NamedMap<Object, Future<?>> saveFutures = new NamedMap<>("saveFutures");
 
-    private final NamedMap<Object, Txn.ReadFuture> readFutures = new NamedMap<>("readFutures");
+    private final NamedMap<Object, ReadFuture> readFutures = new NamedMap<>("readFutures");
     private final NamedMap<Object, Future<?>> writeFutures = new NamedMap<>("writeFutures");
 
     Node<?, ?> head;
@@ -537,12 +537,12 @@ public class AccordStateCache
             return saveFutures.get(key) != null;
         }
 
-        public Txn.ReadFuture getReadFuture(K key)
+        public ReadFuture getReadFuture(K key)
         {
             return getFuture(readFutures, key);
         }
 
-        public void setReadFuture(K key, Txn.ReadFuture future)
+        public void setReadFuture(K key, ReadFuture future)
         {
             setFuture(readFutures, key, future);
         }

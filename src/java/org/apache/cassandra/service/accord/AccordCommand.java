@@ -29,6 +29,7 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Data;
 import accord.api.Key;
 import accord.api.Result;
 import accord.local.Command;
@@ -659,12 +660,12 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public Txn.ReadFuture read(Keys scope)
+    public Future<Data> read(Keys scope)
     {
-        Txn.ReadFuture future = cache().getReadFuture(txnId);
+        ReadFuture future = cache().getReadFuture(txnId);
         if (future != null)
             return future.scope.equals(scope) ? future : super.read(scope);
-        future = super.read(scope);
+        future = new ReadFuture(scope, super.read(scope));
         cache().setReadFuture(txnId, future);
         return future;
     }
