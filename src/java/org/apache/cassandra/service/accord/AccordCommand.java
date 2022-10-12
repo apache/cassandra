@@ -46,7 +46,6 @@ import accord.primitives.TxnId;
 import accord.txn.Txn;
 import accord.txn.Writes;
 import accord.utils.DeterministicIdentitySet;
-import accord.utils.VisibleForImplementation;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.db.AccordData;
@@ -705,7 +704,6 @@ public class AccordCommand extends Command implements AccordState<TxnId>
             transientListeners.remove(listener);
     }
 
-    @VisibleForImplementation
     public boolean hasListenerFor(TxnId txnId)
     {
         return storedListeners.getView().contains(new ListenerProxy.CommandListenerProxy(commandStore, txnId));
@@ -721,7 +719,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
             if (context.containsScopedItems(ctx))
             {
                 logger.trace("{}: synchronously updating listener {}", txnId(), listener);
-                listener.onChange(this);;
+                listener.onChange(this);
             }
             else
             {

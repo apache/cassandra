@@ -46,14 +46,14 @@ public class ApplySerializers
         @Override
         public Apply deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
         {
-            return new Apply(scope, waitForEpoch,
-                             CommandSerializers.txnId.deserialize(in, version),
-                             CommandSerializers.txn.deserialize(in, version),
-                             KeySerializers.key.deserialize(in, version),
-                             CommandSerializers.timestamp.deserialize(in, version),
-                             CommandSerializers.deps.deserialize(in, version),
-                             CommandSerializers.writes.deserialize(in, version),
-                             AccordData.serializer.deserialize(in, version));
+            return Apply.SerializationSupport.create(scope, waitForEpoch,
+                                                     CommandSerializers.txnId.deserialize(in, version),
+                                                     CommandSerializers.txn.deserialize(in, version),
+                                                     KeySerializers.key.deserialize(in, version),
+                                                     CommandSerializers.timestamp.deserialize(in, version),
+                                                     CommandSerializers.deps.deserialize(in, version),
+                                                     CommandSerializers.writes.deserialize(in, version),
+                                                     AccordData.serializer.deserialize(in, version));
         }
 
         @Override

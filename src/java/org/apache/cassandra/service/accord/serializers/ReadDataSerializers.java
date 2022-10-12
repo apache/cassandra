@@ -48,12 +48,12 @@ public class ReadDataSerializers
         @Override
         public ReadData deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
         {
-            return new ReadData(scope, waitForEpoch,
-                                CommandSerializers.txnId.deserialize(in, version),
-                                CommandSerializers.txn.deserialize(in, version),
-                                CommandSerializers.deps.deserialize(in, version),
-                                KeySerializers.key.deserialize(in, version),
-                                CommandSerializers.timestamp.deserialize(in, version));
+            return ReadData.SerializerSupport.create(scope, waitForEpoch,
+                                                     CommandSerializers.txnId.deserialize(in, version),
+                                                     CommandSerializers.txn.deserialize(in, version),
+                                                     CommandSerializers.deps.deserialize(in, version),
+                                                     KeySerializers.key.deserialize(in, version),
+                                                     CommandSerializers.timestamp.deserialize(in, version));
         }
 
         @Override

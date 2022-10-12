@@ -117,7 +117,7 @@ public class AccordCommandTest
         Deps.OrderedBuilder builder = Deps.orderedBuilder(false);
         builder.add(key, txnId2);
         Deps deps = builder.build();
-        Accept accept = new Accept(txn.keys(), 1, txnId, Ballot.ZERO, key, txn, executeAt, deps);
+        Accept accept = Accept.SerializerSupport.create(txn.keys(), 1, txnId, Ballot.ZERO, key, txn, executeAt, deps);
 
         commandStore.process(accept, instance -> {
             Accept.AcceptReply reply = accept.process(instance, key);

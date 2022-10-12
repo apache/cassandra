@@ -78,9 +78,9 @@ public class CommitSerializers
         @Override
         public Commit.Invalidate deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
         {
-            return new Commit.Invalidate(scope, waitForEpoch,
-                                         CommandSerializers.txnId.deserialize(in, version),
-                                         KeySerializers.keys.deserialize(in, version));
+            return Commit.Invalidate.SerializerSupport.create(scope, waitForEpoch,
+                                                              CommandSerializers.txnId.deserialize(in, version),
+                                                              KeySerializers.keys.deserialize(in, version));
         }
 
         @Override

@@ -31,6 +31,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
+import static accord.messages.Accept.SerializerSupport.create;
+
 public class AcceptSerializers
 {
     private AcceptSerializers() {}
@@ -50,12 +52,12 @@ public class AcceptSerializers
         @Override
         public Accept deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch, TxnId txnId, long minEpoch) throws IOException
         {
-            return new Accept(scope, waitForEpoch, txnId,
-                              CommandSerializers.ballot.deserialize(in, version),
-                              KeySerializers.key.deserialize(in, version),
-                              CommandSerializers.txn.deserialize(in, version),
-                              CommandSerializers.timestamp.deserialize(in, version),
-                              CommandSerializers.deps.deserialize(in, version));
+            return create(scope, waitForEpoch, txnId,
+                          CommandSerializers.ballot.deserialize(in, version),
+                          KeySerializers.key.deserialize(in, version),
+                          CommandSerializers.txn.deserialize(in, version),
+                          CommandSerializers.timestamp.deserialize(in, version),
+                          CommandSerializers.deps.deserialize(in, version));
         }
 
         @Override

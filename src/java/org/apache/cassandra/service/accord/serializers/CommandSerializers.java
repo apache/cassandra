@@ -214,7 +214,7 @@ public class CommandSerializers
             int[] keyToTxnIds = new int[(int) in.readUnsignedVInt()];
             for (int i=0; i<keyToTxnIds.length; i++)
                 keyToTxnIds[i] = (int) in.readUnsignedVInt();
-            return new Deps(keys, txnIds, keyToTxnIds);
+            return Deps.SerializerSupport.create(keys, txnIds, keyToTxnIds);
         }
 
         @Override

@@ -40,7 +40,7 @@ public class WaitOnCommitSerializer
         @Override
         public WaitOnCommit deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
         {
-            return new WaitOnCommit(scope, waitForEpoch, CommandSerializers.txnId.deserialize(in, version));
+            return WaitOnCommit.SerializerSupport.create(scope, waitForEpoch, CommandSerializers.txnId.deserialize(in, version));
         }
 
         @Override
