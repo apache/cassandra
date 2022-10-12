@@ -123,6 +123,14 @@ public final class Functions implements Iterable<Function>
         return builder().add(udfs).add(udas).build();
     }
 
+    public Functions withNewKeyspace(String newKeyspace, Types udts)
+    {
+        Collection<UDFunction> udfs = udfs().map(f -> f.withNewKeyspace(newKeyspace, udts)).collect(toList());
+        Collection<UDAggregate> udas = udas().map(f -> f.withNewKeyspace(newKeyspace, udfs, udts)).collect(toList());
+
+        return builder().add(udfs).add(udas).build();
+    }
+
     /**
      * @return a stream of aggregates that use the provided function as either a state or a final function
      * @param function the referree function

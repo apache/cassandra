@@ -44,6 +44,11 @@ public final class DroppedColumn
         this.droppedTime = droppedTime;
     }
 
+    public DroppedColumn withNewKeyspace(String newKeyspace, Types udts)
+    {
+        return new DroppedColumn(column.withNewKeyspace(newKeyspace, udts), droppedTime);
+    }
+
     @Override
     public boolean equals(Object o)
     {

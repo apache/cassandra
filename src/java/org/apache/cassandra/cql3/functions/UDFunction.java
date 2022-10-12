@@ -100,6 +100,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "com/google/common/reflect/TypeToken",
     "java/io/IOException.class",
     "java/io/Serializable.class",
+    "java/io/ObjectOutputStream.class",
+    "java/io/ObjectInputStream.class",
     "java/lang/",
     "java/math/",
     "java/net/InetAddress.class",
@@ -684,6 +686,17 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          argNames,
                          Lists.newArrayList(transform(argTypes, t -> t.withUpdatedUserType(udt))),
                          returnType.withUpdatedUserType(udt),
+                         calledOnNullInput,
+                         language,
+                         body);
+    }
+
+    public UDFunction withNewKeyspace(String newKeyspace, Types types)
+    {
+        return tryCreate(new FunctionName(newKeyspace, name.name),
+                         argNames,
+                         Lists.newArrayList(transform(argTypes, t -> t.withUpdatedUserTypes(types))),
+                         returnType.withUpdatedUserTypes(types),
                          calledOnNullInput,
                          language,
                          body);

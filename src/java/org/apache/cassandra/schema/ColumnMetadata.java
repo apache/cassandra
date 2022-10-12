@@ -252,6 +252,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return new ColumnMetadata(ksName, cfName, name, type, position, kind, isDropped);
     }
 
+    public ColumnMetadata withNewKeyspace(String newKeyspace, Types udts)
+    {
+        return new ColumnMetadata(newKeyspace, cfName, name, type.withUpdatedUserTypes(udts), position, kind, isDropped);
+    }
+
     public ColumnMetadata withNewName(ColumnIdentifier newName)
     {
         return new ColumnMetadata(ksName, cfName, newName, type, position, kind, isDropped);

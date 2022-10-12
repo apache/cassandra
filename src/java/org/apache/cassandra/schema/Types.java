@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
@@ -121,6 +122,32 @@ public final class Types implements Iterable<UserType>
     public Iterable<UserType> referencingUserType(ByteBuffer name)
     {
         return Iterables.filter(types.values(), t -> t.referencesUserType(name) && !t.name.equals(name));
+    }
+
+    /**
+     * Returns the types ordered by dependencies.
+     *
+     * @return the types ordered by dependencies.
+     */
+    private Set<UserType> getTypesOrderedByDependencies()
+    {
+        Set<UserType> orderedTypesByDependencies = new LinkedHashSet<>();
+        for (UserType type : this)
+        {
+            recordNestedTypes(type, orderedTypesByDependencies);
+        }
+        return orderedTypesByDependencies;
+    }
+
+    private void recordNestedTypes(AbstractType<?> userType, Set<UserType> userTypes)
+    {
+        for (AbstractType<?> subType : userType.subTypes())
+        {
+            recordNestedTypes(subType, userTypes);
+        }
+
+        if (userType.isUDT())
+            userTypes.add((UserType) userType);
     }
 
     public boolean isEmpty()
@@ -266,6 +293,33 @@ public final class Types implements Iterable<UserType>
 
         if (type.isUDT())
             types.add(((UserType) type).name);
+    }
+
+    /**
+     * Changes the keyspace of all the types.
+     *
+     * @param newKeyspace the name of the new keyspace
+     * @return the new types
+     */
+    public Types withNewKeyspace(String newKeyspace)
+    {
+        Map<ByteBuffer, UserType> updatedTypes = new HashMap<>();
+
+        for (UserType originalType : getTypesOrderedByDependencies())
+        {
+            UserType type = new UserType(newKeyspace,
+                                         originalType.name,
+                                         originalType.fieldNames(),
+                                         originalType.fieldTypes()
+                                                     .stream()
+                                                     .map(t -> t.withUpdatedUserTypes(updatedTypes.values()))
+                                                     .collect(Collectors.toList()),
+                                         true);
+
+            updatedTypes.put(type.name, type);
+        }
+
+        return new Types(ImmutableSortedMap.copyOf(updatedTypes));
     }
 
     public static final class Builder

@@ -416,10 +416,10 @@ public class UserType extends TupleType implements SchemaElement
         {
             return isMultiCell == udt.isMultiCell
                  ? udt
-                 : new UserType(keyspace, name, udt.fieldNames(), udt.fieldTypes(), isMultiCell);
+                 : new UserType(udt.keyspace, name, udt.fieldNames(), udt.fieldTypes(), isMultiCell);
         }
 
-        return new UserType(keyspace,
+        return new UserType(udt.keyspace,
                             name,
                             fieldNames,
                             Lists.newArrayList(transform(fieldTypes(), t -> t.withUpdatedUserType(udt))),

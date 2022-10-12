@@ -44,6 +44,7 @@ import org.github.jamm.Unmetered;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static com.google.common.collect.Maps.transformValues;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -588,6 +589,29 @@ public class TableMetadata implements SchemaElement
     boolean referencesUserType(ByteBuffer name)
     {
         return any(columns(), c -> c.type.referencesUserType(name));
+    }
+
+    /**
+     * Create a copy of this {@code TableMetadata} for a new keyspace.
+     *
+     * @param newKeyspace the name of the new keyspace
+     * @param udts the user defined types of the new keyspace
+     * @param tables the tables of the new keyspace
+     * @return a copy of this {@code TableMetadata} for a new keyspace
+     */
+    TableMetadata withNewKeyspace(String newKeyspace,
+                                  Types udts,
+                                  Map<String, TableMetadata> tables)
+    {
+        return builder(newKeyspace, name).partitioner(partitioner)
+                                         .kind(kind)
+                                         .params(params)
+                                         .flags(flags)
+                                         .addColumns(transform(columns(), c -> c.withNewKeyspace(newKeyspace, udts)))
+                                         .droppedColumns(transformValues(droppedColumns, c -> c.withNewKeyspace(newKeyspace, udts)))
+                                         .indexes(indexes)
+                                         .triggers(triggers)
+                                         .build();
     }
 
     public TableMetadata withUpdatedUserType(UserType udt)

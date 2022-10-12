@@ -41,6 +41,8 @@ import org.apache.cassandra.schema.Views.ViewsDiff;
 import org.apache.cassandra.service.StorageService;
 
 import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.transform;
+import static com.google.common.collect.Maps.transformValues;
 import static java.lang.String.format;
 
 /**
@@ -90,6 +92,30 @@ public final class KeyspaceMetadata implements SchemaElement
     public static KeyspaceMetadata virtual(String name, Tables tables)
     {
         return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables, Views.none(), Types.none(), Functions.none());
+    }
+
+    public KeyspaceMetadata rename(String newName)
+    {
+        Types newTypes = types.withNewKeyspace(newName);
+        Functions newFunctions = functions.withNewKeyspace(newName, newTypes);
+        Tables newTables = tables.withNewKeyspace(newName, newTypes);
+
+        Views.Builder viewsBuilder = Views.builder();
+
+        for (ViewMetadata view : views)
+        {
+            TableMetadata newMetadata = newTables.getNullable(view.baseTableName);
+            TableMetadata.Builder tableBuilder = TableMetadata.builder(newName, view.metadata.name)
+                                                              .partitioner(view.metadata.partitioner)
+                                                              .kind(view.metadata.kind)
+                                                              .params(view.metadata.params)
+                                                              .flags(view.metadata.flags)
+                                                              .addColumns(transform(view.metadata.columns(), c -> c.withNewKeyspace(newName, newTypes)))
+                                                              .droppedColumns(transformValues(view.metadata.droppedColumns, c -> c.withNewKeyspace(newName, newTypes)));
+            viewsBuilder.put(new ViewMetadata(newMetadata.id, newMetadata.name, view.includeAllColumns, view.whereClause, tableBuilder.build()));
+        }
+
+        return new KeyspaceMetadata(newName, kind, params, newTables, viewsBuilder.build(), newTypes, newFunctions);
     }
 
     public KeyspaceMetadata withSwapped(KeyspaceParams params)

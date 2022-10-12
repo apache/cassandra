@@ -34,6 +34,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Difference;
 import org.apache.cassandra.schema.Functions;
+import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -125,6 +126,28 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
                                findFunction(name, udfs, stateFunction.name(), stateFunction.argTypes()),
                                null == finalFunction ? null : findFunction(name, udfs, finalFunction.name(), finalFunction.argTypes()),
                                initcond);
+    }
+
+    public UDAggregate withNewKeyspace(String newKeyspace, Collection<UDFunction> udfs, Types types)
+    {
+        return new UDAggregate(new FunctionName(newKeyspace, name.name),
+                               withUpdatedUserTypes(argTypes, types),
+                               returnType.withUpdatedUserTypes(types),
+                               findFunction(name,
+                                            udfs,
+                                            new FunctionName(newKeyspace, stateFunction.name().name),
+                                            withUpdatedUserTypes(stateFunction.argTypes(), types)),
+                               null == finalFunction ? null
+                                                     : findFunction(name,
+                                                                    udfs,
+                                                                    new FunctionName(newKeyspace, finalFunction.name().name),
+                                                                    withUpdatedUserTypes(finalFunction.argTypes(), types)),
+                               initcond);
+    }
+
+    private List<AbstractType<?>> withUpdatedUserTypes(List<AbstractType<?>> argTypes, Types types)
+    {
+        return Lists.newArrayList(transform(argTypes, t -> t.withUpdatedUserTypes(types)));
     }
 
     @Override
