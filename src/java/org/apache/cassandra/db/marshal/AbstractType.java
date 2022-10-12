@@ -569,6 +569,22 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
+     * Returns an instance of this type with all references to the provided user types recursively replaced with their new
+     * definition.
+     */
+    public final AbstractType<?> withUpdatedUserTypes(Iterable<UserType> udts)
+    {
+        if (!referencesUserTypes())
+            return this;
+
+        AbstractType<?> type = this;
+        for (UserType udt : udts)
+            type = type.withUpdatedUserType(udt);
+
+        return type;
+    }
+
+    /**
      * Replace any instances of UserType with equivalent TupleType-s.
      *
      * We need it for dropped_columns, to allow safely dropping unused user types later without retaining any references
