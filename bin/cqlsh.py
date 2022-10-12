@@ -504,7 +504,7 @@ class Shell(cmd.Cmd):
 
         self.session.default_timeout = request_timeout
         self.session.row_factory = ordered_dict_factory
-        self.session.default_consistency_level = cassandra.ConsistencyLevel.ONE
+        self.session.default_consistency_level = cassandra.ConsistencyLevel.LOCAL_QUORUM
         self.get_connection_versions()
         self.set_expanded_cql_version(self.connection_versions['cql'])
 
@@ -535,8 +535,8 @@ class Shell(cmd.Cmd):
             self.show_line_nums = True
         self.stdin = stdin
         self.query_out = sys.stdout
-        self.consistency_level = cassandra.ConsistencyLevel.ONE
-        self.serial_consistency_level = cassandra.ConsistencyLevel.SERIAL
+        self.consistency_level = cassandra.ConsistencyLevel.LOCAL_QUORUM
+        self.serial_consistency_level = cassandra.ConsistencyLevel.LOCAL_SERIAL
 
         self.empty_lines = 0
         self.statement_error = False
