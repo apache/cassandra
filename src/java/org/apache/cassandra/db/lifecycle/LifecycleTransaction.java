@@ -222,6 +222,9 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // prepare for compaction obsolete readers as long as they were part of the original set
         // since those that are not original are early readers that share the same desc with the finals
         maybeFail(prepareForObsoletion(filterIn(logged.obsolete, originals), log, obsoletions = new ArrayList<>(), tracker, null));
+
+        // This needs to be called after checkpoint and having prepared the obsoletions because it will upload the deletion
+        // marks in CNDB
         log.prepareToCommit();
     }
 
