@@ -52,6 +52,7 @@ public class Scrubber implements Closeable
     private final CompactionRealm realm;
     private final SSTableReader sstable;
     private final LifecycleTransaction transaction;
+    private final boolean isOffline;
     private final File destination;
     private final boolean skipCorrupted;
     private final boolean reinsertOverflowedTTLRows;
@@ -85,12 +86,13 @@ public class Scrubber implements Closeable
     public Scrubber(CompactionRealm realm, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData,
                     boolean reinsertOverflowedTTLRows)
     {
-        this(realm, transaction, skipCorrupted, new OutputHandler.LogOutput(), checkData, reinsertOverflowedTTLRows);
+        this(realm, transaction, transaction.isOffline(), skipCorrupted, new OutputHandler.LogOutput(), checkData, reinsertOverflowedTTLRows);
     }
 
     @SuppressWarnings("resource")
     public Scrubber(CompactionRealm realm,
                     LifecycleTransaction transaction,
+                    boolean isOffline,
                     boolean skipCorrupted,
                     OutputHandler outputHandler,
                     boolean checkData,
@@ -98,6 +100,7 @@ public class Scrubber implements Closeable
     {
         this.realm = realm;
         this.transaction = transaction;
+        this.isOffline = isOffline;
         this.sstable = transaction.onlyOne();
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
@@ -125,7 +128,7 @@ public class Scrubber implements Closeable
         // We'll also loop through the index at the same time, using the position from the index to recover if the
         // partition header (key or data size) is corrupt. (This means our position in the index file will be one
         // partition "ahead" of the data file.)
-        this.dataFile = transaction.isOffline()
+        this.dataFile = isOffline
                         ? sstable.openDataReader()
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
 
@@ -358,7 +361,7 @@ public class Scrubber implements Closeable
         }
         finally
         {
-            if (transaction.isOffline())
+            if (isOffline)
                 finished.forEach(sstable -> sstable.selfRef().release());
         }
 
