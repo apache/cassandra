@@ -154,22 +154,26 @@ public class SchemaCQLHelperTest extends CQLTester
                      .addStaticColumn("st1", IntegerType.instance)
                      .addRegularColumn("reg1", IntegerType.instance)
                      .addRegularColumn("reg2", IntegerType.instance)
-                     .addRegularColumn("reg3", IntegerType.instance);
+                     .addRegularColumn("reg3", IntegerType.instance)
+                     .addRegularColumn(ColumnIdentifier.getInterned("Reg3", true), IntegerType.instance); // Mixed case column
 
         ColumnMetadata st1 = builder.getColumn(ByteBufferUtil.bytes("st1"));
         ColumnMetadata reg1 = builder.getColumn(ByteBufferUtil.bytes("reg1"));
         ColumnMetadata reg2 = builder.getColumn(ByteBufferUtil.bytes("reg2"));
         ColumnMetadata reg3 = builder.getColumn(ByteBufferUtil.bytes("reg3"));
+        ColumnMetadata reg3MixedCase = builder.getColumn(ByteBufferUtil.bytes("Reg3"));
 
         builder.removeRegularOrStaticColumn(st1.name)
                .removeRegularOrStaticColumn(reg1.name)
                .removeRegularOrStaticColumn(reg2.name)
-               .removeRegularOrStaticColumn(reg3.name);
+               .removeRegularOrStaticColumn(reg3.name)
+               .removeRegularOrStaticColumn(reg3MixedCase.name);
 
         builder.recordColumnDrop(st1, 5000)
                .recordColumnDrop(reg1, 10000)
                .recordColumnDrop(reg2, 20000)
-               .recordColumnDrop(reg3, 30000);
+               .recordColumnDrop(reg3, 30000)
+               .recordColumnDrop(reg3MixedCase, 40000);
 
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);
 
@@ -186,6 +190,7 @@ public class SchemaCQLHelperTest extends CQLTester
                          containsString("DROPPED COLUMN RECORD reg1 varint USING TIMESTAMP 10000"),
                          containsString("DROPPED COLUMN RECORD reg2 varint USING TIMESTAMP 20000"),
                          containsString("DROPPED COLUMN RECORD reg3 varint USING TIMESTAMP 30000"),
+                         containsString("DROPPED COLUMN RECORD \"Reg3\" varint USING TIMESTAMP 40000"),
                          containsString("DROPPED COLUMN RECORD st1 varint static USING TIMESTAMP 5000")));
     }
 
