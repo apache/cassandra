@@ -107,20 +107,35 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public String getAllEndpointStates()
     {
-        return getAllEndpointStates(false);
+        return getAllEndpointStates(false, false);
+    }
+
+    public String getAllEndpointStatesWithResolveIp()
+    {
+        return getAllEndpointStates(false, true);
     }
 
     public String getAllEndpointStatesWithPort()
     {
-        return getAllEndpointStates(true);
+        return getAllEndpointStates(true, false);
+    }
+
+    public String getAllEndpointStatesWithPortAndResolveIp()
+    {
+        return getAllEndpointStates(true, true);
     }
 
     public String getAllEndpointStates(boolean withPort)
     {
+        return getAllEndpointStates(withPort, false);
+    }
+
+    public String getAllEndpointStates(boolean withPort, boolean resolveIp)
+    {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
-            sb.append(entry.getKey().toString(withPort)).append("\n");
+            sb.append(resolveIp ? entry.getKey().getHostName(withPort) : entry.getKey().toString(withPort)).append("\n");
             appendEndpointState(sb, entry.getValue());
         }
         return sb.toString();
