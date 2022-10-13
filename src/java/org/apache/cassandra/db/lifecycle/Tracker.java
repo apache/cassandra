@@ -338,7 +338,27 @@ public class Tracker
             }
             catch (Throwable t)
             {
-                accumulate = abortObsoletion(obsoletions, accumulate);
+                logger.error("Failed to commit transaction for obsoleting sstables of {}", metadata.name, t);
+                Throwable err = abortObsoletion(obsoletions, null);
+                if (err == null && cfstore != null && cfstore.isValid())
+                {
+                    // if the obsoletions were cancelled and the table is still valid, i.e. not dropped, restore the sstables since they are valid, and for CNDB they are in etcd as well
+                    err = apply(updateLiveSet(emptySet(), removed), accumulate);
+                }
+                else if (cfstore != null && !cfstore.isValid())
+                {
+                    // if the table is invalid, i.e. dropped, send in the notifications anyway because otherwise CNDB etcd does not get updated
+                    err = notifySSTablesChanged(removed, Collections.emptySet(), txnLogs.opType(), Optional.of(txnLogs.id()), err);
+                }
+                else
+                {
+                    // cfstore should always be != null and either valid or not, so we get here only in case err != null
+                    logger.error("Failed to abort obsoletions for {}, some sstables will be missing from liveset", metadata.name, err);
+                }
+
+                if (err != null)
+                    accumulate = Throwables.merge(accumulate, err);
+
                 accumulate = Throwables.merge(accumulate, t);
             }
         }

@@ -34,6 +34,7 @@ import com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -46,10 +47,14 @@ import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
+import org.mockito.Mockito;
 
 import static com.google.common.collect.ImmutableSet.copyOf;
 import static java.util.Collections.singleton;
 
+@RunWith(BMUnitRunner.class)
 public class TrackerTest
 {
     private static final class MockListener implements INotificationConsumer
@@ -264,6 +269,64 @@ public class TrackerTest
             for (SSTableReader reader : readers)
                 Assert.assertTrue(reader.isMarkedCompacted());
         }
+    }
+
+    @Test
+    public void testDropSSTablesWithTxnCommitFailureLiveSSTables()
+    {
+        dropSSTablesWithTxnCommitFailure(true, false);
+    }
+
+    @Test
+    public void testDropSSTablesWithTxnCommitFailure()
+    {
+        dropSSTablesWithTxnCommitFailure(false, false);
+    }
+
+    @Test
+    @BMRule(name = "fail abort obsoletion",
+            targetClass = "Helpers",
+            targetMethod = "abortObsoletion",
+            action = "return new java.lang.RuntimeException(\"failed to abort obsoletions\")")
+    public void testDropSSTablesWithTxnCommitFailureAndAbortedObsoletions()
+    {
+        dropSSTablesWithTxnCommitFailure(true, true);
+    }
+
+    private void dropSSTablesWithTxnCommitFailure(boolean liveSSTables, boolean abortObsoletions)
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        Tracker tracker = Mockito.spy(cfs.getTracker());
+
+        Mockito.doThrow(new RuntimeException("Test throw")).when(tracker).notifySSTablesChanged(
+        Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+
+        if (!liveSSTables)
+            cfs.invalidate(false, false);
+
+        MockListener listener = new MockListener(false);
+        tracker.subscribe(listener);
+        final List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 9, true, cfs),
+                                                             MockSchema.sstable(1, 15, true, cfs),
+                                                             MockSchema.sstable(2, 71, true, cfs));
+        tracker.addInitialSSTables(copyOf(readers));
+
+        try (LifecycleTransaction txn = tracker.tryModify(readers.get(0), OperationType.COMPACTION))
+        {
+            Assert.assertThrows(RuntimeException.class, () -> tracker.dropSSTables());
+        }
+        catch (RuntimeException ex)
+        {
+            Assert.assertTrue(abortObsoletions);
+        }
+
+        // If obsoletions were aborted then we can't make any guarantees about the state of the SSTable liveset.
+        if (abortObsoletions)
+            return;
+
+        // Make sure that all SSTables are still live after the commit failed, unless we invalidated the CFS first.
+        int numSSTables = liveSSTables ? readers.size() : 0;
+        Assert.assertEquals(numSSTables, tracker.getLiveSSTables().size());
     }
 
     @Test
