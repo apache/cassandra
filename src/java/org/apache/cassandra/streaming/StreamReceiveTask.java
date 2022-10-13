@@ -27,6 +27,7 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -127,13 +128,18 @@ public class StreamReceiveTask extends StreamTask
         {
             try
             {
-                if (ColumnFamilyStore.getIfExists(task.tableId) == null)
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(task.tableId);
+                if (cfs == null)
                 {
                     // schema was dropped during streaming
                     task.receiver.abort();
                     task.session.taskCompleted(task);
                     return;
                 }
+
+                
+                if (!CassandraRelevantProperties.CDC_STREAMING_ENABLED.getBoolean() && cfs.metadata().params.cdc)
+                    throw new RuntimeException(String.format("Streaming CDC-enabled sstables is not supported, aborting table %s", cfs));
 
                 task.receiver.finished();
                 task.session.taskCompleted(task);

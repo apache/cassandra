@@ -311,8 +311,10 @@ public enum CassandraRelevantProperties
     // Allows one to turn off cursors in compaction.
     CURSORS_ENABLED("cassandra.allow_cursor_compaction", "true"),
 
-    SYNC_LAG_FACTOR("cassandra.commitlog_sync_block_lag_factor", "1.5");
+    SYNC_LAG_FACTOR("cassandra.commitlog_sync_block_lag_factor", "1.5"),
 
+    CDC_STREAMING_ENABLED("cassandra.cdc.enable_streaming", "true");
+    
     CassandraRelevantProperties(String key, String defaultVal)
     {
         this.key = key;
