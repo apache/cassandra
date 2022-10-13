@@ -1426,7 +1426,15 @@ public class NodeProbe implements AutoCloseable
 
     public String getGossipInfo(boolean withPort)
     {
-        return withPort ? fdProxy.getAllEndpointStatesWithPort() : fdProxy.getAllEndpointStates();
+        return getGossipInfo(withPort, false);
+    }
+
+    public String getGossipInfo(boolean withPort, boolean resolveIp)
+    {
+        if (resolveIp)
+            return withPort ? fdProxy.getAllEndpointStatesWithPortAndResolveIp() : fdProxy.getAllEndpointStatesWithResolveIp();
+        else
+            return withPort ? fdProxy.getAllEndpointStatesWithPort() : fdProxy.getAllEndpointStates();
     }
 
     public void stop(String string)
