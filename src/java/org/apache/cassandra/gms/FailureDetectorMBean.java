@@ -32,7 +32,9 @@ public interface FailureDetectorMBean
     public double getPhiConvictThreshold();
 
     @Deprecated public String getAllEndpointStates();
+    @Deprecated public String getAllEndpointStatesWithResolveIp();
     public String getAllEndpointStatesWithPort();
+    public String getAllEndpointStatesWithPortAndResolveIp();
 
     public String getEndpointState(String address) throws UnknownHostException;
 
