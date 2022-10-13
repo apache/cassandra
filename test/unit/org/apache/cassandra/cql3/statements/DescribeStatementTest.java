@@ -768,6 +768,31 @@ public class DescribeStatementTest extends CQLTester
                                                            ");"));
     }
 
+    @Test
+    public void testUsingReservedInMaterializedView() throws Throwable
+    {
+        try{
+            execute("CREATE KEYSPACE testWithKeywords WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
+            execute("CREATE TABLE testWithKeywords.users_mv (username varchar, password varchar, gender varchar, session_token varchar, " +
+                    "state varchar, birth_year bigint, \"token\" text, PRIMARY KEY (\"token\"));");
+            execute("CREATE MATERIALIZED VIEW testWithKeywords.users_by_state AS SELECT * FROM testWithKeywords.users_mv " +
+                    "WHERE STATE IS NOT NULL AND \"token\" IS NOT NULL PRIMARY KEY (state, \"token\")");
+
+            final String expectedOutput = "CREATE MATERIALIZED VIEW testwithkeywords.users_by_state AS\n" +
+                                          "    SELECT *\n" +
+                                          "    FROM testwithkeywords.users_mv\n" +
+                                          "    WHERE state IS NOT NULL AND \"token\" IS NOT NULL\n" +
+                                          "    PRIMARY KEY (state, \"token\")\n" +
+                                          " WITH CLUSTERING ORDER BY (\"token\" ASC)\n" +
+                                          "    AND " + mvParametersCql();
+
+            testDescribeMaterializedView("testWithKeywords", "users_by_state", row("testwithkeywords", "materialized_view", "users_by_state", expectedOutput));
+        } finally
+        {
+            execute("DROP KEYSPACE IF EXISTS testWithKeywords");
+        }
+    }
+
     private static String allTypesTable()
     {
         return "CREATE TABLE test.has_all_types (\n" +

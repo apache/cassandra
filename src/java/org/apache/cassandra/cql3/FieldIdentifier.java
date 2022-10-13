@@ -31,8 +31,6 @@ public class FieldIdentifier
 {
     public final ByteBuffer bytes;
 
-    private static final String ESCAPED_DOUBLE_QUOTE = "\"";
-
     public FieldIdentifier(ByteBuffer bytes)
     {
         this.bytes = bytes;
@@ -51,7 +49,7 @@ public class FieldIdentifier
      */
     public static FieldIdentifier forQuoted(String text)
     {
-        return new FieldIdentifier(convert(addQuotes(text)));
+        return new FieldIdentifier(convert(text));
     }
 
     /**
@@ -74,11 +72,6 @@ public class FieldIdentifier
         {
             throw new SyntaxException(String.format("For field name %s: %s", text, e.getMessage()));
         }
-    }
-
-    private static String addQuotes(String text)
-    {
-        return ESCAPED_DOUBLE_QUOTE + text + ESCAPED_DOUBLE_QUOTE;
     }
 
     @Override
