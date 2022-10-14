@@ -65,7 +65,9 @@ public abstract class StorageHandler
         /** When repair task started */
         REPAIR(true),
         /** A request over forced by users to reload. */
-        USER_REQUESTED(true);
+        USER_REQUESTED(true),
+        /** When region status changed */
+        REGION_CHANGED(false);
 
         /** When this is true, a reload operation will reload all sstables even those that could
          * have been flushed by other nodes. */
