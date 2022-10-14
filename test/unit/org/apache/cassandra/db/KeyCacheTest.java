@@ -46,6 +46,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.Pair;
@@ -162,8 +163,11 @@ public class KeyCacheTest
         CacheService.instance.invalidateKeyCache();
         assertKeyCacheSize(0, KEYSPACE1, cf);
 
+        long currentCount = StorageMetrics.keyReadFromKeyCache.getCount();
         CacheService.instance.keyCache.loadSaved();
         assertKeyCacheSize(savedMap.size(), KEYSPACE1, cf);
+        // one extra read for system keyspace since CASSANDRA-18153
+        assertEquals(currentCount + savedMap.size() + 1, StorageMetrics.keyReadFromKeyCache.getCount());
 
         // probably it's better to add equals/hashCode to RowIndexEntry...
         for (Map.Entry<KeyCacheKey, RowIndexEntry> entry : savedMap.entrySet())

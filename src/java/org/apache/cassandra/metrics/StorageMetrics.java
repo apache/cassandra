@@ -41,4 +41,5 @@ public class StorageMetrics
     public static final Counter totalHintFilesPresent = Metrics.counter(factory.createMetricName("TotalHintFilesPresent"));
     public static final Counter errorDecommissiong = Metrics.counter(factory.createMetricName("ErrorDecommissioning"));
     public static final Counter errorBootstraping = Metrics.counter(factory.createMetricName("ErrorBootstraping"));
+    public static final Counter keyReadFromKeyCache = Metrics.counter(factory.createMetricName("KeyReadFromKeyCache"));
 }

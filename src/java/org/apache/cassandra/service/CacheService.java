@@ -46,6 +46,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -494,6 +495,7 @@ public class CacheService implements CacheServiceMBean
                                                                                                                 reader.descriptor.version,
                                                                                                                 reader.header);
             RowIndexEntry<?> entry = indexSerializer.deserializeForCache(input);
+            StorageMetrics.keyReadFromKeyCache.inc(1);
             return ImmediateFuture.success(Pair.create(new KeyCacheKey(cfs.metadata(), reader.descriptor, key), entry));
         }
 
