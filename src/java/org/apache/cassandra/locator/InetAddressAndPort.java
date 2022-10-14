@@ -124,8 +124,7 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
 
     public String getHostName(boolean withPort)
     {
-        StringBuilder sb = new StringBuilder(getHostName());
-        return withPort ? sb.append(":").append(getPort()).toString() : sb.toString();
+        return withPort ? String.format("%s:%s", getHostName(), getPort()) : getHostName();
     }
 
     public static String hostAddressAndPort(InetSocketAddress address)
