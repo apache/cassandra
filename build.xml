@@ -531,7 +531,7 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
-				
+
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
         <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
@@ -1330,6 +1330,19 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+    </testmacro>
+  </target>
+
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest -Dtest.methods=testLargeCount
+  -->
+  <target name="long-testsome" depends="build-test" description="Execute specific long unit tests" >
+    <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
   </target>
 
