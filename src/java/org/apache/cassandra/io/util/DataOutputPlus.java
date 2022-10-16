@@ -126,7 +126,6 @@ public interface DataOutputPlus extends DataOutput
             default:
                 throw new IllegalArgumentException();
         }
-
     }
 
     /**

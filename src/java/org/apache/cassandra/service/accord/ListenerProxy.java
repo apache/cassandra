@@ -28,9 +28,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Command;
-import accord.local.CommandStore;
-import accord.local.Listener;
+import accord.local.CommandListener;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommandStore;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -39,7 +39,7 @@ import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public abstract class ListenerProxy implements Listener, Comparable<ListenerProxy>
+public abstract class ListenerProxy implements CommandListener, Comparable<ListenerProxy>
 {
     private static final Logger logger = LoggerFactory.getLogger(ListenerProxy.class);
 
@@ -48,11 +48,8 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
     public abstract Kind kind();
     public abstract ByteBuffer identifier();
 
-    final CommandStore commandStore;
-
-    private ListenerProxy(CommandStore commandStore)
+    private ListenerProxy()
     {
-        this.commandStore = commandStore;
     }
 
     @Override
@@ -65,12 +62,11 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
 
     static class CommandListenerProxy extends ListenerProxy
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandListenerProxy(null, null));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandListenerProxy(null));
         private final TxnId txnId;
 
-        public CommandListenerProxy(CommandStore commandStore, TxnId txnId)
+        public CommandListenerProxy(TxnId txnId)
         {
-            super(commandStore);
             this.txnId = txnId;
         }
 
@@ -129,10 +125,10 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        public void onChange(Command c)
+        public void onChange(SafeCommandStore safeStore, Command c)
         {
             AccordCommand command = (AccordCommand) c;
-            AccordCommandStore commandStore = command.commandStore();
+            AccordCommandStore commandStore = (AccordCommandStore) safeStore;
             AsyncContext context = commandStore.getContext();
             PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId(), txnId), Collections.emptyList());
             if (context.containsScopedItems(loadCtx))
@@ -140,15 +136,15 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
                 // TODO (soon): determine if this can break anything by not waiting for the current operation to denormalize it's data
                 //  the summary loader may default to commands in context, in case it wouldn't
                 logger.trace("{}: synchronously updating listening command {}", c.txnId(), txnId);
-                commandStore.command(txnId).onChange(c);
+                commandStore.command(txnId).onChange(safeStore, c);
             }
             else
             {
                 TxnId callingTxnId = command.txnId();
                 logger.trace("{}: asynchronously updating listening command {}", c.txnId(), txnId);
-                commandStore.process(loadCtx, instance -> {
-                    Command caller = instance.command(callingTxnId);
-                    commandStore.command(txnId).onChange(caller);
+                commandStore.execute(loadCtx, reSafeStore -> {
+                    Command caller = reSafeStore.command(callingTxnId);
+                    commandStore.command(txnId).onChange(reSafeStore, caller);
                 });
             }
         }
@@ -166,12 +162,11 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
      */
     static class CommandsForKeyListenerProxy extends ListenerProxy
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandsForKeyListenerProxy(null, null));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandsForKeyListenerProxy(null));
         private final AccordKey.PartitionKey key;
 
-        public CommandsForKeyListenerProxy(CommandStore commandStore, AccordKey.PartitionKey key)
+        public CommandsForKeyListenerProxy(AccordKey.PartitionKey key)
         {
-            super(commandStore);
             this.key = key;
         }
 
@@ -230,24 +225,24 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
 
         @Override
-        public void onChange(Command c)
+        public void onChange(SafeCommandStore safeStore, Command c)
         {
             AccordCommand command = (AccordCommand) c;
-            AccordCommandStore commandStore = command.commandStore();
+            AccordCommandStore commandStore = (AccordCommandStore) safeStore;
             AsyncContext context = commandStore.getContext();
             PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId()), ImmutableList.of(key));
             if (context.containsScopedItems(loadCtx))
             {
                 logger.trace("{}: synchronously updating listening cfk {}", c.txnId(), key);
-                commandStore.commandsForKey(key).onChange(c);
+                commandStore.commandsForKey(key).onChange(safeStore, c);
             }
             else
             {
                 TxnId callingTxnId = command.txnId();
                 logger.trace("{}: asynchronously updating listening cfk {}", c.txnId(), key);
-                commandStore.process(loadCtx, instance -> {
-                    Command caller = instance.command(callingTxnId);
-                    commandStore.commandsForKey(key).onChange(caller);
+                commandStore.execute(loadCtx, reSafeStore -> {
+                    Command caller = reSafeStore.command(callingTxnId);
+                    commandStore.commandsForKey(key).onChange(reSafeStore, caller);
                 });
             }
         }
@@ -259,7 +254,7 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         }
     }
 
-    public static <V> ListenerProxy deserialize(CommandStore commandStore, V src, ValueAccessor<V> accessor, int offset) throws IOException
+    public static <V> ListenerProxy deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
     {
         int ordinal = accessor.getByte(src, offset);
         Kind kind = Kind.values()[ordinal];
@@ -268,10 +263,10 @@ public abstract class ListenerProxy implements Listener, Comparable<ListenerProx
         {
             case COMMAND:
                 TxnId txnId = CommandSerializers.txnId.deserialize(src, accessor, offset);
-                return new CommandListenerProxy(commandStore, txnId);
+                return new CommandListenerProxy(txnId);
             case COMMANDS_FOR_KEY:
                 AccordKey.PartitionKey key = AccordKey.PartitionKey.serializer.deserialize(src, accessor, offset);
-                return new CommandsForKeyListenerProxy(commandStore, key);
+                return new CommandsForKeyListenerProxy(key);
             default:
                 throw new IOException("Unknown kind ordinal " + ordinal);
         }

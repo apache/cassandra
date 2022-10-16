@@ -43,4 +43,10 @@ public class AccordAgent implements Agent
     {
         // TODO: this
     }
+
+    @Override
+    public void onHandledException(Throwable throwable)
+    {
+        // TODO: this
+    }
 }

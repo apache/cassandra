@@ -123,7 +123,7 @@ public class SetSerializer<T> extends AbstractMapSerializer<Set<T>>
                 l.add(elements.deserialize(value, accessor));
             }
             if (!accessor.isEmptyFromOffset(input, offset))
-                throw new MarshalException("Unexpected extraneous bytes after set value");
+                throw new MarshalException("Unexpected extraneous bytes after set value" + l + "," + accessor.toHex(input));
             return l;
         }
         catch (BufferUnderflowException | IndexOutOfBoundsException e)

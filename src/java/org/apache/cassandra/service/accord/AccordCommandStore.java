@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 
 import com.google.common.base.Preconditions;
 
@@ -33,20 +33,23 @@ import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.local.Command;
+import accord.local.CommandListener;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
+import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommandStore;
+import accord.primitives.Keys;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-public class AccordCommandStore extends CommandStore
+public class AccordCommandStore extends CommandStore implements SafeCommandStore
 {
     public static long maxCacheSize()
     {
@@ -78,25 +81,36 @@ public class AccordCommandStore extends CommandStore
     private AsyncContext currentCtx = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
 
-    public AccordCommandStore(int generation,
+    private final NodeTimeService time;
+    private final Agent agent;
+    private final DataStore dataStore;
+    private final ProgressLog progressLog;
+    private final RangesForEpoch rangesForEpoch;
+
+    public AccordCommandStore(int id,
+                              int generation,
                               int index,
                               int numShards,
-                              Function<Timestamp, Timestamp> uniqueNow,
-                              LongSupplier currentEpoch,
+                              NodeTimeService time,
                               Agent agent,
-                              DataStore store,
+                              DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
                               RangesForEpoch rangesForEpoch,
                               ExecutorService executor)
     {
-        super(generation, index, numShards, uniqueNow, currentEpoch, agent, store, progressLogFactory, rangesForEpoch);
+        super(id, generation, index, numShards);
+        this.time = time;
+        this.agent = agent;
+        this.dataStore = dataStore;
+        this.progressLog = progressLogFactory.create(this);
+        this.rangesForEpoch = rangesForEpoch;
         this.loggingId = String.format("[%s:%s]", generation, index);
         this.executor = executor;
-        this.threadId = getThreadId(executor);
+        this.threadId = getThreadId(this.executor);
         this.stateCache = new AccordStateCache(maxCacheSize() / numShards);
         this.commandCache = stateCache.instance(TxnId.class,
                                                 AccordCommand.class,
-                                                txnId -> new AccordCommand(this, txnId));
+                                                AccordCommand::new);
         this.commandsForKeyCache = stateCache.instance(PartitionKey.class,
                                                        AccordCommandsForKey.class,
                                                        key -> new AccordCommandsForKey(this, key));
@@ -185,6 +199,18 @@ public class AccordCommandStore extends CommandStore
         return !command.isEmpty() ? command : null;
     }
 
+    @Override
+    public Command ifLoaded(TxnId txnId)
+    {
+        AccordCommand command = commandCache.getOrNull(txnId);
+        if (command != null && command.isLoaded())
+        {
+            getContext().commands.add(command);
+            return command;
+        }
+        return null;
+    }
+
     public boolean isCommandsForKeyInContext(PartitionKey key)
     {
         return currentCtx.commandsForKey.get(key) != null;
@@ -219,39 +245,31 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public Future<Void> processSetup(Consumer<? super CommandStore> function)
+    public void addAndInvokeListener(TxnId txnId, CommandListener listener)
     {
-        AsyncPromise<Void> promise = new AsyncPromise<>();
-        executor.execute(() -> {
-            try
-            {
-                function.accept(this);
-                promise.trySuccess(null);
-            }
-            catch (Throwable t)
-            {
-                promise.tryFailure(t);
-            }
+        AccordCommand.WriteOnly command = (AccordCommand.WriteOnly) getContext().commands.getOrCreateWriteOnly(txnId, (ignore, id) -> new AccordCommand.WriteOnly(id), this);
+        command.addListener(listener);
+        execute(listener.listenerPreLoadContext(txnId), store -> {
+            listener.onChange(store, store.command(txnId));
         });
-        return promise;
     }
 
     @Override
-    public <T> Future<T> processSetup(Function<? super CommandStore, T> function)
+    public CommandStore commandStore()
     {
-        AsyncPromise<T> promise = new AsyncPromise<>();
-        executor.execute(() -> {
-            try
-            {
-                T result = function.apply(this);
-                promise.trySuccess(result);
-            }
-            catch (Throwable t)
-            {
-                promise.tryFailure(t);
-            }
-        });
-        return promise;
+        return this;
+    }
+
+    @Override
+    public DataStore dataStore()
+    {
+        return dataStore;
+    }
+
+    @Override
+    public Timestamp uniqueNow(Timestamp atLeast)
+    {
+        return time.uniqueNow(atLeast);
     }
 
     public void processBlocking(Runnable runnable)
@@ -271,7 +289,7 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public <T> Future<T> process(PreLoadContext loadCtx, Function<? super CommandStore, T> function)
+    public <T> Future<T> submit(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         AsyncOperation<T> operation = AsyncOperation.create(this, loadCtx, function);
         executor.execute(operation);
@@ -279,12 +297,49 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public Future<Void> process(PreLoadContext loadCtx, Consumer<? super CommandStore> consumer)
+    public Agent agent()
     {
-        AsyncOperation<Void> operation = AsyncOperation.create(this, loadCtx, consumer);
+        return agent;
+    }
+
+    @Override
+    public ProgressLog progressLog()
+    {
+        return progressLog;
+    }
+
+    @Override
+    public RangesForEpoch ranges()
+    {
+        return rangesForEpoch;
+    }
+
+    @Override
+    public long latestEpoch()
+    {
+        return time.epoch();
+    }
+
+    @Override
+    public Timestamp maxConflict(Keys keys)
+    {
+        // TODO: efficiency
+        return keys.stream()
+                   .map(this::maybeCommandsForKey)
+                   .filter(Objects::nonNull)
+                   .map(CommandsForKey::max)
+                   .max(Comparator.naturalOrder())
+                   .orElse(Timestamp.NONE);
+    }
+
+    @Override
+    public Future<Void> execute(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    {
+        AsyncOperation<Void> operation = AsyncOperation.create(this, preLoadContext, consumer);
         executor.execute(operation);
         return operation;
     }
+
 
     @Override
     public void shutdown()

@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import javax.annotation.Nullable;
+
 import accord.api.Result;
 import accord.local.Status;
 import accord.messages.BeginRecovery;
@@ -28,10 +30,13 @@ import accord.messages.BeginRecovery.RecoverOk;
 import accord.messages.BeginRecovery.RecoverReply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
-import accord.primitives.Keys;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialRoute;
+import accord.primitives.PartialTxn;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.txn.Writes;
+import accord.primitives.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -49,51 +54,45 @@ public class RecoverySerializers
         @Override
         public void serializeBody(BeginRecovery recover, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.txnId.serialize(recover.txnId, out, version);
-            CommandSerializers.txn.serialize(recover.txn, out, version);
-            KeySerializers.key.serialize(recover.homeKey, out, version);
+            CommandSerializers.partialTxn.serialize(recover.partialTxn, out, version);
             CommandSerializers.ballot.serialize(recover.ballot, out, version);
+            serializeNullable(KeySerializers.route, recover.route, out, version);
         }
 
         @Override
-        public BeginRecovery deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
+        public BeginRecovery deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException
         {
-            return new BeginRecovery(scope, waitForEpoch,
-                                     CommandSerializers.txnId.deserialize(in, version),
-                                     CommandSerializers.txn.deserialize(in, version),
-                                     KeySerializers.key.deserialize(in, version),
-                                     CommandSerializers.ballot.deserialize(in, version));
+            PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
+            Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
+            @Nullable Route route = deserializeNullable(KeySerializers.route, in, version);
+            return BeginRecovery.SerializationSupport.create(txnId, scope, waitForEpoch, partialTxn, ballot, route);
         }
 
         @Override
         public long serializedBodySize(BeginRecovery recover, int version)
         {
-            return CommandSerializers.txnId.serializedSize(recover.txnId, version)
-                   + CommandSerializers.txn.serializedSize(recover.txn, version)
-                   + KeySerializers.key.serializedSize(recover.homeKey, version)
-                   + CommandSerializers.ballot.serializedSize(recover.ballot, version);
+            return CommandSerializers.partialTxn.serializedSize(recover.partialTxn, version)
+                   + CommandSerializers.ballot.serializedSize(recover.ballot, version)
+                   + serializedSizeNullable(KeySerializers.route, recover.route, version);
         }
     };
 
-    static abstract class RecoverReplySerializer<O extends RecoverOk, N extends RecoverNack> implements IVersionedSerializer<RecoverReply>
+    public static final IVersionedSerializer<RecoverReply> reply = new IVersionedSerializer<RecoverReply>()
     {
-
-        void serializeNack(N recoverNack, DataOutputPlus out, int version) throws IOException
+        void serializeNack(RecoverNack recoverNack, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.ballot.serialize(recoverNack.supersededBy, out, version);
         }
 
-
-        void serializeOk(O recoverOk, DataOutputPlus out, int version) throws IOException
+        void serializeOk(RecoverOk recoverOk, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(recoverOk.txnId, out, version);
             CommandSerializers.status.serialize(recoverOk.status, out, version);
             CommandSerializers.ballot.serialize(recoverOk.accepted, out, version);
             serializeNullable(CommandSerializers.timestamp, recoverOk.executeAt, out, version);
-            CommandSerializers.deps.serialize(recoverOk.deps, out, version);
-            // FIXME: nullable support is only to support InvalidateResponses, where these are always null
-            serializeNullable(CommandSerializers.deps, recoverOk.earlierCommittedWitness, out, version);
-            serializeNullable(CommandSerializers.deps, recoverOk.earlierAcceptedNoWitness, out, version);
+            DepsSerializer.partialDeps.serialize(recoverOk.deps, out, version);
+            DepsSerializer.deps.serialize(recoverOk.earlierCommittedWitness, out, version);
+            DepsSerializer.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
             out.writeBoolean(recoverOk.rejectsFastPath);
             serializeNullable(CommandSerializers.writes, recoverOk.writes, out, version);
             serializeNullable(AccordData.serializer, (AccordData) recoverOk.result, out, version);
@@ -102,29 +101,22 @@ public class RecoverySerializers
         @Override
         public final void serialize(RecoverReply reply, DataOutputPlus out, int version) throws IOException
         {
-            out.writeBoolean(reply.isOK());
-            if (!reply.isOK())
-                serializeNack((N) reply, out, version);
+            out.writeBoolean(reply.isOk());
+            if (!reply.isOk())
+                serializeNack((RecoverNack) reply, out, version);
             else
-                serializeOk((O) reply, out, version);
+                serializeOk((RecoverOk) reply, out, version);
         }
 
-        abstract N deserializeNack(Ballot supersededBy,
-                                   DataInputPlus in,
-                                   int version) throws IOException;
+        RecoverNack deserializeNack(Ballot supersededBy, DataInputPlus in, int version)
+        {
+            return new RecoverNack(supersededBy);
+        }
 
-        abstract O deserializeOk(TxnId txnId,
-                                 Status status,
-                                 Ballot accepted,
-                                 Timestamp executeAt,
-                                 Deps deps,
-                                 Deps earlierCommittedWitness,
-                                 Deps earlierAcceptedNoWitness,
-                                 boolean rejectsFastPath,
-                                 Writes writes,
-                                 Result result,
-                                 DataInputPlus in,
-                                 int version) throws IOException;
+        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, PartialDeps deps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
+        {
+            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierCommittedWitness, earlierAcceptedNoWitness, rejectsFastPath, writes, result);
+        }
 
         @Override
         public final RecoverReply deserialize(DataInputPlus in, int version) throws IOException
@@ -137,9 +129,9 @@ public class RecoverySerializers
                                  CommandSerializers.status.deserialize(in, version),
                                  CommandSerializers.ballot.deserialize(in, version),
                                  deserializeNullable(CommandSerializers.timestamp, in, version),
-                                 CommandSerializers.deps.deserialize(in, version),
-                                 deserializeNullable(CommandSerializers.deps, in, version),
-                                 deserializeNullable(CommandSerializers.deps, in, version),
+                                 DepsSerializer.partialDeps.deserialize(in, version),
+                                 DepsSerializer.deps.deserialize(in, version),
+                                 DepsSerializer.deps.deserialize(in, version),
                                  in.readBoolean(),
                                  deserializeNullable(CommandSerializers.writes, in, version),
                                  deserializeNullable(AccordData.serializer, in, version),
@@ -147,20 +139,20 @@ public class RecoverySerializers
                                  version);
         }
 
-        long serializedNackSize(N recoverNack, int version)
+        long serializedNackSize(RecoverNack recoverNack, int version)
         {
             return CommandSerializers.ballot.serializedSize(recoverNack.supersededBy, version);
         }
 
-        long serializedOkSize(O recoverOk, int version)
+        long serializedOkSize(RecoverOk recoverOk, int version)
         {
             long size = CommandSerializers.txnId.serializedSize(recoverOk.txnId, version);
             size += CommandSerializers.status.serializedSize(recoverOk.status, version);
             size += CommandSerializers.ballot.serializedSize(recoverOk.accepted, version);
             size += serializedSizeNullable(CommandSerializers.timestamp, recoverOk.executeAt, version);
-            size += CommandSerializers.deps.serializedSize(recoverOk.deps, version);
-            size += serializedSizeNullable(CommandSerializers.deps, recoverOk.earlierCommittedWitness, version);
-            size += serializedSizeNullable(CommandSerializers.deps, recoverOk.earlierAcceptedNoWitness, version);
+            size += DepsSerializer.partialDeps.serializedSize(recoverOk.deps, version);
+            size += DepsSerializer.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
+            size += DepsSerializer.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
             size += TypeSizes.sizeof(recoverOk.rejectsFastPath);
             size += serializedSizeNullable(CommandSerializers.writes, recoverOk.writes, version);
             size += serializedSizeNullable(AccordData.serializer, (AccordData) recoverOk.result, version);
@@ -170,23 +162,8 @@ public class RecoverySerializers
         @Override
         public final long serializedSize(RecoverReply reply, int version)
         {
-            return TypeSizes.sizeof(reply.isOK())
-                   + (reply.isOK() ? serializedOkSize((O) reply, version) : serializedNackSize((N) reply, version));
-        }
-    }
-
-    public static final IVersionedSerializer<RecoverReply> reply = new RecoverReplySerializer()
-    {
-        @Override
-        RecoverNack deserializeNack(Ballot supersededBy, DataInputPlus in, int version)
-        {
-            return new RecoverNack(supersededBy);
-        }
-
-        @Override
-        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, Deps deps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
-        {
-            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierCommittedWitness, earlierAcceptedNoWitness, rejectsFastPath, writes, result);
+            return TypeSizes.sizeof(reply.isOk())
+                   + (reply.isOk() ? serializedOkSize((RecoverOk) reply, version) : serializedNackSize((RecoverNack) reply, version));
         }
     };
 }

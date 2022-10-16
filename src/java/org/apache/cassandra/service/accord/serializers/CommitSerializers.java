@@ -21,11 +21,17 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.messages.Commit;
-import accord.primitives.Keys;
+import accord.primitives.PartialRoute;
+import accord.primitives.RoutingKeys;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
 
 public class CommitSerializers
 {
@@ -34,60 +40,64 @@ public class CommitSerializers
         @Override
         public void serializeBody(Commit msg, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.txnId.serialize(msg.txnId, out, version);
-            CommandSerializers.txn.serialize(msg.txn, out, version);
-            CommandSerializers.deps.serialize(msg.deps, out, version);
-            KeySerializers.key.serialize(msg.homeKey, out, version);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
-            out.writeBoolean(msg.read);
+            serializeNullable(msg.partialTxn, out, version, CommandSerializers.partialTxn);
+            DepsSerializer.partialDeps.serialize(msg.partialDeps, out, version);
+            serializeNullable(msg.route, out, version, KeySerializers.route);
+            serializeNullable(msg.read, out, version, ReadDataSerializers.request);
         }
 
         @Override
-        public Commit deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
+        public Commit deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException
         {
-            return new Commit(scope, waitForEpoch,
-                              CommandSerializers.txnId.deserialize(in, version),
-                              CommandSerializers.txn.deserialize(in, version),
-                              CommandSerializers.deps.deserialize(in, version),
-                              KeySerializers.key.deserialize(in, version),
-                              CommandSerializers.timestamp.deserialize(in, version),
-                              in.readBoolean());
+            return Commit.SerializerSupport.create(txnId, scope, waitForEpoch,
+                                                   CommandSerializers.timestamp.deserialize(in, version),
+                                                   deserializeNullable(in, version, CommandSerializers.partialTxn),
+                                                   DepsSerializer.partialDeps.deserialize(in, version),
+                                                   deserializeNullable(in, version, KeySerializers.route),
+                                                   deserializeNullable(in, version, ReadDataSerializers.request)
+            );
         }
 
         @Override
         public long serializedBodySize(Commit msg, int version)
         {
-            return CommandSerializers.txnId.serializedSize(msg.txnId, version)
-                   + CommandSerializers.txn.serializedSize(msg.txn, version)
-                   + CommandSerializers.deps.serializedSize(msg.deps, version)
-                   + KeySerializers.key.serializedSize(msg.homeKey, version)
-                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
-                   + TypeSizes.BOOL_SIZE;
+            return CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
+                   + serializedSizeNullable(msg.partialTxn, version, CommandSerializers.partialTxn)
+                   + DepsSerializer.partialDeps.serializedSize(msg.partialDeps, version)
+                   + serializedSizeNullable(msg.route, version, KeySerializers.route)
+                   + serializedSizeNullable(msg.read, version, ReadDataSerializers.request);
         }
     };
 
-    public static final IVersionedSerializer<Commit.Invalidate> invalidate = new TxnRequestSerializer<Commit.Invalidate>()
+    public static final IVersionedSerializer<Commit.Invalidate> invalidate = new IVersionedSerializer<Commit.Invalidate>()
     {
         @Override
-        public void serializeBody(Commit.Invalidate invalidate, DataOutputPlus out, int version) throws IOException
+        public void serialize(Commit.Invalidate invalidate, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(invalidate.txnId, out, version);
-            KeySerializers.keys.serialize(invalidate.txnKeys, out, version);
+            KeySerializers.routingKeys.serialize(invalidate.scope, out, version);
+            out.writeUnsignedVInt(invalidate.waitForEpoch);
+            out.writeUnsignedVInt(invalidate.invalidateUntilEpoch - invalidate.waitForEpoch);
         }
 
         @Override
-        public Commit.Invalidate deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
+        public Commit.Invalidate deserialize(DataInputPlus in, int version) throws IOException
         {
-            return Commit.Invalidate.SerializerSupport.create(scope, waitForEpoch,
-                                                              CommandSerializers.txnId.deserialize(in, version),
-                                                              KeySerializers.keys.deserialize(in, version));
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            RoutingKeys routingKeys = KeySerializers.routingKeys.deserialize(in, version);
+            long waitForEpoch = in.readUnsignedVInt();
+            long invalidateUntilEpoch = in.readUnsignedVInt() + waitForEpoch;
+            return Commit.Invalidate.SerializerSupport.create(txnId, routingKeys, waitForEpoch, invalidateUntilEpoch);
         }
 
         @Override
-        public long serializedBodySize(Commit.Invalidate invalidate, int version)
+        public long serializedSize(Commit.Invalidate invalidate, int version)
         {
             return CommandSerializers.txnId.serializedSize(invalidate.txnId, version)
-                   + KeySerializers.keys.serializedSize(invalidate.txnKeys, version);
+                   + KeySerializers.routingKeys.serializedSize(invalidate.scope, version)
+                   + TypeSizes.sizeofUnsignedVInt(invalidate.waitForEpoch)
+                   + TypeSizes.sizeofUnsignedVInt(invalidate.invalidateUntilEpoch - invalidate.waitForEpoch);
         }
     };
 }

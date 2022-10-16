@@ -144,8 +144,51 @@ public class ByteOrderedPartitioner implements IPartitioner
         @Override
         public Token increaseSlightly()
         {
-            throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
-                                                                  getClass().getSimpleName()));
+            // find first byte we can increment
+            int i = token.length - 1;
+            while (i >= 0)
+            {
+                if (token[i] != -1)
+                    break;
+                --i;
+            }
+            if (i == -1)
+                return new BytesToken(Arrays.copyOf(token, token.length + 1));
+
+            // increment and fill remainder with zeros
+            byte[] newToken = token.clone();
+            ++newToken[i];
+            Arrays.fill(newToken, i + 1, newToken.length, (byte)0);
+            return new BytesToken(newToken);
+        }
+
+        @Override
+        public Token decreaseSlightly()
+        {
+            if (token.length == 0)
+                throw new IndexOutOfBoundsException("Cannot create a smaller token the MINIMUM");
+
+            // find first byte we can decrement
+            int i = token.length - 1;
+            while (i >= 0)
+            {
+                if (token[i] != 0)
+                    break;
+                --i;
+            }
+            if (i == -1)
+            {
+                byte[] newToken = Arrays.copyOf(token, token.length - 1);
+                if (newToken.length > 0)
+                    newToken[newToken.length - 1] = (byte)-1;
+                return new BytesToken(newToken);
+            }
+
+            // decrement and fill remainder with -1
+            byte[] newToken = token.clone();
+            --newToken[i];
+            Arrays.fill(newToken, i + 1, newToken.length, (byte)-1);
+            return new BytesToken(newToken);
         }
     }
 

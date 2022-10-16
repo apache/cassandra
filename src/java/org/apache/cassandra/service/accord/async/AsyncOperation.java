@@ -30,12 +30,13 @@ import org.slf4j.MDC;
 import accord.api.Key;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommandStore;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
-public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<CommandStore, R>, BiConsumer<Object, Throwable>
+public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<SafeCommandStore, R>, BiConsumer<Object, Throwable>
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncOperation.class);
 
@@ -214,45 +215,45 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
 
     static class ForFunction<R> extends AsyncOperation<R>
     {
-        private final Function<? super CommandStore, R> function;
+        private final Function<? super SafeCommandStore, R> function;
 
-        public ForFunction(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys, Function<? super CommandStore, R> function)
+        public ForFunction(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys, Function<? super SafeCommandStore, R> function)
         {
             super(commandStore, txnIds, keys);
             this.function = function;
         }
 
         @Override
-        public R apply(CommandStore commandStore)
+        public R apply(SafeCommandStore commandStore)
         {
             return function.apply(commandStore);
         }
     }
 
-    public static <T> AsyncOperation<T> create(CommandStore commandStore, PreLoadContext loadCtx, Function<? super CommandStore, T> function)
+    public static <T> AsyncOperation<T> create(CommandStore commandStore, PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         return new ForFunction<>((AccordCommandStore) commandStore, loadCtx.txnIds(), AsyncOperation.toPartitionKeys(loadCtx.keys()), function);
     }
 
-    static class ForConsumer  extends AsyncOperation<Void>
+    static class ForConsumer extends AsyncOperation<Void>
     {
-        private final Consumer<? super CommandStore> consumer;
+        private final Consumer<? super SafeCommandStore> consumer;
 
-        public ForConsumer(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys, Consumer<? super CommandStore> consumer)
+        public ForConsumer(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys, Consumer<? super SafeCommandStore> consumer)
         {
             super(commandStore, txnIds, keys);
             this.consumer = consumer;
         }
 
         @Override
-        public Void apply(CommandStore commandStore)
+        public Void apply(SafeCommandStore commandStore)
         {
             consumer.accept(commandStore);
             return null;
         }
     }
 
-    public static AsyncOperation<Void> create(CommandStore commandStore, PreLoadContext loadCtx, Consumer<? super CommandStore> consumer)
+    public static AsyncOperation<Void> create(CommandStore commandStore, PreLoadContext loadCtx, Consumer<? super SafeCommandStore> consumer)
     {
         return new ForConsumer((AccordCommandStore) commandStore, loadCtx.txnIds(), AsyncOperation.toPartitionKeys(loadCtx.keys()), consumer);
     }
