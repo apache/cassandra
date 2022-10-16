@@ -22,20 +22,20 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.NavigableMap;
-import java.util.TreeMap;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Data;
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.Read;
 import accord.local.CommandStore;
+import accord.local.SafeCommandStore;
+import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -56,16 +56,16 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> implements Read
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordRead(new TreeMap<>()));
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordRead(Collections.emptyList()));
 
     public AccordRead(List<SinglePartitionReadCommand> items)
     {
         super(items, AccordKey::of);
     }
 
-    public AccordRead(NavigableMap<PartitionKey, ByteBuffer> serialized)
+    public AccordRead(Keys keys, ByteBuffer[] serialized)
     {
-        super(serialized);
+        super(keys, serialized);
     }
 
     @Override
@@ -95,7 +95,7 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     @Override
     public Keys keys()
     {
-        return new Keys(serialized.keySet());
+        return keys;
     }
 
     public String toString()
@@ -104,14 +104,14 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     }
 
     @Override
-    public Future<Data> read(Key key, boolean isForWriteTxn, CommandStore commandStore, Timestamp executeAt, DataStore store)
+    public Future<Data> read(Key key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
         SinglePartitionReadCommand command = getDeserialized((PartitionKey) key);
         if (command == null)
-            return ImmediateFuture.success(new AccordData());
+            return ImmediateFuture.success(new AccordData(Collections.emptyList()));
 
-        AccordCommandsForKey cfk = (AccordCommandsForKey) commandStore.commandsForKey(key);
-        int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
+        AccordCommandsForKey cfk = (AccordCommandsForKey) safeStore.commandsForKey(key);
+        int nowInSeconds = cfk.nowInSecondsFor(executeAt, kind.isWrite());
         Future<Data> future = Stage.READ.submit(() -> {
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
             try (ReadExecutionController controller = read.executionController();
@@ -125,6 +125,18 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
         });
 
         return future;
+    }
+
+    @Override
+    public Read slice(KeyRanges ranges)
+    {
+        return super.slice(ranges, AccordRead::new);
+    }
+
+    @Override
+    public Read merge(Read read)
+    {
+        return super.merge((AccordRead)read, AccordRead::new);
     }
 
     public static AccordRead forCommands(Collection<SinglePartitionReadCommand> commands)

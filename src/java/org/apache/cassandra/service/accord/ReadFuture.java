@@ -29,19 +29,16 @@ import java.util.function.Function;
 import com.google.common.util.concurrent.FutureCallback;
 
 import accord.api.Data;
-import accord.primitives.Keys;
 import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 public class ReadFuture implements Future<Data>
 {
-    final Keys scope;
     private final Future<Data> wrappped;
 
-    public ReadFuture(Keys scope, Future<Data> wrappped)
+    public ReadFuture(Future<Data> wrappped)
     {
-        this.scope = scope;
         this.wrappped = wrappped;
     }
 
