@@ -33,7 +33,7 @@ import com.google.common.base.Preconditions;
 
 import accord.api.Key;
 import accord.primitives.Keys;
-import accord.txn.Txn;
+import accord.primitives.Txn;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -52,6 +52,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.db.AccordQuery;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.service.accord.db.AccordUpdate;
@@ -184,7 +185,7 @@ public class AccordTxnBuilder
     public Txn build()
     {
         Key[] keyArray = keys.toArray(new Key[0]);
-        Arrays.sort(keyArray, AccordKey::compareKeys);
+        Arrays.sort(keyArray, AccordRoutingKey::compareKeys);
         predicates.sort(Comparator.comparing(UpdatePredicate::partitionKey));
         if (updates.isEmpty())
         {

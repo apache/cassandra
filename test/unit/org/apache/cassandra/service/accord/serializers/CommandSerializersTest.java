@@ -21,10 +21,17 @@ package org.apache.cassandra.service.accord.serializers;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.txn.Txn;
+import accord.primitives.KeyRange;
+import accord.primitives.KeyRanges;
+import accord.primitives.PartialTxn;
+import accord.primitives.Txn;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordTxnBuilder;
+import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.utils.SerializerTestUtils;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -48,7 +55,9 @@ public class CommandSerializersTest
         txnBuilder.withRead("SELECT * FROM ks.tbl WHERE k=0 AND c=0");
         txnBuilder.withWrite("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
         txnBuilder.withCondition("ks", "tbl", 0, 0, NOT_EXISTS);
-        Txn expected = txnBuilder.build();
-        SerializerTestUtils.assertSerializerIOEquality(expected, CommandSerializers.txn);
+        Txn txn = txnBuilder.build();
+        TableId tableId = ((AccordKey.PartitionKey) txn.keys().get(0)).tableId();
+        PartialTxn expected = txn.slice(KeyRanges.of(TokenRange.fullRange(tableId)), true);
+        SerializerTestUtils.assertSerializerIOEquality(expected, CommandSerializers.partialTxn);
     }
 }

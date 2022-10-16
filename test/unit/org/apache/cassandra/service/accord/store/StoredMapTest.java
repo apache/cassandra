@@ -55,7 +55,7 @@ public class StoredMapTest
         expectedData.put(1, 2);
         expectedData.put(5, 6);
 
-        StoredNavigableMap<Integer, Integer> map = new StoredNavigableMap<>(AccordState.Kind.FULL);
+        StoredNavigableMap<Integer, Integer> map = new StoredNavigableMap<>(AccordState.ReadWrite.FULL);
 
         // no values loaded, getView should fail
         assertISE(map::getView);
@@ -107,7 +107,7 @@ public class StoredMapTest
     @Test
     public void unloadedAddsAndRemoves()
     {
-        StoredNavigableMap<Integer, Integer> map = new StoredNavigableMap<>(AccordState.Kind.FULL);
+        StoredNavigableMap<Integer, Integer> map = new StoredNavigableMap<>(AccordState.ReadWrite.FULL);
         assertISE(map::getView);
 
         // check additions
@@ -144,7 +144,7 @@ public class StoredMapTest
         NavigableMap<Integer, Integer> expectedAdditions = new TreeMap<>();
         Set<Integer> expectedDeletions = new HashSet<>();
 
-        StoredNavigableMap<Integer, Integer> map = new StoredNavigableMap<>(AccordState.Kind.FULL);
+        StoredNavigableMap<Integer, Integer> map = new StoredNavigableMap<>(AccordState.ReadWrite.FULL);
         map.load(new TreeMap<>());
         Assert.assertEquals(expectedData, map.getView());
 
@@ -180,7 +180,7 @@ public class StoredMapTest
         NavigableMap<Integer, Integer> expectedAdditions = new TreeMap<>();
 
         expectedData.put(1, 2);
-        StoredNavigableMap<Integer, Integer> map = new StoredNavigableMap<>(AccordState.Kind.FULL);
+        StoredNavigableMap<Integer, Integer> map = new StoredNavigableMap<>(AccordState.ReadWrite.FULL);
         map.load(new TreeMap<>(expectedData));
         Assert.assertEquals(expectedData, map.getView());
 

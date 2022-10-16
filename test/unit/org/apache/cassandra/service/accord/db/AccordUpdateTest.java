@@ -21,7 +21,7 @@ package org.apache.cassandra.service.accord.db;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.txn.Txn;
+import accord.primitives.Txn;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.accord.AccordTxnBuilder;
@@ -53,6 +53,6 @@ public class AccordUpdateTest
 
 
         AccordUpdate update = (AccordUpdate) txn.update();
-        assertSerializerIOEquality(update.getPredicate(0), AccordUpdate.predicateSerializer);
+        assertSerializerIOEquality(update.getPredicate(0).get(0), AccordUpdate.predicateSerializer);
     }
 }

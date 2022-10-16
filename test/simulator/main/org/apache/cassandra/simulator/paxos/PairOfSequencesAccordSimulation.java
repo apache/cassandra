@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
-import accord.txn.Txn;
+import accord.primitives.Txn;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;

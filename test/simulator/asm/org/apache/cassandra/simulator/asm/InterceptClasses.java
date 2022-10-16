@@ -62,7 +62,8 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
                                                             "|org[/.]apache[/.]cassandra[/.]distributed[/.]impl[/.]DirectStreamingConnectionFactory.*" +
                                                             "|org[/.]apache[/.]cassandra[/.]db[/.]commitlog[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]service[/.]paxos[/.].*" +
-                                                            "|accord[/.].*");
+                                                            "|accord[/.].*"
+    );
 
     private static final Pattern GLOBAL_METHODS = Pattern.compile("org[/.]apache[/.]cassandra[/.](?!simulator[/.]).*" +
                                                                   "|org[/.]apache[/.]cassandra[/.]simulator[/.]test[/.].*" +

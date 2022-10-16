@@ -21,222 +21,108 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
-import accord.local.Listener;
-import accord.local.PartialCommand;
+import accord.api.Key;
+import accord.local.Command;
+import accord.local.CommandsForKey;
 import accord.local.Status;
-import accord.primitives.Deps;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.txn.Txn;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.utils.CollectionSerializer;
 
 import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
 import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
 
-public class AccordPartialCommand implements PartialCommand
+public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
 {
-    public static final PartialCommandSerializer<PartialCommand> serializer = new PartialCommandSerializer<PartialCommand>()
-    {
-        @Override
-        public PartialCommand getCachedFull(TxnId txnId, AsyncContext context)
-        {
-            return context.commands.get(txnId);
-        }
+    public static final PartialCommandSerializer serializer = new PartialCommandSerializer();
 
-        @Override
-        public void addToContext(PartialCommand command, AsyncContext context)
-        {
-            context.commands.addPartialCommand((AccordPartialCommand) command);
-        }
-
-        @Override
-        public PartialCommand deserializeBody(TxnId txnId, Txn txn, Timestamp executeAt, Status status, DataInputPlus in, AccordSerializerVersion version) throws IOException
-        {
-            return new AccordPartialCommand(txnId, txn, executeAt, status);
-        }
-    };
-
-    private final TxnId txnId;
-    private final Txn txn;
-    private final Timestamp executeAt;
+    // TODO (soon): this should only be a list of TxnId (the deps for the key we are persisted against); but should also be stored separately and not brought into memory
+    private final List<TxnId> deps;
+    // TODO (soon): we only require this for Accepted; perhaps more tightly couple query API for efficiency
     private final Status status;
-    private List<Listener> removedListeners = null;
+    private final Txn.Kind kind;
 
-    public AccordPartialCommand(TxnId txnId, Txn txn, Timestamp executeAt, Status status)
+    AccordPartialCommand(TxnId txnId, Timestamp executeAt, List<TxnId> deps, Status status, Txn.Kind kind)
     {
-        this.txnId = txnId;
-        this.txn = txn;
-        this.executeAt = executeAt;
+        super(txnId, executeAt);
+        this.deps = deps;
         this.status = status;
+        this.kind = kind;
     }
 
-    @Override
+    public AccordPartialCommand(Key key, Command command)
+    {
+        this(command.txnId(), command.executeAt(), command.partialDeps().txnIds(key), command.status(), command.kind());
+    }
+
     public TxnId txnId()
     {
         return txnId;
     }
 
-    @Override
-    public Txn txn()
-    {
-        return txn;
-    }
-
-    @Override
     public Timestamp executeAt()
     {
         return executeAt;
     }
 
-    @Override
+    public List<TxnId> deps()
+    {
+        return deps;
+    }
+
+    public boolean hasDep(TxnId txnId)
+    {
+        return Collections.binarySearch(deps, txnId) >= 0;
+    }
+
     public Status status()
     {
         return status;
     }
 
-    @Override
-    public void removeListener(Listener listener)
+    public Txn.Kind kind()
     {
-        if (removedListeners == null)
-            removedListeners = new ArrayList<>();
-        removedListeners.add(listener);
-    }
-
-    public boolean hasRemovedListeners()
-    {
-        return removedListeners != null && !removedListeners.isEmpty();
-    }
-
-    public void forEachRemovedListener(Consumer<Listener> consumer)
-    {
-        if (removedListeners != null)
-            removedListeners.forEach(consumer);
+        return kind;
     }
 
     @Override
-    public boolean equals(Object o)
+    public boolean equals(Object obj)
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AccordPartialCommand that = (AccordPartialCommand) o;
-        return Objects.equals(txnId, that.txnId) && Objects.equals(txn, that.txn) && Objects.equals(executeAt, that.executeAt) && status == that.status && Objects.equals(removedListeners, that.removedListeners);
+        if (obj.getClass() != AccordPartialCommand.class)
+            return false;
+        AccordPartialCommand that = (AccordPartialCommand) obj;
+        return txnId.equals(that.txnId)
+               && Objects.equals(executeAt, that.executeAt)
+               && Objects.equals(deps, that.deps)
+               && status == that.status
+               && kind == that.kind;
     }
 
-    @Override
-    public int hashCode()
+    public static class PartialCommandSerializer
     {
-        return Objects.hash(txnId, txn, executeAt, status, removedListeners);
-    }
-
-    @Override
-    public String toString()
-    {
-        return "AccordPartialCommand{" +
-               "txnId=" + txnId +
-               ", txn=" + txn +
-               ", executeAt=" + executeAt +
-               ", status=" + status +
-               ", removedListeners=" + removedListeners +
-               '}';
-    }
-
-    public static class WithDeps extends AccordPartialCommand implements PartialCommand.WithDeps
-    {
-        public static final PartialCommandSerializer<PartialCommand.WithDeps> serializer = new PartialCommandSerializer<PartialCommand.WithDeps>()
+        public void serialize(AccordPartialCommand command, DataOutputPlus out, AccordSerializerVersion version) throws IOException
         {
-            @Override
-            public PartialCommand.WithDeps getCachedFull(TxnId txnId, AsyncContext context)
-            {
-                return context.commands.get(txnId);
-            }
-
-            @Override
-            public void addToContext(PartialCommand.WithDeps command, AsyncContext context)
-            {
-                context.commands.addPartialCommand((AccordPartialCommand) command);
-            }
-
-            @Override
-            public PartialCommand.WithDeps deserializeBody(TxnId txnId, Txn txn, Timestamp executeAt, Status status, DataInputPlus in, AccordSerializerVersion version) throws IOException
-            {
-                Deps deps = deserializeNullable(in, version.msgVersion, CommandSerializers.deps);
-                return new AccordPartialCommand.WithDeps(txnId, txn, executeAt, status, deps);
-            }
-
-            @Override
-            public void serialize(PartialCommand.WithDeps command, DataOutputPlus out, AccordSerializerVersion version) throws IOException
-            {
-                super.serialize(command, out, version);
-                serializeNullable(command.savedDeps(), out, version.msgVersion, CommandSerializers.deps);
-            }
-
-            @Override
-            public int serializedSize(PartialCommand.WithDeps command, AccordSerializerVersion version)
-            {
-                int size = super.serializedSize(command, version) ;
-                size += serializedSizeNullable(command.savedDeps(), version.msgVersion, CommandSerializers.deps);
-                return size;
-            }
-
-            @Override
-            public boolean needsUpdate(AccordCommand command)
-            {
-                return super.needsUpdate(command) || command.deps.hasModifications();
-            }
-        };
-
-        private final Deps deps;
-
-        public WithDeps(TxnId txnId, Txn txn, Timestamp executeAt, Status status, Deps deps)
-        {
-            super(txnId, txn, executeAt, status);
-            this.deps = deps;
-        }
-
-        @Override
-        public Deps savedDeps()
-        {
-            return deps;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AccordPartialCommand.WithDeps withDeps = (AccordPartialCommand.WithDeps) o;
-            return super.equals(o) && Objects.equals(deps, withDeps.deps);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(super.hashCode(), deps);
-        }
-    }
-
-    public static abstract class PartialCommandSerializer<T extends PartialCommand>
-    {
-        public void serialize(T command, DataOutputPlus out, AccordSerializerVersion version) throws IOException
-        {
-            AccordSerializerVersion.serializer.serialize(version, out);
+            out.write(version.version);
             CommandSerializers.txnId.serialize(command.txnId(), out, version.msgVersion);
-            CommandSerializers.status.serialize(command.status(), out, version.msgVersion);
-            serializeNullable(command.txn(), out, version.msgVersion, CommandSerializers.txn);
             serializeNullable(command.executeAt(), out, version.msgVersion, CommandSerializers.timestamp);
+            CommandSerializers.status.serialize(command.status(), out, version.msgVersion);
+            CommandSerializers.kind.serialize(command.kind(), out, version.msgVersion);
+            CollectionSerializer.serializeCollection(CommandSerializers.txnId, command.deps, out, version.msgVersion);
         }
 
-        public ByteBuffer serialize(T command)
+        public ByteBuffer serialize(AccordPartialCommand command)
         {
             AccordSerializerVersion version = AccordSerializerVersion.CURRENT;
             int size = serializedSize(command, version);
@@ -257,28 +143,29 @@ public class AccordPartialCommand implements PartialCommand
         }
 
         // check for cached command first, otherwise deserialize
-        public T deserialize(AccordCommandStore commandStore, DataInputPlus in) throws IOException
+        private AccordPartialCommand deserialize(AccordCommandsForKey commandsForKey, AccordCommandStore commandStore, DataInputPlus in) throws IOException
         {
             AccordSerializerVersion version = deserializeVersion(in);
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version.msgVersion);
             AsyncContext context = commandStore.getContext();
-            T command = getCachedFull(txnId, context);
+            AccordPartialCommand command = getCachedFull(commandsForKey, txnId, context);
             if (command != null)
                 return command;
 
-            Status status = CommandSerializers.status.deserialize(in, version.msgVersion);
-            Txn txn = deserializeNullable(in, version.msgVersion, CommandSerializers.txn);
             Timestamp executeAt = deserializeNullable(in, version.msgVersion, CommandSerializers.timestamp);
-            T partial = deserializeBody(txnId, txn, executeAt, status, in, version);
+            Status status = CommandSerializers.status.deserialize(in, version.msgVersion);
+            Txn.Kind kind = CommandSerializers.kind.deserialize(in, version.msgVersion);
+            List<TxnId> deps = CollectionSerializer.deserializeCollection(CommandSerializers.txnId, ArrayList::new, in, version.msgVersion);
+            AccordPartialCommand partial = new AccordPartialCommand(txnId, executeAt, deps, status, kind);
             addToContext(partial, context);
             return partial;
         }
 
-        public T deserialize(AccordCommandStore commandStore, ByteBuffer bytes)
+        public AccordPartialCommand deserialize(AccordCommandsForKey commandsForKey, AccordCommandStore commandStore, ByteBuffer bytes)
         {
             try (DataInputBuffer in = new DataInputBuffer(bytes, true))
             {
-                return deserialize(commandStore, in);
+                return deserialize(commandsForKey, commandStore, in);
             }
             catch (IOException e)
             {
@@ -286,26 +173,36 @@ public class AccordPartialCommand implements PartialCommand
             }
         }
 
-        public int serializedSize(T command, AccordSerializerVersion version)
+        public int serializedSize(AccordPartialCommand command, AccordSerializerVersion version)
         {
             int size = Math.toIntExact(AccordSerializerVersion.serializer.serializedSize(version));
             size += CommandSerializers.txnId.serializedSize();
-            size += CommandSerializers.status.serializedSize(command.status(), version.msgVersion);
-            size += serializedSizeNullable(command.txn(), version.msgVersion, CommandSerializers.txn);
             size += serializedSizeNullable(command.executeAt(), version.msgVersion, CommandSerializers.timestamp);
+            size += CommandSerializers.status.serializedSize(command.status(), version.msgVersion);
+            size += CommandSerializers.kind.serializedSize(command.kind(), version.msgVersion);
+            size += CollectionSerializer.serializedSizeCollection(CommandSerializers.txnId, command.deps, version.msgVersion);
             return size;
         }
 
-        public abstract T getCachedFull(TxnId txnId, AsyncContext context);
-        public abstract void addToContext(T command, AsyncContext context);
-        public abstract T deserializeBody(TxnId txnId, Txn txn, Timestamp executeAt, Status status, DataInputPlus in, AccordSerializerVersion version) throws IOException;
+        private AccordPartialCommand getCachedFull(AccordCommandsForKey commandsForKey, TxnId txnId, AsyncContext context)
+        {
+            AccordCommand command = context.commands.get(txnId);
+            if (command == null)
+                return null;
+            return new AccordPartialCommand(commandsForKey.key(), command);
+        }
+
+        private void addToContext(AccordPartialCommand command, AsyncContext context)
+        {
+            context.commands.addPartialCommand(command);
+        }
 
         /**
          * Determines if current modifications require updating command data duplicated elsewhere
          */
         public boolean needsUpdate(AccordCommand command)
         {
-            return command.txn.hasModifications() || command.executeAt.hasModifications() || command.status.hasModifications();
+            return command.executeAt.hasModifications() || command.status.hasModifications() || command.partialDeps.hasModifications();
         }
     }
 }

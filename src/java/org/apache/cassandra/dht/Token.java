@@ -38,6 +38,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
     public static final TokenSerializer serializer = new TokenSerializer();
     public static final MetadataSerializer metadataSerializer = new MetadataSerializer();
+    public static final CompactTokenSerializer compactSerializer = new CompactTokenSerializer();
 
     public static abstract class TokenFactory
     {
@@ -78,6 +79,14 @@ public abstract class Token implements RingPosition<Token>, Serializable
         public void serialize(Token token, ByteBuffer out) throws IOException
         {
             out.put(toByteArray(token));
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : (int)in.readUnsignedVInt();
+            byte[] bytes = new byte[size];
+            in.readFully(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 
         public Token fromByteBuffer(ByteBuffer bytes, int position, int length)
@@ -158,6 +167,34 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
+    public static class CompactTokenSerializer implements IPartitionerDependentSerializer<Token>
+    {
+        public void serialize(Token token, DataOutputPlus out, int version) throws IOException
+        {
+            IPartitioner p = token.getPartitioner();
+            if (!p.isFixedLength())
+                out.writeUnsignedVInt(p.getTokenFactory().byteSize(token));
+            p.getTokenFactory().serialize(token, out);
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : (int)in.readUnsignedVInt();
+            byte[] bytes = new byte[size];
+            in.readFully(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
+        public long serializedSize(Token object, int version)
+        {
+            IPartitioner p = object.getPartitioner();
+            int byteSize = p.getTokenFactory().byteSize(object);
+            if (p.isFixedLength())
+                return byteSize;
+            return TypeSizes.sizeofUnsignedVInt(byteSize) + byteSize;
+        }
+    }
+
     abstract public IPartitioner getPartitioner();
     abstract public long getHeapSize();
     abstract public Object getTokenValue();
@@ -197,6 +234,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * Used by the token allocation algorithm (see CASSANDRA-7032).
      */
     abstract public double size(Token next);
+
     /**
      * Returns the next possible token in the token space, one that compares
      * greater than this and such that there is no other token that sits
@@ -210,6 +248,11 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * constructing token ranges for sstables.
      */
     abstract public Token nextValidToken();
+
+    /**
+     * Returns a token that is slightly less than this.
+     */
+    abstract public Token decreaseSlightly();
 
     public Token getToken()
     {
