@@ -56,7 +56,7 @@ public class AccordTopologyTest
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Topology topology = AccordTopologyUtils.createTopology(1);
-        Assert.assertFalse(topology.isEmpty());
+        Assert.assertNotEquals(0, topology.size());
         TableId tableId = Schema.instance.getTableMetadata("ks", "tbl").id;
         Token minToken = partitioner.getMinimumToken();
         Token maxToken = partitioner.getMaximumToken();

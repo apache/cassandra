@@ -45,9 +45,9 @@ import accord.coordinate.Preempted;
 import accord.local.Status;
 import accord.messages.Commit;
 import accord.primitives.Keys;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
-import accord.txn.Txn;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -257,7 +257,7 @@ public class AccordIntegrationTest extends TestBaseImpl
             cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> cluster.get(from).callOnInstance(() -> {
                 Message<?> msg = Instance.deserializeMessage(iMessage);
                 if (msg.payload instanceof Commit)
-                    return ((Commit) msg.payload).read;
+                    return ((Commit) msg.payload).read != null;
                 return false;
             })).drop();
 
@@ -298,7 +298,7 @@ public class AccordIntegrationTest extends TestBaseImpl
         cluster.stream().filter(i -> !i.isShutdown()).forEach(inst -> {
             while (timeout.get() == null)
             {
-                SimpleQueryResult pending = inst.executeInternalWithResult("SELECT store_generation, store_index, txn_id, status FROM system_accord.commands WHERE status < ? ALLOW FILTERING", Status.Executed.ordinal());
+                SimpleQueryResult pending = inst.executeInternalWithResult("SELECT store_generation, store_index, txn_id, status FROM system_accord.commands WHERE status < ? ALLOW FILTERING", Status.PreApplied.ordinal());
                 pending = QueryResultUtil.map(pending, ImmutableMap.of(
                 "txn_id", (ByteBuffer bb) -> AccordKeyspace.deserializeTimestampOrNull(bb, TxnId::new),
                 "status", (Integer ordinal) -> Status.values()[ordinal]

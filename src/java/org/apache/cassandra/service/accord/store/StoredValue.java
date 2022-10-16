@@ -26,12 +26,12 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class StoredValue<T> extends AbstractStoredField
 {
-    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredValue<>(AccordState.Kind.FULL));
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredValue<>(AccordState.ReadWrite.FULL));
     protected T value;
 
-    public StoredValue(AccordState.Kind kind)
+    public StoredValue(AccordState.ReadWrite readWrite)
     {
-        super(kind);
+        super(readWrite);
     }
 
     @Override
@@ -94,9 +94,9 @@ public class StoredValue<T> extends AbstractStoredField
     {
         T previous;
 
-        public HistoryPreserving(AccordState.Kind kind)
+        public HistoryPreserving(AccordState.ReadWrite readWrite)
         {
-            super(kind);
+            super(readWrite);
         }
 
         public T previous()

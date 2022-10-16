@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.dht;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
@@ -25,6 +24,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -34,6 +34,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
     private static final long serialVersionUID = 1L;
 
     public static final TokenSerializer serializer = new TokenSerializer();
+    public static final CompactTokenSerializer compactSerializer = new CompactTokenSerializer();
 
     public static abstract class TokenFactory
     {
@@ -76,6 +77,14 @@ public abstract class Token implements RingPosition<Token>, Serializable
             out.put(toByteArray(token));
         }
 
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : (int)in.readUnsignedVInt();
+            byte[] bytes = new byte[size];
+            in.readFully(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
         public Token fromByteBuffer(ByteBuffer bytes, int position, int length)
         {
             bytes = bytes.duplicate();
@@ -99,7 +108,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
             p.getTokenFactory().serialize(token, out);
         }
 
-        public Token deserialize(DataInput in, IPartitioner p, int version) throws IOException
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             int size = deserializeSize(in);
             byte[] bytes = new byte[size];
@@ -107,7 +116,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 
-        public int deserializeSize(DataInput in) throws IOException
+        public int deserializeSize(DataInputPlus in) throws IOException
         {
             return in.readInt();
         }
@@ -117,6 +126,34 @@ public abstract class Token implements RingPosition<Token>, Serializable
             IPartitioner p = object.getPartitioner();
             int byteSize = p.getTokenFactory().byteSize(object);
             return TypeSizes.sizeof(byteSize) + byteSize;
+        }
+    }
+
+    public static class CompactTokenSerializer implements IPartitionerDependentSerializer<Token>
+    {
+        public void serialize(Token token, DataOutputPlus out, int version) throws IOException
+        {
+            IPartitioner p = token.getPartitioner();
+            if (!p.isFixedLength())
+                out.writeUnsignedVInt(p.getTokenFactory().byteSize(token));
+            p.getTokenFactory().serialize(token, out);
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : (int)in.readUnsignedVInt();
+            byte[] bytes = new byte[size];
+            in.readFully(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
+        public long serializedSize(Token object, int version)
+        {
+            IPartitioner p = object.getPartitioner();
+            int byteSize = p.getTokenFactory().byteSize(object);
+            if (p.isFixedLength())
+                return byteSize;
+            return TypeSizes.sizeofUnsignedVInt(byteSize) + byteSize;
         }
     }
 
@@ -144,12 +181,18 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * Used by the token allocation algorithm (see CASSANDRA-7032).
      */
     abstract public double size(Token next);
+
     /**
      * Returns a token that is slightly greater than this. Used to avoid clashes
      * between nodes in separate datacentres trying to use the same token via
      * the token allocation algorithm.
      */
     abstract public Token increaseSlightly();
+
+    /**
+     * Returns a token that is slightly less than this.
+     */
+    abstract public Token decreaseSlightly();
 
     public Token getToken()
     {

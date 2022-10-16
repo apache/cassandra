@@ -134,7 +134,7 @@ public class AsyncLoader
             try
             {
                 logger.trace("Starting load of {} for {}", command.txnId(), callback);
-                AccordKeyspace.loadCommand(command);
+                AccordKeyspace.loadCommand(commandStore, command);
                 logger.trace("Completed load of {} for {}", command.txnId(), callback);
             }
             catch (Throwable t)

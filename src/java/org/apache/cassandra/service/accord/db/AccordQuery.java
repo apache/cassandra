@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import javax.annotation.Nullable;
 
@@ -29,6 +30,7 @@ import accord.api.Query;
 import accord.api.Read;
 import accord.api.Result;
 import accord.api.Update;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -40,18 +42,18 @@ public abstract class AccordQuery implements Query
     public static final AccordQuery ALL = new AccordQuery()
     {
         @Override
-        public Result compute(Data data, @Nullable Read read, @Nullable Update update)
+        public Result compute(TxnId txnId, Data data, @Nullable Read read, @Nullable Update update)
         {
-            return data != null ? (AccordData) data : new AccordData();
+            return data != null ? (AccordData) data : new AccordData(Collections.emptyList());
         }
     };
 
     public static final AccordQuery NONE = new AccordQuery()
     {
         @Override
-        public Result compute(Data data, @Nullable Read read, @Nullable Update update)
+        public Result compute(TxnId txnId, Data data, @Nullable Read read, @Nullable Update update)
         {
-            return new AccordData();
+            return new AccordData(Collections.emptyList());
         }
     };
 
@@ -69,21 +71,27 @@ public abstract class AccordQuery implements Query
         @Override
         public void serialize(AccordQuery query, DataOutputPlus out, int version) throws IOException
         {
-            Preconditions.checkArgument(query == ALL || query == NONE);
-            out.writeBoolean(query == ALL);
+            Preconditions.checkArgument(query == null || query == ALL || query == NONE);
+            out.writeByte(query == null ? 0 : query == ALL ? 1 : 2);
         }
 
         @Override
         public AccordQuery deserialize(DataInputPlus in, int version) throws IOException
         {
-            return in.readBoolean() ? ALL : NONE;
+            switch (in.readByte())
+            {
+                default: throw new AssertionError();
+                case 0: return null;
+                case 1: return ALL;
+                case 2: return NONE;
+            }
         }
 
         @Override
         public long serializedSize(AccordQuery query, int version)
         {
-            Preconditions.checkArgument(query == ALL || query == NONE);
-            return TypeSizes.sizeof(query == ALL);
+            Preconditions.checkArgument(query == null || query == ALL || query == NONE);
+            return TypeSizes.sizeof((byte)2);
         }
     };
 }

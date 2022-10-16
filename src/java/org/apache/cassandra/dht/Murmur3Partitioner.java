@@ -221,11 +221,17 @@ public class Murmur3Partitioner implements IPartitioner
         @Override
         public LongToken increaseSlightly()
         {
+            if (token == MAXIMUM)
+                throw new IllegalArgumentException("Cannot increase above MAXIMUM");
+
             return new LongToken(token + 1);
         }
 
         public LongToken decreaseSlightly()
         {
+            if (equals(MINIMUM))
+                throw new IllegalArgumentException("Cannot decrease below MINIMUM");
+
             return new LongToken(token - 1);
         }
 
@@ -264,6 +270,12 @@ public class Murmur3Partitioner implements IPartitioner
             return MINIMUM;
 
         return new LongToken(normalize(hash[0]));
+    }
+
+    @Override
+    public boolean isFixedLength()
+    {
+        return true;
     }
 
     public int getMaxTokenSize()

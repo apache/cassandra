@@ -20,15 +20,17 @@ package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NavigableMap;
 import java.util.TreeMap;
 
 import com.google.common.base.Preconditions;
 
 import accord.api.Data;
 import accord.api.Result;
+import accord.primitives.Keys;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.DeserializationHelper;
@@ -47,22 +49,16 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements Data, Result, Iterable<FilteredPartition>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordData());
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new AccordData(Collections.emptyList()));
 
     private static PartitionKey getKey(FilteredPartition partition)
     {
         return new PartitionKey(partition.metadata().id, partition.partitionKey());
     }
 
-    public AccordData()
-    {
-        this(new TreeMap<>());
-    }
-
     public AccordData(FilteredPartition partition)
     {
-        this();
-        put(partition);
+        this(Keys.of(AccordKey.of(partition)), new ByteBuffer[] { serialize(partition, partitionSerializer) });
     }
 
     public AccordData(List<FilteredPartition> items)
@@ -70,12 +66,11 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
         super(items, AccordData::getKey);
     }
 
-    public AccordData(NavigableMap<PartitionKey, ByteBuffer> serialized)
+    public AccordData(Keys keys, ByteBuffer[] serialized)
     {
-        super(serialized);
+        super(keys, serialized);
     }
 
-    @Override
     void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException
     {
         partitionSerializer.serialize(partition, out, version);
@@ -99,23 +94,6 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
         return EMPTY_SIZE;
     }
 
-    private void put(PartitionKey key, ByteBuffer bytes)
-    {
-        // TODO: support multiple partitions (ie: read commands) per partition
-        Preconditions.checkArgument(!serialized.containsKey(key) || serialized.get(key).equals(bytes));
-        serialized.put(key, bytes);
-    }
-
-    void put(PartitionKey key, FilteredPartition partition)
-    {
-        put(key, serialize(partition));
-    }
-
-    void put(FilteredPartition partition)
-    {
-        put(AccordKey.of(partition), partition);
-    }
-
     FilteredPartition get(PartitionKey key)
     {
         return getDeserialized(key);
@@ -124,18 +102,13 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
     @Override
     public Iterator<FilteredPartition> iterator()
     {
-        return serialized.values().stream().map(this::deserialize).iterator();
+        return Arrays.stream(serialized).map(this::deserialize).iterator();
     }
 
     @Override
     public Data merge(Data data)
     {
-        AccordData that = (AccordData) data;
-        AccordData merged = new AccordData();
-        //TODO on conflict should we "merge" the partition rather than override?
-        this.serialized.forEach(merged::put);
-        that.serialized.forEach(merged::put);
-        return merged;
+        return super.merge((AccordData) data, AccordData::new);
     }
 
     public static Data merge(Data left, Data right)

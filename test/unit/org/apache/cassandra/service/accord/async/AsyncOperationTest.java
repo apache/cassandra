@@ -32,12 +32,11 @@ import org.junit.Test;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
-import accord.local.PartialCommand;
-import accord.local.PreLoadContext;
+import accord.local.SafeCommandStore;
 import accord.local.Status;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.txn.Txn;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -59,11 +58,14 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
 public class AsyncOperationTest
 {
+    private static AtomicLong clock = new AtomicLong(0);
+
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
@@ -87,13 +89,12 @@ public class AsyncOperationTest
     @Test
     public void optionalCommandTest() throws Throwable
     {
-        AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        Txn txn = createTxn(0);
+        Txn txn = createTxn((int)clock.incrementAndGet());
         AccordKey.PartitionKey key = (AccordKey.PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.process(contextFor(txnId), instance -> {
+        commandStore.execute(contextFor(txnId), instance -> {
             Command command = instance.ifPresent(txnId);
             Assert.assertNull(command);
         }).get();
@@ -105,12 +106,11 @@ public class AsyncOperationTest
     @Test
     public void optionalCommandsForKeyTest() throws Throwable
     {
-        AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        Txn txn = createTxn(0);
+        Txn txn = createTxn((int)clock.incrementAndGet());
         AccordKey.PartitionKey key = (AccordKey.PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.process(contextFor(Collections.emptyList(), Collections.singleton(key)), instance -> {
+        commandStore.execute(contextFor(Collections.emptyList(), Collections.singleton(key)), instance -> {
             CommandsForKey cfk = commandStore.maybeCommandsForKey(key);
             Assert.assertNull(cfk);
         }).get();
@@ -124,19 +124,13 @@ public class AsyncOperationTest
         }
     }
 
-
-    private static PartialCommand createPartialCommand(Command command)
-    {
-        return new AccordPartialCommand(command.txnId(), command.txn(), command.executeAt(), command.status());
-    }
-
     private static AccordCommand createCommittedAndPersist(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
     {
-        AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
-        command.txn(createTxn(0));
-        command.executeAt(executeAt);
-        command.status(Status.Committed);
-        AccordKeyspace.getCommandMutation(command, commandStore.nextSystemTimestampMicros()).apply();
+        AccordCommand command = new AccordCommand(txnId).initialize();
+        command.setPartialTxn(createPartialTxn(0));
+        command.setExecuteAt(executeAt);
+        command.setStatus(Status.Committed);
+        AccordKeyspace.getCommandMutation(commandStore, command, commandStore.nextSystemTimestampMicros()).apply();
         command.clearModifiedFlag();
         return command;
     }
@@ -163,14 +157,13 @@ public class AsyncOperationTest
     @Test
     public void testFutureCleanup()
     {
-        AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
 
         AccordCommand command = createCommittedAndPersist(commandStore, txnId);
 
-        Consumer<CommandStore> consumer = instance -> instance.command(txnId).status(Status.Executed);
+        Consumer<SafeCommandStore> consumer = instance -> ((AccordCommand)instance.command(txnId)).setStatus(Status.PreApplied);
         AsyncOperation<Void> operation = new AsyncOperation.ForConsumer(commandStore, singleton(txnId), emptyList(), consumer)
         {
 

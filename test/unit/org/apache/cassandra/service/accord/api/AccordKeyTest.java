@@ -29,6 +29,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordKey.*;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SerializerTestUtils;
 
@@ -66,7 +68,7 @@ public class AccordKeyTest
     public void tokenKeyTest()
     {
         DecoratedKey dk = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
-        TokenKey pk = new TokenKey(TABLE1, dk.getToken().maxKeyBound());
+        TokenKey pk = new TokenKey(TABLE1, dk.getToken());
         SerializerTestUtils.assertSerializerIOEquality(pk, TokenKey.serializer);
     }
 
@@ -75,9 +77,11 @@ public class AccordKeyTest
     {
         DecoratedKey dk = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
         PartitionKey pk = new PartitionKey(TABLE1, dk);
-        TokenKey tkLow = new TokenKey(TABLE1, dk.getToken().minKeyBound());
-        TokenKey tkHigh = new TokenKey(TABLE1, dk.getToken().maxKeyBound());
+        TokenKey tk = new TokenKey(TABLE1, dk.getToken());
+        TokenKey tkLow = new TokenKey(TABLE1, dk.getToken().decreaseSlightly());
+        TokenKey tkHigh = new TokenKey(TABLE1, dk.getToken().increaseSlightly());
 
+        Assert.assertTrue(tk.compareTo(pk) == 0);
         Assert.assertTrue(tkLow.compareTo(pk) < 0);
         Assert.assertTrue(pk.compareTo(tkHigh) < 0);
     }

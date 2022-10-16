@@ -39,8 +39,8 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordKey.SentinelKey;
-import org.apache.cassandra.service.accord.api.AccordKey.TokenKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
 public class AccordTopologyUtils
 {
@@ -54,17 +54,17 @@ public class AccordTopologyUtils
 
     private static TokenRange minRange(TableId tableId, Token token)
     {
-        return new TokenRange(SentinelKey.min(tableId), TokenKey.max(tableId, token));
+        return new TokenRange(SentinelKey.min(tableId), new TokenKey(tableId, token));
     }
 
     private static TokenRange maxRange(TableId tableId, Token token)
     {
-        return new TokenRange(TokenKey.max(tableId, token), SentinelKey.max(tableId));
+        return new TokenRange(new TokenKey(tableId, token), SentinelKey.max(tableId));
     }
 
     private static TokenRange range(TableId tableId, Token left, Token right)
     {
-        return new TokenRange(TokenKey.max(tableId, left), TokenKey.max(tableId, right));
+        return new TokenRange(new TokenKey(tableId, left), new TokenKey(tableId, right));
     }
 
     public static List<Shard> createShards(TableMetadata tableMetadata, TokenMetadata tokenMetadata)

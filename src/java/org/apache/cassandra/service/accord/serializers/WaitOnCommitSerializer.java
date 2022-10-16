@@ -22,31 +22,36 @@ import java.io.IOException;
 
 import accord.messages.WaitOnCommit;
 import accord.messages.WaitOnCommit.WaitOnCommitOk;
-import accord.primitives.Keys;
+import accord.primitives.RoutingKeys;
+import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class WaitOnCommitSerializer
 {
-    public static final IVersionedSerializer<WaitOnCommit> request = new TxnRequestSerializer<WaitOnCommit>()
+    public static final IVersionedSerializer<WaitOnCommit> request = new IVersionedSerializer<WaitOnCommit>()
     {
         @Override
-        public void serializeBody(WaitOnCommit wait, DataOutputPlus out, int version) throws IOException
+        public void serialize(WaitOnCommit wait, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(wait.txnId, out, version);
+            KeySerializers.routingKeys.serialize(wait.scope, out, version);
         }
 
         @Override
-        public WaitOnCommit deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
+        public WaitOnCommit deserialize(DataInputPlus in, int version) throws IOException
         {
-            return WaitOnCommit.SerializerSupport.create(scope, waitForEpoch, CommandSerializers.txnId.deserialize(in, version));
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            RoutingKeys scope = KeySerializers.routingKeys.deserialize(in, version);
+            return WaitOnCommit.SerializerSupport.create(txnId, scope);
         }
 
         @Override
-        public long serializedBodySize(WaitOnCommit wait, int version)
+        public long serializedSize(WaitOnCommit wait, int version)
         {
-            return CommandSerializers.txnId.serializedSize(wait.txnId, version);
+            return CommandSerializers.txnId.serializedSize(wait.txnId, version)
+                   + KeySerializers.routingKeys.serializedSize(wait.scope, version);
         }
     };
 
@@ -55,7 +60,6 @@ public class WaitOnCommitSerializer
         @Override
         public void serialize(WaitOnCommitOk ok, DataOutputPlus out, int version) throws IOException
         {
-
         }
 
         @Override

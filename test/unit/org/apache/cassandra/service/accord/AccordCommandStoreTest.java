@@ -32,10 +32,10 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.local.Command;
 import accord.local.Status;
-import accord.primitives.Deps;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialTxn;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.txn.Txn;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -45,10 +45,11 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 
+import static accord.local.Status.Durability.Durable;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
-import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.processCommandResult;
 import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
@@ -76,36 +77,36 @@ public class AccordCommandStoreTest
     public void commandLoadSave() throws Throwable
     {
         AtomicLong clock = new AtomicLong(0);
-        Txn depTxn = createTxn(0);
+        PartialTxn depTxn = createPartialTxn(0);
         Key key = depTxn.keys().get(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        Deps.OrderedBuilder builder = Deps.orderedBuilder(false);
+        PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(depTxn.covering(), false);
         builder.add(key, txnId(1, clock.incrementAndGet(), 0, 1));
-        Deps dependencies = builder.build();
+        PartialDeps dependencies = builder.build();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
 
         TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
-        command.txn(createTxn(0));
-        command.homeKey(key);
-        command.progressKey(key);
-        command.isGloballyPersistent(true);
-        command.promised(ballot(1, clock.incrementAndGet(), 0, 1));
-        command.accepted(ballot(1, clock.incrementAndGet(), 0, 1));
-        command.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
-        command.savedDeps(dependencies);
-        command.status(Status.Accepted);
-        command.addWaitingOnCommit(new AccordCommand(commandStore, oldTxnId1).initialize());
-        command.addWaitingOnApplyIfAbsent(new AccordCommand(commandStore, oldTxnId2).initialize());
+        AccordCommand command = new AccordCommand(txnId).initialize();
+        command.setPartialTxn(createPartialTxn(0));
+        command.homeKey(key.toRoutingKey());
+        command.progressKey(key.toRoutingKey());
+        command.setDurability(Durable);
+        command.setPromised(ballot(1, clock.incrementAndGet(), 0, 1));
+        command.setAccepted(ballot(1, clock.incrementAndGet(), 0, 1));
+        command.setExecuteAt(timestamp(1, clock.incrementAndGet(), 0, 1));
+        command.setPartialDeps(dependencies);
+        command.setStatus(Status.Accepted);
+        command.addWaitingOnCommit(oldTxnId1);
+        command.addWaitingOnApplyIfAbsent(oldTxnId2, oldTimestamp);
         command.storedListeners.clear();
-        command.addListener(new AccordCommand(commandStore, oldTxnId1));
-        processCommandResult(command);
+        command.addListener(new AccordCommand(oldTxnId1));
+        processCommandResult(commandStore, command);
 
-        AccordKeyspace.getCommandMutation(command, commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getCommandMutation(commandStore, command, commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", command);
         Command actual = AccordKeyspace.loadCommand(commandStore, txnId);
         logger.info("A: {}", actual);
@@ -120,16 +121,16 @@ public class AccordCommandStoreTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 0, 1);
 
-        Txn txn = createTxn(1);
+        PartialTxn txn = createPartialTxn(1);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
-        AccordCommand command1 = new AccordCommand(commandStore, txnId1).initialize();
-        AccordCommand command2 = new AccordCommand(commandStore, txnId2).initialize();
-        command1.txn(txn);
-        command2.txn(txn);
-        command1.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
-        command2.executeAt(timestamp(1, clock.incrementAndGet(), 0, 1));
+        AccordCommand command1 = new AccordCommand(txnId1).initialize();
+        AccordCommand command2 = new AccordCommand(txnId2).initialize();
+        command1.setPartialTxn(txn);
+        command2.setPartialTxn(txn);
+        command1.setExecuteAt(timestamp(1, clock.incrementAndGet(), 0, 1));
+        command2.setExecuteAt(timestamp(1, clock.incrementAndGet(), 0, 1));
 
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
         cfk.updateMax(maxTimestamp);
@@ -142,7 +143,7 @@ public class AccordCommandStoreTest
         cfk.register(command1);
         cfk.register(command2);
 
-        AccordKeyspace.getCommandsForKeyMutation(cfk, commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getCommandsForKeyMutation(commandStore, cfk, commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", cfk);
         AccordCommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore, key);
         logger.info("A: {}", actual);
@@ -155,7 +156,7 @@ public class AccordCommandStoreTest
     {
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        Txn txn = createTxn(1);
+        PartialTxn txn = createPartialTxn(1);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         AccordCommandsForKey.WriteOnly writeOnlyCfk = new AccordCommandsForKey.WriteOnly(commandStore, key);
@@ -169,7 +170,7 @@ public class AccordCommandStoreTest
             writeOnlyCfk.updateMax(maxTimestamp);
         }
 
-        AccordKeyspace.getCommandsForKeyMutation(writeOnlyCfk, commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getCommandsForKeyMutation(commandStore, writeOnlyCfk, commandStore.nextSystemTimestampMicros()).apply();
         AccordCommandsForKey fullCfk = AccordKeyspace.loadCommandsForKey(commandStore, key);
 
         Assert.assertEquals(expected, fullCfk.blindWitnessed.getView());

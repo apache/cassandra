@@ -31,12 +31,12 @@ public abstract class AbstractStoredField
 
     private byte flag;
 
-    public AbstractStoredField(AccordState.Kind kind)
+    public AbstractStoredField(AccordState.ReadWrite readWrite)
     {
         this.flag = 0;
-        if (kind == AccordState.Kind.WRITE_ONLY)
+        if (readWrite == AccordState.ReadWrite.WRITE_ONLY)
             set(WRITE_ONLY_FLAG);
-        if (kind == AccordState.Kind.READ_ONLY)
+        if (readWrite == AccordState.ReadWrite.READ_ONLY)
             set(READ_ONLY_FLAG);
     }
 
