@@ -19,11 +19,11 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -33,7 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
-import accord.local.Status;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
@@ -45,7 +45,6 @@ import org.apache.cassandra.service.accord.AccordPartialCommand;
 import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
-import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -77,7 +76,7 @@ public class AsyncWriter
 
     private interface StateMutationFunction<K, V extends AccordState<K>>
     {
-        Mutation apply(V state, long timestamp);
+        Mutation apply(AccordCommandStore commandStore, V state, long timestamp);
     }
 
     private static <K, V extends AccordState<K>> List<Future<?>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
@@ -100,7 +99,7 @@ public class AsyncWriter
             if (futures == null)
                 futures = new ArrayList<>();
             K key = item.key();
-            Mutation mutation = mutationFunction.apply(item, timestamp);
+            Mutation mutation = mutationFunction.apply(commandStore, item, timestamp);
             if (logger.isTraceEnabled())
                 logger.trace("Dispatching mutation for {} for {}, {} -> {}", key, callback, item, mutation);
             Future<?> future = Stage.MUTATION.submit(() -> {
@@ -125,9 +124,8 @@ public class AsyncWriter
         for (AccordState.WriteOnly<K, V> item : ctxGroup.writeOnly.values())
         {
             Preconditions.checkState(item.hasModifications());
-            if (futures == null)
-                futures = new ArrayList<>();
-            Mutation mutation = mutationFunction.apply((V) item, timestamp);
+            if (futures == null) futures = new ArrayList<>();
+            Mutation mutation = mutationFunction.apply(commandStore, (V) item, timestamp);
             Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
             future.addListener(() -> cache.purgeWriteOnly(item.key()), commandStore.executor());
             item.future(future);
@@ -163,16 +161,16 @@ public class AsyncWriter
 
     private void denormalizeBlockedOn(AccordCommand command,
                                       AsyncContext context,
-                                      Function<AccordCommand, StoredNavigableMap<TxnId, ByteBuffer>> waitingField,
+                                      Function<AccordCommand, StoredSet.Changes<TxnId>> waitingField,
                                       Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
     {
-        StoredNavigableMap<TxnId, ?> waitingOn = waitingField.apply(command);
+        StoredSet.Changes<TxnId> waitingOn = waitingField.apply(command);
         waitingOn.forEachDeletion(deletedId -> {
             AccordCommand blockedOn = commandForDenormalization(deletedId, context);
             blockingField.apply(blockedOn).blindRemove(command.txnId());
         });
 
-        waitingOn.forEachAddition((addedId, unused) -> {
+        waitingOn.forEachAddition(addedId -> {
             AccordCommand blockedOn = commandForDenormalization(addedId, context);
             blockingField.apply(blockedOn).blindAdd(command.txnId());
         });
@@ -180,13 +178,12 @@ public class AsyncWriter
 
     private void denormalizeWaitingOnSummaries(AccordCommand command,
                                                AsyncContext context,
-                                               ByteBuffer summary,
-                                               Function<AccordCommand, StoredNavigableMap<TxnId, ByteBuffer>> waitingField,
+                                               Function<AccordCommand, BiConsumer<TxnId, Timestamp>> waitingField,
                                                Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
     {
         blockingField.apply(command).getView().forEach(blockingId -> {
             AccordCommand blocking = commandForDenormalization(blockingId, context);
-            waitingField.apply(blocking).blindPut(command.txnId(), summary.duplicate());
+            waitingField.apply(blocking).accept(command.txnId(), command.executeAt());
         });
     }
 
@@ -202,7 +199,7 @@ public class AsyncWriter
             return item;
 
         item = cache.getOrNull(key);
-        if (item != null)
+        if (item != null && !cache.hasLoadFuture(key))
         {
             ctxGroup.items.put(key, item);
             return item;
@@ -213,7 +210,7 @@ public class AsyncWriter
 
     private AccordCommand commandForDenormalization(TxnId txnId, AsyncContext context)
     {
-        return (AccordCommand) getForDenormalization(txnId, commandStore, context.commands, commandCache, AccordCommand.WriteOnly::new);
+        return (AccordCommand) getForDenormalization(txnId, commandStore, context.commands, commandCache, (ignore, id) -> new AccordCommand.WriteOnly(id));
     }
 
     private AccordCommandsForKey cfkForDenormalization(PartitionKey key, AsyncContext context)
@@ -228,21 +225,38 @@ public class AsyncWriter
 
         // notify commands we're waiting on that they need to update the summaries in our maps
         if (command.waitingOnCommit.hasModifications())
+        {
             denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
+        }
         if (command.waitingOnApply.hasModifications())
-            denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
+        {
+            denormalizeBlockedOn(command, context, cmd -> new StoredSet.Changes<TxnId>()
+            {
+                @Override
+                public void forEachAddition(Consumer<TxnId> consumer)
+                {
+                    cmd.waitingOnApply.forEachAddition((ignore, txnId) -> consumer.accept(txnId));
+                }
+
+                @Override
+                public void forEachDeletion(Consumer<TxnId> consumer)
+                {
+                    cmd.waitingOnApply.forEachDeletion((ignore, txnId) -> consumer.accept(txnId));
+
+                }
+            }, cmd -> cmd.blockingApplyOn);
+        }
 
         if (command.shouldUpdateDenormalizedWaitingOn())
         {
-            ByteBuffer summary = AccordPartialCommand.serializer.serialize(command);
-            denormalizeWaitingOnSummaries(command, context, summary, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
-            denormalizeWaitingOnSummaries(command, context, summary, cmd -> cmd.waitingOnApply, cmd -> cmd.blockingApplyOn);
+            denormalizeWaitingOnSummaries(command, context, cmd -> (txnId, ignore) -> cmd.waitingOnCommit.blindAdd(txnId), cmd -> cmd.blockingCommitOn);
+            denormalizeWaitingOnSummaries(command, context, cmd -> (txnId, executeAt) -> cmd.waitingOnApply.blindPut(executeAt, txnId), cmd -> cmd.blockingApplyOn);
         }
 
         // There won't be a txn to denormalize against until the command has been preaccepted
-        if (command.status().hasBeen(Status.PreAccepted) && AccordPartialCommand.WithDeps.serializer.needsUpdate(command) && !(command.txn() == null && command.status().isInvalidated()))
+        if (command.known().hasTxn && AccordPartialCommand.serializer.needsUpdate(command))
         {
-            for (Key key : command.txn().keys())
+            for (Key key : command.partialTxn().keys())
             {
                 PartitionKey partitionKey = (PartitionKey) key;
                 AccordCommandsForKey cfk = cfkForDenormalization(partitionKey, context);
@@ -257,21 +271,10 @@ public class AsyncWriter
         }
     }
 
-    private void denormalizePartial(AccordPartialCommand partial, AsyncContext context, Object callback)
-    {
-        if (!partial.hasRemovedListeners())
-            return;
-
-        logger.trace("Denormalizing partial command change on {} for {}", partial, callback);
-        AccordCommand forUpdate = commandForDenormalization(partial.txnId(), context);
-        partial.forEachRemovedListener(forUpdate::removeListener);
-    }
-
     private void denormalize(AsyncContext context, Object callback)
     {
         // need to clone "values" as denormalize will mutate it
         new ArrayList<>(context.commands.items.values()).forEach(command -> denormalize(command, context, callback));
-        context.commands.partials.forEach(command -> denormalizePartial(command, context, callback));
     }
 
     @VisibleForTesting

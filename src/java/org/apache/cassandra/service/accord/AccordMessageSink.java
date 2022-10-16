@@ -62,8 +62,6 @@ public class AccordMessageSink implements MessageSink
             mapping.put(MessageType.COMMIT_INVALIDATE,      Verb.ACCORD_COMMIT_INVALIDATE_REQ);
             mapping.put(MessageType.APPLY_REQ,              Verb.ACCORD_APPLY_REQ);
             mapping.put(MessageType.APPLY_RSP,              Verb.ACCORD_APPLY_RSP);
-            mapping.put(MessageType.APPLY_AND_CHECK_REQ,    Verb.ACCORD_APPLY_AND_CHECK_REQ);
-            mapping.put(MessageType.APPLY_AND_CHECK_RSP,    Verb.ACCORD_APPLY_AND_CHECK_RSP);
             mapping.put(MessageType.READ_REQ,               Verb.ACCORD_READ_REQ);
             mapping.put(MessageType.READ_RSP,               Verb.ACCORD_READ_RSP);
             mapping.put(MessageType.BEGIN_RECOVER_REQ,      Verb.ACCORD_RECOVER_REQ);
@@ -72,12 +70,20 @@ public class AccordMessageSink implements MessageSink
             mapping.put(MessageType.BEGIN_INVALIDATE_RSP,   Verb.ACCORD_BEGIN_INVALIDATE_RSP);
             mapping.put(MessageType.WAIT_ON_COMMIT_REQ,     Verb.ACCORD_WAIT_COMMIT_REQ);
             mapping.put(MessageType.WAIT_ON_COMMIT_RSP,     Verb.ACCORD_WAIT_COMMIT_RSP);
-            mapping.put(MessageType.INFORM_REQ,             Verb.ACCORD_INFORM_OF_TXN_REQ);
-            mapping.put(MessageType.INFORM_RSP,             Verb.ACCORD_INFORM_OF_TXN_RSP);
-            mapping.put(MessageType.INFORM_PERSISTED_REQ,   Verb.ACCORD_INFORM_OF_PERSIETENCE_REQ);
-            mapping.put(MessageType.INFORM_PERSISTED_RSP,   Verb.ACCORD_INFORM_OF_PERSISTENCE_RSP);
+            mapping.put(MessageType.INFORM_TXNID_REQ,       Verb.ACCORD_INFORM_OF_TXNID_REQ);
+            mapping.put(MessageType.INFORM_HOME_DURABLE_REQ,Verb.ACCORD_INFORM_HOME_DURABLE_REQ);
+            mapping.put(MessageType.INFORM_DURABLE_REQ,     Verb.ACCORD_INFORM_DURABLE_REQ);
             mapping.put(MessageType.CHECK_STATUS_REQ,       Verb.ACCORD_CHECK_STATUS_REQ);
             mapping.put(MessageType.CHECK_STATUS_RSP,       Verb.ACCORD_CHECK_STATUS_RSP);
+            mapping.put(MessageType.GET_DEPS_REQ,           Verb.ACCORD_GET_DEPS_REQ);
+            mapping.put(MessageType.GET_DEPS_RSP,           Verb.ACCORD_GET_DEPS_RSP);
+            mapping.put(MessageType.SIMPLE_RSP,             Verb.ACCORD_SIMPLE_RSP);
+
+            for (MessageType type : MessageType.values())
+            {
+                if (!mapping.containsKey(type))
+                    throw new AssertionError("Missing mapping for Accord MessageType " + type);
+            }
         }
     }
 

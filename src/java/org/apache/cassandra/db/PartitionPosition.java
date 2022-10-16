@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -100,7 +101,7 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>, Byte
                 Token.serializer.serialize(pos.getToken(), out, version);
         }
 
-        public PartitionPosition deserialize(DataInput in, IPartitioner p, int version) throws IOException
+        public PartitionPosition deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             Kind kind = Kind.fromOrdinal(in.readByte());
             if (kind == Kind.ROW_KEY)

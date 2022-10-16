@@ -23,36 +23,45 @@ import java.util.concurrent.ExecutorService;
 import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.ProgressLog;
+import accord.local.AsyncCommandStores;
 import accord.local.CommandStore;
-import accord.local.CommandStores;
 import accord.local.Node;
+import accord.local.NodeTimeService;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.utils.ExecutorUtils;
 
-public class AccordCommandStores extends CommandStores
+public class AccordCommandStores extends AsyncCommandStores
 {
     private final ExecutorService[] executors;
 
     public AccordCommandStores(int numShards, Node node, Agent agent, DataStore store,
                                ProgressLog.Factory progressLogFactory)
     {
-        super(numShards, node, agent, store, progressLogFactory);
-        this.executors = new ExecutorService[numShards];
-        for (int i=0; i<numShards; i++)
+        this(numShards, node, agent, store, progressLogFactory, executors(node, numShards));
+    }
+
+    private AccordCommandStores(int numShards, NodeTimeService time, Agent agent, DataStore store,
+                                ProgressLog.Factory progressLogFactory, ExecutorService[] executors)
+    {
+        super(numShards, time, agent, store, progressLogFactory,
+              (id, generation, index, numShards1, time1, agent1, store1, progressLogFactory1, rangesForEpoch)
+                -> new AccordCommandStore(id, generation, index, numShards1, time1, agent1, store1, progressLogFactory1, rangesForEpoch, executors[index]));
+        this.executors = executors;
+    }
+
+    private static ExecutorService[] executors(Node node, int count)
+    {
+        ExecutorService[] executors = new ExecutorService[count];
+        for (int i=0; i<count; i++)
         {
             executors[i] = ExecutorFactory.Global.executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + node + ':' + i + ']');
         }
-    }
-
-    @Override
-    protected CommandStore createCommandStore(int generation, int index, int numShards, Node node, Agent agent, DataStore store, ProgressLog.Factory progressLogFactory, CommandStore.RangesForEpoch rangesForEpoch)
-    {
-        return new AccordCommandStore(generation, index, numShards, node::uniqueNow, node.topology()::epoch, agent, store, progressLogFactory, rangesForEpoch, executors[index]);
+        return executors;
     }
 
     void setCacheSize(long bytes)
     {
-        setup(commandStore -> ((AccordCommandStore) commandStore).setCacheSize(bytes));
+        forEach(commandStore -> ((AccordCommandStore) commandStore).setCacheSize(bytes));
     }
 
     @Override

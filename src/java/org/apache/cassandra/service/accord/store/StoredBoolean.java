@@ -25,12 +25,12 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class StoredBoolean extends AbstractStoredField
 {
-    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredBoolean(AccordState.Kind.FULL));
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredBoolean(AccordState.ReadWrite.FULL));
     protected boolean value;
 
-    public StoredBoolean(AccordState.Kind kind)
+    public StoredBoolean(AccordState.ReadWrite readWrite)
     {
-        super(kind);
+        super(readWrite);
     }
 
     @Override

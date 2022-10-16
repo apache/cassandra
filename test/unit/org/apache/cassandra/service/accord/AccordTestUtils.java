@@ -35,24 +35,28 @@ import com.google.common.collect.Sets;
 
 import accord.api.Data;
 import accord.api.ProgressLog;
+import accord.api.RoutingKey;
 import accord.api.Write;
 import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.Node.Id;
-import accord.local.PartialCommand;
+import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.Status.Known;
+import accord.primitives.AbstractKeys;
 import accord.primitives.Ballot;
 import accord.primitives.KeyRange;
 import accord.primitives.KeyRanges;
-import accord.primitives.Keys;
+import accord.primitives.PartialTxn;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
-import accord.txn.Txn;
-import accord.txn.Writes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -75,14 +79,17 @@ public class AccordTestUtils
 
     public static final ProgressLog NOOP_PROGRESS_LOG = new ProgressLog()
     {
-        @Override public void preaccept(Command command, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void accept(Command command, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void commit(Command command, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void readyToExecute(Command command, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void execute(Command command, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void invalidate(Command command, boolean isProgressShard, boolean isHomeShard) {}
-        @Override public void executedOnAllShards(Command command, Set<Id> persistedOn) {}
-        @Override public void waiting(PartialCommand blockedBy, @Nullable Keys someKeys) {}
+        @Override public void unwitnessed(TxnId txnId, RoutingKey homeKey, ProgressShard shard) {}
+        @Override public void preaccepted(Command command, ProgressShard progressShard) {}
+        @Override public void accepted(Command command, ProgressShard progressShard) {}
+        @Override public void committed(Command command, ProgressShard progressShard) {}
+        @Override public void readyToExecute(Command command, ProgressShard progressShard) {}
+        @Override public void executed(Command command, ProgressShard progressShard) {}
+        @Override public void invalidated(Command command, ProgressShard progressShard) {}
+        @Override public void durable(Command command, Set<Id> persistedOn) {}
+        @Override public void durable(TxnId txnId, @Nullable RoutingKeys someKeys, ProgressShard shard) {}
+        @Override public void durableLocal(TxnId txnId) {}
+        @Override public void waiting(TxnId blockedBy, Known blockedUntil, RoutingKeys blockedOnKeys) {}
     };
 
     public static Topology simpleTopology(TableId... tables)
@@ -125,18 +132,18 @@ public class AccordTestUtils
     /**
      * does the reads, writes, and results for a command without the consensus
      */
-    public static void processCommandResult(Command command) throws Throwable
+    public static void processCommandResult(AccordCommandStore commandStore, Command command) throws Throwable
     {
 
-        command.commandStore().process(PreLoadContext.contextFor(Collections.emptyList(), command.txn().keys()),
+        commandStore.execute(PreLoadContext.contextFor(Collections.emptyList(), command.partialTxn().keys()),
                                        instance -> {
-            Txn txn = command.txn();
+            PartialTxn txn = command.partialTxn();
             AccordRead read = (AccordRead) txn.read();
             Data readData = read.keys().stream()
                                 .map(key -> {
                                     try
                                     {
-                                        return read.read(key, command.txn().isWrite(), command.commandStore(), command.executeAt(), null).get();
+                                        return read.read(key, command.kind(), commandStore, command.executeAt(), null).get();
                                     }
                                     catch (InterruptedException e)
                                     {
@@ -149,8 +156,8 @@ public class AccordTestUtils
                                 })
                                 .reduce(null, AccordData::merge);
             Write write = txn.update().apply(readData);
-            command.writes(new Writes(command.executeAt(), txn.keys(), write));
-            command.result(txn.query().compute(readData, txn.read(), txn.update()));
+            ((AccordCommand)command).setWrites(new Writes(command.executeAt(), txn.keys(), write));
+            ((AccordCommand)command).setResult(txn.query().compute(command.txnId(), readData, txn.read(), txn.update()));
         }).get();
     }
 
@@ -166,6 +173,19 @@ public class AccordTestUtils
     public static Txn createTxn(int key)
     {
         return createTxn(key, key);
+    }
+
+    public static KeyRanges fullRange(Txn txn)
+    {
+        TableId tableId = ((AccordKey)txn.keys().get(0)).tableId();
+        return KeyRanges.of(TokenRange.fullRange(tableId));
+    }
+
+    public static PartialTxn createPartialTxn(int key)
+    {
+        Txn txn = createTxn(key, key);
+        KeyRanges ranges = fullRange(txn);
+        return new PartialTxn.InMemory(ranges, txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
     }
 
     private static class SingleEpochRanges implements CommandStore.RangesForEpoch
@@ -185,6 +205,12 @@ public class AccordTestUtils
         }
 
         @Override
+        public KeyRanges between(long fromInclusive, long toInclusive)
+        {
+            return ranges;
+        }
+
+        @Override
         public KeyRanges since(long epoch)
         {
             assert epoch == 1;
@@ -192,7 +218,13 @@ public class AccordTestUtils
         }
 
         @Override
-        public boolean intersects(long epoch, Keys keys)
+        public boolean owns(long epoch, RoutingKey key)
+        {
+            return ranges.contains(key);
+        }
+
+        @Override
+        public boolean intersects(long epoch, AbstractKeys<?, ?> keys)
         {
             assert epoch == 1;
             return ranges.intersects(keys);
@@ -205,9 +237,14 @@ public class AccordTestUtils
         TokenRange range = TokenRange.fullRange(metadata.id);
         Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
-        return new InMemoryCommandStore.Synchronized(0, 1, 8,
-                                                     ts -> new Timestamp(1, now.getAsLong(), 0, node),
-                                                     () -> 1,
+        NodeTimeService time = new NodeTimeService()
+        {
+            @Override public Id id() { return node;}
+            @Override public long epoch() {return 1; }
+            @Override public Timestamp uniqueNow(Timestamp atLeast) { return new Timestamp(1, now.getAsLong(), 0, node); }
+        };
+        return new InMemoryCommandStore.Synchronized(0, 0, 1, 8,
+                                                     time,
                                                      new AccordAgent(),
                                                      null,
                                                      cs -> null,
@@ -221,9 +258,14 @@ public class AccordTestUtils
             thread.setName(CommandStore.class.getSimpleName() + '[' + node + ':' + 0 + ']');
             return thread;
         });
-        return new AccordCommandStore(0, 0, 1,
-                                      ts -> new Timestamp(1, now.getAsLong(), 0, node),
-                                      () -> 1,
+        NodeTimeService time = new NodeTimeService()
+        {
+            @Override public Id id() { return node;}
+            @Override public long epoch() {return 1; }
+            @Override public Timestamp uniqueNow(Timestamp atLeast) { return new Timestamp(1, now.getAsLong(), 0, node); }
+        };
+        return new AccordCommandStore(0, 0, 0, 1,
+                                      time,
                                       new AccordAgent(),
                                       null,
                                       cs -> NOOP_PROGRESS_LOG,

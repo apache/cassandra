@@ -76,11 +76,13 @@ import org.apache.cassandra.schema.SchemaMutationsSerializer;
 import org.apache.cassandra.schema.SchemaPullVerbHandler;
 import org.apache.cassandra.schema.SchemaPushVerbHandler;
 import org.apache.cassandra.schema.SchemaVersionVerbHandler;
-import org.apache.cassandra.service.accord.serializers.ApplyAndCheckSerializers;
-import org.apache.cassandra.service.accord.serializers.BeginInvalidateSerializers;
+import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
 import org.apache.cassandra.service.accord.serializers.CheckStatusSerializers;
-import org.apache.cassandra.service.accord.serializers.InformOfPersistenceSerializers;
-import org.apache.cassandra.service.accord.serializers.InformOfTxnSerializers;
+import org.apache.cassandra.service.accord.serializers.EnumSerializer;
+import org.apache.cassandra.service.accord.serializers.GetDepsSerializers;
+import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
+import org.apache.cassandra.service.accord.serializers.InformHomeDurableSerializers;
+import org.apache.cassandra.service.accord.serializers.InformOfTxnIdSerializers;
 import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosCommitAndPrepare;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
@@ -219,6 +221,8 @@ public enum Verb
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
 
     // accord
+    ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, REQUEST_RESPONSE,     () -> EnumSerializer.simpleReply,           RESPONSE_HANDLER),
+
     ACCORD_PREACCEPT_RSP            (121, P2, writeTimeout,    REQUEST_RESPONSE,  () -> PreacceptSerializers.reply,           RESPONSE_HANDLER),
     ACCORD_PREACCEPT_REQ            (120, P2, writeTimeout,    ACCORD,            () -> PreacceptSerializers.request,         () -> AccordService.instance().verbHandler(),       ACCORD_PREACCEPT_RSP),
 
@@ -233,24 +237,27 @@ public enum Verb
 
     ACCORD_APPLY_RSP                (130, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ApplySerializers.reply,               RESPONSE_HANDLER),
     ACCORD_APPLY_REQ                (129, P2, writeTimeout,    ACCORD,            () -> ApplySerializers.request,             () -> AccordService.instance().verbHandler(), ACCORD_APPLY_RSP),
-    ACCORD_APPLY_AND_CHECK_RSP      (132, P2, writeTimeout,    REQUEST_RESPONSE,  () -> ApplyAndCheckSerializers.reply,       RESPONSE_HANDLER),
-    ACCORD_APPLY_AND_CHECK_REQ      (131, P2, writeTimeout,    ACCORD,            () -> ApplyAndCheckSerializers.request,     () -> AccordService.instance().verbHandler(), ACCORD_APPLY_AND_CHECK_RSP),
 
     ACCORD_RECOVER_RSP              (134, P2, writeTimeout,    REQUEST_RESPONSE,  () -> RecoverySerializers.reply,            RESPONSE_HANDLER),
     ACCORD_RECOVER_REQ              (133, P2, writeTimeout,    ACCORD,            () -> RecoverySerializers.request,          () -> AccordService.instance().verbHandler(),       ACCORD_RECOVER_RSP  ),
-    ACCORD_BEGIN_INVALIDATE_RSP     (136, P2, writeTimeout,    REQUEST_RESPONSE,  () -> BeginInvalidateSerializers.reply,     RESPONSE_HANDLER),
-    ACCORD_BEGIN_INVALIDATE_REQ     (135, P2, writeTimeout,    ACCORD,            () -> BeginInvalidateSerializers.request,   () -> AccordService.instance().verbHandler(),ACCORD_BEGIN_INVALIDATE_RSP),
+    ACCORD_BEGIN_INVALIDATE_RSP     (136, P2, writeTimeout, REQUEST_RESPONSE, () -> BeginInvalidationSerializers.reply, RESPONSE_HANDLER),
+    ACCORD_BEGIN_INVALIDATE_REQ     (135, P2, writeTimeout, ACCORD, () -> BeginInvalidationSerializers.request, () -> AccordService.instance().verbHandler(), ACCORD_BEGIN_INVALIDATE_RSP),
     ACCORD_WAIT_COMMIT_RSP          (138, P2, writeTimeout,    REQUEST_RESPONSE,  () -> WaitOnCommitSerializer.reply,         RESPONSE_HANDLER),
     ACCORD_WAIT_COMMIT_REQ          (137, P2, writeTimeout,    ACCORD,            () -> WaitOnCommitSerializer.request,       () -> AccordService.instance().verbHandler(),     ACCORD_WAIT_COMMIT_RSP),
 
-    ACCORD_INFORM_OF_TXN_RSP        (140, P2, writeTimeout, REQUEST_RESPONSE,     () -> InformOfTxnSerializers.reply,         RESPONSE_HANDLER),
-    ACCORD_INFORM_OF_TXN_REQ        (139, P2, writeTimeout,    ACCORD,            () -> InformOfTxnSerializers.request,       () -> AccordService.instance().verbHandler(),   ACCORD_INFORM_OF_TXN_RSP),
+    ACCORD_INFORM_OF_TXNID_RSP(140, P2, writeTimeout, REQUEST_RESPONSE, () -> EnumSerializer.simpleReply, RESPONSE_HANDLER),
+    ACCORD_INFORM_OF_TXNID_REQ(139, P2, writeTimeout, ACCORD, () -> InformOfTxnIdSerializers.request, () -> AccordService.instance().verbHandler(), ACCORD_INFORM_OF_TXNID_RSP),
 
-    ACCORD_INFORM_OF_PERSISTENCE_RSP(142, P2, writeTimeout, REQUEST_RESPONSE,     () -> InformOfTxnSerializers.reply,         RESPONSE_HANDLER),
-    ACCORD_INFORM_OF_PERSIETENCE_REQ(141, P2, writeTimeout, ACCORD,               () -> InformOfPersistenceSerializers.request, () -> AccordService.instance().verbHandler(), ACCORD_INFORM_OF_TXN_RSP),
+    ACCORD_INFORM_HOME_DURABLE_REQ(141, P2, writeTimeout, ACCORD, () -> InformHomeDurableSerializers.request, () -> AccordService.instance().verbHandler(), ACCORD_SIMPLE_RSP),
 
-    ACCORD_CHECK_STATUS_RSP         (144, P2, writeTimeout, REQUEST_RESPONSE,     () -> CheckStatusSerializers.reply,         RESPONSE_HANDLER),
-    ACCORD_CHECK_STATUS_REQ         (143, P2, writeTimeout, ACCORD,               () -> CheckStatusSerializers.request,       () -> AccordService.instance().verbHandler(), ACCORD_CHECK_STATUS_RSP),
+    ACCORD_INFORM_DURABLE_REQ(143, P2, writeTimeout, ACCORD, () -> InformDurableSerializers.request, () -> AccordService.instance().verbHandler(), ACCORD_SIMPLE_RSP),
+
+    ACCORD_CHECK_STATUS_RSP         (146, P2, writeTimeout, REQUEST_RESPONSE,     () -> CheckStatusSerializers.reply,         RESPONSE_HANDLER),
+    ACCORD_CHECK_STATUS_REQ         (145, P2, writeTimeout, ACCORD,               () -> CheckStatusSerializers.request,       () -> AccordService.instance().verbHandler(), ACCORD_CHECK_STATUS_RSP),
+
+    ACCORD_GET_DEPS_RSP         (148, P2, writeTimeout, REQUEST_RESPONSE, () -> GetDepsSerializers.reply, RESPONSE_HANDLER),
+    ACCORD_GET_DEPS_REQ         (147, P2, writeTimeout, ACCORD,               () -> GetDepsSerializers.request,       () -> AccordService.instance().verbHandler(), ACCORD_GET_DEPS_RSP),
+
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      RESPONSE_HANDLER                             ),
