@@ -21,14 +21,14 @@ package org.apache.cassandra.service.accord.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.NavigableMap;
 
 import com.google.common.collect.ImmutableList;
 
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.Write;
-import accord.local.CommandStore;
+import accord.local.SafeCommandStore;
+import accord.primitives.Keys;
 import accord.primitives.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
@@ -55,9 +55,9 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
         super(items, AccordKey::of);
     }
 
-    public AccordWrite(NavigableMap<PartitionKey, ByteBuffer> items)
+    public AccordWrite(Keys keys, ByteBuffer[] serialized)
     {
-        super(items);
+        super(keys, serialized);
     }
 
     @Override
@@ -85,12 +85,12 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
     }
 
     @Override
-    public Future<Void> apply(Key key, CommandStore commandStore, Timestamp executeAt, DataStore store)
+    public Future<Void> apply(Key key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
         PartitionUpdate update = getDeserialized((PartitionKey) key);
         if (update == null)
             return SUCCESS;
-        AccordCommandsForKey cfk = (AccordCommandsForKey) commandStore.commandsForKey(key);
+        AccordCommandsForKey cfk = (AccordCommandsForKey) safeStore.commandsForKey(key);
         long timestamp = cfk.timestampMicrosFor(executeAt, true);
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
         update = new PartitionUpdate.Builder(update, 0).updateAllTimestampAndLocalDeletionTime(timestamp, nowInSeconds).build();

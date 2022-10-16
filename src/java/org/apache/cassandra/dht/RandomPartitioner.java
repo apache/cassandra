@@ -273,7 +273,17 @@ public class RandomPartitioner implements IPartitioner
 
         public Token increaseSlightly()
         {
+            if (token.equals(MAXIMUM))
+                throw new IllegalArgumentException("Cannot increase above MAXIMUM");
             return new BigIntegerToken(token.add(BigInteger.ONE));
+        }
+
+        @Override
+        public Token decreaseSlightly()
+        {
+            if (token.equals(MINIMUM.token))
+                throw new IllegalArgumentException("Cannot decrease below MINIMUM");
+            return new BigIntegerToken(token.subtract(BigInteger.ONE));
         }
 
         @Override

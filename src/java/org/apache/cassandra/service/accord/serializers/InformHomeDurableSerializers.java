@@ -22,42 +22,50 @@ import java.io.IOException;
 
 import com.google.common.collect.Sets;
 
-import accord.messages.InformOfPersistence;
+import accord.messages.InformDurable;
+import accord.messages.InformHomeDurable;
+import accord.primitives.PartialRoute;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.CollectionSerializer;
 
-public class InformOfPersistenceSerializers
+public class InformHomeDurableSerializers
 {
-    public static final IVersionedSerializer<InformOfPersistence> request = new IVersionedSerializer<InformOfPersistence>()
+    public static final IVersionedSerializer<InformHomeDurable> request = new IVersionedSerializer<InformHomeDurable>()
     {
         @Override
-        public void serialize(InformOfPersistence inform, DataOutputPlus out, int version) throws IOException
+        public void serialize(InformHomeDurable inform, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(inform.txnId, out, version);
-            KeySerializers.key.serialize(inform.homeKey, out, version);
+            KeySerializers.routingKey.serialize(inform.homeKey, out, version);
             CommandSerializers.timestamp.serialize(inform.executeAt, out, version);
+            CommandSerializers.durability.serialize(inform.durability, out, version);
             CollectionSerializer.serializeCollection(TopologySerializers.nodeId, inform.persistedOn, out, version);
 
         }
 
         @Override
-        public InformOfPersistence deserialize(DataInputPlus in, int version) throws IOException
+        public InformHomeDurable deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new InformOfPersistence(CommandSerializers.txnId.deserialize(in, version),
-                                           KeySerializers.key.deserialize(in, version),
-                                           CommandSerializers.timestamp.deserialize(in, version),
-                                           CollectionSerializer.deserializeCollection(TopologySerializers.nodeId, Sets::newHashSetWithExpectedSize, in, version));
+            return new InformHomeDurable(CommandSerializers.txnId.deserialize(in, version),
+                                         KeySerializers.routingKey.deserialize(in, version),
+                                         CommandSerializers.timestamp.deserialize(in, version),
+                                         CommandSerializers.durability.deserialize(in, version),
+                                         CollectionSerializer.deserializeCollection(TopologySerializers.nodeId, Sets::newHashSetWithExpectedSize, in, version));
         }
 
         @Override
-        public long serializedSize(InformOfPersistence inform, int version)
+        public long serializedSize(InformHomeDurable inform, int version)
         {
             return CommandSerializers.txnId.serializedSize(inform.txnId, version)
-                   + KeySerializers.key.serializedSize(inform.homeKey, version)
+                   + KeySerializers.routingKey.serializedSize(inform.homeKey, version)
                    + CommandSerializers.timestamp.serializedSize(inform.executeAt, version)
+                   + CommandSerializers.durability.serializedSize(inform.durability, version)
                    + CollectionSerializer.serializedSizeCollection(TopologySerializers.nodeId, inform.persistedOn, version);
         }
+
     };
 }

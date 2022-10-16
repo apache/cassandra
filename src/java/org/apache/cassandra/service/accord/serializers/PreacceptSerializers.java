@@ -20,16 +20,24 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import javax.annotation.Nullable;
+
 import accord.messages.PreAccept;
 import accord.messages.PreAccept.PreAcceptOk;
 import accord.messages.PreAccept.PreAcceptReply;
-import accord.primitives.Keys;
+import accord.primitives.PartialRoute;
+import accord.primitives.PartialTxn;
+import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
+
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
 
 public class PreacceptSerializers
 {
@@ -40,23 +48,27 @@ public class PreacceptSerializers
         @Override
         public void serializeBody(PreAccept msg, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.txn.serialize(msg.txn, out, version);
-            KeySerializers.key.serialize(msg.homeKey, out, version);
+            CommandSerializers.partialTxn.serialize(msg.partialTxn, out, version);
+            serializeNullable(msg.route, out, version, KeySerializers.route);
+            out.writeUnsignedVInt(msg.maxEpoch - msg.minEpoch);
         }
 
         @Override
-        public PreAccept deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch, TxnId txnId, long minEpoch) throws IOException
+        public PreAccept deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
         {
-            return new PreAccept(scope, waitForEpoch, txnId,
-                                 CommandSerializers.txn.deserialize(in, version),
-                                 KeySerializers.key.deserialize(in, version));
+            PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
+            @Nullable Route route = deserializeNullable(in, version, KeySerializers.route);
+            long maxEpoch = in.readUnsignedVInt() + minEpoch;
+            return PreAccept.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, doNotComputeProgressKey,
+                                                      maxEpoch, partialTxn, route);
         }
 
         @Override
         public long serializedBodySize(PreAccept msg, int version)
         {
-            return CommandSerializers.txn.serializedSize(msg.txn, version)
-                   + KeySerializers.key.serializedSize(msg.homeKey, version);
+            return CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
+                   + serializedSizeNullable(msg.route, version, KeySerializers.route)
+                   + TypeSizes.sizeofUnsignedVInt(msg.maxEpoch - msg.minEpoch);
         }
     };
 
@@ -65,14 +77,14 @@ public class PreacceptSerializers
         @Override
         public void serialize(PreAcceptReply reply, DataOutputPlus out, int version) throws IOException
         {
-            out.writeBoolean(reply.isOK());
-            if (!reply.isOK())
+            out.writeBoolean(reply.isOk());
+            if (!reply.isOk())
                 return;
 
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
             CommandSerializers.txnId.serialize(preAcceptOk.txnId, out, version);
             CommandSerializers.timestamp.serialize(preAcceptOk.witnessedAt, out, version);
-            CommandSerializers.deps.serialize(preAcceptOk.deps, out, version);
+            DepsSerializer.partialDeps.serialize(preAcceptOk.deps, out, version);
         }
 
         @Override
@@ -83,20 +95,20 @@ public class PreacceptSerializers
 
             return new PreAcceptOk(CommandSerializers.txnId.deserialize(in, version),
                                    CommandSerializers.timestamp.deserialize(in, version),
-                                   CommandSerializers.deps.deserialize(in, version));
+                                   DepsSerializer.partialDeps.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(PreAcceptReply reply, int version)
         {
-            long size = TypeSizes.sizeof(reply.isOK());
-            if (!reply.isOK())
+            long size = TypeSizes.sizeof(reply.isOk());
+            if (!reply.isOk())
                 return size;
 
             PreAcceptOk preAcceptOk = (PreAcceptOk) reply;
             size += CommandSerializers.txnId.serializedSize(preAcceptOk.txnId, version);
             size += CommandSerializers.timestamp.serializedSize(preAcceptOk.witnessedAt, version);
-            size += CommandSerializers.deps.serializedSize(preAcceptOk.deps, version);
+            size += DepsSerializer.partialDeps.serializedSize(preAcceptOk.deps, version);
 
             return size;
         }

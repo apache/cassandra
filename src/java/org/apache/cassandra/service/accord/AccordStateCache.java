@@ -34,6 +34,7 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Data;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -156,7 +157,7 @@ public class AccordStateCache
     private final NamedMap<Object, Future<?>> loadFutures = new NamedMap<>("loadFutures");
     private final NamedMap<Object, Future<?>> saveFutures = new NamedMap<>("saveFutures");
 
-    private final NamedMap<Object, ReadFuture> readFutures = new NamedMap<>("readFutures");
+    private final NamedMap<Object, Future<Data>> readFutures = new NamedMap<>("readFutures");
     private final NamedMap<Object, Future<?>> writeFutures = new NamedMap<>("writeFutures");
 
     Node<?, ?> head;
@@ -537,12 +538,12 @@ public class AccordStateCache
             return saveFutures.get(key) != null;
         }
 
-        public ReadFuture getReadFuture(K key)
+        public Future<Data> getReadFuture(K key)
         {
             return getFuture(readFutures, key);
         }
 
-        public void setReadFuture(K key, ReadFuture future)
+        public void setReadFuture(K key, Future<Data> future)
         {
             setFuture(readFutures, key, future);
         }

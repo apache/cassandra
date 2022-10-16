@@ -35,18 +35,18 @@ import org.apache.cassandra.utils.ObjectSizes;
 public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
 {
     private S set = null;
-    private Set<T> view = null;
+    private S view = null;
     private Set<T> additions = null;
     private Set<T> deletions = null;
 
     abstract S createDataSet();
     abstract Set<T> createMetaSet();
-    abstract Set<T> createView(S data);
+    abstract S createView(S data);
     abstract long emptySize();
 
-    public StoredSet(AccordState.Kind kind)
+    public StoredSet(AccordState.ReadWrite readWrite)
     {
-        super(kind);
+        super(readWrite);
     }
 
     @Override
@@ -95,7 +95,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         setInternal(set);
     }
 
-    public Set<T> getView()
+    public S getView()
     {
         preGet();
         return view;
@@ -179,11 +179,17 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         return size;
     }
 
-    public static class Navigable<T extends Comparable<?>> extends StoredSet<T, NavigableSet<T>>
+    public interface Changes<T>
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new Navigable<>(AccordState.Kind.FULL));
+        void forEachAddition(Consumer<T> consumer);
+        void forEachDeletion(Consumer<T> consumer);
+    }
 
-        public Navigable(AccordState.Kind kind) { super(kind); }
+    public static class Navigable<T extends Comparable<?>> extends StoredSet<T, NavigableSet<T>> implements Changes<T>
+    {
+        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new Navigable<>(AccordState.ReadWrite.FULL));
+
+        public Navigable(AccordState.ReadWrite readWrite) { super(readWrite); }
 
         @Override
         NavigableSet<T> createDataSet()
@@ -210,11 +216,11 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         }
     }
 
-    public static class DeterministicIdentity<T> extends StoredSet<T, DeterministicIdentitySet<T>>
+    public static class DeterministicIdentity<T> extends StoredSet<T, Set<T>> implements Changes<T>
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new DeterministicIdentity<>(AccordState.Kind.FULL));
+        private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new DeterministicIdentity<>(AccordState.ReadWrite.FULL));
 
-        public DeterministicIdentity(AccordState.Kind kind) { super(kind); }
+        public DeterministicIdentity(AccordState.ReadWrite readWrite) { super(readWrite); }
 
         @Override
         DeterministicIdentitySet<T> createDataSet()
@@ -229,7 +235,7 @@ public abstract class StoredSet<T, S extends Set<T>> extends AbstractStoredField
         }
 
         @Override
-        Set<T> createView(DeterministicIdentitySet<T> data)
+        Set<T> createView(Set<T> data)
         {
             return Collections.unmodifiableSet(data);
         }

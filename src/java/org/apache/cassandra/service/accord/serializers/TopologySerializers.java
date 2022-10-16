@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.local.Node;
-import accord.messages.TxnRequest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;

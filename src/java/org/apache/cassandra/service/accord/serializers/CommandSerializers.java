@@ -23,14 +23,17 @@ import java.io.IOException;
 import com.google.common.base.Preconditions;
 
 import accord.local.Node;
+import accord.local.SaveStatus;
 import accord.local.Status;
+import accord.local.Status.Durability;
 import accord.primitives.Ballot;
-import accord.primitives.Deps;
+import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
+import accord.primitives.PartialTxn;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.txn.Txn;
-import accord.txn.Writes;
+import accord.primitives.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -41,9 +44,6 @@ import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.service.accord.db.AccordUpdate;
 import org.apache.cassandra.service.accord.db.AccordWrite;
 
-import static accord.primitives.Deps.SerializerSupport.keyToTxnId;
-import static accord.primitives.Deps.SerializerSupport.keyToTxnIdCount;
-
 public class CommandSerializers
 {
     private CommandSerializers() {}
@@ -51,6 +51,7 @@ public class CommandSerializers
     public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::new);
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::new);
     public static final TimestampSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::new);
+    public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
 
     public static class TimestampSerializer<T extends Timestamp> implements IVersionedSerializer<T>
     {
@@ -123,36 +124,39 @@ public class CommandSerializers
         }
     }
 
-    public static final IVersionedSerializer<Txn> txn = new IVersionedSerializer<Txn>()
+    public static final IVersionedSerializer<PartialTxn> partialTxn = new IVersionedSerializer<PartialTxn>()
     {
         @Override
-        public void serialize(Txn txn, DataOutputPlus out, int version) throws IOException
+        public void serialize(PartialTxn txn, DataOutputPlus out, int version) throws IOException
         {
+            CommandSerializers.kind.serialize(txn.kind(), out, version);
+            KeySerializers.ranges.serialize(txn.covering(), out, version);
             KeySerializers.keys.serialize(txn.keys(), out, version);
             AccordRead.serializer.serialize((AccordRead) txn.read(), out, version);
             AccordQuery.serializer.serialize((AccordQuery) txn.query(), out, version);
             out.writeBoolean(txn.update() != null);
             if (txn.update() != null)
                 AccordUpdate.serializer.serialize((AccordUpdate) txn.update(), out, version);
-
         }
 
         @Override
-        public Txn deserialize(DataInputPlus in, int version) throws IOException
+        public PartialTxn deserialize(DataInputPlus in, int version) throws IOException
         {
+            Txn.Kind kind = CommandSerializers.kind.deserialize(in, version);
+            KeyRanges covering = KeySerializers.ranges.deserialize(in, version);
             Keys keys = KeySerializers.keys.deserialize(in, version);
             AccordRead read = AccordRead.serializer.deserialize(in, version);
             AccordQuery query = AccordQuery.serializer.deserialize(in, version);
-            if (in.readBoolean())
-                return new Txn.InMemory(keys, read, query, AccordUpdate.serializer.deserialize(in, version));
-            else
-                return new Txn.InMemory(keys, read, query);
+            AccordUpdate update = in.readBoolean() ? AccordUpdate.serializer.deserialize(in, version) : null;
+            return new PartialTxn.InMemory(covering, kind, keys, read, query, update);
         }
 
         @Override
-        public long serializedSize(Txn txn, int version)
+        public long serializedSize(PartialTxn txn, int version)
         {
-            long size = KeySerializers.keys.serializedSize(txn.keys(), version);
+            long size = CommandSerializers.kind.serializedSize(txn.kind(), version);
+            size += KeySerializers.ranges.serializedSize(txn.covering(), version);
+            size += KeySerializers.keys.serializedSize(txn.keys(), version);
             size += AccordRead.serializer.serializedSize((AccordRead) txn.read(), version);
             size += AccordQuery.serializer.serializedSize((AccordQuery) txn.query(), version);
             size += TypeSizes.sizeof(txn.update() != null);
@@ -162,79 +166,9 @@ public class CommandSerializers
         }
     };
 
-    public static final IVersionedSerializer<Status> status = new IVersionedSerializer<Status>()
-    {
-        @Override
-        public void serialize(Status status, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeUnsignedVInt(status.ordinal());
-
-        }
-
-        @Override
-        public Status deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return Status.values()[(int) in.readUnsignedVInt()];
-        }
-
-        @Override
-        public long serializedSize(Status status, int version)
-        {
-            return TypeSizes.sizeofUnsignedVInt(status.ordinal());
-        }
-    };
-
-    public static final IVersionedSerializer<Deps> deps = new IVersionedSerializer<Deps>()
-    {
-        @Override
-        public void serialize(Deps deps, DataOutputPlus out, int version) throws IOException
-        {
-            Keys keys = deps.keys();
-            KeySerializers.keys.serialize(keys, out, version);
-
-            int txnIdCount = deps.txnIdCount();
-            out.writeUnsignedVInt(txnIdCount);
-            for (int i=0; i<txnIdCount; i++)
-                CommandSerializers.txnId.serialize(deps.txnId(i), out, version);
-
-            int keyToTxnIdCount = keyToTxnIdCount(deps);
-            out.writeUnsignedVInt(keyToTxnIdCount);
-            for (int i=0; i<keyToTxnIdCount; i++)
-                out.writeUnsignedVInt(keyToTxnId(deps, i));
-
-        }
-
-        @Override
-        public Deps deserialize(DataInputPlus in, int version) throws IOException
-        {
-            Keys keys = KeySerializers.keys.deserialize(in, version);
-            TxnId[] txnIds = new TxnId[(int) in.readUnsignedVInt()];
-            for (int i=0; i<txnIds.length; i++)
-                txnIds[i] = CommandSerializers.txnId.deserialize(in, version);
-            int[] keyToTxnIds = new int[(int) in.readUnsignedVInt()];
-            for (int i=0; i<keyToTxnIds.length; i++)
-                keyToTxnIds[i] = (int) in.readUnsignedVInt();
-            return Deps.SerializerSupport.create(keys, txnIds, keyToTxnIds);
-        }
-
-        @Override
-        public long serializedSize(Deps deps, int version)
-        {
-            Keys keys = deps.keys();
-            long size = KeySerializers.keys.serializedSize(keys, version);
-
-            int txnIdCount = deps.txnIdCount();
-            size += TypeSizes.sizeofUnsignedVInt(txnIdCount);
-            for (int i=0; i<txnIdCount; i++)
-                size += CommandSerializers.txnId.serializedSize(deps.txnId(i), version);
-
-            int keyToTxnIdCount = keyToTxnIdCount(deps);
-            size += TypeSizes.sizeofUnsignedVInt(keyToTxnIdCount);
-            for (int i=0; i<keyToTxnIdCount; i++)
-                size += TypeSizes.sizeofUnsignedVInt(keyToTxnId(deps, i));
-            return size;
-        }
-    };
+    public static final IVersionedSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
+    public static final IVersionedSerializer<Status> status = new EnumSerializer<>(Status.class);
+    public static final IVersionedSerializer<Durability> durability = new EnumSerializer<>(Durability.class);
 
     public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<Writes>()
     {
