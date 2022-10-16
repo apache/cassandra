@@ -26,11 +26,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.local.Command;
-import accord.local.PartialCommand;
 import accord.local.Status;
+import accord.primitives.KeyRanges;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.txn.Txn;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
@@ -47,6 +47,7 @@ import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.p
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.execute;
+import static org.apache.cassandra.service.accord.AccordTestUtils.fullRange;
 import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
@@ -84,24 +85,23 @@ public class AsyncWriterTest
         TxnId blockingId = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId waitingId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
-
-        AccordCommand blocking = new AccordCommand(commandStore, blockingId).initialize();
-        blocking.txn(txn);
-        blocking.executeAt(blockingId);
-        blocking.status(Status.Committed);
-        AccordKeyspace.getCommandMutation(blocking, commandStore.nextSystemTimestampMicros()).apply();
+        KeyRanges ranges = fullRange(txn);
+        AccordCommand blocking = new AccordCommand(blockingId).initialize();
+        blocking.setPartialTxn(txn.slice(ranges, true));
+        blocking.setExecuteAt(blockingId);
+        blocking.setStatus(Status.Committed);
+        AccordKeyspace.getCommandMutation(commandStore, blocking, commandStore.nextSystemTimestampMicros()).apply();
         blocking.clearModifiedFlag();
 
-        AccordCommand waiting = new AccordCommand(commandStore, waitingId).initialize();
-        waiting.txn(txn);
-        waiting.executeAt(waitingId);
-        waiting.status(Status.Committed);
-        AccordKeyspace.getCommandMutation(waiting, commandStore.nextSystemTimestampMicros()).apply();
+        AccordCommand waiting = new AccordCommand(waitingId).initialize();
+        waiting.setPartialTxn(txn.slice(ranges, true));
+        waiting.setExecuteAt(waitingId);
+        waiting.setStatus(Status.Committed);
+        AccordKeyspace.getCommandMutation(commandStore, waiting, commandStore.nextSystemTimestampMicros()).apply();
         waiting.clearModifiedFlag();
 
         AsyncContext context = new AsyncContext();
-        waiting.addWaitingOnApplyIfAbsent(blocking);
+        waiting.addWaitingOnApplyIfAbsent(blocking.txnId(), blocking.executeAt());
         context.commands.add(waiting);
         save(commandStore, context);
 
@@ -111,20 +111,17 @@ public class AsyncWriterTest
 
         // now change the blocking command and check it's changes are reflected in the waiting command
         context = new AsyncContext();
-        blocking.status(Status.ReadyToExecute);
+        blocking.setStatus(Status.ReadyToExecute);
         context.commands.add(blocking);
         save(commandStore, context);
 
         waiting = AccordKeyspace.loadCommand(commandStore, waitingId);
         AccordCommand waitingFinal = waiting;
-        AccordCommand blockingFinal = blocking;
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            AccordPartialCommand blockingSummary = (AccordPartialCommand) waitingFinal.firstWaitingOnApply();
-            Assert.assertNotSame(blockingFinal, blockingSummary);
-            Assert.assertEquals(Status.ReadyToExecute, blockingSummary.status());
-            Assert.assertEquals(blockingId, blockingSummary.executeAt());
+            TxnId blockingSummary = waitingFinal.firstWaitingOnApply();
+            Assert.assertEquals(blockingId, blockingSummary);
             commandStore.unsetContext(ctx);
         });
     }
@@ -138,18 +135,19 @@ public class AsyncWriterTest
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
+        KeyRanges ranges = fullRange(txn);
         AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
 
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
-        AccordKeyspace.getCommandsForKeyMutation(cfk, commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getCommandsForKeyMutation(commandStore, cfk, commandStore.nextSystemTimestampMicros()).apply();
         Assert.assertTrue(cfk.uncommitted.isEmpty());
         Assert.assertTrue(cfk.committedByExecuteAt.isEmpty());
         Assert.assertTrue(cfk.committedById.isEmpty());
 
-        AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
-        command.txn(txn);
-        command.executeAt(executeAt);
-        command.status(Status.Accepted);
+        AccordCommand command = new AccordCommand(txnId).initialize();
+        command.setPartialTxn(txn.slice(ranges, true));
+        command.setExecuteAt(executeAt);
+        command.setStatus(Status.Accepted);
         AsyncContext context = new AsyncContext();
         context.commands.add(command);
         save(commandStore, context);
@@ -158,9 +156,8 @@ public class AsyncWriterTest
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            AccordPartialCommand.WithDeps summary = (AccordPartialCommand.WithDeps) getOnlyElement(cfkUncommitted.uncommitted().all().collect(Collectors.toList()));
+            AccordPartialCommand summary = getOnlyElement(cfkUncommitted.uncommitted().all().collect(Collectors.toList()));
             Assert.assertTrue(cfkUncommitted.uncommitted.map.getView().containsKey(txnId));
-            Assert.assertNotSame(command, summary);
             Assert.assertEquals(Status.Accepted, summary.status());
             Assert.assertEquals(executeAt, summary.executeAt());
 
@@ -170,7 +167,7 @@ public class AsyncWriterTest
         });
 
         // commit, summary should be moved to committed maps
-        command.status(Status.Committed);
+        command.setStatus(Status.Committed);
         context = new AsyncContext();
         context.commands.add(command);
         save(commandStore, context);
@@ -179,13 +176,11 @@ public class AsyncWriterTest
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            AccordPartialCommand.WithDeps idSummary = (AccordPartialCommand.WithDeps) getOnlyElement(cfkCommitted.committedById().all().collect(Collectors.toList()));
-            AccordPartialCommand.WithDeps executeSummary = (AccordPartialCommand.WithDeps) getOnlyElement(cfkCommitted.committedByExecuteAt().all().collect(Collectors.toList()));
+            AccordPartialCommand idSummary = getOnlyElement(cfkCommitted.committedById().all().collect(Collectors.toList()));
+            AccordPartialCommand executeSummary = getOnlyElement(cfkCommitted.committedByExecuteAt().all().collect(Collectors.toList()));
 
             Assert.assertTrue(cfkCommitted.committedById.map.getView().containsKey(txnId));
             Assert.assertTrue(cfkCommitted.committedByExecuteAt.map.getView().containsKey(executeAt));
-            Assert.assertNotEquals(command, idSummary);
-            // we store serialized values, so they will never be the same object as we deserialize
             Assert.assertEquals(idSummary, executeSummary);
 
             Assert.assertEquals(Status.Committed, idSummary.status());
@@ -205,45 +200,44 @@ public class AsyncWriterTest
         TxnId blockingId = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId waitingId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
+        KeyRanges ranges = fullRange(txn);
 
         {
-            AccordCommand blocking = new AccordCommand(commandStore, blockingId).initialize();
-            blocking.txn(txn);
-            blocking.executeAt(blockingId);
-            blocking.status(Status.Committed);
+            AccordCommand blocking = new AccordCommand(blockingId).initialize();
+            blocking.setPartialTxn(txn.slice(ranges, true));
+            blocking.setExecuteAt(blockingId);
+            blocking.setStatus(Status.Committed);
 
-            AccordCommand waiting = new AccordCommand(commandStore, waitingId).initialize();
-            waiting.txn(txn);
-            waiting.executeAt(waitingId);
-            waiting.status(Status.Committed);
-            waiting.addWaitingOnApplyIfAbsent(blocking);
+            AccordCommand waiting = new AccordCommand(waitingId).initialize();
+            waiting.setPartialTxn(txn.slice(ranges, true));
+            waiting.setExecuteAt(waitingId);
+            waiting.setStatus(Status.Committed);
+            waiting.addWaitingOnApplyIfAbsent(blocking.txnId(), blocking.executeAt());
 
             blocking.addListener(waiting);
 
-            AccordKeyspace.getCommandMutation(blocking, commandStore.nextSystemTimestampMicros()).apply();
-            AccordKeyspace.getCommandMutation(waiting, commandStore.nextSystemTimestampMicros()).apply();
+            AccordKeyspace.getCommandMutation(commandStore, blocking, commandStore.nextSystemTimestampMicros()).apply();
+            AccordKeyspace.getCommandMutation(commandStore, waiting, commandStore.nextSystemTimestampMicros()).apply();
             blocking.clearModifiedFlag();
             waiting.clearModifiedFlag();
         }
 
         // confirm the blocking operation has the waiting one as a listener
-        commandStore.process(contextFor(blockingId), cs -> {
+        commandStore.execute(contextFor(blockingId), cs -> {
             AccordCommand blocking = (AccordCommand) cs.command(blockingId);
             Assert.assertTrue(blocking.hasListenerFor(waitingId));
         });
 
         // remove listener from PartialCommand
-        commandStore.process(contextFor(waitingId), cs -> {
+        commandStore.execute(contextFor(waitingId), cs -> {
             Command waiting = cs.command(waitingId);
-            PartialCommand blocking = waiting.firstWaitingOnApply();
+            TxnId blocking = ((AccordCommand)waiting).firstWaitingOnApply();
             Assert.assertNotNull(blocking);
-            Assert.assertEquals(blockingId, blocking.txnId());
-            blocking.removeListener(waiting);
+            Assert.assertEquals(blockingId, blocking);
         });
 
         // confirm it was propagated to the full command
-        commandStore.process(contextFor(blockingId), cs -> {
+        commandStore.execute(contextFor(blockingId), cs -> {
             AccordCommand blocking = (AccordCommand) cs.command(blockingId);
             Assert.assertFalse(blocking.hasListenerFor(waitingId));
         });

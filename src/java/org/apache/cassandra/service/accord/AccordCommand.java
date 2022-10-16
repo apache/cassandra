@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -32,33 +31,41 @@ import org.slf4j.LoggerFactory;
 import accord.api.Data;
 import accord.api.Key;
 import accord.api.Result;
+import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.Listener;
+import accord.local.CommandStore;
+import accord.local.CommandListener;
 import accord.local.Listeners;
-import accord.local.PartialCommand;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommandStore;
+import accord.local.SaveStatus;
 import accord.local.Status;
+import accord.local.Status.Durability;
+import accord.local.Status.Known;
+import accord.primitives.AbstractRoute;
 import accord.primitives.Ballot;
-import accord.primitives.Deps;
 import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialTxn;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.txn.Txn;
-import accord.txn.Writes;
+import accord.primitives.Writes;
 import accord.utils.DeterministicIdentitySet;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.db.AccordData;
-import org.apache.cassandra.service.accord.store.StoredBoolean;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static accord.local.Status.Durability.Local;
+import static accord.local.Status.Durability.NotDurable;
+import static accord.local.Status.PreApplied;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySetChanges;
 
@@ -68,15 +75,15 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private static final AtomicInteger INSTANCE_COUNTER = new AtomicInteger(0);
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCommand(null));
 
     public static class WriteOnly extends AccordCommand implements AccordState.WriteOnly<TxnId, AccordCommand>
     {
         private Future<?> future = null;
 
-        public WriteOnly(AccordCommandStore commandStore, TxnId txnId)
+        public WriteOnly(TxnId txnId)
         {
-            super(commandStore, txnId);
+            super(txnId);
         }
 
         @Override
@@ -95,78 +102,60 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         @Override
         public void applyChanges(AccordCommand instance)
         {
-            applyMapChanges(this, instance, cmd -> cmd.waitingOnCommit);
+            applySetChanges(this, instance, cmd -> cmd.waitingOnCommit);
             applyMapChanges(this, instance, cmd -> cmd.waitingOnApply);
             applySetChanges(this, instance, cmd -> cmd.blockingCommitOn);
             applySetChanges(this, instance, cmd -> cmd.blockingApplyOn);
         }
     }
 
-    public static class ReadOnly extends AccordCommand implements AccordState.ReadOnly<TxnId, AccordCommand>
-    {
-        public ReadOnly(AccordCommandStore commandStore, TxnId txnId)
-        {
-            super(commandStore, txnId);
-        }
-
-        @Override
-        boolean isReadOnly()
-        {
-            return true;
-        }
-    }
-
-    private final AccordCommandStore commandStore;
     private final TxnId txnId;
     private final int instanceCount = INSTANCE_COUNTER.getAndIncrement();
-    public final StoredValue<Key> homeKey;
-    public final StoredValue<Key> progressKey;
-    public final StoredValue<Txn> txn;
+    public final StoredValue<AbstractRoute> route;
+    public final StoredValue<RoutingKey> homeKey;
+    public final StoredValue<RoutingKey> progressKey;
+    public final StoredValue<PartialTxn> partialTxn;
     public final StoredValue<Ballot> promised;
     public final StoredValue<Ballot> accepted;
     public final StoredValue<Timestamp> executeAt;
-    public final StoredValue<Deps> deps;
+    public final StoredValue<PartialDeps> partialDeps;
     public final StoredValue<Writes> writes;
     public final StoredValue<Result> result;
 
-    public final StoredValue.HistoryPreserving<Status> status;
-    public final StoredBoolean isGloballyPersistent;
+    public final StoredValue.HistoryPreserving<SaveStatus> status;
+    public final StoredValue<Durability> durability;
 
-    public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnCommit;
-    public final StoredNavigableMap<TxnId, ByteBuffer> waitingOnApply;
+    public final StoredSet.Navigable<TxnId> waitingOnCommit;
+    public final StoredNavigableMap<Timestamp, TxnId> waitingOnApply;
+    public final StoredSet.Navigable<TxnId> blockingCommitOn;
+    public final StoredSet.Navigable<TxnId> blockingApplyOn;
 
     public final StoredSet.DeterministicIdentity<ListenerProxy> storedListeners;
     private final Listeners transientListeners;
 
-    public final StoredSet.Navigable<TxnId> blockingCommitOn;
-    public final StoredSet.Navigable<TxnId> blockingApplyOn;
-
-    public AccordCommand(AccordCommandStore commandStore, TxnId txnId)
+    public AccordCommand(TxnId txnId)
     {
         logger.trace("Instantiating new command {} @ {}", txnId, instanceHash());
-        this.commandStore = commandStore;
         this.txnId = txnId;
-        homeKey = new StoredValue<>(kind());
-        progressKey = new StoredValue<>(kind());
-        txn = new StoredValue<>(kind());
-        promised = new StoredValue<>(kind());
-        accepted = new StoredValue<>(kind());
-        executeAt = new StoredValue<>(kind());
-        deps = new StoredValue<>(kind());
-        writes = new StoredValue<>(kind());
-        result = new StoredValue<>(kind());
-        status = new StoredValue.HistoryPreserving<>(kind());
-        isGloballyPersistent = new StoredBoolean(kind());
-        waitingOnCommit = new StoredNavigableMap<>(kind());
-        waitingOnApply = new StoredNavigableMap<>(kind());
-        storedListeners = new StoredSet.DeterministicIdentity<>(kind());
+        homeKey = new StoredValue<>(rw());
+        progressKey = new StoredValue<>(rw());
+        route = new StoredValue<>(rw());
+        partialTxn = new StoredValue<>(rw());
+        promised = new StoredValue<>(rw());
+        accepted = new StoredValue<>(rw());
+        executeAt = new StoredValue<>(rw());
+        partialDeps = new StoredValue<>(rw());
+        writes = new StoredValue<>(rw());
+        result = new StoredValue<>(rw());
+        status = new StoredValue.HistoryPreserving<>(rw());
+        durability = new StoredValue<>(rw());
+        waitingOnCommit = new StoredSet.Navigable<>(rw());
+        waitingOnApply = new StoredNavigableMap<>(rw());
+        storedListeners = new StoredSet.DeterministicIdentity<>(rw());
         transientListeners = new Listeners();
-        blockingCommitOn = new StoredSet.Navigable<>(kind());
-        blockingApplyOn = new StoredSet.Navigable<>(kind());
+        blockingCommitOn = new StoredSet.Navigable<>(rw());
+        blockingApplyOn = new StoredSet.Navigable<>(rw());
     }
-
-
-
 
     @Override
     public String toString()
@@ -184,8 +173,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 //               ", txn=" + txn +
 //               ", writes=" + writes +
 //               ", result=" + result +
-               ", txn is null?=" + (txn.get() == null) +
-               ", isGloballyPersistent=" + isGloballyPersistent +
+               ", txn is null?=" + (partialTxn.get() == null) +
+               ", durability=" + durability +
                ", waitingOnCommit=" + waitingOnCommit +
                ", waitingOnApply=" + waitingOnApply +
                ", storedListeners=" + storedListeners +
@@ -200,15 +189,16 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         return homeKey.isEmpty()
                || progressKey.isEmpty()
-               || txn.isEmpty()
+               || route.isEmpty()
+               || partialTxn.isEmpty()
                || promised.isEmpty()
                || accepted.isEmpty()
                || executeAt.isEmpty()
-               || deps.isEmpty()
+               || partialDeps.isEmpty()
                || writes.isEmpty()
                || result.isEmpty()
                || status.isEmpty()
-               || isGloballyPersistent.isEmpty()
+               || durability.isEmpty()
                || waitingOnCommit.isEmpty()
                || blockingCommitOn.isEmpty()
                || waitingOnApply.isEmpty()
@@ -220,15 +210,16 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         homeKey.setEmpty();
         progressKey.setEmpty();
-        txn.setEmpty();
+        route.setEmpty();
+        partialTxn.setEmpty();
         promised.setEmpty();
         accepted.setEmpty();
         executeAt.setEmpty();
-        deps.setEmpty();
+        partialDeps.setEmpty();
         writes.setEmpty();
         result.setEmpty();
         status.setEmpty();
-        isGloballyPersistent.setEmpty();
+        durability.setEmpty();
         waitingOnCommit.setEmpty();
         blockingCommitOn.setEmpty();
         waitingOnApply.setEmpty();
@@ -239,20 +230,21 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     public AccordCommand initialize()
     {
         logger.trace("Initializing command {} @ {}", txnId, instanceHash());
-        status.set(Status.NotWitnessed);
+        status.set(SaveStatus.NotWitnessed);
         homeKey.set(null);
         progressKey.set(null);
-        txn.set(null);
+        route.set(null);
+        partialTxn.set(null);
         executeAt.load(null);
         promised.set(Ballot.ZERO);
         accepted.set(Ballot.ZERO);
-        deps.set(Deps.NONE);
+        partialDeps.set(PartialDeps.NONE);
         writes.load(null);
         result.load(null);
-        isGloballyPersistent.set(false);
-        waitingOnCommit.load(new TreeMap<>());
-        blockingCommitOn.load(new TreeSet<>());
+        durability.set(Durability.NotDurable);
+        waitingOnCommit.load(new TreeSet<>());
         waitingOnApply.load(new TreeMap<>());
+        blockingCommitOn.load(new TreeSet<>());
         blockingApplyOn.load(new TreeSet<>());
         storedListeners.load(new DeterministicIdentitySet<>());
         return this;
@@ -263,15 +255,16 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         return homeKey.isLoaded()
                && progressKey.isLoaded()
-               && txn.isLoaded()
+               && route.isLoaded()
+               && partialTxn.isLoaded()
                && promised.isLoaded()
                && accepted.isLoaded()
                && executeAt.isLoaded()
-               && deps.isLoaded()
+               && partialDeps.isLoaded()
                && writes.isLoaded()
                && result.isLoaded()
                && status.isLoaded()
-               && isGloballyPersistent.isLoaded()
+               && durability.isLoaded()
                && waitingOnCommit.isLoaded()
                && blockingCommitOn.isLoaded()
                && waitingOnApply.isLoaded()
@@ -283,15 +276,16 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         return homeKey.isLoaded()
                || progressKey.isLoaded()
-               || txn.isLoaded()
+               || route.isLoaded()
+               || partialTxn.isLoaded()
                || promised.isLoaded()
                || accepted.isLoaded()
                || executeAt.isLoaded()
-               || deps.isLoaded()
+               || partialDeps.isLoaded()
                || writes.isLoaded()
                || result.isLoaded()
                || status.isLoaded()
-               || isGloballyPersistent.isLoaded()
+               || durability.isLoaded()
                || waitingOnCommit.isLoaded()
                || blockingCommitOn.isLoaded()
                || waitingOnApply.isLoaded()
@@ -304,15 +298,16 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     {
         return homeKey.hasModifications()
                || progressKey.hasModifications()
-               || txn.hasModifications()
+               || route.hasModifications()
+               || partialTxn.hasModifications()
                || promised.hasModifications()
                || accepted.hasModifications()
                || executeAt.hasModifications()
-               || deps.hasModifications()
+               || partialDeps.hasModifications()
                || writes.hasModifications()
                || result.hasModifications()
                || status.hasModifications()
-               || isGloballyPersistent.hasModifications()
+               || durability.hasModifications()
                || waitingOnCommit.hasModifications()
                || blockingCommitOn.hasModifications()
                || waitingOnApply.hasModifications()
@@ -326,15 +321,16 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         logger.trace("Clearing modified flag on command {} @ {}", txnId, instanceHash());
         homeKey.clearModifiedFlag();
         progressKey.clearModifiedFlag();
-        txn.clearModifiedFlag();
+        route.clearModifiedFlag();
+        partialTxn.clearModifiedFlag();
         promised.clearModifiedFlag();
         accepted.clearModifiedFlag();
         executeAt.clearModifiedFlag();
-        deps.clearModifiedFlag();
+        partialDeps.clearModifiedFlag();
         writes.clearModifiedFlag();
         result.clearModifiedFlag();
         status.clearModifiedFlag();
-        isGloballyPersistent.clearModifiedFlag();
+        durability.clearModifiedFlag();
         waitingOnCommit.clearModifiedFlag();
         blockingCommitOn.clearModifiedFlag();
         waitingOnApply.clearModifiedFlag();
@@ -348,19 +344,19 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AccordCommand command = (AccordCommand) o;
-        return commandStore == command.commandStore
-               && homeKey.equals(command.homeKey)
+        return    homeKey.equals(command.homeKey)
                && progressKey.equals(command.progressKey)
+               && route.equals(command.route)
                && txnId.equals(command.txnId)
-               && txn.equals(command.txn)
+               && partialTxn.equals(command.partialTxn)
                && promised.equals(command.promised)
                && accepted.equals(command.accepted)
                && executeAt.equals(command.executeAt)
-               && deps.equals(command.deps)
+               && partialDeps.equals(command.partialDeps)
                && writes.equals(command.writes)
                && result.equals(command.result)
                && status.equals(command.status)
-               && isGloballyPersistent.equals(command.isGloballyPersistent)
+               && durability.equals(command.durability)
                && waitingOnCommit.equals(command.waitingOnCommit)
                && blockingCommitOn.equals(command.blockingCommitOn)
                && waitingOnApply.equals(command.waitingOnApply)
@@ -383,30 +379,25 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public int hashCode()
     {
-        return Objects.hash(commandStore,
-                            txnId,
+        return Objects.hash(txnId,
                             homeKey,
                             progressKey,
-                            txn,
+                            route,
+                            partialTxn,
                             promised,
                             accepted,
                             executeAt,
-                            deps,
+                            partialDeps,
                             writes,
                             result,
                             status,
-                            isGloballyPersistent,
+                            durability,
                             waitingOnCommit,
                             blockingCommitOn,
                             waitingOnApply,
                             blockingApplyOn,
                             storedListeners,
                             transientListeners);
-    }
-
-    private AccordStateCache.Instance<TxnId, AccordCommand> cache()
-    {
-        return commandStore.commandCache();
     }
 
     @Override
@@ -422,18 +413,19 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         size += AccordObjectSizes.timestamp(txnId);
         size += homeKey.estimatedSizeOnHeap(AccordObjectSizes::key);
         size += progressKey.estimatedSizeOnHeap(AccordObjectSizes::key);
-        size += txn.estimatedSizeOnHeap(AccordObjectSizes::txn);
+        size += route.estimatedSizeOnHeap(AccordObjectSizes::route);
+        size += partialTxn.estimatedSizeOnHeap(AccordObjectSizes::txn);
         size += promised.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += accepted.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += executeAt.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
-        size += deps.estimatedSizeOnHeap(AccordObjectSizes::dependencies);
+        size += partialDeps.estimatedSizeOnHeap(AccordObjectSizes::dependencies);
         size += writes.estimatedSizeOnHeap(AccordObjectSizes::writes);
         size += result.estimatedSizeOnHeap(r -> ((AccordData) r).estimatedSizeOnHeap());
         size += status.estimatedSizeOnHeap(s -> 0);
-        size += isGloballyPersistent.estimatedSizeOnHeap();
-        size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += durability.estimatedSizeOnHeap(s -> 0);
+        size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += blockingCommitOn.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
-        size += waitingOnApply.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += waitingOnApply.estimatedSizeOnHeap(AccordObjectSizes::timestamp, AccordObjectSizes::timestamp);
         size += blockingApplyOn.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += storedListeners.estimatedSizeOnHeap(ListenerProxy::estimatedSizeOnHeap);
         return size;
@@ -453,45 +445,51 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public AccordCommandStore commandStore()
-    {
-        return commandStore;
-    }
-
-    @Override
-    public Key homeKey()
+    public RoutingKey homeKey()
     {
         return homeKey.get();
     }
 
     @Override
-    protected void setHomeKey(Key key)
+    protected void setHomeKey(RoutingKey key)
     {
         homeKey.set(key);
     }
 
     @Override
-    public Key progressKey()
+    public RoutingKey progressKey()
     {
         return progressKey.get();
     }
 
     @Override
-    protected void setProgressKey(Key key)
+    protected void setProgressKey(RoutingKey key)
     {
         progressKey.set(key);
     }
 
     @Override
-    public Txn txn()
+    public AbstractRoute route()
     {
-        return txn.get();
+        return route.get();
     }
 
     @Override
-    protected void setTxn(Txn txn)
+    protected void setRoute(AbstractRoute newRoute)
     {
-        this.txn.set(txn);
+        route.set(newRoute);
+    }
+
+    @Override
+    public PartialTxn partialTxn()
+    {
+        return partialTxn.get();
+    }
+
+    @Override
+    public void setPartialTxn(PartialTxn txn)
+    {
+        this.partialTxn.set(txn);
     }
 
     @Override
@@ -501,7 +499,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void promised(Ballot ballot)
+    public void setPromised(Ballot ballot)
     {
         this.promised.set(ballot);
     }
@@ -513,7 +511,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void accepted(Ballot ballot)
+    public void setAccepted(Ballot ballot)
     {
         this.accepted.set(ballot);
     }
@@ -525,22 +523,28 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void executeAt(Timestamp timestamp)
+    public Txn.Kind kind()
+    {
+        return partialTxn.get().kind();
+    }
+
+    @Override
+    public void setExecuteAt(Timestamp timestamp)
     {
         Preconditions.checkState(!status().hasBeen(Status.Committed) || executeAt().equals(timestamp));
         this.executeAt.set(timestamp);
     }
 
     @Override
-    public Deps savedDeps()
+    public PartialDeps partialDeps()
     {
-        return deps.get();
+        return partialDeps.get();
     }
 
     @Override
-    public void savedDeps(Deps deps)
+    public void setPartialDeps(PartialDeps deps)
     {
-        this.deps.set(deps);
+        this.partialDeps.set(deps);
     }
 
     @Override
@@ -550,7 +554,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void writes(Writes writes)
+    public void setWrites(Writes writes)
     {
         this.writes.set(writes);
     }
@@ -562,53 +566,69 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void result(Result result)
+    public void setResult(Result result)
     {
         this.result.set(result);
     }
 
     @Override
-    public Status status()
+    public SaveStatus saveStatus()
     {
         return status.get();
     }
 
     @Override
-    public void status(Status status)
+    public void setSaveStatus(SaveStatus status)
     {
         this.status.set(status);
     }
 
     @Override
-    public boolean isGloballyPersistent()
+    public void setStatus(Status status)
     {
-        return isGloballyPersistent.get();
+        super.setStatus(status);
     }
 
     @Override
-    public void isGloballyPersistent(boolean v)
+    public Known known()
     {
-        isGloballyPersistent.set(v);
+        return this.status.get().known;
     }
 
     @Override
-    protected void postApply()
+    public Durability durability()
     {
-        cache().cleanupWriteFuture(txnId);
-        super.postApply();
+        Durability durability = this.durability.get();
+        if (status().hasBeen(PreApplied) && durability == NotDurable)
+            return Local; // not necessary anywhere, but helps for logical consistency
+        return durability;
     }
 
-    private boolean canApplyWithCurrentScope()
+    @Override
+    public void setDurability(Durability v)
     {
-        KeyRanges ranges = commandStore.ranges().at(executeAt().epoch);
-        Keys keys = txn().keys();
+        durability.set(v);
+    }
+
+    @Override
+    protected void postApply(SafeCommandStore safeStore)
+    {
+        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((AccordCommandStore) safeStore).commandCache();
+        cache.cleanupWriteFuture(txnId);
+        super.postApply(safeStore);
+    }
+
+    private boolean canApplyWithCurrentScope(SafeCommandStore safeStore)
+    {
+        KeyRanges ranges = safeStore.ranges().at(executeAt().epoch);
+        Keys keys = partialTxn().keys();
         for (int i=0,mi=keys.size(); i<mi; i++)
         {
             Key key = keys.get(i);
-            if (commandStore.isCommandsForKeyInContext((AccordKey.PartitionKey) key))
+            if (((AccordCommandStore)safeStore).isCommandsForKeyInContext((AccordKey.PartitionKey) key))
                 continue;
 
-            if (!commandStore.hashIntersects(key))
+            if (!safeStore.commandStore().hashIntersects(key))
                 continue;
             if (!ranges.contains(key))
                 continue;
@@ -618,13 +638,13 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         return true;
     }
 
-    private Future<Void> applyWithCorrectScope()
+    private Future<Void> applyWithCorrectScope(CommandStore unsafeStore)
     {
         TxnId txnId = txnId();
         AsyncPromise<Void> promise = new AsyncPromise<>();
-        commandStore().process(this, commandStore -> {
-            AccordCommand command = (AccordCommand) commandStore.command(txnId);
-            command.apply(false).addCallback((v, throwable) -> {
+        unsafeStore.execute(this, safeStore -> {
+            AccordCommand command = (AccordCommand) safeStore.command(txnId);
+            command.apply(safeStore, false).addCallback((v, throwable) -> {
                 if (throwable != null)
                     promise.tryFailure(throwable);
                 else
@@ -634,59 +654,61 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         return promise;
     }
 
-    private Future<Void> apply(boolean canReschedule)
+    private Future<Void> apply(SafeCommandStore safeStore, boolean canReschedule)
     {
-        Future<Void> future = cache().getWriteFuture(txnId);
+        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((AccordCommandStore) safeStore).commandCache();
+        Future<Void> future = cache.getWriteFuture(txnId);
         if (future != null)
             return future;
 
         // this can be called via a listener callback, in which case we won't
         // have the appropriate commandsForKey in scope, so start a new operation
         // with the correct scope and notify the caller when that completes
-        if (!canApplyWithCurrentScope())
+        if (!canApplyWithCurrentScope(safeStore))
         {
             Preconditions.checkArgument(canReschedule);
-            return applyWithCorrectScope();
+            return applyWithCorrectScope(safeStore.commandStore());
         }
 
-        future = super.apply();
-        cache().setWriteFuture(txnId, future);
+        future = super.apply(safeStore);
+        cache.setWriteFuture(txnId, future);
         return future;
     }
 
     @Override
-    public Future<Void> apply()
+    public Future<Void> apply(SafeCommandStore safeStore)
     {
-        return apply(true);
+        return apply(safeStore, true);
     }
 
     @Override
-    public Future<Data> read(Keys scope)
+    public Future<Data> read(SafeCommandStore safeStore)
     {
-        ReadFuture future = cache().getReadFuture(txnId);
+        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((AccordCommandStore) safeStore).commandCache();
+        Future<Data> future = cache.getReadFuture(txnId);
         if (future != null)
-            return future.scope.equals(scope) ? future : super.read(scope);
-        future = new ReadFuture(scope, super.read(scope));
-        cache().setReadFuture(txnId, future);
+            return future;
+        future = super.read(safeStore);
+        cache.setReadFuture(txnId, future);
         return future;
     }
 
-    private Listener maybeWrapListener(Listener listener)
+    private CommandListener maybeWrapListener(CommandListener listener)
     {
         if (listener.isTransient())
             return listener;
 
         if (listener instanceof AccordCommand)
-            return new ListenerProxy.CommandListenerProxy(commandStore, ((AccordCommand) listener).txnId());
+            return new ListenerProxy.CommandListenerProxy(((AccordCommand) listener).txnId());
 
         if (listener instanceof AccordCommandsForKey)
-            return new ListenerProxy.CommandsForKeyListenerProxy(commandStore, ((AccordCommandsForKey) listener).key());
+            return new ListenerProxy.CommandsForKeyListenerProxy(((AccordCommandsForKey) listener).key());
 
         throw new RuntimeException("Unhandled non-transient listener: " + listener);
     }
 
     @Override
-    public Command addListener(Listener listener)
+    public Command addListener(CommandListener listener)
     {
         listener = maybeWrapListener(listener);
         if (listener instanceof ListenerProxy)
@@ -697,7 +719,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void removeListener(Listener listener)
+    public void removeListener(CommandListener listener)
     {
         listener = maybeWrapListener(listener);
         if (listener instanceof ListenerProxy)
@@ -708,35 +730,36 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     public boolean hasListenerFor(TxnId txnId)
     {
-        return storedListeners.getView().contains(new ListenerProxy.CommandListenerProxy(commandStore, txnId));
+        return storedListeners.getView().contains(new ListenerProxy.CommandListenerProxy(txnId));
     }
 
     @Override
-    public void notifyListeners()
+    public void notifyListeners(SafeCommandStore safeStore)
     {
-        storedListeners.getView().forEach(this);
+        // TODO: efficiency (introduce BiConsumer method)
+        storedListeners.getView().forEach(l -> l.onChange(safeStore, this));
         transientListeners.forEach(listener -> {
             PreLoadContext ctx = listener.listenerPreLoadContext(txnId());
-            AsyncContext context = commandStore().getContext();
+            AsyncContext context = ((AccordCommandStore)safeStore).getContext();
             if (context.containsScopedItems(ctx))
             {
                 logger.trace("{}: synchronously updating listener {}", txnId(), listener);
-                listener.onChange(this);
+                listener.onChange(safeStore, this);
             }
             else
             {
                 logger.trace("{}: asynchronously updating listener {}", txnId(), listener);
-                commandStore().process(ctx, instance -> {
-                    listener.onChange(instance.command(txnId()));
+                safeStore.execute(ctx, reSafeStore -> {
+                    listener.onChange(reSafeStore, reSafeStore.command(txnId()));
                 });
             }
         });
     }
 
     @Override
-    public void addWaitingOnCommit(Command command)
+    public void addWaitingOnCommit(TxnId txnId)
     {
-        waitingOnCommit.blindPut(command.txnId(), AccordPartialCommand.serializer.serialize(command));
+        waitingOnCommit.blindAdd(txnId);
     }
 
     @Override
@@ -746,24 +769,23 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void removeWaitingOnCommit(PartialCommand command)
+    public void removeWaitingOnCommit(TxnId txnId)
     {
-        waitingOnCommit.blindRemove(command.txnId());
+        waitingOnCommit.blindRemove(txnId);
     }
 
     @Override
-    public PartialCommand firstWaitingOnCommit()
+    public TxnId firstWaitingOnCommit()
     {
         if (!isWaitingOnCommit())
             return null;
-        ByteBuffer bytes = waitingOnCommit.getView().firstEntry().getValue();
-        return AccordPartialCommand.serializer.deserialize(commandStore, bytes);
+        return waitingOnCommit.getView().first();
     }
 
     @Override
-    public void addWaitingOnApplyIfAbsent(PartialCommand command)
+    public void addWaitingOnApplyIfAbsent(TxnId txnId, Timestamp executeAt)
     {
-        waitingOnApply.blindPut(command.txnId(), AccordPartialCommand.serializer.serialize(command));
+        waitingOnApply.blindPut(executeAt, txnId);
     }
 
     @Override
@@ -773,17 +795,17 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public void removeWaitingOnApply(PartialCommand command)
+    public void removeWaitingOn(TxnId txnId, Timestamp executeAt)
     {
-        waitingOnApply.blindRemove(command.txnId());
+        waitingOnCommit.blindRemove(txnId);
+        waitingOnApply.blindRemove(executeAt, txnId);
     }
 
     @Override
-    public PartialCommand firstWaitingOnApply()
+    public TxnId firstWaitingOnApply()
     {
         if (!isWaitingOnApply())
             return null;
-        ByteBuffer bytes = waitingOnApply.getView().firstEntry().getValue();
-        return AccordPartialCommand.serializer.deserialize(commandStore, bytes);
+        return waitingOnApply.getView().firstEntry().getValue();
     }
 }

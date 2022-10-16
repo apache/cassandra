@@ -21,7 +21,9 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.messages.Apply;
-import accord.primitives.Keys;
+import accord.primitives.PartialRoute;
+import accord.primitives.TxnId;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -34,24 +36,19 @@ public class ApplySerializers
         @Override
         public void serializeBody(Apply apply, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.txnId.serialize(apply.txnId, out, version);
-            CommandSerializers.txn.serialize(apply.txn, out, version);
-            KeySerializers.key.serialize(apply.homeKey, out, version);
+            out.writeUnsignedVInt(apply.untilEpoch);
             CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
-            CommandSerializers.deps.serialize(apply.deps, out, version);
+            DepsSerializer.partialDeps.serialize(apply.deps, out, version);
             CommandSerializers.writes.serialize(apply.writes, out, version);
             AccordData.serializer.serialize((AccordData) apply.result, out, version);
         }
 
         @Override
-        public Apply deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
+        public Apply deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException
         {
-            return Apply.SerializationSupport.create(scope, waitForEpoch,
-                                                     CommandSerializers.txnId.deserialize(in, version),
-                                                     CommandSerializers.txn.deserialize(in, version),
-                                                     KeySerializers.key.deserialize(in, version),
+            return Apply.SerializationSupport.create(txnId, scope, waitForEpoch, in.readUnsignedVInt(),
                                                      CommandSerializers.timestamp.deserialize(in, version),
-                                                     CommandSerializers.deps.deserialize(in, version),
+                                                     DepsSerializer.partialDeps.deserialize(in, version),
                                                      CommandSerializers.writes.deserialize(in, version),
                                                      AccordData.serializer.deserialize(in, version));
         }
@@ -59,34 +56,34 @@ public class ApplySerializers
         @Override
         public long serializedBodySize(Apply apply, int version)
         {
-            return CommandSerializers.txnId.serializedSize(apply.txnId, version)
-                   + CommandSerializers.txn.serializedSize(apply.txn, version)
-                   + KeySerializers.key.serializedSize(apply.homeKey, version)
+            return TypeSizes.sizeofUnsignedVInt(apply.untilEpoch)
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
-                   + CommandSerializers.deps.serializedSize(apply.deps, version)
+                   + DepsSerializer.partialDeps.serializedSize(apply.deps, version)
                    + CommandSerializers.writes.serializedSize(apply.writes, version)
                    + AccordData.serializer.serializedSize((AccordData) apply.result, version);
         }
     };
 
-    public static final IVersionedSerializer<Apply.ApplyOk> reply = new IVersionedSerializer<Apply.ApplyOk>()
+    public static final IVersionedSerializer<Apply.ApplyReply> reply = new IVersionedSerializer<Apply.ApplyReply>()
     {
-        @Override
-        public void serialize(Apply.ApplyOk t, DataOutputPlus out, int version) throws IOException
-        {
+        private final Apply.ApplyReply[] replies = Apply.ApplyReply.values();
 
+        @Override
+        public void serialize(Apply.ApplyReply t, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeByte(t.ordinal());
         }
 
         @Override
-        public Apply.ApplyOk deserialize(DataInputPlus in, int version) throws IOException
+        public Apply.ApplyReply deserialize(DataInputPlus in, int version) throws IOException
         {
-            return Apply.ApplyOk.INSTANCE;
+            return replies[in.readByte()];
         }
 
         @Override
-        public long serializedSize(Apply.ApplyOk t, int version)
+        public long serializedSize(Apply.ApplyReply t, int version)
         {
-            return 0;
+            return 1;
         }
     };
 }

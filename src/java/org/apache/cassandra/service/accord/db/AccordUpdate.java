@@ -22,14 +22,16 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -40,6 +42,7 @@ import accord.api.Data;
 import accord.api.Key;
 import accord.api.Update;
 import accord.api.Write;
+import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
@@ -74,14 +77,16 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static java.lang.Math.toIntExact;
 import static org.apache.cassandra.utils.CollectionSerializer.deserializeMap;
 import static org.apache.cassandra.utils.CollectionSerializer.serializeMap;
 import static org.apache.cassandra.utils.CollectionSerializer.serializedSizeMap;
 
 public class AccordUpdate implements Update
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordUpdate(Keys.EMPTY, (ByteBuffer[]) null, (ByteBuffer[]) null));;
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new AccordUpdate(Keys.EMPTY, null, null));
 
+    // TODO (soon): extends AbstractKeyIndexed; pack updates+predicates into one ByteBuffer
     private final Keys keys;
     private final ByteBuffer[] updates;
     private final ByteBuffer[] predicates;
@@ -200,7 +205,6 @@ public class AccordUpdate implements Update
         @Override
         protected void serializeBody(DataOutputPlus out, int version)
         {
-
         }
 
         @Override
@@ -338,17 +342,18 @@ public class AccordUpdate implements Update
 
         public static final IVersionedSerializer<AbstractUpdate> serializer = new IVersionedSerializer<AbstractUpdate>()
         {
+            final Kind[] kinds = Kind.values();
             @Override
             public void serialize(AbstractUpdate updater, DataOutputPlus out, int version) throws IOException
             {
-                out.writeInt(updater.kind().ordinal());
+                out.writeUnsignedVInt(updater.kind().ordinal());
                 updater.serializer().serializeBody(updater, out, version);
             }
 
             @Override
             public AbstractUpdate deserialize(DataInputPlus in, int version) throws IOException
             {
-                Kind kind = Kind.values()[in.readInt()];
+                Kind kind = kinds[(int)in.readUnsignedVInt()];
                 switch (kind)
                 {
                     case SIMPLE:
@@ -364,7 +369,8 @@ public class AccordUpdate implements Update
             @Override
             public long serializedSize(AbstractUpdate updater, int version)
             {
-                return TypeSizes.INT_SIZE + updater.serializer().serializedBodySize(updater, version);
+                return TypeSizes.sizeofUnsignedVInt(updater.kind().ordinal())
+                       + updater.serializer().serializedBodySize(updater, version);
             }
         };
     }
@@ -689,22 +695,13 @@ public class AccordUpdate implements Update
         };
     }
 
-    private static Keys keysFrom(List<AbstractUpdate> updates, List<UpdatePredicate> predicates)
-    {
-        Set<Key> keys = new HashSet<>();
-        for (AbstractUpdate update : updates)
-            keys.add(update.partitionKey());
-        for (UpdatePredicate predicate : predicates)
-            keys.add(new PartitionKey(predicate.table.id, predicate.key));
-
-        return new Keys(keys);
-    }
-
     public AccordUpdate(List<AbstractUpdate> updates, List<UpdatePredicate> predicates)
     {
-        this.keys = keysFrom(updates, predicates);
-        this.updates = serialize(updates, AbstractUpdate.serializer);
-        this.predicates = serialize(predicates, predicateSerializer);
+        updates.sort(Comparator.comparing(AbstractUpdate::partitionKey));
+        predicates.sort(Comparator.comparing(UpdatePredicate::partitionKey));
+        this.keys = Keys.of(updates, AbstractUpdate::partitionKey).union(Keys.of(predicates, UpdatePredicate::partitionKey));
+        this.updates = toSerializedValuesArray(keys, updates, AbstractUpdate::partitionKey, AbstractUpdate.serializer);
+        this.predicates = toSerializedValuesArray(keys, predicates, UpdatePredicate::partitionKey, predicateSerializer);
     }
 
     public AccordUpdate(Keys keys, ByteBuffer[] updates, ByteBuffer[] predicates)
@@ -747,12 +744,18 @@ public class AccordUpdate implements Update
     @Override
     public Write apply(Data data)
     {
-        AccordData read = data != null ? (AccordData) data : new AccordData();
-        for (ByteBuffer bytes : predicates)
+        AccordData read = data != null ? (AccordData) data : new AccordData(Collections.emptyList());
+        for (int i = 0 ; i < predicates.length ; ++i)
         {
-            UpdatePredicate predicate = deserialize(bytes, predicateSerializer);
-            if (!predicate.applies(read.get(predicate.partitionKey())))
-                return AccordWrite.EMPTY;
+            if (predicates[i] == null)
+                continue;
+
+            List<UpdatePredicate> test = deserialize(predicates[i], predicateSerializer);
+            for (int j = 0, mj = test.size() ; j < mj ; ++j)
+            {
+                if (!test.get(j).applies(read.get((PartitionKey) keys.get(i))))
+                    return AccordWrite.EMPTY;
+            }
         }
         NavigableMap<PartitionKey, PartitionUpdate> updateMap = new TreeMap<>();
         for (AbstractUpdate updater : deserialize(updates, AbstractUpdate.serializer))
@@ -766,7 +769,54 @@ public class AccordUpdate implements Update
         return new AccordWrite(new ArrayList<>(updateMap.values()));
     }
 
-    UpdatePredicate getPredicate(int i)
+    @Override
+    public Update slice(KeyRanges ranges)
+    {
+        Keys keys = this.keys.slice(ranges);
+        return new AccordUpdate(keys, select(this.keys, keys, updates), select(this.keys, keys, predicates));
+    }
+
+    private static ByteBuffer[] select(Keys in, Keys out, ByteBuffer[] from)
+    {
+        ByteBuffer[] result = new ByteBuffer[out.size()];
+        int j = 0;
+        for (int i = 0 ; i < in.size() ; ++i)
+        {
+            j = in.findNext(out.get(i), j);
+            result[i] = from[j];
+        }
+        return result;
+    }
+
+    @Override
+    public Update merge(Update update)
+    {
+        // TODO: special method for linear merging keyed and non-keyed lists simultaneously
+        AccordUpdate that = (AccordUpdate) update;
+        Keys keys = this.keys.union(that.keys);
+        ByteBuffer[] updates = merge(this.keys, that.keys, this.updates, that.updates, keys.size());
+        ByteBuffer[] predicates = merge(this.keys, that.keys, this.predicates, that.predicates, keys.size());
+        return new AccordUpdate(keys, updates, predicates);
+    }
+
+    private static ByteBuffer[] merge(Keys leftKeys, Keys rightKeys, ByteBuffer[] left, ByteBuffer[] right, int outputSize)
+    {
+        ByteBuffer[] out = new ByteBuffer[outputSize];
+        int l = 0, r = 0, o = 0;
+        while (l < leftKeys.size() && r < rightKeys.size())
+        {
+            int c = leftKeys.get(l).compareTo(rightKeys.get(r));
+            if (c < 0) { out[o++] = left[l++]; }
+            else if (c > 0) { out[o++] = right[r++]; }
+            else if (ByteBufferUtil.compareUnsigned(left[l], right[r]) != 0) { throw new IllegalStateException("The same keys have different values in each input"); }
+            else { out[o++] = left[l++]; r++; }
+        }
+        while (l < leftKeys.size()) { out[o++] = left[l]; }
+        while (r < rightKeys.size()) { out[o++] = right[r++]; }
+        return out;
+    }
+
+    List<UpdatePredicate> getPredicate(int i)
     {
         return deserialize(predicates[i], predicateSerializer);
     }
@@ -837,11 +887,8 @@ public class AccordUpdate implements Update
         public void serialize(AccordUpdate update, DataOutputPlus out, int version) throws IOException
         {
             KeySerializers.keys.serialize(update.keys, out, version);
-            out.writeInt(update.updates.length);
             for (ByteBuffer buffer : update.updates)
                 ByteBufferUtil.writeWithVIntLength(buffer, out);
-
-            out.writeInt(update.predicates.length);
             for (ByteBuffer buffer : update.predicates)
                 ByteBufferUtil.writeWithVIntLength(buffer, out);
         }
@@ -850,14 +897,13 @@ public class AccordUpdate implements Update
         public AccordUpdate deserialize(DataInputPlus in, int version) throws IOException
         {
             Keys keys = KeySerializers.keys.deserialize(in, version);
-            int numUpdate = in.readInt();
-            ByteBuffer[] updates = new ByteBuffer[numUpdate];
-            for (int i=0; i<numUpdate; i++)
+
+            ByteBuffer[] updates = new ByteBuffer[keys.size()];
+            for (int i=0; i<keys.size(); i++)
                 updates[i] = ByteBufferUtil.readWithVIntLength(in);
 
-            int numPredicate = in.readInt();
-            ByteBuffer[] predicates = new ByteBuffer[numPredicate];
-            for (int i=0; i<numPredicate; i++)
+            ByteBuffer[] predicates = new ByteBuffer[keys.size()];
+            for (int i=0; i<keys.size(); i++)
                 predicates[i] = ByteBufferUtil.readWithVIntLength(in);
 
             return new AccordUpdate(keys, updates, predicates);
@@ -867,27 +913,26 @@ public class AccordUpdate implements Update
         public long serializedSize(AccordUpdate update, int version)
         {
             long size = KeySerializers.keys.serializedSize(update.keys, version);
-
-            size += TypeSizes.sizeof(update.updates.length);
             for (ByteBuffer buffer : update.updates)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
-
-            size += TypeSizes.sizeof(update.predicates.length);
             for (ByteBuffer buffer : update.predicates)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
-
             return size;
         }
     };
 
-    private static <T> ByteBuffer serialize(T item, IVersionedSerializer<T> serializer)
+    private static <T> ByteBuffer toSerializedValues(List<T> items, int start, int end, IVersionedSerializer<T> serializer, int version)
     {
-        int version = MessagingService.current_version;
-        long size = serializer.serializedSize(item, version) + TypeSizes.INT_SIZE;
+        long size = TypeSizes.sizeofUnsignedVInt(version) + TypeSizes.sizeofUnsignedVInt(end - start);
+        for (int i = start ; i < end ; ++i)
+            size += serializer.serializedSize(items.get(i), version);
+
         try (DataOutputBuffer out = new DataOutputBuffer((int) size))
         {
-            out.writeInt(version);
-            serializer.serialize(item, out, version);
+            out.writeUnsignedVInt(version);
+            out.writeUnsignedVInt(end - start);
+            for (int i = start ; i < end ; ++i)
+                serializer.serialize(items.get(i), out, version);
             return out.buffer(false);
         }
         catch (IOException e)
@@ -896,20 +941,46 @@ public class AccordUpdate implements Update
         }
     }
 
-    private static <T> ByteBuffer[] serialize(List<T> items, IVersionedSerializer<T> serializer)
+    private static <T> ByteBuffer[] toSerializedValuesArray(Keys keys, List<T> items, Function<? super T, ? extends Key> toKey, IVersionedSerializer<T> serializer)
     {
-        ByteBuffer[] result = new ByteBuffer[items.size()];
-        for (int i=0,mi=items.size(); i<mi; i++)
-            result[i] = serialize(items.get(i), serializer);
+        ByteBuffer[] result = new ByteBuffer[keys.size()];
+        int i = 0, mi = items.size(), ki = 0;
+        while (i < mi)
+        {
+            Key key = toKey.apply(items.get(i));
+            int j = i + 1;
+            while (j < mi && toKey.apply(items.get(j)).equals(key))
+                ++j;
+
+            int nextki = keys.findNext(key, ki);
+            Arrays.fill(result, ki, nextki, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+            ki = nextki;
+            result[ki++] = toSerializedValues(items, i, j, serializer, MessagingService.current_version);
+            i = j;
+        }
+        Arrays.fill(result, ki, result.length, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         return result;
     }
 
-    private static <T> T deserialize(ByteBuffer bytes, IVersionedSerializer<T> serializer)
+    private static <T> List<T> deserialize(ByteBuffer bytes, IVersionedSerializer<T> serializer)
     {
+        if (!bytes.hasRemaining())
+            return Collections.emptyList();
+
         try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
-            int version = in.readInt();
-            return serializer.deserialize(in, version);
+            int version = toIntExact(in.readUnsignedVInt());
+            int count = toIntExact(in.readUnsignedVInt());
+            switch (count)
+            {
+                case 0: throw new IllegalStateException();
+                case 1: return Collections.singletonList(serializer.deserialize(in, version));
+                default:
+                    List<T> result = new ArrayList<>();
+                    for (int i = 0 ; i < count ; ++i)
+                        result.add(serializer.deserialize(in, version));
+                    return result;
+            }
         }
         catch (IOException e)
         {
@@ -921,7 +992,7 @@ public class AccordUpdate implements Update
     {
         List<T> result = new ArrayList<>(buffers.length);
         for (ByteBuffer bytes : buffers)
-            result.add(deserialize(bytes, serializer));
+            result.addAll(deserialize(bytes, serializer));
         return result;
     }
 }

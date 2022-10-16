@@ -20,16 +20,23 @@ package org.apache.cassandra.service.accord.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.base.Preconditions;
 
+import accord.api.Key;
+import accord.primitives.KeyRange;
+import accord.primitives.KeyRanges;
+import accord.primitives.Keys;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -38,6 +45,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -47,7 +55,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public abstract class AbstractKeyIndexed<T>
 {
-    final NavigableMap<PartitionKey, ByteBuffer> serialized;
+    final Keys keys;
+    final ByteBuffer[] serialized;
 
     abstract void serialize(T t, DataOutputPlus out, int version) throws IOException;
     abstract T deserialize(DataInputPlus in, int version) throws IOException;
@@ -62,6 +71,22 @@ public abstract class AbstractKeyIndexed<T>
         {
             out.writeInt(version);
             serialize(item, out, version);
+            return out.buffer(false);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected static <T> ByteBuffer serialize(T item, IVersionedSerializer<T> serializer)
+    {
+        int version = MessagingService.current_version;
+        long size = serializer.serializedSize(item, version) + TypeSizes.INT_SIZE;
+        try (DataOutputBuffer out = new DataOutputBuffer((int) size))
+        {
+            out.writeInt(version);
+            serializer.serialize(item, out, version);
             return out.buffer(false);
         }
         catch (IOException e)
@@ -89,65 +114,93 @@ public abstract class AbstractKeyIndexed<T>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AbstractKeyIndexed<?> that = (AbstractKeyIndexed<?>) o;
-        return serialized.equals(that.serialized);
+        return Arrays.equals(serialized, that.serialized);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(serialized);
+        return Arrays.hashCode(serialized);
     }
 
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + serialized.entrySet().stream()
-                         .map(e -> e.getKey() + "=" + deserialize(e.getValue()))
-                         .collect(Collectors.joining(", ", "{", "}"));
+        return getClass().getSimpleName() + IntStream.range(0, keys.size())
+                                                     .mapToObj(i -> keys.get(i) + "=" + deserialize(serialized[i]))
+                                                     .collect(Collectors.joining(", ", "{", "}"));
+    }
+
+    protected AbstractKeyIndexed(Keys keys, ByteBuffer[] serialized)
+    {
+        this.keys = keys;
+        this.serialized = serialized;
     }
 
     public AbstractKeyIndexed(List<T> items, Function<T, PartitionKey> keyFunction)
     {
-        this.serialized = new TreeMap<>();
+        Key[] keys = new Key[items.size()];
         for (int i=0, mi=items.size(); i<mi; i++)
-        {
-            T item = items.get(i);
-            PartitionKey key = keyFunction.apply(item);
-            // TODO: support multiple reads/writes per key
-            Preconditions.checkArgument(!this.serialized.containsKey(key));
-            this.serialized.put(key, serialize(item));
-        }
+            keys[i] = keyFunction.apply(items.get(i));
+        this.keys = Keys.of(keys);
+        this.serialized = new ByteBuffer[items.size()];
+        for (int i=0, mi=items.size(); i<mi; i++)
+            serialized[this.keys.indexOf(keyFunction.apply(items.get(i)))] = serialize(items.get(i));
     }
 
-    public AbstractKeyIndexed(NavigableMap<PartitionKey, ByteBuffer> serialized)
+    protected <V> V slice(KeyRanges ranges, BiFunction<Keys, ByteBuffer[], V> constructor)
     {
-        this.serialized = serialized;
+        // TODO: Routables patch permits us to do this more efficiently
+        Keys keys = this.keys.slice(ranges);
+        ByteBuffer[] serialized = new ByteBuffer[keys.size()];
+        int j = 0;
+        for (int i = 0 ; i < keys.size() ; ++i)
+        {
+            j = this.keys.findNext(keys.get(i), j);
+            serialized[i] = this.serialized[j++];
+        }
+        return constructor.apply(keys, serialized);
+    }
+
+    public <V> V merge(AbstractKeyIndexed<?> that, BiFunction<Keys, ByteBuffer[], V> constructor)
+    {
+        // TODO: special method for linear merging keyed and non-keyed lists simultaneously
+        Keys keys = this.keys.union(that.keys);
+        ByteBuffer[] serialized = new ByteBuffer[keys.size()];
+        int i = 0, j = 0, o = 0;
+        while (i < this.keys.size() && j < that.keys.size())
+        {
+            int c = this.keys.get(i).compareTo(that.keys.get(j));
+            if (c < 0) serialized[o++] = this.serialized[i++];
+            else if (c > 0) serialized[o++] = that.serialized[j++];
+            else { serialized[o++] = this.serialized[i++]; j++; }
+        }
+        while (i < this.keys.size())
+            serialized[o++] = this.serialized[i++];
+        while (j < that.keys.size())
+            serialized[o++] = that.serialized[j++];
+        return constructor.apply(keys, serialized);
     }
 
     public T getDeserialized(PartitionKey key)
     {
-        ByteBuffer bytes = serialized.get(key);
-        if (bytes == null)
-            return null;
-        return deserialize(bytes);
+        int i = keys.indexOf(key);
+        if (i < 0) return null;
+        return deserialize(serialized[i]);
     }
 
     public long estimatedSizeOnHeap()
     {
-        long size = emptySizeOnHeap();
-        for (Map.Entry<PartitionKey, ByteBuffer> entry : serialized.entrySet())
-        {
-            size += entry.getKey().estimatedSizeOnHeap();
-            size += ByteBufferUtil.EMPTY_SIZE_ON_HEAP + ByteBufferAccessor.instance.size(entry.getValue());
-        }
+        long size = emptySizeOnHeap() + AccordObjectSizes.keys(keys);
+        for (ByteBuffer buffer : serialized) size += ByteBufferUtil.estimatedSizeOnHeap(buffer);
         return size;
     }
 
     static class Serializer<V, S extends AbstractKeyIndexed<V>> implements IVersionedSerializer<S>
     {
-        private final Function<NavigableMap<PartitionKey, ByteBuffer>, S> factory;
+        private final BiFunction<Keys, ByteBuffer[], S> factory;
 
-        Serializer(Function<NavigableMap<PartitionKey, ByteBuffer>, S> factory)
+        Serializer(BiFunction<Keys, ByteBuffer[], S> factory)
         {
             this.factory = factory;
         }
@@ -155,33 +208,31 @@ public abstract class AbstractKeyIndexed<T>
         @Override
         public void serialize(S items, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt(items.serialized.size());
-            for (Map.Entry<PartitionKey, ByteBuffer> entry : items.serialized.entrySet())
-            {
-                PartitionKey.serializer.serialize(entry.getKey(), out, version);
-                ByteBufferUtil.writeWithVIntLength(entry.getValue(), out);
-            }
+            out.writeUnsignedVInt(items.serialized.length);
+            for (Key key : items.keys) PartitionKey.serializer.serialize((PartitionKey) key, out, version);
+            for (ByteBuffer buffer : items.serialized) ByteBufferUtil.writeWithVIntLength(buffer, out);
         }
 
         @Override
         public S deserialize(DataInputPlus in, int version) throws IOException
         {
             int size = (int) in.readUnsignedVInt();
-            NavigableMap<PartitionKey, ByteBuffer> items = new TreeMap<>();
+            Key[] keys = new Key[size];
             for (int i=0; i<size; i++)
-                items.put(PartitionKey.serializer.deserialize(in, version), ByteBufferUtil.readWithVIntLength(in));
-            return factory.apply(items);
+                keys[i] = PartitionKey.serializer.deserialize(in, version);
+
+            ByteBuffer[] serialized = new ByteBuffer[size];
+            for (int i=0; i<size; i++)
+                serialized[i] = ByteBufferUtil.readWithVIntLength(in);
+            return factory.apply(Keys.ofSorted(keys), serialized);
         }
 
         @Override
         public long serializedSize(S items, int version)
         {
-            long size = TypeSizes.sizeofUnsignedVInt(items.serialized.size());
-            for (Map.Entry<PartitionKey, ByteBuffer> entry : items.serialized.entrySet())
-            {
-                size += PartitionKey.serializer.serializedSize(entry.getKey());
-                size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getValue());
-            }
+            long size = TypeSizes.sizeofUnsignedVInt(items.serialized.length);
+            for (Key key : items.keys) size += PartitionKey.serializer.serializedSize((PartitionKey) key, version);
+            for (ByteBuffer buffer : items.serialized) size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
             return size;
         }
     }

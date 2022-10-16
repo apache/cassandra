@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
@@ -26,7 +27,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public interface AccordState<K>
 {
-    public enum Kind { FULL, WRITE_ONLY, READ_ONLY }
+    enum ReadWrite { FULL, WRITE_ONLY, READ_ONLY }
 
     K key();
 
@@ -40,32 +41,32 @@ public interface AccordState<K>
 
     long estimatedSizeOnHeap();
 
-    default Kind kind()
+    default ReadWrite rw()
     {
-        return Kind.FULL;
+        return ReadWrite.FULL;
     }
 
     default boolean isFullInstance()
     {
-        return kind() == Kind.FULL;
+        return rw() == ReadWrite.FULL;
     }
 
     default boolean isWriteOnlyInstance()
     {
-        return kind() == Kind.WRITE_ONLY;
+        return rw() == ReadWrite.WRITE_ONLY;
     }
 
     default boolean isReadOnlyInstance()
     {
-        return kind() == Kind.READ_ONLY;
+        return rw() == ReadWrite.READ_ONLY;
     }
 
     interface WriteOnly<K, V extends AccordState<K>> extends AccordState<K>
     {
         @Override
-        default Kind kind()
+        default ReadWrite rw()
         {
-            return Kind.WRITE_ONLY;
+            return ReadWrite.WRITE_ONLY;
         }
 
         void future(Future<?> future);
@@ -86,7 +87,7 @@ public interface AccordState<K>
 
             StoredNavigableMap<K, V> toMap = getMap.apply(to);
             fromMap.forEachAddition(toMap::blindPut);
-            fromMap.forEachDeletion(toMap::blindRemove);
+            fromMap.forEachDeletion((BiConsumer<K, V>) toMap::blindRemove);
         }
 
         static <T, V extends Comparable<?>> void applySetChanges(T from, T to, Function<T, StoredSet<V, ?>> getSet)
@@ -99,15 +100,6 @@ public interface AccordState<K>
             StoredSet<V, ?> toSet = getSet.apply(to);
             fromSet.forEachAddition(toSet::blindAdd);
             fromSet.forEachDeletion(toSet::blindRemove);
-        }
-    }
-
-    interface ReadOnly<K, V extends AccordState<K>> extends AccordState<K>
-    {
-        @Override
-        default Kind kind()
-        {
-            return Kind.READ_ONLY;
         }
     }
 }

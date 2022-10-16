@@ -25,13 +25,13 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class StoredLong extends AbstractStoredField
 {
-    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredLong(AccordState.Kind.FULL));
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new StoredLong(AccordState.ReadWrite.FULL));
 
     protected long value;
 
-    public StoredLong(AccordState.Kind kind)
+    public StoredLong(AccordState.ReadWrite readWrite)
     {
-        super(kind);
+        super(readWrite);
     }
 
     @Override
