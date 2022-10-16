@@ -21,14 +21,24 @@ package org.apache.cassandra.service.accord;
 import java.util.Map;
 
 import accord.api.Key;
+import accord.api.RoutingKey;
 import accord.local.Node;
+import accord.primitives.AbstractRoute;
 import accord.primitives.Deps;
+import accord.primitives.KeyRange;
+import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
+import accord.primitives.PartialRoute;
+import accord.primitives.PartialTxn;
+import accord.primitives.Route;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.txn.Txn;
-import accord.txn.Writes;
+import accord.primitives.Writes;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.db.AccordQuery;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.service.accord.db.AccordUpdate;
@@ -42,6 +52,28 @@ public class AccordObjectSizes
         return ((AccordKey.PartitionKey) key).estimatedSizeOnHeap();
     }
 
+    public static long key(RoutingKey key)
+    {
+        return ((AccordRoutingKey) key).estimatedSizeOnHeap();
+    }
+
+    private static final long EMPTY_KEY_RANGE_SIZE = ObjectSizes.measure(TokenRange.fullRange(TableId.generate()));
+    public static long range(KeyRange range)
+    {
+        return EMPTY_KEY_RANGE_SIZE + key(range.start()) + key(range.end());
+    }
+
+    private static final long EMPTY_KEY_RANGES_SIZE = ObjectSizes.measure(KeyRanges.of());
+    public static long ranges(KeyRanges ranges)
+    {
+        long size = EMPTY_KEY_RANGES_SIZE;
+        size += ObjectSizes.sizeOfReferenceArray(ranges.size());
+        // TODO: many ranges are fixed size, can compute by multiplication
+        for (int i = 0, mi = ranges.size() ; i < mi ; i++)
+            size += range(ranges.get(i));
+        return size;
+    }
+
     private static final long EMPTY_KEYS_SIZE = ObjectSizes.measure(Keys.of());
     public static long keys(Keys keys)
     {
@@ -52,15 +84,54 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_TXN = ObjectSizes.measure(new Txn.InMemory(null, null, null));
-    public static long txn(Txn txn)
+    private static long routingKeysOnly(RoutingKeys keys)
+    {
+        // TODO: many routing keys are fixed size, can compute by multiplication
+        long size = ObjectSizes.sizeOfReferenceArray(keys.size());
+        for (int i=0, mi=keys.size(); i<mi; i++)
+            size += key(keys.get(i));
+        return size;
+    }
+
+    private static final long EMPTY_ROUTING_KEYS_SIZE = ObjectSizes.measure(RoutingKeys.of());
+    public static long routingKeys(RoutingKeys keys)
+    {
+        return routingKeysOnly(keys) + EMPTY_ROUTING_KEYS_SIZE;
+    }
+
+    private static final long EMPTY_ROUTE_SIZE = ObjectSizes.measure(new Route(new TokenKey(null, null), new RoutingKey[0]));
+    public static long route(Route route)
+    {
+        return EMPTY_ROUTE_SIZE
+               + routingKeysOnly(route)
+               + key(route.homeKey); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
+    }
+
+    private static final long EMPTY_PARTIAL_ROUTE_KEYS_SIZE = ObjectSizes.measure(new PartialRoute(KeyRanges.EMPTY, new TokenKey(null, null), new RoutingKey[0]));
+    public static long route(PartialRoute route)
+    {
+        return EMPTY_PARTIAL_ROUTE_KEYS_SIZE
+               + routingKeysOnly(route)
+               + ranges(route.covering)
+               + key(route.homeKey);
+    }
+
+    public static long route(AbstractRoute route)
+    {
+        if (route instanceof Route) return route((Route) route);
+        else return route((PartialRoute) route);
+    }
+
+    private static final long EMPTY_TXN = ObjectSizes.measure(new PartialTxn.InMemory(null, null, null, null, null, null));
+    public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;
         size += keys(txn.keys());
         size += ((AccordRead) txn.read()).estimatedSizeOnHeap();
         if (txn.update() != null)
             size += ((AccordUpdate) txn.update()).estimatedSizeOnHeap();
-        size += ((AccordQuery) txn.query()).estimatedSizeOnHeap();
+        if (txn.query() != null)
+            size += ((AccordQuery) txn.query()).estimatedSizeOnHeap();
         return size;
     }
 

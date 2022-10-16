@@ -31,8 +31,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.local.Status;
+import accord.primitives.PartialTxn;
 import accord.primitives.TxnId;
-import accord.txn.Txn;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
@@ -50,7 +50,7 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
-import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.execute;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
@@ -76,12 +76,12 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        Txn txn = createTxn(0);
+        PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // acquire / release
         AccordCommand command = commandCache.getOrCreate(txnId).initialize();
-        command.txn(txn);
+        command.setPartialTxn(txn);
         commandCache.release(command);
         AccordCommandsForKey cfk = cfkCacche.getOrCreate(key).initialize();
         cfkCacche.release(cfk);
@@ -110,15 +110,15 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        Txn txn = createTxn(0);
+        PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // create / persist
-        AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
-        command.txn(txn);
-        AccordKeyspace.getCommandMutation(command, commandStore.nextSystemTimestampMicros()).apply();
+        AccordCommand command = new AccordCommand(txnId).initialize();
+        command.setPartialTxn(txn);
+        AccordKeyspace.getCommandMutation(commandStore, command, commandStore.nextSystemTimestampMicros()).apply();
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
-        AccordKeyspace.getCommandsForKeyMutation(cfk, commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getCommandsForKeyMutation(commandStore, cfk, commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
         AsyncContext context = new AsyncContext();
@@ -152,15 +152,15 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        Txn txn = createTxn(0);
+        PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // acquire /release, create / persist
         AccordCommand command = commandCache.getOrCreate(txnId).initialize();
-        command.txn(txn);
+        command.setPartialTxn(txn);
         commandCache.release(command);
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
-        AccordKeyspace.getCommandsForKeyMutation(cfk, commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getCommandsForKeyMutation(commandStore, cfk, commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
         AsyncContext context = new AsyncContext();
@@ -194,12 +194,12 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        Txn txn = createTxn(0);
+        PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // acquire / release
         AccordCommand command = commandCache.getOrCreate(txnId).initialize();
-        command.txn(txn);
+        command.setPartialTxn(txn);
         commandCache.release(command);
         AccordCommandsForKey cfk = cfkCacche.getOrCreate(key).initialize();
         cfkCacche.release(cfk);
@@ -241,24 +241,24 @@ public class AsyncLoaderTest
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId blockApply = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId blockCommit = txnId(1, clock.incrementAndGet(), 0, 1);
-        Txn txn = createTxn(0);
+        PartialTxn txn = createPartialTxn(0);
         AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
 
-        AccordCommand command = new AccordCommand(commandStore, txnId).initialize();
-        command.txn(txn);
-        command.executeAt(txnId);
-        command.status(Status.Committed);
-        AccordKeyspace.getCommandMutation(command, commandStore.nextSystemTimestampMicros()).apply();
+        AccordCommand command = new AccordCommand(txnId).initialize();
+        command.setPartialTxn(txn);
+        command.setExecuteAt(txnId);
+        command.setStatus(Status.Committed);
+        AccordKeyspace.getCommandMutation(commandStore, command, commandStore.nextSystemTimestampMicros()).apply();
         command.clearModifiedFlag();
 
         execute(commandStore, () -> {
             AccordStateCache.Instance<TxnId, AccordCommand> cache = commandStore.commandCache();
-            AccordCommand.WriteOnly writeOnly1 = new AccordCommand.WriteOnly(commandStore, txnId);
+            AccordCommand.WriteOnly writeOnly1 = new AccordCommand.WriteOnly(txnId);
             writeOnly1.blockingApplyOn.blindAdd(blockApply);
             writeOnly1.future(new AsyncPromise<>());
             cache.addWriteOnly(writeOnly1);
 
-            AccordCommand.WriteOnly writeOnly2 = new AccordCommand.WriteOnly(commandStore, txnId);
+            AccordCommand.WriteOnly writeOnly2 = new AccordCommand.WriteOnly(txnId);
             writeOnly2.blockingCommitOn.blindAdd(blockCommit);
             writeOnly2.future(new AsyncPromise<>());
             cache.addWriteOnly(writeOnly2);

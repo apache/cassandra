@@ -20,11 +20,11 @@ package org.apache.cassandra.service.accord.api;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
 import accord.api.Key;
+import accord.api.RoutingKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -45,26 +45,8 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public interface AccordKey extends Key
 {
-    enum Kind
-    {
-        TOKEN, PARTITION, SENTINEL;
-
-        public boolean supportsRanges()
-        {
-            switch (this)
-            {
-                case SENTINEL:
-                case TOKEN:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-    };
-
     TableId tableId();
     PartitionPosition partitionKey();
-    Kind kind();
 
     static AccordKey of(Key key)
     {
@@ -81,173 +63,26 @@ public interface AccordKey extends Key
         return new PartitionKey(command.metadata().id, command.partitionKey());
     }
 
-    static int compare(AccordKey left, AccordKey right)
+    abstract class AbstractKey<T extends PartitionPosition> extends AccordRoutingKey.AbstractRoutingKey implements AccordKey
     {
-        int cmp = left.tableId().compareTo(right.tableId());
-        if (cmp != 0)
-            return cmp;
+        private final T key;
 
-        if (left instanceof SentinelKey || right instanceof SentinelKey)
+        public AbstractKey(TableId tableId, T key)
         {
-            int leftInt = left instanceof SentinelKey ? ((SentinelKey) left).asInt() : 0;
-            int rightInt = right instanceof SentinelKey ? ((SentinelKey) right).asInt() : 0;
-            return Integer.compare(leftInt, rightInt);
-        }
-
-        return left.partitionKey().compareTo(right.partitionKey());
-    }
-
-    static int compareKeys(Key left, Key right)
-    {
-        return compare((AccordKey) left, (AccordKey) right);
-    }
-
-    default int compareTo(AccordKey that)
-    {
-        return compare(this, that);
-    }
-
-    @Override
-    default int routingHash()
-    {
-        return partitionKey().getToken().tokenHash();
-    }
-
-    class SentinelKey implements AccordKey
-    {
-        private final TableId tableId;
-        private final boolean isMin;
-
-        private SentinelKey(TableId tableId, boolean isMin)
-        {
-            this.tableId = tableId;
-            this.isMin = isMin;
+            super(tableId);
+            this.key = key;
         }
 
         @Override
-        public boolean equals(Object o)
+        public Token token()
         {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            SentinelKey that = (SentinelKey) o;
-            return isMin == that.isMin && tableId.equals(that.tableId);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(tableId, isMin);
-        }
-
-        @Override
-        public int compareTo(Key that)
-        {
-            return compare(this, (AccordKey) that);
+            return partitionKey().getToken();
         }
 
         @Override
         public Kind kind()
         {
-            return Kind.SENTINEL;
-        }
-
-        public static SentinelKey min(TableId tableId)
-        {
-            return new SentinelKey(tableId, true);
-        }
-
-        public static SentinelKey max(TableId tableId)
-        {
-            return new SentinelKey(tableId, false);
-        }
-
-        @Override
-        public TableId tableId()
-        {
-            return tableId;
-        }
-
-        @Override
-        public PartitionPosition partitionKey()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        int asInt()
-        {
-            return isMin ? -1 : 1;
-        }
-
-        @Override
-        public String toString()
-        {
-            return "SentinelKey{" +
-                   "tableId=" + tableId +
-                   ", key=" + (isMin ? "min": "max") +
-                   '}';
-        }
-
-        public static final IVersionedSerializer<SentinelKey> serializer = new IVersionedSerializer<SentinelKey>()
-        {
-            @Override
-            public void serialize(SentinelKey key, DataOutputPlus out, int version) throws IOException
-            {
-                out.writeBoolean(key.isMin);
-                key.tableId().serialize(out);
-            }
-
-            @Override
-            public SentinelKey deserialize(DataInputPlus in, int version) throws IOException
-            {
-                boolean isMin = in.readBoolean();
-                TableId tableId = TableId.deserialize(in);
-                return new SentinelKey(tableId, isMin);
-            }
-
-            @Override
-            public long serializedSize(SentinelKey key, int version)
-            {
-                return TypeSizes.BOOL_SIZE + TableId.serializedSize();
-            }
-        };
-    }
-
-    abstract class AbstractKey<T extends PartitionPosition> implements AccordKey
-    {
-        private final TableId tableId;
-        private final T key;
-
-        public AbstractKey(TableId tableId, T key)
-        {
-            this.tableId = tableId;
-            this.key = key;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AbstractKey<?> that = (AbstractKey<?>) o;
-            return tableId.equals(that.tableId) && key.equals(that.key);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(tableId, key);
-        }
-
-        @Override
-        public int compareTo(Key that)
-        {
-            return compare(this, (AccordKey) that);
-        }
-
-        @Override
-        public TableId tableId()
-        {
-            return tableId;
+            return Kind.TOKEN;
         }
 
         @Override
@@ -255,11 +90,18 @@ public interface AccordKey extends Key
         {
             return key;
         }
+
+        @Override
+        public RoutingKey toRoutingKey()
+        {
+            return this;
+        }
     }
 
     class PartitionKey extends AbstractKey<DecoratedKey>
     {
         private static final long EMPTY_SIZE;
+
         static
         {
             DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER);
@@ -272,18 +114,18 @@ public interface AccordKey extends Key
         }
 
         @Override
-        public Kind kind()
-        {
-            return Kind.PARTITION;
-        }
-
-        @Override
         public String toString()
         {
             return "PartitionKey{" +
                    "tableId=" + tableId() +
                    ", key=" + partitionKey() +
                    '}';
+        }
+
+        @Override
+        public RoutingKey toRoutingKey()
+        {
+            return new TokenKey(tableId(), token());
         }
 
         public long estimatedSizeOnHeap()
@@ -321,7 +163,7 @@ public interface AccordKey extends Key
             public PartitionKey deserialize(DataInputPlus in, int version) throws IOException
             {
                 TableId tableId = TableId.deserialize(in);
-                TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+                TableMetadata metadata = Schema.instance.getExistingTableMetadata(tableId);
                 DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
                 return new PartitionKey(tableId, key);
             }
@@ -352,129 +194,24 @@ public interface AccordKey extends Key
         }
     }
 
-    class TokenKey extends AbstractKey<Token.KeyBound>
-    {
-        public TokenKey(TableId tableId, Token.KeyBound key)
-        {
-            super(tableId, key);
-        }
-
-        public static TokenKey min(TableId tableId, Token token)
-        {
-            return new TokenKey(tableId, token.minKeyBound());
-        }
-
-        public static TokenKey max(TableId tableId, Token token)
-        {
-            return new TokenKey(tableId, token.maxKeyBound());
-        }
-
-        @Override
-        public Kind kind()
-        {
-            return Kind.TOKEN;
-        }
-
-        @Override
-        public String toString()
-        {
-            return "TokenKey{" +
-                   "tableId=" + tableId() +
-                   ", key=" + partitionKey() +
-                   '}';
-        }
-
-        public static final IVersionedSerializer<TokenKey> serializer = new IVersionedSerializer<TokenKey>()
-        {
-            @Override
-            public void serialize(TokenKey key, DataOutputPlus out, int version) throws IOException
-            {
-                key.tableId().serialize(out);
-                Token.KeyBound bound = key.partitionKey();
-                out.writeBoolean(bound.isMinimumBound);
-                Token.serializer.serialize(bound.getToken(), out, version);
-            }
-
-            @Override
-            public TokenKey deserialize(DataInputPlus in, int version) throws IOException
-            {
-                TableId tableId = TableId.deserialize(in);
-                TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
-                boolean isMinimumBound = in.readBoolean();
-                Token token = Token.serializer.deserialize(in, metadata.partitioner, version);
-                return new TokenKey(tableId, isMinimumBound ? token.minKeyBound() : token.maxKeyBound());
-            }
-
-            @Override
-            public long serializedSize(TokenKey key, int version)
-            {
-                Token.KeyBound bound = key.partitionKey();
-                return key.tableId().serializedSize()
-                     + TypeSizes.sizeof(bound.isMinimumBound)
-                     + Token.serializer.serializedSize(bound.getToken(), version);
-            }
-        };
-    }
-
     IVersionedSerializer<AccordKey> serializer = new IVersionedSerializer<AccordKey>()
     {
         @Override
         public void serialize(AccordKey key, DataOutputPlus out, int version) throws IOException
         {
-            out.write(key.kind().ordinal());
-            switch (key.kind())
-            {
-                case TOKEN:
-                    TokenKey.serializer.serialize((TokenKey) key, out, version);
-                    break;
-                case PARTITION:
-                    PartitionKey.serializer.serialize((PartitionKey) key, out, version);
-                    break;
-                case SENTINEL:
-                    SentinelKey.serializer.serialize((SentinelKey) key, out, version);
-                    break;
-                default:
-                    throw new IllegalArgumentException();
-            }
-
+            PartitionKey.serializer.serialize((PartitionKey) key, out, version);
         }
 
         @Override
         public AccordKey deserialize(DataInputPlus in, int version) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
-            switch (kind)
-            {
-                case TOKEN:
-                    return TokenKey.serializer.deserialize(in, version);
-                case PARTITION:
-                    return PartitionKey.serializer.deserialize(in, version);
-                case SENTINEL:
-                    return SentinelKey.serializer.deserialize(in, version);
-                default:
-                    throw new IllegalArgumentException();
-            }
+            return PartitionKey.serializer.deserialize(in, version);
         }
 
         @Override
         public long serializedSize(AccordKey key, int version)
         {
-            long size = TypeSizes.BYTE_SIZE; // kind ordinal
-            switch (key.kind())
-            {
-                case TOKEN:
-                    size += TokenKey.serializer.serializedSize((TokenKey) key, version);
-                    break;
-                case PARTITION:
-                    size += PartitionKey.serializer.serializedSize((PartitionKey) key, version);
-                    break;
-                case SENTINEL:
-                    size += SentinelKey.serializer.serializedSize((SentinelKey) key, version);
-                    break;
-                default:
-                    throw new IllegalArgumentException();
-            }
-            return size;
+            return PartitionKey.serializer.serializedSize((PartitionKey) key, version);
         }
     };
 }

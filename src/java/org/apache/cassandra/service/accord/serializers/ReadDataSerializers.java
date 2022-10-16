@@ -25,6 +25,7 @@ import accord.messages.ReadData.ReadNack;
 import accord.messages.ReadData.ReadOk;
 import accord.messages.ReadData.ReadReply;
 import accord.primitives.Keys;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -33,51 +34,52 @@ import org.apache.cassandra.service.accord.db.AccordData;
 
 public class ReadDataSerializers
 {
-    public static final IVersionedSerializer<ReadData> request = new TxnRequestSerializer<ReadData>()
+    public static final IVersionedSerializer<ReadData> request = new IVersionedSerializer<ReadData>()
     {
         @Override
-        public void serializeBody(ReadData read, DataOutputPlus out, int version) throws IOException
+        public void serialize(ReadData read, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(read.txnId, out, version);
-            CommandSerializers.txn.serialize(read.txn, out, version);
-            CommandSerializers.deps.serialize(read.deps, out, version);
-            KeySerializers.key.serialize(read.homeKey, out, version);
-            CommandSerializers.timestamp.serialize(read.executeAt, out, version);
+            KeySerializers.keys.serialize(read.readScope, out, version);
+            out.writeUnsignedVInt(read.waitForEpoch());
+            out.writeUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
         }
 
         @Override
-        public ReadData deserializeBody(DataInputPlus in, int version, Keys scope, long waitForEpoch) throws IOException
+        public ReadData deserialize(DataInputPlus in, int version) throws IOException
         {
-            return ReadData.SerializerSupport.create(scope, waitForEpoch,
-                                                     CommandSerializers.txnId.deserialize(in, version),
-                                                     CommandSerializers.txn.deserialize(in, version),
-                                                     CommandSerializers.deps.deserialize(in, version),
-                                                     KeySerializers.key.deserialize(in, version),
-                                                     CommandSerializers.timestamp.deserialize(in, version));
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            Keys readScope = KeySerializers.keys.deserialize(in, version);
+            long waitForEpoch = in.readUnsignedVInt();
+            long executeAtEpoch = in.readUnsignedVInt() + waitForEpoch;
+            return ReadData.SerializerSupport.create(txnId, readScope, executeAtEpoch, waitForEpoch);
         }
 
         @Override
-        public long serializedBodySize(ReadData read, int version)
+        public long serializedSize(ReadData read, int version)
         {
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                   + CommandSerializers.txn.serializedSize(read.txn, version)
-                   + CommandSerializers.deps.serializedSize(read.deps, version)
-                   + KeySerializers.key.serializedSize(read.homeKey, version)
-                   + CommandSerializers.timestamp.serializedSize(read.executeAt, version);
+                   + KeySerializers.keys.serializedSize(read.readScope, version)
+                   + TypeSizes.sizeofUnsignedVInt(read.waitForEpoch())
+                   + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
         }
     };
 
     public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<ReadReply>()
     {
+        // TODO (now): use something other than ordinal
+        final ReadNack[] nacks = ReadNack.values();
+
         @Override
         public void serialize(ReadReply reply, DataOutputPlus out, int version) throws IOException
         {
-            out.writeBoolean(reply.isOK());
-
-            // ReadNack
-            if (!reply.isOK())
+            if (!reply.isOk())
+            {
+                out.writeByte(1 + ((ReadNack) reply).ordinal());
                 return;
+            }
 
+            out.writeByte(0);
             ReadOk readOk = (ReadOk) reply;
             AccordData.serializer.serialize((AccordData) readOk.data, out, version);
         }
@@ -85,10 +87,9 @@ public class ReadDataSerializers
         @Override
         public ReadReply deserialize(DataInputPlus in, int version) throws IOException
         {
-            boolean isOK = in.readBoolean();
-
-            if (!isOK)
-                return new ReadNack();
+            int id = in.readByte();
+            if (id != 0)
+                return nacks[id - 1];
 
             return new ReadOk(AccordData.serializer.deserialize(in, version));
         }
@@ -96,13 +97,11 @@ public class ReadDataSerializers
         @Override
         public long serializedSize(ReadReply reply, int version)
         {
-            long size = TypeSizes.sizeof(reply.isOK());
-
-            if (!reply.isOK())
-                return size;
+            if (!reply.isOk())
+                return TypeSizes.BYTE_SIZE;
 
             ReadOk readOk = (ReadOk) reply;
-            return size + AccordData.serializer.serializedSize((AccordData) readOk.data, version);
+            return TypeSizes.BYTE_SIZE + AccordData.serializer.serializedSize((AccordData) readOk.data, version);
         }
     };
 }

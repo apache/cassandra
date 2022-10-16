@@ -38,15 +38,15 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStoredField
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new StoredNavigableMap<>(AccordState.Kind.FULL));
+    private static final long EMPTY_SIZE = ObjectSizes.measureDeep(new StoredNavigableMap<>(AccordState.ReadWrite.FULL));
     private NavigableMap<K, V> map = null;
     private NavigableMap<K, V> view = null;
     private NavigableMap<K, V> additions = null;
-    private NavigableSet<K> deletions = null;
+    private NavigableMap<K, V> deletions = null;
 
-    public StoredNavigableMap(AccordState.Kind kind)
+    public StoredNavigableMap(AccordState.ReadWrite readWrite)
     {
-        super(kind);
+        super(readWrite);
     }
 
     @Override
@@ -126,8 +126,27 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
         if (!wasCleared())
         {
             if (deletions == null)
-                deletions = new TreeSet<>();
-            deletions.add(key);
+                deletions = new TreeMap<>();
+            deletions.put(key, null);
+        }
+        if (additions != null)
+            additions.remove(key);
+    }
+
+    // TODO: this is a kludge, but will suffice until we can more fully rework efficiency of waitingOn collections
+    // this is semantically equivalent to blindRemove(key) but stores the value we believe was bound to key on removal
+    // so that it can be used by forEachDeletion
+    public void blindRemove(K key, V value)
+    {
+        preBlindChange();
+        if (hasValue())
+            map.remove(key);
+
+        if (!wasCleared())
+        {
+            if (deletions == null)
+                deletions = new TreeMap<>();
+            deletions.put(key, value);
         }
         if (additions != null)
             additions.remove(key);
@@ -180,6 +199,12 @@ public class StoredNavigableMap<K extends Comparable<?>, V> extends AbstractStor
     }
 
     public void forEachDeletion(Consumer<K> consumer)
+    {
+        if (deletions != null)
+            deletions.keySet().forEach(consumer);
+    }
+
+    public void forEachDeletion(BiConsumer<K, V> consumer)
     {
         if (deletions != null)
             deletions.forEach(consumer);

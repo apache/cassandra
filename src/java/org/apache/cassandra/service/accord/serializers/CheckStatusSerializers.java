@@ -20,17 +20,30 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import accord.api.Result;
+import accord.api.RoutingKey;
+import accord.local.SaveStatus;
+import accord.local.Status.Durability;
 import accord.messages.CheckStatus;
 import accord.messages.CheckStatus.CheckStatusNack;
 import accord.messages.CheckStatus.CheckStatusOk;
 import accord.messages.CheckStatus.CheckStatusOkFull;
 import accord.messages.CheckStatus.CheckStatusReply;
+import accord.primitives.AbstractRoute;
+import accord.primitives.Ballot;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialTxn;
+import accord.primitives.RoutingKeys;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
+import accord.primitives.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.db.AccordData;
 
+import static accord.messages.CheckStatus.SerializationSupport.createOk;
 import static org.apache.cassandra.service.accord.serializers.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializeNullable;
 import static org.apache.cassandra.service.accord.serializers.NullableSerializer.serializedSizeNullable;
@@ -39,31 +52,37 @@ public class CheckStatusSerializers
 {
     public static final IVersionedSerializer<CheckStatus> request = new IVersionedSerializer<CheckStatus>()
     {
+        final CheckStatus.IncludeInfo[] infos = CheckStatus.IncludeInfo.values();
+
         @Override
         public void serialize(CheckStatus check, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(check.txnId, out, version);
-            KeySerializers.key.serialize(check.key, out, version);
-            out.writeLong(check.epoch);
-            out.writeInt(check.includeInfo.ordinal());
+            KeySerializers.routingKeys.serialize(check.someKeys, out, version);
+            out.writeUnsignedVInt(check.startEpoch);
+            out.writeUnsignedVInt(check.endEpoch - check.startEpoch);
+            out.writeByte(check.includeInfo.ordinal());
         }
 
         @Override
         public CheckStatus deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new CheckStatus(CommandSerializers.txnId.deserialize(in, version),
-                                   KeySerializers.key.deserialize(in, version),
-                                   in.readLong(),
-                                   CheckStatus.IncludeInfo.values()[in.readInt()]);
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            RoutingKeys someKeys = KeySerializers.routingKeys.deserialize(in, version);
+            long startEpoch = in.readUnsignedVInt();
+            long endEpoch = in.readUnsignedVInt() + startEpoch;
+            CheckStatus.IncludeInfo info = infos[in.readByte()];
+            return new CheckStatus(txnId, someKeys, startEpoch, endEpoch, info);
         }
 
         @Override
         public long serializedSize(CheckStatus check, int version)
         {
             return CommandSerializers.txnId.serializedSize(check.txnId, version)
-                   + KeySerializers.key.serializedSize(check.key, version)
-                   + TypeSizes.LONG_SIZE
-                   + TypeSizes.INT_SIZE;
+                   + KeySerializers.routingKeys.serializedSize(check.someKeys, version)
+                   + TypeSizes.sizeofUnsignedVInt(check.startEpoch)
+                   + TypeSizes.sizeofUnsignedVInt(check.endEpoch - check.startEpoch)
+                   + TypeSizes.BYTE_SIZE;
         }
     };
 
@@ -82,22 +101,23 @@ public class CheckStatusSerializers
                 return;
             }
 
-            CheckStatusOk statusOk = (CheckStatusOk) reply;
+            CheckStatusOk ok = (CheckStatusOk) reply;
             out.write(reply instanceof CheckStatusOkFull ? FULL : OK);
-            CommandSerializers.status.serialize(statusOk.status, out, version);
-            CommandSerializers.ballot.serialize(statusOk.promised, out, version);
-            CommandSerializers.ballot.serialize(statusOk.accepted, out, version);
-            out.writeBoolean(statusOk.isCoordinating);
-            out.writeBoolean(statusOk.hasExecutedOnAllShards);
+            CommandSerializers.saveStatus.serialize(ok.saveStatus, out, version);
+            CommandSerializers.ballot.serialize(ok.promised, out, version);
+            CommandSerializers.ballot.serialize(ok.accepted, out, version);
+            serializeNullable(ok.executeAt, out, version, CommandSerializers.timestamp);
+            out.writeBoolean(ok.isCoordinating);
+            CommandSerializers.durability.serialize(ok.durability, out, version);
+            serializeNullable(ok.route, out, version, KeySerializers.abstractRoute);
+            serializeNullable(ok.homeKey, out, version, KeySerializers.routingKey);
 
             if (!(reply instanceof CheckStatusOkFull))
                 return;
 
-            CheckStatusOkFull okFull = (CheckStatusOkFull) statusOk;
-            serializeNullable(okFull.txn, out, version, CommandSerializers.txn);
-            serializeNullable(okFull.homeKey, out, version, KeySerializers.key);
-            serializeNullable(okFull.executeAt, out, version, CommandSerializers.timestamp);
-            CommandSerializers.deps.serialize(okFull.deps, out, version);
+            CheckStatusOkFull okFull = (CheckStatusOkFull) ok;
+            serializeNullable(okFull.partialTxn, out, version, CommandSerializers.partialTxn);
+            serializeNullable(okFull.committedDeps, out, version, DepsSerializer.partialDeps);
             serializeNullable(okFull.writes, out, version, CommandSerializers.writes);
             serializeNullable((AccordData) okFull.result, out, version, AccordData.serializer);
         }
@@ -112,23 +132,25 @@ public class CheckStatusSerializers
                 case NACK:
                     return CheckStatusNack.nack();
                 case OK:
-                    return new CheckStatusOk(CommandSerializers.status.deserialize(in, version),
-                                             CommandSerializers.ballot.deserialize(in, version),
-                                             CommandSerializers.ballot.deserialize(in, version),
-                                             in.readBoolean(),
-                                             in.readBoolean());
                 case FULL:
-                    return new CheckStatusOkFull(CommandSerializers.status.deserialize(in, version),
-                                                 CommandSerializers.ballot.deserialize(in, version),
-                                                 CommandSerializers.ballot.deserialize(in, version),
-                                                 in.readBoolean(),
-                                                 in.readBoolean(),
-                                                 deserializeNullable(in, version, CommandSerializers.txn),
-                                                 deserializeNullable(in, version, KeySerializers.key),
-                                                 deserializeNullable(in, version, CommandSerializers.timestamp),
-                                                 CommandSerializers.deps.deserialize(in, version),
-                                                 deserializeNullable(in, version, CommandSerializers.writes),
-                                                 deserializeNullable(in, version, AccordData.serializer));
+                    SaveStatus status = CommandSerializers.saveStatus.deserialize(in, version);
+                    Ballot promised = CommandSerializers.ballot.deserialize(in, version);
+                    Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
+                    Timestamp executeAt = deserializeNullable(in, version, CommandSerializers.timestamp);
+                    boolean isCoordinating = in.readBoolean();
+                    Durability durability = CommandSerializers.durability.deserialize(in, version);
+                    AbstractRoute route = deserializeNullable(in, version, KeySerializers.abstractRoute);
+                    RoutingKey homeKey = deserializeNullable(in, version, KeySerializers.routingKey);
+
+                    if (kind == OK)
+                        return createOk(status, promised, accepted, executeAt, isCoordinating, durability, route, homeKey);
+
+                    PartialTxn partialTxn = deserializeNullable(in, version, CommandSerializers.partialTxn);
+                    PartialDeps committedDeps = deserializeNullable(in, version, DepsSerializer.partialDeps);
+                    Writes writes = deserializeNullable(in, version, CommandSerializers.writes);
+                    Result result = deserializeNullable(in, version, AccordData.serializer);
+                    return createOk(status, promised, accepted, executeAt, isCoordinating, durability, route, homeKey,
+                                    partialTxn, committedDeps, writes, result);
             }
         }
 
@@ -139,24 +161,24 @@ public class CheckStatusSerializers
             if (!reply.isOk())
                 return size;
 
-            CheckStatusOk statusOk = (CheckStatusOk) reply;
-            size += CommandSerializers.status.serializedSize(statusOk.status, version);
-            size += CommandSerializers.ballot.serializedSize(statusOk.promised, version);
-            size += CommandSerializers.ballot.serializedSize(statusOk.accepted, version);
+            CheckStatusOk ok = (CheckStatusOk) reply;
+            size += CommandSerializers.saveStatus.serializedSize(ok.saveStatus, version);
+            size += CommandSerializers.ballot.serializedSize(ok.promised, version);
+            size += CommandSerializers.ballot.serializedSize(ok.accepted, version);
+            size += serializedSizeNullable(ok.executeAt, version, CommandSerializers.timestamp);
             size += TypeSizes.BOOL_SIZE;
-            size += TypeSizes.BOOL_SIZE;
+            size += CommandSerializers.durability.serializedSize(ok.durability, version);
+            size += serializedSizeNullable(ok.homeKey, version, KeySerializers.routingKey);
+            size += serializedSizeNullable(ok.route, version, KeySerializers.abstractRoute);
 
             if (!(reply instanceof CheckStatusOkFull))
                 return size;
 
-            CheckStatusOkFull okFull = (CheckStatusOkFull) statusOk;
-            size += serializedSizeNullable(okFull.txn, version, CommandSerializers.txn);
-            size += serializedSizeNullable(okFull.homeKey, version, KeySerializers.key);
-            size += serializedSizeNullable(okFull.executeAt, version, CommandSerializers.timestamp);
-            size += CommandSerializers.deps.serializedSize(okFull.deps, version);
+            CheckStatusOkFull okFull = (CheckStatusOkFull) ok;
+            size += serializedSizeNullable(okFull.partialTxn, version, CommandSerializers.partialTxn);
+            size += serializedSizeNullable(okFull.committedDeps, version, DepsSerializer.partialDeps);
             size += serializedSizeNullable(okFull.writes, version, CommandSerializers.writes);
             size += serializedSizeNullable((AccordData) okFull.result, version, AccordData.serializer);
-
             return size;
         }
     };

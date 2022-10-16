@@ -27,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Preconditions;
 
 import org.slf4j.Logger;
@@ -35,9 +37,9 @@ import org.slf4j.LoggerFactory;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandsForKey;
-import accord.local.PartialCommand;
 import accord.local.Status;
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.service.accord.store.StoredLong;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
@@ -46,7 +48,12 @@ import org.apache.cassandra.service.accord.store.StoredValue;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.assertj.core.util.VisibleForTesting;
 
+import static accord.local.CommandsForKey.CommandTimeseries.TestDep.ANY_DEPS;
+import static accord.local.CommandsForKey.CommandTimeseries.TestDep.WITHOUT;
+import static accord.local.CommandsForKey.CommandTimeseries.TestKind.RorWs;
+import static accord.primitives.Txn.Kind.WRITE;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySetChanges;
 
@@ -111,30 +118,23 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         }
     }
 
-    public class Series implements CommandTimeseries
+    public class Series<T> implements CommandTimeseries<T>
     {
         public final SeriesKind kind;
         public final StoredNavigableMap<Timestamp, ByteBuffer> map;
+        private final Function<AccordPartialCommand, T> translate;
 
-        public Series(AccordState.Kind stateKind, SeriesKind kind)
+        public Series(ReadWrite readWrite, SeriesKind kind, Function<AccordPartialCommand, T> translate)
         {
             this.kind = kind;
-            map = new StoredNavigableMap<>(stateKind);
-        }
-
-        @Override
-        public PartialCommand.WithDeps get(Timestamp timestamp)
-        {
-            ByteBuffer bytes = map.getView().get(timestamp);
-            if (bytes == null)
-                return null;
-            return AccordPartialCommand.WithDeps.serializer.deserialize(commandStore, bytes);
+            map = new StoredNavigableMap<>(readWrite);
+            this.translate = translate;
         }
 
         @Override
         public void add(Timestamp timestamp, Command command)
         {
-            map.blindPut(timestamp, AccordPartialCommand.WithDeps.serializer.serialize(command));
+            map.blindPut(timestamp, AccordPartialCommand.serializer.serialize(new AccordPartialCommand(key, command)));
         }
 
         @Override
@@ -143,9 +143,9 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
             map.blindRemove(timestamp);
         }
 
-        private Stream<PartialCommand.WithDeps> idsToCommands(Collection<ByteBuffer> blobs)
+        private Stream<AccordPartialCommand> idsToCommands(Collection<ByteBuffer> blobs)
         {
-            return blobs.stream().map(blob -> AccordPartialCommand.WithDeps.serializer.deserialize(commandStore, blob));
+            return blobs.stream().map(blob -> AccordPartialCommand.serializer.deserialize(AccordCommandsForKey.this, commandStore, blob));
         }
 
         @Override
@@ -155,27 +155,37 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         }
 
         @Override
-        public Stream<PartialCommand.WithDeps> before(Timestamp timestamp)
+        public Stream<T> before(Timestamp timestamp, TestKind testKind, TestDep testDep, @Nullable TxnId depId, TestStatus testStatus, @Nullable Status status)
         {
-            return idsToCommands(map.getView().headMap(timestamp, false).values());
+            return idsToCommands(map.getView().headMap(timestamp, false).values())
+                   .filter(cmd -> testKind == RorWs || cmd.kind() == WRITE)
+                   .filter(cmd -> testDep == ANY_DEPS || (cmd.hasDep(depId) ^ (testDep == WITHOUT)))
+                   .filter(cmd -> TestStatus.test(cmd.status(), testStatus, status))
+                   .map(translate);
         }
 
         @Override
-        public Stream<PartialCommand.WithDeps> after(Timestamp timestamp)
+        public Stream<T> after(Timestamp timestamp, TestKind testKind, TestDep testDep, @Nullable TxnId depId, TestStatus testStatus, @Nullable Status status)
         {
-            return idsToCommands(map.getView().tailMap(timestamp, false).values());
+            return idsToCommands(map.getView().tailMap(timestamp, false).values())
+                   .filter(cmd -> testKind == RorWs || cmd.kind() == WRITE)
+                   .filter(cmd -> testDep == ANY_DEPS || (cmd.hasDep(depId) ^ (testDep == WITHOUT)))
+                   .filter(cmd -> TestStatus.test(cmd.status(), testStatus, status))
+                   .map(translate);
         }
 
-        @Override
-        public Stream<PartialCommand.WithDeps> between(Timestamp min, Timestamp max)
-        {
-            return idsToCommands(map.getView().subMap(min, true, max, true).values());
-        }
-
-        @Override
-        public Stream<PartialCommand.WithDeps> all()
+        @VisibleForTesting
+        public Stream<AccordPartialCommand> all()
         {
             return idsToCommands(map.getView().values());
+        }
+
+        public AccordPartialCommand get(Timestamp timestamp)
+        {
+            ByteBuffer blob = map.getView().get(timestamp);
+            if (blob == null)
+                return null;
+            return AccordPartialCommand.serializer.deserialize(AccordCommandsForKey.this, commandStore, blob);
         }
     }
 
@@ -186,22 +196,22 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     public final StoredLong lastExecutedMicros;
     public final StoredValue<Timestamp> lastWriteTimestamp;
     public final StoredSet.Navigable<Timestamp> blindWitnessed;
-    public final Series uncommitted;
-    public final Series committedById;
-    public final Series committedByExecuteAt;
+    public final Series<TxnIdWithExecuteAt> uncommitted;
+    public final Series<TxnId> committedById;
+    public final Series<TxnId> committedByExecuteAt;
 
     public AccordCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
     {
         this.commandStore = commandStore;
         this.key = key;
-        maxTimestamp = new StoredValue<>(kind());
-        lastExecutedTimestamp = new StoredValue<>(kind());
-        lastExecutedMicros = new StoredLong(kind());
-        lastWriteTimestamp = new StoredValue<>(kind());
-        blindWitnessed = new StoredSet.Navigable<>(kind());
-        uncommitted = new Series(kind(), SeriesKind.UNCOMMITTED);
-        committedById = new Series(kind(), SeriesKind.COMMITTED_BY_ID);
-        committedByExecuteAt = new Series(kind(), SeriesKind.COMMITTED_BY_EXECUTE_AT);
+        maxTimestamp = new StoredValue<>(rw());
+        lastExecutedTimestamp = new StoredValue<>(rw());
+        lastExecutedMicros = new StoredLong(rw());
+        lastWriteTimestamp = new StoredValue<>(rw());
+        blindWitnessed = new StoredSet.Navigable<>(rw());
+        uncommitted = new Series<>(rw(), SeriesKind.UNCOMMITTED, x -> x);
+        committedById = new Series<>(rw(), SeriesKind.COMMITTED_BY_ID, AccordPartialCommand::txnId);
+        committedByExecuteAt = new Series<>(rw(), SeriesKind.COMMITTED_BY_EXECUTE_AT, AccordPartialCommand::txnId);
     }
 
     @Override
@@ -308,19 +318,19 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     }
 
     @Override
-    public CommandTimeseries uncommitted()
+    public Series<TxnIdWithExecuteAt> uncommitted()
     {
         return uncommitted;
     }
 
     @Override
-    public CommandTimeseries committedById()
+    public Series<TxnId> committedById()
     {
         return committedById;
     }
 
     @Override
-    public CommandTimeseries committedByExecuteAt()
+    public Series<TxnId> committedByExecuteAt()
     {
         return committedByExecuteAt;
     }
@@ -359,18 +369,18 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
 
     public void updateSummaries(AccordCommand command)
     {
-        if (command.status.get().hasBeen(Status.Committed))
+        if (command.status().hasBeen(Status.Committed))
         {
-            if (command.status.previous() == null || !command.status.previous().hasBeen(Status.Committed))
+            if (command.status.previous() == null || !command.status.previous().status.hasBeen(Status.Committed))
                 uncommitted.map.blindRemove(command.txnId());
 
-            ByteBuffer bb = AccordPartialCommand.WithDeps.serializer.serialize(command);
-            committedById.map.blindPut(command.txnId(), bb);
-            committedByExecuteAt.map.blindPut(command.executeAt(), bb);
+            ByteBuffer partialCommand = AccordPartialCommand.serializer.serialize(new AccordPartialCommand(key, command));
+            committedById.map.blindPut(command.txnId(), partialCommand);
+            committedByExecuteAt.map.blindPut(command.executeAt(), partialCommand);
         }
         else
-        {
-            uncommitted.map.blindPut(command.txnId(), AccordPartialCommand.WithDeps.serializer.serialize(command));
+        {   // TODO: somebody is inserting large buffers into this map (presumably from loading from disk)
+            uncommitted.map.blindPut(command.txnId(), AccordPartialCommand.serializer.serialize(new AccordPartialCommand(key, command)));
         }
     }
 
@@ -450,10 +460,6 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
                ", lastExecutedTimestamp=" + lastExecutedTimestamp +
                ", lastExecutedMicros=" + lastExecutedMicros +
                ", lastWriteTimestamp=" + lastWriteTimestamp +
-//               ", blindWitnessed=" + blindWitnessed +
-//               ", uncommitted=" + uncommitted.map +
-//               ", committedById=" + committedById.map +
-//               ", committedByExecuteAt=" + committedByExecuteAt.map +
                '}';
     }
 }
