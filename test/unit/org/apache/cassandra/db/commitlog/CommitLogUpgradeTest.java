@@ -53,7 +53,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.utils.TestKiller;
 
 /**
  * Note: if you are looking to create new test cases for this test, check out
@@ -77,7 +77,7 @@ public class CommitLogUpgradeTest
     static final String CELLNAME = "name";
 
     private JVMStabilityInspector.Killer originalKiller;
-    private KillerForTests killerForTests;
+    private TestKiller killerForTests;
     private boolean shouldBeKilled = false;
 
     static TableMetadata metadata =
@@ -91,7 +91,7 @@ public class CommitLogUpgradeTest
     @Before
     public void prepareToBeKilled()
     {
-        killerForTests = new KillerForTests();
+        killerForTests = new TestKiller();
         originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
     }
 

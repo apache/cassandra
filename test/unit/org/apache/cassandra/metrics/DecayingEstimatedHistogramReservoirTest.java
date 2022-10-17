@@ -52,7 +52,7 @@ import static org.quicktheories.generators.SourceDSL.*;
 @RunWith(Enclosed.class)
 public class DecayingEstimatedHistogramReservoirTest
 {
-    public static class NonParameterizedTests
+    public static class NonParameterizedTest
     {
         public static final int numExamples = 1000000;
 
@@ -140,7 +140,7 @@ public class DecayingEstimatedHistogramReservoirTest
     }
 
     @RunWith(Parameterized.class)
-    public static class ParameterizedTests
+    public static class ParameterizedTest
     {
         private static final double DOUBLE_ASSERT_DELTA = 0;
 

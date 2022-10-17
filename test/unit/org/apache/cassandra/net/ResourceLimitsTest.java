@@ -25,7 +25,7 @@ import java.util.function.LongFunction;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.utils.TestKiller;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -158,7 +158,7 @@ public class ResourceLimitsTest
     public void negativeConcurrentUsingValueKillsJVMTest()
     {
         DatabaseDescriptor.daemonInitialization(); // Prevent NPE for DatabaseDescriptor.getDiskFailurePolicy
-        KillerForTests killerForTests = new KillerForTests();
+        TestKiller killerForTests = new TestKiller();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         try
         {

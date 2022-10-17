@@ -54,7 +54,7 @@ public class JVMStabilityInspectorTest
     @Test
     public void testKill() throws Exception
     {
-        KillerForTests killerForTests = new KillerForTests();
+        TestKiller killerForTests = new TestKiller();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
 
         Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
@@ -162,7 +162,7 @@ public class JVMStabilityInspectorTest
     @Test
     public void fileHandleTest()
     {
-        KillerForTests killerForTests = new KillerForTests();
+        TestKiller killerForTests = new TestKiller();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
 
         try

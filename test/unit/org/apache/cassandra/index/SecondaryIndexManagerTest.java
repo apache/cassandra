@@ -40,7 +40,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.utils.TestKiller;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.junit.Assert.assertEquals;
@@ -548,7 +548,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
     private void handleJVMStablityOnFailedCreate(Throwable throwable, boolean shouldKillJVM)
     {
-        KillerForTests killerForTests = new KillerForTests();
+        TestKiller killerForTests = new TestKiller();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
 
         try
@@ -589,7 +589,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         String indexName = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c) USING '%s'", TestingIndex.class.getName()));
         waitForIndex(KEYSPACE, tableName, indexName);
 
-        KillerForTests killerForTests = new KillerForTests();
+        TestKiller killerForTests = new TestKiller();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
 
         try

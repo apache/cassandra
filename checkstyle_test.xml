@@ -59,6 +59,15 @@
 
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
+
+      <module name="TypeName">
+          <property name="format" value="^(?!.*?(?:Tests)).*$"/>
+          <property name="applyToPublic" value="true"/>
+          <property name="applyToProtected" value="false"/>
+          <property name="applyToPrivate" value="false"/>
+          <property name="applyToPackage" value="false"/>
+          <property name="tokens" value="CLASS_DEF"/>
+      </module>
   </module>
 
 </module>

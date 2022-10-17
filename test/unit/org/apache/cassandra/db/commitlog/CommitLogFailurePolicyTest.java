@@ -30,7 +30,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.utils.TestKiller;
 
 public class CommitLogFailurePolicyTest
 {
@@ -72,7 +72,7 @@ public class CommitLogFailurePolicyTest
         daemon.completeSetup(); //startup must be completed, otherwise commit log failure must kill JVM regardless of failure policy
         StorageService.instance.registerDaemon(daemon);
 
-        KillerForTests killerForTests = new KillerForTests();
+        TestKiller killerForTests = new TestKiller();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
         try
@@ -96,7 +96,7 @@ public class CommitLogFailurePolicyTest
         CassandraDaemon daemon = new CassandraDaemon();
         StorageService.instance.registerDaemon(daemon);
 
-        KillerForTests killerForTests = new KillerForTests();
+        TestKiller killerForTests = new TestKiller();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
         try
@@ -121,7 +121,7 @@ public class CommitLogFailurePolicyTest
         daemon.completeSetup(); //startup must be completed, otherwise commit log failure must kill JVM regardless of failure policy
         StorageService.instance.registerDaemon(daemon);
 
-        KillerForTests killerForTests = new KillerForTests();
+        TestKiller killerForTests = new TestKiller();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
         try
