@@ -30,7 +30,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.utils.TestKiller;
 
 public class CommitLogFailurePolicyTest
 {
@@ -72,15 +72,15 @@ public class CommitLogFailurePolicyTest
         daemon.completeSetup(); //startup must be completed, otherwise commit log failure must kill JVM regardless of failure policy
         StorageService.instance.registerDaemon(daemon);
 
-        KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        TestKiller testKiller = new TestKiller();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(testKiller);
         Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
         try
         {
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);
             CommitLog.handleCommitError("Testing die policy", new Throwable());
-            Assert.assertTrue(killerForTests.wasKilled());
-            Assert.assertFalse(killerForTests.wasKilledQuietly()); //only killed quietly on startup failure
+            Assert.assertTrue(testKiller.wasKilled());
+            Assert.assertFalse(testKiller.wasKilledQuietly()); //only killed quietly on startup failure
         }
         finally
         {
@@ -96,16 +96,16 @@ public class CommitLogFailurePolicyTest
         CassandraDaemon daemon = new CassandraDaemon();
         StorageService.instance.registerDaemon(daemon);
 
-        KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        TestKiller testKiller = new TestKiller();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(testKiller);
         Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
         try
         {
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
             CommitLog.handleCommitError("Testing ignore policy", new Throwable());
             //even though policy is ignore, JVM must die because Daemon has not finished initializing
-            Assert.assertTrue(killerForTests.wasKilled());
-            Assert.assertTrue(killerForTests.wasKilledQuietly()); //killed quietly due to startup failure
+            Assert.assertTrue(testKiller.wasKilled());
+            Assert.assertTrue(testKiller.wasKilledQuietly()); //killed quietly due to startup failure
         }
         finally
         {
@@ -121,15 +121,15 @@ public class CommitLogFailurePolicyTest
         daemon.completeSetup(); //startup must be completed, otherwise commit log failure must kill JVM regardless of failure policy
         StorageService.instance.registerDaemon(daemon);
 
-        KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        TestKiller testKiller = new TestKiller();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(testKiller);
         Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
         try
         {
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
             CommitLog.handleCommitError("Testing ignore policy", new Throwable());
             //error policy is set to IGNORE, so JVM must not be killed if error ocurs after startup
-            Assert.assertFalse(killerForTests.wasKilled());
+            Assert.assertFalse(testKiller.wasKilled());
         }
         finally
         {

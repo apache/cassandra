@@ -54,8 +54,8 @@ public class JVMStabilityInspectorTest
     @Test
     public void testKill() throws Exception
     {
-        KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        TestKiller testKiller = new TestKiller();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(testKiller);
 
         Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
         Config.CommitFailurePolicy oldCommitPolicy = DatabaseDescriptor.getCommitFailurePolicy();
@@ -72,35 +72,35 @@ public class JVMStabilityInspectorTest
 
                 try
                 {
-                    killerForTests.reset();
+                    testKiller.reset();
                     JVMStabilityInspector.inspectThrowable(new IOException());
-                    assertFalse(killerForTests.wasKilled());
+                    assertFalse(testKiller.wasKilled());
 
                     DatabaseDescriptor.setDiskFailurePolicy(Config.DiskFailurePolicy.die);
-                    killerForTests.reset();
+                    testKiller.reset();
                     JVMStabilityInspector.inspectThrowable(new FSReadError(new IOException(), "blah"));
-                    assertTrue(killerForTests.wasKilled());
+                    assertTrue(testKiller.wasKilled());
 
-                    killerForTests.reset();
+                    testKiller.reset();
                     JVMStabilityInspector.inspectThrowable(new FSWriteError(new IOException(), "blah"));
-                    assertTrue(killerForTests.wasKilled());
+                    assertTrue(testKiller.wasKilled());
 
-                    killerForTests.reset();
+                    testKiller.reset();
                     JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(new IOException(), "blah"));
-                    assertTrue(killerForTests.wasKilled());
+                    assertTrue(testKiller.wasKilled());
 
-                    killerForTests.reset();
+                    testKiller.reset();
                     JVMStabilityInspector.inspectThrowable(new RuntimeException(new CorruptSSTableException(new IOException(), "blah")));
-                    assertTrue(killerForTests.wasKilled());
+                    assertTrue(testKiller.wasKilled());
 
                     DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);
-                    killerForTests.reset();
+                    testKiller.reset();
                     JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
-                    assertTrue(killerForTests.wasKilled());
+                    assertTrue(testKiller.wasKilled());
 
-                    killerForTests.reset();
+                    testKiller.reset();
                     JVMStabilityInspector.inspectThrowable(new Exception(new IOException()));
-                    assertFalse(killerForTests.wasKilled());
+                    assertFalse(testKiller.wasKilled());
                 }
                 catch (Exception | Error e)
                 {
@@ -162,34 +162,34 @@ public class JVMStabilityInspectorTest
     @Test
     public void fileHandleTest()
     {
-        KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        TestKiller testKiller = new TestKiller();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(testKiller);
 
         try
         {
-            killerForTests.reset();
+            testKiller.reset();
             JVMStabilityInspector.inspectThrowable(new SocketException("Should not fail"));
-            assertFalse(killerForTests.wasKilled());
+            assertFalse(testKiller.wasKilled());
 
-            killerForTests.reset();
+            testKiller.reset();
             JVMStabilityInspector.inspectThrowable(new FileNotFoundException("Also should not fail"));
-            assertFalse(killerForTests.wasKilled());
+            assertFalse(testKiller.wasKilled());
 
-            killerForTests.reset();
+            testKiller.reset();
             JVMStabilityInspector.inspectThrowable(new SocketException());
-            assertFalse(killerForTests.wasKilled());
+            assertFalse(testKiller.wasKilled());
 
-            killerForTests.reset();
+            testKiller.reset();
             JVMStabilityInspector.inspectThrowable(new FileNotFoundException());
-            assertFalse(killerForTests.wasKilled());
+            assertFalse(testKiller.wasKilled());
 
-            killerForTests.reset();
+            testKiller.reset();
             JVMStabilityInspector.inspectThrowable(new SocketException("Too many open files"));
-            assertTrue(killerForTests.wasKilled());
+            assertTrue(testKiller.wasKilled());
 
-            killerForTests.reset();
+            testKiller.reset();
             JVMStabilityInspector.inspectCommitLogThrowable(new FileNotFoundException("Too many open files"));
-            assertTrue(killerForTests.wasKilled());
+            assertTrue(testKiller.wasKilled());
 
         }
         finally
