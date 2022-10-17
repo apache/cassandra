@@ -6,6 +6,7 @@
  * Creating of a keyspace on insufficient number of replicas should filter out gosspping-only members (CASSANDRA-17759)
  * Only use statically defined subcolumns when determining column definition for supercolumn cell (CASSANDRA-14113)
 Merged from 3.0:
+ * Rename tests ending on 'Tests' to they are picked for execution in CI (CASSANDRA-17964)
  * Fix auto-completing "WITH" when creating a materialized view (CASSANDRA-17879)
  * Fix scrubber falling into infinite loop when the last partition is broken (CASSANDRA-17862)
  * Improve libjemalloc resolution in bin/cassandra (CASSANDRA-15767)
