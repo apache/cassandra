@@ -1,4 +1,5 @@
 3.0.28
+ * Rename tests ending on 'Tests' to they are picked for execution in CI (CASSANDRA-17964)
  * Fix auto-completing "WITH" when creating a materialized view (CASSANDRA-17879)
  * Fix scrubber falling into infinite loop when the last partition is broken (CASSANDRA-17862)
  * Improve libjemalloc resolution in bin/cassandra (CASSANDRA-15767)
