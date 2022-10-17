@@ -1,4 +1,5 @@
 3.11.14
+ * Suppress CVE-2022-42003 and CVE-2022-42004 (CASSANDRA-17966)
  * Make LongBufferPoolTest insensitive to timing (CASSANDRA-16681)
  * Suppress CVE-2022-25857 and other snakeyaml CVEs (CASSANDRA-17907)
  * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)
