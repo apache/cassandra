@@ -139,9 +139,9 @@
     <property name="jacoco.partials.dir" value="${jacoco.export.dir}/partials" />
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
-    <property name="jacoco.version" value="0.8.6"/>
+    <property name="jacoco.version" value="0.8.8"/>
 
-    <property name="byteman.version" value="4.0.6"/>
+    <property name="byteman.version" value="4.0.20"/>
     <property name="jamm.version" value="0.3.2"/>
     <property name="ecj.version" value="4.6.1"/>
     <property name="ohc.version" value="0.5.1"/>
