@@ -1610,9 +1610,9 @@ jobs:
     - REPEATED_UTEST_VNODES: false
     - REPEATED_UTEST_COUNT: 100
     - REPEATED_UTEST_STOP_ON_FAILURE: false
-    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_NAME: org.apache.cassandra.distributed.test.VirtualTableLogsTest
     - REPEATED_DTEST_VNODES: false
-    - REPEATED_DTEST_COUNT: 100
+    - REPEATED_DTEST_COUNT: 500
     - REPEATED_DTEST_STOP_ON_FAILURE: false
     - REPEATED_UPGRADE_DTEST_NAME: null
     - REPEATED_UPGRADE_DTEST_COUNT: 100
@@ -3743,10 +3743,10 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_UTEST_TARGET: testsome
-    - REPEATED_UTEST_CLASS: org.apache.cassandra.db.virtual.LogMessagesTableTest
+    - REPEATED_UTEST_CLASS: org.apache.cassandra.distributed.test.VirtualTableLogsTest
     - REPEATED_UTEST_METHODS: null
     - REPEATED_UTEST_VNODES: false
-    - REPEATED_UTEST_COUNT: 1000
+    - REPEATED_UTEST_COUNT: 500
     - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
