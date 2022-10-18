@@ -1746,7 +1746,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         for (Component component : components)
         {
-            File sourceFile = descriptor.fileFor(component);
+            // Convert a potential RemotePath to a local one since RemotePaths don't support hard links.
+            File sourceFile = new File(descriptor.fileFor(component).absolutePath());
             if (!sourceFile.exists())
                 continue;
             if (null != limiter)
