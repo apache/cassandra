@@ -50,6 +50,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+
 public class MockSchema
 {
     static
@@ -84,7 +86,18 @@ public class MockSchema
         return sstable(generation, size, false, cfs);
     }
 
+    public static SSTableReader sstableWithTimestamp(int generation, long timestamp, ColumnFamilyStore cfs)
+    {
+        return sstable(generation, 0, false, timestamp, cfs);
+    }
+
     public static SSTableReader sstable(int generation, int size, boolean keepRef, ColumnFamilyStore cfs)
+    {
+        return sstable(generation, size, keepRef, System.currentTimeMillis() * 1000, cfs);
+    }
+
+
+    public static SSTableReader sstable(int generation, int size, boolean keepRef, long timestamp, ColumnFamilyStore cfs)
     {
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
@@ -119,9 +132,13 @@ public class MockSchema
             }
         }
         SerializationHeader header = SerializationHeader.make(cfs.metadata, Collections.emptyList());
-        StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata.comparator)
-                                                 .finalizeMetadata(cfs.metadata.partitioner.getClass().getCanonicalName(), 0.01f, -1, header)
-                                                 .get(MetadataType.STATS);
+        MetadataCollector collector = new MetadataCollector(cfs.metadata.comparator);
+        collector.update(new DeletionTime(timestamp, (int) (System.currentTimeMillis() / 1000)));
+        StatsMetadata metadata = (StatsMetadata) collector.finalizeMetadata(cfs.metadata.partitioner.getClass().getCanonicalName(),
+                                                                            0.01f,
+                                                                            -1,
+                                                                            header).get(MetadataType.STATS);
+
         SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
                                                           segmentedFile.sharedCopy(), segmentedFile.sharedCopy(), indexSummary.sharedCopy(),
                                                           new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
