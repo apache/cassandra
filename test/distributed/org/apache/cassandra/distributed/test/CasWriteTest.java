@@ -59,7 +59,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
-public class CasWriteTest extends TestBaseImpl
+public class CasWriteTest extends DistributedTestBaseImpl
 {
     // Sharing the same cluster to boost test speed. Using a pkGen to make sure queries has distinct pk value for paxos instances.
     private static ICluster cluster;

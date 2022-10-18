@@ -55,7 +55,7 @@ import static org.apache.cassandra.utils.FBUtilities.now;
  * but it shows that the file handles for Data/Index files are being leaked.
  */
 @Ignore
-public class ResourceLeakTest extends TestBaseImpl
+public class ResourceLeakTest extends DistributedTestBaseImpl
 {
     // Parameters to adjust while hunting for leaks
     final int numTestLoops = 1;            // Set this value high to crash on leaks, or low when tracking down an issue.

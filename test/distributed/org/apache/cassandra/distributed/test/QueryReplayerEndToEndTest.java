@@ -38,7 +38,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.fqltool.FQLQuery;
 import org.apache.cassandra.fqltool.QueryReplayer;
 
-public class QueryReplayerEndToEndTest extends TestBaseImpl
+public class QueryReplayerEndToEndTest extends DistributedTestBaseImpl
 {
     private final AtomicLong queryStartTimeGenerator = new AtomicLong(1000);
     private final AtomicInteger ckGenerator = new AtomicInteger(1);

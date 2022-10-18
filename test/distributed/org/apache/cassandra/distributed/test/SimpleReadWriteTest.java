@@ -58,7 +58,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  * paging.
  */
 @RunWith(Parameterized.class)
-public class SimpleReadWriteTest extends TestBaseImpl
+public class SimpleReadWriteTest extends DistributedTestBaseImpl
 {
     private static final int NUM_NODES = 4;
     private static final int REPLICATION_FACTOR = 3;

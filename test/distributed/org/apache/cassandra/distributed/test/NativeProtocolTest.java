@@ -46,7 +46,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
-public class NativeProtocolTest extends TestBaseImpl
+public class NativeProtocolTest extends DistributedTestBaseImpl
 {
     @Test
     public void withClientRequests() throws Throwable

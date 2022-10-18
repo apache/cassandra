@@ -34,7 +34,7 @@ import org.apache.cassandra.transport.SimpleClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class InternodeErrorExclusionTest extends TestBaseImpl
+public class InternodeErrorExclusionTest extends DistributedTestBaseImpl
 {
     @BeforeClass
     public static void beforeClass2()

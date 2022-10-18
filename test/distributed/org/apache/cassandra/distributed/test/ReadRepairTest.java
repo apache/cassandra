@@ -72,7 +72,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.fail;
 
-public class ReadRepairTest extends TestBaseImpl
+public class ReadRepairTest extends DistributedTestBaseImpl
 {
     /**
      * Tests basic behaviour of read repair with {@code BLOCKING} read repair strategy.

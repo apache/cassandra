@@ -38,7 +38,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
-public class PartitionDenylistTest extends TestBaseImpl
+public class PartitionDenylistTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(PartitionDenylistTest.class);
     private static final int testReplicationFactor = 3;

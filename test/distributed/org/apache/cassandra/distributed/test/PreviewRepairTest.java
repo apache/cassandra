@@ -84,7 +84,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class PreviewRepairTest extends TestBaseImpl
+public class PreviewRepairTest extends DistributedTestBaseImpl
 {
     @BeforeClass
     public static void setup()

@@ -52,7 +52,7 @@ import static org.apache.cassandra.streaming.messages.StreamMessage.Type.RECEIVE
 import static org.apache.cassandra.streaming.messages.StreamMessage.Type.STREAM;
 import static org.apache.cassandra.streaming.messages.StreamMessage.Type.STREAM_INIT;
 
-public class StreamingTest extends TestBaseImpl
+public class StreamingTest extends DistributedTestBaseImpl
 {
 
     private void testStreaming(int nodes, int replicationFactor, int rowCount, String compactionStrategy) throws Throwable

@@ -1433,7 +1433,7 @@
   <macrodef name="testhelper">
     <attribute name="testdelegate"/>
     <sequential>
-        <taskdef name="testhelper_" classname="org.apache.cassandra.anttasks.TestHelper" classpath="${test.classes}"/>
+        <taskdef name="testhelper_" classname="org.apache.cassandra.anttasks.AntTestHelper" classpath="${test.classes}"/>
         <testhelper_ property="@{testdelegate}"/>
       <fail message="Some test(s) failed.">
         <condition>

@@ -48,10 +48,10 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTree;
 
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.PAXOS_CFM;
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.PAXOS_CFS;
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.createBallots;
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.dk;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.PAXOS_CFM;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.PAXOS_CFS;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.createBallots;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.dk;
 
 public class PaxosRowsTest
 {

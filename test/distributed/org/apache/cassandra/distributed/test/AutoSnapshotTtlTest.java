@@ -39,7 +39,7 @@ import static org.apache.cassandra.distributed.Cluster.build;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.awaitility.Awaitility.await;
 
-public class AutoSnapshotTtlTest extends TestBaseImpl
+public class AutoSnapshotTtlTest extends DistributedTestBaseImpl
 {
     public static final Integer SNAPSHOT_CLEANUP_PERIOD_SECONDS = 1;
     public static final Integer FIVE_SECONDS = 5;
@@ -48,7 +48,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
-        TestBaseImpl.beforeClass();
+        DistributedTestBaseImpl.beforeClass();
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS, 0);
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS, SNAPSHOT_CLEANUP_PERIOD_SECONDS);
         properties.set(CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS, FIVE_SECONDS);

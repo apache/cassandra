@@ -46,7 +46,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
-public class JVMDTestTest extends TestBaseImpl
+public class JVMDTest extends DistributedTestBaseImpl
 {
     @Test
     public void insertTimestampTest() throws IOException

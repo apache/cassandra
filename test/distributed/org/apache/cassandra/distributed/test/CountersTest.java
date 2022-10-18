@@ -29,7 +29,7 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class CountersTest extends TestBaseImpl
+public class CountersTest extends DistributedTestBaseImpl
 {
     @Test
     public void testUpdateCounter() throws Throwable

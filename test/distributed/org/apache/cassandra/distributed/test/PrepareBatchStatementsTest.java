@@ -36,7 +36,7 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
 
-public class PrepareBatchStatementsTest extends TestBaseImpl
+public class PrepareBatchStatementsTest extends DistributedTestBaseImpl
 {
     @Test
     public void testPreparedBatch() throws Exception

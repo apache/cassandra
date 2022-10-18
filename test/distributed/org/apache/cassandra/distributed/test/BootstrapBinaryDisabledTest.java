@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.Shared;
 /**
  * Replaces python dtest bootstrap_test.py::TestBootstrap::test_bootstrap_binary_disabled
  */
-public class BootstrapBinaryDisabledTest extends TestBaseImpl
+public class BootstrapBinaryDisabledTest extends DistributedTestBaseImpl
 {
     @Test
     public void test() throws IOException, TimeoutException

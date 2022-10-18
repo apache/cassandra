@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static java.util.stream.Collectors.toList;
 
-public abstract class AbstractNetstatsStreaming extends TestBaseImpl
+public abstract class AbstractNetstatsStreaming extends DistributedTestBaseImpl
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractNetstatsStreaming.class);
 

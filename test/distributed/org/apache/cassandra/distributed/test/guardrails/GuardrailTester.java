@@ -26,7 +26,7 @@ import org.junit.Before;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstance;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.ListAssert;
@@ -34,7 +34,7 @@ import org.assertj.core.api.ListAssert;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public abstract class GuardrailTester extends TestBaseImpl
+public abstract class GuardrailTester extends DistributedTestBaseImpl
 {
     private static final AtomicInteger seqNumber = new AtomicInteger();
     protected String tableName, qualifiedTableName;

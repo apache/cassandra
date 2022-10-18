@@ -39,7 +39,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.impl.InstanceIDDefiner;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Shared;
@@ -47,7 +47,7 @@ import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
-public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends TestBaseImpl
+public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends DistributedTestBaseImpl
 {
     @Test
     public void test() throws IOException, InterruptedException

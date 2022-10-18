@@ -54,7 +54,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  * avoid short reads that might happen when a limit is used and reconciliation accepts less rows than such limit.
  */
 @RunWith(Parameterized.class)
-public class ShortReadProtectionTest extends TestBaseImpl
+public class ShortReadProtectionTest extends DistributedTestBaseImpl
 {
     private static final int NUM_NODES = 3;
     private static final int[] PAGE_SIZES = new int[]{ 1, 10 };

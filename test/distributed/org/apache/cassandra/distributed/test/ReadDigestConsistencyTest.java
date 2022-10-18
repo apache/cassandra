@@ -33,7 +33,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 
-public class ReadDigestConsistencyTest extends TestBaseImpl
+public class ReadDigestConsistencyTest extends DistributedTestBaseImpl
 {
     private final static Logger logger = LoggerFactory.getLogger(ReadDigestConsistencyTest.class);
 

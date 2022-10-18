@@ -89,9 +89,9 @@ import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_RSP;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 
-public class PaxosRepairTest extends TestBaseImpl
+public class PaxosRepairSplit1Test extends DistributedTestBaseImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(PaxosRepairTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(PaxosRepairSplit1Test.class);
     private static final String TABLE = "tbl";
 
     static
@@ -361,7 +361,7 @@ public class PaxosRepairTest extends TestBaseImpl
             cleanup.get();
             ExecutorUtils.shutdownNowAndWait(1L, TimeUnit.MINUTES, executor);
             Assert.assertFalse(hasUncommitted(cluster, KEYSPACE, TABLE));
-            cluster.forEach(i -> i.runOnInstance(PaxosRepairTest::compactPaxos));
+            cluster.forEach(i -> i.runOnInstance(PaxosRepairSplit1Test::compactPaxos));
             for (int i = 1 ; i <= 3 ; ++i)
                 assertRows(cluster.get(i).executeInternal("SELECT * FROM " + KEYSPACE + '.' + TABLE + " WHERE pk = 1"), row(1, 1, 1));
 
@@ -637,6 +637,6 @@ public class PaxosRepairTest extends TestBaseImpl
 
     private static void assertLowBoundPurged(Cluster cluster)
     {
-        cluster.forEach(PaxosRepairTest::assertLowBoundPurged);
+        cluster.forEach(PaxosRepairSplit1Test::assertLowBoundPurged);
     }
 }

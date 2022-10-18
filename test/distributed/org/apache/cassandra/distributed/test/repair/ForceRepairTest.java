@@ -39,7 +39,7 @@ import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
@@ -49,7 +49,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
-public class ForceRepairTest extends TestBaseImpl
+public class ForceRepairTest extends DistributedTestBaseImpl
 {
     /**
      * Port of python dtest "repair_tests/incremental_repair_test.py::TestIncRepair::test_force" but extends to test

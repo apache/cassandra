@@ -32,7 +32,7 @@ import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
-public class UpgradeSSTablesTest extends TestBaseImpl
+public class UpgradeSSTablesTest extends DistributedTestBaseImpl
 {
     @Test
     public void rewriteSSTablesTest() throws Throwable

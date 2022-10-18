@@ -81,7 +81,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.utils.KillerForTesting;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -109,7 +109,7 @@ public abstract class CommitLogTest
     private static final String CUSTOM1 = "Custom1";
 
     private static JVMStabilityInspector.Killer oldKiller;
-    private static KillerForTests testKiller;
+    private static KillerForTesting killerForTesting;
 
     public CommitLogTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
     {
@@ -170,12 +170,12 @@ public abstract class CommitLogTest
                                     SchemaLoader.standardCFMD(KEYSPACE2, STANDARD2, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable));
         CompactionManager.instance.disableAutoCompaction();
 
-        testKiller = new KillerForTests();
+        killerForTesting = new KillerForTesting();
 
         // While we don't want the JVM to be nuked from under us on a test failure, we DO want some indication of
         // an error. If we hit a "Kill the JVM" condition while working with the CL when we don't expect it, an aggressive
         // KillerForTests will assertion out on us.
-        oldKiller = JVMStabilityInspector.replaceKiller(testKiller);
+        oldKiller = JVMStabilityInspector.replaceKiller(killerForTesting);
     }
 
     @AfterClass
@@ -195,7 +195,7 @@ public abstract class CommitLogTest
     {
         CommitLogSegmentReader.setAllowSkipSyncMarkerCrc(false);
         System.clearProperty("cassandra.replayList");
-        testKiller.reset();
+        killerForTesting.reset();
     }
 
     @Test
@@ -685,7 +685,7 @@ public abstract class CommitLogTest
         if (expected != null && caught == null)
             fail("Expected exception " + expected + " but call completed successfully.");
 
-        assertEquals("JVM kill state doesn't match expectation.", expected != null, testKiller.wasKilled());
+        assertEquals("JVM kill state doesn't match expectation.", expected != null, killerForTesting.wasKilled());
     }
 
     protected void testRecovery(final byte[] logData, Class<?> expected) throws Exception

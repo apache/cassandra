@@ -32,7 +32,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.assertj.core.api.Assertions;
 
-public class NativeMixedVersionTest extends TestBaseImpl
+public class NativeMixedVersionTest extends DistributedTestBaseImpl
 {
     @Test
     public void v4ConnectionCleansUpThreadLocalState() throws IOException

@@ -37,7 +37,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
+public class NodeToolEnableDisableBinaryTest extends DistributedTestBaseImpl
 {
     private static ICluster cluster;
 

@@ -31,7 +31,7 @@ import org.assertj.core.api.Assertions;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class CASAddTest extends TestBaseImpl
+public class CASAddTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(CASAddTest.class);
 

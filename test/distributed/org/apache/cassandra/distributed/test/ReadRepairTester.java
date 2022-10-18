@@ -34,7 +34,7 @@ import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
-import static org.apache.cassandra.distributed.test.TestBaseImpl.KEYSPACE;
+import static org.apache.cassandra.distributed.test.DistributedTestBaseImpl.KEYSPACE;
 
 /**
  * Extensible helper class for read repair tests.

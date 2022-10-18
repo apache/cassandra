@@ -41,7 +41,7 @@ public class LegacyCASTest extends CASCommonTestCases
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
-        TestBaseImpl.beforeClass();
+        DistributedTestBaseImpl.beforeClass();
         CLUSTER = init(Cluster.create(3, config()));
     }
 

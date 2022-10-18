@@ -39,7 +39,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.utils.KillerForTesting;
 
 public class CommitLogReaderTest extends CQLTester
 {
@@ -47,7 +47,7 @@ public class CommitLogReaderTest extends CQLTester
     public static void beforeClass()
     {
         DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
-        JVMStabilityInspector.replaceKiller(new KillerForTests(false));
+        JVMStabilityInspector.replaceKiller(new KillerForTesting(false));
     }
 
     @Before

@@ -26,7 +26,7 @@ import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 
-public class OversizedMutationTest extends TestBaseImpl
+public class OversizedMutationTest extends DistributedTestBaseImpl
 {
     @Test
     public void testSingleOversizedMutation() throws Throwable

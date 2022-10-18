@@ -33,7 +33,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class FailingTruncationTest extends TestBaseImpl
+public class FailingTruncationTest extends DistributedTestBaseImpl
 {
     private static final String BB_FAIL_HELPER_PROP = "test.bbfailhelper.enabled";
 

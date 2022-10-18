@@ -23,7 +23,7 @@ import org.apache.tools.ant.Task;
 import org.apache.tools.ant.taskdefs.MacroInstance;
 import org.apache.tools.ant.taskdefs.Sequential;
 
-public class TestHelper extends Task
+public class AntTestHelper extends Task
 {
     private String property;
 

@@ -80,9 +80,9 @@ memtable:
             inherits: skiplist
         test_fullname:
             inherits: default
-            class_name: org.apache.cassandra.db.memtable.TestMemtable
+            class_name: org.apache.cassandra.db.memtable.MemtableForTesting
         test_shortname:
-            class_name: TestMemtable
+            class_name: MemtableForTesting
             parameters:
                 skiplist: true  # note: YAML must interpret this as string, not a boolean
         test_empty_class:

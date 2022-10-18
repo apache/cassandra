@@ -23,18 +23,18 @@ import org.junit.Assert;
 /**
  * Responsible for stubbing out the System.exit() logic during unit tests.
  */
-public class KillerForTests extends JVMStabilityInspector.Killer
+public class KillerForTesting extends JVMStabilityInspector.Killer
 {
     private boolean killed = false;
     private boolean quiet = false;
     private final boolean expected;
 
-    public KillerForTests()
+    public KillerForTesting()
     {
         expected = true;
     }
 
-    public KillerForTests(boolean expectFailure)
+    public KillerForTesting(boolean expectFailure)
     {
         expected = expectFailure;
     }

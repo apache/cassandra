@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.REJECT;
 import static org.apache.cassandra.service.paxos.PaxosState.ballotTracker;
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.PAXOS_CFS;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.PAXOS_CFS;
 
 public class PaxosBallotTrackerTest
 {

@@ -69,7 +69,7 @@ import static org.apache.cassandra.service.reads.repair.ReadRepairStrategy.NONE;
  * </ul>
  */
 @RunWith(Parameterized.class)
-public abstract class ReadRepairQueryTester extends TestBaseImpl
+public abstract class ReadRepairQueryTester extends DistributedTestBaseImpl
 {
     private static final int NUM_NODES = 2;
 

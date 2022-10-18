@@ -53,7 +53,7 @@ import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.service.paxos.uncommitted.PaxosStateTracker.stateDirectory;
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.*;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.*;
 import static org.apache.cassandra.service.paxos.uncommitted.UncommittedTableDataTest.assertIteratorContents;
 import static org.apache.cassandra.service.paxos.uncommitted.UncommittedTableDataTest.uncommitted;
 

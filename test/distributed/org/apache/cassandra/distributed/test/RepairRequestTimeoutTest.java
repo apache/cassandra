@@ -37,7 +37,7 @@ import static org.apache.cassandra.net.Verb.SYNC_REQ;
 import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
 import static org.junit.Assert.assertTrue;
 
-public class RepairRequestTimeoutTest extends TestBaseImpl
+public class RepairRequestTimeoutTest extends DistributedTestBaseImpl
 {
     static Cluster CLUSTER;
     static final long timeoutMillis = 1000;

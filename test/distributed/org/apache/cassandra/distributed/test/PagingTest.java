@@ -31,7 +31,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class PagingTest extends TestBaseImpl
+public class PagingTest extends DistributedTestBaseImpl
 {
     @Test
     public void testPaging() throws Throwable

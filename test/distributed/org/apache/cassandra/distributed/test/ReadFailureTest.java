@@ -32,7 +32,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 
-public class ReadFailureTest extends TestBaseImpl
+public class ReadFailureTest extends DistributedTestBaseImpl
 {
     static final int TOMBSTONE_FAIL_THRESHOLD = 20;
     static final int TOMBSTONE_FAIL_KEY = 100001;

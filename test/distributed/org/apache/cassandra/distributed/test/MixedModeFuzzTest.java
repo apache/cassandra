@@ -70,7 +70,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class MixedModeFuzzTest extends TestBaseImpl
+public class MixedModeFuzzTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(ReprepareFuzzTest.class);
 

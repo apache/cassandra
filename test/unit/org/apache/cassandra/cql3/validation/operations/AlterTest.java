@@ -28,7 +28,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
-import org.apache.cassandra.db.memtable.TestMemtable;
+import org.apache.cassandra.db.memtable.MemtableForTesting;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -562,7 +562,7 @@ public class AlterTest extends CQLTester
         assertSchemaOption("memtable", null);
 
         testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
-        testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_fullname", MemtableForTesting.FACTORY, SkipListMemtable.class);
         testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
 
         // verify memtable does not change on other ALTER
@@ -589,7 +589,7 @@ public class AlterTest extends CQLTester
                                            + " WITH memtable = 'test_unknown_class';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Memtable class org.apache.cassandra.db.memtable.TestMemtable does not accept any futher parameters, but {invalid=throw} were given.",
+                                        "Memtable class org.apache.cassandra.db.memtable.MemtableForTesting does not accept any futher parameters, but {invalid=throw} were given.",
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_invalid_extra_param';");
 

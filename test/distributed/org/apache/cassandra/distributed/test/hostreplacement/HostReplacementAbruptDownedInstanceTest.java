@@ -33,7 +33,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
@@ -46,7 +46,7 @@ import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacem
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.validateRows;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public class HostReplacementAbruptDownedInstanceTest extends TestBaseImpl
+public class HostReplacementAbruptDownedInstanceTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(HostReplacementAbruptDownedInstanceTest.class);
 

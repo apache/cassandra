@@ -24,7 +24,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 
-public class PaxosUncommittedIndexTest extends TestBaseImpl
+public class PaxosUncommittedIndexTest extends DistributedTestBaseImpl
 {
     @Test
     public void indexCqlIsExportableAndParsableTest() throws Throwable

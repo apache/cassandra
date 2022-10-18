@@ -43,7 +43,7 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class MessageForwardingTest extends TestBaseImpl
+public class MessageForwardingTest extends DistributedTestBaseImpl
 {
     @Test
     public void mutationsForwardedToAllReplicasTest()

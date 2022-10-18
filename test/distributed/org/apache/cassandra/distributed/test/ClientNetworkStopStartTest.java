@@ -32,7 +32,7 @@ import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 
-public class ClientNetworkStopStartTest extends TestBaseImpl
+public class ClientNetworkStopStartTest extends DistributedTestBaseImpl
 {
     /**
      * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-16127">CASSANDRA-16127</a>

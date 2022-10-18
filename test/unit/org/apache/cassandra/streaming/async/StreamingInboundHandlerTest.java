@@ -35,7 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.TestChannel;
+import org.apache.cassandra.net.ChannelForTesting;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamDeserializingTask;
@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-import static org.apache.cassandra.net.TestChannel.REMOTE_ADDR;
+import static org.apache.cassandra.net.ChannelForTesting.REMOTE_ADDR;
 
 public class StreamingInboundHandlerTest
 {
@@ -71,7 +71,7 @@ public class StreamingInboundHandlerTest
     @Before
     public void setup()
     {
-        channel = new TestChannel();
+        channel = new ChannelForTesting();
         streamingChannel = new NettyStreamingChannel(VERSION, channel, StreamingChannel.Kind.CONTROL);
         channel.pipeline().addLast("stream", streamingChannel);
     }

@@ -31,7 +31,7 @@ import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.QueryResult;
 import org.assertj.core.api.Assertions;
 
-public class TableEstimatesTest extends TestBaseImpl
+public class TableEstimatesTest extends DistributedTestBaseImpl
 {
     private static Cluster CLUSTER;
 

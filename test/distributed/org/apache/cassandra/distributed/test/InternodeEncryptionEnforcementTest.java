@@ -37,7 +37,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
+public final class InternodeEncryptionEnforcementTest extends DistributedTestBaseImpl
 {
     @Test
     public void testConnectionsAreRejectedWithInvalidConfig() throws Throwable

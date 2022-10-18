@@ -25,10 +25,10 @@ import org.junit.runners.Parameterized;
 
 /**
  * This base class tests all keywords which took a long time. Hence it was split into multiple
- * KeywordTestSplitN to prevent CI timing out. If timeouts reappear split it further
+ * Keyword*SplitTest to prevent CI timing out. If timeouts reappear split it further
  */
 @RunWith(Parameterized.class)
-public class KeywordTestSplit1 extends KeywordTestBase
+public class KeywordSplit1Test extends KeywordTestBase
 {
     static int SPLIT = 1;
     static int TOTAL_SPLITS = 2;
@@ -38,7 +38,7 @@ public class KeywordTestSplit1 extends KeywordTestBase
         return KeywordTestBase.getKeywordsForSplit(SPLIT, TOTAL_SPLITS);
     }
 
-    public KeywordTestSplit1(String keyword, boolean isReserved)
+    public KeywordSplit1Test(String keyword, boolean isReserved)
     {
         super(keyword, isReserved);
     }

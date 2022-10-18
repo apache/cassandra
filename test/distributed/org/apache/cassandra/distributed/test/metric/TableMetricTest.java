@@ -40,7 +40,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaKeyspace;
@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IS_DISABLED_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MBEAN_REGISTRATION_CLASS;
 
-public class TableMetricTest extends TestBaseImpl
+public class TableMetricTest extends DistributedTestBaseImpl
 {
     static
     {

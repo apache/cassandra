@@ -27,7 +27,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 
 import static org.apache.cassandra.distributed.action.GossipHelper.decommission;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -35,7 +35,7 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
-public class CommunicationDuringDecommissionTest extends TestBaseImpl
+public class CommunicationDuringDecommissionTest extends DistributedTestBaseImpl
 {
     @Test
     public void internodeConnectionsDuringDecom() throws Throwable

@@ -30,7 +30,7 @@ import org.apache.cassandra.service.StorageService;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class FrozenUDTTest extends TestBaseImpl
+public class FrozenUDTTest extends DistributedTestBaseImpl
 {
     @Test
     public void testAddAndUDTField() throws IOException

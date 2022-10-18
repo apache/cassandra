@@ -16,20 +16,30 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db.memtable;
+package org.apache.cassandra.cql3;
 
-import java.util.Map;
+import java.util.Collection;
 
-public class TestMemtable
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
+/**
+ * This base class tests all keywords which took a long time. Hence it was split into multiple
+ * KeywordTestSplitN to prevent CI timing out. If timeouts reappear split it further
+ */
+@RunWith(Parameterized.class)
+public class KeywordSplit2Test extends KeywordTestBase
 {
-    public static Memtable.Factory factory(Map<String, String> options)
-    {
-        String skiplist = options.remove("skiplist");
-        if (Boolean.parseBoolean(skiplist))
-            return SkipListMemtable.FACTORY;
-        else
-            return FACTORY;
+    static int SPLIT = 2;
+    static int TOTAL_SPLITS = 2;
+
+    @Parameterized.Parameters(name = "keyword {0} isReserved {1}")
+    public static Collection<Object[]> keywords() {
+        return KeywordTestBase.getKeywordsForSplit(SPLIT, TOTAL_SPLITS);
     }
 
-    public static Memtable.Factory FACTORY = SkipListMemtable::new;
+    public KeywordSplit2Test(String keyword, boolean isReserved)
+    {
+        super(keyword, isReserved);
+    }
 }

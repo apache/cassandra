@@ -54,7 +54,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseImpl
+public class JVMStabilityInspectorCorruptSSTableExceptionTest extends DistributedTestBaseImpl
 {
     @Test
     public void testAbstractLocalAwareExecutorPlusOnIgnoredDiskFailurePolicy() throws Exception

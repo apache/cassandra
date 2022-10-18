@@ -40,7 +40,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForRange;
 
@@ -48,7 +48,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class ReadsDuringBootstrapTest extends TestBaseImpl
+public class ReadsDuringBootstrapTest extends DistributedTestBaseImpl
 {
 
     @Test

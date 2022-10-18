@@ -25,7 +25,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.serializers.BooleanSerializer;
 
-public class BooleanTest extends TestBaseImpl
+public class BooleanTest extends DistributedTestBaseImpl
 {
     @Test
     public void booleanTest() throws Throwable

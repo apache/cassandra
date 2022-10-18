@@ -50,7 +50,7 @@ import static org.apache.cassandra.service.StorageService.instance;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.apache.cassandra.utils.progress.ProgressEventType.COMPLETE;
 
-public class RepairTest extends TestBaseImpl
+public class RepairTest extends DistributedTestBaseImpl
 {
     private static ICluster<IInvokableInstance> cluster;
 

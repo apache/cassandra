@@ -35,7 +35,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SC
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class MigrationCoordinatorTest extends TestBaseImpl
+public class MigrationCoordinatorTest extends DistributedTestBaseImpl
 {
 
     @Before

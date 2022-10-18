@@ -44,7 +44,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 /**
  * Tests around removing and adding nodes from and to a cluster while hints are still outstanding.
  */
-public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
+public class HintedHandoffAddRemoveNodesTest extends DistributedTestBaseImpl
 {
     /**
      * Replaces Python dtest {@code hintedhandoff_test.py:TestHintedHandoff.test_hintedhandoff_decom()}.

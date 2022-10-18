@@ -57,7 +57,7 @@ import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class RepairErrorsTest extends TestBaseImpl
+public class RepairErrorsTest extends DistributedTestBaseImpl
 {
     @Test
     public void testRemoteValidationFailure() throws IOException

@@ -59,7 +59,7 @@ import static org.apache.cassandra.net.Verb.PAXOS_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_PROPOSE_REQ;
 import static org.apache.cassandra.net.Verb.READ_REQ;
 
-public abstract class CASTestBase extends TestBaseImpl
+public abstract class CASTestBase extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(CASTestBase.class);
 
