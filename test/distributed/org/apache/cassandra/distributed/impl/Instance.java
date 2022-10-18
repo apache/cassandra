@@ -21,8 +21,12 @@ package org.apache.cassandra.distributed.impl;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
 import java.net.BindException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystem;
 import java.security.Permission;
@@ -148,9 +152,13 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
+import org.apache.cassandra.service.CassandraDaemon;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -574,6 +582,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
                 // so extract it to populate ExecutorFactory.Global
+
                 ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
                 if (config.has(GOSSIP))
                 {
@@ -605,6 +614,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // Same order to populate tokenMetadata for the first time,
                 // see org.apache.cassandra.service.CassandraDaemon.setup
                 StorageService.instance.populateTokenMetadata();
+
+                logSystemInfo();
 
                 try
                 {
@@ -1136,6 +1147,32 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 JVMStabilityInspector.inspectThrowable(e);
             }
+        }
+    }
+    private void logSystemInfo()
+    {
+        if (inInstancelogger.isInfoEnabled())
+        {
+            try
+            {
+                inInstancelogger.info("Hostname: {}", InetAddress.getLocalHost().getHostName() + ":" + DatabaseDescriptor.getStoragePort() + ":" + DatabaseDescriptor.getSSLStoragePort());
+            }
+            catch (UnknownHostException e1)
+            {
+                inInstancelogger.info("Could not resolve local host");
+            }
+
+            inInstancelogger.info("JVM vendor/version: {}/{}", JAVA_VM_NAME.getString(), JAVA_VERSION.getString());
+            inInstancelogger.info("Heap size: {}/{}",
+                        FBUtilities.prettyPrintMemory(Runtime.getRuntime().totalMemory()),
+                        FBUtilities.prettyPrintMemory(Runtime.getRuntime().maxMemory()));
+
+            for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
+                inInstancelogger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
+
+            inInstancelogger.info("Classpath: {}", JAVA_CLASS_PATH.getString());
+
+            inInstancelogger.info("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
         }
     }
 }
