@@ -58,4 +58,11 @@
         <cve>CVE-2021-43797</cve>
         <cve>CVE-2022-24823</cve>
     </suppress>
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-17966 -->
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
+        <cve>CVE-2022-42003</cve>
+        <cve>CVE-2022-42004</cve>
+    </suppress>
+
 </suppressions>
