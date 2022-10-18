@@ -76,8 +76,6 @@ public class CassandraOutgoingFile implements OutgoingStream
                                                     boolean shouldStreamEntireSSTable,
                                                     ComponentManifest manifest)
     {
-        boolean keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
-
         CompressionInfo compressionInfo = sstable.compression
                 ? CompressionInfo.newLazyInstance(sstable.getCompressionMetadata(), sections)
                 : null;
@@ -85,7 +83,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         return CassandraStreamHeader.builder()
                                     .withSSTableFormat(sstable.descriptor.formatType)
                                     .withSSTableVersion(sstable.descriptor.version)
-                                    .withSSTableLevel(keepSSTableLevel ? sstable.getSSTableLevel() : 0)
+                                    .withSSTableLevel(operation.keepSSTableLevel() ? sstable.getSSTableLevel() : 0)
                                     .withEstimatedKeys(estimatedKeys)
                                     .withSections(sections)
                                     .withCompressionInfo(compressionInfo)
