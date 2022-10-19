@@ -192,9 +192,9 @@ if (!($all)); then
     for test in $tests; do
       echo "  $test"
       has_env_vars=true
-      if grep -q "${1}=" <<< "$env_vars"; then
-        env_vars=$(sed -e "s/${1}=/${1}=${test},/" <<< $env_vars)
-      elif [[ $env_vars == "" ]]; then
+      if echo "$env_vars" | grep -q "${1}="; then
+        env_vars=$(echo "$env_vars" | sed -e "s/${1}=/${1}=${test},/")
+      elif [ -z "$env_vars" ]; then
         env_vars="${1}=${test}"
       else
         env_vars="$env_vars|${1}=${test}"
@@ -238,35 +238,35 @@ delete_job()
 }
 
 # removed unneeded repeated jobs
-if [[ $env_vars != *"REPEATED_UTESTS="* ]]; then
+if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS=" )); then
   delete_job "j8_unit_tests_repeat"
   delete_job "j11_unit_tests_repeat"
   delete_job "utests_compression_repeat"
   delete_job "utests_system_keyspace_directory_repeat"
 fi
-if [[ $env_vars != *"REPEATED_UTESTS_LONG="* ]]; then
+if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then
   delete_job "utests_long_repeat"
 fi
-if [[ $env_vars != *"REPEATED_JVM_DTESTS="* ]]; then
+if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
   delete_job "j8_jvm_dtests_repeat"
   delete_job "j8_jvm_dtests_vnode_repeat"
   delete_job "j11_jvm_dtests_repeat"
   delete_job "j11_jvm_dtests_vnode_repeat"
 fi
-if [[ $env_vars != *"REPEATED_JVM_UPGRADE_DTESTS="* ]]; then
+if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
   delete_job "start_jvm_upgrade_dtests_repeat"
   delete_job "j8_jvm_upgrade_dtests_repeat"
 fi
-if [[ $env_vars != *"REPEATED_DTESTS="* ]]; then
+if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
   delete_job "j8_dtests_repeat"
   delete_job "j8_dtests_vnode_repeat"
   delete_job "j11_dtests_repeat"
   delete_job "j11_dtests_vnode_repeat"
 fi
-if [[ $env_vars != *"REPEATED_UPGRADE_DTESTS="* ]]; then
+if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
   delete_job "j8_upgrade_dtests_repeat"
 fi
-if [[ $env_vars != *"REPEATED_ANT_TEST_CLASS="* ]]; then
+if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
   delete_job "j8_repeated_ant_test"
   delete_job "j11_repeated_ant_test"
 fi
