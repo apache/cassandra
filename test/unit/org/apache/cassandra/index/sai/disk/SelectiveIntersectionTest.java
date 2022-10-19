@@ -62,6 +62,7 @@ public class SelectiveIntersectionTest extends SAITester
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v3"));
+        waitForIndexQueryable();
 
         for (int i = 0; i < 100; ++i)
         {
