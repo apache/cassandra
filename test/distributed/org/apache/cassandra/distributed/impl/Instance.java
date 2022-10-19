@@ -114,7 +114,6 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.MigrationCoordinator;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
@@ -147,6 +146,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
@@ -591,7 +591,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 DistributedTestSnitch.assign(config.networkTopology());
 
                 DatabaseDescriptor.daemonInitialization();
-                ThreadAwareSecurityManager.install();
+                LoggingSupportFactory.getLoggingSupport().onStartup();
+
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
                 CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
