@@ -28,7 +28,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class Rebuild extends NodeToolCmd
 {
     @Arguments(usage = "<src-dc-name>",
-               description = "Name of DC from which to select sources for streaming. By default, pick any DC")
+               description = "Name of DC from which to select sources for streaming. By default, pick any DC (except local DC when --exclude-local-dc is set)")
     private String sourceDataCenterName = null;
 
     @Option(title = "specific_keyspace",
@@ -46,6 +46,11 @@ public class Rebuild extends NodeToolCmd
             description = "Use -s to specify hosts that this node should stream from when -ts is used. Multiple hosts should be separated using commas (e.g. 127.0.0.1,127.0.0.2,...)")
     private String specificSources = null;
 
+    @Option(title = "exclude_local_dc",
+            name = {"--exclude-local-dc"},
+            description = "Use --exclude-local-dc to exclude nodes in local data center as source for streaming.")
+    private boolean excludeLocalDatacenterNodes = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -55,6 +60,6 @@ public class Rebuild extends NodeToolCmd
             throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
         }
 
-        probe.rebuild(sourceDataCenterName, keyspace, tokens, specificSources);
+        probe.rebuild(sourceDataCenterName, keyspace, tokens, specificSources, excludeLocalDatacenterNodes);
     }
 }

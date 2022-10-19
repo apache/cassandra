@@ -204,6 +204,33 @@ public class RangeStreamer
     }
 
     /**
+    * Source filter which excludes nodes from local DC.
+    */
+    public static class ExcludeLocalDatacenterFilter implements SourceFilter
+    {
+        private final IEndpointSnitch snitch;
+        private final String localDc;
+
+        public ExcludeLocalDatacenterFilter(IEndpointSnitch snitch)
+        {
+            this.snitch = snitch;
+            this.localDc = snitch.getLocalDatacenter();
+        }
+
+        @Override
+        public boolean apply(Replica replica)
+        {
+            return !snitch.getDatacenter(replica).equals(localDc);
+        }
+
+        @Override
+        public String message(Replica replica)
+        {
+            return "Filtered " + replica + " out because it belongs to the local datacenter";
+        }
+    }
+
+    /**
      * Source filter which excludes the current node from source calculations
      */
     public static class ExcludeLocalNodeFilter implements SourceFilter
