@@ -169,6 +169,7 @@ public class StorageServiceTest
         assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
     }
 
+<<<<<<< Updated upstream
     @Test
     public void testSetGetSSTablePreemptiveOpenIntervalInMB()
     {
@@ -305,5 +306,12 @@ public class StorageServiceTest
         {
             storageService.setBatchSizeWarnThresholdInKiB(previousBatchSizeWarnThreshold);
         }
+=======
+    @Test(expected = IllegalArgumentException.class)
+    public void testLocalDatacenterNodesExcludedDuringRebuild()
+    {
+        StorageService service = StorageService.instance;
+        service.rebuild(DatabaseDescriptor.getLocalDataCenter(), "StorageServiceTest", null, null, true);
+>>>>>>> Stashed changes
     }
 }
