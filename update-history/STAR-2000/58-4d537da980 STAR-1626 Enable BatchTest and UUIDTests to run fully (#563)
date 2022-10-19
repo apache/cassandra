@@ -1,0 +1,13 @@
+--- a/test/unit/org/apache/cassandra/utils/UUIDTest.java
++++ b/test/unit/org/apache/cassandra/utils/UUIDTest.java
+@@ -35,10 +35,6 @@
+ import com.google.common.collect.Sets;
+ 
+ import org.apache.cassandra.db.marshal.TimeUUIDType;
+-<<<<<<<
+-=======
+-
+->>>>>>>
+ import org.cliffc.high_scale_lib.NonBlockingHashMap;
+ 
+ 

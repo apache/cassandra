@@ -129,10 +129,10 @@ public class GuardrailsConfig
     public volatile Integer tombstone_warn_threshold;
     public volatile Integer tombstone_failure_threshold;
 
-    // Log WARN on any multiple-partition batch size that exceeds this value. 5kb per batch by default.
+    // Log WARN on any multiple-partition batch size that exceeds this value. 64kb per batch by default.
     // Use caution when increasing the size of this threshold as it can lead to node instability.
     public volatile Integer batch_size_warn_threshold_in_kb;
-    // Fail any multiple-partition batch that exceeds this value. The calculated default is 50kb (10x warn threshold).
+    // Fail any multiple-partition batch that exceeds this value. The calculated default is 640kb (10x warn threshold).
     public volatile Integer batch_size_fail_threshold_in_kb;
     // Log WARN on any batches not of type LOGGED than span across more partitions than this limit.
     public volatile Integer unlogged_batch_across_partitions_warn_threshold;

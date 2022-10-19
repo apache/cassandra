@@ -30,7 +30,6 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertSame;
@@ -51,6 +50,10 @@ public class BatchTest extends CQLTester
     @BeforeClass()
     public static void setup() throws ConfigurationException, IOException
     {
+        // Set batch sizes for guardrails to the same values as in Apache
+        // Needed for testOversizedBatch()
+        DatabaseDescriptor.getGuardrailsConfig().setBatchSizeWarnThresholdInKB(5);
+        DatabaseDescriptor.getGuardrailsConfig().setBatchSizeFailThresholdInKB(50);
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
@@ -163,7 +166,6 @@ public class BatchTest extends CQLTester
         sendBatch(BatchStatement.Type.LOGGED, true, false, false);
     }
 
-    @Ignore
     @Test(expected = InvalidQueryException.class)
     public void testOversizedBatch()
     {
