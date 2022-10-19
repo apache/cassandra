@@ -76,6 +76,16 @@ import org.apache.cassandra.utils.memory.EnsureOnHeap;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.github.jamm.Unmetered;
 
+/**
+ * Trie memtable implementation. Improves memory usage, garbage collection efficiency and lookup performance.
+ * The implementation is described in detail in the paper:
+ *       https://www.vldb.org/pvldb/vol15/p3359-lambov.pdf
+ *
+ * The configuration takes a single parameter:
+ * - shards: the number of shards to split into, defaulting to the number of CPU cores.
+ *
+ * Also see Memtable_API.md.
+ */
 public class TrieMemtable extends AbstractShardedMemtable
 {
     private static final Logger logger = LoggerFactory.getLogger(TrieMemtable.class);

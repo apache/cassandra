@@ -45,12 +45,31 @@ memtable:
           class_name: SkipListMemtable
         sharded:
           class_name: ShardedSkipListMemtable
+        trie:
+          class_name: TrieMemtable
         default:
-          inherits: sharded
+          inherits: trie
 ```
 
 Note that the database will only validate the memtable class and its parameters when a configuration needs to be
 instantiated for a table.
+
+## Implementations provided
+
+Cassandra currently comes with three memtable implementations:
+
+- `SkipListMemtable` is the default and matches the memtable format of Cassandra versions up to 4.1. It organizes
+  partitions into a single concurrent skip list.
+- `ShardedSkipListMemtable` splits the partition skip-list into several independent skip-lists each covering a roughly
+  equal part of the token space served by this node. This reduces congestion of the skip-list from concurrent writes and
+  can lead to improved write throughput. Its configuration takes two parameters:
+  - `shards`: the number of shards to split into, defaulting to the number of CPU cores on the machine.
+  - `serialize_writes`: if false (default), each shard may serve multiple writes in parallel; if true, writes to each
+    shard are synchronized.
+- `TrieMemtable` is a novel solution that organizes partitions into an in-memory trie which places the partition
+  indexing structure in a buffer, off-heap if desired, which significantly improves garbage collection efficiency. It
+  also improves the memtable's space efficiency and lookup performance. Its configuration can take a single parameter
+  `shards` as above.
 
 ## Memtable selection
 
