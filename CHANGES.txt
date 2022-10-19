@@ -1,4 +1,5 @@
 4.2
+ * Add Unavailables metric for CASWrite in the docs (CASSANDRA-16357)
  * Make Cassandra logs able to be viewed in the virtual table system_views.system_logs (CASSANDRA-17946)
  * IllegalArgumentException in Gossiper#order due to concurrent mutations to elements being applied (CASSANDRA-17908)
  * Include estimated active compaction remaining write size when starting a new compaction (CASSANDRA-17931)
