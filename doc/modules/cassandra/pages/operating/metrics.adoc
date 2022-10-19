@@ -443,6 +443,8 @@ Metrics::
 
   |  |Latency |Transaction write latency.
 
+  |Unavailables |Counter |Number of unavailable exceptions encountered.
+
   |UnfinishedCommit |Counter |Number of transactions that were committed
   on write.
 
