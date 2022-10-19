@@ -2759,6 +2759,12 @@ public class DatabaseDescriptor
         return conf.file_cache_size_in_mb;
     }
 
+    public static void enableChunkCache(int sizeInMB)
+    {
+        conf.file_cache_enabled = true;
+        conf.file_cache_size_in_mb = sizeInMB;
+    }
+
     public static int getNetworkingCacheSizeInMB()
     {
         if (conf.networking_cache_size_in_mb == null)
