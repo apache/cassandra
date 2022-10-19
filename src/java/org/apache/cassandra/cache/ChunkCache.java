@@ -339,4 +339,12 @@ public class ChunkCache
                 .map(policy -> policy.weightedSize().orElseGet(cache::estimatedSize))
                 .orElseGet(cache::estimatedSize);
     }
+
+    /**
+     * Returns the number of cached chunks of given file.
+     */
+    @VisibleForTesting
+    public int sizeOfFile(String filePath) {
+        return (int) cache.asMap().keySet().stream().filter(x -> x.path.equals(filePath)).count();
+    }
 }
