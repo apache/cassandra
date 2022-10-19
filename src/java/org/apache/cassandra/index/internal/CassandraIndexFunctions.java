@@ -20,15 +20,24 @@ package org.apache.cassandra.index.internal;
 
 import java.util.List;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.index.internal.composites.*;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.index.internal.composites.ClusteringColumnIndex;
+import org.apache.cassandra.index.internal.composites.CollectionEntryIndex;
+import org.apache.cassandra.index.internal.composites.CollectionKeyIndex;
+import org.apache.cassandra.index.internal.composites.CollectionValueIndex;
+import org.apache.cassandra.index.internal.composites.PartitionKeyIndex;
+import org.apache.cassandra.index.internal.composites.RegularColumnIndex;
 import org.apache.cassandra.index.internal.keys.KeysIndex;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 public interface CassandraIndexFunctions
 {
@@ -51,6 +60,38 @@ public interface CassandraIndexFunctions
         return indexedColumn.type;
     }
 
+    default AbstractType<?> getIndexedValueType(ColumnMetadata indexedColumn, IndexTarget.Type type) 
+    {
+        switch (type) 
+        {
+            case VALUES:
+                if (indexedColumn.type instanceof MapType) 
+                {
+                   return  ((MapType)indexedColumn.type).getValuesType();
+                }
+                else if (indexedColumn.type instanceof ListType)
+                {
+                    return ((ListType)indexedColumn.type).getElementsType();
+                }
+                else if(indexedColumn.type instanceof SetType)
+                {
+                    return ((SetType)indexedColumn.type).getElementsType();
+                }
+                else 
+                {
+                    return indexedColumn.type;
+                }
+            case KEYS:
+                assert indexedColumn.isComplex();
+                return ((MapType)indexedColumn.type).getKeysType();
+            case SIMPLE:
+            case FULL:
+            case KEYS_AND_VALUES:
+                return indexedColumn.type;
+        }
+        throw new IllegalArgumentException("Unknow index value type " + type + " for index column " + indexedColumn.toString());
+    }
+    
     /**
      * Add the clustering columns for a specific type of index table to the a TableMetadata.Builder (which is being
      * used to construct the index table's TableMetadata. In the default implementation, the clustering columns of the

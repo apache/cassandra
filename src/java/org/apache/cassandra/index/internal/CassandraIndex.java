@@ -143,7 +143,7 @@ public abstract class CassandraIndex implements Index
                                                   Clustering<?> clustering,
                                                   CellPath path,
                                                   ByteBuffer cellValue);
-    
+
     public ColumnMetadata getIndexedColumn()
     {
         return indexedColumn;
@@ -733,14 +733,14 @@ public abstract class CassandraIndex implements Index
         Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(baseCfsMetadata, indexMetadata);
         CassandraIndexFunctions utils = getFunctions(indexMetadata, target);
         ColumnMetadata indexedColumn = target.left;
-        AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
-
+        //todo support LocalPartitioner with map type as partition key comparator
+        AbstractType<?> indexTablePkType = utils.getIndexedValueType(indexedColumn, target.right);
         TableMetadata.Builder builder =
             TableMetadata.builder(baseCfsMetadata.keyspace, baseCfsMetadata.indexTableName(indexMetadata), baseCfsMetadata.id)
                          .kind(TableMetadata.Kind.INDEX)
-                         .partitioner(new LocalPartitioner(indexedValueType))
-                         .addPartitionKeyColumn(indexedColumn.name, indexedColumn.type)
-                         .addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
+                         .partitioner(new LocalPartitioner(indexTablePkType))
+                         .addPartitionKeyColumn(indexedColumn.name, indexTablePkType)
+                         .addClusteringColumn("partition_key", baseCfsMetadata.partitionKeyType);
 
         // Adding clustering columns, which depends on the index type.
         builder = utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);

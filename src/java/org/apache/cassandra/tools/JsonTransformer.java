@@ -38,7 +38,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter.Indenter;
 import com.fasterxml.jackson.core.util.MinimalPrettyPrinter;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -203,7 +207,8 @@ public final class JsonTransformer
         try
         {
             json.writeStartObject();
-
+            json.writeObjectField("table kind", metadata.kind.name());
+            
             json.writeFieldName("partition");
             json.writeStartObject();
             json.writeFieldName("key");
@@ -366,6 +371,52 @@ public final class JsonTransformer
                 if (i >= clustering.size())
                 {
                     json.writeString("*");
+                }
+                //only index table with the first clustering compoment is data table's partition key
+                if (metadata.isIndex() && i == 0)
+                {
+                    List<ColumnMetadata> clusterings = metadata.clusteringColumns();
+                    assert clusterings.size() > 0;
+                    AbstractType<?> keyValidator = clusterings.iterator().next().type;
+                    ByteBuffer keyBytes = clustering.getBufferArray()[0];
+                    if (keyValidator instanceof CompositeType)
+                    {
+                        // if a composite type, the partition has multiple keys.
+                        CompositeType compositeType = (CompositeType) keyValidator;
+                        // Skip static data if it exists.
+                        if (keyBytes.remaining() >= 2)
+                        {
+                            int header = ByteBufferUtil.getShortLength(keyBytes, keyBytes.position());
+                            if ((header & 0xFFFF) == 0xFFFF)
+                            {
+                                ByteBufferUtil.readShortLength(keyBytes);
+                            }
+                        }
+
+                        int idx = 0;
+                        while (keyBytes.remaining() > 0 && idx < compositeType.getComponents().size())
+                        {
+                            AbstractType<?> colType = compositeType.getComponents().get(idx);
+
+                            ByteBuffer value = ByteBufferUtil.readBytesWithShortLength(keyBytes);
+                            String colValue = colType.getString(value);
+
+                            json.writeString(colValue);
+
+                            byte b = keyBytes.get();
+                            if (b != 0)
+                            {
+                                break;
+                            }
+                            ++idx;
+                        }
+                    }
+                    else
+                    {
+                        // if not a composite type, assume a single column partition key.
+                        assert metadata.partitionKeyColumns().size() == 1;
+                        json.writeString(keyValidator.getString(keyBytes));
+                    }
                 }
                 else
                 {
