@@ -18,17 +18,25 @@
 
 package org.apache.cassandra.index.internal;
 
-import java.util.List;
-
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.index.internal.composites.*;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.index.internal.composites.ClusteringColumnIndex;
+import org.apache.cassandra.index.internal.composites.CollectionEntryIndex;
+import org.apache.cassandra.index.internal.composites.CollectionKeyIndex;
+import org.apache.cassandra.index.internal.composites.CollectionValueIndex;
+import org.apache.cassandra.index.internal.composites.PartitionKeyIndex;
+import org.apache.cassandra.index.internal.composites.RegularColumnIndex;
 import org.apache.cassandra.index.internal.keys.KeysIndex;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+
+import java.util.List;
 
 public interface CassandraIndexFunctions
 {
@@ -51,6 +59,32 @@ public interface CassandraIndexFunctions
         return indexedColumn.type;
     }
 
+    public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn);
+
+//    default AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn, IndexTarget.Type type) 
+//    {
+//        if (indexedColumn.type.isMultiCell() && indexedColumn.type.isCollection()) 
+//        {
+//            switch (type)
+//            {
+//                case VALUES:
+//                    switch (((CollectionType)indexedColumn.type).kind)
+//                    {
+//                        case MAP:
+//                            return ((MapType)indexedColumn.type).getValuesType();
+//                        case SET:
+//                            return ((SetType)indexedColumn.type).getElementsType();
+//                        case LIST:
+//                            return ((ListType)indexedColumn.type).getElementsType();
+//                    }
+//                case KEYS:
+//                    return ((MapType)indexedColumn.type).getKeysType();
+//            }
+//        }
+//        
+//        return getIndexedValueType(indexedColumn);
+//    }
+    
     /**
      * Add the clustering columns for a specific type of index table to the a TableMetadata.Builder (which is being
      * used to construct the index table's TableMetadata. In the default implementation, the clustering columns of the
@@ -98,6 +132,12 @@ public interface CassandraIndexFunctions
             // "partition_key" one that all the 'CassandraIndex' gets (see CassandraIndex#indexCfsMetadata)).
             return builder;
         }
+        
+        @Override
+        public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
+        {
+            return indexedColumn.type;
+        }
     };
 
     static final CassandraIndexFunctions REGULAR_COLUMN_INDEX_FUNCTIONS = new CassandraIndexFunctions()
@@ -106,6 +146,12 @@ public interface CassandraIndexFunctions
         public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
         {
             return new RegularColumnIndex(baseCfs, indexMetadata);
+        }
+
+        @Override
+        public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
+        {
+            return indexedColumn.type;
         }
     };
 
@@ -136,6 +182,12 @@ public interface CassandraIndexFunctions
 
             return builder;
         }
+
+        @Override
+        public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
+        {
+            return indexedColumn.type;
+        }
     };
 
     static final CassandraIndexFunctions COLLECTION_KEY_INDEX_FUNCTIONS = new CassandraIndexFunctions()
@@ -149,6 +201,22 @@ public interface CassandraIndexFunctions
         {
             return ((CollectionType) indexedColumn.type).nameComparator();
         }
+
+        @Override
+        public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
+        {
+            assert indexedColumn.type.isCollection() ;
+            switch (((CollectionType)indexedColumn.type).kind)
+            {
+                case LIST:
+                    return ((ListType)indexedColumn.type).getElementsType();
+                case SET:
+                    return ((SetType)indexedColumn.type).getElementsType();
+                case MAP:
+                    return ((MapType)indexedColumn.type).getKeysType();
+            }
+            throw new RuntimeException("Error collection type " + indexedColumn.type);
+        }
     };
 
     static final CassandraIndexFunctions PARTITION_KEY_INDEX_FUNCTIONS = new CassandraIndexFunctions()
@@ -156,6 +224,12 @@ public interface CassandraIndexFunctions
         public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
         {
             return new PartitionKeyIndex(baseCfs, indexMetadata);
+        }
+
+        @Override
+        public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
+        {
+            return indexedColumn.type;
         }
     };
 
@@ -183,6 +257,22 @@ public interface CassandraIndexFunctions
             builder.addClusteringColumn("cell_path", ((CollectionType)columnDef.type).nameComparator());
             return builder;
         }
+
+        @Override
+        public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
+        {
+            assert indexedColumn.type.isCollection() ;
+            switch (((CollectionType)indexedColumn.type).kind)
+            {
+                case LIST:
+                    return ((ListType)indexedColumn.type).getElementsType();
+                case SET:
+                    return ((SetType)indexedColumn.type).getElementsType();
+                case MAP:
+                    return ((MapType)indexedColumn.type).getValuesType();
+            }
+            throw new RuntimeException("Error collection type " + indexedColumn.type);
+        }
     };
 
     static final CassandraIndexFunctions COLLECTION_ENTRY_INDEX_FUNCTIONS = new CassandraIndexFunctions()
@@ -196,6 +286,13 @@ public interface CassandraIndexFunctions
         {
             CollectionType colType = (CollectionType)indexedColumn.type;
             return CompositeType.getInstance(colType.nameComparator(), colType.valueComparator());
+        }
+
+        @Override
+        public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
+        {
+            assert indexedColumn.type.isCollection();
+            return indexedColumn.type;
         }
     };
 }

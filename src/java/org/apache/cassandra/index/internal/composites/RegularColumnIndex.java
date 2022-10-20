@@ -27,7 +27,9 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.IndexEntry;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * Index on a REGULAR column definition on a composite type.
@@ -77,6 +79,16 @@ public class RegularColumnIndex extends CassandraIndex
         return builder;
     }
 
+    public AbstractType<?> getIndexedValueType(ColumnMetadata indexedColumn, TableMetadata baseTable)
+    {
+        return indexedColumn.type;
+    }
+    
+    public AbstractType<?> getIndexFirstClusteringType(ColumnMetadata indexedColumn, TableMetadata baseTable)
+    {
+        return baseTable.partitionKeyColumns().get(0).type;
+    }
+    
     public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         Clustering<?> clustering = indexEntry.clustering();

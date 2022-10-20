@@ -30,6 +30,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * Index on the element and value of cells participating in a collection.
@@ -65,5 +66,11 @@ public class CollectionEntryIndex extends CollectionKeyIndexBase
 
         AbstractType<?> valueComparator = ((CollectionType)columnDef.type).valueComparator();
         return valueComparator.compare(mapValue, cell.buffer()) != 0;
+    }
+
+    public AbstractType<?> getIndexedValueType(ColumnMetadata indexedColumn, TableMetadata baseTable)
+    {
+        assert indexedColumn.type.isCollection();
+        return indexedColumn.type;
     }
 }

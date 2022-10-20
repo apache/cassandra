@@ -143,7 +143,7 @@ public abstract class CassandraIndex implements Index
                                                   Clustering<?> clustering,
                                                   CellPath path,
                                                   ByteBuffer cellValue);
-    
+
     public ColumnMetadata getIndexedColumn()
     {
         return indexedColumn;
@@ -734,13 +734,13 @@ public abstract class CassandraIndex implements Index
         CassandraIndexFunctions utils = getFunctions(indexMetadata, target);
         ColumnMetadata indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
-
+        
         TableMetadata.Builder builder =
             TableMetadata.builder(baseCfsMetadata.keyspace, baseCfsMetadata.indexTableName(indexMetadata), baseCfsMetadata.id)
                          .kind(TableMetadata.Kind.INDEX)
                          .partitioner(new LocalPartitioner(indexedValueType))
-                         .addPartitionKeyColumn(indexedColumn.name, indexedColumn.type)
-                         .addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
+                         .addPartitionKeyColumn(indexedColumn.name, utils.getIndexedPartitionKeyType(indexedColumn))
+                         .addClusteringColumn("partition_key", baseCfsMetadata.partitionKeyType);
 
         // Adding clustering columns, which depends on the index type.
         builder = utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);
