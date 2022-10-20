@@ -73,7 +73,7 @@
  
  separate_jobs: &separate_jobs
    jobs:
-@@ -500,7 +520,7 @@
+@@ -511,7 +520,7 @@
            target: stress-test
  
    j8_dtests_vnode:
@@ -82,7 +82,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -514,7 +534,7 @@
+@@ -525,7 +534,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
  
    j8_dtests:
@@ -91,7 +91,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -528,7 +548,7 @@
+@@ -539,7 +548,7 @@
            pytest_extra_args: '--skip-resource-intensive-tests'
  
    j8_upgrade_dtests:

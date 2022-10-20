@@ -391,6 +391,17 @@ pre-commit_jobs: &pre-commit_jobs
     - j8_repeated_ant_test:
         requires:
           - build
+    # Java 8 off-heap tests
+    - start_offheap_dtest:
+        type: approval
+    - j8_dtests_offheap:
+        requires:
+          - start_offheap_dtest
+          - build
+    - j8_dtests_offheap_repeat:
+        requires:
+          - start_offheap_dtest
+          - build
 
 workflows:
     version: 2
@@ -654,6 +665,36 @@ jobs:
           upgrade: "true"
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
           count: ${REPEATED_UPGRADE_DTESTS_COUNT}
+
+  j8_dtests_offheap:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests"
+      - run_dtests:
+          file_tag: j8_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+
+  j8_dtests_offheap_repeat:
+    <<: *j8_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_DTESTS}
+          vnodes: "true"
+          upgrade: "false"
+          count: ${REPEATED_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--use-off-heap-memtables --skip-resource-intensive-tests"
 
 commands:
   log_environment:
@@ -1288,6 +1329,9 @@ commands:
         type: string
       stop_on_failure:
         type: string
+      extra_dtest_args:
+        type: string
+        default: ""
     steps:
       - run:
           name: Run repeated Python dtest
@@ -1342,7 +1386,7 @@ commands:
                 fi
 
                 # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
-                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $tests_arg | tee /tmp/dtest/stdout.txt
+                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir <<parameters.extra_dtest_args>> $tests_arg | tee /tmp/dtest/stdout.txt
               fi
             fi
       - store_test_results:

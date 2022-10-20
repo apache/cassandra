@@ -18,7 +18,7 @@
 #
 
 BASEDIR=`dirname $0`
-BASE_BRANCH=cassandra-3.11
+echo "Using base branch ${BASE_BRANCH:=cassandra-3.11}"
 
 die ()
 {
@@ -133,9 +133,8 @@ fi
 if $lowres; then
   ($all || $midres || $highres) && die "Cannot use option -l with options -a, -m or -h"
   echo "Generating new config.yml file with low resources from config-2_1.yml"
-  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml
-  rm $BASEDIR/config.yml.LOWRES.tmp
+  cp $BASEDIR/license.yml $BASEDIR/config.yml
+  circleci config process $BASEDIR/config-2_1.yml >> $BASEDIR/config.yml
 
 elif $midres; then
   ($all || $lowres || $highres) && die "Cannot use option -m with options -a, -l or -h"
@@ -268,6 +267,7 @@ fi
 if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
   delete_job "j8_dtests_repeat"
   delete_job "j8_dtests_vnode_repeat"
+  delete_job "j8_dtests_offheap_repeat"
   delete_job "j11_dtests_repeat"
   delete_job "j11_dtests_vnode_repeat"
 fi
