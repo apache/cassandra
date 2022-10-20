@@ -40,22 +40,22 @@ The sections below detail the motivation behind this design as well as the imple
 Walking a `Trie` is achieved using a cursor. Before we describe it in detail, let's give a quick example of what a
 classic trie walk looks like and how it can be optimized. Suppose we want to walk the following trie:
 
-![graph](MemtableTrie.md.w1.svg)
+![graph](InMemoryTrie.md.w1.svg)
 
-(Note: the node labels are `MemtableTrie` node IDs which can be ignored here, with the exception of `contentArray[x]` 
+(Note: the node labels are `InMemoryTrie` node IDs which can be ignored here, with the exception of `contentArray[x]` 
 ones which specify that the relevant node has some associated content.)
 
 The classic walk descends (<span style="color:lightblue">light blue</span>) on every character and backtracks 
 (<span style="color:pink">pink</span>) to the parent, resulting in the following walk:
 
-![graph](MemtableTrie.md.w2.svg)
+![graph](InMemoryTrie.md.w2.svg)
 
 One can see from this graph that many of the backtracking steps are only taken so that they can immediately be followed
 by another backtracking step. We often also know in advance that a node does not need to be examined further on the way
 back: if it only has one child (which is always the case for all nodes in a `Chain`), or if we are descending into 
 its last child (which is easy to check for `Sparse` nodes). This simplifies the walk to:
 
-![graph](MemtableTrie.md.w3.svg)
+![graph](InMemoryTrie.md.w3.svg)
 
 In addition to making the walk simpler, shortening the backtracking paths means a smaller walk state representation,
 which is quite helpful in keeping the garbage collection cost down. In this example, the backtracking state of the walk
@@ -65,7 +65,7 @@ at the "tractor" node is only `[("tr", child 2)]`, changes to `[("tr", child 3)]
 One further optimization of the walk is to jump directly to the next child without stopping at a branching parent (note:
 the black arrows represent the trie structure):
 
-![graph](MemtableTrie.md.wc1.svg)
+![graph](InMemoryTrie.md.wc1.svg)
 
 This graph is what a cursor walk over this trie is. Looking closely at the graph, one can see that it stops exactly once
 on each node, and that the nodes are visited in lexicographic order. There is no longer a need for a separate backtrack
@@ -89,7 +89,7 @@ merge and intersect tries. If we are walking a single trie (or a single-source b
 improve the efficiency even further by taking multiple steps down in `Chain` nodes, provided we have a suitable
 mechanism of passing additional transition characters:
 
-![graph](MemtableTrie.md.wc2.svg)
+![graph](InMemoryTrie.md.wc2.svg)
 
 This is supported by `Cursor.advanceMultiple`.
 
@@ -116,7 +116,7 @@ Consider the following for an approach presenting nodes:
 Cursors can represent the first two in their internal state without additional backtracking state, and require only one
 transformed cursor to be constructed for the entire walk. Additionally, cursors' representation of backtracking state 
 may be closely tied to the specific trie implementation, which also gives further improvement opportunities (e.g. the 
-`Split` node treatment in `MemtableTrie`).
+`Split` node treatment in `InMemoryTrie`).
 
 ### Why not visitors?
 

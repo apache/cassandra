@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.db.tries;
 
-public class MemtableTrieApplyTest extends MemtableTrieTestBase
+public class InMemoryTrieApplyTest extends InMemoryTrieTestBase
 {
     @Override
     boolean usePut()

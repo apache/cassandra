@@ -33,10 +33,10 @@ import org.junit.Test;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-import static org.apache.cassandra.db.tries.MemtableTrieTestBase.VERSION;
-import static org.apache.cassandra.db.tries.MemtableTrieTestBase.generateKeys;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.VERSION;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
 
-public class MemtableTrieThreadedTest
+public class InMemoryTrieThreadedTest
 {
     private static final int COUNT = 300000;
     private static final int OTHERS = COUNT / 10;
@@ -54,7 +54,7 @@ public class MemtableTrieThreadedTest
     public void testThreaded() throws InterruptedException
     {
         ByteComparable[] src = generateKeys(rand, COUNT + OTHERS);
-        MemtableTrie<String> trie = new MemtableTrie<>(BufferType.ON_HEAP);
+        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.ON_HEAP);
         ConcurrentLinkedQueue<Throwable> errors = new ConcurrentLinkedQueue<>();
         List<Thread> threads = new ArrayList<>();
         AtomicBoolean writeCompleted = new AtomicBoolean(false);
