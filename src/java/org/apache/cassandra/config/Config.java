@@ -677,6 +677,10 @@ public class Config
 
     public Integer auto_repair_number_of_repair_threads = 1;
 
+    public Integer auto_repair_parallel_repair_count_in_group = 1;
+
+    public Integer auto_repair_parallel_repair_percentage_in_group = 0;  // this number should be between 0 - 100 inclusive
+
     public Integer auto_repair_sstable_upper_threshold = 10000;
 
     public String auto_repair_ignore_keyspaces = "system.*|.*staging.*|.*test.*|health|pingless";

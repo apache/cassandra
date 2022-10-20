@@ -85,7 +85,7 @@ public class AutoRepairTest extends CQLTester
         cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         cfs.truncateBlocking();
 
-        cfs = Keyspace.open(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME).getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_STATUS);
+        cfs = Keyspace.open(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME).getColumnFamilyStore(AutoRepairKeyspace.AUTO_REPAIR_PRIORITY);
         cfs.truncateBlocking();
 
         AutoRepairService.instance.startAutoRepair();
@@ -114,7 +114,7 @@ public class AutoRepairTest extends CQLTester
         long lastRepairTime = AutoRepair.instance.getLastRepairTime();
         //if repair was done then lastRepairTime should be non-zero
         Assert.assertTrue(String.format("Expected lastRepairTime > 0, actual value lastRepairTime %d",
-                lastRepairTime), lastRepairTime > 0);
+                                        lastRepairTime), lastRepairTime > 0);
     }
 
     @Test
@@ -125,17 +125,17 @@ public class AutoRepairTest extends CQLTester
         AutoRepair.repair(0);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected total repaired tables > 0, actual value %s ", AutoRepair.instance
-                .getTotalTablesConsideredForRepair()), AutoRepair.instance.getTotalTablesConsideredForRepair(), 0);
+        .getTotalTablesConsideredForRepair()), AutoRepair.instance.getTotalTablesConsideredForRepair(), 0);
 
         //if repair was done in last 24 hours then it should not trigger another repair
         AutoRepairService.instance.setRepairMinFrequencyInHours(24);
         AutoRepair.repair(0);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
         Assert.assertEquals(String.format("Expected repair time to be same, actual value lastRepairTime1 %d, " +
-                "lastRepairTime2 %d", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
+                                          "lastRepairTime2 %d", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
         Assert.assertEquals("Expected total repaired tables = 0, actual value: " + AutoRepair.instance
-                .getTotalTablesConsideredForRepair(), AutoRepair.instance
-                .getTotalTablesConsideredForRepair(), 0);
+        .getTotalTablesConsideredForRepair(), AutoRepair.instance
+                            .getTotalTablesConsideredForRepair(), 0);
     }
 
     @Test
@@ -145,14 +145,14 @@ public class AutoRepairTest extends CQLTester
         AutoRepair.repair(0);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
         Assert.assertTrue(String.format("Expected lastRepairTime1 > 0, actual value lastRepairTime1 %d",
-                lastRepairTime1), lastRepairTime1 > 0);
+                                        lastRepairTime1), lastRepairTime1 > 0);
         UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
         Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) !=
-                NOT_MY_TURN);
+                                                             NOT_MY_TURN);
         AutoRepair.repair(0);
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected repair time to be same, actual value lastRepairTime1 %d, " +
-                "lastRepairTime2 ", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
+                                           "lastRepairTime2 ", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
     }
 
     @Test
@@ -160,15 +160,15 @@ public class AutoRepairTest extends CQLTester
     {
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         Assert.assertSame(String.format("Priority host count is not same, actual value %d, expected value %d",
-                AutoRepairUtils.getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
+                                        AutoRepairUtils.getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
         UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
         Assert.assertTrue("Expected my turn for the repair", AutoRepairUtils.myTurnToRunRepair(myId) !=
-                NOT_MY_TURN);
+                                                             NOT_MY_TURN);
         AutoRepair.repair(0);
         AutoRepairUtils.addPriorityHost(Sets.newHashSet(FBUtilities.getBroadcastAddressAndPort()));
         AutoRepair.repair(0);
         Assert.assertSame(String.format("Priority host count is not same actual value %d, expected value %d", AutoRepairUtils
-                .getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
+        .getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
     }
 
     @Test
@@ -181,14 +181,14 @@ public class AutoRepairTest extends CQLTester
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
         //Since repair has not happened, both the last repair times should be same
         Assert.assertEquals(String.format("Expected lastRepairTime1 %d, and lastRepairTime2 %d to be same",
-                lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
+                                          lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
 
         AutoRepairService.instance.startAutoRepair();
         AutoRepair.repair(0);
         //since repair is done now, so lastRepairTime1/lastRepairTime2 and lastRepairTime3 should not be same
         long lastRepairTime3 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected lastRepairTime1 %d, and lastRepairTime3 %d to be not same",
-                lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime3);
+                                           lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime3);
     }
 
     @Test

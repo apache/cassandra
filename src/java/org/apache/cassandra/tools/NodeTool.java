@@ -95,6 +95,7 @@ public class NodeTool
     {
         List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
                 Assassinate.class,
+                AutoRepairStatus.class,
                 CassHelp.class,
                 CfHistograms.class,
                 CfStats.class,

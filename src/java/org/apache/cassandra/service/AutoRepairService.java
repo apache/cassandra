@@ -25,6 +25,8 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -45,7 +47,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private Pattern repairOnlyKeyspaces;
     private long autoRepairTableMaxRepairTimeInSec;
     private Set<String> autoRepairIgnoreDCs;
-    private Set<Set<String>> autoRepairDCGroups;
+    private Set<Set<String>> autoRepairDCGroups = new HashSet<>();
     private int autoRepairHistoryClearDeleteHostsBufferInSec;
 
     public static final AutoRepairService instance = new AutoRepairService();
@@ -106,13 +108,29 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public Set<String> getOnGoingRepairHostIdsByGroupHash(int groupHash)
+    {
+        Set<String> hostIds = new HashSet<>();
+        List<AutoRepairUtils.AutoRepairHistory> histories = AutoRepairUtils.getAutoRepairHistoryByGroupID(groupHash);
+        if (histories == null) {
+            return null;
+        }
+        AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(groupHash));
+        for (UUID id : currentRepairStatus.hostIdsWithOnGoingRepair)
+        {
+            hostIds.add(id.toString());
+        }
+        return hostIds;
+    }
+
+    @Override
     public void setRepairPriorityForHosts(Set<InetAddressAndPort> host)
     {
         AutoRepairUtils.addPriorityHost(host);
     }
 
     @Override
-    public Set<InetAddress> getRepairHostPriority()
+    public Set<InetAddressAndPort> getRepairHostPriority()
     {
         return AutoRepairUtils.getPriorityHosts();
     }

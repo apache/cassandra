@@ -4817,6 +4817,14 @@ public class DatabaseDescriptor
         return conf.auto_repair_number_of_repair_threads;
     }
 
+    public static Integer getAutoRepairParallelRepairCountInGroup() {
+        return conf.auto_repair_parallel_repair_count_in_group;
+    }
+
+    public static Integer getAutoRepairParallelRepairPercentageInGroup() {
+        return conf.auto_repair_parallel_repair_percentage_in_group;
+    }
+
     public static Integer getAutoRepairSSTableUpperThreshold()
     {
         return conf.auto_repair_sstable_upper_threshold;
@@ -4868,6 +4876,14 @@ public class DatabaseDescriptor
     public static boolean isBlockUnqualifiedPreparedStatementEnabled()
     {
         return conf.block_unqualified_prepared_statement_enabled;
+    }
+
+    public static void setAutoRepairParallelRepairCountInGroup(int count) {
+        conf.auto_repair_parallel_repair_count_in_group = count;
+    }
+
+    public static void setAutoRepairParallelRepairPercentageInGroup(int percentage){
+        conf.auto_repair_parallel_repair_percentage_in_group = percentage;
     }
 
     public static boolean isOrphanNodeHintFilesCleanupEnabled() {

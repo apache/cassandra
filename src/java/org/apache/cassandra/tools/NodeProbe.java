@@ -98,6 +98,7 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.repair.AutoRepairUtils;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
@@ -2318,7 +2319,7 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setRepairPriorityForHosts(hosts);
     }
 
-    public Set<InetAddress> getRepairPriorityForHosts()
+    public Set<InetAddressAndPort> getRepairPriorityForHosts()
     {
         return autoRepairProxy.getRepairHostPriority();
     }
@@ -2405,6 +2406,11 @@ public class NodeProbe implements AutoCloseable
 
     public Set<Set<String>> getDCGroups() {
         return autoRepairProxy.getDCGroups();
+    }
+
+    public Set<String> getOnGoingRepairHostIdsByGroupHash(int groupHash)
+    {
+        return autoRepairProxy.getOnGoingRepairHostIdsByGroupHash(groupHash);
     }
 
     public void setDCGourps(Set<Set<String>> dcGourps) {

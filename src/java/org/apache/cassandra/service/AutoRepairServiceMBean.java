@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.AutoRepairUtils;
 
 public interface AutoRepairServiceMBean
 {
@@ -69,6 +70,11 @@ public interface AutoRepairServiceMBean
     public int getRepairThreads();
 
     /**
+     * Get current repair status by group hash
+     */
+    public Set<String> getOnGoingRepairHostIdsByGroupHash(int groupHash);
+
+    /**
      * Set repair priority for hosts
      */
     public void setRepairPriorityForHosts(Set<InetAddressAndPort> host);
@@ -76,7 +82,7 @@ public interface AutoRepairServiceMBean
     /**
      * Get repair priority
      */
-    public Set<InetAddress> getRepairHostPriority();
+    public Set<InetAddressAndPort> getRepairHostPriority();
 
     /**
      * Get repair subrange numbers

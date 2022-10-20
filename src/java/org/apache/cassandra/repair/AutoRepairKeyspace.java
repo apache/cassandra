@@ -41,21 +41,11 @@ public class AutoRepairKeyspace
      *
      * gen 0: original definition in 3.0
      */
-    public static final long GENERATION = 0;
+    public static final long GENERATION = 1;
 
-    static final String AUTO_REPAIR_STATUS = "cur_repair_status";
     static final String AUTO_REPAIR_HISTORY = "auto_repair_history";
 
-    private static final TableMetadata AutoRepairStatus =
-    parse(AUTO_REPAIR_STATUS,
-            "current repair status details",
-            "CREATE TABLE %s ("
-            + "pid int,"
-            + "host_id uuid,"
-            + "repair_status int,"
-            + "repair_ts timestamp,"
-            + "repair_priority set<uuid>,"
-            + "PRIMARY KEY (pid))");
+    static final String AUTO_REPAIR_PRIORITY = "auto_repair_priority";
 
     private static final TableMetadata AutoRepairHistory =
     parse(AUTO_REPAIR_HISTORY,
@@ -70,6 +60,14 @@ public class AutoRepairKeyspace
             + "delete_hosts_update_time timestamp,"
             + "PRIMARY KEY (pid, host_id))");
 
+    private static final TableMetadata AutoRepairPriority =
+    parse(AUTO_REPAIR_PRIORITY,
+            "Auto repair priority for each group",
+            "CREATE TABLE %s ("
+            + "pid int,"
+            + "repair_priority set<uuid>,"
+            + "PRIMARY KEY (pid))");
+
 
     private static TableMetadata parse(String name, String description, String schema)
     {
@@ -82,6 +80,6 @@ public class AutoRepairKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, KeyspaceParams.simple(1), Tables.of(AutoRepairStatus, AutoRepairHistory));
+        return KeyspaceMetadata.create(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, KeyspaceParams.simple(1), Tables.of(AutoRepairPriority, AutoRepairHistory));
     }
 }

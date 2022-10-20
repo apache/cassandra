@@ -269,7 +269,6 @@ public class AutoRepair
 
                 Stopwatch stopWatch = Stopwatch.createStarted();
                 logger.info("My host id: {}, my turn to run repair...", myId);
-                AutoRepairUtils.updateRepairStatus(myId, RepairCurrentStatus.REPAIR_NOT_DONE);
                 AutoRepairUtils.updateStartAutoRepairHistory(myId, System.currentTimeMillis(), turn);
 
                 int repairKeyspaceCount = 0;
@@ -494,7 +493,6 @@ public class AutoRepair
                     Thread.sleep(millisToWait);
                 }
                 repairInProgress = 0;
-                AutoRepairUtils.updateRepairStatus(myId, RepairCurrentStatus.REPAIR_DONE);
                 AutoRepairUtils.updateFinishAutoRepairHistory(myId, System.currentTimeMillis());
             }
             else
@@ -506,6 +504,7 @@ public class AutoRepair
         {
             logger.error("Exception in autorepair:", e);
         }
+
     }
 }
 

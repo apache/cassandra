@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-16847] Add ability to run auto repair on multiple nodes at the same time
  * [SO-16527] Auto repair 2.0 bug fix: for insert new history statement, set paxos consistency as local_serial
  * [SO-16527] Auto repair 2.0 bug fix 1) Nullpointerexception fix when delete_hosts_update_time is null. 2) Wrong statement for deleting auto_repair_history record
  * [SO-16186] Auto repair with auto repair history table for each node and new logic to determine turns
