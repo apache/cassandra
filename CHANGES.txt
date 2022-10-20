@@ -1,6 +1,7 @@
 4.1-beta2
  * Allow pre-V5 global limit on bytes in flight to revert to zero asynchronously in RateLimitingTest (CASSANDRA-17927)
 Merged from 4.0:
+ * Fix ASM bytecode version inconsistency (CASSANDRA-17873)
  * Remove empty cq4 files in log directory to not fail the startup of BinLog (CASSANDRA-17933)
  * Fix multiple BufferPool bugs (CASSANDRA-16681)
  * Fix StorageService.getNativeaddress handling of IPv6 addresses (CASSANDRA-17945)

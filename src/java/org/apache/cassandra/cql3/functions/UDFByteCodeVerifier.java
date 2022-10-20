@@ -160,7 +160,7 @@ public final class UDFByteCodeVerifier
 
         ExecuteImplVisitor(Set<String> errors)
         {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
             this.errors = errors;
         }
 
@@ -210,7 +210,7 @@ public final class UDFByteCodeVerifier
 
         ConstructorVisitor(Set<String> errors)
         {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
             this.errors = errors;
         }
 
