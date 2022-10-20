@@ -2020,6 +2020,7 @@ commands:
                 if [[ $target == "test" || \
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
+                      $target == "test-trie" || \
                       $target == "test-system-keyspace-directory" || \
                       $target == "fqltool-test" || \
                       $target == "long-test" || \
