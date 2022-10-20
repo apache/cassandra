@@ -16,9 +16,9 @@
  limitations under the License.
 -->
 
-# MemtableTrie Design
+# InMemoryTrie Design
 
-The `MemtableTrie` is one of the main components of the trie infrastructure, a mutable in-memory trie built for fast
+The `InMemoryTrie` is one of the main components of the trie infrastructure, a mutable in-memory trie built for fast
 modification and reads executing concurrently with writes from a single mutator thread.
 
 The main features of its implementation are:
@@ -37,7 +37,7 @@ as Java objects in a content array). The structure resides in one `UnsafeBuffer`
 desired) and is broken up in 32-byte "cells" (also called "blocks" in the code), which are the unit of allocation,
 update and reuse.
 
-Like all tries, `MemtableTrie` is built from nodes and has a root pointer. The nodes reside in cells, but there is no
+Like all tries, `InMemoryTrie` is built from nodes and has a root pointer. The nodes reside in cells, but there is no
 1:1 correspondence between nodes and cells - some node types pack multiple in one cell, while other types require
 multiple cells.
 
@@ -74,7 +74,7 @@ The sections below specify the layout of each supported node type.
 #### Leaf nodes
 
 Leaf nodes do not have a corresponding cell in the buffer. Instead, they reference a value (i.e. a POJO in the
-`MemtableTrie`'s content type) in the content array. The index of the value is specified by `~pointer` (unlike `-x`,
+`InMemoryTrie`'s content type) in the content array. The index of the value is specified by `~pointer` (unlike `-x`,
 `~x` allows one to also encode 0 in a negative number).
 
 Leaf nodes have no children, and return the specified value for `content()`.
@@ -133,7 +133,7 @@ nodes (an example will be given below). In any case, the byte pointed directly b
 transition byte. The child pointer is either `pointer + 1` (if the lowest 5 pointer bits are less than `0x1B`), or the
 integer stored at `pointer + 1` (if the pointer's last 5 bits are `0x1B`).
 
-![graph](MemtableTrie.md.g1.svg)
+![graph](InMemoryTrie.md.g1.svg)
 
 Note: offset `0x00` also specifies a chain node, but the pointer 0 is a special case and care must be taken to ensure no
 28-byte chain node is placed in the cell at bytes `0x00`-`0x1F`.
@@ -172,7 +172,7 @@ To explain this better, we will give an example of the evolution of a sparse nod
 the previous section, and some update needs to attach a second child to that, e.g. with the character `A` and child
 `0x238`.
 
-![graph](MemtableTrie.md.g2.svg)
+![graph](InMemoryTrie.md.g2.svg)
 
 To do this, the mutating thread will have to convert the chain node into a sparse by allocating a new cell
 (e.g. `0x240`-`0x25F`) and filling in the sparse node `00000238 0000013A 00000000 00000000 00000000 00000000 41430000
@@ -374,7 +374,7 @@ To find a child in this structure, we follow the transitions along the bits of t
 the `010` index to retrieve the node pointer `0x35C`. Note that the intermediate cells (dashed in the diagram) are not
 reachable with pointers, they only make sense as substructure of the split node.
 
-![graph](MemtableTrie.md.g3.svg)
+![graph](InMemoryTrie.md.g3.svg)
 
 #### Content `Prefix`
 
@@ -428,25 +428,25 @@ offset|content|example
 Both `0x51C` and `0x51F` are valid pointers in this cell. The former refers to the plain split node, the latter to its
 content-augmented version. The only difference between the two is the result of a call to `content()`.
 
-![graph](MemtableTrie.md.g4.svg)
+![graph](InMemoryTrie.md.g4.svg)
 
 
 ## Reading a trie
 
-`MemtableTrie` is mainly meant to be used as an implementation of `Trie`. As such, the main method of retrieval of
+`InMemoryTrie` is mainly meant to be used as an implementation of `Trie`. As such, the main method of retrieval of
 information is via some selection (i.e. intersection) of a subtrie followed by a walk over the content in this
 subtrie. Straightforward methods for direct retrieval of data by key are also provided, but they are mainly for testing.
 
 The methods for iterating over and transforming tries are provided by the `Trie` interface and are built on the cursor
-interface implemented by `MemtableTrie` (see `Trie.md` for a description of cursors).
+interface implemented by `InMemoryTrie` (see `Trie.md` for a description of cursors).
 
-![graph](MemtableTrie.md.wc1.svg)
+![graph](InMemoryTrie.md.wc1.svg)
 
 (Edges in black show the trie's structure, and the ones in <span style="color:lightblue">light blue</span> the path the cursor walk takes.)
 
-### Cursors over `MemtableTrie`
+### Cursors over `InMemoryTrie`
 
-`MemtableTrie` implements cursors using arrays of integers to store the backtracking state (as the simplest
+`InMemoryTrie` implements cursors using arrays of integers to store the backtracking state (as the simplest
 possible structure that can be easily walked and garbage collected). No backtracking state is added for `Chain` or 
 `Leaf` nodes and any prefix. For `Sparse` we store the node address, depth and the remainder of the sparse order word.
 That is, we read the sparse order word on entry, peel off the next index to descend and store the remainder. When we 
@@ -465,19 +465,19 @@ This substructure is a little more efficient than storing only one entry for the
 mid-to-tail links do not need to be followed for every new child) and also allows us to easily get the precise next 
 child and remove the backtracking entry when a cell has no further children.
 
-`MemtableTrie` cursors also implement `advanceMultiple`, which jumps over intermediate nodes in `Chain` blocks:
+`InMemoryTrie` cursors also implement `advanceMultiple`, which jumps over intermediate nodes in `Chain` blocks:
 
-![graph](MemtableTrie.md.wc2.svg)
+![graph](InMemoryTrie.md.wc2.svg)
 
 ## Mutation
 
-Mutation of `MemtableTrie` must be done by one thread only (for performance reasons we don't enforce it, the user must
+Mutation of `InMemoryTrie` must be done by one thread only (for performance reasons we don't enforce it, the user must
 make sure that's the case), but writes may be concurrent with multiple reads over the data that is being mutated. The
 trie is built to support this by making sure that any modification of a node is safe for any reader that is operating
 concurrently.
 
-The main method for mutating a `MemtableTrie` is `apply`, which merges the structure of another `Trie` in. 
-`MemtableTrie` also provides simpler recursive method of modification, `putRecursive`, which creates a single 
+The main method for mutating a `InMemoryTrie` is `apply`, which merges the structure of another `Trie` in. 
+`InMemoryTrie` also provides simpler recursive method of modification, `putRecursive`, which creates a single 
 `key -> value` mapping in the trie. We will describe the mutation process starting with a `putRecursive` example.
 
 ### Adding a new key -> value mapping using `putRecursive`
@@ -487,7 +487,7 @@ insertion process walks the trie to find corresponding existing nodes for the on
 When it has to leave the existing trie, because it has no entries for the path, the process continues using `NONE` as
 the trie node.
 
-![graph](MemtableTrie.md.m1.svg)
+![graph](InMemoryTrie.md.m1.svg)
 
 When it reaches the end of the path, it needs to attach the value. Unless this is a prefix of an existing entry, the 
 matching trie node will either be `NONE` or a leaf node. Here it's `NONE`, so we create a item in the
@@ -501,7 +501,7 @@ writing the new character at the address just before the child pointer, and retu
 child chain node is newly created, so we can't be overwriting any existing data there). We can do this several more
 times.
 
-![graph](MemtableTrie.md.m2.svg)
+![graph](InMemoryTrie.md.m2.svg)
 
 (<span style="color:lightblue">Light blue</span> specifies the descent path, <span style="color:pink">pink</span>
 the values returned, <span style="color:blue">blue</span> stands for newly-created nodes and links, and
@@ -524,7 +524,7 @@ them).
 It can then return its address `0x07E` unchanged up, and no changes need to be done in any of the remaining steps. The
 process finishes in a new value for `root`, which in this case remains unchanged.
 
-![graph](MemtableTrie.md.m3.svg)
+![graph](InMemoryTrie.md.m3.svg)
 
 The process created a few new nodes (in blue), and made one obsolete (in grey). What concurrent readers can see depends
 on where they are at the time the attachment point write is done. Forward traversals, if they are in the path below
@@ -706,7 +706,7 @@ After all modifications coming as the result of application of child branches ha
 
 For example (adding a trie containing "traverse, truck" to the "tractor, tree, trie" one):
 
-![graph](MemtableTrie.md.a1.svg)
+![graph](InMemoryTrie.md.a1.svg)
 
 In this diagram `existingNode`s are the ones reached through the <span style="color:lightblue">light blue</span> arrows during the descent phase (e.g.
 `0x018` for the `ApplyState` at `tra`, or `NONE` for `tru`), and `updatedNode`s are the ones ascent (<span style="color:pink">pink</span> arrows)
@@ -745,7 +745,7 @@ constructed after `updatedPostContentNode` but links above it in the trie.)
 
 As an example, consider the process of adding `trees` to our sample trie:
 
-![graph](MemtableTrie.md.p1.svg)
+![graph](InMemoryTrie.md.p1.svg)
 
 When descending at `tree` we set `existingPreContentNode = ~1`, `existingPostContentNode = NONE` and `contentIndex = 1`.
 Ascending back to add the child `~3`, we add a child to `NONE` and get `updatedPostContentNode = 0x0BB`. To then apply

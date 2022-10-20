@@ -35,10 +35,10 @@ import org.junit.Test;
 import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-import static org.apache.cassandra.db.tries.MemtableTrieTestBase.asString;
-import static org.apache.cassandra.db.tries.MemtableTrieTestBase.assertSameContent;
-import static org.apache.cassandra.db.tries.MemtableTrieTestBase.generateKeys;
-import static org.apache.cassandra.db.tries.MemtableTrieTestBase.makeMemtableTrie;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.asString;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 
@@ -97,15 +97,15 @@ public class SlicedTrieTest
         ByteComparable[] src1 = generateKeys(rand, count);
         NavigableMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, Trie.BYTE_COMPARABLE_VERSION));
 
-        MemtableTrie<ByteBuffer> trie1 = makeMemtableTrie(src1, content1, true);
+        InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(src1, content1, true);
 
         checkEqualRange(content1, trie1, null, true, null, true);
-        checkEqualRange(content1, trie1, MemtableTrieTestBase.generateKey(rand), true, null, true);
-        checkEqualRange(content1, trie1, null, true, MemtableTrieTestBase.generateKey(rand), true);
+        checkEqualRange(content1, trie1, InMemoryTrieTestBase.generateKey(rand), true, null, true);
+        checkEqualRange(content1, trie1, null, true, InMemoryTrieTestBase.generateKey(rand), true);
         for (int i = 0; i < 4; ++i)
         {
-            ByteComparable l = rand.nextBoolean() ? MemtableTrieTestBase.generateKey(rand) : src1[rand.nextInt(src1.length)];
-            ByteComparable r = rand.nextBoolean() ? MemtableTrieTestBase.generateKey(rand) : src1[rand.nextInt(src1.length)];
+            ByteComparable l = rand.nextBoolean() ? InMemoryTrieTestBase.generateKey(rand) : src1[rand.nextInt(src1.length)];
+            ByteComparable r = rand.nextBoolean() ? InMemoryTrieTestBase.generateKey(rand) : src1[rand.nextInt(src1.length)];
             int cmp = ByteComparable.compare(l, r, Trie.BYTE_COMPARABLE_VERSION);
             if (cmp > 0)
             {
@@ -180,7 +180,7 @@ public class SlicedTrieTest
     {
         Arrays.sort(BOUNDARIES, BYTE_COMPARABLE_COMPARATOR);
         NavigableMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(BYTE_COMPARABLE_COMPARATOR);
-        MemtableTrie<ByteBuffer> trie1 = makeMemtableTrie(KEYS, content1, true);
+        InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(KEYS, content1, true);
 
         for (int li = -1; li < BOUNDARIES.length; ++li)
         {
@@ -225,7 +225,7 @@ public class SlicedTrieTest
         List<Trie<ByteBuffer>> tries = new ArrayList<>();
         for (int i = 0; i < mergeCount; ++i)
         {
-            tries.add(makeMemtableTrie(Arrays.copyOfRange(KEYS,
+            tries.add(makeInMemoryTrie(Arrays.copyOfRange(KEYS,
                                                            KEYS.length * i / mergeCount,
                                                            KEYS.length * (i + 1) / mergeCount),
                                         content1,

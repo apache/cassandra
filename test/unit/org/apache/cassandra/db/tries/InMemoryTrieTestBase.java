@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.junit.Assert.assertEquals;
 
-public abstract class MemtableTrieTestBase
+public abstract class InMemoryTrieTestBase
 {
     // Set this to true (in combination with smaller count) to dump the tries while debugging a problem.
     // Do not commit the code with VERBOSE = true.
@@ -50,7 +50,7 @@ public abstract class MemtableTrieTestBase
 
     Random rand = new Random();
 
-    static final ByteComparable.Version VERSION = MemtableTrie.BYTE_COMPARABLE_VERSION;
+    static final ByteComparable.Version VERSION = InMemoryTrie.BYTE_COMPARABLE_VERSION;
 
     abstract boolean usePut();
 
@@ -58,7 +58,7 @@ public abstract class MemtableTrieTestBase
     public void testSingle()
     {
         ByteComparable e = ByteComparable.of("test");
-        MemtableTrie<String> trie = new MemtableTrie<>(BufferType.OFF_HEAP);
+        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.OFF_HEAP);
         putSimpleResolve(trie, e, "test", (x, y) -> y);
         System.out.println("Trie " + trie.dump());
         assertEquals("test", trie.get(e));
@@ -86,7 +86,7 @@ public abstract class MemtableTrieTestBase
         "40bdd47ec043641f2b403131323400",
         "40bd00bf5ae8cf9d1d403133323800",
         };
-        MemtableTrie<String> trie = new MemtableTrie<>(BufferType.OFF_HEAP);
+        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.OFF_HEAP);
         for (String test : tests)
         {
             ByteComparable e = ByteComparable.fixedLength(ByteBufferUtil.hexToBytes(test));
@@ -116,7 +116,7 @@ public abstract class MemtableTrieTestBase
     {
         String[] tests = new String[] {"testing", "tests", "trials", "trial", "testing", "trial", "trial"};
         String[] values = new String[] {"testing", "tests", "trials", "trial", "t2", "x2", "y2"};
-        MemtableTrie<String> trie = new MemtableTrie<>(BufferType.OFF_HEAP);
+        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.OFF_HEAP);
         for (int i = 0; i < tests.length; ++i)
         {
             String test = tests[i];
@@ -298,7 +298,7 @@ public abstract class MemtableTrieTestBase
     {
         ByteComparable[] src = generateKeys(rand, COUNT);
         SortedMap<ByteComparable, ByteBuffer> content = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
-        MemtableTrie<ByteBuffer> trie = makeMemtableTrie(src, content, usePut());
+        InMemoryTrie<ByteBuffer> trie = makeInMemoryTrie(src, content, usePut());
         int keysize = Arrays.stream(src)
                             .mapToInt(src1 -> ByteComparable.length(src1, VERSION))
                             .sum();
@@ -395,7 +395,7 @@ public abstract class MemtableTrieTestBase
     private void testEntries(String[] tests, Function<String, ByteComparable> mapping)
 
     {
-        MemtableTrie<String> trie = new MemtableTrie<>(BufferType.OFF_HEAP);
+        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.OFF_HEAP);
         for (String test : tests)
         {
             ByteComparable e = mapping.apply(test);
@@ -408,19 +408,19 @@ public abstract class MemtableTrieTestBase
             assertEquals(test, trie.get(mapping.apply(test)));
     }
 
-    static MemtableTrie<ByteBuffer> makeMemtableTrie(ByteComparable[] src,
+    static InMemoryTrie<ByteBuffer> makeInMemoryTrie(ByteComparable[] src,
                                                      Map<ByteComparable, ByteBuffer> content,
                                                      boolean usePut)
 
     {
-        MemtableTrie<ByteBuffer> trie = new MemtableTrie<>(BufferType.OFF_HEAP);
-        addToMemtableTrie(src, content, trie, usePut);
+        InMemoryTrie<ByteBuffer> trie = new InMemoryTrie<>(BufferType.OFF_HEAP);
+        addToInMemoryTrie(src, content, trie, usePut);
         return trie;
     }
 
-    static void addToMemtableTrie(ByteComparable[] src,
+    static void addToInMemoryTrie(ByteComparable[] src,
                                   Map<ByteComparable, ByteBuffer> content,
-                                  MemtableTrie<ByteBuffer> trie,
+                                  InMemoryTrie<ByteBuffer> trie,
                                   boolean usePut)
 
     {
@@ -439,7 +439,7 @@ public abstract class MemtableTrieTestBase
         }
     }
 
-    static void checkGet(MemtableTrie<ByteBuffer> trie, Map<ByteComparable, ByteBuffer> items)
+    static void checkGet(InMemoryTrie<ByteBuffer> trie, Map<ByteComparable, ByteBuffer> items)
     {
         for (Map.Entry<ByteComparable, ByteBuffer> en : items.entrySet())
         {
@@ -536,7 +536,7 @@ public abstract class MemtableTrieTestBase
         }
         if (!failedAt.isEmpty())
         {
-            String message = "Failed at " + Lists.transform(failedAt, MemtableTrieTestBase::asString);
+            String message = "Failed at " + Lists.transform(failedAt, InMemoryTrieTestBase::asString);
             System.err.println(message);
             System.err.println(b);
             Assert.fail(message);
@@ -601,7 +601,7 @@ public abstract class MemtableTrieTestBase
         return bc != null ? bc.byteComparableAsString(VERSION) : "null";
     }
 
-    <T, M> void putSimpleResolve(MemtableTrie<T> trie,
+    <T, M> void putSimpleResolve(InMemoryTrie<T> trie,
                                  ByteComparable key,
                                  T value,
                                  Trie.MergeResolver<T> resolver)
@@ -609,7 +609,7 @@ public abstract class MemtableTrieTestBase
         putSimpleResolve(trie, key, value, resolver, usePut());
     }
 
-    static <T, M> void putSimpleResolve(MemtableTrie<T> trie,
+    static <T, M> void putSimpleResolve(InMemoryTrie<T> trie,
                                         ByteComparable key,
                                         T value,
                                         Trie.MergeResolver<T> resolver,
@@ -622,7 +622,7 @@ public abstract class MemtableTrieTestBase
                               (existing, update) -> existing != null ? resolver.resolve(existing, update) : update,
                               usePut);
         }
-        catch (MemtableTrie.SpaceExhaustedException e)
+        catch (InMemoryTrie.SpaceExhaustedException e)
         {
             // Should not happen, test stays well below size limit.
             throw new AssertionError(e);

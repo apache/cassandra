@@ -26,12 +26,11 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /**
- * Memtable trie, i.e. an in-memory trie built for fast modification and reads executing concurrently with writes from
- * a single mutator thread.
+ * In-memory trie built for fast modification and reads executing concurrently with writes from a single mutator thread.
  *
- * This class provides the read-only functionality, expanded in {@link MemtableTrie} to writes.
+ * This class provides the read-only functionality, expanded in {@link InMemoryTrie} to writes.
  */
-public class MemtableReadTrie<T> extends Trie<T>
+public class InMemoryReadTrie<T> extends Trie<T>
 {
     /*
     TRIE FORMAT AND NODE TYPES
@@ -122,7 +121,7 @@ public class MemtableReadTrie<T> extends Trie<T>
      they are referencing. This currently causes a very low overhead (because we change data in place with the only
      exception of nodes needing to change type) and is planned to be addressed later.
 
-     For further descriptions and examples of the mechanics of the trie, see MemtableTrie.md.
+     For further descriptions and examples of the mechanics of the trie, see InMemoryTrie.md.
      */
 
     static final int BLOCK_SIZE = 32;
@@ -219,7 +218,7 @@ public class MemtableReadTrie<T> extends Trie<T>
     final UnsafeBuffer[] buffers;
     final AtomicReferenceArray<T>[] contentArrays;
 
-    MemtableReadTrie(UnsafeBuffer[] buffers, AtomicReferenceArray<T>[] contentArrays, int root)
+    InMemoryReadTrie(UnsafeBuffer[] buffers, AtomicReferenceArray<T>[] contentArrays, int root)
     {
         this.buffers = buffers;
         this.contentArrays = contentArrays;
@@ -526,7 +525,7 @@ public class MemtableReadTrie<T> extends Trie<T>
     /*
      * Cursor implementation.
      *
-     * MemtableTrie cursors maintain their backtracking state in CursorBacktrackingState where they store
+     * InMemoryTrie cursors maintain their backtracking state in CursorBacktrackingState where they store
      * information about the node to backtrack to and the transitions still left to take or attempt.
      *
      * This information is different for the different types of node:

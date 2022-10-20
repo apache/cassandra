@@ -55,7 +55,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.db.tries.MemtableTrie;
+import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.db.tries.Trie;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -130,7 +130,7 @@ public class TrieMemtable extends AbstractShardedMemtable
 
     /**
      * A merged view of the memtable map. Used for partition range queries and flush.
-     * For efficiency we serve single partition requests off the shard which offers more direct MemtableTrie methods.
+     * For efficiency we serve single partition requests off the shard which offers more direct InMemoryTrie methods.
      */
     private final Trie<BTreePartitionData> mergedTrie;
 
@@ -214,9 +214,9 @@ public class TrieMemtable extends AbstractShardedMemtable
 
             return colUpdateTimeDelta;
         }
-        catch (MemtableTrie.SpaceExhaustedException e)
+        catch (InMemoryTrie.SpaceExhaustedException e)
         {
-            // This should never happen as {@link MemtableTrie#reachedAllocatedSizeThreshold} should become
+            // This should never happen as {@link InMemoryTrie#reachedAllocatedSizeThreshold} should become
             // true and trigger a memtable switch long before this limit is reached.
             throw new IllegalStateException(e);
         }
@@ -443,7 +443,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         // unsafely, meaning that the memtable will not be discarded as long as the data is used, or whether the data
         // should be copied on heap for off-heap allocators.
         @VisibleForTesting
-        final MemtableTrie<BTreePartitionData> data;
+        final InMemoryTrie<BTreePartitionData> data;
 
         private final ColumnsCollector columnsCollector;
 
@@ -458,14 +458,14 @@ public class TrieMemtable extends AbstractShardedMemtable
         @VisibleForTesting
         MemtableShard(TableMetadataRef metadata, MemtableAllocator allocator, TrieMemtableMetricsView metrics)
         {
-            this.data = new MemtableTrie<>(BUFFER_TYPE);
+            this.data = new InMemoryTrie<>(BUFFER_TYPE);
             this.columnsCollector = new AbstractMemtable.ColumnsCollector(metadata.get().regularAndStaticColumns());
             this.statsCollector = new AbstractMemtable.StatsCollector();
             this.allocator = allocator;
             this.metrics = metrics;
         }
 
-        public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup) throws MemtableTrie.SpaceExhaustedException
+        public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup) throws InMemoryTrie.SpaceExhaustedException
         {
             BTreePartitionUpdater updater = new BTreePartitionUpdater(allocator, allocator.cloner(opGroup), opGroup, indexer);
             boolean locked = writeLock.tryLock();

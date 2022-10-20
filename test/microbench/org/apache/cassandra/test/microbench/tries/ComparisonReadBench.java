@@ -36,7 +36,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.tries.MemtableTrie;
+import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -83,7 +83,7 @@ public class ComparisonReadBench
     @Param({"LONG"})
     TypeOption type = TypeOption.LONG;
 
-    final static MemtableTrie.UpsertTransformer<Byte, Byte> resolver = (x, y) -> y;
+    final static InMemoryTrie.UpsertTransformer<Byte, Byte> resolver = (x, y) -> y;
 
     Access<?> access;
 
@@ -302,13 +302,13 @@ public class ComparisonReadBench
 
     class TrieAccess<T> implements Access<T>
     {
-        final MemtableTrie<Byte> trie;
+        final InMemoryTrie<Byte> trie;
         final Type<T> type;
 
         TrieAccess(Type<T> type)
         {
             this.type = type;
-            trie = new MemtableTrie<>(bufferType);
+            trie = new InMemoryTrie<>(bufferType);
         }
 
         public void put(long v, byte b)
@@ -317,7 +317,7 @@ public class ComparisonReadBench
             {
                 trie.putRecursive(type.longToByteComparable(v), b, resolver);
             }
-            catch (MemtableTrie.SpaceExhaustedException e)
+            catch (InMemoryTrie.SpaceExhaustedException e)
             {
                 throw Throwables.propagate(e);
             }
