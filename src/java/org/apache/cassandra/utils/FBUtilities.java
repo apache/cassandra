@@ -84,6 +84,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.objectweb.asm.Opcodes;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
@@ -137,6 +138,8 @@ public class FBUtilities
     }
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
+
+    public static final int ASM_BYTECODE_VERSION = Opcodes.ASM7;
 
     public static MessageDigest newMessageDigest(String algorithm)
     {
