@@ -35,6 +35,8 @@ import org.objectweb.asm.Handle;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import static org.apache.cassandra.utils.FBUtilities.ASM_BYTECODE_VERSION;
+
 /**
  * Verifies Java UDF byte code.
  * Checks for disallowed method calls (e.g. {@code Object.finalize()}),
@@ -84,7 +86,7 @@ public final class UDFByteCodeVerifier
     {
         String clsNameSl = clsName.replace('.', '/');
         Set<String> errors = new TreeSet<>(); // it's a TreeSet for unit tests
-        ClassVisitor classVisitor = new ClassVisitor(Opcodes.ASM7)
+        ClassVisitor classVisitor = new ClassVisitor(ASM_BYTECODE_VERSION)
         {
             public FieldVisitor visitField(int access, String name, String desc, String signature, Object value)
             {
@@ -160,7 +162,7 @@ public final class UDFByteCodeVerifier
 
         ExecuteImplVisitor(Set<String> errors)
         {
-            super(Opcodes.ASM5);
+            super(ASM_BYTECODE_VERSION);
             this.errors = errors;
         }
 
@@ -210,7 +212,7 @@ public final class UDFByteCodeVerifier
 
         ConstructorVisitor(Set<String> errors)
         {
-            super(Opcodes.ASM5);
+            super(ASM_BYTECODE_VERSION);
             this.errors = errors;
         }
 
