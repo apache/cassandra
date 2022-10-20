@@ -236,7 +236,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
-    protected Set<SSTableReader> getSSTables()
+    protected synchronized Set<SSTableReader> getSSTables()
     {
         return ImmutableSet.copyOf(sstables);
     }
