@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -66,20 +65,6 @@ public class AsyncLoaderTest
         StorageService.instance.initServer();
     }
 
-    private static void load(AccordCommandStore commandStore, AsyncContext context, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys)
-    {
-        execute(commandStore, () ->
-        {
-            AsyncLoader loader = new AsyncLoader(commandStore, txnIds, keys);
-            while (!loader.load(context, (o, t) -> Assert.assertNull(t)));
-        });
-    }
-
-    private static void load(AccordCommandStore commandStore, AsyncContext context, TxnId... txnIds)
-    {
-        load(commandStore, context, ImmutableList.copyOf(txnIds), Collections.emptyList());
-    }
-
     /**
      * Loading a cached resource shoudln't block
      */
@@ -118,7 +103,7 @@ public class AsyncLoaderTest
      * Loading a cached resource should block
      */
     @Test
-    public void loadTest() throws Throwable
+    public void loadTest()
     {
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
@@ -160,7 +145,7 @@ public class AsyncLoaderTest
      * Test when some resources are cached and others need to be loaded
      */
     @Test
-    public void partialLoadTest() throws Throwable
+    public void partialLoadTest()
     {
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
