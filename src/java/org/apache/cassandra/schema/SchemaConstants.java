@@ -40,6 +40,7 @@ public final class SchemaConstants
     public static final String SCHEMA_KEYSPACE_NAME = "system_schema";
 
     public static final String TRACE_KEYSPACE_NAME = "system_traces";
+    public static final String ACCORD_KEYSPACE_NAME = "system_accord";
     public static final String AUTH_KEYSPACE_NAME = "system_auth";
     public static final String DISTRIBUTED_KEYSPACE_NAME = "system_distributed";
 
@@ -49,7 +50,7 @@ public final class SchemaConstants
 
     /* system keyspace names (the ones with LocalStrategy replication strategy) */
     public static final Set<String> LOCAL_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME);
+        ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME, ACCORD_KEYSPACE_NAME);
 
     /* virtual table system keyspace names */
     public static final Set<String> VIRTUAL_SYSTEM_KEYSPACE_NAMES =

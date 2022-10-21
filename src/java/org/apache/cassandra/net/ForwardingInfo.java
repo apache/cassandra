@@ -43,6 +43,7 @@ import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize
  */
 public final class ForwardingInfo implements Serializable
 {
+    private static final long serialVersionUID = 0;  // for simulator support
     final List<InetAddressAndPort> targets;
     final long[] messageIds;
 

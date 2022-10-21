@@ -417,6 +417,22 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       isTrackingWarnings());
     }
 
+    public SinglePartitionReadCommand withNowInSec(int nowInSec)
+    {
+        return new SinglePartitionReadCommand(isDigestQuery(),
+                                              digestVersion(),
+                                              acceptsTransient(),
+                                              metadata(),
+                                              nowInSec,
+                                              columnFilter(),
+                                              rowFilter(),
+                                              limits(),
+                                              partitionKey(),
+                                              clusteringIndexFilter(),
+                                              indexMetadata(),
+                                              isTrackingWarnings());
+    }
+
     @Override
     public DecoratedKey partitionKey()
     {

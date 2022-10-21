@@ -650,6 +650,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                     nodeToDc[n++] = i;
             }
         }
+        if (builder.topologyChangeLimit < 0)
+            initialRf = maxRf;
+
         snitch = new SimulatedSnitch(nodeToDc, numInDcs);
 
         execution = new SimulatedExecution();

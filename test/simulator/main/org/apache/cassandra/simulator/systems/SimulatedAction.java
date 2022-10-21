@@ -241,7 +241,8 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
             }
             catch (Throwable t)
             {
-                consequences.forEach(Action::invalidate);
+                if (consequences != null)
+                    consequences.forEach(Action::invalidate);
                 throw t;
             }
 

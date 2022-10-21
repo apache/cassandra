@@ -84,5 +84,6 @@ venv/
 # build-scripts will put cassandra-builds into the directory
 cassandra-builds/
 cassandra-dtest/
+.build/cassandra-accord/
 
 conf/triggers/trigger-example.jar
