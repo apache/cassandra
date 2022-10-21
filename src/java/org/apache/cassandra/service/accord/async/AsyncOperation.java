@@ -96,7 +96,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     @Override
     public String toString()
     {
-        return "AsyncOperation{" + state + "}-0x" + Integer.toHexString(System.identityHashCode(this));
+        return "AsyncOperation{" + state + "}-" + loggingId;
     }
 
     AsyncWriter createAsyncWriter(AccordCommandStore commandStore)
@@ -182,20 +182,26 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     {
         setLoggingIds();
         logger.trace("Running {} with state {}", this, state);
-        commandStore.checkInStoreThread();
-        commandStore.setContext(context);
         try
         {
-            runInternal();
-        }
-        catch (Throwable t)
-        {
-            logger.error(String.format("Operation %s failed", this), t);
-            tryFailure(t);
+            commandStore.checkInStoreThread();
+            commandStore.setContext(context);
+            try
+            {
+                runInternal();
+            }
+            catch (Throwable t)
+            {
+                logger.error(String.format("Operation %s failed", this), t);
+                tryFailure(t);
+            }
+            finally
+            {
+                commandStore.unsetContext(context);
+            }
         }
         finally
         {
-            commandStore.unsetContext(context);
             logger.trace("Exiting {}", this);
             clearLoggingIds();
         }
