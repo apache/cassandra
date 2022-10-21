@@ -30,10 +30,10 @@ import accord.messages.BeginRecovery.RecoverOk;
 import accord.messages.BeginRecovery.RecoverReply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
+import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
-import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
@@ -56,15 +56,15 @@ public class RecoverySerializers
         {
             CommandSerializers.partialTxn.serialize(recover.partialTxn, out, version);
             CommandSerializers.ballot.serialize(recover.ballot, out, version);
-            serializeNullable(KeySerializers.route, recover.route, out, version);
+            serializeNullable(KeySerializers.fullRoute, recover.route, out, version);
         }
 
         @Override
-        public BeginRecovery deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException
+        public BeginRecovery deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
         {
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
             Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
-            @Nullable Route route = deserializeNullable(KeySerializers.route, in, version);
+            @Nullable FullRoute<?> route = deserializeNullable(KeySerializers.fullRoute, in, version);
             return BeginRecovery.SerializationSupport.create(txnId, scope, waitForEpoch, partialTxn, ballot, route);
         }
 
@@ -73,7 +73,7 @@ public class RecoverySerializers
         {
             return CommandSerializers.partialTxn.serializedSize(recover.partialTxn, version)
                    + CommandSerializers.ballot.serializedSize(recover.ballot, version)
-                   + serializedSizeNullable(KeySerializers.route, recover.route, version);
+                   + serializedSizeNullable(KeySerializers.fullRoute, recover.route, version);
         }
     };
 

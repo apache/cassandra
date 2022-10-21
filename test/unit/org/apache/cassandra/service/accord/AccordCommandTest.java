@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -37,10 +36,11 @@ import accord.messages.Accept;
 import accord.messages.Commit;
 import accord.messages.PreAccept;
 import accord.primitives.Ballot;
+import accord.primitives.FullRoute;
+import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
-import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -49,7 +49,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -90,11 +90,11 @@ public class AccordCommandTest
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(1);
-        Key key = txn.keys().get(0);
-        RoutingKey homeKey = key.toRoutingKey();
-        Route fullRoute = txn.keys().toRoute(homeKey);
-        PartialRoute route = fullRoute.slice(fullRange(txn));
-        PartialTxn partialTxn = txn.slice(route.covering, true);
+        Key key = (Key)txn.keys().get(0);
+        RoutingKey homeKey = key.toUnseekable();
+        FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
+        PartialRoute<?> route = fullRoute.slice(fullRange(txn));
+        PartialTxn partialTxn = txn.slice(route.covering(), true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, false, 1, partialTxn, fullRoute);
 
         // Check preaccept
@@ -122,7 +122,7 @@ public class AccordCommandTest
         // check accept
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 0, 1);
-        PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(route.covering, false);
+        PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(route.covering(), false);
         builder.add(key, txnId2);
         PartialDeps deps = builder.build();
         Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps, partialTxn.kind());
@@ -150,7 +150,7 @@ public class AccordCommandTest
         Commit commit = Commit.SerializerSupport.create(txnId, route, 1, executeAt, partialTxn, deps, fullRoute, null);
         commandStore.execute(commit, commit::apply).get();
 
-        commandStore.execute(PreLoadContext.contextFor(txnId, Collections.singleton(key)),instance -> {
+        commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key)), instance -> {
             Command command = instance.command(txnId);
             Assert.assertEquals(commit.executeAt, command.executeAt());
             Assert.assertTrue(command.hasBeen(Status.Committed));
@@ -171,11 +171,11 @@ public class AccordCommandTest
 
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(2);
-        Key key = txn.keys().get(0);
-        RoutingKey homeKey = key.toRoutingKey();
-        Route fullRoute = txn.keys().toRoute(homeKey);
-        PartialRoute route = fullRoute.slice(fullRange(txn));
-        PartialTxn partialTxn = txn.slice(route.covering, true);
+        Key key = (Key)txn.keys().get(0);
+        RoutingKey homeKey = key.toUnseekable();
+        FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
+        PartialRoute<?> route = fullRoute.slice(fullRange(txn));
+        PartialTxn partialTxn = txn.slice(route.covering(), true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, false, 1, partialTxn, fullRoute);
 
         commandStore.execute(preAccept1, preAccept1::apply).get();

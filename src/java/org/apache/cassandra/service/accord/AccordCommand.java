@@ -1,4 +1,5 @@
 /*
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -32,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Data;
-import accord.api.Key;
 import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.local.Command;
@@ -45,18 +45,18 @@ import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.local.Status.Durability;
 import accord.local.Status.Known;
-import accord.primitives.AbstractRoute;
 import accord.primitives.Ballot;
-import accord.primitives.KeyRanges;
-import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
+import accord.primitives.Route;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.DeterministicIdentitySet;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
@@ -114,7 +114,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private final TxnId txnId;
     private final int instanceCount = INSTANCE_COUNTER.getAndIncrement();
-    public final StoredValue<AbstractRoute> route;
+    public final StoredValue<Route<?>> route;
     public final StoredValue<RoutingKey> homeKey;
     public final StoredValue<RoutingKey> progressKey;
     public final StoredValue<PartialTxn> partialTxn;
@@ -475,13 +475,13 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public AbstractRoute route()
+    public Route<?> route()
     {
         return route.get();
     }
 
     @Override
-    protected void setRoute(AbstractRoute newRoute)
+    protected void setRoute(Route<?> newRoute)
     {
         route.set(newRoute);
     }
@@ -632,16 +632,17 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private boolean canApplyWithCurrentScope(SafeCommandStore safeStore)
     {
-        KeyRanges ranges = safeStore.ranges().at(executeAt().epoch);
-        Keys keys = partialTxn().keys();
+        Ranges ranges = safeStore.ranges().at(executeAt().epoch);
+        Seekables<?, ?> keys = partialTxn().keys();
         for (int i=0,mi=keys.size(); i<mi; i++)
         {
-            Key key = keys.get(i);
-            if (((AccordCommandStore)safeStore).isCommandsForKeyInContext((AccordKey.PartitionKey) key))
+            PartitionKey key = (PartitionKey) keys.get(i);
+            if (((AccordCommandStore)safeStore).isCommandsForKeyInContext(key))
                 continue;
 
             if (!safeStore.commandStore().hashIntersects(key))
                 continue;
+
             if (!ranges.contains(key))
                 continue;
 

@@ -22,8 +22,8 @@ import java.io.IOException;
 
 import accord.messages.GetDeps;
 import accord.messages.GetDeps.GetDepsOk;
-import accord.primitives.Keys;
 import accord.primitives.PartialRoute;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -38,15 +38,15 @@ public class GetDepsSerializers
         @Override
         public void serializeBody(GetDeps msg, DataOutputPlus out, int version) throws IOException
         {
-            KeySerializers.keys.serialize(msg.keys, out, version);
+            KeySerializers.seekables.serialize(msg.keys, out, version);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
             CommandSerializers.kind.serialize(msg.kind, out, version);
         }
 
         @Override
-        public GetDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
+        public GetDeps deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
         {
-            Keys keys = KeySerializers.keys.deserialize(in, version);
+            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
             Txn.Kind kind = CommandSerializers.kind.deserialize(in, version);
             return GetDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, doNotComputeProgressKey, keys, executeAt, kind);
@@ -55,7 +55,7 @@ public class GetDepsSerializers
         @Override
         public long serializedBodySize(GetDeps msg, int version)
         {
-            return KeySerializers.keys.serializedSize(msg.keys, version)
+            return KeySerializers.seekables.serializedSize(msg.keys, version)
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + CommandSerializers.kind.serializedSize(msg.kind, version);
         }

@@ -29,13 +29,14 @@ import accord.messages.CheckStatus.CheckStatusNack;
 import accord.messages.CheckStatus.CheckStatusOk;
 import accord.messages.CheckStatus.CheckStatusOkFull;
 import accord.messages.CheckStatus.CheckStatusReply;
-import accord.primitives.AbstractRoute;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
-import accord.primitives.RoutingKeys;
+import accord.primitives.Routables;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -58,7 +59,7 @@ public class CheckStatusSerializers
         public void serialize(CheckStatus check, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(check.txnId, out, version);
-            KeySerializers.routingKeys.serialize(check.someKeys, out, version);
+            KeySerializers.unseekables.serialize(check.query, out, version);
             out.writeUnsignedVInt(check.startEpoch);
             out.writeUnsignedVInt(check.endEpoch - check.startEpoch);
             out.writeByte(check.includeInfo.ordinal());
@@ -68,18 +69,18 @@ public class CheckStatusSerializers
         public CheckStatus deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            RoutingKeys someKeys = KeySerializers.routingKeys.deserialize(in, version);
+            Unseekables<?, ?> query = KeySerializers.unseekables.deserialize(in, version);
             long startEpoch = in.readUnsignedVInt();
             long endEpoch = in.readUnsignedVInt() + startEpoch;
             CheckStatus.IncludeInfo info = infos[in.readByte()];
-            return new CheckStatus(txnId, someKeys, startEpoch, endEpoch, info);
+            return new CheckStatus(txnId, query, startEpoch, endEpoch, info);
         }
 
         @Override
         public long serializedSize(CheckStatus check, int version)
         {
             return CommandSerializers.txnId.serializedSize(check.txnId, version)
-                   + KeySerializers.routingKeys.serializedSize(check.someKeys, version)
+                   + KeySerializers.unseekables.serializedSize(check.query, version)
                    + TypeSizes.sizeofUnsignedVInt(check.startEpoch)
                    + TypeSizes.sizeofUnsignedVInt(check.endEpoch - check.startEpoch)
                    + TypeSizes.BYTE_SIZE;
@@ -109,7 +110,7 @@ public class CheckStatusSerializers
             serializeNullable(ok.executeAt, out, version, CommandSerializers.timestamp);
             out.writeBoolean(ok.isCoordinating);
             CommandSerializers.durability.serialize(ok.durability, out, version);
-            serializeNullable(ok.route, out, version, KeySerializers.abstractRoute);
+            serializeNullable(ok.route, out, version, KeySerializers.route);
             serializeNullable(ok.homeKey, out, version, KeySerializers.routingKey);
 
             if (!(reply instanceof CheckStatusOkFull))
@@ -139,7 +140,7 @@ public class CheckStatusSerializers
                     Timestamp executeAt = deserializeNullable(in, version, CommandSerializers.timestamp);
                     boolean isCoordinating = in.readBoolean();
                     Durability durability = CommandSerializers.durability.deserialize(in, version);
-                    AbstractRoute route = deserializeNullable(in, version, KeySerializers.abstractRoute);
+                    Route<?> route = deserializeNullable(in, version, KeySerializers.route);
                     RoutingKey homeKey = deserializeNullable(in, version, KeySerializers.routingKey);
 
                     if (kind == OK)
@@ -169,7 +170,7 @@ public class CheckStatusSerializers
             size += TypeSizes.BOOL_SIZE;
             size += CommandSerializers.durability.serializedSize(ok.durability, version);
             size += serializedSizeNullable(ok.homeKey, version, KeySerializers.routingKey);
-            size += serializedSizeNullable(ok.route, version, KeySerializers.abstractRoute);
+            size += serializedSizeNullable(ok.route, version, KeySerializers.route);
 
             if (!(reply instanceof CheckStatusOkFull))
                 return size;

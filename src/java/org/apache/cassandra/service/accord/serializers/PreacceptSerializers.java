@@ -25,9 +25,9 @@ import javax.annotation.Nullable;
 import accord.messages.PreAccept;
 import accord.messages.PreAccept.PreAcceptOk;
 import accord.messages.PreAccept.PreAcceptReply;
+import accord.primitives.FullRoute;
 import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
-import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -49,25 +49,25 @@ public class PreacceptSerializers
         public void serializeBody(PreAccept msg, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.partialTxn.serialize(msg.partialTxn, out, version);
-            serializeNullable(msg.route, out, version, KeySerializers.route);
+            serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
             out.writeUnsignedVInt(msg.maxEpoch - msg.minEpoch);
         }
 
         @Override
-        public PreAccept deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
+        public PreAccept deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
         {
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
-            @Nullable Route route = deserializeNullable(in, version, KeySerializers.route);
+            @Nullable FullRoute<?> fullRoute = deserializeNullable(in, version, KeySerializers.fullRoute);
             long maxEpoch = in.readUnsignedVInt() + minEpoch;
             return PreAccept.SerializerSupport.create(txnId, scope, waitForEpoch, minEpoch, doNotComputeProgressKey,
-                                                      maxEpoch, partialTxn, route);
+                                                      maxEpoch, partialTxn, fullRoute);
         }
 
         @Override
         public long serializedBodySize(PreAccept msg, int version)
         {
             return CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
-                   + serializedSizeNullable(msg.route, version, KeySerializers.route)
+                   + serializedSizeNullable(msg.route, version, KeySerializers.fullRoute)
                    + TypeSizes.sizeofUnsignedVInt(msg.maxEpoch - msg.minEpoch);
         }
     };

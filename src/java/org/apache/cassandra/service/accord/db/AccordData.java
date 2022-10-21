@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TreeMap;
 
 import com.google.common.base.Preconditions;
 
@@ -43,8 +42,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordKey;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements Data, Result, Iterable<FilteredPartition>
@@ -58,7 +56,7 @@ public class AccordData extends AbstractKeyIndexed<FilteredPartition> implements
 
     public AccordData(FilteredPartition partition)
     {
-        this(Keys.of(AccordKey.of(partition)), new ByteBuffer[] { serialize(partition, partitionSerializer) });
+        this(Keys.of(PartitionKey.of(partition)), new ByteBuffer[] { serialize(partition, partitionSerializer) });
     }
 
     public AccordData(List<FilteredPartition> items)

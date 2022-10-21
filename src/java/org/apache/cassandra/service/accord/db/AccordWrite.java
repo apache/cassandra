@@ -38,8 +38,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
-import org.apache.cassandra.service.accord.api.AccordKey;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -52,7 +51,7 @@ public class AccordWrite extends AbstractKeyIndexed<PartitionUpdate> implements 
 
     public AccordWrite(List<PartitionUpdate> items)
     {
-        super(items, AccordKey::of);
+        super(items, PartitionKey::of);
     }
 
     public AccordWrite(Keys keys, ByteBuffer[] serialized)

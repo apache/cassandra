@@ -18,12 +18,17 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import java.util.concurrent.TimeUnit;
+
 import accord.api.Agent;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.Node;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
 
 public class AccordAgent implements Agent
 {
@@ -54,7 +59,7 @@ public class AccordAgent implements Agent
     @Override
     public boolean isExpired(TxnId initiated, long now)
     {
-        // TODO: this
-        return false;
+        // TODO: should distinguish between reads and writes
+        return now - initiated.real > getReadRpcTimeout(MICROSECONDS);
     }
 }
