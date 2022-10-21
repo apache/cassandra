@@ -35,6 +35,9 @@
                 <equals arg1="${git.success}" arg2="0"/>
             </not>
         </condition>
+    </target>
+
+    <target name="_rat_copy_versioned_files" depends="_build_ratinclude" unless="${rat.skip}">
         <copy file="build/.versioned_files" tofile="build/.ratinclude">
             <filterchain>
                 <linecontainsregexp>
@@ -44,7 +47,7 @@
         </copy>
     </target>
 
-    <target name="rat-check" depends="_build_ratinclude" unless="${rat.skip}" description="License checks on source" >
+    <target name="rat-check" depends="_rat_copy_versioned_files" unless="${rat.skip}" description="License checks on source" >
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="." includesfile="build/.ratinclude">
                  <!-- Config files with not much creativity -->
