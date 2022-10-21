@@ -111,7 +111,8 @@ public class AccordIntegrationTest extends TestBaseImpl
     private static Cluster createCluster() throws IOException
     {
         // need to up the timeout else tests get flaky
-        return init(Cluster.build(2).withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout_in_ms", TimeUnit.SECONDS.toMillis(10))).start());
+        // disable vnode for now, but should enable before trunk
+        return init(Cluster.build(2).withoutVNodes().withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout_in_ms", TimeUnit.SECONDS.toMillis(10))).start());
     }
 
     @Test
