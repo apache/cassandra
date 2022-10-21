@@ -276,6 +276,12 @@ public class RandomPartitioner implements IPartitioner
             return new BigIntegerToken(token.add(BigInteger.ONE));
         }
 
+        @Override
+        public int tokenHash()
+        {
+            return token.hashCode();
+        }
+
         public double size(Token next)
         {
             BigIntegerToken n = (BigIntegerToken) next;

@@ -169,7 +169,7 @@ Merged from 3.0:
  * Suppress CVE-2023-44487 (CASSANDRA-18943)
  * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
- * Implement the logic in bin/stop-server (CASSANDRA-18838) 
+ * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
 

@@ -161,6 +161,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
     abstract public IPartitioner getPartitioner();
     abstract public long getHeapSize();
     abstract public Object getTokenValue();
+    abstract public int tokenHash();
 
     /**
      * This method exists so that callers can access the primitive {@code long} value for this {@link Token}, if

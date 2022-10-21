@@ -20,16 +20,19 @@ package org.apache.cassandra.distributed.util;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import com.google.monitoring.runtime.instrumentation.common.collect.Iterators;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Index;
+
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Index;
 
 public class QueryResultUtil
 {
@@ -67,6 +70,33 @@ public class QueryResultUtil
             }
             return 0;
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public static SimpleQueryResult map(SimpleQueryResult input, Map<String, ? extends Function<?, Object>> mapper)
+    {
+        if (input.toObjectArrays().length == 0 || mapper == null || mapper.isEmpty())
+            return input;
+        for (String name : mapper.keySet())
+        {
+            if (!input.names().contains(name))
+                throw new IllegalArgumentException("Unable to find column " + name);
+        }
+        Object[][] rows = input.toObjectArrays().clone();
+        List<String> names = new ArrayList<>(mapper.keySet());
+        int[] idxes = names.stream().mapToInt(input.names()::indexOf).toArray();
+        for (int i = 0; i < rows.length; i++)
+        {
+            Object[] row = rows[i].clone();
+            for (int j = 0; j < idxes.length; j++)
+            {
+                @SuppressWarnings("rawtypes") Function map = mapper.get(names.get(j));
+                int idx = idxes[j];
+                row[idx] = map.apply(row[idx]);
+            }
+            rows[i] = row;
+        }
+        return new SimpleQueryResult(input.names().toArray(new String[0]), rows, input.warnings());
     }
 
     public static boolean contains(SimpleQueryResult qr, Object... values)
