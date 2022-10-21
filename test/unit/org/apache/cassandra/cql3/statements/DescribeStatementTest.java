@@ -310,6 +310,7 @@ public class DescribeStatementTest extends CQLTester
             Object[][] testKeyspacesOutput = rows(row(KEYSPACE, "keyspace", KEYSPACE),
                                                   row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST),
                                                   row(SYSTEM_KEYSPACE_NAME, "keyspace", SYSTEM_KEYSPACE_NAME),
+                                                  row(ACCORD_KEYSPACE_NAME, "keyspace", ACCORD_KEYSPACE_NAME),
                                                   row(AUTH_KEYSPACE_NAME, "keyspace", AUTH_KEYSPACE_NAME),
                                                   row(METADATA_KEYSPACE_NAME, "keyspace", METADATA_KEYSPACE_NAME),
                                                   row(DISTRIBUTED_KEYSPACE_NAME, "keyspace", DISTRIBUTED_KEYSPACE_NAME),

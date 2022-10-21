@@ -232,6 +232,12 @@ public class OrderPreservingPartitioner implements IPartitioner
 
             return super.compareTo(o);
         }
+
+        @Override
+        public int tokenHash()
+        {
+            return token.hashCode();
+        }
     }
 
     public StringToken getToken(ByteBuffer key)

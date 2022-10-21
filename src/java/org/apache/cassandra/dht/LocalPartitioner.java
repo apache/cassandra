@@ -175,6 +175,12 @@ public class LocalPartitioner implements IPartitioner
         }
 
         @Override
+        public int tokenHash()
+        {
+            return hashCode();
+        }
+
+        @Override
         public boolean equals(Object obj)
         {
             if (this == obj)
