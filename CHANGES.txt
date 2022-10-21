@@ -9,6 +9,7 @@ Merged from 3.11:
  * Suppress CVE-2022-42003 and CVE-2022-42004 (CASSANDRA-17966)
  * Make LongBufferPoolTest insensitive to timing (CASSANDRA-16681)
 Merged from 3.0:
+ * Fix running Ant rat targets without git (CASSANDRA-17974)
  * Harden JMX by resolving beanshooter issues (CASSANDRA-17921)
  * Suppress CVE-2019-2684 (CASSANDRA-17965)
  * Fix auto-completing "WITH" when creating a materialized view (CASSANDRA-17879)
