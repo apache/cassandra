@@ -43,7 +43,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 
 import static accord.local.Status.Durability.Durable;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -78,7 +78,7 @@ public class AccordCommandStoreTest
     {
         AtomicLong clock = new AtomicLong(0);
         PartialTxn depTxn = createPartialTxn(0);
-        Key key = depTxn.keys().get(0);
+        Key key = (Key)depTxn.keys().get(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(depTxn.covering(), false);
@@ -92,8 +92,8 @@ public class AccordCommandStoreTest
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         AccordCommand command = new AccordCommand(txnId).initialize();
         command.setPartialTxn(createPartialTxn(0));
-        command.homeKey(key.toRoutingKey());
-        command.progressKey(key.toRoutingKey());
+        command.homeKey(key.toUnseekable());
+        command.progressKey(key.toUnseekable());
         command.setDurability(Durable);
         command.setPromised(ballot(1, clock.incrementAndGet(), 0, 1));
         command.setAccepted(ballot(1, clock.incrementAndGet(), 0, 1));

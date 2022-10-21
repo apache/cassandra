@@ -42,8 +42,8 @@ import accord.api.Data;
 import accord.api.Key;
 import accord.api.Update;
 import accord.api.Write;
-import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
+import accord.primitives.Ranges;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
@@ -71,8 +71,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordKey;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -761,7 +760,7 @@ public class AccordUpdate implements Update
         for (AbstractUpdate updater : deserialize(updates, AbstractUpdate.serializer))
         {
             PartitionUpdate update = updater.apply(read.get(updater.partitionKey()));
-            PartitionKey key = AccordKey.of(update);
+            PartitionKey key = PartitionKey.of(update);
             if (updateMap.containsKey(key))
                 update = PartitionUpdate.merge(Lists.newArrayList(updateMap.get(key), update));
             updateMap.put(key, update);
@@ -770,7 +769,7 @@ public class AccordUpdate implements Update
     }
 
     @Override
-    public Update slice(KeyRanges ranges)
+    public Update slice(Ranges ranges)
     {
         Keys keys = this.keys.slice(ranges);
         return new AccordUpdate(keys, select(this.keys, keys, updates), select(this.keys, keys, predicates));

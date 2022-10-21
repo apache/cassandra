@@ -32,7 +32,8 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.Key;
+import accord.primitives.Routable;
+import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.concurrent.Stage;
@@ -44,7 +45,7 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordPartialCommand;
 import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.AccordState;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -259,8 +260,11 @@ public class AsyncWriter
         //             might not reflect the update timestamp in the map? Probably best addressed following Blake's refactor.
         if (command.known().isDefinitionKnown() && AccordPartialCommand.serializer.needsUpdate(command))
         {
-            for (Key key : command.partialTxn().keys())
+            for (Seekable key : command.partialTxn().keys())
             {
+                // TODO: implement
+                if (key.kind() == Routable.Kind.Range)
+                    throw new UnsupportedOperationException();
                 PartitionKey partitionKey = (PartitionKey) key;
                 AccordCommandsForKey cfk = cfkForDenormalization(partitionKey, context);
                 cfk.updateSummaries(command);

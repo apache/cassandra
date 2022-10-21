@@ -21,12 +21,11 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.RoutingKey;
-import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.messages.BeginInvalidation;
 import accord.messages.BeginInvalidation.InvalidateReply;
-import accord.primitives.AbstractRoute;
 import accord.primitives.Ballot;
+import accord.primitives.Route;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -44,7 +43,7 @@ public class BeginInvalidationSerializers
         public void serialize(BeginInvalidation begin, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(begin.txnId, out, version);
-            KeySerializers.routingKeys.serialize(begin.someKeys, out, version);
+            KeySerializers.unseekables.serialize(begin.someUnseekables, out, version);
             CommandSerializers.ballot.serialize(begin.ballot, out, version);
         }
 
@@ -52,7 +51,7 @@ public class BeginInvalidationSerializers
         public BeginInvalidation deserialize(DataInputPlus in, int version) throws IOException
         {
             return new BeginInvalidation(CommandSerializers.txnId.deserialize(in, version),
-                                       KeySerializers.routingKeys.deserialize(in, version),
+                                       KeySerializers.unseekables.deserialize(in, version),
                                        CommandSerializers.ballot.deserialize(in, version));
         }
 
@@ -60,7 +59,7 @@ public class BeginInvalidationSerializers
         public long serializedSize(BeginInvalidation begin, int version)
         {
             return CommandSerializers.txnId.serializedSize(begin.txnId, version)
-                   + KeySerializers.routingKeys.serializedSize(begin.someKeys, version)
+                   + KeySerializers.unseekables.serializedSize(begin.someUnseekables, version)
                    + CommandSerializers.ballot.serializedSize(begin.ballot, version);
         }
     };
@@ -74,7 +73,7 @@ public class BeginInvalidationSerializers
             CommandSerializers.ballot.serialize(reply.accepted, out, version);
             CommandSerializers.status.serialize(reply.status, out, version);
             out.writeBoolean(reply.acceptedFastPath);
-            serializeNullable(KeySerializers.abstractRoute, reply.route, out, version);
+            serializeNullable(KeySerializers.route, reply.route, out, version);
             serializeNullable(KeySerializers.routingKey, reply.homeKey, out, version);
         }
 
@@ -85,7 +84,7 @@ public class BeginInvalidationSerializers
             Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
             Status status = CommandSerializers.status.deserialize(in, version);
             boolean acceptedFastPath = in.readBoolean();
-            AbstractRoute route = deserializeNullable(KeySerializers.abstractRoute, in, version);
+            Route<?> route = deserializeNullable(KeySerializers.route, in, version);
             RoutingKey homeKey = deserializeNullable(KeySerializers.routingKey, in, version);
             return new InvalidateReply(supersededBy, accepted, status, acceptedFastPath, route, homeKey);
         }
@@ -97,7 +96,7 @@ public class BeginInvalidationSerializers
                     + CommandSerializers.ballot.serializedSize(reply.accepted, version)
                     + CommandSerializers.status.serializedSize(reply.status, version)
                     + TypeSizes.BOOL_SIZE
-                    + serializedSizeNullable(KeySerializers.abstractRoute, reply.route, version)
+                    + serializedSizeNullable(KeySerializers.route, reply.route, version)
                     + serializedSizeNullable(KeySerializers.routingKey, reply.homeKey, version);
         }
     };

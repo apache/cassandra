@@ -27,9 +27,9 @@ import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.local.Status.Durability;
 import accord.primitives.Ballot;
-import accord.primitives.KeyRanges;
-import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -131,7 +131,7 @@ public class CommandSerializers
         {
             CommandSerializers.kind.serialize(txn.kind(), out, version);
             KeySerializers.ranges.serialize(txn.covering(), out, version);
-            KeySerializers.keys.serialize(txn.keys(), out, version);
+            KeySerializers.seekables.serialize(txn.keys(), out, version);
             AccordRead.serializer.serialize((AccordRead) txn.read(), out, version);
             AccordQuery.serializer.serialize((AccordQuery) txn.query(), out, version);
             out.writeBoolean(txn.update() != null);
@@ -143,8 +143,8 @@ public class CommandSerializers
         public PartialTxn deserialize(DataInputPlus in, int version) throws IOException
         {
             Txn.Kind kind = CommandSerializers.kind.deserialize(in, version);
-            KeyRanges covering = KeySerializers.ranges.deserialize(in, version);
-            Keys keys = KeySerializers.keys.deserialize(in, version);
+            Ranges covering = KeySerializers.ranges.deserialize(in, version);
+            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             AccordRead read = AccordRead.serializer.deserialize(in, version);
             AccordQuery query = AccordQuery.serializer.deserialize(in, version);
             AccordUpdate update = in.readBoolean() ? AccordUpdate.serializer.deserialize(in, version) : null;
@@ -156,7 +156,7 @@ public class CommandSerializers
         {
             long size = CommandSerializers.kind.serializedSize(txn.kind(), version);
             size += KeySerializers.ranges.serializedSize(txn.covering(), version);
-            size += KeySerializers.keys.serializedSize(txn.keys(), version);
+            size += KeySerializers.seekables.serializedSize(txn.keys(), version);
             size += AccordRead.serializer.serializedSize((AccordRead) txn.read(), version);
             size += AccordQuery.serializer.serializedSize((AccordQuery) txn.query(), version);
             size += TypeSizes.sizeof(txn.update() != null);
