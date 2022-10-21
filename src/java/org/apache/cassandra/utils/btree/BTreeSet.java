@@ -20,6 +20,7 @@ package org.apache.cassandra.utils.btree;
 
 import java.util.*;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.utils.btree.BTree.Dir;
@@ -222,6 +223,14 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
             if (!contains(o))
                 return false;
         return true;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || !(o instanceof Set)) return false;
+        return Iterables.elementsEqual(this, (Set) o);
     }
 
     public int hashCode()

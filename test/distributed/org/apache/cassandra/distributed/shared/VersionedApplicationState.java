@@ -22,6 +22,7 @@ import java.io.Serializable;
 
 public class VersionedApplicationState implements Serializable
 {
+    private static final long serialVersionUID = 0;  // for simulator support
     public final int applicationState;
     public final String value;
     public final int version;

@@ -1,3 +1,6 @@
+accord
+ * CEP-15 (C*): Messaging and storage engine integration (CASSANDRA-17103)
+
 4.2
  * Prevent a user from manually removing ephemeral snapshots (CASSANDRA-17757)
  * Remove dependency on Maven Ant Tasks (CASSANDRA-17750)

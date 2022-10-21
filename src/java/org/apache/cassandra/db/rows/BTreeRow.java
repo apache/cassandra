@@ -442,6 +442,18 @@ public class BTreeRow extends AbstractRow
         return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateAllTimestamp(newTimestamp));
     }
 
+    @Override
+    public Row updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    {
+        LivenessInfo newInfo = primaryKeyLivenessInfo.isEmpty() ? primaryKeyLivenessInfo : primaryKeyLivenessInfo.withUpdatedTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime);
+        // If the deletion is shadowable and the row has a timestamp, we'll forced the deletion timestamp to be less than the row one, so we
+        // should get rid of said deletion.
+        Deletion newDeletion = deletion.isLive() || (deletion.isShadowable() && !primaryKeyLivenessInfo.isEmpty())
+                               ? Deletion.LIVE
+                               : new Deletion(new DeletionTime(newTimestamp - 1, newLocalDeletionTime), deletion.isShadowable());
+        return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime));
+    }
+
     public Row withRowDeletion(DeletionTime newDeletion)
     {
         // Note that:

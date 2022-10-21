@@ -17,23 +17,24 @@
   -->
 
 <configuration debug="false" scan="true" scanPeriod="60 seconds">
-  <define name="cluster_id" class="org.apache.cassandra.distributed.impl.ClusterIDDefiner" />
+  <define name="run_start" class="org.apache.cassandra.simulator.logging.RunStartDefiner" scope="system"/>
+  <define name="run_seed" class="org.apache.cassandra.simulator.logging.SeedDefiner" scope="system"/>
   <define name="instance_id" class="org.apache.cassandra.distributed.impl.InstanceIDDefiner" />
 
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 
   <appender name="INSTANCEFILE" class="ch.qos.logback.core.FileAppender">
-    <file>./build/test/logs/${cassandra.testtag}/${suitename}/${cluster_id}/${instance_id}/system.log</file>
+    <file>./build/test/logs/simulator/${run_start}-${run_seed}/${instance_id}/system.log</file>
     <encoder>
-      <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %msg%n</pattern>
+      <pattern>%-5level [%thread] ${instance_id} %replace(CS:%X{command_store} ){'CS\:\s+', ''}%replace(OP:%X{async_op} ){'OP\:\s+', ''}%date{ISO8601} %msg%n</pattern>
     </encoder>
     <immediateFlush>true</immediateFlush>
   </appender>
 
   <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-      <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] ${instance_id} %replace(CS:%X{command_store} ){'CS\:\s+', ''}%replace(OP:%X{async_op} ){'OP\:\s+', ''}%date{ISO8601} %F:%L - %msg%n</pattern>
     </encoder>
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
       <level>WARN</level>
@@ -50,6 +51,7 @@
   <logger name="org.apache.cassandra.service.StartupChecks" level="ERROR"/>
   <logger name="org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir" level="ERROR"/>
   <logger name="io.netty.handler.ssl.SslHandler" level="WARN"/>
+<!--  <logger name="org.apache.cassandra.service.accord" level="TRACE"/>-->
 
   <root level="INFO">
     <appender-ref ref="INSTANCEFILE" />

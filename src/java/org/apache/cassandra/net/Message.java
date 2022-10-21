@@ -33,6 +33,7 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.messages.ReplyContext;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
@@ -68,7 +69,7 @@ import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
  *
  * @param <T> The type of the message payload.
  */
-public class Message<T>
+public class Message<T> implements ReplyContext
 {
     private static final Logger logger = LoggerFactory.getLogger(Message.class);
     private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
