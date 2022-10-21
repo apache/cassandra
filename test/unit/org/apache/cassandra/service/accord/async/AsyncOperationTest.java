@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -38,6 +39,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.txn.Txn;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -69,6 +71,13 @@ public class AsyncOperationTest
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks"));
         StorageService.instance.initServer();
+    }
+
+    @Before
+    public void before()
+    {
+        QueryProcessor.executeInternal("TRUNCATE system_accord.commands");
+        QueryProcessor.executeInternal("TRUNCATE system_accord.commands_for_key");
     }
 
     /**
