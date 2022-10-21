@@ -40,9 +40,10 @@ public class SimulatorUtils
     public static void dumpStackTraces(Logger logger)
     {
         Map<Thread, StackTraceElement[]> threadMap = Thread.getAllStackTraces();
-        threadMap.forEach((thread, ste) -> {
-            logger.error("{}:\n   {}", thread, Threads.prettyPrint(ste, false, "   ", "\n", ""));
-        });
+        String prefix = "   ";
+        String delimiter = "\n" + prefix;
+        threadMap.forEach((thread, ste) ->
+                          logger.error("{}:\n{}", thread, Threads.prettyPrint(ste, false, prefix, delimiter, "")));
         FastThreadLocal.destroy();
     }
 }
