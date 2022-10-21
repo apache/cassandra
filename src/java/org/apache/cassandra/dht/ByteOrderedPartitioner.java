@@ -129,6 +129,12 @@ public class ByteOrderedPartitioner implements IPartitioner
         }
 
         @Override
+        public int tokenHash()
+        {
+            return hashCode();
+        }
+
+        @Override
         public double size(Token next)
         {
             throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",

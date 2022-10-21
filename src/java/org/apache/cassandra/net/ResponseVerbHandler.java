@@ -35,7 +35,7 @@ import static org.apache.cassandra.exceptions.RequestFailureReason.COORDINATOR_B
 import static org.apache.cassandra.exceptions.RequestFailureReason.INVALID_ROUTING;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
-class ResponseVerbHandler implements IVerbHandler
+public class ResponseVerbHandler implements IVerbHandler
 {
     public static final ResponseVerbHandler instance = new ResponseVerbHandler();
 

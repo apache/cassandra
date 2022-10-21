@@ -123,6 +123,12 @@ public class KeyCollisionTest
         }
 
         @Override
+        public int tokenHash()
+        {
+            return token.hashCode();
+        }
+
+        @Override
         public long getHeapSize()
         {
             return 0;

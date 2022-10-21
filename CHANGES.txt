@@ -1,3 +1,6 @@
+accord
+ * CEP-15 (C*): Messaging and storage engine integration (CASSANDRA-17103)
+
 5.0-alpha2
  * Remove deprecated properties in CompressionParams (CASSANDRA-18742)
  * Add support for repair coordinator to retry messages that timeout (CASSANDRA-18816)

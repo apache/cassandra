@@ -230,6 +230,16 @@ public class MutableDeletionInfo implements DeletionInfo
         return this;
     }
 
+    public DeletionInfo updateAllTimestampAndLocalDeletionTime(long timestamp, int localDeletionTime)
+    {
+        if (partitionDeletion.markedForDeleteAt() != Long.MIN_VALUE)
+            partitionDeletion = new DeletionTime(timestamp, localDeletionTime);
+
+        if (ranges != null)
+            ranges.updateAllTimestampAndLocalDeletionTime(timestamp, localDeletionTime);
+        return this;
+    }
+
     @Override
     public boolean equals(Object o)
     {
