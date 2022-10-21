@@ -35,75 +35,36 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public interface AccordRoutingKey extends RoutingKey
+public abstract class AccordRoutingKey extends AccordRoutableKey implements RoutingKey
 {
-    enum Kind
+    enum RoutingKeyKind
     {
         TOKEN, SENTINEL;
     }
 
-    TableId tableId();
-    Token token();
-    Kind kind();
-    long estimatedSizeOnHeap();
+    protected AccordRoutingKey(TableId tableId)
+    {
+        super(tableId);
+    }
 
-    static AccordRoutingKey of(Key key)
+    public abstract RoutingKeyKind kindOfRoutingKey();
+    public abstract long estimatedSizeOnHeap();
+
+    public static AccordRoutingKey of(Key key)
     {
         return (AccordRoutingKey) key;
     }
 
-    static int compare(AccordRoutingKey left, AccordRoutingKey right)
-    {
-        int cmp = left.tableId().compareTo(right.tableId());
-        if (cmp != 0)
-            return cmp;
-
-        if (left instanceof SentinelKey || right instanceof SentinelKey)
-        {
-            int leftInt = left instanceof SentinelKey ? ((SentinelKey) left).asInt() : 0;
-            int rightInt = right instanceof SentinelKey ? ((SentinelKey) right).asInt() : 0;
-            return Integer.compare(leftInt, rightInt);
-        }
-
-        return left.token().compareTo(right.token());
-    }
-
-    static int compareKeys(Key left, Key right)
-    {
-        return compare((AccordRoutingKey) left, (AccordRoutingKey) right);
-    }
-
-    default int compareTo(AccordRoutingKey that)
-    {
-        return compare(this, that);
-    }
-
-    @Override
-    default int routingHash()
-    {
-        return token().tokenHash();
-    }
-
-    class SentinelKey implements AccordRoutingKey
+    public static class SentinelKey extends AccordRoutingKey
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new SentinelKey(null, true));
 
-        private final TableId tableId;
         private final boolean isMin;
 
         private SentinelKey(TableId tableId, boolean isMin)
         {
-            this.tableId = tableId;
+            super(tableId);
             this.isMin = isMin;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            SentinelKey that = (SentinelKey) o;
-            return isMin == that.isMin && tableId.equals(that.tableId);
         }
 
         @Override
@@ -113,15 +74,9 @@ public interface AccordRoutingKey extends RoutingKey
         }
 
         @Override
-        public int compareTo(RoutingKey that)
+        public RoutingKeyKind kindOfRoutingKey()
         {
-            return compare(this, (AccordRoutingKey) that);
-        }
-
-        @Override
-        public Kind kind()
-        {
-            return Kind.SENTINEL;
+            return RoutingKeyKind.SENTINEL;
         }
 
         @Override
@@ -138,12 +93,6 @@ public interface AccordRoutingKey extends RoutingKey
         public static SentinelKey max(TableId tableId)
         {
             return new SentinelKey(tableId, false);
-        }
-
-        @Override
-        public TableId tableId()
-        {
-            return tableId;
         }
 
         @Override
@@ -191,44 +140,7 @@ public interface AccordRoutingKey extends RoutingKey
         };
     }
 
-    abstract class AbstractRoutingKey implements AccordRoutingKey
-    {
-        private final TableId tableId;
-
-        public AbstractRoutingKey(TableId tableId)
-        {
-            this.tableId = tableId;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AbstractRoutingKey that = (AbstractRoutingKey) o;
-            return tableId.equals(that.tableId) && token().equals(that.token());
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(tableId, token());
-        }
-
-        @Override
-        public int compareTo(RoutingKey that)
-        {
-            return compare(this, (AccordRoutingKey) that);
-        }
-
-        @Override
-        public TableId tableId()
-        {
-            return tableId;
-        }
-    }
-
-    class TokenKey extends AbstractRoutingKey
+    public static class TokenKey extends AccordRoutingKey
     {
         private static final long EMPTY_SIZE;
 
@@ -252,9 +164,9 @@ public interface AccordRoutingKey extends RoutingKey
         }
 
         @Override
-        public Kind kind()
+        public RoutingKeyKind kindOfRoutingKey()
         {
-            return Kind.TOKEN;
+            return RoutingKeyKind.TOKEN;
         }
 
         @Override
@@ -300,13 +212,14 @@ public interface AccordRoutingKey extends RoutingKey
         }
     }
 
-    IVersionedSerializer<AccordRoutingKey> serializer = new IVersionedSerializer<AccordRoutingKey>()
+    public static final IVersionedSerializer<AccordRoutingKey> serializer = new IVersionedSerializer<AccordRoutingKey>()
     {
+        final RoutingKeyKind[] kinds = RoutingKeyKind.values();
         @Override
         public void serialize(AccordRoutingKey key, DataOutputPlus out, int version) throws IOException
         {
-            out.write(key.kind().ordinal());
-            switch (key.kind())
+            out.write(key.kindOfRoutingKey().ordinal());
+            switch (key.kindOfRoutingKey())
             {
                 case TOKEN:
                     TokenKey.serializer.serialize((TokenKey) key, out, version);
@@ -322,7 +235,7 @@ public interface AccordRoutingKey extends RoutingKey
         @Override
         public AccordRoutingKey deserialize(DataInputPlus in, int version) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
+            RoutingKeyKind kind = kinds[in.readByte()];
             switch (kind)
             {
                 case TOKEN:
@@ -338,7 +251,7 @@ public interface AccordRoutingKey extends RoutingKey
         public long serializedSize(AccordRoutingKey key, int version)
         {
             long size = TypeSizes.BYTE_SIZE; // kind ordinal
-            switch (key.kind())
+            switch (key.kindOfRoutingKey())
             {
                 case TOKEN:
                     size += TokenKey.serializer.serializedSize((TokenKey) key, version);

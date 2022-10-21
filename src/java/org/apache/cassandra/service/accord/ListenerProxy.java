@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
@@ -31,10 +30,11 @@ import accord.local.Command;
 import accord.local.CommandListener;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.primitives.Keys;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -130,7 +130,7 @@ public abstract class ListenerProxy implements CommandListener, Comparable<Liste
             AccordCommand command = (AccordCommand) c;
             AccordCommandStore commandStore = (AccordCommandStore) safeStore;
             AsyncContext context = commandStore.getContext();
-            PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId(), txnId), Collections.emptyList());
+            PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId(), txnId), Keys.EMPTY);
             if (context.containsScopedItems(loadCtx))
             {
                 // TODO (soon): determine if this can break anything by not waiting for the current operation to denormalize it's data
@@ -163,9 +163,9 @@ public abstract class ListenerProxy implements CommandListener, Comparable<Liste
     static class CommandsForKeyListenerProxy extends ListenerProxy
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new CommandsForKeyListenerProxy(null));
-        private final AccordKey.PartitionKey key;
+        private final PartitionKey key;
 
-        public CommandsForKeyListenerProxy(AccordKey.PartitionKey key)
+        public CommandsForKeyListenerProxy(PartitionKey key)
         {
             this.key = key;
         }
@@ -218,9 +218,9 @@ public abstract class ListenerProxy implements CommandListener, Comparable<Liste
         @Override
         public ByteBuffer identifier()
         {
-            ByteBuffer bytes = ByteBuffer.allocate((int) (1 + AccordKey.PartitionKey.serializer.serializedSize(key)));
+            ByteBuffer bytes = ByteBuffer.allocate((int) (1 + PartitionKey.serializer.serializedSize(key)));
             ByteBufferAccessor.instance.putByte(bytes, 0, (byte) kind().ordinal());
-            AccordKey.PartitionKey.serializer.serialize(key, bytes, ByteBufferAccessor.instance, 1);
+            PartitionKey.serializer.serialize(key, bytes, ByteBufferAccessor.instance, 1);
             return bytes;
         }
 
@@ -230,7 +230,7 @@ public abstract class ListenerProxy implements CommandListener, Comparable<Liste
             AccordCommand command = (AccordCommand) c;
             AccordCommandStore commandStore = (AccordCommandStore) safeStore;
             AsyncContext context = commandStore.getContext();
-            PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId()), ImmutableList.of(key));
+            PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId()), Keys.of(key));
             if (context.containsScopedItems(loadCtx))
             {
                 logger.trace("{}: synchronously updating listening cfk {}", c.txnId(), key);
@@ -265,7 +265,7 @@ public abstract class ListenerProxy implements CommandListener, Comparable<Liste
                 TxnId txnId = CommandSerializers.txnId.deserialize(src, accessor, offset);
                 return new CommandListenerProxy(txnId);
             case COMMANDS_FOR_KEY:
-                AccordKey.PartitionKey key = AccordKey.PartitionKey.serializer.deserialize(src, accessor, offset);
+                PartitionKey key = PartitionKey.serializer.deserialize(src, accessor, offset);
                 return new CommandsForKeyListenerProxy(key);
             default:
                 throw new IOException("Unknown kind ordinal " + ordinal);

@@ -41,10 +41,10 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.SaveStatus;
 import accord.local.Status;
-import accord.primitives.AbstractRoute;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -97,8 +97,7 @@ import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.accord.AccordCommandsForKey.SeriesKind;
-import org.apache.cassandra.service.accord.api.AccordKey;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
@@ -161,7 +160,7 @@ public class AccordKeyspace
     // TODO: naming is not very clearly distinct from the base serializers
     private static class CommandsSerializers
     {
-        static final LocalVersionedSerializer<AbstractRoute> abstractRoute = localSerializer(KeySerializers.abstractRoute);
+        static final LocalVersionedSerializer<Route<?>> route = localSerializer(KeySerializers.route);
         static final LocalVersionedSerializer<AccordRoutingKey> routingKey = localSerializer(AccordRoutingKey.serializer);
         static final LocalVersionedSerializer<PartialTxn> partialTxn = localSerializer(CommandSerializers.partialTxn);
         static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
@@ -442,7 +441,7 @@ public class AccordKeyspace
                 builder.addCell(live(CommandsColumns.progress_key, timestampMicros, serializeOrNull((AccordRoutingKey) command.progressKey.get(), CommandsSerializers.routingKey)));
 
             if (command.route.hasModifications())
-                builder.addCell(live(CommandsColumns.route, timestampMicros, serializeOrNull(command.route.get(), CommandsSerializers.abstractRoute)));
+                builder.addCell(live(CommandsColumns.route, timestampMicros, serializeOrNull(command.route.get(), CommandsSerializers.route)));
 
             if (command.durability.hasModifications())
                 builder.addCell(live(CommandsColumns.durability, timestampMicros, accessor.valueOf(command.durability.get().ordinal())));
@@ -450,7 +449,7 @@ public class AccordKeyspace
             if (command.partialTxn.hasModifications())
                 builder.addCell(live(CommandsColumns.txn, timestampMicros, serializeOrNull(command.partialTxn.get(), CommandsSerializers.partialTxn)));
 
-            if (command.kind.hasModifications())
+            if (command.kind.hasModifications() && command.kind.get() != null) // initialize sets hasModification(), and don't want to persist null
                 builder.addCell(live(CommandsColumns.kind, timestampMicros, accessor.valueOf(command.kind.get().ordinal())));
 
             if (command.executeAt.hasModifications())
@@ -595,7 +594,7 @@ public class AccordKeyspace
             command.status.load(SaveStatus.values()[row.getInt("status")]);
             command.homeKey.load(deserializeOrNull(row.getBlob("home_key"), CommandsSerializers.routingKey));
             command.progressKey.load(deserializeOrNull(row.getBlob("progress_key"), CommandsSerializers.routingKey));
-            command.route.load(deserializeOrNull(row.getBlob("route"), CommandsSerializers.abstractRoute));
+            command.route.load(deserializeOrNull(row.getBlob("route"), CommandsSerializers.route));
             // TODO: something less brittle than ordinal, more efficient than values()
             command.durability.load(Status.Durability.values()[row.getInt("durability", 0)]);
             command.partialTxn.load(deserializeOrNull(row.getBlob("txn"), CommandsSerializers.partialTxn));

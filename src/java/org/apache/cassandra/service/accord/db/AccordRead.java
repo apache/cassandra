@@ -30,10 +30,9 @@ import accord.api.Data;
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.Read;
-import accord.local.CommandStore;
 import accord.local.SafeCommandStore;
-import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
+import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import org.apache.cassandra.concurrent.Stage;
@@ -48,8 +47,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
-import org.apache.cassandra.service.accord.api.AccordKey;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -60,7 +58,7 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
 
     public AccordRead(List<SinglePartitionReadCommand> items)
     {
-        super(items, AccordKey::of);
+        super(items, PartitionKey::of);
     }
 
     public AccordRead(Keys keys, ByteBuffer[] serialized)
@@ -128,7 +126,7 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
     }
 
     @Override
-    public Read slice(KeyRanges ranges)
+    public Read slice(Ranges ranges)
     {
         return super.slice(ranges, AccordRead::new);
     }

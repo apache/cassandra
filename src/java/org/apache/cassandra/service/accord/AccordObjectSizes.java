@@ -23,20 +23,25 @@ import java.util.Map;
 import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.local.Node;
-import accord.primitives.AbstractRoute;
+import accord.primitives.AbstractKeys;
+import accord.primitives.AbstractRanges;
 import accord.primitives.Deps;
-import accord.primitives.KeyRange;
-import accord.primitives.KeyRanges;
+import accord.primitives.FullKeyRoute;
+import accord.primitives.FullRangeRoute;
 import accord.primitives.Keys;
-import accord.primitives.PartialRoute;
+import accord.primitives.PartialKeyRoute;
+import accord.primitives.PartialRangeRoute;
 import accord.primitives.PartialTxn;
-import accord.primitives.Route;
+import accord.primitives.Range;
+import accord.primitives.Ranges;
 import accord.primitives.RoutingKeys;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.db.AccordQuery;
@@ -49,7 +54,7 @@ public class AccordObjectSizes
 {
     public static long key(Key key)
     {
-        return ((AccordKey.PartitionKey) key).estimatedSizeOnHeap();
+        return ((PartitionKey) key).estimatedSizeOnHeap();
     }
 
     public static long key(RoutingKey key)
@@ -58,13 +63,13 @@ public class AccordObjectSizes
     }
 
     private static final long EMPTY_KEY_RANGE_SIZE = ObjectSizes.measure(TokenRange.fullRange(TableId.generate()));
-    public static long range(KeyRange range)
+    public static long range(Range range)
     {
         return EMPTY_KEY_RANGE_SIZE + key(range.start()) + key(range.end());
     }
 
-    private static final long EMPTY_KEY_RANGES_SIZE = ObjectSizes.measure(KeyRanges.of());
-    public static long ranges(KeyRanges ranges)
+    private static final long EMPTY_KEY_RANGES_SIZE = ObjectSizes.measure(Ranges.of());
+    public static long ranges(Ranges ranges)
     {
         long size = EMPTY_KEY_RANGES_SIZE;
         size += ObjectSizes.sizeOfReferenceArray(ranges.size());
@@ -84,7 +89,17 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static long routingKeysOnly(RoutingKeys keys)
+    public static long seekables(Seekables<?, ?> seekables)
+    {
+        switch (seekables.kindOfContents())
+        {
+            default: throw new AssertionError();
+            case Key: return keys((Keys) seekables);
+            case Range: return ranges((Ranges) seekables);
+        }
+    }
+
+    private static long routingKeysOnly(AbstractKeys<RoutingKey, ?> keys)
     {
         // TODO: many routing keys are fixed size, can compute by multiplication
         long size = ObjectSizes.sizeOfReferenceArray(keys.size());
@@ -96,37 +111,70 @@ public class AccordObjectSizes
     private static final long EMPTY_ROUTING_KEYS_SIZE = ObjectSizes.measure(RoutingKeys.of());
     public static long routingKeys(RoutingKeys keys)
     {
-        return routingKeysOnly(keys) + EMPTY_ROUTING_KEYS_SIZE;
+        return EMPTY_ROUTING_KEYS_SIZE + routingKeysOnly(keys);
     }
 
-    private static final long EMPTY_ROUTE_SIZE = ObjectSizes.measure(new Route(new TokenKey(null, null), new RoutingKey[0]));
-    public static long route(Route route)
+    private static final long EMPTY_FULL_KEY_ROUTE_SIZE = ObjectSizes.measure(new FullKeyRoute(new TokenKey(null, null), new RoutingKey[0]));
+    public static long fullKeyRoute(FullKeyRoute route)
     {
-        return EMPTY_ROUTE_SIZE
+        return EMPTY_FULL_KEY_ROUTE_SIZE
                + routingKeysOnly(route)
-               + key(route.homeKey); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
+               + key(route.homeKey()); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
     }
 
-    private static final long EMPTY_PARTIAL_ROUTE_KEYS_SIZE = ObjectSizes.measure(new PartialRoute(KeyRanges.EMPTY, new TokenKey(null, null), new RoutingKey[0]));
-    public static long route(PartialRoute route)
+    private static final long EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE = ObjectSizes.measure(new PartialKeyRoute(Ranges.EMPTY, new TokenKey(null, null), new RoutingKey[0]));
+    public static long partialKeyRoute(PartialKeyRoute route)
     {
-        return EMPTY_PARTIAL_ROUTE_KEYS_SIZE
+        return EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE
                + routingKeysOnly(route)
-               + ranges(route.covering)
-               + key(route.homeKey);
+               + ranges(route.covering())
+               + key(route.homeKey());
     }
 
-    public static long route(AbstractRoute route)
+    private static long rangesOnly(AbstractRanges<?> ranges)
     {
-        if (route instanceof Route) return route((Route) route);
-        else return route((PartialRoute) route);
+        long size = ObjectSizes.sizeOfReferenceArray(ranges.size());
+        for (int i=0, mi=ranges.size(); i<mi; i++)
+            size += range(ranges.get(i));
+        return size;
+    }
+
+    private static final long EMPTY_FULL_RANGE_ROUTE_SIZE = ObjectSizes.measure(new FullRangeRoute(new TokenKey(null, null), new Range[0]));
+    public static long fullRangeRoute(FullRangeRoute route)
+    {
+        return EMPTY_FULL_RANGE_ROUTE_SIZE
+               + rangesOnly(route)
+               + key(route.homeKey()); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
+    }
+
+    private static final long EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE = ObjectSizes.measure(new PartialRangeRoute(Ranges.EMPTY, new TokenKey(null, null), new Range[0]));
+    public static long partialRangeRoute(PartialRangeRoute route)
+    {
+        return EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE
+               + rangesOnly(route)
+               + ranges(route.covering())
+               + key(route.homeKey());
+    }
+
+    public static long route(Unseekables<?, ?> unseekables)
+    {
+        switch (unseekables.kind())
+        {
+            default: throw new AssertionError();
+            case RoutingKeys: return routingKeys((RoutingKeys) unseekables);
+            case PartialKeyRoute: return partialKeyRoute((PartialKeyRoute) unseekables);
+            case FullKeyRoute: return fullKeyRoute((FullKeyRoute) unseekables);
+            case RoutingRanges: return ranges((Ranges) unseekables);
+            case PartialRangeRoute: return partialRangeRoute((PartialRangeRoute) unseekables);
+            case FullRangeRoute: return fullRangeRoute((FullRangeRoute) unseekables);
+        }
     }
 
     private static final long EMPTY_TXN = ObjectSizes.measure(new PartialTxn.InMemory(null, null, null, null, null, null));
     public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;
-        size += keys(txn.keys());
+        size += seekables(txn.keys());
         size += ((AccordRead) txn.read()).estimatedSizeOnHeap();
         if (txn.update() != null)
             size += ((AccordUpdate) txn.update()).estimatedSizeOnHeap();

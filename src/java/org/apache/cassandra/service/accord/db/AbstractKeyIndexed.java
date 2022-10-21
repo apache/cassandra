@@ -22,23 +22,15 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Objects;
-import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.google.common.base.Preconditions;
-
 import accord.api.Key;
-import accord.primitives.KeyRange;
-import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -46,7 +38,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -148,7 +140,7 @@ public abstract class AbstractKeyIndexed<T>
             serialized[this.keys.indexOf(keyFunction.apply(items.get(i)))] = serialize(items.get(i));
     }
 
-    protected <V> V slice(KeyRanges ranges, BiFunction<Keys, ByteBuffer[], V> constructor)
+    protected <V> V slice(Ranges ranges, BiFunction<Keys, ByteBuffer[], V> constructor)
     {
         // TODO: Routables patch permits us to do this more efficiently
         Keys keys = this.keys.slice(ranges);
