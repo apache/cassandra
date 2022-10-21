@@ -139,7 +139,7 @@ public class AsyncLoader
             }
             catch (Throwable t)
             {
-                logger.error(String.format("Exception loading %s for %s", command.txnId(), callback), t);
+                logger.error("Exception loading {} for {}", command.txnId(), callback, t);
                 throw t;
             }
         });
@@ -157,7 +157,7 @@ public class AsyncLoader
             }
             catch (Throwable t)
             {
-                logger.error(String.format("Exception loading %s for %s", cfk.key(), callback), t);
+                logger.error("Exception loading {} for {}", cfk.key(), callback, t);
                 throw t;
             }
         });
@@ -231,7 +231,7 @@ public class AsyncLoader
             case FINISHED:
                 break;
             default:
-                throw new IllegalStateException();
+                throw new IllegalStateException("Unexpected state: " + state);
         }
 
         logger.trace("Exiting load for {} with state {}: {} {}", callback, state, txnIds, keys);

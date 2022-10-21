@@ -20,7 +20,6 @@ package org.apache.cassandra.db.filter;
 import java.io.IOException;
 import java.util.List;
 import java.nio.ByteBuffer;
-import java.util.Objects;
 
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;

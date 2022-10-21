@@ -104,7 +104,7 @@ public class AcceptSerializers
         public void serialize(AcceptOk acceptOk, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(acceptOk.txnId, out, version);
-            CommandSerializers.deps.serialize(acceptOk.deps, out, version);
+            NullableSerializer.serializeNullable(acceptOk.deps, out, version, CommandSerializers.deps);
 
         }
 
@@ -112,14 +112,14 @@ public class AcceptSerializers
         public AcceptOk deserialize(DataInputPlus in, int version) throws IOException
         {
             return new AcceptOk(CommandSerializers.txnId.deserialize(in, version),
-                                CommandSerializers.deps.deserialize(in, version));
+                                NullableSerializer.deserializeNullable(in, version, CommandSerializers.deps));
         }
 
         @Override
         public long serializedSize(AcceptOk acceptOk, int version)
         {
             return CommandSerializers.txnId.serializedSize(acceptOk.txnId, version)
-                 + CommandSerializers.deps.serializedSize(acceptOk.deps, version);
+                   + NullableSerializer.serializedSizeNullable(acceptOk.deps, version, CommandSerializers.deps);
         }
     };
 

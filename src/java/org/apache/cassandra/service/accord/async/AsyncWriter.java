@@ -65,8 +65,8 @@ public class AsyncWriter
     private State state = State.INITIALIZED;
     protected Future<?> writeFuture;
     private final AccordCommandStore commandStore;
-    AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
-    AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCache;
+    final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
+    final AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCache;
 
     public AsyncWriter(AccordCommandStore commandStore)
     {
@@ -97,7 +97,8 @@ public class AsyncWriter
                 continue;
             }
 
-            if (futures == null) futures = new ArrayList<>();
+            if (futures == null)
+                futures = new ArrayList<>();
             K key = item.key();
             Mutation mutation = mutationFunction.apply(item, timestamp);
             if (logger.isTraceEnabled())
@@ -124,7 +125,8 @@ public class AsyncWriter
         for (AccordState.WriteOnly<K, V> item : ctxGroup.writeOnly.values())
         {
             Preconditions.checkState(item.hasModifications());
-            if (futures == null) futures = new ArrayList<>();
+            if (futures == null)
+                futures = new ArrayList<>();
             Mutation mutation = mutationFunction.apply((V) item, timestamp);
             Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
             future.addListener(() -> cache.purgeWriteOnly(item.key()), commandStore.executor());
@@ -238,7 +240,7 @@ public class AsyncWriter
         }
 
         // There won't be a txn to denormalize against until the command has been preaccepted
-        if (command.status().hasBeen(Status.PreAccepted) && AccordPartialCommand.WithDeps.serializer.needsUpdate(command))
+        if (command.status().hasBeen(Status.PreAccepted) && AccordPartialCommand.WithDeps.serializer.needsUpdate(command) && !(command.txn() == null && command.status().isInvalidated()))
         {
             for (Key key : command.txn().keys())
             {
@@ -306,7 +308,7 @@ public class AsyncWriter
                 case FINISHED:
                     break;
                 default:
-                    throw new IllegalStateException();
+                    throw new IllegalStateException("Unexpected state: " + state);
             }
         }
         catch (IOException e)

@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
@@ -89,7 +90,7 @@ public class AccordMessageSink implements MessageSink
     public void send(Node.Id to, Request request)
     {
         Verb verb = getVerb(request.type());
-        Preconditions.checkArgument(verb != null);
+        Objects.requireNonNull(verb, "verb");
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = getEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
