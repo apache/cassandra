@@ -34,7 +34,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -62,10 +62,10 @@ public class AccordTopologyTest
         Token maxToken = partitioner.getMaximumToken();
 
 //        topology.forKey(new AccordKey.TokenKey(tableId, minToken.minKeyBound()));
-        topology.forKey(new AccordKey.PartitionKey(tableId, new BufferDecoratedKey(minToken, ByteBufferUtil.bytes(0))));
+        topology.forKey(new PartitionKey(tableId, new BufferDecoratedKey(minToken, ByteBufferUtil.bytes(0))).toUnseekable());
 //        topology.forKey(new AccordKey.TokenKey(tableId, minToken.maxKeyBound()));
 //        topology.forKey(new AccordKey.TokenKey(tableId, maxToken.minKeyBound()));
-        topology.forKey(new AccordKey.PartitionKey(tableId, new BufferDecoratedKey(maxToken, ByteBufferUtil.bytes(0))));
+        topology.forKey(new PartitionKey(tableId, new BufferDecoratedKey(maxToken, ByteBufferUtil.bytes(0))).toUnseekable());
 //        topology.forKey(new AccordKey.TokenKey(tableId, maxToken.maxKeyBound()));
     }
 }

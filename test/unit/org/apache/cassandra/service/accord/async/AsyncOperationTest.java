@@ -30,10 +30,10 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.local.Command;
-import accord.local.CommandStore;
 import accord.local.CommandsForKey;
 import accord.local.SafeCommandStore;
 import accord.local.Status;
+import accord.primitives.Keys;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -48,9 +48,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.service.accord.AccordPartialCommand;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static accord.local.PreLoadContext.contextFor;
@@ -92,7 +91,7 @@ public class AsyncOperationTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn((int)clock.incrementAndGet());
-        AccordKey.PartitionKey key = (AccordKey.PartitionKey) Iterables.getOnlyElement(txn.keys());
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         commandStore.execute(contextFor(txnId), instance -> {
             Command command = instance.ifPresent(txnId);
@@ -108,9 +107,9 @@ public class AsyncOperationTest
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         Txn txn = createTxn((int)clock.incrementAndGet());
-        AccordKey.PartitionKey key = (AccordKey.PartitionKey) Iterables.getOnlyElement(txn.keys());
+        PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.execute(contextFor(Collections.emptyList(), Collections.singleton(key)), instance -> {
+        commandStore.execute(contextFor(Collections.emptyList(), Keys.of(key)),instance -> {
             CommandsForKey cfk = commandStore.maybeCommandsForKey(key);
             Assert.assertNull(cfk);
         }).get();
@@ -173,7 +172,7 @@ public class AsyncOperationTest
             }
 
             @Override
-            AsyncLoader createAsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<AccordKey.PartitionKey> keys)
+            AsyncLoader createAsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys)
             {
                 return new AsyncLoader(commandStore, txnIds, keys) {
 

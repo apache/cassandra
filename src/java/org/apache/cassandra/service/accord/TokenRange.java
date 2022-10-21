@@ -21,16 +21,15 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 
 import accord.api.RoutingKey;
-import accord.primitives.KeyRange;
+import accord.primitives.Range;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 
-public class TokenRange extends KeyRange.EndInclusive
+public class TokenRange extends Range.EndInclusive
 {
     public TokenRange(AccordRoutingKey start, AccordRoutingKey end)
     {
