@@ -47,13 +47,15 @@ import accord.local.PreLoadContext;
 import accord.local.Status.Known;
 import accord.primitives.AbstractKeys;
 import accord.primitives.Ballot;
-import accord.primitives.KeyRange;
-import accord.primitives.KeyRanges;
+import accord.primitives.Ranges;
+import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
-import accord.primitives.RoutingKeys;
+import accord.primitives.Range;
+import accord.primitives.Routables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
@@ -61,7 +63,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordAgent;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.db.AccordData;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.utils.FBUtilities;
@@ -87,9 +89,9 @@ public class AccordTestUtils
         @Override public void executed(Command command, ProgressShard progressShard) {}
         @Override public void invalidated(Command command, ProgressShard progressShard) {}
         @Override public void durable(Command command, Set<Id> persistedOn) {}
-        @Override public void durable(TxnId txnId, @Nullable RoutingKeys someKeys, ProgressShard shard) {}
+        @Override public void durable(TxnId txnId, @Nullable Unseekables<?, ?> someKeys, ProgressShard shard) {}
         @Override public void durableLocal(TxnId txnId) {}
-        @Override public void waiting(TxnId blockedBy, Known blockedUntil, RoutingKeys blockedOnKeys) {}
+        @Override public void waiting(TxnId blockedBy, Known blockedUntil, Unseekables<?, ?> blockedOn) {}
     };
 
     public static Topology simpleTopology(TableId... tables)
@@ -102,7 +104,7 @@ public class AccordTestUtils
         Set<Id> fastPath = Sets.newHashSet(node);
         for (int i=0; i<tables.length; i++)
         {
-            KeyRange range = TokenRange.fullRange(tables[i]);
+            Range range = TokenRange.fullRange(tables[i]);
             shards[i] = new Shard(range, nodes, fastPath, Collections.emptySet());
         }
 
@@ -156,7 +158,7 @@ public class AccordTestUtils
                                 })
                                 .reduce(null, AccordData::merge);
             Write write = txn.update().apply(readData);
-            ((AccordCommand)command).setWrites(new Writes(command.executeAt(), txn.keys(), write));
+            ((AccordCommand)command).setWrites(new Writes(command.executeAt(), (Keys)txn.keys(), write));
             ((AccordCommand)command).setResult(txn.query().compute(command.txnId(), readData, txn.read(), txn.update()));
         }).get();
     }
@@ -175,43 +177,43 @@ public class AccordTestUtils
         return createTxn(key, key);
     }
 
-    public static KeyRanges fullRange(Txn txn)
+    public static Ranges fullRange(Txn txn)
     {
-        TableId tableId = ((AccordKey)txn.keys().get(0)).tableId();
-        return KeyRanges.of(TokenRange.fullRange(tableId));
+        TableId tableId = ((PartitionKey)txn.keys().get(0)).tableId();
+        return Ranges.of(TokenRange.fullRange(tableId));
     }
 
     public static PartialTxn createPartialTxn(int key)
     {
         Txn txn = createTxn(key, key);
-        KeyRanges ranges = fullRange(txn);
+        Ranges ranges = fullRange(txn);
         return new PartialTxn.InMemory(ranges, txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
     }
 
     private static class SingleEpochRanges implements CommandStore.RangesForEpoch
     {
-        private final KeyRanges ranges;
+        private final Ranges ranges;
 
-        public SingleEpochRanges(KeyRanges ranges)
+        public SingleEpochRanges(Ranges ranges)
         {
             this.ranges = ranges;
         }
 
         @Override
-        public KeyRanges at(long epoch)
+        public Ranges at(long epoch)
         {
             assert epoch == 1;
             return ranges;
         }
 
         @Override
-        public KeyRanges between(long fromInclusive, long toInclusive)
+        public Ranges between(long fromInclusive, long toInclusive)
         {
             return ranges;
         }
 
         @Override
-        public KeyRanges since(long epoch)
+        public Ranges since(long epoch)
         {
             assert epoch == 1;
             return ranges;
@@ -221,13 +223,6 @@ public class AccordTestUtils
         public boolean owns(long epoch, RoutingKey key)
         {
             return ranges.contains(key);
-        }
-
-        @Override
-        public boolean intersects(long epoch, AbstractKeys<?, ?> keys)
-        {
-            assert epoch == 1;
-            return ranges.intersects(keys);
         }
     }
 
@@ -249,7 +244,7 @@ public class AccordTestUtils
                                                      new AccordAgent(),
                                                      null,
                                                      cs -> null,
-                                                     new SingleEpochRanges(KeyRanges.of(range)));
+                                                     new SingleEpochRanges(Ranges.of(range)));
     }
 
     public static AccordCommandStore createAccordCommandStore(Node.Id node, LongSupplier now, Topology topology)

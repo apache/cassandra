@@ -51,8 +51,8 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.api.AccordKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.db.AccordQuery;
 import org.apache.cassandra.service.accord.db.AccordRead;
 import org.apache.cassandra.service.accord.db.AccordUpdate;
@@ -61,7 +61,7 @@ import org.apache.cassandra.service.accord.db.AccordUpdate.UpdatePredicate.Type;
 
 public class AccordTxnBuilder
 {
-    private Set<AccordKey.PartitionKey> keys = new HashSet<>();
+    private Set<PartitionKey> keys = new HashSet<>();
     private List<SinglePartitionReadCommand> reads = new ArrayList<>();
     private AccordQuery query = AccordQuery.ALL;
     private List<AccordUpdate.AbstractUpdate> updates = new ArrayList<>();
@@ -77,7 +77,7 @@ public class AccordTxnBuilder
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
         for (SinglePartitionReadCommand command : selectQuery.queries)
         {
-            keys.add(AccordKey.of(command));
+            keys.add(PartitionKey.of(command));
             reads.add(command);
         }
         return this;
@@ -95,7 +95,7 @@ public class AccordTxnBuilder
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
-                keys.add(new AccordKey.PartitionKey(update.metadata().id, update.partitionKey()));
+                keys.add(new PartitionKey(update.metadata().id, update.partitionKey()));
                 updates.add(new AccordUpdate.SimpleUpdate(update));
             }
         }
@@ -108,7 +108,7 @@ public class AccordTxnBuilder
         Preconditions.checkNotNull(metadata);
 
         DecoratedKey partitionKey = metadata.partitioner.decorateKey(decompose(metadata.partitionKeyType, key));
-        AccordKey.PartitionKey accordKey = new AccordKey.PartitionKey(metadata.id, partitionKey);
+        PartitionKey accordKey = new PartitionKey(metadata.id, partitionKey);
 
         keys.add(accordKey);
         updates.add(new AccordUpdate.AppendingUpdate(accordKey, appends));
@@ -129,7 +129,7 @@ public class AccordTxnBuilder
         Preconditions.checkNotNull(metadata);
 
         DecoratedKey partitionKey = metadata.partitioner.decorateKey(decompose(metadata.partitionKeyType, key));
-        AccordKey.PartitionKey accordKey = new AccordKey.PartitionKey(metadata.id, partitionKey);
+        PartitionKey accordKey = new PartitionKey(metadata.id, partitionKey);
 
         keys.add(accordKey);
         updates.add(new AccordUpdate.IncrementingUpdate(accordKey, increments));
@@ -185,7 +185,7 @@ public class AccordTxnBuilder
     public Txn build()
     {
         Key[] keyArray = keys.toArray(new Key[0]);
-        Arrays.sort(keyArray, AccordRoutingKey::compareKeys);
+        Arrays.sort(keyArray, Key::compareTo);
         predicates.sort(Comparator.comparing(UpdatePredicate::partitionKey));
         if (updates.isEmpty())
         {
