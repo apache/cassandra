@@ -25,6 +25,7 @@ import accord.messages.ReadData.ReadNack;
 import accord.messages.ReadData.ReadOk;
 import accord.messages.ReadData.ReadReply;
 import accord.primitives.Keys;
+import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -40,7 +41,7 @@ public class ReadDataSerializers
         public void serialize(ReadData read, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(read.txnId, out, version);
-            KeySerializers.keys.serialize(read.readScope, out, version);
+            KeySerializers.seekables.serialize(read.readScope, out, version);
             out.writeUnsignedVInt(read.waitForEpoch());
             out.writeUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
         }
@@ -49,7 +50,7 @@ public class ReadDataSerializers
         public ReadData deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Keys readScope = KeySerializers.keys.deserialize(in, version);
+            Seekables<?, ?> readScope = KeySerializers.seekables.deserialize(in, version);
             long waitForEpoch = in.readUnsignedVInt();
             long executeAtEpoch = in.readUnsignedVInt() + waitForEpoch;
             return ReadData.SerializerSupport.create(txnId, readScope, executeAtEpoch, waitForEpoch);
@@ -59,7 +60,7 @@ public class ReadDataSerializers
         public long serializedSize(ReadData read, int version)
         {
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                   + KeySerializers.keys.serializedSize(read.readScope, version)
+                   + KeySerializers.seekables.serializedSize(read.readScope, version)
                    + TypeSizes.sizeofUnsignedVInt(read.waitForEpoch())
                    + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
         }

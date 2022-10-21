@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import accord.local.Command;
 import accord.local.Status;
-import accord.primitives.KeyRanges;
+import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -39,7 +39,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordPartialCommand;
-import org.apache.cassandra.service.accord.api.AccordKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 
 import static accord.local.PreLoadContext.contextFor;
 import static com.google.common.collect.Iterables.getOnlyElement;
@@ -85,7 +85,7 @@ public class AsyncWriterTest
         TxnId blockingId = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId waitingId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        KeyRanges ranges = fullRange(txn);
+        Ranges ranges = fullRange(txn);
         AccordCommand blocking = new AccordCommand(blockingId).initialize();
         blocking.setPartialTxn(txn.slice(ranges, true));
         blocking.setExecuteAt(blockingId);
@@ -135,8 +135,8 @@ public class AsyncWriterTest
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        KeyRanges ranges = fullRange(txn);
-        AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
+        Ranges ranges = fullRange(txn);
+        PartitionKey key = (PartitionKey) getOnlyElement(txn.keys());
 
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
         AccordKeyspace.getCommandsForKeyMutation(commandStore, cfk, commandStore.nextSystemTimestampMicros()).apply();
@@ -200,7 +200,7 @@ public class AsyncWriterTest
         TxnId blockingId = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId waitingId = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(0);
-        KeyRanges ranges = fullRange(txn);
+        Ranges ranges = fullRange(txn);
 
         {
             AccordCommand blocking = new AccordCommand(blockingId).initialize();
