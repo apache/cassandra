@@ -51,7 +51,6 @@ import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
@@ -116,9 +115,9 @@ public class AccordRead extends AbstractKeyIndexed<SinglePartitionReadCommand> i
         Future<Data> future = Stage.READ.submit(() -> {
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
             try (ReadExecutionController controller = read.executionController();
-                 UnfilteredPartitionIterator partition = read.executeLocally(controller))
+                 UnfilteredPartitionIterator partition = read.executeLocally(controller);
+                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
             {
-                PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec());
                 FilteredPartition filtered = FilteredPartition.create(PartitionIterators.getOnlyElement(iterator, read));
                 AccordData result = new AccordData(filtered);
                 return result;
