@@ -39,6 +39,7 @@ import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.AccordPartialCommand;
 import org.apache.cassandra.service.accord.api.AccordKey;
 
 import static accord.local.PreLoadContext.contextFor;
@@ -121,9 +122,8 @@ public class AsyncWriterTest
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            AccordCommand blockingSummary = (AccordCommand) waitingFinal.firstWaitingOnApply();
+            AccordPartialCommand blockingSummary = (AccordPartialCommand) waitingFinal.firstWaitingOnApply();
             Assert.assertNotSame(blockingFinal, blockingSummary);
-            Assert.assertFalse(blockingSummary.isLoaded());
             Assert.assertEquals(Status.ReadyToExecute, blockingSummary.status());
             Assert.assertEquals(blockingId, blockingSummary.executeAt());
             commandStore.unsetContext(ctx);
@@ -159,10 +159,9 @@ public class AsyncWriterTest
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            AccordCommand summary = (AccordCommand) getOnlyElement(cfkUncommitted.uncommitted().all().collect(Collectors.toList()));
+            AccordPartialCommand.WithDeps summary = (AccordPartialCommand.WithDeps) getOnlyElement(cfkUncommitted.uncommitted().all().collect(Collectors.toList()));
             Assert.assertTrue(cfkUncommitted.uncommitted.map.getView().containsKey(txnId));
             Assert.assertNotSame(command, summary);
-            Assert.assertFalse(summary.isLoaded());
             Assert.assertEquals(Status.Accepted, summary.status());
             Assert.assertEquals(executeAt, summary.executeAt());
 
@@ -181,13 +180,14 @@ public class AsyncWriterTest
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            AccordCommand idSummary = (AccordCommand) getOnlyElement(cfkCommitted.committedById().all().collect(Collectors.toList()));
-            AccordCommand executeSummary = (AccordCommand) getOnlyElement(cfkCommitted.committedByExecuteAt().all().collect(Collectors.toList()));
+            AccordPartialCommand.WithDeps idSummary = (AccordPartialCommand.WithDeps) getOnlyElement(cfkCommitted.committedById().all().collect(Collectors.toList()));
+            AccordPartialCommand.WithDeps executeSummary = (AccordPartialCommand.WithDeps) getOnlyElement(cfkCommitted.committedByExecuteAt().all().collect(Collectors.toList()));
 
             Assert.assertTrue(cfkCommitted.committedById.map.getView().containsKey(txnId));
             Assert.assertTrue(cfkCommitted.committedByExecuteAt.map.getView().containsKey(executeAt));
-            Assert.assertNotSame(command, idSummary);
-            Assert.assertSame(idSummary, executeSummary);
+            Assert.assertNotEquals(command, idSummary);
+            // we store serialized values, so they will never be the same object as we deserialize
+            Assert.assertEquals(idSummary, executeSummary);
 
             Assert.assertEquals(Status.Committed, idSummary.status());
             Assert.assertEquals(executeAt, idSummary.executeAt());

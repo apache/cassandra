@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import accord.local.Listener;
@@ -124,6 +125,21 @@ public class AccordPartialCommand implements PartialCommand
     }
 
     @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AccordPartialCommand that = (AccordPartialCommand) o;
+        return Objects.equals(txnId, that.txnId) && Objects.equals(txn, that.txn) && Objects.equals(executeAt, that.executeAt) && status == that.status && Objects.equals(removedListeners, that.removedListeners);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(txnId, txn, executeAt, status, removedListeners);
+    }
+
+    @Override
     public String toString()
     {
         return "AccordPartialCommand{" +
@@ -192,6 +208,21 @@ public class AccordPartialCommand implements PartialCommand
         public Deps savedDeps()
         {
             return deps;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AccordPartialCommand.WithDeps withDeps = (AccordPartialCommand.WithDeps) o;
+            return super.equals(o) && Objects.equals(deps, withDeps.deps);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(super.hashCode(), deps);
         }
     }
 
