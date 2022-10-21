@@ -52,6 +52,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('default_time_to_live', None),
         ('speculative_retry', None),
         ('additional_write_policy', None),
+        ('memtable', None),
         ('memtable_flush_period_in_ms', None),
         ('cdc', None),
         ('read_repair', None),
