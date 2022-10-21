@@ -413,6 +413,21 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         return sb.toString();
     }
 
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (!(obj instanceof PartitionUpdate))
+            return false;
+
+        PartitionUpdate that = (PartitionUpdate) obj;
+        Holder a = this.holder(), b = that.holder();
+        return partitionKey.equals(that.partitionKey)
+               && metadata().id.equals(that.metadata().id)
+               && a.deletionInfo.equals(b.deletionInfo)
+               && a.staticRow.equals(b.staticRow)
+               && Iterators.elementsEqual(iterator(), that.iterator());
+    }
+
     public int rowCount()
     {
         return BTree.size(holder().tree);
