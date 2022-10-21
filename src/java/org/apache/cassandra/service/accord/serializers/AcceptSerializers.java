@@ -43,18 +43,18 @@ public class AcceptSerializers
         {
             CommandSerializers.ballot.serialize(accept.ballot, out, version);
             CommandSerializers.timestamp.serialize(accept.executeAt, out, version);
-            KeySerializers.keys.serialize(accept.keys, out, version);
+            KeySerializers.seekables.serialize(accept.keys, out, version);
             DepsSerializer.partialDeps.serialize(accept.partialDeps, out, version);
             CommandSerializers.kind.serialize(accept.kind, out, version);
         }
 
         @Override
-        public Accept deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
+        public Accept deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException
         {
             return create(txnId, scope, waitForEpoch, minEpoch, doNotComputeProgressKey,
                           CommandSerializers.ballot.deserialize(in, version),
                           CommandSerializers.timestamp.deserialize(in, version),
-                          KeySerializers.keys.deserialize(in, version),
+                          KeySerializers.seekables.deserialize(in, version),
                           DepsSerializer.partialDeps.deserialize(in, version),
                           CommandSerializers.kind.deserialize(in, version));
         }
@@ -64,7 +64,7 @@ public class AcceptSerializers
         {
             return CommandSerializers.ballot.serializedSize(accept.ballot, version)
                    + CommandSerializers.timestamp.serializedSize(accept.executeAt, version)
-                   + KeySerializers.keys.serializedSize(accept.keys, version)
+                   + KeySerializers.seekables.serializedSize(accept.keys, version)
                    + DepsSerializer.partialDeps.serializedSize(accept.partialDeps, version)
                    + CommandSerializers.kind.serializedSize(accept.kind, version);
         }

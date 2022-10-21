@@ -46,13 +46,13 @@ public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements I
         serializeBody(msg, out, version);
     }
 
-    public abstract T deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException;
+    public abstract T deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException;
 
     @Override
     public final T deserialize(DataInputPlus in, int version) throws IOException
     {
         TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-        PartialRoute scope = KeySerializers.partialRoute.deserialize(in, version);
+        PartialRoute<?> scope = KeySerializers.partialRoute.deserialize(in, version);
         // TODO: there should be a base epoch
         long waitForEpoch = in.readUnsignedVInt();
         return deserializeBody(in, version, txnId, scope, waitForEpoch);
@@ -83,10 +83,10 @@ public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements I
             out.writeBoolean(msg.doNotComputeProgressKey);
         }
 
-        public abstract T deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException;
+        public abstract T deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch, long minEpoch, boolean doNotComputeProgressKey) throws IOException;
 
         @Override
-        public final T deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException
+        public final T deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
         {
             long minEpoch = in.readUnsignedVInt();
             boolean doNotComputeProgressKey = in.readBoolean();

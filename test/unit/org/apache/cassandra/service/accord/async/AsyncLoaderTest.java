@@ -41,8 +41,7 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.api.AccordKey;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -90,7 +89,7 @@ public class AsyncLoaderTest
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
 
         // everything is cached, so the loader should return immediately
-        commandStore.processBlocking(() -> {
+        commandStore.executeBlocking(() -> {
             boolean result = loader.load(context, (o, t) -> Assert.fail());
             Assert.assertTrue(result);
         });
@@ -124,7 +123,7 @@ public class AsyncLoaderTest
         AsyncContext context = new AsyncContext();
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
-        commandStore.processBlocking(() -> {
+        commandStore.executeBlocking(() -> {
             boolean result = loader.load(context, (o, t) -> {
                 Assert.assertNull(t);
                 cbFired.setSuccess(null);
@@ -135,7 +134,7 @@ public class AsyncLoaderTest
         cbFired.awaitUninterruptibly(1, TimeUnit.SECONDS);
 
         // then return immediately after the callback has fired
-        commandStore.processBlocking(() -> {
+        commandStore.executeBlocking(() -> {
             boolean result = loader.load(context, (o, t) -> Assert.fail());
             Assert.assertTrue(result);
         });
@@ -166,7 +165,7 @@ public class AsyncLoaderTest
         AsyncContext context = new AsyncContext();
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
-        commandStore.processBlocking(() -> {
+        commandStore.executeBlocking(() -> {
             boolean result = loader.load(context, (o, t) -> {
                 Assert.assertNull(t);
                 cbFired.setSuccess(null);
@@ -177,7 +176,7 @@ public class AsyncLoaderTest
         cbFired.awaitUninterruptibly(1, TimeUnit.SECONDS);
 
         // then return immediately after the callback has fired
-        commandStore.processBlocking(() -> {
+        commandStore.executeBlocking(() -> {
             boolean result = loader.load(context, (o, t) -> Assert.fail());
             Assert.assertTrue(result);
         });
@@ -212,7 +211,7 @@ public class AsyncLoaderTest
         commandCache.setLoadFuture(command.txnId(), readFuture);
 
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
-        commandStore.processBlocking(() -> {
+        commandStore.executeBlocking(() -> {
             boolean result = loader.load(context, (o, t) -> {
                 Assert.assertNull(t);
                 cbFired.setSuccess(null);
@@ -226,7 +225,7 @@ public class AsyncLoaderTest
         Assert.assertTrue(cbFired.isSuccess());
 
         // then return immediately after the callback has fired
-        commandStore.processBlocking(() -> {
+        commandStore.executeBlocking(() -> {
             boolean result = loader.load(context, (o, t) -> Assert.fail());
             Assert.assertTrue(result);
         });
@@ -242,7 +241,7 @@ public class AsyncLoaderTest
         TxnId blockApply = txnId(1, clock.incrementAndGet(), 0, 1);
         TxnId blockCommit = txnId(1, clock.incrementAndGet(), 0, 1);
         PartialTxn txn = createPartialTxn(0);
-        AccordKey.PartitionKey key = (AccordKey.PartitionKey) getOnlyElement(txn.keys());
+        PartitionKey key = (PartitionKey) getOnlyElement(txn.keys());
 
         AccordCommand command = new AccordCommand(txnId).initialize();
         command.setPartialTxn(txn);

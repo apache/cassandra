@@ -27,13 +27,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
-import accord.api.Key;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<SafeCommandStore, R>, BiConsumer<Object, Throwable>
@@ -208,9 +208,17 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         }
     }
 
-    private static Iterable<PartitionKey> toPartitionKeys(Iterable<? extends Key> iterable)
+    private static Iterable<PartitionKey> toPartitionKeys(Seekables<?, ?> keys)
     {
-        return (Iterable<PartitionKey>) iterable;
+        switch (keys.kindOfContents())
+        {
+            default: throw new AssertionError();
+            case Key:
+                return (Iterable<PartitionKey>) keys;
+            case Range:
+                // TODO: implement
+                throw new UnsupportedOperationException();
+        }
     }
 
     static class ForFunction<R> extends AsyncOperation<R>
