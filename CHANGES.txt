@@ -1,4 +1,5 @@
 4.2
+ * Add memtable option among possible tab completions for a table (CASSANDRA-17982)
  * Adds a trie-based memtable implementation (CASSANDRA-17240)
  * Further improves precision of memtable heap tracking (CASSANDRA-17240)
  * Fix formatting of metrics documentation (CASSANDRA-17961)
