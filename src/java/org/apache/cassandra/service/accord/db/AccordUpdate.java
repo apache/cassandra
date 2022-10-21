@@ -718,8 +718,8 @@ public class AccordUpdate implements Update
     public String toString()
     {
         return "AccordUpdate{" +
-               "updates=" + updates +
-               ", predicates=" + predicates +
+               "updates=" + Arrays.toString(updates) +
+               ", predicates=" + Arrays.toString(predicates) +
                '}';
     }
 

@@ -123,6 +123,18 @@ public class AccordPartialCommand implements PartialCommand
         removedListeners.forEach(consumer);
     }
 
+    @Override
+    public String toString()
+    {
+        return "AccordPartialCommand{" +
+               "txnId=" + txnId +
+               ", txn=" + txn +
+               ", executeAt=" + executeAt +
+               ", status=" + status +
+               ", removedListeners=" + removedListeners +
+               '}';
+    }
+
     public static class WithDeps extends AccordPartialCommand implements PartialCommand.WithDeps
     {
         public static final PartialCommandSerializer<PartialCommand.WithDeps> serializer = new PartialCommandSerializer<PartialCommand.WithDeps>()
