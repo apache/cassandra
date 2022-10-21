@@ -18,19 +18,31 @@
 
 package org.apache.cassandra.simulator.paxos;
 
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
+
 class Observation implements Comparable<Observation>
 {
     final int id;
-    final Object[][] result;
+    final SimpleQueryResult result;
     final int start;
     final int end;
 
-    Observation(int id, Object[][] result, int start, int end)
+    Observation(int id, SimpleQueryResult result, int start, int end)
     {
         this.id = id;
         this.result = result;
         this.start = start;
         this.end = end;
+    }
+
+    boolean isSuccess()
+    {
+        return result != null;
+    }
+
+    boolean isUnknownFailure()
+    {
+        return result == null;
     }
 
     // computes a PARTIAL ORDER on when the outcome occurred, i.e. for many pair-wise comparisons the answer is 0

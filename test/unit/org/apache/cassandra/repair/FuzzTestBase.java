@@ -55,10 +55,10 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.config.UnitConfigOverride;
 import org.junit.BeforeClass;
 
-import accord.utils.DefaultRandom;
-import accord.utils.Gen;
-import accord.utils.Gens;
-import accord.utils.RandomSource;
+import accord.utilsfork.DefaultRandom;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Gens;
+import accord.utilsfork.RandomSource;
 import org.agrona.collections.LongHashSet;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorBuilder;

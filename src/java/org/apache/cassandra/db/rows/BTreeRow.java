@@ -264,7 +264,7 @@ public class BTreeRow extends AbstractRow
 
     public Cell<?> getCell(ColumnMetadata c)
     {
-        assert !c.isComplex();
+        assert !c.isComplex(): String.format("Column %s.%s#%s", c.ksName, c.cfName, c.name);
         return (Cell<?>) BTree.<Object>find(btree, ColumnMetadata.asymmetricColumnDataComparator, c);
     }
 
@@ -440,6 +440,18 @@ public class BTreeRow extends AbstractRow
                              : new Deletion(DeletionTime.build(newTimestamp - 1, deletion.time().localDeletionTime()), deletion.isShadowable());
 
         return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateAllTimestamp(newTimestamp));
+    }
+
+    @Override
+    public Row updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    {
+        LivenessInfo newInfo = primaryKeyLivenessInfo.isEmpty() ? primaryKeyLivenessInfo : primaryKeyLivenessInfo.withUpdatedTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime);
+        // If the deletion is shadowable and the row has a timestamp, we'll forced the deletion timestamp to be less than the row one, so we
+        // should get rid of said deletion.
+        Deletion newDeletion = deletion.isLive() || (deletion.isShadowable() && !primaryKeyLivenessInfo.isEmpty())
+                               ? Deletion.LIVE
+                               : new Deletion(DeletionTime.buildUnsafeWithUnsignedInteger(newTimestamp - 1, newLocalDeletionTime), deletion.isShadowable());
+        return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime));
     }
 
     public Row withRowDeletion(DeletionTime newDeletion)

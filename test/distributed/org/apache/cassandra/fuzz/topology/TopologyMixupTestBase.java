@@ -46,13 +46,13 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utils.Gen;
-import accord.utils.Gens;
-import accord.utils.Invariants;
-import accord.utils.Property;
-import accord.utils.Property.Command;
-import accord.utils.Property.SimpleCommand;
-import accord.utils.RandomSource;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Gens;
+import accord.utilsfork.Invariants;
+import accord.utilsfork.Property;
+import accord.utilsfork.Property.Command;
+import accord.utilsfork.Property.SimpleCommand;
+import accord.utilsfork.RandomSource;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
@@ -74,10 +74,10 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.ConfigGenBuilder;
 
-import static accord.utils.Property.commands;
-import static accord.utils.Property.ignoreCommand;
-import static accord.utils.Property.multistep;
-import static accord.utils.Property.stateful;
+import static accord.utilsfork.Property.commands;
+import static accord.utilsfork.Property.ignoreCommand;
+import static accord.utilsfork.Property.multistep;
+import static accord.utilsfork.Property.stateful;
 
 /**
  * These tests can create many instances, so mac users may need to run the following to avoid address bind failures

@@ -33,7 +33,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CIDR;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
@@ -45,16 +44,7 @@ import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 public class CassandraCIDRAuthorizerMonitorModeTest extends CQLTester
 {
     private static final AuthTestUtils.LocalCassandraCIDRAuthorizer cidrAuthorizer =
-    new AuthTestUtils.LocalCassandraCIDRAuthorizer(ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR);
-    private static void setupSuperUser()
-    {
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
-                                                     + "VALUES ('%s', true, true, '%s')",
-                                                     AUTH_KEYSPACE_NAME,
-                                                     AuthKeyspace.ROLES,
-                                                     CassandraRoleManager.DEFAULT_SUPERUSER_NAME,
-                                                     "xxx"));
-    }
+        new AuthTestUtils.LocalCassandraCIDRAuthorizer(ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR);
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -65,7 +55,7 @@ public class CassandraCIDRAuthorizerMonitorModeTest extends CQLTester
                                new AuthTestUtils.LocalCassandraNetworkAuthorizer(),
                                cidrAuthorizer);
         AuthCacheService.initializeAndRegisterCaches();
-        setupSuperUser();
+        AuthTestUtils.setupSuperUser();
     }
 
     @Before

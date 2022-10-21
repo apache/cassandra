@@ -159,6 +159,9 @@ import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
 public class DatabaseDescriptor
 {
+    public static final String NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE = 
+            "Cannot use legacy_paxos_strategy \"accord\" while Accord transactions are disabled.";
+
     static
     {
         CHRONICLE_ANALYTICS_DISABLE.setBoolean(true);
@@ -624,6 +627,9 @@ public class DatabaseDescriptor
         if (conf.concurrent_counter_writes < 2)
             throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
 
+        if (conf.concurrent_accord_operations < 1)
+            throw new ConfigurationException("concurrent_accord_operations must be at least 1, but was " + conf.concurrent_accord_operations, false);
+
         if (conf.networking_cache_size == null)
             conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
 
@@ -1062,6 +1068,9 @@ public class DatabaseDescriptor
 
         if (conf.use_deterministic_table_id)
             logger.warn("use_deterministic_table_id is no longer supported and should be removed from cassandra.yaml.");
+        
+        if (conf.legacy_paxos_strategy == Config.LegacyPaxosStrategy.accord && !conf.accord_transactions_enabled)
+            throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
     }
 
     @VisibleForTesting
@@ -1411,6 +1420,12 @@ public class DatabaseDescriptor
         {
             logInfo("truncate_request_timeout", conf.truncate_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
             conf.truncate_request_timeout = LOWEST_ACCEPTED_TIMEOUT;
+        }
+
+        if (conf.transaction_timeout.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
+        {
+            logInfo("transaction_timeout", conf.transaction_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.transaction_timeout = LOWEST_ACCEPTED_TIMEOUT;
         }
     }
 
@@ -2284,6 +2299,16 @@ public class DatabaseDescriptor
         return conf.cas_contention_timeout.to(unit);
     }
 
+    public static long getTransactionTimeout(TimeUnit unit)
+    {
+        return conf.transaction_timeout.to(unit);
+    }
+
+    public static void setTransactionTimeout(long timeOutInMillis)
+    {
+        conf.transaction_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+    }
+
     public static void setCasContentionTimeout(long timeOutInMillis)
     {
         conf.cas_contention_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
@@ -2500,6 +2525,20 @@ public class DatabaseDescriptor
             throw new IllegalArgumentException("Concurrent reads must be non-negative");
         }
         conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
+    }
+
+    public static int getConcurrentAccordOps()
+    {
+        return conf.concurrent_accord_operations;
+    }
+
+    public static void setConcurrentAccordOps(int concurrent_operations)
+    {
+        if (concurrent_operations < 0)
+        {
+            throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
+        }
+        conf.concurrent_accord_operations = concurrent_operations;
     }
 
     public static int getFlushWriters()
@@ -3358,6 +3397,11 @@ public class DatabaseDescriptor
     public static boolean paxoTopologyRepairStrictEachQuorum()
     {
         return conf.paxos_topology_repair_strict_each_quorum;
+    }
+
+    public static Config.LegacyPaxosStrategy getLegacyPaxosStrategy()
+    {
+        return conf.legacy_paxos_strategy;
     }
 
     public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)
@@ -4914,6 +4958,16 @@ public class DatabaseDescriptor
             logger.info("Setting use_statements_enabled to {}", enabled);
             conf.use_statements_enabled = enabled;
         }
+    }
+
+    public static boolean getAccordTransactionsEnabled()
+    {
+        return conf.accord_transactions_enabled;
+    }
+
+    public static void setAccordTransactionsEnabled(boolean b)
+    {
+        conf.accord_transactions_enabled = b;
     }
 
     public static boolean getForceNewPreparedStatementBehaviour()

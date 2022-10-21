@@ -240,6 +240,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
              }
         }
 
+        public static final Version MIN_ACCORD_VERSION = Version.VERSION_51;
+
         public final int value;
 
         Version(int value)
@@ -255,6 +257,17 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
                     versions.add(version);
 
             return Collections.unmodifiableList(versions);
+        }
+
+        public List<Version> greaterThanOrEqual()
+        {
+            Version[] all = Version.values();
+            if (ordinal() == all.length - 1)
+                return Collections.singletonList(this);
+            List<Version> values = new ArrayList<>(all.length - ordinal());
+            for (int i = ordinal(); i < all.length; i++)
+                values.add(all[i]);
+            return values;
         }
     }
     // Maintance Note:

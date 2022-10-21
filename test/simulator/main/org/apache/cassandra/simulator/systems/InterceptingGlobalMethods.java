@@ -24,9 +24,6 @@ import java.util.function.LongConsumer;
 
 import javax.annotation.Nullable;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptedWait.InterceptedConditionWait;
@@ -45,7 +42,6 @@ import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQ
 @PerClassLoader
 public class InterceptingGlobalMethods extends InterceptingMonitors implements InterceptorOfGlobalMethods
 {
-    private static final Logger logger = LoggerFactory.getLogger(InterceptingGlobalMethods.class);
     private static final boolean isDeterminismCheckStrict = TEST_SIMULATOR_DETERMINISM_CHECK.convert(name -> name.equals("strict"));
 
     private final @Nullable LongConsumer onThreadLocalRandomCheck;
@@ -116,7 +112,7 @@ public class InterceptingGlobalMethods extends InterceptingMonitors implements I
 
         if (!disabled)
         {
-            logger.error("Caught a non-intercepted thread! " + thread, new RuntimeException());
+            logger().error("Caught a non-intercepted thread! " + thread, new RuntimeException());
             throw failWithOOM();
         }
 

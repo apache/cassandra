@@ -25,6 +25,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.harry.core.Run;
 import org.apache.cassandra.harry.operations.CompiledStatement;
 import org.apache.cassandra.harry.tracker.DataTracker;
@@ -75,7 +76,7 @@ public class SimulatedVisitExectuor extends VisitExecutor
         Object[] bindingsArray = new Object[bindings.size()];
         bindings.toArray(bindingsArray);
 
-        action = new SimulatedActionCallable<Object[][]>("Batch",
+        action = new SimulatedActionCallable<SimpleQueryResult>("Batch",
                                                          Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                                          Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                                          simulation.simulated,
@@ -103,7 +104,7 @@ public class SimulatedVisitExectuor extends VisitExecutor
             }
 
             @Override
-            public void accept(Object[][] result, Throwable failure)
+            public void accept(SimpleQueryResult result, Throwable failure)
             {
                 if (failure != null)
                     simulated.failures.accept(failure);
@@ -153,7 +154,7 @@ public class SimulatedVisitExectuor extends VisitExecutor
         }
 
         @Override
-        public Object[][] call()
+        public SimpleQueryResult call()
         {
             while (true)
             {

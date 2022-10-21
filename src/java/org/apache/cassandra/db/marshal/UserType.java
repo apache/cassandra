@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
@@ -135,6 +136,12 @@ public class UserType extends TupleType implements SchemaElement
         return type(i);
     }
 
+    public AbstractType<?> fieldType(CellPath path)
+    {
+        int field = ByteBufferUtil.getUnsignedShort(path.get(0), 0);
+        return fieldType(field);
+    }
+
     public List<AbstractType<?>> fieldTypes()
     {
         return types;
@@ -143,6 +150,11 @@ public class UserType extends TupleType implements SchemaElement
     public FieldIdentifier fieldName(int i)
     {
         return fieldNames.get(i);
+    }
+
+    public FieldIdentifier fieldName(CellPath path)
+    {
+        return fieldNames.get(fieldPosition(path));
     }
 
     public String fieldNameAsString(int i)
@@ -165,6 +177,11 @@ public class UserType extends TupleType implements SchemaElement
         return fieldNames.indexOf(fieldName);
     }
 
+    public int fieldPosition(CellPath path)
+    {
+        return Preconditions.checkElementIndex(ByteBufferUtil.getUnsignedShort(path.get(0), 0), fieldNames.size());
+    }
+
     public CellPath cellPathForField(FieldIdentifier fieldName)
     {
         // we use the field position instead of the field name to allow for field renaming in ALTER TYPE statements
@@ -176,7 +193,7 @@ public class UserType extends TupleType implements SchemaElement
         return ShortType.instance;
     }
 
-    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells, ProtocolVersion protocolVersion)
+    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells)
     {
         assert isMultiCell;
 

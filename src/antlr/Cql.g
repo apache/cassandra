@@ -45,6 +45,7 @@ import Parser,Lexer;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.cql3.statements.schema.*;
     import org.apache.cassandra.cql3.terms.*;
+    import org.apache.cassandra.cql3.transactions.*;
     import org.apache.cassandra.exceptions.ConfigurationException;
     import org.apache.cassandra.exceptions.InvalidRequestException;
     import org.apache.cassandra.exceptions.SyntaxException;

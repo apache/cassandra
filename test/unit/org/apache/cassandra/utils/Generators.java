@@ -58,9 +58,12 @@ public final class Generators
 
     private static final Constraint DNS_DOMAIN_PARTS_CONSTRAINT = Constraint.between(1, 127);
 
+    private static final char CHAR_UNDERSCORE = 95;
+
     private static final char[] LETTER_DOMAIN = createLetterDomain();
     private static final Constraint LETTER_CONSTRAINT = Constraint.between(0, LETTER_DOMAIN.length - 1).withNoShrinkPoint();
     private static final char[] LETTER_OR_DIGIT_DOMAIN = createLetterOrDigitDomain();
+    private static final char[] LETTER_OR_DIGIT_DOMAIN_WITH_UNDERSCORE = createLetterOrDigitDomainWithUnderscore();
     private static final Constraint LETTER_OR_DIGIT_CONSTRAINT = Constraint.between(0, LETTER_OR_DIGIT_DOMAIN.length - 1).withNoShrinkPoint();
     private static final char[] REGEX_WORD_DOMAIN = createRegexWordDomain();
     private static final Constraint REGEX_WORD_CONSTRAINT = Constraint.between(0, REGEX_WORD_DOMAIN.length - 1).withNoShrinkPoint();
@@ -68,6 +71,20 @@ public final class Generators
     private static final Constraint DNS_DOMAIN_PART_CONSTRAINT = Constraint.between(0, DNS_DOMAIN_PART_DOMAIN.length - 1).withNoShrinkPoint();
 
     public static final Gen<String> IDENTIFIER_GEN = Generators.regexWord(SourceDSL.integers().between(1, 50));
+    public static final Gen<String> SYMBOL_GEN = filter(symbolGen(SourceDSL.integers().between(1, 48)), Generators::thisBugIsBroughtToYouByTheLetterP);
+    private static boolean thisBugIsBroughtToYouByTheLetterP(String value)
+    {
+        // In Lexer.g DURATION is before IDENT and Duration allows the following to parsse: P, and PT
+        // This causes an issue for cases that use IDENT as P and PT will not match as they matched DURATION already
+        // to avoid these cases, this function will be used to filter them out so only "valid" symbols are returned
+        // see CASSANDRA-17919
+        return !("P".equals(value) || "PT".equals(value));
+    }
+
+    public static Gen<String> symbolGen(Gen<Integer> size)
+    {
+        return string(size, LETTER_OR_DIGIT_DOMAIN_WITH_UNDERSCORE, (index, c) -> !(index == 0 && !Character.isLetter(c)));
+    }
 
     public static Gen<Character> letterOrDigit()
     {
@@ -259,7 +276,23 @@ public final class Generators
         return charArray(sizes, domain).map(c -> new String(c));
     }
 
+    public static Gen<String> string(Gen<Integer> sizes, char[] domain, IntCharBiPredicate fn)
+    {
+        // note, map is overloaded so String::new is ambugious to javac, so need a lambda here
+        return charArray(sizes, domain, fn).map(c -> new String(c));
+    }
+
+    public interface IntCharBiPredicate
+    {
+        boolean test(int a, char b);
+    }
+
     public static Gen<char[]> charArray(Gen<Integer> sizes, char[] domain)
+    {
+        return charArray(sizes, domain, (a, b) -> true);
+    }
+
+    public static Gen<char[]> charArray(Gen<Integer> sizes, char[] domain, IntCharBiPredicate fn)
     {
         Constraint constraints = Constraint.between(0, domain.length - 1).withNoShrinkPoint();
         Gen<char[]> gen = td -> {
@@ -267,8 +300,13 @@ public final class Generators
             char[] is = new char[size];
             for (int i = 0; i != size; i++)
             {
-                int idx = (int) td.next(constraints);
-                is[i] = domain[idx];
+                char c;
+                do
+                {
+                    int idx = (int) td.next(constraints);
+                    c = domain[idx];
+                } while (!fn.test(i, c));
+                is[i] = c;
             }
             return is;
         };
@@ -309,6 +347,14 @@ public final class Generators
         return domain;
     }
 
+    private static char[] createLetterOrDigitDomainWithUnderscore()
+    {
+        char[] domain = new char[LETTER_OR_DIGIT_DOMAIN.length + 1];
+        System.arraycopy(LETTER_OR_DIGIT_DOMAIN, 0, domain, 0, LETTER_OR_DIGIT_DOMAIN.length);
+        domain[domain.length - 1] = CHAR_UNDERSCORE;
+        return domain;
+    }
+
     private static char[] createRegexWordDomain()
     {
         // \w == [a-zA-Z_0-9] the only difference with letterOrDigit is the addition of _
@@ -324,6 +370,11 @@ public final class Generators
     public static Gen<ByteBuffer> bytes(int min, int max)
     {
         return bytes(min, max, SourceDSL.arbitrary().constant(BBCases.HEAP));
+    }
+
+    public static Gen<ByteBuffer> directBytes(int min, int max)
+    {
+        return bytes(min, max, SourceDSL.arbitrary().pick(BBCases.DIRECT, BBCases.READ_ONLY_DIRECT));
     }
 
     public static Gen<ByteBuffer> bytesAnyType(int min, int max)
@@ -466,7 +517,7 @@ public final class Generators
 
         static
         {
-            long blobSeed = TEST_BLOB_SHARED_SEED.getLong(System.currentTimeMillis());
+            long blobSeed = TEST_BLOB_SHARED_SEED.getLong();
             logger.info("Shared blob Gen used seed {}", blobSeed);
 
             Random random = new Random(blobSeed);
@@ -535,7 +586,7 @@ public final class Generators
                                                    .map(end -> Range.closed(start, end)));
     }
 
-    public static <T> accord.utils.Gen<T> toGen(org.quicktheories.core.Gen<T> qt)
+    public static <T> accord.utilsfork.Gen<T> toGen(org.quicktheories.core.Gen<T> qt)
     {
         return rs -> {
             JavaRandom r = new JavaRandom(rs.asJdkRandom());

@@ -47,6 +47,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Txn;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
@@ -58,6 +59,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.MessageParams;
@@ -122,6 +124,10 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.ContentionStrategy;
@@ -152,6 +158,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.Config.LegacyPaxosStrategy.accord;
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
@@ -320,9 +327,17 @@ public class StorageProxy implements StorageProxyMBean
                                                             key, keyspaceName, cfName));
         }
 
-        return (Paxos.useV2() || keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-                ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState)
-                : legacyCas(keyspaceName, cfName, key, request, consistencyForPaxos, consistencyForCommit, clientState, nowInSeconds, requestTime);
+        if (DatabaseDescriptor.getLegacyPaxosStrategy() == accord)
+        {
+            TxnData data = AccordService.instance().coordinate(request.toAccordTxn(clientState, nowInSeconds), consistencyForPaxos);
+            return request.toCasResult(data);
+        }
+        else
+        {
+            return (Paxos.useV2() || keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
+                   ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState)
+                   : legacyCas(keyspaceName, cfName, key, request, consistencyForPaxos, consistencyForCommit, clientState, nowInSeconds, requestTime);
+        }
     }
 
     public static RowIterator legacyCas(String keyspaceName,
@@ -1833,7 +1848,7 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         return consistencyLevel.isSerialConsistency()
-             ? readWithPaxos(group, consistencyLevel, requestTime)
+             ? readWithConsensus(group, consistencyLevel, requestTime)
              : readRegular(group, consistencyLevel, requestTime);
     }
 
@@ -1849,12 +1864,39 @@ public class StorageProxy implements StorageProxyMBean
         return metadata.myNodeState() == NodeState.JOINED;
     }
 
+    private static PartitionIterator readWithConsensus(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
+    {
+        if (DatabaseDescriptor.getLegacyPaxosStrategy() == accord)
+        {
+            return readWithAccord(group, consistencyLevel);
+        }
+        else
+        {
+            return readWithPaxos(group, consistencyLevel, requestTime);
+        }
+    }
+
     private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         return (Paxos.useV2() || group.metadata().keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
                 ? Paxos.read(group, consistencyLevel, requestTime)
                 : legacyReadWithPaxos(group, consistencyLevel, requestTime);
+    }
+
+    private static PartitionIterator readWithAccord(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel)
+    {
+        if (group.queries.size() > 1)
+            throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
+        TxnRead read = TxnRead.createSerialRead(group.queries.get(0));
+        Txn txn = new Txn.InMemory(read.keys(), read, TxnQuery.ALL);
+        TxnData data = AccordService.instance().coordinate(txn, consistencyLevel);
+        FilteredPartition partition = data.get(TxnRead.SERIAL_READ);
+        if (partition != null)
+            return PartitionIterators.singletonIterator(partition.rowIterator());
+        else
+            return EmptyIterators.partition();
     }
 
     private static PartitionIterator legacyReadWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
@@ -2794,6 +2836,9 @@ public class StorageProxy implements StorageProxyMBean
     public Long getTruncateRpcTimeout() { return DatabaseDescriptor.getTruncateRpcTimeout(MILLISECONDS); }
     public void setTruncateRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setTruncateRpcTimeout(timeoutInMillis); }
 
+    public Long getTransactionTimeout() { return DatabaseDescriptor.getTransactionTimeout(MILLISECONDS); }
+    public void setTransactionTimeout(Long value) { DatabaseDescriptor.setTransactionTimeout(value); }
+    
     public Long getNativeTransportMaxConcurrentConnections() { return DatabaseDescriptor.getNativeTransportMaxConcurrentConnections(); }
     public void setNativeTransportMaxConcurrentConnections(Long nativeTransportMaxConcurrentConnections) { DatabaseDescriptor.setNativeTransportMaxConcurrentConnections(nativeTransportMaxConcurrentConnections); }
 

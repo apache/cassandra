@@ -17,27 +17,59 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.*;
-
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.conditions.ColumnCondition;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.db.partitions.Partition;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.service.CASRequest;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.utils.TimeUUID;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+
+import accord.api.Update;
+import accord.primitives.Txn;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.conditions.ColumnCondition;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.CASRequest;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.txn.TxnCondition;
+import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnReference;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
+import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static com.google.common.base.Preconditions.checkState;
+import static org.apache.cassandra.service.accord.txn.TxnDataName.Kind.USER;
 
 /**
  * Processed CAS conditions and update on potentially multiple rows of the same partition.
@@ -249,9 +281,9 @@ public class CQL3CasRequest implements CASRequest
         final long timeUuidMsb;
         long timeUuidNanos;
 
-        public CASUpdateParameters(TableMetadata metadata, RegularAndStaticColumns updatedColumns, ClientState state, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
+        public CASUpdateParameters(TableMetadata metadata, ClientState state, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
         {
-            super(metadata, updatedColumns, state, options, timestamp, nowInSec, ttl, prefetchedRows);
+            super(metadata, state, options, timestamp, nowInSec, ttl, prefetchedRows);
             this.timeUuidMsb = timeUuidMsb;
             this.timeUuidNanos = timeUuidNanos;
         }
@@ -289,7 +321,7 @@ public class CQL3CasRequest implements CASRequest
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
             CASUpdateParameters params =
-                new CASUpdateParameters(metadata, updateBuilder.columns(), state, options, timestamp, nowInSeconds,
+                new CASUpdateParameters(metadata, state, options, timestamp, nowInSeconds,
                                      stmt.getTimeToLive(options), map, timeUuidMsb, timeUuidNanos);
             stmt.addUpdateForKey(updateBuilder, clustering, params);
             return params.timeUuidNanos;
@@ -319,7 +351,6 @@ public class CQL3CasRequest implements CASRequest
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
             UpdateParameters params =
                 new UpdateParameters(metadata,
-                                     updateBuilder.columns(),
                                      state,
                                      options,
                                      timestamp,
@@ -340,6 +371,8 @@ public class CQL3CasRequest implements CASRequest
         }
 
         public abstract boolean appliesTo(FilteredPartition current) throws InvalidRequestException;
+
+        public abstract TxnCondition asTxnCondition();
     }
 
     private static class NotExistCondition extends RowCondition
@@ -353,6 +386,14 @@ public class CQL3CasRequest implements CASRequest
         {
             return current.getRow(clustering) == null;
         }
+
+        @Override
+        public TxnCondition asTxnCondition()
+        {
+            TxnDataName txnDataName = new TxnDataName(USER, clustering, TxnRead.SERIAL_READ_NAME);
+            TxnReference txnReference = new TxnReference(txnDataName, null);
+            return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NULL);
+        }
     }
 
     private static class ExistCondition extends RowCondition
@@ -365,6 +406,14 @@ public class CQL3CasRequest implements CASRequest
         public boolean appliesTo(FilteredPartition current)
         {
             return current.getRow(clustering) != null;
+        }
+
+        @Override
+        public TxnCondition asTxnCondition()
+        {
+            TxnDataName txnDataName = new TxnDataName(USER, clustering, TxnRead.SERIAL_READ_NAME);
+            TxnReference txnReference = new TxnReference(txnDataName, null);
+            return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NOT_NULL);
         }
     }
 
@@ -395,11 +444,69 @@ public class CQL3CasRequest implements CASRequest
             }
             return true;
         }
+
+        @Override
+        public TxnCondition asTxnCondition()
+        {
+            return new TxnCondition.ColumnConditionsAdapter(clustering, conditions);
+        }
     }
     
     @Override
     public String toString()
     {
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    @Override
+    public Txn toAccordTxn(ClientState clientState, long nowInSecs)
+    {
+        SinglePartitionReadCommand readCommand = readCommand(nowInSecs);
+        Update update = createUpdate(clientState);
+        // In a CAS request only one key is supported and writes
+        // can't be dependent on any data that is read (only conditions)
+        // so the only relevant keys are the read key
+        TxnRead read = TxnRead.createSerialRead(readCommand);
+        return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update);
+    }
+
+    private Update createUpdate(ClientState clientState)
+    {
+        return new TxnUpdate(createWriteFragments(clientState), createCondition());
+    }
+
+    private TxnCondition createCondition()
+    {
+        List<TxnCondition> txnConditions = new ArrayList<>(conditions.size() + (staticConditions == null ? 0 : 1));
+        if (staticConditions != null)
+        {
+            txnConditions.add(staticConditions.asTxnCondition());
+        }
+        for (RowCondition condition : conditions.values())
+            txnConditions.add(condition.asTxnCondition());
+        // CAS forbids empty conditions
+        checkState(!txnConditions.isEmpty());
+        return conditions.size() == 1 ? txnConditions.get(0) : new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, txnConditions);
+    }
+
+    private List<TxnWrite.Fragment> createWriteFragments(ClientState state)
+    {
+        List<TxnWrite.Fragment> fragments = new ArrayList<>();
+        int idx = 0;
+        for (RowUpdate update : updates)
+        {
+            ModificationStatement modification = update.stmt;
+            QueryOptions options = update.options;
+            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options);
+            fragments.add(fragment);
+        }
+        return fragments;
+    }
+
+    @Override
+    public RowIterator toCasResult(TxnData txnData)
+    {
+        FilteredPartition partition = txnData.get(TxnRead.SERIAL_READ);
+        return partition != null ? partition.rowIterator() : null;
     }
 }

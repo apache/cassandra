@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
@@ -41,6 +42,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
@@ -73,10 +75,14 @@ public final class Schema implements SchemaProvider
 
     private static Schema initialize()
     {
-        Keyspaces initialLocal = ((FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized()))
-                                 ? Keyspaces.of(SchemaKeyspace.metadata(),
-                                                SystemKeyspace.metadata())
-                                 : Keyspaces.NONE;
+        Keyspaces initialLocal = Keyspaces.NONE;
+
+        if (FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized())
+        {
+            initialLocal = Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata());
+            initialLocal = DatabaseDescriptor.getAccordTransactionsEnabled() ? initialLocal.with(AccordKeyspace.metadata()) : initialLocal;
+        }
+
         Schema schema = new Schema(initialLocal);
         for (KeyspaceMetadata ks : schema.localKeyspaces)
             schema.localKeyspaceInstances.put(ks.name, new LazyVariable<>(() -> Keyspace.forSchema(ks.name, schema)));

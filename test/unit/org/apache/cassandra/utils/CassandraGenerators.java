@@ -376,6 +376,18 @@ public final class CassandraGenerators
         }
     }
 
+    public static Gen<ColumnMetadata> columnMetadataGen(Gen<ColumnMetadata.Kind> kindGen, Gen<AbstractType<?>> typeGen)
+    {
+        Gen<String> ksNameGen = CassandraGenerators.KEYSPACE_NAME_GEN;
+        Gen<String> tableNameGen = IDENTIFIER_GEN;
+        return rs -> {
+            String ks = ksNameGen.generate(rs);
+            String table = tableNameGen.generate(rs);
+            ColumnMetadata.Kind kind = kindGen.generate(rs);
+            return createColumnDefinition(ks, table, kind, new HashSet<>(), typeGen, rs);
+        };
+    }
+
     private static ColumnMetadata createColumnDefinition(String ks, String table,
                                                          ColumnMetadata.Kind kind,
                                                          Set<String> createdColumnNames, /* This is mutated to check for collisions, so has a side effect outside of normal random generation */

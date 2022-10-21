@@ -21,10 +21,12 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.StatementType;
-
-import com.google.common.collect.Iterators;
+import org.apache.cassandra.cql3.transactions.ReferenceOperation;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * A set of <code>Operation</code>s.
@@ -47,9 +49,32 @@ public final class Operations implements Iterable<Operation>
      */
     private final List<Operation> staticOperations = new ArrayList<>();
 
+    private final List<ReferenceOperation> regularSubstitutions = new ArrayList<>();
+    private final List<ReferenceOperation> staticSubstitutions = new ArrayList<>();
+
     public Operations(StatementType type)
     {
         this.type = type;
+    }
+
+    public void migrateReadRequiredOperations()
+    {
+        migrateReadRequiredOperations(staticOperations, staticSubstitutions);
+        migrateReadRequiredOperations(regularOperations, regularSubstitutions);
+    }
+
+    private static void migrateReadRequiredOperations(List<Operation> src, List<ReferenceOperation> dest)
+    {
+        Iterator<Operation> it = src.iterator();
+        while (it.hasNext())
+        {
+            Operation next = it.next();
+            if (next.requiresRead())
+            {
+                it.remove();
+                dest.add(ReferenceOperation.create(next));
+            }
+        }
     }
 
     /**
@@ -105,6 +130,14 @@ public final class Operations implements Iterable<Operation>
             regularOperations.add(operation);
     }
 
+    public void add(ColumnMetadata column, ReferenceOperation operation)
+    {
+        if (column.isStatic())
+            staticSubstitutions.add(operation);
+        else
+            regularSubstitutions.add(operation);
+    }
+
     /**
      * Checks if one of the operations requires a read.
      *
@@ -142,5 +175,30 @@ public final class Operations implements Iterable<Operation>
     {
         regularOperations.forEach(p -> p.addFunctionsTo(functions));
         staticOperations.forEach(p -> p.addFunctionsTo(functions));
+    }
+
+    public List<ReferenceOperation> allSubstitutions()
+    {
+        if (staticSubstitutions.isEmpty())
+            return regularSubstitutions;
+        
+        if (regularSubstitutions.isEmpty())
+            return staticSubstitutions;
+
+        // Only create a new list if we actually have something to combine
+        List<ReferenceOperation> list = new ArrayList<>(staticSubstitutions.size() + regularSubstitutions.size());
+        list.addAll(staticSubstitutions);
+        list.addAll(regularSubstitutions);
+        return list;
+    }
+
+    public List<ReferenceOperation> regularSubstitutions()
+    {
+        return regularSubstitutions;
+    }
+
+    public List<ReferenceOperation> staticSubstitutions()
+    {
+        return staticSubstitutions;
     }
 }

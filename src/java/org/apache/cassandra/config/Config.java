@@ -174,6 +174,8 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
+    public volatile DurationSpec.LongMillisecondsBound transaction_timeout = new DurationSpec.LongMillisecondsBound("30s");
+
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
@@ -187,6 +189,7 @@ public class Config
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
+    public int concurrent_accord_operations = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
     public int available_processors = -1;
@@ -603,6 +606,8 @@ public class Config
     public volatile boolean drop_compact_storage_enabled = false;
 
     public volatile boolean use_statements_enabled = true;
+
+    public boolean accord_transactions_enabled = false;
 
     /**
      * Optionally disable asynchronous UDF execution.
@@ -1128,6 +1133,8 @@ public class Config
 
     public volatile boolean client_request_size_metrics_enabled = true;
 
+    public LegacyPaxosStrategy legacy_paxos_strategy = LegacyPaxosStrategy.migration;
+
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
     public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");
@@ -1253,6 +1260,29 @@ public class Config
         exception
     }
 
+    /*
+     * How to pick a consensus protocol for CAS
+     * and serial read operations. Transaction statements
+     * will always run on Accord. Legacy in this context includes PaxosV2.
+     */
+    public enum LegacyPaxosStrategy
+    {
+        /*
+         * Allow both Accord and PaxosV1/V2 to run on the same cluster
+         * Some keys and ranges might be running on Accord if they
+         * have been migrated and the rest will run on Paxos until
+         * they are migrated.
+         */
+        migration,
+
+        /*
+         * Everything will be run on Accord. Useful for new deployments
+         * that don't want to accidentally start using legacy Paxos
+         * requiring migration to Accord.
+         */
+        accord
+    }
+
     private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{
         add("client_encryption_options");
         add("server_encryption_options");
@@ -1277,10 +1307,10 @@ public class Config
             String value;
             try
             {
-                // Field.get() can throw NPE if the value of the field is null
-                value = field.get(config).toString();
+                Object obj = field.get(config);
+                value = obj != null ? obj.toString() : "null";
             }
-            catch (NullPointerException | IllegalAccessException npe)
+            catch (IllegalAccessException npe)
             {
                 value = "null";
             }

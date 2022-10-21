@@ -23,9 +23,11 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -91,6 +93,18 @@ public class RandomPartitioner implements IPartitioner
         public BigInteger valueForToken(Token token)
         {
             return ((BigIntegerToken)token).getTokenValue();
+        }
+
+        @Override
+        BigInteger minimumValue()
+        {
+            return MINIMUM.getTokenValue();
+        }
+
+        @Override
+        BigInteger maximumValue()
+        {
+            return MAXIMUM;
         }
     };
 
@@ -273,7 +287,23 @@ public class RandomPartitioner implements IPartitioner
 
         public Token nextValidToken()
         {
+            if (token.equals(MAXIMUM))
+                throw new IllegalArgumentException("Cannot increase above MAXIMUM");
             return new BigIntegerToken(token.add(BigInteger.ONE));
+        }
+
+        @Override
+        public Token decreaseSlightly()
+        {
+            if (token.equals(MINIMUM.token))
+                throw new IllegalArgumentException("Cannot decrease below MINIMUM");
+            return new BigIntegerToken(token.subtract(BigInteger.ONE));
+        }
+
+        @Override
+        public int tokenHash()
+        {
+            return token.hashCode();
         }
 
         public double size(Token next)
@@ -355,6 +385,12 @@ public class RandomPartitioner implements IPartitioner
     public Optional<Splitter> splitter()
     {
         return Optional.of(splitter);
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return ignore -> splitter;
     }
 
     private static BigInteger hashToBigInteger(ByteBuffer data)

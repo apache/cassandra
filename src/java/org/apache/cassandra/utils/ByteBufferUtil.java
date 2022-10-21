@@ -34,12 +34,28 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -86,6 +102,8 @@ public class ByteBufferUtil
     public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     /** Represents an unset value in bound variables */
     public static final ByteBuffer UNSET_BYTE_BUFFER = ByteBuffer.wrap(new byte[]{});
+
+    public static final long EMPTY_SIZE_ON_HEAP = ObjectSizes.measureDeep(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
     public static final ByteBuffer[] EMPTY_ARRAY = new ByteBuffer[0];
 
@@ -354,6 +372,17 @@ public class ByteBufferUtil
         out.writeUnsignedVInt32(bytes.remaining());
         out.write(bytes);
     }
+    public static void writeWithVIntLengthAndNull(ByteBuffer bytes, DataOutputPlus out) throws IOException
+    {
+        if (bytes == null)
+        {
+            out.writeVInt32(-1);
+            return;
+        }
+        
+        out.writeVInt32(bytes.remaining());
+        out.write(bytes);
+    }
 
     public static void writeWithShortLength(ByteBuffer buffer, DataOutputPlus out) throws IOException
     {
@@ -384,16 +413,15 @@ public class ByteBufferUtil
         return ByteBufferUtil.read(in, length);
     }
 
-    public static int serializedSizeWithLength(ByteBuffer buffer)
-    {
-        int size = buffer.remaining();
-        return TypeSizes.sizeof(size) + size;
-    }
-
     public static int serializedSizeWithVIntLength(ByteBuffer buffer)
     {
         int size = buffer.remaining();
         return TypeSizes.sizeofUnsignedVInt(size) + size;
+    }
+
+    public static long estimatedSizeOnHeap(ByteBuffer buffer)
+    {
+        return EMPTY_SIZE_ON_HEAP + buffer.remaining();
     }
 
     public static void skipWithVIntLength(DataInputPlus in) throws IOException
@@ -534,6 +562,8 @@ public class ByteBufferUtil
             return ByteBufferUtil.bytes((float) obj);
         else if (obj instanceof Double)
             return ByteBufferUtil.bytes((double) obj);
+        else if (obj instanceof Boolean)
+            return BooleanType.instance.decompose((Boolean) obj);
         else if (obj instanceof UUID)
             return ByteBufferUtil.bytes((UUID) obj);
         else if (obj instanceof InetAddress)
@@ -544,6 +574,42 @@ public class ByteBufferUtil
             return ByteBuffer.wrap((byte[]) obj);
         else if (obj instanceof ByteBuffer)
             return (ByteBuffer) obj;
+        else if (obj instanceof List)
+        {
+            List<?> list = (List<?>) obj;
+            // convert subtypes to BB
+            List<ByteBuffer> bbs = list.stream().map(ByteBufferUtil::objectToBytes).collect(Collectors.toList());
+            // decompose/serializer doesn't use the isMultiCell, so safe to do this
+            return ListType.getInstance(BytesType.instance, false).decompose(bbs);
+        }
+        else if (obj instanceof Map)
+        {
+            Map<?, ?> map = (Map<?, ?>) obj;
+            // convert subtypes to BB
+            Map<ByteBuffer, ByteBuffer> bbs = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : map.entrySet())
+            {
+                Object key = e.getKey();
+                ByteBuffer previousValue = bbs.put(objectToBytes(key), objectToBytes(e.getValue()));
+                if (previousValue != null)
+                    throw new IllegalStateException("Key " + key + " already maps to value " + previousValue);
+            }
+            // decompose/serializer doesn't use the isMultiCell, so safe to do this
+            return MapType.getInstance(BytesType.instance, BytesType.instance, false).decompose(bbs);
+        }
+        else if (obj instanceof Set)
+        {
+            Set<?> set = (Set<?>) obj;
+            // convert subtypes to BB
+            Set<ByteBuffer> bbs = new LinkedHashSet<>();
+            for (Object o : set)
+                if (!bbs.add(objectToBytes(o)))
+                    throw new IllegalStateException("Object " + o + " maps to a buffer that already exists in the set");
+            // decompose/serializer doesn't use the isMultiCell, so safe to do this
+            return SetType.getInstance(BytesType.instance, false).decompose(bbs);
+        }
+        else if (obj instanceof Date)
+            return TimestampType.instance.decompose((Date) obj);
         else
             throw new IllegalArgumentException(String.format("Cannot convert value %s of type %s",
                                                              obj,
@@ -917,4 +983,40 @@ public class ByteBufferUtil
             position += read;
         }
     }
+
+    public static <T> ByteBuffer serialized(IVersionedSerializer<T> serializer, T value, int version)
+    {
+        try (DataOutputBuffer dob = new DataOutputBuffer())
+        {
+            serializer.serialize(value, dob, version);
+            return dob.buffer();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static final IVersionedSerializer<ByteBuffer> byteBufferSerializer = new IVersionedSerializer<ByteBuffer>()
+    {
+        @Override
+        public void serialize(ByteBuffer bytes, DataOutputPlus out, int version) throws IOException
+        {
+            writeWithVIntLength(bytes, out);
+        }
+
+        @Override
+        public ByteBuffer deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return readWithVIntLength(in);
+        }
+
+        @Override
+        public long serializedSize(ByteBuffer bytes, int version)
+        {
+            return serializedSizeWithVIntLength(bytes);
+        }
+    };
+
+    public static final IVersionedSerializer<ByteBuffer> nullableByteBufferSerializer = NullableSerializer.wrap(byteBufferSerializer);
 }

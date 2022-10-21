@@ -29,8 +29,8 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import javax.annotation.Nullable;
 
-import accord.utils.Gens;
-import accord.utils.RandomSource;
+import accord.utilsfork.Gens;
+import accord.utilsfork.RandomSource;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;

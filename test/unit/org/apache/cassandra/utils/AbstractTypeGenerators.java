@@ -41,6 +41,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
@@ -274,6 +275,7 @@ public final class AbstractTypeGenerators
         private Function<Integer, Gen<AbstractType<?>>> defaultSetKeyFunc;
         private Predicate<AbstractType<?>> typeFilter = null;
         private Gen<String> udtName = null;
+        private Gen<Boolean> multiCellGen = BOOLEAN_GEN;;
 
         public TypeGenBuilder()
         {
@@ -295,6 +297,17 @@ public final class AbstractTypeGenerators
             compositeElementGen = other.compositeElementGen;
             compositeSizeGen = other.compositeSizeGen;
             typeFilter = other.typeFilter;
+        }
+
+        public TypeGenBuilder withMultiCell(Gen<Boolean> multiCellGen)
+        {
+            this.multiCellGen = multiCellGen;
+            return this;
+        }
+
+        public TypeGenBuilder withMultiCell(boolean multiCell)
+        {
+            return withMultiCell(i -> multiCell);
         }
 
         public TypeGenBuilder withTypeFilter(Predicate<AbstractType<?>> fn)
@@ -456,7 +469,7 @@ public final class AbstractTypeGenerators
             }
             else
                 kindGen = SourceDSL.arbitrary().enumValues(TypeKind.class);
-            return buildRecursive(maxDepth, maxDepth, kindGen, BOOLEAN_GEN);
+            return buildRecursive(maxDepth, maxDepth, kindGen, multiCellGen);
         }
 
         private Gen<AbstractType<?>> buildRecursive(int maxDepth, int level, Gen<TypeKind> typeKindGen, Gen<Boolean> multiCellGen)
@@ -1567,6 +1580,34 @@ public final class AbstractTypeGenerators
     private static <T extends AbstractType> void forEachCollectionTypeVariantsPair(T l, T r, BiConsumer<? super T, ? super T> typePairConsumer)
     {
         forEachTypesPair(frozenAndUnfrozen(l), frozenAndUnfrozen(r), typePairConsumer);
+    }
+
+    public static TypeSupport<?> elementAccess(AbstractType<?> type)
+    {
+        type = type.unwrap();
+        Preconditions.checkArgument(type.isCollection() || type.isUDT(), "Unexpected type: %s", type);
+        if (type.isUDT())
+        {
+            // select a field
+            UserType ut = (UserType) type;
+            Gen<ByteBuffer> fieldNameGen = SourceDSL.arbitrary().pick(ut.fieldNames().stream().map(f -> f.bytes).collect(Collectors.toList()));
+            return new TypeSupport<>(BytesType.instance, fieldNameGen, ByteBuffer::compareTo);
+        }
+        else
+        {
+            CollectionType<?> ct = (CollectionType<?>) type;
+            switch (ct.kind)
+            {
+//                case SET: // set does not support element access; see org.apache.cassandra.db.marshal.MultiElementType.getElement
+                case LIST:
+                    // by index
+                    return new TypeSupport<>(Int32Type.instance, SourceDSL.integers().between(0, Integer.MAX_VALUE), Integer::compare);
+                case MAP:
+                    // by key
+                    return getTypeSupport(ct.nameComparator());
+                default: throw new UnsupportedOperationException(ct.kind.name());
+            }
+        }
     }
 
 }

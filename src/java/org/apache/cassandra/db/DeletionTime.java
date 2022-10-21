@@ -61,7 +61,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     // Do not use. This is a perf optimization where some data structures known to hold valid uints are allowed to use it.
     // You should use 'build' instead to not workaround validations, corruption detections, etc
-    static DeletionTime buildUnsafeWithUnsignedInteger(long markedForDeleteAt, int localDeletionTimeUnsignedInteger)
+    public static DeletionTime buildUnsafeWithUnsignedInteger(long markedForDeleteAt, int localDeletionTimeUnsignedInteger)
     {
         return CassandraUInt.compare(Cell.MAX_DELETION_TIME_UNSIGNED_INTEGER, localDeletionTimeUnsignedInteger) < 0
                 ? new InvalidDeletionTime(markedForDeleteAt)

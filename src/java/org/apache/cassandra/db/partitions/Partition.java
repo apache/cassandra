@@ -37,6 +37,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 public interface Partition
 {
     public TableMetadata metadata();
+
     public DecoratedKey partitionKey();
     public DeletionTime partitionLevelDeletion();
 

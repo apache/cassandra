@@ -1,4 +1,11 @@
 5.1
+ * Add support for prepared statements for accord transactions (CASSANDRA-18299)
+ * Fix statement validation against partition range queries (CASSANDRA-18240)
+ * CEP-15: (C*) Add git submodule for Accord (CASSANDRA-18204)
+ * Fix null value handling for static columns (CASSANDRA-18241)
+ * Feature Flag for Accord Transactions (CASSANDRA-18195)
+ * CEP-15: Multi-Partition Transaction CQL Support (Alpha) (CASSANDRA-17719)
+ * CEP-15 (C*): Messaging and storage engine integration (CASSANDRA-17103)
  * Deprecate use of gossip state for paxos electorate verification (CASSANDRA-19904)
  * Update dtest-api to 0.0.17 to fix jvm17 crash in jvm-dtests (CASSANDRA-19239)
  * Add resource leak test and Update Netty to 4.1.113.Final to fix leak (CASSANDRA-19783)

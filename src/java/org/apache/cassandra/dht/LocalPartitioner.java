@@ -22,7 +22,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.Function;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -175,6 +177,12 @@ public class LocalPartitioner implements IPartitioner
         }
 
         @Override
+        public int tokenHash()
+        {
+            return hashCode();
+        }
+
+        @Override
         public boolean equals(Object obj)
         {
             if (this == obj)
@@ -202,5 +210,11 @@ public class LocalPartitioner implements IPartitioner
         {
             return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(token);
         }
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return AccordBytesSplitter::new;
     }
 }

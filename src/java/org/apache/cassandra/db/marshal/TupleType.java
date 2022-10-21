@@ -375,6 +375,16 @@ public class TupleType extends MultiElementType<ByteBuffer>
         return result;
     }
 
+    /**
+     * This API is here to simplify rebases... should likely move off?
+     * @deprecated
+     */
+    @Deprecated(since = "5.1", forRemoval = true)
+    public static ByteBuffer buildValue(ByteBuffer... values)
+    {
+        return pack(ByteBufferAccessor.instance, Arrays.asList(values));
+    }
+
     @Override
     public ByteBuffer pack(List<ByteBuffer> components)
     {

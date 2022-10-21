@@ -53,6 +53,7 @@ import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.QualifiedStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -297,6 +298,8 @@ public class QueryProcessor implements QueryHandler
             return processNodeLocalWrite(statement, queryState, options);
         else if (statement instanceof SelectStatement)
             return processNodeLocalSelect((SelectStatement) statement, queryState, options);
+        else if (statement instanceof TransactionStatement)
+            return statement.executeLocally(queryState, options);
         else
             throw new InvalidRequestException("NODE_LOCAL consistency level can only be used with BATCH, UPDATE, INSERT, DELETE, and SELECT statements");
     }
@@ -1036,10 +1039,9 @@ public class QueryProcessor implements QueryHandler
                 statementKsName = selectStatement.keyspace();
                 statementCfName = selectStatement.table();
             }
-            else if (statement instanceof BatchStatement)
+            else if (statement instanceof CQLStatement.CompositeCQLStatement)
             {
-                BatchStatement batchStatement = ((BatchStatement) statement);
-                for (ModificationStatement stmt : batchStatement.getStatements())
+                for (CQLStatement stmt : ((CQLStatement.CompositeCQLStatement) statement).getStatements())
                 {
                     if (shouldInvalidate(ksName, cfName, stmt))
                         return true;

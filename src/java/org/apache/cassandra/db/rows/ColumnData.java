@@ -284,6 +284,7 @@ public abstract class ColumnData implements IMeasurableMemory
      * This exists for the Paxos path, see {@link PartitionUpdate#updateAllTimestamp} for additional details.
      */
     public abstract ColumnData updateAllTimestamp(long newTimestamp);
+    public abstract ColumnData updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
 
     public abstract ColumnData markCounterLocalToBeCleared();
 

@@ -427,6 +427,23 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       isTrackingWarnings());
     }
 
+    public SinglePartitionReadCommand withNowInSec(int nowInSec)
+    {
+        return new SinglePartitionReadCommand(serializedAtEpoch(),
+                                              isDigestQuery(),
+                                              digestVersion(),
+                                              acceptsTransient(),
+                                              metadata(),
+                                              nowInSec,
+                                              columnFilter(),
+                                              rowFilter(),
+                                              limits(),
+                                              partitionKey(),
+                                              clusteringIndexFilter(),
+                                              indexQueryPlan(),
+                                              isTrackingWarnings());
+    }
+
     @Override
     public DecoratedKey partitionKey()
     {
@@ -485,7 +502,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         metric.readLatency.addNano(latencyNanos);
     }
 
-    protected UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
+    @VisibleForTesting
+    @SuppressWarnings("resource") // we close the created iterator through closing the result of this method (and SingletonUnfilteredPartitionIterator ctor cannot fail)
+    public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
         // skip the row cache and go directly to sstables/memtable if repaired status of
         // data is being tracked. This is only requested after an initial digest mismatch
