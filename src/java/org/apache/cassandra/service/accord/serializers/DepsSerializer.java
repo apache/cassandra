@@ -21,9 +21,9 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.primitives.Deps;
-import accord.primitives.KeyRanges;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
+import accord.primitives.Ranges;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -49,7 +49,7 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
         @Override
         PartialDeps deserialize(Keys keys, TxnId[] txnIds, int[] keyToTxnIds, DataInputPlus in, int version) throws IOException
         {
-            KeyRanges covering = KeySerializers.ranges.deserialize(in, version);
+            Ranges covering = KeySerializers.ranges.deserialize(in, version);
             return PartialDeps.SerializerSupport.create(covering, keys, txnIds, keyToTxnIds);
         }
 

@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -40,9 +41,14 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.primitives.Keys;
+import accord.primitives.Ranges;
+import accord.primitives.Routable;
+import accord.primitives.Routables;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
+import accord.primitives.AbstractKeys;
 import accord.primitives.TxnId;
-import org.apache.cassandra.service.accord.api.AccordKey.PartitionKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
@@ -254,6 +260,60 @@ public class AccordCommandStore extends CommandStore implements SafeCommandStore
         });
     }
 
+    public <T> T mapReduce(Routables<?, ?> keysOrRanges, Ranges slice, Function<CommandsForKey, T> map, BinaryOperator<T> reduce, T initialValue)
+    {
+        switch (keysOrRanges.kindOfContents()) {
+            default:
+                throw new AssertionError();
+            case Key:
+                // TODO: efficiency
+                AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                return keys.stream()
+                           .filter(slice::contains)
+                           .filter(this::hashIntersects)
+                           .map(this::commandsForKey)
+                           .map(map)
+                           .reduce(initialValue, reduce);
+            case Range:
+                // TODO:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    public void forEach(Routables<?, ?> keysOrRanges, Ranges slice, Consumer<CommandsForKey> forEach)
+    {
+        switch (keysOrRanges.kindOfContents()) {
+            default:
+                throw new AssertionError();
+            case Key:
+                AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                keys.forEach(slice, key -> {
+                    if (hashIntersects(key))
+                        forEach.accept(commandsForKey(key));
+                });
+                break;
+            case Range:
+                // TODO:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    public void forEach(Routable keyOrRange, Ranges slice, Consumer<CommandsForKey> forEach)
+    {
+        switch (keyOrRange.kind())
+        {
+            default: throw new AssertionError();
+            case Key:
+                Key key = (Key) keyOrRange;
+                if (slice.contains(key))
+                    forEach.accept(commandsForKey(key));
+                break;
+            case Range:
+                // TODO:
+                throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public CommandStore commandStore()
     {
@@ -264,22 +324,6 @@ public class AccordCommandStore extends CommandStore implements SafeCommandStore
     public DataStore dataStore()
     {
         return dataStore;
-    }
-
-    public void processBlocking(Runnable runnable)
-    {
-        try
-        {
-            executor.submit(runnable).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e.getCause());
-        }
     }
 
     @Override
@@ -315,7 +359,7 @@ public class AccordCommandStore extends CommandStore implements SafeCommandStore
     }
 
     @Override
-    public Timestamp preaccept(TxnId txnId, Keys keys)
+    public Timestamp preaccept(TxnId txnId, Seekables<?, ?> keys)
     {
         Timestamp max = maxConflict(keys);
         long epoch = latestEpoch();
@@ -331,10 +375,11 @@ public class AccordCommandStore extends CommandStore implements SafeCommandStore
         return time;
     }
 
-    public Timestamp maxConflict(Keys keys)
+    public Timestamp maxConflict(Seekables<?, ?> keys)
     {
+        // TODO: Seekables
         // TODO: efficiency
-        return keys.stream()
+        return ((Keys)keys).stream()
                    .map(this::maybeCommandsForKey)
                    .filter(Objects::nonNull)
                    .map(CommandsForKey::max)
@@ -350,6 +395,70 @@ public class AccordCommandStore extends CommandStore implements SafeCommandStore
         return operation;
     }
 
+    public void executeBlocking(Runnable runnable)
+    {
+        try
+        {
+            executor.submit(runnable).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public <T> T mapReduce(Routables<?, ?> keysOrRanges, Function<CommandsForKey, T> map, BinaryOperator<T> reduce, T initialValue) {
+        switch (keysOrRanges.kindOfContents()) {
+            default:
+                throw new AssertionError();
+            case Key:
+                AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                return keys.stream()
+                           .filter(this::hashIntersects)
+                           .map(this::commandsForKey)
+                           .map(map)
+                           .reduce(initialValue, reduce);
+            case Range:
+                // TODO: implement
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    public void forEach(Routables<?, ?> keysOrRanges, Consumer<CommandsForKey> forEach)
+    {
+        switch (keysOrRanges.kindOfContents()) {
+            default:
+                throw new AssertionError();
+            case Key:
+                AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                keys.forEach(key -> {
+                    if (hashIntersects(key))
+                        forEach.accept(commandsForKey(key));
+                });
+                break;
+            case Range:
+                // TODO: implement
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    public void forEach(Routable keyOrRange, Consumer<CommandsForKey> forEach)
+    {
+        switch (keyOrRange.kind())
+        {
+            default: throw new AssertionError();
+            case Key:
+                forEach.accept(commandsForKey((Key) keyOrRange));
+                break;
+            case Range:
+                // TODO: implement
+                throw new UnsupportedOperationException();
+        }
+    }
 
     @Override
     public void shutdown()

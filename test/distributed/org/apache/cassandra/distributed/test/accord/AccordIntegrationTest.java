@@ -45,8 +45,10 @@ import accord.coordinate.Preempted;
 import accord.local.Status;
 import accord.messages.Commit;
 import accord.primitives.Keys;
+import accord.primitives.Routables;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
@@ -230,8 +232,8 @@ public class AccordIntegrationTest extends TestBaseImpl
                              .withWrite("INSERT INTO " + keyspace + ".tbl (k, c, v) VALUES (?, 0, ?)", key, i++)
                              .withCondition(keyspace, "tbl", key, 0, NOT_EXISTS);
                 }
-                Keys keySet = txn.build().keys();
-                Topologies topology = AccordService.instance().node.topology().withUnsyncedEpochs(keySet, 1);
+                Unseekables<?, ?> routables = txn.build().keys().toUnseekables();
+                Topologies topology = AccordService.instance().node.topology().withUnsyncedEpochs(routables, 1);
                 // currently we don't detect out-of-bounds read/write, so need this logic to validate we reach different
                 // shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);
