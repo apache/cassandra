@@ -42,8 +42,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utils.DefaultRandom;
-import accord.utils.RandomSource;
+import accord.utilsfork.DefaultRandom;
+import accord.utilsfork.RandomSource;
 import org.apache.cassandra.cql3.ReservedKeywords;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
@@ -613,7 +613,7 @@ public final class Generators
                                                    .map(end -> Range.closed(start, end)));
     }
 
-    public static <T> accord.utils.Gen<T> toGen(org.quicktheories.core.Gen<T> qt)
+    public static <T> accord.utilsfork.Gen<T> toGen(org.quicktheories.core.Gen<T> qt)
     {
         return rs -> {
             JavaRandom r = new JavaRandom(rs.asJdkRandom());
@@ -621,7 +621,7 @@ public final class Generators
         };
     }
 
-    public static <T> org.quicktheories.core.Gen<T> fromGen(accord.utils.Gen<T> accord)
+    public static <T> org.quicktheories.core.Gen<T> fromGen(accord.utilsfork.Gen<T> accord)
     {
         return rnd -> {
             RandomSource rs = new DefaultRandom(rnd.next(Constraint.none()));

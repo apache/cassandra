@@ -28,8 +28,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import accord.utils.Gen;
-import accord.utils.Gens;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Gens;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.DecimalType;

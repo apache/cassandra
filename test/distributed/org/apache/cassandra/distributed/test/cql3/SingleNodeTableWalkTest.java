@@ -38,10 +38,10 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utils.Gen;
-import accord.utils.Gens;
-import accord.utils.Property;
-import accord.utils.RandomSource;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Gens;
+import accord.utilsfork.Property;
+import accord.utilsfork.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.Conditional;
@@ -72,8 +72,8 @@ import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 
-import static accord.utils.Property.commands;
-import static accord.utils.Property.stateful;
+import static accord.utilsfork.Property.commands;
+import static accord.utilsfork.Property.stateful;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.Generators.toGen;
 

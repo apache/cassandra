@@ -299,6 +299,8 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      */
     public Row updateAllTimestamp(long newTimestamp);
 
+    public Row updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
+
     /**
      * Returns a copy of this row with the new deletion as row deletion if it is more recent
      * than the current row deletion.

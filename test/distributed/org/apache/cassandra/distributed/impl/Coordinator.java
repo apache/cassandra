@@ -28,7 +28,7 @@ import java.util.concurrent.Future;
 
 import com.google.common.collect.Iterators;
 
-import accord.utils.Invariants;
+import accord.utilsfork.Invariants;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -127,8 +127,7 @@ public class Coordinator implements ICoordinator
                 boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
 
             prepared.validate(clientState);
-            Invariants.checkState(prepared instanceof SelectStatement,
-                                  "Only SELECT statements can be executed with paging %s", prepared);
+            Invariants.checkState(prepared instanceof SelectStatement, "Only SELECT statements can be executed with paging %s", prepared);
 
             Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
             SelectStatement selectStatement = (SelectStatement) prepared;

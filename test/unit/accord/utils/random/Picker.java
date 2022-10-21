@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.function.Supplier;
 
 import accord.utils.Invariants;
-import accord.utils.RandomSource;
+import accord.utilsfork.RandomSource;
 
 public class Picker
 {

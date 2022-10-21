@@ -25,6 +25,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.UUID;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -107,6 +108,7 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     @Override
     public byte[] slice(byte[] input, int offset, int length)
     {
+        Invariants.checkArgument(offset + length <= input.length);
         return Arrays.copyOfRange(input, offset, offset + length);
     }
 

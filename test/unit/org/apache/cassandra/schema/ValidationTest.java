@@ -47,35 +47,35 @@ public class ValidationTest
         assertFalse(SchemaConstants.isValidName("!"));
     }
 
-    private static Set<String> primitiveTypes =
-        new HashSet<>(Arrays.asList(new String[] { "ascii", "bigint", "blob", "boolean", "date",
-                                                   "duration", "decimal", "double", "float",
-                                                   "inet", "int", "smallint", "text", "time",
-                                                   "timestamp", "timeuuid", "tinyint", "uuid",
-                                                   "varchar", "varint" }));
+    private static final Set<String> primitiveTypes =
+        new HashSet<>(Arrays.asList("ascii", "bigint", "blob", "boolean", "date",
+                                    "duration", "decimal", "double", "float",
+                                    "inet", "int", "smallint", "text", "time",
+                                    "timestamp", "timeuuid", "tinyint", "uuid",
+                                    "varchar", "varint"));
 
     @Test
     public void typeCompatibilityTest()
     {
         Map<String, Set<String>> compatibilityMap = new HashMap<>();
-        compatibilityMap.put("bigint", new HashSet<>(Arrays.asList(new String[] {"timestamp"})));
-        compatibilityMap.put("blob", new HashSet<>(Arrays.asList(new String[] {"ascii", "bigint", "boolean", "date", "decimal", "double", "duration",
-                                                                               "float", "inet", "int", "smallint", "text", "time", "timestamp",
-                                                                               "timeuuid", "tinyint", "uuid", "varchar", "varint"})));
-        compatibilityMap.put("date", new HashSet<>(Arrays.asList(new String[] {"int"})));
-        compatibilityMap.put("time", new HashSet<>(Arrays.asList(new String[] {"bigint"})));
-        compatibilityMap.put("text", new HashSet<>(Arrays.asList(new String[] {"ascii", "varchar"})));
-        compatibilityMap.put("timestamp", new HashSet<>(Arrays.asList(new String[] {"bigint"})));
-        compatibilityMap.put("varchar", new HashSet<>(Arrays.asList(new String[] {"ascii", "text"})));
-        compatibilityMap.put("varint", new HashSet<>(Arrays.asList(new String[] {"bigint", "int", "timestamp"})));
-        compatibilityMap.put("uuid", new HashSet<>(Arrays.asList(new String[] {"timeuuid"})));
+        compatibilityMap.put("bigint", new HashSet<>(Arrays.asList("timestamp")));
+        compatibilityMap.put("blob", new HashSet<>(Arrays.asList("ascii", "bigint", "boolean", "date", "decimal", "double", "duration",
+                             "float", "inet", "int", "smallint", "text", "time", "timestamp",
+                             "timeuuid", "tinyint", "uuid", "varchar", "varint")));
+        compatibilityMap.put("date", new HashSet<>(Arrays.asList("int")));
+        compatibilityMap.put("time", new HashSet<>(Arrays.asList("bigint")));
+        compatibilityMap.put("text", new HashSet<>(Arrays.asList("ascii", "varchar")));
+        compatibilityMap.put("timestamp", new HashSet<>(Arrays.asList("bigint")));
+        compatibilityMap.put("varchar", new HashSet<>(Arrays.asList("ascii", "text")));
+        compatibilityMap.put("varint", new HashSet<>(Arrays.asList("bigint", "int", "timestamp")));
+        compatibilityMap.put("uuid", new HashSet<>(Arrays.asList("timeuuid")));
 
         for (String sourceTypeString: primitiveTypes)
         {
-            AbstractType sourceType = CQLTypeParser.parse("KEYSPACE", sourceTypeString, Types.none());
+            AbstractType<?> sourceType = CQLTypeParser.parse("KEYSPACE", sourceTypeString, Types.none());
             for (String destinationTypeString: primitiveTypes)
             {
-                AbstractType destinationType = CQLTypeParser.parse("KEYSPACE", destinationTypeString, Types.none());
+                AbstractType<?> destinationType = CQLTypeParser.parse("KEYSPACE", destinationTypeString, Types.none());
 
                 if (compatibilityMap.get(destinationTypeString) != null &&
                     compatibilityMap.get(destinationTypeString).contains(sourceTypeString) ||
@@ -94,19 +94,19 @@ public class ValidationTest
     }
 
     @Test
-    public void clusteringColumnTypeCompatibilityTest() throws Throwable
+    public void clusteringColumnTypeCompatibilityTest()
     {
         Map<String, Set<String>> compatibilityMap = new HashMap<>();
-        compatibilityMap.put("blob", new HashSet<>(Arrays.asList(new String[] {"ascii", "text", "varchar"})));
-        compatibilityMap.put("text", new HashSet<>(Arrays.asList(new String[] {"ascii", "varchar"})));
-        compatibilityMap.put("varchar", new HashSet<>(Arrays.asList(new String[] {"ascii", "text" })));
+        compatibilityMap.put("blob", new HashSet<>(Arrays.asList("ascii", "text", "varchar")));
+        compatibilityMap.put("text", new HashSet<>(Arrays.asList("ascii", "varchar")));
+        compatibilityMap.put("varchar", new HashSet<>(Arrays.asList("ascii", "text")));
 
         for (String sourceTypeString: primitiveTypes)
         {
-            AbstractType sourceType = CQLTypeParser.parse("KEYSPACE", sourceTypeString, Types.none());
+            AbstractType<?> sourceType = CQLTypeParser.parse("KEYSPACE", sourceTypeString, Types.none());
             for (String destinationTypeString: primitiveTypes)
             {
-                AbstractType destinationType = CQLTypeParser.parse("KEYSPACE", destinationTypeString, Types.none());
+                AbstractType<?> destinationType = CQLTypeParser.parse("KEYSPACE", destinationTypeString, Types.none());
 
                 if (compatibilityMap.get(destinationTypeString) != null &&
                     compatibilityMap.get(destinationTypeString).contains(sourceTypeString) ||

@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.harry.test;
 
-import accord.utils.Invariants;
+import accord.utilsfork.Invariants;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;

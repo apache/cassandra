@@ -23,8 +23,8 @@ import java.util.List;
 
 import org.junit.Test;
 
-import accord.utils.Gen;
-import accord.utils.Gens;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.db.compaction.ICompactionManager;
@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.Closeable;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 
-import static accord.utils.Property.qt;
+import static accord.utilsfork.Property.qt;
 
 public class FailedAckTest extends FuzzTestBase
 {

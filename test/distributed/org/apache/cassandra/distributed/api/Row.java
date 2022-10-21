@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.api;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -85,6 +86,17 @@ public class Row
         return (T) results[index];
     }
 
+    public <T> T get(int index, T defaultValue)
+    {
+        checkAccess();
+        if (index < 0 || index >= results.length)
+            throw new NoSuchElementException("by index: " + index);
+        T result = (T) results[index];
+        if (result == null)
+            return defaultValue;
+        return result;
+    }
+
     public <T> T get(String name)
     {
         checkAccess();
@@ -94,9 +106,46 @@ public class Row
         return (T) results[idx];
     }
 
+    public <T> T get(String name, T defaultValue)
+    {
+        checkAccess();
+        int idx = findIndex(name);
+        if (idx == NOT_FOUND)
+            throw new NoSuchElementException("by name: " + name);
+        T result = (T) results[idx];
+        if (result == null)
+            return defaultValue;
+        return result;
+    }
+
+    public Boolean getBoolean(int index)
+    {
+        return get(index);
+    }
+
+    public Boolean getBoolean(int index, Boolean defaultValue)
+    {
+        return get(index, defaultValue);
+    }
+
+    public Boolean getBoolean(String name)
+    {
+        return get(name);
+    }
+
+    public Boolean getBoolean(String name, Boolean defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
     public Short getShort(int index)
     {
         return get(index);
+    }
+
+    public Short getShort(int index, Short defaultValue)
+    {
+        return get(index, defaultValue);
     }
 
     public Short getShort(String name)
@@ -104,9 +153,19 @@ public class Row
         return get(name);
     }
 
+    public Short getShort(String name, Short defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
     public Integer getInteger(int index)
     {
         return get(index);
+    }
+
+    public Integer getInteger(int index, Integer defaultValue)
+    {
+        return get(index, defaultValue);
     }
 
     public Integer getInteger(String name)
@@ -114,9 +173,19 @@ public class Row
         return get(name);
     }
 
+    public Integer getInteger(String name, Integer defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
     public Long getLong(int index)
     {
         return get(index);
+    }
+
+    public Long getLong(int index, Long defaultValue)
+    {
+        return get(index, defaultValue);
     }
 
     public Long getLong(String name)
@@ -124,9 +193,19 @@ public class Row
         return get(name);
     }
 
+    public Long getLong(String name, Long defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
     public Float getFloat(int index)
     {
         return get(index);
+    }
+
+    public Float getFloat(int index, Float defaultValue)
+    {
+        return get(index, defaultValue);
     }
 
     public Float getFloat(String name)
@@ -134,9 +213,19 @@ public class Row
         return get(name);
     }
 
+    public Float getFloat(String name, Float defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
     public Double getDouble(int index)
     {
         return get(index);
+    }
+
+    public Double getDouble(int index, Double defaultValue)
+    {
+        return get(index, defaultValue);
     }
 
     public Double getDouble(String name)
@@ -144,9 +233,19 @@ public class Row
         return get(name);
     }
 
+    public Double getDouble(String name, Double defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
     public String getString(int index)
     {
         return get(index);
+    }
+
+    public String getString(int index, String defaultValue)
+    {
+        return get(index, defaultValue);
     }
 
     public String getString(String name)
@@ -154,9 +253,22 @@ public class Row
         return get(name);
     }
 
+    public String getString(String name, String defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
     public UUID getUUID(int index)
     {
         Object uuid = get(index);
+        if (uuid instanceof TimeUUID)
+            return ((TimeUUID) uuid).asUUID();
+        return (UUID) uuid;
+    }
+
+    public UUID getUUID(int index, UUID defaultValue)
+    {
+        Object uuid = get(index, defaultValue);
         if (uuid instanceof TimeUUID)
             return ((TimeUUID) uuid).asUUID();
         return (UUID) uuid;
@@ -170,9 +282,22 @@ public class Row
         return (UUID) uuid;
     }
 
+    public UUID getUUID(String name, UUID defaultValue)
+    {
+        Object uuid = get(name, defaultValue);
+        if (uuid instanceof TimeUUID)
+            return ((TimeUUID) uuid).asUUID();
+        return (UUID) uuid;
+    }
+
     public Date getTimestamp(int index)
     {
         return get(index);
+    }
+
+    public Date getTimestamp(int index, Date defaultValue)
+    {
+        return get(index, defaultValue);
     }
 
     public Date getTimestamp(String name)
@@ -180,14 +305,49 @@ public class Row
         return get(name);
     }
 
+    public Date getTimestamp(String name, Date defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
     public <T> Set<T> getSet(int index)
     {
         return get(index);
     }
 
+    public <T> Set<T> getSet(int index, Set<T> defaultValue)
+    {
+        return get(index, defaultValue);
+    }
+
     public <T> Set<T> getSet(String name)
     {
         return get(name);
+    }
+
+    public <T> Set<T> getSet(String name, Set<T> defaultValue)
+    {
+        return get(name, defaultValue);
+    }
+
+    public <T> List<T> getList(int index)
+    {
+        return get(index);
+    }
+
+    public <T> List<T> getList(int index, List<T> defaultValue)
+    {
+        return get(index, defaultValue);
+    }
+
+    public <T> List<T> getList(String name)
+    {
+        return get(name);
+    }
+
+    public <T> List<T> getList(String name, List<T> defaultValue)
+    {
+        return get(name, defaultValue);
     }
 
     /**

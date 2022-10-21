@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 
 import com.google.common.collect.Maps;
 
@@ -129,6 +131,12 @@ public class ByteOrderedPartitioner implements IPartitioner
         }
 
         @Override
+        public int tokenHash()
+        {
+            return hashCode();
+        }
+
+        @Override
         public double size(Token next)
         {
             throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
@@ -138,8 +146,51 @@ public class ByteOrderedPartitioner implements IPartitioner
         @Override
         public Token nextValidToken()
         {
-            throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
-                                                                  getClass().getSimpleName()));
+            // find first byte we can increment
+            int i = token.length - 1;
+            while (i >= 0)
+            {
+                if (token[i] != -1)
+                    break;
+                --i;
+            }
+            if (i == -1)
+                return new BytesToken(Arrays.copyOf(token, token.length + 1));
+
+            // increment and fill remainder with zeros
+            byte[] newToken = token.clone();
+            ++newToken[i];
+            Arrays.fill(newToken, i + 1, newToken.length, (byte)0);
+            return new BytesToken(newToken);
+        }
+
+        @Override
+        public Token decreaseSlightly()
+        {
+            if (token.length == 0)
+                throw new IndexOutOfBoundsException("Cannot create a smaller token the MINIMUM");
+
+            // find first byte we can decrement
+            int i = token.length - 1;
+            while (i >= 0)
+            {
+                if (token[i] != 0)
+                    break;
+                --i;
+            }
+            if (i == -1)
+            {
+                byte[] newToken = Arrays.copyOf(token, token.length - 1);
+                if (newToken.length > 0)
+                    newToken[newToken.length - 1] = (byte)-1;
+                return new BytesToken(newToken);
+            }
+
+            // decrement and fill remainder with -1
+            byte[] newToken = token.clone();
+            --newToken[i];
+            Arrays.fill(newToken, i + 1, newToken.length, (byte)-1);
+            return new BytesToken(newToken);
         }
     }
 
@@ -338,5 +389,11 @@ public class ByteOrderedPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return BytesType.instance;
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return AccordBytesSplitter::new;
     }
 }

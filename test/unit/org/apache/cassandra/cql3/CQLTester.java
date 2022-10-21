@@ -66,6 +66,8 @@ import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
@@ -80,10 +82,10 @@ import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utils.DefaultRandom;
-import accord.utils.Gen;
-import accord.utils.Property;
-import accord.utils.RandomSource;
+import accord.utilsfork.DefaultRandom;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Property;
+import accord.utilsfork.RandomSource;
 import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.CloseFuture;
 import com.datastax.driver.core.Cluster;
@@ -188,10 +190,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ConfigGenBuilder;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
+import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
-import org.assertj.core.api.Assertions;
-import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
@@ -1776,9 +1777,10 @@ public abstract class CQLTester
             Object[] expected = rows[i];
             Row actual = iter.next();
 
-            Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d (using protocol version %s)",
-                                              i, protocolVersion),
-                                meta.size(), expected.length);
+            Assertions.assertThat(meta.size())
+                      .describedAs("Invalid number of (expected) values provided for row %d (using protocol version %s); expected=%s, actual=%s",
+                                   i, protocolVersion, LazyToString.lazy(() -> Arrays.toString(expected)), LazyToString.lazy(() -> Arrays.toString(toObjectArray(actual))))
+                      .isEqualTo(expected.length);
 
             for (int j = 0; j < meta.size(); j++)
             {
@@ -2034,6 +2036,14 @@ public abstract class CQLTester
                && left.position() == right.position()
                && java.util.Objects.equals(left.getMask(), right.getMask())
                && left.type.equals(right.type);
+    }
+
+    private static Object[] toObjectArray(Row actual)
+    {
+        Object[] row = new Object[actual.getColumnDefinitions().size()];
+        for (int i = 0; i < row.length; i++)
+            row[i] = actual.getObject(i);
+        return row;
     }
 
     protected void assertRowCountNet(ResultSet r1, int expectedCount)
@@ -2712,7 +2722,7 @@ public abstract class CQLTester
         return s;
     }
 
-    protected static ByteBuffer makeByteBuffer(Object value, AbstractType type)
+    public static ByteBuffer makeByteBuffer(Object value, AbstractType<?> type)
     {
         if (value == null)
             return null;
@@ -2750,12 +2760,12 @@ public abstract class CQLTester
         }
     }
 
-    protected TupleValue tuple(Object...values)
+    public static TupleValue tuple(Object...values)
     {
         return new TupleValue(values);
     }
 
-    protected Object userType(Object... values)
+    public static UserTypeValue userType(Object... values)
     {
         if (values.length % 2 != 0)
             throw new IllegalArgumentException("userType() requires an even number of arguments");
@@ -3024,7 +3034,7 @@ public abstract class CQLTester
         }
     }
 
-    private static class UserTypeValue extends TupleValue
+    public static class UserTypeValue extends TupleValue
     {
         private final String[] fieldNames;
 

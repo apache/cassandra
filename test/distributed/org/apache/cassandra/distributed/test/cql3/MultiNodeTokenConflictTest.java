@@ -20,8 +20,8 @@ package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.IOException;
 
-import accord.utils.Property;
-import accord.utils.RandomSource;
+import accord.utilsfork.Property;
+import accord.utilsfork.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;

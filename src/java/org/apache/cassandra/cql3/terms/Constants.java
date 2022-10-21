@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.terms;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -30,7 +29,24 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.NumberType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -39,12 +55,13 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
+
 /**
  * Static helper methods and classes for constants.
  */
 public abstract class Constants
 {
-
     private static ByteBuffer getCurrentCellBuffer(ColumnMetadata column, DecoratedKey key, UpdateParameters params)
     {
         Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
@@ -59,7 +76,7 @@ public abstract class Constants
             @Override
             public AbstractType<?> getPreferedTypeFor(String text)
             {
-                 if (StandardCharsets.US_ASCII.newEncoder().canEncode(text))
+                 if (US_ASCII.newEncoder().canEncode(text))
                  {
                      return AsciiType.instance;
                  }
@@ -272,6 +289,7 @@ public abstract class Constants
             return new Literal(Type.DURATION, text);
         }
 
+        @Override
         public Value prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!testAssignment(keyspace, receiver).isAssignable())

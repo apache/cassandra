@@ -30,12 +30,12 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utils.Gen;
-import accord.utils.Property;
-import accord.utils.Property.Command;
-import accord.utils.Property.PreCheckResult;
-import accord.utils.Property.SimpleCommand;
-import accord.utils.RandomSource;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Property;
+import accord.utilsfork.Property.Command;
+import accord.utilsfork.Property.PreCheckResult;
+import accord.utilsfork.Property.SimpleCommand;
+import accord.utilsfork.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.exceptions.RequestTimeoutException;

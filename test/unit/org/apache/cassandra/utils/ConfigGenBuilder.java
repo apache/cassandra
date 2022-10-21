@@ -25,9 +25,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
-import accord.utils.Gen;
-import accord.utils.Gens;
-import accord.utils.RandomSource;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Gens;
+import accord.utilsfork.RandomSource;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.dht.IPartitioner;

@@ -45,7 +45,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import accord.utils.Invariants;
+import accord.utilsfork.Invariants;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.CasCondition;

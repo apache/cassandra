@@ -37,10 +37,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 
-import accord.utils.Gen;
-import accord.utils.Gens;
-import accord.utils.Property;
-import accord.utils.RandomSource;
+import accord.utilsfork.Gen;
+import accord.utilsfork.Gens;
+import accord.utilsfork.Property;
+import accord.utilsfork.RandomSource;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
@@ -86,7 +86,7 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
 import org.quicktheories.generators.SourceDSL;
 
-import static accord.utils.Property.multistep;
+import static accord.utilsfork.Property.multistep;
 import static org.apache.cassandra.distributed.test.JavaDriverUtils.toDriverCL;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;

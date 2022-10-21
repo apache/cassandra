@@ -127,6 +127,7 @@ import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
@@ -978,6 +979,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
+
+            error = parallelRun(error, executor, () -> AccordService.instance().shutdownAndWait(1l, MINUTES));
 
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)

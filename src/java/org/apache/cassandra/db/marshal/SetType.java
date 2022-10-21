@@ -18,7 +18,13 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -117,7 +123,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     }
 
     @Override
-    public AbstractType<?> freeze()
+    public SetType<T> freeze()
     {
         // freeze elements to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
         return isMultiCell ? getInstance(this.elements.freeze(), false) : this;

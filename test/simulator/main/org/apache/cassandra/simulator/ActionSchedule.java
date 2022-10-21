@@ -281,12 +281,6 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
         if (!runnable.isEmpty() || !scheduled.isEmpty())
             return true;
 
-        while (moreWork())
-        {
-            if (!runnable.isEmpty() || !scheduled.isEmpty())
-                return true;
-        }
-
         if (!sequences.isEmpty())
         {
             // TODO (feature): detection of which action is blocking progress, and logging of its stack trace only
@@ -317,6 +311,12 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
             logger.error("Thread stack traces:");
             dumpStackTraces(logger);
             throw failWithOOM();
+        }
+
+        while (moreWork())
+        {
+            if (!runnable.isEmpty() || !scheduled.isEmpty())
+                return true;
         }
 
         return false;

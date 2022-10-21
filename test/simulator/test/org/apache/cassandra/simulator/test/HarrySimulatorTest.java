@@ -41,7 +41,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utils.Invariants;
+import accord.utilsfork.Invariants;
 import io.airlift.airline.Command;
 import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
@@ -52,6 +52,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.harry.SchemaSpec;
@@ -798,7 +799,7 @@ public class HarrySimulatorTest
                     }
 
                     @Override
-                    public void accept(Object[][] result, Throwable failure)
+                    public void accept(SimpleQueryResult result, Throwable failure)
                     {
                         if (failure != null)
                             simulated.failures.accept(failure);
@@ -824,7 +825,7 @@ public class HarrySimulatorTest
         }
 
         @Override
-        public Object[][] call()
+        public SimpleQueryResult call()
         {
             while (true)
             {

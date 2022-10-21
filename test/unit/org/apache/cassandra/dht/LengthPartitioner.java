@@ -19,17 +19,23 @@ package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.dht.KeyCollisionTest.BigIntegerToken;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -37,7 +43,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
-public class LengthPartitioner implements IPartitioner
+public class LengthPartitioner extends AccordSplitter implements IPartitioner
 {
     public static final BigInteger ZERO = new BigInteger("0");
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
@@ -183,5 +189,35 @@ public class LengthPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering(AbstractType<?> partitionKeyType)
     {
         return new PartitionerDefinedOrder(this, partitionKeyType);
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return ignore -> this;
+    }
+
+    @Override
+    BigInteger valueForToken(Token token)
+    {
+        return ((BigIntegerToken)token).token;
+    }
+
+    @Override
+    Token tokenForValue(BigInteger value)
+    {
+        return new BigIntegerToken(value);
+    }
+
+    @Override
+    BigInteger minimumValue()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    BigInteger maximumValue()
+    {
+        throw new UnsupportedOperationException();
     }
 }

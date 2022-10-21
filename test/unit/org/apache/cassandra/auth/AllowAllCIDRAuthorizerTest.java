@@ -47,16 +47,6 @@ import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
  */
 public class AllowAllCIDRAuthorizerTest extends CQLTester
 {
-    private static void setupSuperUser()
-    {
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
-                                                     + "VALUES ('%s', true, true, '%s')",
-                                                     AUTH_KEYSPACE_NAME,
-                                                     AuthKeyspace.ROLES,
-                                                     CassandraRoleManager.DEFAULT_SUPERUSER_NAME,
-                                                     "xxx"));
-    }
-
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -65,7 +55,7 @@ public class AllowAllCIDRAuthorizerTest extends CQLTester
                                new AuthTestUtils.LocalCassandraAuthorizer(),
                                new AuthTestUtils.LocalCassandraNetworkAuthorizer(),
                                new AuthTestUtils.LocalAllowAllCIDRAuthorizer());
-        setupSuperUser();
+        AuthTestUtils.setupSuperUser();
     }
 
     @Before

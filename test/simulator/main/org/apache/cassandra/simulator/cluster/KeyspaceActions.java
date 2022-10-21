@@ -119,12 +119,11 @@ public class KeyspaceActions extends ClusterActions
         currentRf = initialRf.clone();
         membersOfQuorumDcs = serialConsistency == LOCAL_SERIAL ? all.dcs[0] : all.toArray();
         ops.addAll(Arrays.asList(options.allChoices.options));
-
     }
 
-    public ActionPlan plan()
+    public ActionPlan plan(boolean joinAll)
     {
-        ActionList pre = ActionList.of(pre(createKeyspaceCql(keyspace), createTableCql));
+        ActionList pre = ActionList.of(pre(createKeyspaceCql(keyspace), createTableCql, joinAll));
         ActionList interleave = stream();
         ActionList post = ActionList.empty();
         return new ActionPlan(pre, singletonList(interleave), post);
@@ -140,12 +139,13 @@ public class KeyspaceActions extends ClusterActions
         return createKeyspaceCql;
     }
 
-    private Action pre(String createKeyspaceCql, String createTableCql)
+    private Action pre(String createKeyspaceCql, String createTableCql, boolean joinAll)
     {
+        int[] joinPerDC = joinAll ? options.maxRf : options.initialRf;
         // randomise initial cluster, and return action to initialise it
-        for (int dc = 0 ; dc < options.initialRf.length ; ++dc)
+        for (int dc = 0 ; dc < joinPerDC.length ; ++dc)
         {
-            for (int i = 0 ; i < options.initialRf[dc] ; ++i)
+            for (int i = 0 ; i < joinPerDC[dc] ; ++i)
             {
                 int join = registered.removeRandom(random, dc);
                 joined.add(join);
