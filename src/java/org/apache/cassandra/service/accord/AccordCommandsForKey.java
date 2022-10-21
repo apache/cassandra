@@ -408,7 +408,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         // we use the executeAt time instead of the monotonic database timestamp to prevent uneven
         // ttl expiration in extreme cases, ie 1M+ writes/second to a key causing timestamps to overflow
         // into the next second on some keys and not others.
-        return (int) TimeUnit.MICROSECONDS.toSeconds(getTimestampMicros(lastExecutedTimestamp.get()));
+        return Math.toIntExact(TimeUnit.MICROSECONDS.toSeconds(getTimestampMicros(lastExecutedTimestamp.get())));
     }
 
     public long timestampMicrosFor(Timestamp executeAt, boolean isForWriteTxn)

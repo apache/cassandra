@@ -184,6 +184,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 //               ", txn=" + txn +
 //               ", writes=" + writes +
 //               ", result=" + result +
+               ", txn is null?=" + (txn.get() == null) +
                ", isGloballyPersistent=" + isGloballyPersistent +
                ", waitingOnCommit=" + waitingOnCommit +
                ", waitingOnApply=" + waitingOnApply +
