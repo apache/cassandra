@@ -27,7 +27,6 @@ import org.junit.Test;
 
 import accord.local.Command;
 import accord.local.PartialCommand;
-import accord.local.PreLoadContext;
 import accord.local.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -77,7 +76,7 @@ public class AsyncWriterTest
     }
 
     @Test
-    public void waitingOnDenormalization() throws Throwable
+    public void waitingOnDenormalization()
     {
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");

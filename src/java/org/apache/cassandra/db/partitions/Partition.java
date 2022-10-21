@@ -21,12 +21,10 @@ import java.util.NavigableSet;
 
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.service.accord.api.AccordKey;
 
 /**
  * In-memory representation of a Partition.

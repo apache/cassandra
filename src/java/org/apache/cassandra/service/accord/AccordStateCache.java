@@ -34,7 +34,6 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.txn.Txn;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -106,24 +105,24 @@ public class AccordStateCache
         private Node<?, ?> prev;
         private Node<?, ?> next;
         private int references = 0;
-        private long lastQueriedSize = 0;
+        private long lastQueriedEstimatedSizeOnHeap = 0;
 
         Node(V value)
         {
             this.value = value;
         }
 
-        long size()
+        long estimatedSizeOnHeap()
         {
             long result = EMPTY_SIZE + value.estimatedSizeOnHeap();
-            lastQueriedSize = result;
+            lastQueriedEstimatedSizeOnHeap = result;
             return result;
         }
 
-        long sizeDelta()
+        long estimatedSizeOnHeapDelta()
         {
-            long prevSize = lastQueriedSize;
-            return size() - prevSize;
+            long prevSize = lastQueriedEstimatedSizeOnHeap;
+            return estimatedSizeOnHeap() - prevSize;
         }
 
         K key()
@@ -184,7 +183,7 @@ public class AccordStateCache
 
         if (prev == null)
         {
-            Preconditions.checkState(head == node);
+            Preconditions.checkState(head == node, "previous is null but the head isnt the provided node!");
             head = next;
         }
         else
@@ -194,7 +193,7 @@ public class AccordStateCache
 
         if (next == null)
         {
-            Preconditions.checkState(tail == node);
+            Preconditions.checkState(tail == node, "next is null but the tail isnt the provided node!");
             tail = prev;
         }
         else
@@ -224,15 +223,16 @@ public class AccordStateCache
 
     private void updateSize(Node<?, ?> node)
     {
-        bytesCached += node.sizeDelta();
+        bytesCached += node.estimatedSizeOnHeapDelta();
     }
 
     // don't evict if there's an outstanding save future. If an item is evicted then reloaded
     // before it's mutation is applied, out of date info will be loaded
     private boolean canEvict(Object key)
     {
+        // getFuture only returns a future if it is running, so don't need to check if its still running
         Future<?> future = getFuture(saveFutures, key);
-        return future == null || future.isDone();
+        return future == null;
     }
 
     private void maybeEvict()
@@ -255,7 +255,7 @@ public class AccordStateCache
             logger.trace("Evicting {} {}", evict.value.getClass().getSimpleName(), evict.key());
             unlink(evict);
             cache.remove(evict.key());
-            bytesCached -= evict.size();
+            bytesCached -= evict.estimatedSizeOnHeap();
         }
     }
 

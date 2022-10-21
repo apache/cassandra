@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -172,7 +173,8 @@ public class AccordCommandStore extends CommandStore
     public Command command(TxnId txnId)
     {
         AccordCommand command = getCommandInternal(txnId);
-        if (command.isEmpty()) command.initialize();
+        if (command.isEmpty())
+            command.initialize();
         return command;
     }
 
@@ -190,8 +192,9 @@ public class AccordCommandStore extends CommandStore
 
     private AccordCommandsForKey getCommandsForKeyInternal(Key key)
     {
-        Preconditions.checkState(currentCtx != null);
-        Preconditions.checkArgument(key instanceof PartitionKey);
+        Objects.requireNonNull(currentCtx, "current context");
+        if (!(key instanceof PartitionKey))
+            throw new IllegalArgumentException("Attempted to use non-PartitionKey; given " + key.getClass());
         AccordCommandsForKey commandsForKey = currentCtx.commandsForKey.get((PartitionKey) key);
         if (commandsForKey == null)
             throw new IllegalArgumentException("No commandsForKey in context for key " + key);
@@ -263,7 +266,7 @@ public class AccordCommandStore extends CommandStore
         }
         catch (ExecutionException e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException(e.getCause());
         }
     }
 
