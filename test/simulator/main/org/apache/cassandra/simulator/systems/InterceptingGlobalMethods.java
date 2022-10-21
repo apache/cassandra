@@ -44,7 +44,6 @@ import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQ
 @PerClassLoader
 public class InterceptingGlobalMethods extends InterceptingMonitors implements InterceptorOfGlobalMethods
 {
-    private static final Logger logger = LoggerFactory.getLogger(InterceptingGlobalMethods.class);
     private static final boolean isDeterminismCheckStrict = TEST_SIMULATOR_DETERMINISM_CHECK.convert(name -> name.equals("strict"));
 
     private final @Nullable LongConsumer onThreadLocalRandomCheck;

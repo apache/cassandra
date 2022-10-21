@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;

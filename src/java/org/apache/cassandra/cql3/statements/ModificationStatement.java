@@ -719,7 +719,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
      *
      * @return list of the mutations
      */
-    private List<? extends IMutation> getMutations(ClientState state,
+    public List<? extends IMutation> getMutations(ClientState state,
                                                    QueryOptions options,
                                                    boolean local,
                                                    long timestamp,

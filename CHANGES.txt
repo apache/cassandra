@@ -1,3 +1,6 @@
+accord
+ * CEP-15 (C*): Messaging and storage engine integration (CASSANDRA-17103)
+
 4.2
  * Print friendly error when nodetool attempts to connect to uninitialized server (CASSANDRA-11537)
  * Use G1GC by default, and update default G1GC settings (CASSANDRA-18027)

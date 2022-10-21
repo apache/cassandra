@@ -49,6 +49,7 @@ public class UnsafeGossipHelper
 {
     public static class HostInfo implements Serializable
     {
+        private static final long serialVersionUID = 0;  // for simulator support
         final InetSocketAddress address;
         final UUID hostId;
         final String tokenString;

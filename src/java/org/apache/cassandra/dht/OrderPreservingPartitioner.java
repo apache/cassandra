@@ -208,6 +208,12 @@ public class OrderPreservingPartitioner implements IPartitioner
         {
             return ByteSource.of(token, version);
         }
+
+        @Override
+        public int tokenHash()
+        {
+            return token.hashCode();
+        }
     }
 
     public StringToken getToken(ByteBuffer key)

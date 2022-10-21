@@ -24,6 +24,8 @@ import java.util.UUID;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -36,7 +38,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * This is essentially a UUID, but we wrap it as it's used quite a bit in the code and having a nicely named class make
  * the code more readable.
  */
-public class TableId
+public class TableId implements Comparable<TableId>
 {
     // TODO: should this be a TimeUUID?
     private final UUID id;
@@ -92,6 +94,12 @@ public class TableId
     }
 
     @Override
+    public int compareTo(TableId that)
+    {
+        return this.id.compareTo(that.id);
+    }
+
+    @Override
     public final int hashCode()
     {
         return id.hashCode();
@@ -115,7 +123,15 @@ public class TableId
         out.writeLong(id.getLeastSignificantBits());
     }
 
-    public int serializedSize()
+    public <V> int serialize(V dst, ValueAccessor<V> accessor, int offset)
+    {
+        int position = offset;
+        position += accessor.putLong(dst, position, id.getMostSignificantBits());
+        position += accessor.putLong(dst, position, id.getLeastSignificantBits());
+        return position - offset;
+    }
+
+    public static int serializedSize()
     {
         return 16;
     }
@@ -123,5 +139,10 @@ public class TableId
     public static TableId deserialize(DataInput in) throws IOException
     {
         return new TableId(new UUID(in.readLong(), in.readLong()));
+    }
+
+    public static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
+    {
+        return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
     }
 }

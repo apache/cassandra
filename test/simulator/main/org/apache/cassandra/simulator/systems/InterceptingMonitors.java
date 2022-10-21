@@ -55,8 +55,20 @@ import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relati
 @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
 public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods, Closeable
 {
-    private static final Logger logger = LoggerFactory.getLogger(InterceptingMonitors.class);
     private static final boolean DEBUG_MONITOR_STATE = TEST_SIMULATOR_DEBUG.getBoolean();
+
+    // eagerly initializing the logger prevents the dtest instance variables
+    // from being setup correctly, which causes all nodes to log as <main>
+    private static class LoggerHandle
+    {
+        private static final Logger logger = LoggerFactory.getLogger(InterceptingMonitors.class);
+    }
+
+    private static Logger logger()
+    {
+        return LoggerHandle.logger;
+    }
+
 
     static class MonitorState
     {
@@ -822,7 +834,7 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
                 return; // not really waiting, just hasn't woken up yet
             if (next == waiting)
             {
-                logger.error("Deadlock between {}{} and {}{}", waiting, Threads.prettyPrintStackTrace(waiting, true, ";"), cur, Threads.prettyPrintStackTrace(cur, true, ";"));
+                logger().error("Deadlock between {}{} and {}{}", waiting, Threads.prettyPrintStackTrace(waiting, true, ";"), cur, Threads.prettyPrintStackTrace(cur, true, ";"));
                 throw failWithOOM();
             }
             cur = next;

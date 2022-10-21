@@ -258,6 +258,13 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         return transformAndFilter(newDeletion, (cell) -> (Cell<?>) cell.updateAllTimestamp(newTimestamp));
     }
 
+    @Override
+    public ColumnData updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    {
+        DeletionTime newDeletion = complexDeletion.isLive() ? complexDeletion : new DeletionTime(newTimestamp - 1, newLocalDeletionTime);
+        return transformAndFilter(newDeletion, (cell) -> (Cell<?>) cell.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime));
+    }
+
     public long maxTimestamp()
     {
         long timestamp = complexDeletion.markedForDeleteAt();

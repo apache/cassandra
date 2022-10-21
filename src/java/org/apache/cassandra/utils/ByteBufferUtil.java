@@ -83,6 +83,8 @@ public class ByteBufferUtil
     /** Represents an unset value in bound variables */
     public static final ByteBuffer UNSET_BYTE_BUFFER = ByteBuffer.wrap(new byte[]{});
 
+    public static final long EMPTY_SIZE_ON_HEAP = ObjectSizes.measureDeep(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+
     public static final ByteBuffer[] EMPTY_ARRAY = new ByteBuffer[0];
 
     @Inline
@@ -381,6 +383,11 @@ public class ByteBufferUtil
     {
         int size = buffer.remaining();
         return TypeSizes.sizeofUnsignedVInt(size) + size;
+    }
+
+    public static long estimatedSizeOnHeap(ByteBuffer buffer)
+    {
+        return EMPTY_SIZE_ON_HEAP + buffer.remaining();
     }
 
     public static void skipWithVIntLength(DataInputPlus in) throws IOException

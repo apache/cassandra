@@ -43,6 +43,7 @@ import org.apache.cassandra.simulator.Debug.Info;
 import org.apache.cassandra.simulator.Debug.Levels;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
 import org.apache.cassandra.simulator.debug.SelfReconcile;
+import org.apache.cassandra.simulator.logging.SeedDefiner;
 import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
@@ -84,7 +85,15 @@ import static org.apache.cassandra.simulator.utils.LongRange.parseNanosRange;
 @SuppressWarnings({ "ZeroLengthArrayAllocation", "CodeBlock2Expr", "SameParameterValue", "DynamicRegexReplaceableByCompiledPattern", "CallToSystemGC" })
 public class SimulationRunner
 {
-    private static final Logger logger = LoggerFactory.getLogger(SimulationRunner.class);
+    private static class LoggerHandle
+    {
+        private static final Logger logger = LoggerFactory.getLogger(SimulationRunner.class);
+    }
+
+    private static Logger logger()
+    {
+        return LoggerHandle.logger;
+    }
 
     public enum RecordOption { NONE, VALUE, WITH_CALLSITES }
 
@@ -321,6 +330,9 @@ public class SimulationRunner
 
         public void run(B builder) throws IOException
         {
+            long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
+            SeedDefiner.setSeed(seed);
+            logger();
             beforeAll();
             Thread.setDefaultUncaughtExceptionHandler((th, e) -> {
                 boolean isInterrupt = false;
@@ -331,14 +343,12 @@ public class SimulationRunner
                     t = t.getCause();
                 }
                 if (!isInterrupt)
-                    logger.error("Uncaught exception on {}", th, e);
+                    logger().error("Uncaught exception on {}", th, e);
                 if (e instanceof Error)
                     throw (Error) e;
             });
 
             propagate(builder);
-
-            long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
             for (int i = 0 ; i < simulationCount ; ++i)
             {
                 cleanup();
@@ -355,7 +365,7 @@ public class SimulationRunner
     {
         protected void run(long seed, B builder) throws IOException
         {
-            logger.error("Seed 0x{}", Long.toHexString(seed));
+            logger().error("Seed 0x{}", Long.toHexString(seed));
 
             try (ClusterSimulation<?> cluster = builder.create(seed))
             {
@@ -365,7 +375,7 @@ public class SimulationRunner
                 }
                 catch (Throwable t)
                 {
-                    logger.error("Failed on seed {}", Long.toHexString(seed), t);
+                    logger().error("Failed on seed 0x{}", Long.toHexString(seed), t);
                 }
             }
         }

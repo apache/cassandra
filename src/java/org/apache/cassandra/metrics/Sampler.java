@@ -153,6 +153,7 @@ public abstract class Sampler<T>
      */
     public static class Sample<S> implements Serializable
     {
+        private static final long serialVersionUID = 0;  // for simulator support
         public final S value;
         public final long count;
         public final long error;

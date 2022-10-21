@@ -283,6 +283,11 @@
         </fileset>
     </path>
 
+    <target name="_build-accord">
+      <echo unless:set="env.ACCORD_LOCAL_DEV">building Accord, set ACCORD_LOCAL_DEV environment variable to skip</echo>
+      <exec unless:set="env.ACCORD_LOCAL_DEV" executable=".build/include-accord.sh" dir="${basedir}" logError="true" failonerror="true" failifexecutionfails="true" />
+      <echo if:set="env.ACCORD_LOCAL_DEV">ACCORD_LOCAL_DEV environment variable is set, skipping pull/install</echo>
+    </target>
   <macrodef name="create-javadoc">
     <attribute name="destdir"/>
     <element name="filesets"/>
@@ -354,7 +359,7 @@
     <!--
         Setup the output directories.
     -->
-    <target name="init" depends="validate-build-conf">
+    <target name="init" depends="validate-build-conf,_build-accord">
         <fail unless="is.source.artifact"
             message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes.main}"/>

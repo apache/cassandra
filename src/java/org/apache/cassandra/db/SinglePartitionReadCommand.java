@@ -48,8 +48,10 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.service.accord.api.AccordKey;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -389,6 +391,22 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       clusteringIndexFilter(),
                       indexMetadata(),
                       isTrackingWarnings());
+    }
+
+    public SinglePartitionReadCommand withNowInSec(int nowInSec)
+    {
+        return new SinglePartitionReadCommand(isDigestQuery(),
+                                              digestVersion(),
+                                              acceptsTransient(),
+                                              metadata(),
+                                              nowInSec,
+                                              columnFilter(),
+                                              rowFilter(),
+                                              limits(),
+                                              partitionKey(),
+                                              clusteringIndexFilter(),
+                                              indexMetadata(),
+                                              isTrackingWarnings());
     }
 
     @Override

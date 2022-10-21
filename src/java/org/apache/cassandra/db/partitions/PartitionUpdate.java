@@ -798,6 +798,15 @@ public class PartitionUpdate extends AbstractBTreePartition
             this(metadata, key, columns, initialRowCapacity, canHaveShadowedData, Rows.EMPTY_STATIC_ROW, MutableDeletionInfo.live(), BTree.empty());
         }
 
+        public Builder(TableMetadata metadata,
+                       DecoratedKey key,
+                       RegularAndStaticColumns columns,
+                       Row staticRow,
+                       int initialRowCapacity)
+        {
+            this(metadata, key, columns, initialRowCapacity, true, staticRow, MutableDeletionInfo.live(), BTree.empty());
+        }
+
         private Builder(TableMetadata metadata,
                        DecoratedKey key,
                        RegularAndStaticColumns columns,
@@ -955,6 +964,14 @@ public class PartitionUpdate extends AbstractBTreePartition
             deletionInfo.updateAllTimestamp(newTimestamp - 1);
             tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateAllTimestamp(newTimestamp));
             staticRow = this.staticRow.updateAllTimestamp(newTimestamp);
+            return this;
+        }
+
+        public Builder updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+        {
+            deletionInfo.updateAllTimestampAndLocalDeletionTime(newTimestamp - 1, newLocalDeletionTime);
+            tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime));
+            staticRow = this.staticRow.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime);
             return this;
         }
 

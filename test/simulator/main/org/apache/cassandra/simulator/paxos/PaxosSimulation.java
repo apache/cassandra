@@ -40,6 +40,8 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.simulator.ActionList;
@@ -49,7 +51,7 @@ import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.Simulation;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
-import org.apache.cassandra.simulator.systems.SimulatedQuery;
+import org.apache.cassandra.simulator.systems.SimulatedActionCallable;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
@@ -64,16 +66,24 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
 {
     private static final Logger logger = LoggerFactory.getLogger(PaxosSimulation.class);
 
-    abstract class Operation extends SimulatedQuery implements BiConsumer<Object[][], Throwable>
+    abstract class Operation extends SimulatedActionCallable<Object[][]> implements BiConsumer<Object[][], Throwable>
     {
         final int primaryKey;
         final int id;
         int start;
 
         public Operation(int primaryKey, int id, IInvokableInstance instance,
-                         String idString, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConistency, Object... params)
+                         String idString, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, Object... params)
         {
-            super(primaryKey + "/" + id + ": " + idString, DISPLAY_ORIGIN, NONE, PaxosSimulation.this.simulated, instance, query, commitConsistency, serialConistency, params);
+            super(primaryKey + "/" + id + ": " + idString, DISPLAY_ORIGIN, NONE, PaxosSimulation.this.simulated, instance, new Query(query, -1, commitConsistency, serialConsistency, params));
+            this.primaryKey = primaryKey;
+            this.id = id;
+        }
+
+        public Operation(int primaryKey, int id, IInvokableInstance instance,
+                         String idString, IIsolatedExecutor.SerializableCallable<Object[][]> query)
+        {
+            super(primaryKey + "/" + id + ": " + idString, DISPLAY_ORIGIN, NONE, PaxosSimulation.this.simulated, instance, query);
             this.primaryKey = primaryKey;
             this.id = id;
         }
