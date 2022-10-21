@@ -956,5 +956,21 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_alter_user(self):
         self.trycompletions('ALTER USER ', choices=['<identifier>', 'IF', '<pgStringLiteral>', '<quotedStringLiteral>'])
 
+    def test_complete_in_create_role(self):
+        self.trycompletions('CREATE ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
+        self.trycompletions('CREATE ROLE IF ', immediate='NOT EXISTS ');
+        self.trycompletions('CREATE ROLE foo WITH ', choices=['ACCESS', 'HASHED', 'LOGIN', 'OPTIONS', 'PASSWORD', 'SUPERUSER'])
+        self.trycompletions('CREATE ROLE foo WITH HASHED ', immediate='PASSWORD = ');
+        self.trycompletions('CREATE ROLE foo WITH ACCESS TO ', choices=['ALL', 'DATACENTERS'])
+        self.trycompletions('CREATE ROLE foo WITH ACCESS TO ALL ', immediate='DATACENTERS ')
+
     def test_complete_in_alter_role(self):
         self.trycompletions('ALTER ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
+        self.trycompletions('ALTER ROLE foo ', immediate='WITH ')
+        self.trycompletions('ALTER ROLE foo WITH ', choices=['ACCESS', 'HASHED', 'LOGIN', 'OPTIONS', 'PASSWORD', 'SUPERUSER'])
+        self.trycompletions('ALTER ROLE foo WITH ACCESS TO ', choices=['ALL', 'DATACENTERS'])
+
+    def test_complete_in_show(self):
+        self.trycompletions('SHOW ', choices=['HOST', 'REPLICAS', 'SESSION', 'VERSION'])
+        self.trycompletions('SHOW SESSION ', choices=['<uuid>'])
+        self.trycompletions('SHOW REPLICAS ', choices=['-', '<wholenumber>'])
