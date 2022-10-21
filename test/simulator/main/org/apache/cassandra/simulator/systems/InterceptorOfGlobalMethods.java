@@ -356,6 +356,16 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
     @SuppressWarnings("unused")
     public static class Global
     {
+        private static class LoggerHandle
+        {
+            private static final Logger logger = LoggerFactory.getLogger(Global.class);
+        }
+
+        private static Logger logger()
+        {
+            return LoggerHandle.logger;
+        }
+
         private static InterceptorOfGlobalMethods methods;
 
         public static WaitQueue newWaitQueue()
@@ -405,8 +415,7 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
 
         public static void uncaughtException(Thread thread, Throwable throwable)
         {
-            System.err.println(thread);
-            throwable.printStackTrace(System.err);
+            logger().error("Exception in thread {}", thread, throwable);
             methods.uncaughtException(thread, throwable);
         }
 

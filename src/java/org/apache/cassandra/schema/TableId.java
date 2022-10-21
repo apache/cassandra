@@ -28,6 +28,8 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -163,7 +165,15 @@ public class TableId implements Comparable<TableId>
         out.writeLong(id.getLeastSignificantBits());
     }
 
-    public int serializedSize()
+    public <V> int serialize(V dst, ValueAccessor<V> accessor, int offset)
+    {
+        int position = offset;
+        position += accessor.putLong(dst, position, id.getMostSignificantBits());
+        position += accessor.putLong(dst, position, id.getLeastSignificantBits());
+        return position - offset;
+    }
+
+    public static int serializedSize()
     {
         return 16;
     }
@@ -171,6 +181,11 @@ public class TableId implements Comparable<TableId>
     public static TableId deserialize(DataInput in) throws IOException
     {
         return new TableId(new UUID(in.readLong(), in.readLong()));
+    }
+
+    public static <V> TableId deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
+    {
+        return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
     }
 
     @Override

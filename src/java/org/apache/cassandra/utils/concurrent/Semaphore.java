@@ -99,6 +99,7 @@ public interface Semaphore
 
     public static class Standard extends java.util.concurrent.Semaphore implements Semaphore
     {
+        private static final long serialVersionUID = 0;  // for simulator support
         public Standard(int permits)
         {
             this(permits, false);
