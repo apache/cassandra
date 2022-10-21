@@ -49,13 +49,11 @@ echo $JVM_OPTS
 
 CLASSPATH="$DIR"/build/test/classes
 for dir in "$DIR"/build/classes/*; do
-    CLASSPATH="$CLASSPATH:$jar"
+    CLASSPATH="$CLASSPATH:$dir"
 done
 
 for jar in "$DIR"/lib/*.jar; do
-  if [[ $jar != *"logback-classic"* ]]; then
-    CLASSPATH="$CLASSPATH:$jar"
-  fi
+  CLASSPATH="$CLASSPATH:$jar"
 done
 for jar in "$DIR"/build/*.jar; do
   if [[ $jar != *"logback-classic"* ]]; then
@@ -78,8 +76,6 @@ OPTS="run -n 3..6 -t 1000 --cluster-action-limit -1 -c 2 -s 30"
 
 echo "java -cp <...> $CLASS $OPTS $@"
 
-echo ""
-java -cp $CLASSPATH $JVM_OPTS $CLASS $OPTS $@
 while true
 do
   echo ""
