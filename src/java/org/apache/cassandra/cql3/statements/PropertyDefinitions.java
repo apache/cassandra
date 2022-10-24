@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -27,11 +29,12 @@ import org.apache.cassandra.exceptions.SyntaxException;
 
 public class PropertyDefinitions
 {
-    private static final Pattern PATTERN_POSITIVE = Pattern.compile("(1|true|yes)");
+    private static final Pattern POSITIVE_PATTERN = Pattern.compile("(1|true|yes)");
+    private static final Pattern NEGATIVE_PATTERN = Pattern.compile("(0|false|no)");
     
     protected static final Logger logger = LoggerFactory.getLogger(PropertyDefinitions.class);
 
-    protected final Map<String, Object> properties = new HashMap<String, Object>();
+    protected final Map<String, Object> properties = new HashMap<>();
 
     public void addProperty(String name, String value) throws SyntaxException
     {
@@ -79,7 +82,7 @@ public class PropertyDefinitions
         return (Map<String, String>)val;
     }
 
-    public Boolean hasProperty(String name)
+    public boolean hasProperty(String name)
     {
         return properties.containsKey(name);
     }
@@ -90,57 +93,57 @@ public class PropertyDefinitions
         return value != null ? value : defaultValue;
     }
 
-    // Return a property value, typed as a Boolean
-    public Boolean getBoolean(String key, Boolean defaultValue) throws SyntaxException
+    public boolean getBoolean(String key, boolean defaultValue) throws SyntaxException
     {
         String value = getSimple(key);
-        return (value == null) ? defaultValue : PATTERN_POSITIVE.matcher(value.toLowerCase()).matches();
+
+        if (value == null)
+            return defaultValue;
+
+        String lowerCasedValue = value.toLowerCase();
+
+        if (POSITIVE_PATTERN.matcher(lowerCasedValue).matches())
+            return true;
+        else if (NEGATIVE_PATTERN.matcher(lowerCasedValue).matches())
+            return false;
+
+        throw new SyntaxException(String.format("Invalid boolean value '%s' for '%s'. " +
+                                                "Positive values can be '1', 'true' or 'yes'. " +
+                                                "Negative values can be '0', 'false' or 'no'.",
+                                                value, key));
     }
 
-    // Return a property value, typed as a double
     public double getDouble(String key, double defaultValue) throws SyntaxException
     {
         String value = getSimple(key);
+
         if (value == null)
-        {
             return defaultValue;
-        }
-        else
+
+        try
         {
-            try
-            {
-                return Double.parseDouble(value);
-            }
-            catch (NumberFormatException e)
-            {
-                throw new SyntaxException(String.format("Invalid double value %s for '%s'", value, key));
-            }
+            return Double.parseDouble(value);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new SyntaxException(String.format("Invalid double value %s for '%s'", value, key));
         }
     }
 
-    // Return a property value, typed as an Integer
-    public Integer getInt(String key, Integer defaultValue) throws SyntaxException
+    public int getInt(String key, int defaultValue) throws SyntaxException
     {
         String value = getSimple(key);
-        return toInt(key, value, defaultValue);
-    }
 
-    public static Integer toInt(String key, String value, Integer defaultValue) throws SyntaxException
-    {
         if (value == null)
-        {
             return defaultValue;
-        }
-        else
+
+        try
         {
-            try
-            {
-                return Integer.valueOf(value);
-            }
-            catch (NumberFormatException e)
-            {
-                throw new SyntaxException(String.format("Invalid integer value %s for '%s'", value, key));
-            }
+            return Integer.parseInt(value);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new SyntaxException(String.format("Invalid integer value %s for '%s'", value, key));
         }
     }
 }

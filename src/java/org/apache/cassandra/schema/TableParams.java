@@ -36,6 +36,22 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
+import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.CACHING;
+import static org.apache.cassandra.schema.TableParams.Option.CDC;
+import static org.apache.cassandra.schema.TableParams.Option.COMMENT;
+import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
+import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
+import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
+import static org.apache.cassandra.schema.TableParams.Option.EXTENSIONS;
+import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
+import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERIOD_IN_MS;
+import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
+import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
 
 public final class TableParams
 {
@@ -85,9 +101,9 @@ public final class TableParams
     private TableParams(Builder builder)
     {
         comment = builder.comment;
-        bloomFilterFpChance = builder.bloomFilterFpChance == null
-                            ? builder.compaction.defaultBloomFilterFbChance()
-                            : builder.bloomFilterFpChance;
+        bloomFilterFpChance = builder.bloomFilterFpChance == -1
+                              ? builder.compaction.defaultBloomFilterFbChance()
+                              : builder.bloomFilterFpChance;
         crcCheckChance = builder.crcCheckChance;
         gcGraceSeconds = builder.gcGraceSeconds;
         defaultTimeToLive = builder.defaultTimeToLive;
@@ -143,7 +159,7 @@ public final class TableParams
         if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
         {
             fail("%s must be larger than %s and less than or equal to 1.0 (got %s)",
-                 Option.BLOOM_FILTER_FP_CHANCE,
+                 BLOOM_FILTER_FP_CHANCE,
                  minBloomFilterFpChanceValue,
                  bloomFilterFpChance);
         }
@@ -151,33 +167,33 @@ public final class TableParams
         if (crcCheckChance < 0 || crcCheckChance > 1.0)
         {
             fail("%s must be larger than or equal to 0 and smaller than or equal to 1.0 (got %s)",
-                 Option.CRC_CHECK_CHANCE,
+                 CRC_CHECK_CHANCE,
                  crcCheckChance);
         }
 
         if (defaultTimeToLive < 0)
-            fail("%s must be greater than or equal to 0 (got %s)", Option.DEFAULT_TIME_TO_LIVE, defaultTimeToLive);
+            fail("%s must be greater than or equal to 0 (got %s)", DEFAULT_TIME_TO_LIVE, defaultTimeToLive);
 
         if (defaultTimeToLive > Attributes.MAX_TTL)
-            fail("%s must be less than or equal to %d (got %s)", Option.DEFAULT_TIME_TO_LIVE, Attributes.MAX_TTL, defaultTimeToLive);
+            fail("%s must be less than or equal to %d (got %s)", DEFAULT_TIME_TO_LIVE, Attributes.MAX_TTL, defaultTimeToLive);
 
         if (gcGraceSeconds < 0)
-            fail("%s must be greater than or equal to 0 (got %s)", Option.GC_GRACE_SECONDS, gcGraceSeconds);
+            fail("%s must be greater than or equal to 0 (got %s)", GC_GRACE_SECONDS, gcGraceSeconds);
 
         if (minIndexInterval < 1)
-            fail("%s must be greater than or equal to 1 (got %s)", Option.MIN_INDEX_INTERVAL, minIndexInterval);
+            fail("%s must be greater than or equal to 1 (got %s)", MIN_INDEX_INTERVAL, minIndexInterval);
 
         if (maxIndexInterval < minIndexInterval)
         {
             fail("%s must be greater than or equal to %s (%s) (got %s)",
-                 Option.MAX_INDEX_INTERVAL,
-                 Option.MIN_INDEX_INTERVAL,
+                 MAX_INDEX_INTERVAL,
+                 MIN_INDEX_INTERVAL,
                  minIndexInterval,
                  maxIndexInterval);
         }
 
         if (memtableFlushPeriodInMs < 0)
-            fail("%s must be greater than or equal to 0 (got %s)", Option.MEMTABLE_FLUSH_PERIOD_IN_MS, memtableFlushPeriodInMs);
+            fail("%s must be greater than or equal to 0 (got %s)", MEMTABLE_FLUSH_PERIOD_IN_MS, memtableFlushPeriodInMs);
     }
 
     private static void fail(String format, Object... args)
@@ -196,7 +212,8 @@ public final class TableParams
 
         TableParams p = (TableParams) o;
 
-        return comment.equals(p.comment)
+        return additionalWritePolicy.equals(p.additionalWritePolicy)
+            && comment.equals(p.comment)
             && bloomFilterFpChance == p.bloomFilterFpChance
             && crcCheckChance == p.crcCheckChance
             && gcGraceSeconds == p.gcGraceSeconds
@@ -216,7 +233,8 @@ public final class TableParams
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(comment,
+        return Objects.hashCode(additionalWritePolicy,
+                                comment,
                                 bloomFilterFpChance,
                                 crcCheckChance,
                                 gcGraceSeconds,
@@ -237,21 +255,22 @@ public final class TableParams
     public String toString()
     {
         return MoreObjects.toStringHelper(this)
-                          .add(Option.COMMENT.toString(), comment)
-                          .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
-                          .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
-                          .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
-                          .add(Option.DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
-                          .add(Option.MEMTABLE_FLUSH_PERIOD_IN_MS.toString(), memtableFlushPeriodInMs)
-                          .add(Option.MIN_INDEX_INTERVAL.toString(), minIndexInterval)
-                          .add(Option.MAX_INDEX_INTERVAL.toString(), maxIndexInterval)
-                          .add(Option.SPECULATIVE_RETRY.toString(), speculativeRetry)
-                          .add(Option.CACHING.toString(), caching)
-                          .add(Option.COMPACTION.toString(), compaction)
-                          .add(Option.COMPRESSION.toString(), compression)
-                          .add(Option.EXTENSIONS.toString(), extensions)
-                          .add(Option.CDC.toString(), cdc)
-                          .add(Option.READ_REPAIR.toString(), readRepair)
+                          .add(ADDITIONAL_WRITE_POLICY.toString(), additionalWritePolicy)
+                          .add(COMMENT.toString(), comment)
+                          .add(BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
+                          .add(CRC_CHECK_CHANCE.toString(), crcCheckChance)
+                          .add(GC_GRACE_SECONDS.toString(), gcGraceSeconds)
+                          .add(DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
+                          .add(MEMTABLE_FLUSH_PERIOD_IN_MS.toString(), memtableFlushPeriodInMs)
+                          .add(MIN_INDEX_INTERVAL.toString(), minIndexInterval)
+                          .add(MAX_INDEX_INTERVAL.toString(), maxIndexInterval)
+                          .add(SPECULATIVE_RETRY.toString(), speculativeRetry)
+                          .add(CACHING.toString(), caching)
+                          .add(COMPACTION.toString(), compaction)
+                          .add(COMPRESSION.toString(), compression)
+                          .add(EXTENSIONS.toString(), extensions)
+                          .add(CDC.toString(), cdc)
+                          .add(READ_REPAIR.toString(), readRepair)
                           .toString();
     }
 
@@ -303,7 +322,7 @@ public final class TableParams
     public static final class Builder
     {
         private String comment = "";
-        private Double bloomFilterFpChance;
+        private double bloomFilterFpChance = -1;
         private double crcCheckChance = 1.0;
         private int gcGraceSeconds = 864000; // 10 days
         private int defaultTimeToLive = 0;

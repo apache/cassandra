@@ -20,62 +20,65 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.junit.After;
 import org.junit.Test;
 import org.junit.Before;
 
-import static org.junit.Assert.assertEquals;
+import org.apache.cassandra.exceptions.SyntaxException;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class PropertyDefinitionsTest {
     
-    PropertyDefinitions pd;
+    PropertyDefinitions definitions;
     
     @Before
     public void setUp()
     {
-        pd = new PropertyDefinitions();
+        definitions = new PropertyDefinitions();
     }
-    
-    @After
-    public void clear()
-    {
-        pd = null;
-    }
-    
 
     @Test
-    public void testGetBooleanExistant()
+    public void testPostiveBooleanParsing()
     {
-        String key = "one";
-        pd.addProperty(key, "1");
-        assertEquals(Boolean.TRUE, pd.getBoolean(key, null));
-        
-        key = "TRUE";
-        pd.addProperty(key, "TrUe");
-        assertEquals(Boolean.TRUE, pd.getBoolean(key, null));
-        
-        key = "YES";
-        pd.addProperty(key, "YeS");
-        assertEquals(Boolean.TRUE, pd.getBoolean(key, null));
-   
-        key = "BAD_ONE";
-        pd.addProperty(key, " 1");
-        assertEquals(Boolean.FALSE, pd.getBoolean(key, null));
-        
-        key = "BAD_TRUE";
-        pd.addProperty(key, "true ");
-        assertEquals(Boolean.FALSE, pd.getBoolean(key, null));
-        
-        key = "BAD_YES";
-        pd.addProperty(key, "ye s");
-        assertEquals(Boolean.FALSE, pd.getBoolean(key, null));
+        for (String[] pair : new String[][] {{"prop1", "1"},
+                                             {"prop2", "true"},
+                                             {"prop3", "True"},
+                                             {"prop4", "TrUe"},
+                                             {"prop5", "yes"},
+                                             {"prop6", "Yes" }})
+        {
+            definitions.addProperty(pair[0], pair[1]);
+            assertTrue(definitions.getBoolean(pair[0], false));
+        }
     }
-    
+
     @Test
-    public void testGetBooleanNonexistant()
+    public void testNegativeBooleanParsing()
     {
-        assertEquals(Boolean.FALSE, pd.getBoolean("nonexistant", Boolean.FALSE));
-        assertEquals(Boolean.TRUE, pd.getBoolean("nonexistant", Boolean.TRUE));
+        for (String[] pair : new String[][] {{"prop1", "0"},
+                                             {"prop2", "false"},
+                                             {"prop3", "False"},
+                                             {"prop4", "FaLse"},
+                                             {"prop5", "no"},
+                                             {"prop6", "No" }})
+        {
+            definitions.addProperty(pair[0], pair[1]);
+            assertFalse(definitions.getBoolean(pair[0], true));
+        }
     }
-    
+
+    @Test(expected = SyntaxException.class)
+    public void testInvalidPositiveBooleanParsing()
+    {
+        definitions.addProperty("cdc", "tru");
+        definitions.getBoolean("cdc", false);
+    }
+
+    @Test(expected = SyntaxException.class)
+    public void testInvalidNegativeBooleanParsing()
+    {
+        definitions.addProperty("cdc", "fals");
+        definitions.getBoolean("cdc", false);
+    }
 }
