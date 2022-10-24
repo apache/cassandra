@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -143,7 +144,7 @@ public abstract class CassandraIndex implements Index
                                                   Clustering<?> clustering,
                                                   CellPath path,
                                                   ByteBuffer cellValue);
-    
+
     public ColumnMetadata getIndexedColumn()
     {
         return indexedColumn;
@@ -735,12 +736,15 @@ public abstract class CassandraIndex implements Index
         ColumnMetadata indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
 
+        // if Cassandra's major version is before 5, use the old behaviour
+        boolean isCompatible = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5);
+        AbstractType<?> indexedTablePartitionKeyType = baseCfsMetadata.partitioner.partitionOrdering(baseCfsMetadata.partitionKeyType);
         TableMetadata.Builder builder =
             TableMetadata.builder(baseCfsMetadata.keyspace, baseCfsMetadata.indexTableName(indexMetadata), baseCfsMetadata.id)
                          .kind(TableMetadata.Kind.INDEX)
                          .partitioner(new LocalPartitioner(indexedValueType))
-                         .addPartitionKeyColumn(indexedColumn.name, indexedColumn.type)
-                         .addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
+                         .addPartitionKeyColumn(indexedColumn.name, isCompatible ? indexedColumn.type : utils.getIndexedPartitionKeyType(indexedColumn))
+                         .addClusteringColumn("partition_key", isCompatible ? baseCfsMetadata.partitioner.partitionOrdering() : indexedTablePartitionKeyType);
 
         // Adding clustering columns, which depends on the index type.
         builder = utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);
