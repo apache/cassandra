@@ -94,4 +94,5 @@ public class PartitionKeyIndex extends CassandraIndex
     {
         return !data.hasLiveData(nowInSec, enforceStrictLiveness);
     }
+
 }

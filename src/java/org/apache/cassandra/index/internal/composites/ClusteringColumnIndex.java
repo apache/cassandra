@@ -25,7 +25,6 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.IndexEntry;
 import org.apache.cassandra.schema.IndexMetadata;
-
 /**
  * Index on a CLUSTERING_COLUMN column definition.
  *
