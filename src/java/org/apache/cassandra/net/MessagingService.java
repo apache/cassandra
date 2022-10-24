@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -216,16 +215,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
     public static final int current_version = VERSION_40;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
-
-    static Map<Integer, Integer> versionIndexMap = new HashMap<>();
-
-    static
-    {
-        versionIndexMap.put(VERSION_30, 0);
-        versionIndexMap.put(VERSION_3014, 1);
-        versionIndexMap.put(VERSION_40, 2);
-        versionIndexMap.put(VERSION_41, 3);
-    }
+    static Map<Integer, Integer> versionIndexMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
 
     /**
      * This is an optimisation to speed up the translation of the serialization

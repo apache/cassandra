@@ -37,6 +37,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.TeeDataInputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
@@ -479,23 +480,39 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public Mutation deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
-            int size = (int)in.readUnsignedVInt();
-            assert size > 0;
-
-            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, flag);
-            if (size == 1)
-                return new Mutation(update);
-
-            ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
-            DecoratedKey dk = update.partitionKey();
-
-            modifications.put(update.metadata().id, update);
-            for (int i = 1; i < size; ++i)
+            Mutation m;
+            try (DataOutputBuffer dob = DataOutputBuffer.limitedScratchBuffer(0))
             {
-                update = PartitionUpdate.serializer.deserialize(in, version, flag);
-                modifications.put(update.metadata().id, update);
+                in = new TeeDataInputPlus(in, dob);
+
+
+                int size = (int) in.readUnsignedVInt();
+                assert size > 0;
+
+                PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, flag);
+                if (size == 1)
+                {
+                    m = new Mutation(update);
+                }
+                else
+                {
+                    ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
+                    DecoratedKey dk = update.partitionKey();
+
+                    modifications.put(update.metadata().id, update);
+                    for (int i = 1; i < size; ++i)
+                    {
+                        update = PartitionUpdate.serializer.deserialize(in, version, flag);
+                        modifications.put(update.metadata().id, update);
+                    }
+                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
+                }
+
+                if (dob.position() < CACHEABLE_MUTATION_SIZE_LIMIT)
+                    m.serializations[MessagingService.getVersionIndex(version)] = new CachedSerialization(dob.toByteArray());
+
+                return m;
             }
-            return new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
         }
 
         public Mutation deserialize(DataInputPlus in, int version) throws IOException
