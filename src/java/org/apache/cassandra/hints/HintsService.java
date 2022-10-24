@@ -376,7 +376,7 @@ public final class HintsService implements HintsServiceMBean
 
         // unpause dispatch, or else transfer() will return immediately
         resumeDispatch();
-
+        logger.info("Completing current hints dispatch");
         // wait for the current dispatch session to end
         catalog.stores().forEach(dispatchExecutor::completeDispatchBlockingly);
 

@@ -4539,17 +4539,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 public void run()
                 {
+                    logger.info("Shutting down client servers");
                     shutdownClientServers();
                     Gossiper.instance.stop();
-                    try
-                    {
-                        MessagingService.instance().shutdown();
-                    }
-                    catch (IOError ioe)
-                    {
-                        logger.info("failed to shutdown message service: {}", ioe);
-                    }
-
+                    MessagingService.instance().shutdownMessagingServiceWithRetry();
                     Stage.shutdownNow();
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
                     setMode(Mode.DECOMMISSIONED, true);
