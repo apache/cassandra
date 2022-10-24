@@ -3,7 +3,8 @@ CREATE TABLE monkey_species (
     common_name text,
     population varint,
     average_size int
-) WITH comment='Important biological records';
+) WITH comment='Important biological records'
+    AND read_repair_chance = 1.0;
 
 CREATE TABLE timeline (
     userid uuid,

@@ -22,7 +22,6 @@ import com.vdurmont.semver4j.Semver;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.shared.Versions;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -30,7 +29,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
-public class DropCompactStorageTest extends UpgradeTestBase
+public class DropCompactStorageBeforeUpgradeSSTablesTest extends DropCompactStorageTester
 {
     @Test
     public void dropCompactStorageBeforeUpgradesstablesTo3X() throws Throwable

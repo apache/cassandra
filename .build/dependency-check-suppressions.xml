@@ -24,6 +24,11 @@
         <!--  https://issues.apache.org/jira/browse/CASSANDRA-16150 -->
         <packageUrl regex="true">^pkg:maven/org\.yaml/snakeyaml@.*$</packageUrl>
         <cve>CVE-2017-18640</cve>
+        <cve>CVE-2022-25857</cve>
+        <cve>CVE-2022-38749</cve>
+        <cve>CVE-2022-38750</cve>
+        <cve>CVE-2022-38751</cve>
+        <cve>CVE-2022-38752</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-15417 -->
@@ -32,6 +37,7 @@
         <cve>CVE-2019-16869</cve>
         <cve>CVE-2019-20444</cve>
         <cve>CVE-2019-20445</cve>
+        <cve>CVE-2020-7238</cve>
         <cve>CVE-2021-21290</cve>
         <cve>CVE-2021-21295</cve>
         <cve>CVE-2021-21409</cve>
@@ -54,6 +60,7 @@
     <!-- this was fixed in 3.0.22 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/com\.datastax\.cassandra/cassandra\-driver\-core@.*$</packageUrl>
+        <cve>CVE-2019-2684</cve>
         <cve>CVE-2020-13946</cve>
         <cve>CVE-2020-17516</cve>
         <cve>CVE-2021-44521</cve>
@@ -75,4 +82,12 @@
         <cve>CVE-2018-11798</cve>
         <cve>CVE-2019-0205</cve>
     </suppress>
+
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-17966 -->
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
+        <cve>CVE-2022-42003</cve>
+        <cve>CVE-2022-42004</cve>
+    </suppress>
+
 </suppressions>

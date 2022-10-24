@@ -50,9 +50,14 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
+import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
+import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNetworkTopology;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class GossipTest extends TestBaseImpl
 {
@@ -263,6 +268,37 @@ public class GossipTest extends TestBaseImpl
                               node1, node3);
             // node1 & node3 should not consider any ranges as still pending for node2
             assertPendingRangesForPeer(false, movingAddress, cluster);
+        }
+    }
+
+    @Test
+    public void restartGossipOnGossippingOnlyMember() throws Throwable
+    {
+        int originalNodeCount = 1;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount, 1))
+                                        .withNodeIdTopology(singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start())
+        {
+            IInstanceConfig config = cluster.newInstanceConfig();
+            IInvokableInstance gossippingOnlyMember = cluster.bootstrap(config);
+            withProperty("cassandra.join_ring", Boolean.toString(false), () -> gossippingOnlyMember.startup(cluster));
+
+            assertTrue(gossippingOnlyMember.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>)
+                                                           () -> StorageService.instance.isGossipRunning()));
+
+            gossippingOnlyMember.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> StorageService.instance.stopGossiping());
+
+            assertFalse(gossippingOnlyMember.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>)
+                                                            () -> StorageService.instance.isGossipRunning()));
+
+            gossippingOnlyMember.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> StorageService.instance.startGossiping());
+
+            assertTrue(gossippingOnlyMember.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>)
+                                                           () -> StorageService.instance.isGossipRunning()));
         }
     }
 

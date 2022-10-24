@@ -33,7 +33,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="3.11.14"/>
+    <property name="base.version" value="3.11.15"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -539,7 +539,7 @@
         <!-- coverage debs -->
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
-				
+
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom" scope="test"/>
         <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
@@ -788,6 +788,18 @@
         </testmacro>
     </target>
 
+    <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+      ant stress-test-some -Dtest.name=org.apache.cassandra.stress.settings.SettingsNodeTest
+      ant stress-test-some -Dtest.name=org.apache.cassandra.stress.settings.SettingsNodeTest -Dtest.methods=testDefaults
+    -->
+    <target name="stress-test-some" depends="stress-build-test, build-test" description="Runs stress tests">
+      <testmacro inputdir="${stress.test.src}"
+                 timeout="${test.timeout}">
+        <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+        <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
+      </testmacro>
+    </target>
+
 	<target name="_write-poms" depends="maven-declare-dependencies">
 	    <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
 	    <artifact:writepom pomRefId="thrift-pom" file="${build.dir}/${ant.project.name}-thrift-${version}.pom"/>
@@ -913,7 +925,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,gen-doc,build-test,stress-build-test,sources-jar,javadoc-jar"
+    <target name="artifacts" depends="jar,gen-doc,build-test,stress-build-test,sources-jar"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
@@ -1322,6 +1334,19 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+    </testmacro>
+  </target>
+
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest -Dtest.methods=testLargeCount
+  -->
+  <target name="long-testsome" depends="build-test" description="Execute specific long unit tests" >
+    <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
   </target>
 
