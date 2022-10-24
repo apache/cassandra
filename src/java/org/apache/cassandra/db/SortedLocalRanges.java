@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +35,7 @@ import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -141,7 +143,7 @@ public class SortedLocalRanges
      */
     public boolean isOutOfDate()
     {
-        return !valid || ringVersion != storageService.getTokenMetadataForKeyspace(realm.getKeyspaceName()).getRingVersion();
+        return !valid || ringVersion != realm.getKeyspaceReplicationStrategy().getTokenMetadata().getRingVersion();
     }
 
     public void invalidate()
