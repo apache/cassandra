@@ -21,6 +21,7 @@ package org.apache.cassandra.db.marshal;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
@@ -102,6 +103,26 @@ public class TypeParserTest
         {
             AbstractType<?> type = partitioner.partitionOrdering();
             assertSame(type, TypeParser.parse(type.toString()));
+        }
+        assertSame(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
+    }
+
+    @Test
+    public void testParsePartitionerOrderWithBaseType() throws ConfigurationException, SyntaxException
+    {
+        for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
+                ByteOrderedPartitioner.instance,
+                RandomPartitioner.instance,
+                OrderPreservingPartitioner.instance })
+        {
+            AbstractType<?> type = partitioner.partitionOrdering();
+            if (type instanceof PartitionerDefinedOrder) 
+            {
+                PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
+                type = tmp.withBaseType(Int32Type.instance); 
+            }
+            System.out.println(type.toString());
+            assertEquals(type, TypeParser.parse(type.toString()));
         }
         assertSame(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
     }
