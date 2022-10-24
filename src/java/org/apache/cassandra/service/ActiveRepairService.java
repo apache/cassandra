@@ -198,10 +198,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     private final Gossiper gossiper;
     private final Cache<Integer, Pair<ParentRepairStatus, List<String>>> repairStatusByCmd;
 
-    private final DebuggableThreadPoolExecutor clearSnapshotExecutor = DebuggableThreadPoolExecutor.createWithMaximumPoolSize("RepairClearSnapshot",
-                                                                                                                              1,
-                                                                                                                              1,
-                                                                                                                              TimeUnit.HOURS);
+    public final DebuggableThreadPoolExecutor snapshotExecutor = DebuggableThreadPoolExecutor.createWithMaximumPoolSize("RepairSnapshotExecutor",
+                                                                                                                        1,
+                                                                                                                        1,
+                                                                                                                        TimeUnit.HOURS);
 
     public ActiveRepairService(IFailureDetector failureDetector, Gossiper gossiper)
     {
@@ -697,8 +697,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * clears out any snapshots created by this repair
      *
-     * @param parentSessionId
-     * @return
+     * @param parentSessionId id of parent session
+     * @return parent session of given id or null if there is not such
+     * @see org.apache.cassandra.db.repair.CassandraTableRepairManager#snapshot(String, Collection, boolean) 
      */
     public synchronized ParentRepairSession removeParentRepairSession(UUID parentSessionId)
     {
@@ -709,7 +710,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         if (session.hasSnapshots)
         {
-            clearSnapshotExecutor.submit(() -> {
+            snapshotExecutor.submit(() -> {
                 logger.info("[repair #{}] Clearing snapshots for {}", parentSessionId,
                             session.columnFamilyStores.values()
                                                       .stream()
