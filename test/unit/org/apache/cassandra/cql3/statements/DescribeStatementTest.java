@@ -793,6 +793,67 @@ public class DescribeStatementTest extends CQLTester
         }
     }
 
+    @Test
+    public void testUsingReservedDescribeFunctionAndAggregate() throws Throwable
+    {
+
+        final String functionName = KEYSPACE_PER_TEST + ".\"token\"";
+
+        createFunctionOverload(functionName,
+                                             "int, ascii",
+                                             "CREATE FUNCTION " + functionName + " (\"token\" int, other_in ascii) " +
+                                             "RETURNS NULL ON NULL INPUT " +
+                                             "RETURNS text " +
+                                             "LANGUAGE java " +
+                                             "AS 'return \"Hello World\";'");
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+
+            assertRowsNet(executeDescribeNet(describeKeyword + " FUNCTION " + functionName),
+                          row(KEYSPACE_PER_TEST,
+                              "function",
+                              shortFunctionName(functionName) + "(int, ascii)",
+                              "CREATE FUNCTION " + functionName + "(\"token\" int, other_in ascii)\n" +
+                              "    RETURNS NULL ON NULL INPUT\n" +
+                              "    RETURNS text\n" +
+                              "    LANGUAGE java\n" +
+                              "    AS $$return \"Hello World\";$$;"));
+        }
+
+        final String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"token\"";
+        final String aggregationName = KEYSPACE_PER_TEST + ".\"token\"";
+        createFunctionOverload(aggregationName,
+                                          "int, int",
+                                          "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
+                                          "CALLED ON NULL INPUT " +
+                                          "RETURNS int " +
+                                          "LANGUAGE java " +
+                                          "AS 'return token + add_to;'");
+
+
+        String aggregate = createAggregate(KEYSPACE_PER_TEST,
+                                                   "int",
+                                                   format("CREATE AGGREGATE %%s(int) " +
+                                                          "SFUNC %s " +
+                                                          "STYPE int " +
+                                                          "INITCOND 42",
+                                                          shortFunctionName(aggregationFunctionName)));
+
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+            assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATE " + aggregate),
+                          row(KEYSPACE_PER_TEST,
+                              "aggregate",
+                              shortFunctionName(aggregate) + "(int)",
+                              "CREATE AGGREGATE " + aggregate + "(int)\n" +
+                              "    SFUNC " + shortFunctionName(aggregationName) + "\n" +
+                              "    STYPE int\n" +
+                              "    INITCOND 42;"));
+        }
+    }
+
     private static String allTypesTable()
     {
         return "CREATE TABLE test.has_all_types (\n" +

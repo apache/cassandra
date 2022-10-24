@@ -356,7 +356,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
                .newLine()
                .increaseIndent()
                .append("SFUNC ")
-               .append(stateFunction().name().name)
+               .appendQuotingIfNeeded(stateFunction().name().name)
                .newLine()
                .append("STYPE ")
                .append(toCqlString(stateType()));
