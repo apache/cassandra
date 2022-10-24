@@ -41,7 +41,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 {
     private final IPartitioner partitioner;
     private final AbstractType<?> partitionKeyType;
-    
+
     public PartitionerDefinedOrder(IPartitioner partitioner)
     {
         super(ComparisonType.CUSTOM);
