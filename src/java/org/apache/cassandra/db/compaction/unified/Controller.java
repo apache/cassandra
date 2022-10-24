@@ -571,7 +571,7 @@ public abstract class Controller
         // that there are RF identical copies, so here we adjust the survival factor for L0
         double[] survivalFactors = System.getProperty(PREFIX + SHARED_STORAGE) == null || !Boolean.getBoolean(PREFIX + SHARED_STORAGE)
                                    ? DEFAULT_SURVIVAL_FACTORS
-                                   : new double[] { DEFAULT_SURVIVAL_FACTOR / realm.getKeyspaceReplicationFactor(), DEFAULT_SURVIVAL_FACTOR };
+                                   : new double[] { DEFAULT_SURVIVAL_FACTOR / realm.getKeyspaceReplicationStrategy().getReplicationFactor().allReplicas, DEFAULT_SURVIVAL_FACTOR };
 
         return adaptive
                ? AdaptiveController.fromOptions(env,

@@ -28,6 +28,10 @@ import org.junit.Ignore;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.ReplicationFactor;
+import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -70,6 +74,9 @@ public abstract class ControllerTest
     @Mock
     Environment env;
 
+    @Mock
+    AbstractReplicationStrategy replicationStrategy;
+
     @BeforeClass
     public static void setUpClass()
     {
@@ -85,7 +92,8 @@ public abstract class ControllerTest
         when(strategy.getEstimatedRemainingTasks()).thenReturn(0);
 
         when(metadata.toString()).thenReturn("");
-        when(cfs.getKeyspaceReplicationFactor()).thenReturn(3);
+        when(replicationStrategy.getReplicationFactor()).thenReturn(ReplicationFactor.fullOnly(3));
+        when(cfs.getKeyspaceReplicationStrategy()).thenReturn(replicationStrategy);
 
         when(executorService.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(fut);
 

@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.SplitterTest;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,6 +64,9 @@ public class SortedLocalRangesTest
     @Mock
     TokenMetadata tmd;
 
+    @Mock
+    AbstractReplicationStrategy replicationStrategy;
+
     IPartitioner partitioner;
 
     @BeforeClass
@@ -85,7 +89,9 @@ public class SortedLocalRangesTest
 
         FBUtilities.getProtectedField(ColumnFamilyStore.class, "keyspace").set(cfs, keyspace);
 
+        when(cfs.getKeyspaceReplicationStrategy()).thenReturn(replicationStrategy);
         when(storageService.getTokenMetadataForKeyspace(eq("keyspace"))).thenReturn(tmd);
+        when(replicationStrategy.getTokenMetadata()).thenReturn(tmd);
     }
 
     SortedLocalRanges makeRanges(long ringVersion, List<Splitter.WeightedRange> ranges)

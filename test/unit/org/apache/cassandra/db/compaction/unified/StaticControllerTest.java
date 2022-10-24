@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.ReplicationFactor;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -71,7 +72,7 @@ public class StaticControllerTest extends ControllerTest
         try
         {
             final int rf = 3;
-            when(cfs.getKeyspaceReplicationFactor()).thenReturn(rf);
+            when(replicationStrategy.getReplicationFactor()).thenReturn(ReplicationFactor.fullOnly(rf));
 
             Controller controller = Controller.fromOptions(cfs,  new HashMap<>());
             assertNotNull(controller);
