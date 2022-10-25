@@ -52,6 +52,8 @@ public class BatchTest extends CQLTester
     {
         // Set batch sizes for guardrails to the same values as in Apache
         // Needed for testOversizedBatch()
+        DatabaseDescriptor.daemonInitialization();
+
         DatabaseDescriptor.getGuardrailsConfig().setBatchSizeWarnThresholdInKB(5);
         DatabaseDescriptor.getGuardrailsConfig().setBatchSizeFailThresholdInKB(50);
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
