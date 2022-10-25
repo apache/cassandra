@@ -39,6 +39,7 @@ import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
@@ -185,7 +186,7 @@ public final class JsonTransformer
         try
         {
             json.writeStartObject();
-
+            
             json.writeFieldName("partition");
             json.writeStartObject();
             json.writeFieldName("key");
@@ -349,7 +350,8 @@ public final class JsonTransformer
                 }
                 else
                 {
-                    json.writeRawValue(column.cellValueType().toJSONString(clustering.get(i), Server.CURRENT_VERSION));
+                    AbstractType<?> type = column.cellValueType();
+                    json.writeRawValue(type.toJSONString(clustering.get(i), Server.CURRENT_VERSION));
                 }
             }
             json.writeEndArray();
