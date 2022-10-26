@@ -364,9 +364,6 @@ public class TableViews extends AbstractCollection<View>
      */
     public Collection<View> updatedViews(PartitionUpdate updates)
     {
-        if (views.isEmpty())
-            return Collections.emptyList();
-
         List<View> matchingViews = new ArrayList<>(views.size());
 
         for (View view : views)

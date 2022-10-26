@@ -420,7 +420,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             Serialization serialization = mutation.serializations[versionIndex];
             if (serialization == null)
             {
-                // We need to use a capacity-limited DOB here. 
+                // We need to use a capacity-limited DOB here.
                 // If a mutation consists of one PartitionUpdate with one column that exceeds the
                 // "cacheable-mutation-size-limit", a capacity-limited DOB can handle that case and
                 // throw a BufferCapacityExceededException. "Huge" serialized mutations can have a
