@@ -268,6 +268,8 @@ fi
 if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
   delete_job "j8_dtests_repeat"
   delete_job "j8_dtests_vnode_repeat"
+  delete_job "start_j8_dtests_offheap_repeat"
+  delete_job "j8_dtests_offheap_repeat"
   delete_job "j11_dtests_repeat"
   delete_job "j11_dtests_vnode_repeat"
 fi
