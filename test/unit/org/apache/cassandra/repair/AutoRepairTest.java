@@ -222,4 +222,10 @@ public class AutoRepairTest extends CQLTester
             }
         }
     }
+
+    @Test
+    public void testRepairPrimaryRangesByDefault() throws Throwable
+    {
+        Assert.assertTrue("Expected primary range repair only", AutoRepairService.instance.getRepairPrimaryTokenRangeOnly());
+    }
 }

@@ -4878,6 +4878,11 @@ public class DatabaseDescriptor
         return conf.block_unqualified_prepared_statement_enabled;
     }
 
+    public static boolean getPrimaryTokenRangeOnly()
+    {
+        return conf.auto_repair_primary_token_range_only;
+    }
+
     public static void setAutoRepairParallelRepairCountInGroup(int count) {
         conf.auto_repair_parallel_repair_count_in_group = count;
     }

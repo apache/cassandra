@@ -49,6 +49,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private Set<String> autoRepairIgnoreDCs;
     private Set<Set<String>> autoRepairDCGroups = new HashSet<>();
     private int autoRepairHistoryClearDeleteHostsBufferInSec;
+    private boolean primaryTokenRangeOnly;
 
     public static final AutoRepairService instance = new AutoRepairService();
 
@@ -240,5 +241,15 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public TreeSet<UUID> getCurrentRingHostIds()
     {
         return AutoRepairUtils.getHostIdsInCurrentRing();
+    }
+
+    public boolean getRepairPrimaryTokenRangeOnly()
+    {
+        return primaryTokenRangeOnly;
+    }
+
+    public void setPrimaryTokenRangeOnly(boolean primaryTokenRangeOnly)
+    {
+        this.primaryTokenRangeOnly = primaryTokenRangeOnly;
     }
 }

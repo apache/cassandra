@@ -693,6 +693,9 @@ public class Config
 
     public String auto_repair_ignore_dc = "";
 
+    // Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
+    public Boolean auto_repair_primary_token_range_only = true;
+
     // by default, the value is empty, it means the all nodes are in one ring and the repair in that ring should be done
     // node by node. Adding this config for special case(cstar-peloton) that certain keyspace data is only stored in
     // certain cluster. We can run multiple node repair at the same time without worrying about the conflict. For example,

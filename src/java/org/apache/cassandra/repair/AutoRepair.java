@@ -198,6 +198,7 @@ public class AutoRepair
             }
         }
         AutoRepairService.instance.setIgnoreDCs(ignoreDCs);
+        AutoRepairService.instance.setPrimaryTokenRangeOnly(DatabaseDescriptor.getPrimaryTokenRangeOnly());
 
         Set<Set<String>> DCGroups = new HashSet<>();
         if (DatabaseDescriptor.getAutoRepairDCGroups().length() > 0) {
@@ -268,7 +269,7 @@ public class AutoRepair
                 }
 
                 Stopwatch stopWatch = Stopwatch.createStarted();
-                logger.info("My host id: {}, my turn to run repair...", myId);
+                logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId, AutoRepairService.instance.getRepairPrimaryTokenRangeOnly());
                 AutoRepairUtils.updateStartAutoRepairHistory(myId, System.currentTimeMillis(), turn);
 
                 int repairKeyspaceCount = 0;
@@ -317,6 +318,11 @@ public class AutoRepair
                             long startTime = System.currentTimeMillis();
                             //now run full repair on this table
                             Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
+                            if (!AutoRepairService.instance.getRepairPrimaryTokenRangeOnly())
+                            {
+                                // if we need to repair non-primary token ranges, then change the tokens accrodingly
+                                tokens = StorageService.instance.getLocalReplicas(keyspaceName).ranges();
+                            }
                             boolean repairSuccess = true;
                             Set<Range<Token>> ranges = new HashSet<>();
                             int numberOfSubranges = AutoRepairService.instance.getRepairSubRangeNum();
@@ -389,7 +395,7 @@ public class AutoRepair
                                     if ((totalProcessedSubRanges % AutoRepairService.instance.getRepairThreads() == 0) ||
                                             (totalProcessedSubRanges == totalSubRanges))
                                     {
-                                        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, false,
+                                        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, AutoRepairService.instance.getRepairPrimaryTokenRangeOnly(), false,
                                                                                 false, AutoRepairService.instance.getRepairThreads(), ranges, !ranges.isEmpty(), false,
                                                                                 false, PreviewKind.NONE, false, true,
                                                                                 false, false);

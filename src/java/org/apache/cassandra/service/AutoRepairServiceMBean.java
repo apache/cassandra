@@ -178,4 +178,14 @@ public interface AutoRepairServiceMBean
      * Get the current ring this node within
      */
     public TreeSet<UUID> getCurrentRingHostIds();
+
+    /**
+     * Return 'true' if AutoRepair should repair the primary ranges only; else, 'false'
+     */
+    public boolean getRepairPrimaryTokenRangeOnly();
+
+    /**
+     * Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
+     */
+    public void setPrimaryTokenRangeOnly(boolean primaryTokenRangeOnly);
 }
