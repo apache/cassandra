@@ -25,7 +25,6 @@ fi
 ENV_PRESERVE="$ENV_PRESERVE MAX_HEAP_SIZE JVM_OPTS"
 . ./cassandra-conf.sh
 
-
 # JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
 # should override the value from cassandra-env.sh
 ARGS=""
@@ -72,7 +71,7 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     MAX_HEAP_SIZE="128m"
 fi
 
-show_env JMX_PORT
+validate_env JMX_PORT
 
 CMD=$(echo "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
             -XX:ParallelGCThreads=1 \

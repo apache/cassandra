@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -x
 
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -16,85 +16,69 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# A script to include the cassandra.in.sh file, set NUMACTL, and load 
+#          $CASSANDRA_CONF/cassandra-env.sh"
+#
+# Creates a validate_env() function to verify criticla environment vars are set
+# and display them if desired
 
-# OPTIONS:
-#   -f: start in foreground
-#   -p <filename>: log the pid to a file (useful to kill it later)
-#   -v: print version string and exit
+## Environment variables:
+# ENV_DEBUG: Show all var settings during the validate_env() call.
+# ENV_PRESERVE: A list of environment variables to preserve from being set 
+#       by $CASSANDRA_CONF/cassandra-env.sh"
+# ENV_SHOW: A list of additional environment variables to display during validate_env.
 
-# CONTROLLING STARTUP:
-# 
-# This script relies on few environment variables to determine startup
-# behavior, those variables are:
-#
-#   CLASSPATH -- A Java classpath containing everything necessary to run.
-#   EXTRA_CLASSPATH -- A Java classpath with anything to be appended to CLASSPATH
-#   JVM_OPTS -- Additional arguments to the JVM for heap size, etc
-#   JVM_ON_OUT_OF_MEMORY_ERROR_OPT -- The OnOutOfMemoryError JVM option if specified
-#   CASSANDRA_CONF -- Directory containing Cassandra configuration files.
-#   CASSANDRA_LOG_DIR -- Directory containing logs(default: $CASSANDRA_HOME/logs).
-#
-# As a convenience, a fragment of shell is sourced in order to set one or
-# more of these variables. This so-called `include' can be placed in a 
-# number of locations and will be searched for in order. The highest 
-# priority search path is the same directory as the startup script, and
-# since this is the location of the sample in the project tree, it should
-# almost work Out Of The Box.
-#
-# Any serious use-case though will likely require customization of the
-# include. For production installations, it is recommended that you copy
-# the sample to one of /usr/share/cassandra/cassandra.in.sh,
-# /usr/local/share/cassandra/cassandra.in.sh, or 
-# /opt/cassandra/cassandra.in.sh and make your modifications there.
-#
-# Another option is to specify the full path to the include file in the
-# environment. For example:
-#
-#   $ CASSANDRA_INCLUDE=/path/to/in.sh cassandra -p /var/run/cass.pid
-#
-# Note: This is particularly handy for running multiple instances on a 
-# single installation, or for quick tests.
-#
-# Finally, developers and enthusiasts who frequently run from an SVN 
-# checkout, and do not want to locally modify bin/cassandra.in.sh, can put
-# a customized include file at ~/.cassandra.in.sh.
-#
-# If you would rather configure startup entirely from the environment, you
-# can disable the include by exporting an empty CASSANDRA_INCLUDE, or by 
-# ensuring that no include files exist in the aforementioned search list.
-# Be aware that you will be entirely responsible for populating the needed
-# environment variables.
-
-# NB: Developers should be aware that this script should remain compatible with
-# POSIX sh and Solaris sh. This means, in particular, no $(( )) and no $( ).
-
-# Unset any grep options that may include `--color=always` per say.
-# Using `unset GREP_OPTIONS` will also work on the non-deprecated use case
-# of setting a new grep alias.
-# See CASSANDRA-14487 for more details.
-unset GREP_OPTIONS
-
-show_env() {
+## validate_env
+## Args:  Arguments are additional environment variables to show.
+##
+## Validates that required environment variables are set. 
+## Required Environment Vars:
+##      CASSANDRA_INCLUDE
+##      CASSANDRA_HOME
+##      CASSANDRA_LOG_DIR
+## 
+## Environment Vars:
+##      ENV_DEBUG   Enables display of variables.
+##      ENV_SHOW    List of additional variables to display.
+##
+validate_env() {
     retval=0
     if [ -n "$ENV_DEBUG" ] ; then
         echo ""
         echo "ENVIRONMENT"
         echo "-----------"
+        echo "PWD=$PWD"
         echo "CASSANDRA_CONF=$CASSANDRA_CONF"
     fi
     
     if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
-        echo "cassandra.in.sh not found or CASSANDRA_INCLUDE not set" >&2
+        echo ">>> cassandra.in.sh not found or CASSANDRA_INCLUDE not set" >&2
         retval=1
     else
         if [ -n "$ENV_DEBUG" ] ; then
             echo "CASSANDRA_INCLUDE=$CASSANDRA_INCLUDE"
         fi
     fi
+    
+    if [ "x$CASSANDRA_HOME" = "x" ]; then
+        echo ">>> CASSANDRA_HOME not set" >&2
+        retval=1
+    else
+        if [ -n "$ENV_DEBUG" ] ; then
+            echo "CASSANDRA_HOME=$CASSANDRA_HOME"
+        fi
+    fi
+
+    if [ "x$CASSANDRA_LOG_DIR" = "x" ]; then
+        echo ">>> CASSANDRA_LOG_DIR not set" >&2
+        retval=1
+    else
+        if [ -n "$ENV_DEBUG" ] ; then
+            echo "CASSANDRA_LOG_DIR=$CASSANDRA_LOG_DIR"
+        fi
+    fi
 
     if [ -n "$ENV_DEBUG" ] ; then
-        echo "CASSANDRA_LOG_DIR=$CASSANDRA_LOG_DIR"
-
         if [ -z $NUMACTL ]; then
             echo "numactl not found"
         fi
