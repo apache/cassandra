@@ -46,7 +46,7 @@ public final class KeyspaceAttributes extends PropertyDefinitions
         validate(validKeywords, obsoleteKeywords);
 
         Map<String, String> replicationOptions = getAllReplicationOptions();
-        if (!replicationOptions.isEmpty() && !replicationOptions.containsKey(ReplicationParams.CLASS))
+        if (!replicationOptions.isEmpty() && !replicationOptions.containsKey(ReplicationParams.CLASS) && !updateProperties.containsKey(Option.REPLICATION.toString()) )
             throw new ConfigurationException("Missing replication strategy class");
     }
 
@@ -72,10 +72,16 @@ public final class KeyspaceAttributes extends PropertyDefinitions
     KeyspaceParams asAlteredKeyspaceParams(KeyspaceParams previous)
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), previous.durableWrites);
-        Map<String, String> previousOptions = previous.replication.options;
-        ReplicationParams replication = getReplicationStrategyClass() == null
+        Map<String, String> newOptions = getAllReplicationOptions();
+        newOptions.put(ReplicationParams.CLASS, previous.replication.klass.getName()); // TODO 2xBullshit. ReplicationParams needs a new method. Add check.
+        ReplicationParams replication = !hasProperty(Option.REPLICATION.toString())
                                       ? previous.replication
-                                      : ReplicationParams.fromMapWithDefaults(getAllReplicationOptions(), previousOptions);
+                                      : ReplicationParams.fromMapWithDefaults(newOptions, previous.replication.options);
+//        ReplicationParams replication = new ReplicationParams(
+//            previous.replication.klass,
+//            previousOptions
+//        );
+
         return new KeyspaceParams(durableWrites, replication);
     }
 
