@@ -78,6 +78,7 @@
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
     <property name="test.logback.configurationFile" value="${test.conf}/logback-test.xml"/>
     <property name="doc.dir" value="${basedir}/doc"/>
+    <property name="repetition" value=""/>
 
     <condition property="version" value="${base.version}">
       <isset property="release"/>
@@ -1431,7 +1432,11 @@
     <attribute name="showoutput" default="false"/>
 
     <sequential>
-      <condition property="additionalagent"
+        <condition property="tag" value="@{testtag}${repetition}" else="@{testtag}">
+            <isset property="repetition"/>
+        </condition>
+
+        <condition property="additionalagent"
                  value="-javaagent:${build.dir.lib}/jars/jacocoagent.jar=destfile=${jacoco.partialexecfile}"
                  else="">
         <istrue value="${usejacoco}"/>
@@ -1443,7 +1448,7 @@
       </taskdef>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
-      <mkdir dir="${build.test.dir}/output/@{testtag}"/>
+      <mkdir dir="${build.test.dir}/output/${tag}"/>
       <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
@@ -1473,7 +1478,7 @@
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
         <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
-        <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
+        <jvmarg value="-Dcassandra.testtag=${tag}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
@@ -1505,7 +1510,7 @@
               <exclude name="**/ant-*.jar"/>
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output/@{testtag}">
+        <batchtest todir="${build.test.dir}/output/${tag}">
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
