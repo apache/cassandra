@@ -481,10 +481,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
         public Mutation deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             Mutation m;
-            try (DataOutputBuffer dob = DataOutputBuffer.limitedScratchBuffer(0))
+            try (DataOutputBuffer dob = DataOutputBuffer.limitedScratchBuffer(CACHEABLE_MUTATION_SIZE_LIMIT))
             {
-                in = new TeeDataInputPlus(in, dob);
-
+                in = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
                 int size = (int) in.readUnsignedVInt();
                 assert size > 0;
@@ -508,7 +507,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                     m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
                 }
 
-                if (dob.position() < CACHEABLE_MUTATION_SIZE_LIMIT)
+                if (!((TeeDataInputPlus)in).isLimitReached())
                     m.serializations[MessagingService.getVersionIndex(version)] = new CachedSerialization(dob.toByteArray());
 
                 return m;
@@ -528,8 +527,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
     /**
      * There are two implementations of this class. One that keeps the serialized representation on-heap for later
-     * reuse and one that doesn't. The original implementation of DB-370 always kept the serialized representation
-     * around. This may lead to "bad" GC pressure (G1 GC) due to humongous objects (see DSP-19998).
+     * reuse and one that doesn't. Keeping all sized mutations around may lead to "bad" GC pressure (G1 GC) due to humongous objects.
      * By default serialized mutations up to 2MB are kept on-heap - see {@link #CACHEABLE_MUTATION_SIZE_LIMIT}.
      */
     private static abstract class Serialization
