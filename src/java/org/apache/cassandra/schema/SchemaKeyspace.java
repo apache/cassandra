@@ -113,6 +113,7 @@ public final class SchemaKeyspace
               + "extensions frozen<map<text, blob>>,"
               + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
               + "gc_grace_seconds int,"
+              + "incremental_backups boolean,"        
               + "id uuid,"
               + "max_index_interval int,"
               + "memtable_flush_period_in_ms int,"
@@ -181,6 +182,7 @@ public final class SchemaKeyspace
               + "default_time_to_live int,"
               + "extensions frozen<map<text, blob>>,"
               + "gc_grace_seconds int,"
+              + "incremental_backups boolean,"        
               + "id uuid,"
               + "include_all_columns boolean,"
               + "max_index_interval int,"
@@ -570,6 +572,11 @@ public final class SchemaKeyspace
         // auto-snapshotting is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
         if (!params.allowAutoSnapshot)
             builder.add("allow_auto_snapshot", false);
+
+        // As above, only add the incremental_backups column if the value is not default (true) and
+        // incremental_backups is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
+        if (!params.incrementalBackups)
+            builder.add("incremental_backups", false);
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -987,6 +994,10 @@ public final class SchemaKeyspace
         // allow_auto_snapshot column was introduced in 4.2
         if (row.has("allow_auto_snapshot"))
             builder.allowAutoSnapshot(row.getBoolean("allow_auto_snapshot"));
+
+        // incremental_backups column was introduced in 4.2
+        if (row.has("incremental_backups"))
+            builder.incrementalBackups(row.getBoolean("incremental_backups"));
 
         return builder.build();
     }

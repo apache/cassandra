@@ -923,9 +923,11 @@ rpc_keepalive: true
 # internode_socket_receive_buffer_size:
 
 # Set to true to have Cassandra create a hard link to each sstable
-# flushed or streamed locally in a backups/ subdirectory of the
-# keyspace data.  Removing these links is the operator's
-# responsibility.
+# flushed or streamed locally in a backups/ subdirectory of all the
+# keyspace data in this node.  Removing these links is the operator's
+# responsibility. The operator can also turn off incremental backups 
+# for specified table by setting table parameter incremental_backups to 
+# false, which is set to true by default. See CASSANDRA-15402
 incremental_backups: false
 
 # Whether or not to take a snapshot before each compaction.  Be

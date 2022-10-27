@@ -418,7 +418,7 @@ public class Tracker
 
     public void maybeIncrementallyBackup(final Iterable<SSTableReader> sstables)
     {
-        if (!DatabaseDescriptor.isIncrementalBackupsEnabled())
+        if (!cfstore.isTableIncrementalBackupsEnabled())
             return;
 
         for (SSTableReader sstable : sstables)
