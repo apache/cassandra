@@ -212,9 +212,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     private final Gossiper gossiper;
     private final Cache<Integer, Pair<ParentRepairStatus, List<String>>> repairStatusByCmd;
 
-    private final ExecutorPlus clearSnapshotExecutor = executorFactory().configurePooled("RepairClearSnapshot", 1)
-                                                                        .withKeepAlive(1, TimeUnit.HOURS)
-                                                                        .build();
+    public final ExecutorPlus snapshotExecutor = executorFactory().configurePooled("RepairSnapshotExecutor", 1)
+                                                                  .withKeepAlive(1, TimeUnit.HOURS)
+                                                                  .build();
 
     public ActiveRepairService(IFailureDetector failureDetector, Gossiper gossiper)
     {
@@ -767,7 +767,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     /**
      * We assume when calling this method that a parent session for the provided identifier
      * exists, and that session is still in progress. When it doesn't, that should mean either
-     * {@link #abort(Predicate, String)} or {@link #failRepair(UUID, String)} have removed it.
+     * {@link #abort(Predicate, String)} or {@link #failRepair(TimeUUID, String)} have removed it.
      *
      * @param parentSessionId an identifier for an active parent repair session
      * @return the {@link ParentRepairSession} associated with the provided identifier
@@ -789,6 +789,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * @param parentSessionId an identifier for an active parent repair session
      * @return the {@link ParentRepairSession} associated with the provided identifier
+     * @see org.apache.cassandra.db.repair.CassandraTableRepairManager#snapshot(String, Collection, boolean)
      */
     public synchronized ParentRepairSession removeParentRepairSession(TimeUUID parentSessionId)
     {
@@ -799,7 +800,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         if (session.hasSnapshots)
         {
-            clearSnapshotExecutor.submit(() -> {
+            snapshotExecutor.submit(() -> {
                 logger.info("[repair #{}] Clearing snapshots for {}", parentSessionId,
                             session.columnFamilyStores.values()
                                                       .stream()
@@ -1091,7 +1092,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownNowAndWait(timeout, unit, clearSnapshotExecutor);
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, snapshotExecutor);
     }
 
     public Collection<CoordinatorState> coordinators()
