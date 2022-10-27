@@ -47,6 +47,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('bloom_filter_fp_chance', None),
         ('comment', None),
         ('gc_grace_seconds', None),
+        ('incremental_backups', None),
         ('min_index_interval', None),
         ('max_index_interval', None),
         ('default_time_to_live', None),
@@ -522,6 +523,8 @@ def cf_prop_val_completer(ctxt, cass):
     if this_opt in ('read_repair'):
         return [Hint('<\'none\'|\'blocking\'>')]
     if this_opt == 'allow_auto_snapshot':
+        return [Hint('<boolean>')]
+    if this_opt == 'incremental_backups':
         return [Hint('<boolean>')]
     return [Hint('<option_value>')]
 

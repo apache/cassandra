@@ -102,6 +102,10 @@ New features
       --older-than-timestamp 2022-12-03T10:15:30Z.
     - Cassandra logs can be viewed in the virtual table system_views.system_logs.
       Please uncomment the respective appender in logback.xml file to make logs flow into this table. This feature is turned off by default.
+    - Added new CQL table property 'incremental_backups' which is by default true. When 'incremental_backups' property in cassandra.yaml
+      is set to true and table property is set to false, incremental backups for that specific table will not be done.
+      When 'incremental_backups' in casandra.yaml is set to false, the newly added table property does not have any effect.
+      Both properties have to be set to true (cassandra.yaml and table property) in order to make incremental backups.
 
 Upgrading
 ---------
@@ -109,7 +113,7 @@ Upgrading
       there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there
       are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
       will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
-    - There was new table property introduced called 'allow_auto_snapshot' (see section 'New features'). Hence, upgraded
+    - There were new table properties introduced called 'allow_auto_snapshot' and 'incremental_backups' (see section 'New features'). Hence, upgraded
       node will be on a new schema version. Please do a rolling upgrade of nodes of a cluster to converge to one schema version.
 
 Deprecation

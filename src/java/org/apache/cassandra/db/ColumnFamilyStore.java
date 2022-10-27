@@ -3134,6 +3134,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return metadata().params.allowAutoSnapshot && DatabaseDescriptor.isAutoSnapshot();
     }
 
+    public boolean isTableIncrementalBackupsEnabled()
+    {
+        return DatabaseDescriptor.isIncrementalBackupsEnabled() && metadata().params.incrementalBackups;
+    }
+
     /**
      * Discard all SSTables that were created before given timestamp.
      *
