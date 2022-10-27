@@ -105,11 +105,6 @@ public class NonTokenizingOptions
     {
         OptionsBuilder optionsBuilder = new OptionsBuilder();
 
-        if (optionsMap.containsKey(CASE_SENSITIVE) && (optionsMap.containsKey(NORMALIZE_LOWERCASE)
-                || optionsMap.containsKey(NORMALIZE_UPPERCASE)))
-            throw new IllegalArgumentException("case_sensitive option cannot be specified together " +
-                    "with either normalize_lowercase or normalize_uppercase");
-
         for (Map.Entry<String, String> entry : optionsMap.entrySet())
         {
             switch (entry.getKey())

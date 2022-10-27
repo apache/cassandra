@@ -114,10 +114,7 @@ public class IndexMode
             try
             {
                 analyzer = (AbstractAnalyzer) analyzerClass.newInstance();
-                if (!analyzer.isCompatibleWith(cd.type))
-                    throw new ConfigurationException(String.format("%s does not support type %s",
-                                                                   analyzerClass.getSimpleName(),
-                                                                   cd.type.asCQL3Type()));
+                analyzer.validate(indexOptions, cd);
             }
             catch (InstantiationException | IllegalAccessException e)
             {

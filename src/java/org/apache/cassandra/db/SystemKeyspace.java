@@ -1388,7 +1388,7 @@ public final class SystemKeyspace
     public static void resetAvailableRanges()
     {
         ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(AVAILABLE_RANGES);
-        availableRanges.truncateBlocking();
+        availableRanges.truncateBlockingWithoutSnapshot();
     }
 
     public static synchronized void updateTransferredRanges(String description,
@@ -1577,18 +1577,42 @@ public final class SystemKeyspace
 
     public static void resetPreparedStatements()
     {
-        ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(PREPARED_STATEMENTS);
-        availableRanges.truncateBlocking();
+        ColumnFamilyStore preparedStatements = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(PREPARED_STATEMENTS);
+        preparedStatements.truncateBlockingWithoutSnapshot();
     }
 
-    public static List<Pair<String, String>> loadPreparedStatements()
+    public static int loadPreparedStatements(TriFunction<MD5Digest, String, String, Boolean> onLoaded)
     {
-        String query = String.format("SELECT logged_keyspace, query_string FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, PREPARED_STATEMENTS);
+        String query = String.format("SELECT prepared_id, logged_keyspace, query_string FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, PREPARED_STATEMENTS);
         UntypedResultSet resultSet = executeOnceInternal(query);
-        List<Pair<String, String>> r = new ArrayList<>();
+        int counter = 0;
         for (UntypedResultSet.Row row : resultSet)
-            r.add(Pair.create(row.has("logged_keyspace") ? row.getString("logged_keyspace") : null,
-                              row.getString("query_string")));
-        return r;
+        {
+            if (onLoaded.accept(MD5Digest.wrap(row.getByteArray("prepared_id")),
+                                row.getString("query_string"),
+                                row.has("logged_keyspace") ? row.getString("logged_keyspace") : null))
+                counter++;
+        }
+        return counter;
     }
+
+    public static int loadPreparedStatement(MD5Digest digest, TriFunction<MD5Digest, String, String, Boolean> onLoaded)
+    {
+        String query = String.format("SELECT prepared_id, logged_keyspace, query_string FROM %s.%s WHERE prepared_id = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, PREPARED_STATEMENTS);
+        UntypedResultSet resultSet = executeOnceInternal(query, digest.byteBuffer());
+        int counter = 0;
+        for (UntypedResultSet.Row row : resultSet)
+        {
+            if (onLoaded.accept(MD5Digest.wrap(row.getByteArray("prepared_id")),
+                                row.getString("query_string"),
+                                row.has("logged_keyspace") ? row.getString("logged_keyspace") : null))
+                counter++;
+        }
+        return counter;
+    }
+
+    public static interface TriFunction<A, B, C, D> {
+        D accept(A var1, B var2, C var3);
+    }
+
 }

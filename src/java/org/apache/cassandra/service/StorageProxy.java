@@ -911,11 +911,13 @@ public class StorageProxy implements StorageProxyMBean
                         {
                             mutation.apply(writeCommitLog);
                             nonLocalMutations.remove(mutation);
-                            cleanup.ackMutation();
+                            // won't trigger cleanup
+                            cleanup.decrement();
                         }
                         catch (Exception exc)
                         {
-                            logger.error("Error applying local view update to keyspace {}: {}", mutation.getKeyspaceName(), mutation);
+                            logger.error("Error applying local view update: Mutation (keyspace {}, tables {}, partition key {})",
+                                         mutation.getKeyspaceName(), mutation.getColumnFamilyIds(), mutation.key());
                             throw exc;
                         }
                     }
@@ -1520,7 +1522,7 @@ public class StorageProxy implements StorageProxyMBean
                 catch (Exception ex)
                 {
                     if (!(ex instanceof WriteTimeoutException))
-                        logger.error("Failed to apply mutation locally : {}", ex);
+                        logger.error("Failed to apply mutation locally : ", ex);
                     handler.onFailure(FBUtilities.getBroadcastAddress(), RequestFailureReason.UNKNOWN);
                 }
             }
@@ -1920,7 +1922,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (DigestMismatchException ex)
             {
-                Tracing.trace("Digest mismatch: {}", ex);
+                Tracing.trace("Digest mismatch: {}", ex.toString());
 
                 ReadRepairMetrics.repairedBlocking.mark();
 

@@ -1,0 +1,1 @@
+alter_user_statement ::= ALTER USER role_name [ WITH PASSWORD string] [ user_option]

@@ -1,0 +1,1 @@
+drop_trigger_statement ::= DROP TRIGGER [ IF EXISTS ] trigger_nameON table_name

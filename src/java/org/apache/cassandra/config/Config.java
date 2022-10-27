@@ -269,6 +269,8 @@ public class Config
     public volatile int counter_cache_save_period = 7200;
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
+    public int cache_load_timeout_seconds = 30;
+
     private static boolean isClientMode = false;
     private static Supplier<Config> overrideLoadConfig = null;
 
@@ -365,8 +367,21 @@ public class Config
      * "tell" a user that there's something really wrong with the UDF.
      * When you disable async UDF execution, users MUST pay attention to read-timeouts since these may indicate
      * UDFs that run too long or forever - and this can destabilize the cluster.
+     *
+     * This requires allow_insecure_udfs to be true
      */
     public boolean enable_user_defined_functions_threads = true;
+
+    /**
+     * Set this to true to allow running insecure UDFs.
+     */
+    public boolean allow_insecure_udfs = false;
+
+    /**
+     * Set this to allow UDFs accessing java.lang.System.* methods, which basically allows UDFs to execute any arbitrary code on the system.
+     */
+    public boolean allow_extra_insecure_udfs = false;
+
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
      * (Only valid, if enable_user_defined_functions_threads==true)
@@ -418,6 +433,7 @@ public class Config
     public volatile boolean check_for_duplicate_rows_during_reads = true;
     public volatile boolean check_for_duplicate_rows_during_compaction = true;
 
+    public volatile boolean force_new_prepared_statement_behaviour = false;
     /**
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.

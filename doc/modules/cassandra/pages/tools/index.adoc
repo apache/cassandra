@@ -1,0 +1,9 @@
+= Cassandra Tools
+
+This section describes the command line tools provided with Apache
+Cassandra.
+
+* xref:tools/cqlsh.adoc[CQL shell]
+* xref:tools/nodetool/nodetool.adoc[nodetool]
+* xref:tools/sstable/index.adoc[SSTable tools] 
+* xref:tools/cassandra_stress.adoc[cassandra-stress tool]

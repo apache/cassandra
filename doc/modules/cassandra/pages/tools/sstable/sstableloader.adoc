@@ -1,0 +1,316 @@
+= sstableloader
+
+Bulk-load the sstables found in the directory <dir_path> to the
+configured cluster. The parent directories of <dir_path> are used as the
+target keyspace/table name. For example, to load an sstable named
+ma-1-big-Data.db into keyspace1/standard1, you will need to have the
+files ma-1-big-Data.db and ma-1-big-Index.db in a directory
+/path/to/keyspace1/standard1/. The tool will create new sstables, and
+does not clean up your copied files.
+
+Several of the options listed below don't work quite as intended, and in
+those cases, workarounds are mentioned for specific use cases.
+
+To avoid having the sstable files to be loaded compacted while reading
+them, place the files in an alternate keyspace/table path than the data
+directory.
+
+ref: https://issues.apache.org/jira/browse/CASSANDRA-1278
+
+Cassandra must be stopped before this tool is executed, or unexpected
+results will occur. Note: the script does not verify that Cassandra is
+stopped.
+
+== Usage
+
+sstableloader <options> <dir_path>
+
+[cols=",",]
+|===
+|-d, --nodes <initial hosts> |Required. Try to connect to these hosts
+(comma-separated) initially for ring information
+
+|-u, --username <username> |username for Cassandra authentication
+
+|-pw, --password <password> |password for Cassandra authentication
+
+|-p, --port <native transport port> |port used for native connection
+(default 9042)
+
+|-sp, --storage-port <storage port> |port used for internode
+communication (default 7000)
+
+|-ssp, --ssl-storage-port <ssl storage port> |port used for TLS
+internode communication (default 7001)
+
+|--no-progress |don't display progress
+
+|-t, --throttle <throttle> |throttle speed in Mbits (default unlimited)
+
+|-idct, --inter-dc-throttle <inter-dc-throttle> |inter-datacenter
+throttle speed in Mbits (default unlimited)
+
+|-cph, --connections-per-host <connectionsPerHost> |number of concurrent
+connections-per-host
+
+|-i, --ignore <NODES> |don't stream to this (comma separated) list of
+nodes
+
+|-alg, --ssl-alg <ALGORITHM> |Client SSL: algorithm (default: SunX509)
+
+|-ciphers, --ssl-ciphers <CIPHER-SUITES> |Client SSL: comma-separated
+list of encryption suites to use
+
+|-ks, --keystore <KEYSTORE> |Client SSL: full path to keystore
+
+|-kspw, --keystore-password <KEYSTORE-PASSWORD> |Client SSL: password of
+the keystore
+
+|-st, --store-type <STORE-TYPE> |Client SSL: type of store
+
+|-ts, --truststore <TRUSTSTORE> |Client SSL: full path to truststore
+
+|-tspw, --truststore-password <TRUSTSTORE-PASSWORD> |Client SSL:
+password of the truststore
+
+|-prtcl, --ssl-protocol <PROTOCOL> |Client SSL: connections protocol to
+use (default: TLS)
+
+|-ap, --auth-provider <auth provider> |custom AuthProvider class name
+for cassandra authentication
+
+|-f, --conf-path <path to config file> |cassandra.yaml file path for
+streaming throughput and client/server SSL
+
+|-v, --verbose |verbose output
+
+|-h, --help |display this help message
+|===
+
+You can provide a cassandra.yaml file with the -f command line option to
+set up streaming throughput, and client and server encryption options.
+Only stream_throughput_outbound_megabits_per_sec,
+server_encryption_options, and client_encryption_options are read from
+yaml. You can override options read from cassandra.yaml with
+corresponding command line options.
+
+== Load sstables from a Snapshot
+
+Copy the snapshot sstables into an accessible directory and use
+sstableloader to restore them.
+
+Example:
+
+....
+cp snapshots/1535397029191/* /path/to/keyspace1/standard1/
+
+sstableloader --nodes 172.17.0.2 /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/
+Established connection to initial hosts
+Opening sstables and calculating sections to stream
+Streaming relevant part of /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/ma-3-big-Data.db to [/172.17.0.2]
+progress: [/172.17.0.2]0:1/1 100% total: 100% 0  MB/s(avg: 1 MB/s)
+Summary statistics:
+   Connections per host:         : 1
+   Total files transferred:      : 1
+   Total bytes transferred:      : 4700000
+   Total duration (ms):          : 4390
+   Average transfer rate (MB/s): : 1
+   Peak transfer rate (MB/s):    : 1
+....
+
+The -d or --nodes option is required, or the script will not run.
+
+Example:
+
+....
+sstableloader /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/
+Initial hosts must be specified (-d)
+....
+
+== Use a Config File for SSL Clusters
+
+If SSL encryption is enabled in the cluster, use the --conf-path option
+with sstableloader to point the tool to the cassandra.yaml with the
+relevant server_encryption_options (e.g., truststore location,
+algorithm). This will work better than passing individual ssl options
+shown above to sstableloader on the command line.
+
+Example:
+
+....
+sstableloader --nodes 172.17.0.2 --conf-path /etc/cassandra/cassandra.yaml /var/lib/cassandra/loadme/keyspace1/standard1-0974e5a0aa5811e8a0a06d2c86545d91/snapshots/
+Established connection to initial hosts
+Opening sstables and calculating sections to stream
+Streaming relevant part of /var/lib/cassandra/loadme/keyspace1/standard1-0974e5a0aa5811e8a0a06d2c86545d91/mc-1-big-Data.db  to [/172.17.0.2]
+progress: [/172.17.0.2]0:0/1 1  % total: 1% 9.165KiB/s (avg: 9.165KiB/s)
+progress: [/172.17.0.2]0:0/1 2  % total: 2% 5.147MiB/s (avg: 18.299KiB/s)
+progress: [/172.17.0.2]0:0/1 4  % total: 4% 9.751MiB/s (avg: 27.423KiB/s)
+progress: [/172.17.0.2]0:0/1 5  % total: 5% 8.203MiB/s (avg: 36.524KiB/s)
+...
+progress: [/172.17.0.2]0:1/1 100% total: 100% 0.000KiB/s (avg: 480.513KiB/s)
+
+Summary statistics:
+   Connections per host    : 1
+   Total files transferred : 1
+   Total bytes transferred : 4.387MiB
+   Total duration          : 9356 ms
+   Average transfer rate   : 480.105KiB/s
+   Peak transfer rate      : 586.410KiB/s
+....
+
+== Hide Progress Output
+
+To hide the output of progress and the summary statistics (e.g., if you
+wanted to use this tool in a script), use the --no-progress option.
+
+Example:
+
+....
+sstableloader --nodes 172.17.0.2 --no-progress /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/
+Established connection to initial hosts
+Opening sstables and calculating sections to stream
+Streaming relevant part of /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/ma-4-big-Data.db to [/172.17.0.2]
+....
+
+== Get More Detail
+
+Using the --verbose option will provide much more progress output.
+
+Example:
+
+....
+sstableloader --nodes 172.17.0.2 --verbose /var/lib/cassandra/loadme/keyspace1/standard1-0974e5a0aa5811e8a0a06d2c86545d91/
+Established connection to initial hosts
+Opening sstables and calculating sections to stream
+Streaming relevant part of /var/lib/cassandra/loadme/keyspace1/standard1-0974e5a0aa5811e8a0a06d2c86545d91/mc-1-big-Data.db  to [/172.17.0.2]
+progress: [/172.17.0.2]0:0/1 1  % total: 1% 12.056KiB/s (avg: 12.056KiB/s)
+progress: [/172.17.0.2]0:0/1 2  % total: 2% 9.092MiB/s (avg: 24.081KiB/s)
+progress: [/172.17.0.2]0:0/1 4  % total: 4% 18.832MiB/s (avg: 36.099KiB/s)
+progress: [/172.17.0.2]0:0/1 5  % total: 5% 2.253MiB/s (avg: 47.882KiB/s)
+progress: [/172.17.0.2]0:0/1 7  % total: 7% 6.388MiB/s (avg: 59.743KiB/s)
+progress: [/172.17.0.2]0:0/1 8  % total: 8% 14.606MiB/s (avg: 71.635KiB/s)
+progress: [/172.17.0.2]0:0/1 9  % total: 9% 8.880MiB/s (avg: 83.465KiB/s)
+progress: [/172.17.0.2]0:0/1 11 % total: 11% 5.217MiB/s (avg: 95.176KiB/s)
+progress: [/172.17.0.2]0:0/1 12 % total: 12% 12.563MiB/s (avg: 106.975KiB/s)
+progress: [/172.17.0.2]0:0/1 14 % total: 14% 2.550MiB/s (avg: 118.322KiB/s)
+progress: [/172.17.0.2]0:0/1 15 % total: 15% 16.638MiB/s (avg: 130.063KiB/s)
+progress: [/172.17.0.2]0:0/1 17 % total: 17% 17.270MiB/s (avg: 141.793KiB/s)
+progress: [/172.17.0.2]0:0/1 18 % total: 18% 11.280MiB/s (avg: 153.452KiB/s)
+progress: [/172.17.0.2]0:0/1 19 % total: 19% 2.903MiB/s (avg: 164.603KiB/s)
+progress: [/172.17.0.2]0:0/1 21 % total: 21% 6.744MiB/s (avg: 176.061KiB/s)
+progress: [/172.17.0.2]0:0/1 22 % total: 22% 6.011MiB/s (avg: 187.440KiB/s)
+progress: [/172.17.0.2]0:0/1 24 % total: 24% 9.690MiB/s (avg: 198.920KiB/s)
+progress: [/172.17.0.2]0:0/1 25 % total: 25% 11.481MiB/s (avg: 210.412KiB/s)
+progress: [/172.17.0.2]0:0/1 27 % total: 27% 9.957MiB/s (avg: 221.848KiB/s)
+progress: [/172.17.0.2]0:0/1 28 % total: 28% 10.270MiB/s (avg: 233.265KiB/s)
+progress: [/172.17.0.2]0:0/1 29 % total: 29% 7.812MiB/s (avg: 244.571KiB/s)
+progress: [/172.17.0.2]0:0/1 31 % total: 31% 14.843MiB/s (avg: 256.021KiB/s)
+progress: [/172.17.0.2]0:0/1 32 % total: 32% 11.457MiB/s (avg: 267.394KiB/s)
+progress: [/172.17.0.2]0:0/1 34 % total: 34% 6.550MiB/s (avg: 278.536KiB/s)
+progress: [/172.17.0.2]0:0/1 35 % total: 35% 9.115MiB/s (avg: 289.782KiB/s)
+progress: [/172.17.0.2]0:0/1 37 % total: 37% 11.054MiB/s (avg: 301.064KiB/s)
+progress: [/172.17.0.2]0:0/1 38 % total: 38% 10.449MiB/s (avg: 312.307KiB/s)
+progress: [/172.17.0.2]0:0/1 39 % total: 39% 1.646MiB/s (avg: 321.665KiB/s)
+progress: [/172.17.0.2]0:0/1 41 % total: 41% 13.300MiB/s (avg: 332.872KiB/s)
+progress: [/172.17.0.2]0:0/1 42 % total: 42% 14.370MiB/s (avg: 344.082KiB/s)
+progress: [/172.17.0.2]0:0/1 44 % total: 44% 16.734MiB/s (avg: 355.314KiB/s)
+progress: [/172.17.0.2]0:0/1 45 % total: 45% 22.245MiB/s (avg: 366.592KiB/s)
+progress: [/172.17.0.2]0:0/1 47 % total: 47% 25.561MiB/s (avg: 377.882KiB/s)
+progress: [/172.17.0.2]0:0/1 48 % total: 48% 24.543MiB/s (avg: 389.155KiB/s)
+progress: [/172.17.0.2]0:0/1 49 % total: 49% 4.894MiB/s (avg: 399.688KiB/s)
+progress: [/172.17.0.2]0:0/1 51 % total: 51% 8.331MiB/s (avg: 410.559KiB/s)
+progress: [/172.17.0.2]0:0/1 52 % total: 52% 5.771MiB/s (avg: 421.150KiB/s)
+progress: [/172.17.0.2]0:0/1 54 % total: 54% 8.738MiB/s (avg: 431.983KiB/s)
+progress: [/172.17.0.2]0:0/1 55 % total: 55% 3.406MiB/s (avg: 441.911KiB/s)
+progress: [/172.17.0.2]0:0/1 56 % total: 56% 9.791MiB/s (avg: 452.730KiB/s)
+progress: [/172.17.0.2]0:0/1 58 % total: 58% 3.401MiB/s (avg: 462.545KiB/s)
+progress: [/172.17.0.2]0:0/1 59 % total: 59% 5.280MiB/s (avg: 472.840KiB/s)
+progress: [/172.17.0.2]0:0/1 61 % total: 61% 12.232MiB/s (avg: 483.663KiB/s)
+progress: [/172.17.0.2]0:0/1 62 % total: 62% 9.258MiB/s (avg: 494.325KiB/s)
+progress: [/172.17.0.2]0:0/1 64 % total: 64% 2.877MiB/s (avg: 503.640KiB/s)
+progress: [/172.17.0.2]0:0/1 65 % total: 65% 7.461MiB/s (avg: 514.078KiB/s)
+progress: [/172.17.0.2]0:0/1 66 % total: 66% 24.247MiB/s (avg: 525.018KiB/s)
+progress: [/172.17.0.2]0:0/1 68 % total: 68% 9.348MiB/s (avg: 535.563KiB/s)
+progress: [/172.17.0.2]0:0/1 69 % total: 69% 5.130MiB/s (avg: 545.563KiB/s)
+progress: [/172.17.0.2]0:0/1 71 % total: 71% 19.861MiB/s (avg: 556.392KiB/s)
+progress: [/172.17.0.2]0:0/1 72 % total: 72% 15.501MiB/s (avg: 567.122KiB/s)
+progress: [/172.17.0.2]0:0/1 74 % total: 74% 5.031MiB/s (avg: 576.996KiB/s)
+progress: [/172.17.0.2]0:0/1 75 % total: 75% 22.771MiB/s (avg: 587.813KiB/s)
+progress: [/172.17.0.2]0:0/1 76 % total: 76% 22.780MiB/s (avg: 598.619KiB/s)
+progress: [/172.17.0.2]0:0/1 78 % total: 78% 20.684MiB/s (avg: 609.386KiB/s)
+progress: [/172.17.0.2]0:0/1 79 % total: 79% 22.920MiB/s (avg: 620.173KiB/s)
+progress: [/172.17.0.2]0:0/1 81 % total: 81% 7.458MiB/s (avg: 630.333KiB/s)
+progress: [/172.17.0.2]0:0/1 82 % total: 82% 22.993MiB/s (avg: 641.090KiB/s)
+progress: [/172.17.0.2]0:0/1 84 % total: 84% 21.392MiB/s (avg: 651.814KiB/s)
+progress: [/172.17.0.2]0:0/1 85 % total: 85% 7.732MiB/s (avg: 661.938KiB/s)
+progress: [/172.17.0.2]0:0/1 86 % total: 86% 3.476MiB/s (avg: 670.892KiB/s)
+progress: [/172.17.0.2]0:0/1 88 % total: 88% 19.889MiB/s (avg: 681.521KiB/s)
+progress: [/172.17.0.2]0:0/1 89 % total: 89% 21.077MiB/s (avg: 692.162KiB/s)
+progress: [/172.17.0.2]0:0/1 91 % total: 91% 24.062MiB/s (avg: 702.835KiB/s)
+progress: [/172.17.0.2]0:0/1 92 % total: 92% 19.798MiB/s (avg: 713.431KiB/s)
+progress: [/172.17.0.2]0:0/1 94 % total: 94% 17.591MiB/s (avg: 723.965KiB/s)
+progress: [/172.17.0.2]0:0/1 95 % total: 95% 13.725MiB/s (avg: 734.361KiB/s)
+progress: [/172.17.0.2]0:0/1 96 % total: 96% 16.737MiB/s (avg: 744.846KiB/s)
+progress: [/172.17.0.2]0:0/1 98 % total: 98% 22.701MiB/s (avg: 755.443KiB/s)
+progress: [/172.17.0.2]0:0/1 99 % total: 99% 18.718MiB/s (avg: 765.954KiB/s)
+progress: [/172.17.0.2]0:1/1 100% total: 100% 6.613MiB/s (avg: 767.802KiB/s)
+progress: [/172.17.0.2]0:1/1 100% total: 100% 0.000KiB/s (avg: 670.295KiB/s)
+
+Summary statistics:
+   Connections per host    : 1
+   Total files transferred : 1
+   Total bytes transferred : 4.387MiB
+   Total duration          : 6706 ms
+   Average transfer rate   : 669.835KiB/s
+   Peak transfer rate      : 767.802KiB/s
+....
+
+== Throttling Load
+
+To prevent the table loader from overloading the system resources, you
+can throttle the process with the --throttle option. The default is
+unlimited (no throttling). Throttle units are in megabits. Note that the
+total duration is increased in the example below.
+
+Example:
+
+....
+sstableloader --nodes 172.17.0.2 --throttle 1 /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/
+Established connection to initial hosts
+Opening sstables and calculating sections to stream
+Streaming relevant part of /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/ma-6-big-Data.db to [/172.17.0.2]
+progress: [/172.17.0.2]0:1/1 100% total: 100% 0  MB/s(avg: 0 MB/s)
+Summary statistics:
+   Connections per host:         : 1
+   Total files transferred:      : 1
+   Total bytes transferred:      : 4595705
+   Total duration (ms):          : 37634
+   Average transfer rate (MB/s): : 0
+   Peak transfer rate (MB/s):    : 0
+....
+
+== Speeding up Load
+
+To speed up the load process, the number of connections per host can be
+increased.
+
+Example:
+
+....
+sstableloader --nodes 172.17.0.2 --connections-per-host 100 /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/
+Established connection to initial hosts
+Opening sstables and calculating sections to stream
+Streaming relevant part of /var/lib/cassandra/loadme/keyspace1/standard1-f8a4fa30aa2a11e8af27091830ac5256/ma-9-big-Data.db to [/172.17.0.2]
+progress: [/172.17.0.2]0:1/1 100% total: 100% 0  MB/s(avg: 1 MB/s)
+Summary statistics:
+   Connections per host:         : 100
+   Total files transferred:      : 1
+   Total bytes transferred:      : 4595705
+   Total duration (ms):          : 3486
+   Average transfer rate (MB/s): : 1
+   Peak transfer rate (MB/s):    : 1
+....
+
+This small data set doesn't benefit much from the increase in
+connections per host, but note that the total duration has decreased in
+this example.

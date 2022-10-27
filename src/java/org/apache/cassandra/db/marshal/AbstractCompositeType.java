@@ -196,8 +196,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     public ByteBuffer fromString(String source)
     {
         List<String> parts = split(source);
-        List<ByteBuffer> components = new ArrayList<ByteBuffer>(parts.size());
-        List<ParsedComparator> comparators = new ArrayList<ParsedComparator>(parts.size());
+        List<ByteBuffer> components = new ArrayList<>(parts.size());
+        List<ParsedComparator> comparators = new ArrayList<>(parts.size());
         int totalLength = 0, i = 0;
         boolean lastByteIsOne = false;
         boolean lastByteIsMinusOne = false;
@@ -232,7 +232,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         {
             comparators.get(i).serializeComparator(bb);
             ByteBufferUtil.writeShortLength(bb, component.remaining());
-            bb.put(component); // it's ok to consume component as we won't use it anymore
+            bb.put(component.duplicate()); // it's not ok to consume component as we did not create it (CASSANDRA-14752)
             bb.put((byte)0);
             ++i;
         }

@@ -1,0 +1,11 @@
+Connected to Test Cluster at localhost:9042.
+[cqlsh 5.0.1 | Cassandra 3.8 | CQL spec 3.4.2 | Native protocol v4]
+Use HELP for help.
+cqlsh> SELECT cluster_name, listen_address FROM system.local;
+
+ cluster_name | listen_address
+--------------+----------------
+ Test Cluster |      127.0.0.1
+
+(1 rows)
+cqlsh>

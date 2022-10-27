@@ -279,7 +279,9 @@ public abstract class AbstractCommitLogSegmentManager
     /**
      * Switch to a new segment, regardless of how much is left in the current one.
      *
-     * Flushes any dirty CFs for this segment and any older segments, and then discards the segments
+     * Flushes any dirty CFs for this segment and any older segments, and then discards the segments.
+     * This is necessary to avoid resurrecting data during replay if a user creates a new table with
+     * the same name and ID. See CASSANDRA-16986 for more details.
      */
     void forceRecycleAll(Iterable<UUID> droppedCfs)
     {

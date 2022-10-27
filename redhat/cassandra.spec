@@ -47,6 +47,7 @@ BuildRequires: ant-junit >= 1.9
 
 Requires:      jre >= 1.8.0
 Requires:      python(abi) >= 2.7
+Requires:      procps-ng >= 3.3
 Requires(pre): user(cassandra)
 Requires(pre): group(cassandra)
 Requires(pre): shadow-utils
@@ -87,6 +88,9 @@ mkdir -p %{buildroot}/var/lib/%{username}/hints
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
 ( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
+# cqlsh before Cassandra version 4.0 still requires python2
+mkdir -p %{buildroot}/usr/lib/python2.7/site-packages
+cp -r %{buildroot}%{python_sitelib}/cqlshlib %{buildroot}/usr/lib/python2.7/site-packages/
 
 # patches for data and log paths
 patch -p1 < debian/patches/001cassandra_yaml_dirs.dpatch
@@ -162,6 +166,8 @@ exit 0
 %attr(755,%{username},%{username}) /var/run/%{username}*
 %{python_sitelib}/cqlshlib/
 %{python_sitelib}/cassandra_pylib*.egg-info
+# cqlsh before Cassandra version 4.0 still requires python2
+/usr/lib/python2.7/site-packages/cqlshlib
 
 %post
 alternatives --install /%{_sysconfdir}/%{username}/conf %{username} /%{_sysconfdir}/%{username}/default.conf/ 0

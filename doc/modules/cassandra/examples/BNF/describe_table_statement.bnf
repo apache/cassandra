@@ -1,0 +1,1 @@
+describe_table_statement::= DESCRIBE TABLE table_name [WITH INTERNALS];

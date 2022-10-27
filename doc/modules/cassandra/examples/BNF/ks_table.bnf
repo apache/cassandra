@@ -1,0 +1,5 @@
+keyspace_name::= name
+table_name::= [keyspace_name '.' ] name
+name::= unquoted_name | quoted_name
+unquoted_name::= re('[a-zA-Z_0-9]\{1, 48}')
+quoted_name::= '"' unquoted_name '"'

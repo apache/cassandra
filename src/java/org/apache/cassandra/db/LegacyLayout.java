@@ -143,16 +143,27 @@ public abstract class LegacyLayout
 
     private static LegacyCellName decodeForSuperColumn(CFMetaData metadata, Clustering clustering, ByteBuffer subcol)
     {
-        ColumnDefinition def = metadata.getColumnDefinition(subcol);
+        ColumnDefinition def = getStaticallyDefinedSubColumn(metadata, subcol);
         if (def != null)
         {
-            // it's a statically defined subcolumn
+            // it's a statically defined subcolumn from column_metadata
             return new LegacyCellName(clustering, def, null);
         }
 
         def = metadata.compactValueColumn();
         assert def != null && def.type instanceof MapType;
         return new LegacyCellName(clustering, def, subcol);
+    }
+
+    private static ColumnDefinition getStaticallyDefinedSubColumn(CFMetaData metadata, ByteBuffer subcol) {
+        if (metadata.isDense())
+            return null;
+
+        ColumnDefinition def = metadata.getColumnDefinition(subcol);
+        if (def == null || !def.isRegular() || SuperColumnCompatibility.isSuperColumnMapColumn(def))
+            return null;
+
+        return def;
     }
 
     public static LegacyCellName decodeCellName(CFMetaData metadata, ByteBuffer cellname) throws UnknownColumnException
@@ -1218,7 +1229,7 @@ public abstract class LegacyLayout
                 logger.warn(String.format("Got cell for unknown column %s in sstable of %s.%s: " +
                                           "This suggest a problem with the schema which doesn't list " +
                                           "this column. Even if that column was dropped, it should have " +
-                                          "been listed as such", metadata.ksName, metadata.cfName, UTF8Type.instance.compose(e.columnName)), e);
+                                          "been listed as such", UTF8Type.instance.compose(e.columnName), metadata.ksName, metadata.cfName), e);
 
             throw e;
         }

@@ -1,0 +1,504 @@
+// Need some intro for UDF and native functions in general and point those to it.  
+// [[cql-functions]][[native-functions]] 
+
+== Functions
+
+CQL supports 2 main categories of functions:
+
+* xref:cql/functions.adoc#scalar-functions[scalar functions] that take a number of values and produce an output
+* xref:cql/functions.adoc#aggregate-functions[aggregate functions] that aggregate multiple rows resulting from a `SELECT` statement
+
+In both cases, CQL provides a number of native "hard-coded" functions as
+well as the ability to create new user-defined functions.
+
+[NOTE]
+.Note
+====
+By default, the use of user-defined functions is disabled by default for
+security concerns (even when enabled, the execution of user-defined
+functions is sandboxed and a "rogue" function should not be allowed to
+do evil, but no sandbox is perfect so using user-defined functions is
+opt-in). See the `enable_user_defined_functions` in `cassandra.yaml` to
+enable them.
+====
+
+A function is identifier by its name:
+
+[source, bnf]
+----
+include::example$BNF/function.bnf[]
+----
+
+=== Scalar functions
+
+[[scalar-native-functions]]
+==== Native functions
+
+===== Cast
+
+The `cast` function can be used to converts one native datatype to
+another.
+
+The following table describes the conversions supported by the `cast`
+function. Cassandra will silently ignore any cast converting a datatype
+into its own datatype.
+
+[cols=",",options="header",]
+|===
+|From |To
+
+| `ascii` | `text`, `varchar`
+
+| `bigint` | `tinyint`, `smallint`, `int`, `float`, `double`, `decimal`, `varint`,
+`text`, `varchar`
+
+| `boolean` | `text`, `varchar`
+
+| `counter` | `tinyint`, `smallint`, `int`, `bigint`, `float`, `double`, `decimal`,
+`varint`, `text`, `varchar`
+
+| `date` | `timestamp`
+
+| `decimal` | `tinyint`, `smallint`, `int`, `bigint`, `float`, `double`, `varint`,
+`text`, `varchar`
+
+| `double` | `tinyint`, `smallint`, `int`, `bigint`, `float`, `decimal`, `varint`,
+`text`, `varchar`
+
+| `float` | `tinyint`, `smallint`, `int`, `bigint`, `double`, `decimal`, `varint`,
+`text`, `varchar`
+
+| `inet` | `text`, `varchar`
+
+| `int` | `tinyint`, `smallint`, `bigint`, `float`, `double`, `decimal`, `varint`,
+`text`, `varchar`
+
+| `smallint` | `tinyint`, `int`, `bigint`, `float`, `double`, `decimal`, `varint`,
+`text`, `varchar`
+
+| `time` | `text`, `varchar`
+
+| `timestamp` | `date`, `text`, `varchar`
+
+| `timeuuid` | `timestamp`, `date`, `text`, `varchar`
+
+| `tinyint` | `tinyint`, `smallint`, `int`, `bigint`, `float`, `double`, `decimal`,
+`varint`, `text`, `varchar`
+
+| `uuid` | `text`, `varchar`
+
+| `varint` | `tinyint`, `smallint`, `int`, `bigint`, `float`, `double`, `decimal`,
+`text`, `varchar`
+|===
+
+The conversions rely strictly on Java's semantics. For example, the
+double value 1 will be converted to the text value '1.0'. For instance:
+
+[source,cql]
+----
+SELECT avg(cast(count as double)) FROM myTable
+----
+
+===== Token
+
+The `token` function computes the token for a given partition key. 
+The exact signature of the token function depends on the table concerned and the partitioner used by the cluster.
+
+The type of the arguments of the `token` depend on the partition key column type. The returned type depends on the defined partitioner:
+
+[cols=",",options="header",]
+|===
+|Partitioner | Returned type
+| Murmur3Partitioner | `bigint`
+| RandomPartitioner | `varint`
+| ByteOrderedPartitioner | `blob`
+|===
+
+For example, consider the following table:
+
+[source,cql]
+----
+include::example$CQL/create_table_simple.cql[]
+----
+
+The table uses the default Murmur3Partitioner.
+The `token` function uses the single argument `text`, because the partition key is `userid` of text type.
+The returned type will be `bigint`.
+
+===== Uuid
+
+The `uuid` function takes no parameters and generates a random type 4
+uuid suitable for use in `INSERT` or `UPDATE` statements.
+
+===== Timeuuid functions
+
+====== `now`
+
+The `now` function takes no arguments and generates, on the coordinator
+node, a new unique timeuuid at the time the function is invoked. Note
+that this method is useful for insertion but is largely non-sensical in
+`WHERE` clauses. 
+
+For example, a query of the form:
+
+[source,cql]
+----
+include::example$CQL/timeuuid_now.cql[]
+----
+
+will not return a result, by design, since the value returned by
+`now()` is guaranteed to be unique.
+
+`currentTimeUUID` is an alias of `now`.
+
+====== `minTimeuuid` and `maxTimeuuid`
+
+The `minTimeuuid` function takes a `timestamp` value `t`, either a timestamp or a date string.
+It returns a _fake_ `timeuuid` corresponding to the _smallest_ possible `timeuuid` for timestamp `t`. 
+The `maxTimeuuid` works similarly, but returns the _largest_ possible `timeuuid`.
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/timeuuid_min_max.cql[]
+----
+
+will select all rows where the `timeuuid` column `t` is later than `'2013-01-01 00:05+0000'` and earlier than `'2013-02-02 10:00+0000'`. 
+The clause `t >= maxTimeuuid('2013-01-01 00:05+0000')` would still _not_ select a `timeuuid` generated exactly at '2013-01-01 00:05+0000', and is essentially equivalent to `t > maxTimeuuid('2013-01-01 00:05+0000')`.
+
+[NOTE]
+.Note
+====
+The values generated by `minTimeuuid` and `maxTimeuuid` are called _fake_ UUID because they do no respect the time-based UUID generation process
+specified by the http://www.ietf.org/rfc/rfc4122.txt[IETF RFC 4122]. 
+In particular, the value returned by these two methods will not be unique.
+Thus, only use these methods for *querying*, not for *insertion*, to prevent possible data overwriting. 
+====
+
+===== Datetime functions
+
+====== Retrieving the current date/time
+
+The following functions can be used to retrieve the date/time at the
+time where the function is invoked:
+
+[cols=",",options="header",]
+|===
+|Function name |Output type
+
+| `currentTimestamp` | `timestamp`
+
+| `currentDate` | `date`
+
+| `currentTime` | `time`
+
+| `currentTimeUUID` | `timeUUID`
+|===
+
+For example the last two days of data can be retrieved using:
+
+[source,cql]
+----
+include::example$CQL/currentdate.cql[]
+----
+
+====== Time conversion functions
+
+A number of functions are provided to convert a `timeuuid`, a `timestamp` or a `date` into another `native` type.
+
+[cols=",,",options="header",]
+|===
+|Function name |Input type |Description
+
+| `toDate` | `timeuuid` | Converts the `timeuuid` argument into a `date` type
+
+| `toDate` | `timestamp` | Converts the `timestamp` argument into a `date` type
+
+| `toTimestamp` | `timeuuid` | Converts the `timeuuid` argument into a `timestamp` type
+
+| `toTimestamp` | `date` | Converts the `date` argument into a `timestamp` type
+
+| `toUnixTimestamp` | `timeuuid` | Converts the `timeuuid` argument into a `bigInt` raw value
+
+| `toUnixTimestamp` | `timestamp` | Converts the `timestamp` argument into a `bigInt` raw value
+
+| `toUnixTimestamp` | `date` | Converts the `date` argument into a `bigInt` raw value
+
+| `dateOf` | `timeuuid` | Similar to `toTimestamp(timeuuid)` (DEPRECATED)
+
+| `unixTimestampOf` | `timeuuid` | Similar to `toUnixTimestamp(timeuuid)` (DEPRECATED)
+|===
+
+===== Blob conversion functions
+
+A number of functions are provided to convert the native types into
+binary data, or a `blob`. 
+For every xref:cql/types.adoc#native-types[type] supported by CQL, the function `typeAsBlob` takes a argument of type `type` and returns it as a `blob`.
+Conversely, the function `blobAsType` takes a 64-bit `blob` argument and converts it to a `bigint` value. 
+For example, `bigintAsBlob(3)` returns `0x0000000000000003` and `blobAsBigint(0x0000000000000003)` returns `3`.
+
+[[user-defined-scalar-functions]]
+==== User-defined functions
+
+User-defined functions (UDFs) execute user-provided code in Cassandra. 
+By default, Cassandra supports defining functions in _Java_ and _JavaScript_. 
+Support for other JSR 223 compliant scripting languages, such as Python, Ruby, and Scala, is possible by adding a JAR to the classpath.
+
+UDFs are part of the Cassandra schema, and are automatically propagated to all nodes in the cluster.  
+UDFs can be _overloaded_, so that multiple UDFs with different argument types can have the same function name. 
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/function_overload.cql[]
+----
+
+UDFs are susceptible to all of the normal problems with the chosen programming language. 
+Accordingly, implementations should be safe against null pointer exceptions, illegal arguments, or any other potential source of exceptions. 
+An exception during function execution will result in the entire statement failing.
+Valid queries for UDF use are `SELECT`, `INSERT` and `UPDATE` statements.
+
+_Complex_ types like collections, tuple types and user-defined types are valid argument and return types in UDFs. 
+Tuple types and user-defined types use the DataStax Java Driver conversion functions.
+Please see the Java Driver documentation for details on handling tuple types and user-defined types.
+
+Arguments for functions can be literals or terms. 
+Prepared statement placeholders can be used, too.
+
+Note the use the double dollar-sign syntax to enclose the UDF source code. 
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/function_dollarsign.cql[]
+----
+
+The implicitly available `udfContext` field (or binding for script UDFs) provides the necessary functionality to create new UDT and tuple values:
+
+[source,cql]
+----
+include::example$CQL/function_udfcontext.cql[]
+----
+
+The definition of the `UDFContext` interface can be found in the Apache Cassandra source code for `org.apache.cassandra.cql3.functions.UDFContext`.
+
+[source,java]
+----
+include::example$JAVA/udfcontext.java[]
+----
+
+Java UDFs already have some imports for common interfaces and classes defined. These imports are:
+
+[source,java]
+----
+include::example$JAVA/udf_imports.java[]
+----
+
+Please note, that these convenience imports are not available for script UDFs.
+
+[[create-function-statement]]
+==== CREATE FUNCTION statement
+
+Creating a new user-defined function uses the `CREATE FUNCTION` statement:
+
+[source,bnf]
+----
+include::example$BNF/create_function_statement.bnf[]
+----
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/create_function.cql[]
+----
+
+`CREATE FUNCTION` with the optional `OR REPLACE` keywords creates either a function or replaces an existing one with the same signature. 
+A `CREATE FUNCTION` without `OR REPLACE` fails if a function with the same signature already exists.  
+If the optional `IF NOT EXISTS` keywords are used, the function will only be created only if another function with the same signature does not
+exist.
+`OR REPLACE` and `IF NOT EXISTS` cannot be used together.
+
+Behavior for `null` input values must be defined for each function:
+
+* `RETURNS NULL ON NULL INPUT` declares that the function will always return `null` if any of the input arguments is `null`.
+* `CALLED ON NULL INPUT` declares that the function will always be executed.
+
+===== Function Signature
+
+Signatures are used to distinguish individual functions. The signature consists of a fully-qualified function name of the <keyspace>.<function_name> and a concatenated list of all the argument types.
+
+Note that keyspace names, function names and argument types are subject to the default naming conventions and case-sensitivity rules.
+
+Functions belong to a keyspace; if no keyspace is specified, the current keyspace is used. 
+User-defined functions are not allowed in the system keyspaces.
+
+[[drop-function-statement]]
+==== DROP FUNCTION statement
+
+Dropping a function uses the `DROP FUNCTION` statement:
+
+[source, bnf]
+----
+include::example$BNF/drop_function_statement.bnf[]
+----
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/drop_function.cql[]
+----
+
+You must specify the argument types of the function, the arguments_signature, in the drop command if there are multiple overloaded functions with the same name but different signatures.  
+`DROP FUNCTION` with the optional `IF EXISTS` keywords drops a function if it exists, but does not throw an error if it doesn't.
+
+[[aggregate-functions]]
+=== Aggregate functions
+
+Aggregate functions work on a set of rows. 
+Values for each row are input, to return a single value for the set of rows aggregated.
+
+If `normal` columns, `scalar functions`, `UDT` fields, `writetime`, or `ttl` are selected together with aggregate functions, the values
+returned for them will be the ones of the first row matching the query.
+
+==== Native aggregates
+
+[[count-function]]
+===== Count
+
+The `count` function can be used to count the rows returned by a query.
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/count.cql[]
+----
+
+It also can count the non-null values of a given column:
+
+[source,cql]
+----
+include::example$CQL/count_nonnull.cql[]
+----
+
+===== Max and Min
+
+The `max` and `min` functions compute the maximum and the minimum value returned by a query for a given column. 
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/min_max.cql[]
+----
+
+===== Sum
+
+The `sum` function sums up all the values returned by a query for a given column. 
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/sum.cql[]
+----
+
+===== Avg
+
+The `avg` function computes the average of all the values returned by a query for a given column. 
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/avg.cql[]
+----
+
+[[user-defined-aggregates-functions]]
+==== User-Defined Aggregates (UDAs)
+
+User-defined aggregates allow the creation of custom aggregate functions. 
+User-defined aggregates can be used in `SELECT` statement.
+
+Each aggregate requires an _initial state_ of type `STYPE` defined with the `INITCOND`value (default value: `null`). 
+The first argument of the state function must have type `STYPE`. 
+The remaining arguments of the state function must match the types of the user-defined aggregate arguments. 
+The state function is called once for each row, and the value returned by the state function becomes the new state. 
+After all rows are processed, the optional `FINALFUNC` is executed with last state value as its argument.
+
+The `STYPE` value is mandatory in order to distinguish possibly overloaded versions of the state and/or final function, since the
+overload can appear after creation of the aggregate.
+
+
+A complete working example for user-defined aggregates (assuming that a
+keyspace has been selected using the `USE` statement):
+
+[source,cql]
+----
+include::example$CQL/uda.cql[]
+----
+
+[[create-aggregate-statement]]
+==== CREATE AGGREGATE statement
+
+Creating (or replacing) a user-defined aggregate function uses the
+`CREATE AGGREGATE` statement:
+
+[source, bnf]
+----
+include::example$BNF/create_aggregate_statement.bnf[]
+----
+
+See above for a complete example.
+
+The `CREATE AGGREGATE` command with the optional `OR REPLACE` keywords creates either an aggregate or replaces an existing one with the same
+signature. 
+A `CREATE AGGREGATE` without `OR REPLACE` fails if an aggregate with the same signature already exists.
+The `CREATE AGGREGATE` command with the optional `IF NOT EXISTS` keywords creates an aggregate if it does not already exist.
+The `OR REPLACE` and `IF NOT EXISTS` phrases cannot be used together.
+
+The `STYPE` value defines the type of the state value and must be specified.
+The optional `INITCOND` defines the initial state value for the aggregate; the default value is `null`. 
+A non-null `INITCOND` must be specified for state functions that are declared with `RETURNS NULL ON NULL INPUT`.
+
+The `SFUNC` value references an existing function to use as the state-modifying function. 
+The first argument of the state function must have type `STYPE`.
+The remaining arguments of the state function must match the types of the user-defined aggregate arguments.
+The state function is called once for each row, and the value returned by the state function becomes the new state.
+State is not updated for state functions declared with `RETURNS NULL ON NULL INPUT` and called with `null`.
+After all rows are processed, the optional `FINALFUNC` is executed with last state value as its argument.
+It must take only one argument with type `STYPE`, but the return type of the `FINALFUNC` may be a different type. 
+A final function declared with `RETURNS NULL ON NULL INPUT` means that the aggregate's return value will be `null`, if the last state is `null`.
+
+If no `FINALFUNC` is defined, the overall return type of the aggregate function is `STYPE`. 
+If a `FINALFUNC` is defined, it is the return type of that function.
+
+[[drop-aggregate-statement]]
+==== DROP AGGREGATE statement
+
+Dropping an user-defined aggregate function uses the `DROP AGGREGATE`
+statement:
+
+[source, bnf]
+----
+include::example$BNF/drop_aggregate_statement.bnf[]
+----
+
+For instance:
+
+[source,cql]
+----
+include::example$CQL/drop_aggregate.cql[]
+----
+
+The `DROP AGGREGATE` statement removes an aggregate created using `CREATE AGGREGATE`. 
+You must specify the argument types of the aggregate to drop if there are multiple overloaded aggregates with the same name but a
+different signature.
+
+The `DROP AGGREGATE` command with the optional `IF EXISTS` keywords drops an aggregate if it exists, and does nothing if a function with the
+signature does not exist.

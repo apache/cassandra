@@ -1,0 +1,1 @@
+drop_type_statement::= DROP TYPE [ IF EXISTS ] udt_name

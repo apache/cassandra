@@ -1,0 +1,2 @@
+create_keyspace_statement::= CREATE KEYSPACE [ IF NOT EXISTS ] keyspace_name 
+	WITH options

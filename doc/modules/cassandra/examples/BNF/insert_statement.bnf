@@ -1,0 +1,6 @@
+insert_statement::= INSERT INTO table_name ( names_values | json_clause ) 
+	[ IF NOT EXISTS ] 
+	[ USING update_parameter ( AND update_parameter )* ] 
+names_values::= names VALUES tuple_literal 
+json_clause::= JSON string [ DEFAULT ( NULL | UNSET ) ] 
+names::= '(' column_name ( ',' column_name )* ')'

@@ -1,0 +1,13 @@
+id | name                      | publisher
+----+---------------------------+------------------
+ 1 |        Couchbase Magazine |        Couchbase
+ 0 | Apache Cassandra Magazine | Apache Cassandra
+
+ (2 rows)
+
+id | name                      | publisher
+----+---------------------------+------------------
+ 1 |        Couchbase Magazine |        Couchbase
+ 0 | Apache Cassandra Magazine | Apache Cassandra
+
+ (2 rows)

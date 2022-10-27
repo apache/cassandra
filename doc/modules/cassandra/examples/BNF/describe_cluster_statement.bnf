@@ -1,0 +1,1 @@
+describe_cluster_statement::= DESCRIBE CLUSTER;

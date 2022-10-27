@@ -206,8 +206,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                               + " does not match current schema version "
                                               + Schema.instance.getVersion());
 
-                ArrayDeque<Future<Pair<K, V>>> futures = new ArrayDeque<Future<Pair<K, V>>>();
-                while (in.available() > 0)
+                ArrayDeque<Future<Pair<K, V>>> futures = new ArrayDeque<>();
+                long loadByNanos = start + TimeUnit.SECONDS.toNanos(DatabaseDescriptor.getCacheLoadTimeout());
+                while (System.nanoTime() < loadByNanos && in.available() > 0)
                 {
                     //ksname and cfname are serialized by the serializers in CacheService
                     //That is delegated there because there are serializer specific conditions
@@ -265,6 +266,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             finally
             {
                 FileUtils.closeQuietly(in);
+                cacheLoader.cleanupAfterDeserialize();
             }
         }
         if (logger.isTraceEnabled())
@@ -441,5 +443,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         void serialize(K key, DataOutputPlus out, ColumnFamilyStore cfs) throws IOException;
 
         Future<Pair<K, V>> deserialize(DataInputPlus in, ColumnFamilyStore cfs) throws IOException;
+
+        default void cleanupAfterDeserialize() { }
     }
 }

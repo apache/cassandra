@@ -28,6 +28,7 @@ import javax.management.NotificationFilter;
 import javax.management.NotificationListener;
 import javax.management.openmbean.CompositeData;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -63,19 +64,13 @@ public class StreamManager implements StreamManagerMBean
 
     public static class StreamRateLimiter
     {
-        private static final double BYTES_PER_MEGABIT = (1024 * 1024) / 8; // from bits
-        private static final RateLimiter limiter = RateLimiter.create(Double.MAX_VALUE);
-        private static final RateLimiter interDCLimiter = RateLimiter.create(Double.MAX_VALUE);
+        public static final double BYTES_PER_MEGABIT = (1000 * 1000) / 8.0;
+        private static final RateLimiter limiter = RateLimiter.create(calculateRateInBytes());
+        private static final RateLimiter interDCLimiter = RateLimiter.create(calculateInterDCRateInBytes());
         private final boolean isLocalDC;
 
         public StreamRateLimiter(InetAddress peer)
         {
-            double throughput = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT;
-            mayUpdateThroughput(throughput, limiter);
-
-            double interDCThroughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT;
-            mayUpdateThroughput(interDCThroughput, interDCLimiter);
-
             if (DatabaseDescriptor.getLocalDataCenter() != null && DatabaseDescriptor.getEndpointSnitch() != null)
                 isLocalDC = DatabaseDescriptor.getLocalDataCenter().equals(
                             DatabaseDescriptor.getEndpointSnitch().getDatacenter(peer));
@@ -83,20 +78,47 @@ public class StreamManager implements StreamManagerMBean
                 isLocalDC = true;
         }
 
-        private void mayUpdateThroughput(double limit, RateLimiter rateLimiter)
-        {
-            // if throughput is set to 0, throttling is disabled
-            if (limit == 0)
-                limit = Double.MAX_VALUE;
-            if (rateLimiter.getRate() != limit)
-                rateLimiter.setRate(limit);
-        }
-
         public void acquire(int toTransfer)
         {
             limiter.acquire(toTransfer);
             if (!isLocalDC)
                 interDCLimiter.acquire(toTransfer);
+        }
+
+        public static void updateThroughput()
+        {
+            limiter.setRate(calculateRateInBytes());
+        }
+
+        public static void updateInterDCThroughput()
+        {
+            interDCLimiter.setRate(calculateInterDCRateInBytes());
+        }
+
+        private static double calculateRateInBytes()
+        {
+            return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() > 0
+                   ? DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT
+                   : Double.MAX_VALUE; // if throughput is set to 0 or negative value, throttling is disabled
+        }
+
+        private static double calculateInterDCRateInBytes()
+        {
+            return DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec() > 0
+                   ? DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT
+                   : Double.MAX_VALUE; // if throughput is set to 0 or negative value, throttling is disabled
+        }
+
+        @VisibleForTesting
+        public static double getRateLimiterRateInBytes()
+        {
+            return limiter.getRate();
+        }
+
+        @VisibleForTesting
+        public static double getInterDCRateLimiterRateInBytes()
+        {
+            return interDCLimiter.getRate();
         }
     }
 

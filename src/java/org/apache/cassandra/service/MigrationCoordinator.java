@@ -481,6 +481,7 @@ public class MigrationCoordinator
                 {
                     try
                     {
+                        logger.debug("Pulled schema from endpoint {};", endpoint);
                         mergeSchemaFrom(endpoint, mutations);
                     }
                     catch (Exception e)

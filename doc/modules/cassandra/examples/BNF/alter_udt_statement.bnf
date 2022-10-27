@@ -1,0 +1,3 @@
+alter_type_statement::= ALTER TYPE udt_name alter_type_modification
+alter_type_modification::= ADD field_definition
+        | RENAME identifier TO identifier( identifier TO identifier )*

@@ -1,0 +1,539 @@
+= Data Types
+
+CQL is a typed language and supports a rich set of data types, including
+xref:cql/types.adoc#native-types[native types], xref:cql/types.adoc#collections[collection types],
+xref:cql/types.adoc#udts[user-defined types], xref:cql/types.adoc#tuples[tuple types], and xref:cql/types.adoc#custom-types[custom
+types]:
+
+[source, bnf]
+----
+include::example$BNF/cql_type.bnf[]
+----
+
+== Native types
+
+The native types supported by CQL are:
+
+[source, bnf]
+----
+include::example$BNF/native_type.bnf[]
+----
+
+The following table gives additional informations on the native data
+types, and on which kind of xref:cql/definitions.adoc#constants[constants] each type supports:
+
+[cols=",,",options="header",]
+|===
+| Type | Constants supported | Description
+
+| `ascii` | `string` | ASCII character string
+| `bigint` | `integer` | 64-bit signed long
+| `blob` | `blob` | Arbitrary bytes (no validation)
+| `boolean` | `boolean` | Either `true` or `false` 
+| `counter` | `integer` | Counter column (64-bit signed value). See `counters` for details.
+| `date` | `integer`, `string` | A date (with no corresponding time value). See `dates` below for details.
+| `decimal` | `integer`, `float` | Variable-precision decimal
+| `double` | `integer` `float` | 64-bit IEEE-754 floating point
+| `duration` | `duration`, | A duration with nanosecond precision. See `durations` below for details.
+| `float` | `integer`, `float` | 32-bit IEEE-754 floating point
+| `inet` | `string` | An IP address, either IPv4 (4 bytes long) or IPv6 (16 bytes long). Note
+that there is no `inet` constant, IP address should be input as strings.
+| `int` | `integer` | 32-bit signed int
+| `smallint` | `integer` | 16-bit signed int
+| `text` | `string` | UTF8 encoded string
+| `time` | `integer`, `string` | A time (with no corresponding date value) with nanosecond precision. See
+`times` below for details.
+| `timestamp` | `integer`, `string` | A timestamp (date and time) with millisecond precision. See `timestamps`
+below for details.
+| `timeuuid` | `uuid` | Version 1 https://en.wikipedia.org/wiki/Universally_unique_identifier[UUID],
+generally used as a “conflict-free” timestamp. Also see `timeuuid-functions`.
+| `tinyint` | `integer` | 8-bit signed int
+| `uuid` | `uuid` | A https://en.wikipedia.org/wiki/Universally_unique_identifier[UUID] (of any version)
+| `varchar` | `string` | UTF8 encoded string
+| `varint` | `integer` | Arbitrary-precision integer
+|===
+
+=== Counters
+
+The `counter` type is used to define _counter columns_. A counter column
+is a column whose value is a 64-bit signed integer and on which 2
+operations are supported: incrementing and decrementing (see the
+xref:cql/dml.adoc#update-statement[UPDATE] statement for syntax). 
+Note that the value of a counter cannot
+be set: a counter does not exist until first incremented/decremented,
+and that first increment/decrement is made as if the prior value was 0.
+
+[[counter-limitations]]
+Counters have a number of important limitations:
+
+* They cannot be used for columns part of the `PRIMARY KEY` of a table.
+* A table that contains a counter can only contain counters. In other
+words, either all the columns of a table outside the `PRIMARY KEY` have
+the `counter` type, or none of them have it.
+* Counters do not support xref:cql/dml.adoc#writetime-and-ttl-function[expiration].
+* The deletion of counters is supported, but is only guaranteed to work
+the first time you delete a counter. In other words, you should not
+re-update a counter that you have deleted (if you do, proper behavior is
+not guaranteed).
+* Counter updates are, by nature, not
+https://en.wikipedia.org/wiki/Idempotence[idemptotent]. An important
+consequence is that if a counter update fails unexpectedly (timeout or
+loss of connection to the coordinator node), the client has no way to
+know if the update has been applied or not. In particular, replaying the
+update may or may not lead to an over count.
+
+[[timestamps]]
+== Working with timestamps
+
+Values of the `timestamp` type are encoded as 64-bit signed integers
+representing a number of milliseconds since the standard base time known
+as https://en.wikipedia.org/wiki/Unix_time[the epoch]: January 1 1970 at
+00:00:00 GMT.
+
+Timestamps can be input in CQL either using their value as an `integer`,
+or using a `string` that represents an
+https://en.wikipedia.org/wiki/ISO_8601[ISO 8601] date. For instance, all
+of the values below are valid `timestamp` values for Mar 2, 2011, at
+04:05:00 AM, GMT:
+
+* `1299038700000`
+* `'2011-02-03 04:05+0000'`
+* `'2011-02-03 04:05:00+0000'`
+* `'2011-02-03 04:05:00.000+0000'`
+* `'2011-02-03T04:05+0000'`
+* `'2011-02-03T04:05:00+0000'`
+* `'2011-02-03T04:05:00.000+0000'`
+
+The `+0000` above is an RFC 822 4-digit time zone specification; `+0000`
+refers to GMT. US Pacific Standard Time is `-0800`. The time zone may be
+omitted if desired (`'2011-02-03 04:05:00'`), and if so, the date will
+be interpreted as being in the time zone under which the coordinating
+Cassandra node is configured. There are however difficulties inherent in
+relying on the time zone configuration being as expected, so it is
+recommended that the time zone always be specified for timestamps when
+feasible.
+
+The time of day may also be omitted (`'2011-02-03'` or
+`'2011-02-03+0000'`), in which case the time of day will default to
+00:00:00 in the specified or default time zone. However, if only the
+date part is relevant, consider using the xref:cql/types.adoc#dates[date] type.
+
+[[dates]]
+== Date type
+
+Values of the `date` type are encoded as 32-bit unsigned integers
+representing a number of days with “the epoch” at the center of the
+range (2^31). Epoch is January 1st, 1970
+
+For xref:cql/types.adoc#timestamps[timestamps], a date can be input either as an
+`integer` or using a date `string`. In the later case, the format should
+be `yyyy-mm-dd` (so `'2011-02-03'` for instance).
+
+[[times]]
+== Time type
+
+Values of the `time` type are encoded as 64-bit signed integers
+representing the number of nanoseconds since midnight.
+
+For xref:cql/types.adoc#timestamps[timestamps], a time can be input either as an
+`integer` or using a `string` representing the time. In the later case,
+the format should be `hh:mm:ss[.fffffffff]` (where the sub-second
+precision is optional and if provided, can be less than the nanosecond).
+So for instance, the following are valid inputs for a time:
+
+* `'08:12:54'`
+* `'08:12:54.123'`
+* `'08:12:54.123456'`
+* `'08:12:54.123456789'`
+
+[[durations]]
+== Duration type
+
+Values of the `duration` type are encoded as 3 signed integer of
+variable lengths. The first integer represents the number of months, the
+second the number of days and the third the number of nanoseconds. This
+is due to the fact that the number of days in a month can change, and a
+day can have 23 or 25 hours depending on the daylight saving.
+Internally, the number of months and days are decoded as 32 bits
+integers whereas the number of nanoseconds is decoded as a 64 bits
+integer.
+
+A duration can be input as:
+
+* `(quantity unit)+` like `12h30m` where the unit can be:
+** `y`: years (12 months)
+** `mo`: months (1 month)
+** `w`: weeks (7 days)
+** `d`: days (1 day)
+** `h`: hours (3,600,000,000,000 nanoseconds)
+** `m`: minutes (60,000,000,000 nanoseconds)
+** `s`: seconds (1,000,000,000 nanoseconds)
+** `ms`: milliseconds (1,000,000 nanoseconds)
+** `us` or `µs` : microseconds (1000 nanoseconds)
+** `ns`: nanoseconds (1 nanosecond)
+* ISO 8601 format: `P[n]Y[n]M[n]DT[n]H[n]M[n]S or P[n]W`
+* ISO 8601 alternative format: `P[YYYY]-[MM]-[DD]T[hh]:[mm]:[ss]`
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/insert_duration.cql[]
+----
+
+[[duration-limitation]]
+Duration columns cannot be used in a table's `PRIMARY KEY`. This
+limitation is due to the fact that durations cannot be ordered. It is
+effectively not possible to know if `1mo` is greater than `29d` without
+a date context.
+
+A `1d` duration is not equal to a `24h` one as the duration type has
+been created to be able to support daylight saving.
+
+== Collections
+
+CQL supports three kinds of collections: `maps`, `sets` and `lists`. The
+types of those collections is defined by:
+
+[source,bnf]
+----
+include::example$BNF/collection_type.bnf[]
+----
+
+and their values can be inputd using collection literals:
+
+[source,bnf]
+----
+include::example$BNF/collection_literal.bnf[]
+----
+
+Note however that neither `bind_marker` nor `NULL` are supported inside
+collection literals.
+
+=== Noteworthy characteristics
+
+Collections are meant for storing/denormalizing relatively small amount
+of data. They work well for things like “the phone numbers of a given
+user”, “labels applied to an email”, etc. But when items are expected to
+grow unbounded (“all messages sent by a user”, “events registered by a
+sensor”...), then collections are not appropriate and a specific table
+(with clustering columns) should be used. Concretely, (non-frozen)
+collections have the following noteworthy characteristics and
+limitations:
+
+* Individual collections are not indexed internally. Which means that
+even to access a single element of a collection, the while collection
+has to be read (and reading one is not paged internally).
+* While insertion operations on sets and maps never incur a
+read-before-write internally, some operations on lists do. Further, some
+lists operations are not idempotent by nature (see the section on
+xref:cql/types.adoc#lists[lists] below for details), making their retry in case of
+timeout problematic. It is thus advised to prefer sets over lists when
+possible.
+
+Please note that while some of those limitations may or may not be
+removed/improved upon in the future, it is a anti-pattern to use a
+(single) collection to store large amounts of data.
+
+=== Maps
+
+A `map` is a (sorted) set of key-value pairs, where keys are unique and
+the map is sorted by its keys. You can define and insert a map with:
+
+[source,cql]
+----
+include::example$CQL/map.cql[]
+----
+
+Further, maps support:
+
+* Updating or inserting one or more elements:
++
+[source,cql]
+----
+include::example$CQL/update_map.cql[]
+----
+* Removing one or more element (if an element doesn't exist, removing it
+is a no-op but no error is thrown):
++
+[source,cql]
+----
+include::example$CQL/delete_map.cql[]
+----
++
+Note that for removing multiple elements in a `map`, you remove from it
+a `set` of keys.
+
+Lastly, TTLs are allowed for both `INSERT` and `UPDATE`, but in both
+case the TTL set only apply to the newly inserted/updated elements. In
+other words:
+
+[source,cql]
+----
+include::example$CQL/update_ttl_map.cql[]
+----
+
+will only apply the TTL to the `{ 'color' : 'green' }` record, the rest
+of the map remaining unaffected.
+
+=== Sets
+
+A `set` is a (sorted) collection of unique values. You can define and
+insert a map with:
+
+[source,cql]
+----
+include::example$CQL/set.cql[]
+----
+
+Further, sets support:
+
+* Adding one or multiple elements (as this is a set, inserting an
+already existing element is a no-op):
++
+[source,cql]
+----
+include::example$CQL/update_set.cql[]
+----
+* Removing one or multiple elements (if an element doesn't exist,
+removing it is a no-op but no error is thrown):
++
+[source,cql]
+----
+include::example$CQL/delete_set.cql[]
+----
+
+Lastly, for xref:cql/types.adoc#sets[sets], TTLs are only applied to newly inserted values.
+
+=== Lists
+
+[NOTE]
+.Note
+====
+As mentioned above and further discussed at the end of this section,
+lists have limitations and specific performance considerations that you
+should take into account before using them. In general, if you can use a
+xref:cql/types.adoc#sets[set] instead of list, always prefer a set.
+====
+
+A `list` is a (sorted) collection of non-unique values where
+elements are ordered by there position in the list. You can define and
+insert a list with:
+
+[source,cql]
+----
+include::example$CQL/list.cql[]
+----
+
+Further, lists support:
+
+* Appending and prepending values to a list:
++
+[source,cql]
+----
+include::example$CQL/update_list.cql[]
+----
+
+[WARNING]
+.Warning
+====
+The append and prepend operations are not idempotent by nature. So in
+particular, if one of these operation timeout, then retrying the
+operation is not safe and it may (or may not) lead to
+appending/prepending the value twice.
+====
+
+* Setting the value at a particular position in a list that has a pre-existing element for that position. An error
+will be thrown if the list does not have the position.:
++
+[source,cql]
+----
+include::example$CQL/update_particular_list_element.cql[]
+----
+* Removing an element by its position in the list that has a pre-existing element for that position. An error
+will be thrown if the list does not have the position. Further, as the operation removes an
+element from the list, the list size will decrease by one element, shifting
+the position of all the following elements one forward:
++
+[source,cql]
+----
+include::example$CQL/delete_element_list.cql[]
+----
+
+* Deleting _all_ the occurrences of particular values in the list (if a
+particular element doesn't occur at all in the list, it is simply
+ignored and no error is thrown):
++
+[source,cql]
+----
+include::example$CQL/delete_all_elements_list.cql[]
+----
+
+[WARNING]
+.Warning
+====
+Setting and removing an element by position and removing occurences of
+particular values incur an internal _read-before-write_. These operations will
+run slowly and use more resources than usual updates (with the
+exclusion of conditional write that have their own cost).
+====
+
+Lastly, for xref:cql/types.adoc#lists[lists], TTLs only apply to newly inserted values.
+
+[[udts]]
+== User-Defined Types (UDTs)
+
+CQL support the definition of user-defined types (UDTs). Such a
+type can be created, modified and removed using the
+`create_type_statement`, `alter_type_statement` and
+`drop_type_statement` described below. But once created, a UDT is simply
+referred to by its name:
+
+[source, bnf]
+----
+include::example$BNF/udt.bnf[]
+----
+
+=== Creating a UDT
+
+Creating a new user-defined type is done using a `CREATE TYPE` statement
+defined by:
+
+[source, bnf]
+----
+include::example$BNF/create_type.bnf[]
+----
+
+A UDT has a name (used to declared columns of that type) and is a set of
+named and typed fields. Fields name can be any type, including
+collections or other UDT. For instance:
+
+[source,cql]
+----
+include::example$CQL/udt.cql[]
+----
+
+Things to keep in mind about UDTs:
+
+* Attempting to create an already existing type will result in an error
+unless the `IF NOT EXISTS` option is used. If it is used, the statement
+will be a no-op if the type already exists.
+* A type is intrinsically bound to the keyspace in which it is created,
+and can only be used in that keyspace. At creation, if the type name is
+prefixed by a keyspace name, it is created in that keyspace. Otherwise,
+it is created in the current keyspace.
+* As of Cassandra , UDT have to be frozen in most cases, hence the
+`frozen<address>` in the table definition above. Please see the section
+on xref:cql/types.adoc#frozen[frozen] for more details.
+
+=== UDT literals
+
+Once a used-defined type has been created, value can be input using a
+UDT literal:
+
+[source,bnf]
+----
+include::example$BNF/udt_literal.bnf[]
+----
+
+In other words, a UDT literal is like a xref:cql/types.adoc#maps[map]` literal but its
+keys are the names of the fields of the type. For instance, one could
+insert into the table define in the previous section using:
+
+[source,cql]
+----
+include::example$CQL/insert_udt.cql[]
+----
+
+To be valid, a UDT literal can only include fields defined by the
+type it is a literal of, but it can omit some fields (these will be set to `NULL`).
+
+=== Altering a UDT
+
+An existing user-defined type can be modified using an `ALTER TYPE`
+statement:
+
+[source,bnf]
+----
+include::example$BNF/alter_udt_statement.bnf[]
+----
+
+You can:
+
+* Add a new field to the type (`ALTER TYPE address ADD country text`).
+That new field will be `NULL` for any values of the type created before
+the addition.
+* Rename the fields of the type.
+
+[source,cql]
+----
+include::example$CQL/rename_udt_field.cql[]
+----
+
+=== Dropping a UDT
+
+You can drop an existing user-defined type using a `DROP TYPE`
+statement:
+
+[source,bnf]
+----
+include::example$BNF/drop_udt_statement.bnf[]
+----
+
+Dropping a type results in the immediate, irreversible removal of that
+type. However, attempting to drop a type that is still in use by another
+type, table or function will result in an error.
+
+If the type dropped does not exist, an error will be returned unless
+`IF EXISTS` is used, in which case the operation is a no-op.
+
+== Tuples
+
+CQL also support tuples and tuple types (where the elements can be of
+different types). Functionally, tuples can be though as anonymous UDT
+with anonymous fields. Tuple types and tuple literals are defined by:
+
+[source,bnf]
+----
+include::example$BNF/tuple.bnf[]
+----
+
+and can be created:
+
+[source,cql]
+----
+include::example$CQL/tuple.cql[]
+----
+
+Unlike other composed types, like collections and UDTs, a tuple is always
+`frozen <frozen>` (without the need of the `frozen` keyword)
+and it is not possible to update only some elements of a tuple (without
+updating the whole tuple). Also, a tuple literal should always have the
+same number of value than declared in the type it is a tuple of (some of
+those values can be null but they need to be explicitly declared as so).
+
+== Custom Types
+
+[NOTE]
+.Note
+====
+Custom types exists mostly for backward compatibility purposes and their
+usage is discouraged. Their usage is complex, not user friendly and the
+other provided types, particularly xref:cql/types.adoc#udts[user-defined types], should
+almost always be enough.
+====
+
+A custom type is defined by:
+
+[source,bnf]
+----
+include::example$BNF/custom_type.bnf[]
+----
+
+A custom type is a `string` that contains the name of Java class that
+extends the server side `AbstractType` class and that can be loaded by
+Cassandra (it should thus be in the `CLASSPATH` of every node running
+Cassandra). That class will define what values are valid for the type
+and how the time sorts when used for a clustering column. For any other
+purpose, a value of a custom type is the same than that of a `blob`, and
+can in particular be input using the `blob` literal syntax.

@@ -19,6 +19,14 @@
 version: 2.1
 
 default_env_vars: &default_env_vars
+
+    # The values of some of these environment variables are meant to be frequently changed by developers.
+    # The generate.sh script contains a list of accepted environment variables that should contain some of
+    # these variables. Also, some variables are mentioned in the documentation, at least in
+    # .circleci/readme.md and in doc/source/development/testing.rst.
+    # If you modify these variables, or if you add new variables whose values are meant to be changed frequently,
+    # please remember to modify the generate.sh script and the documentation accordingly.
+
     JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     ANT_HOME: /usr/share/ant
     LANG: en_US.UTF-8
@@ -30,64 +38,90 @@ default_env_vars: &default_env_vars
     CASS_DRIVER_NO_CYTHON: true
     #Skip all syncing to disk to avoid performance issues in flaky CI environments
     CASSANDRA_SKIP_SYNC: true
-    DTEST_REPO: git://github.com/apache/cassandra-dtest.git
+    DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     DTEST_BRANCH: trunk
     CCM_MAX_HEAP_SIZE: 1024M
     CCM_HEAP_NEWSIZE: 256M
 
+    # Whether the repeated test iterations should stop on the first failure by default.
+    REPEATED_TESTS_STOP_ON_FAILURE: false
+
+    # Comma-separated list of tests that should be included in the repeated run for regular unit tests,
+    # in addition to automatically detected new and modified tests. For example:
+    # REPEATED_UTESTS: org.apache.cassandra.cql3.ViewTest
+    # REPEATED_UTESTS: org.apache.cassandra.cql3.ViewTest#testCountersTable
+    # REPEATED_UTESTS: org.apache.cassandra.cql3.ViewTest,org.apache.cassandra.cql3.functions.TimeFctsTest
+    REPEATED_UTESTS:
+    # The number of times that new, modified or manually specified unit tests should be run.
+    REPEATED_UTESTS_COUNT: 500
+
+    # Comma-separated list of tests that should be included in the repeated run for long unit tests,
+    # in addition to automatically detected new and modified tests. For example:
+    # REPEATED_UTESTS_LONG: org.apache.cassandra.db.commitlog.CommitLogStressTest
+    # REPEATED_UTESTS_LONG: org.apache.cassandra.db.commitlog.CommitLogStressTest#testRandomSize
+    REPEATED_UTESTS_LONG:
+    # The number of times that new, modified or manually specified long unit tests should be run.
+    REPEATED_UTESTS_LONG_COUNT: 100
+
+    # Comma-separated list of tests that should be included in the repeated run for stress unit tests,
+    # in addition to automatically detected new and modified tests. For example:
+    # REPEATED_UTESTS_STRESS: org.apache.cassandra.stress.generate.DistributionGaussianTest
+    # REPEATED_UTESTS_STRESS: org.apache.cassandra.stress.generate.DistributionGaussianTest#simpleGaussian
+    REPEATED_UTESTS_STRESS:
+    # The number of times that new, modified or manually specified stress unit tests should be run.
+    REPEATED_UTESTS_STRESS_COUNT: 500
+
+    # Comma-separated list of tests that should be included in the repeated run for JVM dtests,
+    # in addition to automatically detected new and modified tests. For example:
+    # REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.PagingTest
+    # REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.PagingTest#testPaging
+    REPEATED_JVM_DTESTS:
+    # The number of times that new, modified or manually specified JVM dtests should be run.
+    REPEATED_JVM_DTESTS_COUNT: 500
+
+    # Comma-separated list of tests that should be included in the repeated run for JVM upgrade dtests,
+    # in addition to automatically detected new and modified tests. For example:
+    # REPEATED_JVM_UPGRADE_DTESTS: org.apache.cassandra.distributed.upgrade.GroupByTest
+    # REPEATED_JVM_UPGRADE_DTESTS: org.apache.cassandra.distributed.upgrade.GroupByTest#testReads
+    REPEATED_JVM_UPGRADE_DTESTS:
+    # The number of times that new, modified or manually specified JVM upgrade dtests should be run.
+    REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
+
+    # Comma-separated list of Python dtests that should be repeatedly run, for example:
+    # REPEATED_DTESTS: cqlsh_tests/test_cqlsh.py
+    # REPEATED_DTESTS: cqlsh_tests/test_cqlsh.py::TestCqlshSmoke
+    # REPEATED_DTESTS: cqlsh_tests/test_cqlsh.py::TestCqlshSmoke::test_create_index
+    # REPEATED_DTESTS: cqlsh_tests/test_cqlsh.py,consistency_test.py
+    REPEATED_DTESTS:
+    # The number of times that the manually specified Python dtests should be run.
+    REPEATED_DTESTS_COUNT: 500
+
+    # Comma-separated list of Python dtests that should be repeatedly run, for example:
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py::TestCQLNodes2RF1_Upgrade_current_4_0_x_To_indev_4_0_x
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py,upgrade_tests/paging_test.py
+    REPEATED_UPGRADE_DTESTS:
+    # The number of times that the manually specified Python upgrade dtests should be run.
+    REPEATED_UPGRADE_DTESTS_COUNT: 25
+
     # The Ant test target to run, for example:
-    # REPEATED_UTEST_TARGET: testsome
-    # REPEATED_UTEST_TARGET: test-jvm-dtest-some
-    # REPEATED_UTEST_TARGET: test-cdc
-    # REPEATED_UTEST_TARGET: test-compression
-    # REPEATED_UTEST_TARGET: test-system-keyspace-directory
-    REPEATED_UTEST_TARGET: testsome
+    # REPEATED_ANT_TEST_TARGET: testsome
+    # REPEATED_ANT_TEST_TARGET: test-jvm-dtest-some
+    # REPEATED_ANT_TEST_TARGET: test-cdc
+    # REPEATED_ANT_TEST_TARGET: test-compression
+    # REPEATED_ANT_TEST_TARGET: test-system-keyspace-directory
+    REPEATED_ANT_TEST_TARGET: testsome
     # The name of JUnit class to be run multiple times, for example:
-    # REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.ViewTest
-    # REPEATED_UTEST_CLASS: org.apache.cassandra.distributed.test.PagingTest
-    REPEATED_UTEST_CLASS:
-    # The optional specific methods within REPEATED_UTEST_CLASS to be run, for example:
-    # REPEATED_UTEST_METHODS: testCompoundPartitionKey
-    # REPEATED_UTEST_METHODS: testCompoundPartitionKey,testStaticTable
+    # REPEATED_ANT_TEST_CLASS: org.apache.cassandra.cql3.ViewTest
+    # REPEATED_ANT_TEST_CLASS: org.apache.cassandra.distributed.test.PagingTest
+    REPEATED_ANT_TEST_CLASS:
+    # The optional specific methods within REPEATED_ANT_TEST_CLASS to be run, for example:
+    # REPEATED_ANT_TEST_METHODS: testCompoundPartitionKey
+    # REPEATED_ANT_TEST_METHODS: testCompoundPartitionKey,testStaticTable
     # Please note that some Ant targets will ignore the -Dtest.methods argument produced by this.
-    REPEATED_UTEST_METHODS:
-    # The number of times that the repeated JUnit test should be run
-    REPEATED_UTEST_COUNT: 100
-    # Whether the test iteration should stop on the first failure
-    REPEATED_UTEST_STOP_ON_FAILURE: false
-
-    # A Python dtest to be run multiple times, for example:
-    # REPEATED_DTEST_NAME: cqlsh_tests/test_cqlsh.py
-    # REPEATED_DTEST_NAME: cqlsh_tests/test_cqlsh.py::TestCqlshSmoke
-    # REPEATED_DTEST_NAME: cqlsh_tests/test_cqlsh.py::TestCqlshSmoke::test_create_index
-    REPEATED_DTEST_NAME:
-    # Whether the repeated Python dtest should use vnodes
-    REPEATED_DTEST_VNODES: false
-    # The number of times that the repeated Python dtest should be run
-    REPEATED_DTEST_COUNT: 100
-    # Whether the test iteration should stop on the first failure
-    REPEATED_DTEST_STOP_ON_FAILURE: false
-
-    # A Python upgrade dtest to be run multiple times, for example:
-    # REPEATED_UPGRADE_DTEST_NAME: upgrade_tests/cql_tests.py
-    # REPEATED_UPGRADE_DTEST_NAME: upgrade_tests/cql_tests.py::TestCQLNodes2RF1_Upgrade_current_4_0_x_To_indev_4_0_x
-    REPEATED_UPGRADE_DTEST_NAME:
-    # The number of times that the repeated Python upgrade dtest should be run
-    REPEATED_UPGRADE_DTEST_COUNT: 100
-    # Whether the test iteration should stop on the first failure
-    REPEATED_UPGRADE_DTEST_STOP_ON_FAILURE: false
-
-    # The name of JVM upgrade dtest class to be run multiple times, for example:
-    # REPEATED_JVM_UPGRADE_DTEST_CLASS: org.apache.cassandra.distributed.upgrade.MixedModeAvailabilityV30Test
-    REPEATED_JVM_UPGRADE_DTEST_CLASS:
-    # The optional specific methods within REPEATED_JVM_UPGRADE_DTEST_CLASS to be run, for example:
-    # REPEATED_JVM_UPGRADE_DTEST_METHODS: testAvailabilityV30ToV3X
-    # REPEATED_JVM_UPGRADE_DTEST_METHODS: testAvailabilityV30ToV3X,testAvailabilityV30ToV4
-    REPEATED_JVM_UPGRADE_DTEST_METHODS:
-    # The number of times that the repeated JVM upgrade dtest should be run
-    REPEATED_JVM_UPGRADE_DTEST_COUNT: 100
-    # Whether the JVM upgrade dtest iteration should stop on the first failure
-    REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
+    REPEATED_ANT_TEST_METHODS:
+    # The number of times that the repeated JUnit test should be run.
+    REPEATED_ANT_TEST_COUNT: 500
 
 j8_par_executor: &j8_par_executor
   executor:
@@ -113,112 +147,255 @@ j8_seq_executor: &j8_seq_executor
     #exec_resource_class: xlarge
   parallelism: 1 # sequential, single container tests: no parallelism benefits
 
-with_dtests_jobs: &with_dtest_jobs
-        jobs:
-            - build
-            # Java 8 unit tests will be run automatically
-            - j8_unit_tests:
-                requires:
-                  - build
-            - j8_jvm_dtests:
-                requires:
-                  - build
-            # specialized unit tests (all run on request using Java 8)
-            - start_utests_long:
-                type: approval
-                requires:
-                  - build
-            - utests_long:
-                requires:
-                  - start_utests_long
-            - start_utests_compression:
-                type: approval
-                requires:
-                  - build
-            - utests_compression:
-                requires:
-                  - start_utests_compression
-            - start_utests_stress:
-                type: approval
-                requires:
-                  - build
-            - utests_stress:
-                requires:
-                  - start_utests_stress
-            - start_j8_dtest_jars_build:
-                type: approval
-            - j8_dtest_jars_build:
-                requires:
-                  - build
-                  - start_j8_dtest_jars_build
-            - start_jvm_upgrade_dtest:
-                type: approval
-            - j8_jvm_upgrade_dtests:
-                requires:
-                  - start_jvm_upgrade_dtest
-                  - j8_dtest_jars_build
-            # Java 8 dtests (on request)
-            - start_j8_dtests:
-                type: approval
-                requires:
-                  - build
-            - j8_dtests-with-vnodes:
-                requires:
-                  - start_j8_dtests
-            - j8_dtests-no-vnodes:
-                requires:
-                  - start_j8_dtests
-            # Java 8 upgrade tests
-            - start_upgrade_tests:
-                type: approval
-                requires:
-                  - build
-            - j8_upgradetests-no-vnodes:
-                requires:
-                  - start_upgrade_tests
-            # Java 8 repeated utest (on request)
-            - start_j8_repeated_utest:
-                type: approval
-            - j8_repeated_utest:
-                requires:
-                  - start_j8_repeated_utest
-                  - build
-            # Java 8 repeated dtest (on request)
-            - start_j8_repeated_dtest:
-                type: approval
-            - j8_repeated_dtest:
-                requires:
-                  - start_j8_repeated_dtest
-                  - build
-            # Repeated Python upgrade dtest (on request)
-            - start_repeated_upgrade_dtest:
-                type: approval
-            - repeated_upgrade_dtest:
-                requires:
-                  - start_repeated_upgrade_dtest
-                  - build
-            # Repeated JVM upgrade dtest (on request)
-            - start_repeated_jvm_upgrade_dtest:
-                type: approval
-            - repeated_jvm_upgrade_dtest:
-                requires:
-                  - start_repeated_jvm_upgrade_dtest
-                  - j8_dtest_jars_build
+j8_repeated_utest_executor: &j8_repeated_utest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
 
-with_dtest_jobs_only: &with_dtest_jobs_only
-        jobs:
-            - build
-            - j8_dtests-with-vnodes:
-                  requires:
-                      - build
-            - j8_dtests-no-vnodes:
-                  requires:
-                      - build
+j8_repeated_dtest_executor: &j8_repeated_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+j8_repeated_jvm_upgrade_dtest_executor: &j8_repeated_jvm_upgrade_dtest_executor
+  executor:
+    name: java8-executor
+  parallelism: 4
+
+separate_jobs: &separate_jobs
+  jobs:
+    - start_build:
+        type: approval
+    - build:
+        requires:
+          - start_build
+    # Java 8 unit tests
+    - start_j8_unit_tests:
+        type: approval
+    - j8_unit_tests:
+        requires:
+          - start_j8_unit_tests
+          - build
+    - start_j8_unit_tests_repeat:
+        type: approval
+    - j8_unit_tests_repeat:
+        requires:
+          - start_j8_unit_tests_repeat
+          - build
+    - start_j8_jvm_dtests:
+        type: approval
+    - j8_jvm_dtests:
+        requires:
+          - start_j8_jvm_dtests
+          - build
+    - start_j8_jvm_dtests_repeat:
+        type: approval
+    - j8_jvm_dtests_repeat:
+        requires:
+          - start_j8_jvm_dtests_repeat
+          - build
+    # specialized unit tests (all run using Java 8)
+    - start_utests_long:
+        type: approval
+    - utests_long:
+        requires:
+          - start_utests_long
+          - build
+    - start_utests_long_repeat:
+        type: approval
+    - utests_long_repeat:
+        requires:
+          - start_utests_long_repeat
+          - build
+    - start_utests_compression:
+        type: approval
+    - utests_compression:
+        requires:
+          - start_utests_compression
+          - build
+    - start_utests_compression_repeat:
+        type: approval
+    - utests_compression_repeat:
+        requires:
+          - start_utests_compression_repeat
+          - build
+    - start_utests_stress:
+        type: approval
+    - utests_stress:
+        requires:
+          - start_utests_stress
+          - build
+    - start_utests_stress_repeat:
+        type: approval
+    - utests_stress_repeat:
+        requires:
+          - start_utests_stress_repeat
+          - build
+    - start_j8_dtest_jars_build:
+        type: approval
+    - j8_dtest_jars_build:
+        requires:
+          - build
+          - start_j8_dtest_jars_build
+    - start_jvm_upgrade_dtests:
+        type: approval
+    - j8_jvm_upgrade_dtests:
+        requires:
+          - start_jvm_upgrade_dtests
+          - j8_dtest_jars_build
+    - start_jvm_upgrade_dtests_repeat:
+        type: approval
+    - j8_jvm_upgrade_dtests_repeat:
+        requires:
+          - start_jvm_upgrade_dtests_repeat
+          - j8_dtest_jars_build
+    # Java 8 dtests
+    - start_j8_dtests:
+        type: approval
+    - j8_dtests:
+        requires:
+          - start_j8_dtests
+          - build
+    - start_j8_dtests_repeat:
+        type: approval
+    - j8_dtests_repeat:
+        requires:
+          - start_j8_dtests_repeat
+          - build
+    - start_j8_dtests_vnode:
+        type: approval
+    - j8_dtests_vnode:
+        requires:
+          - start_j8_dtests_vnode
+          - build
+    - start_j8_dtests_vnode_repeat:
+        type: approval
+    - j8_dtests_vnode_repeat:
+        requires:
+          - start_j8_dtests_vnode_repeat
+          - build
+    # Java 8 upgrade tests
+    - start_upgrade_dtests:
+        type: approval
+    - j8_upgrade_dtests:
+        requires:
+          - start_upgrade_dtests
+          - build
+    - start_j8_upgrade_dtests_repeat:
+        type: approval
+    - j8_upgrade_dtests_repeat:
+        requires:
+          - start_j8_upgrade_dtests_repeat
+          - build
+    # Java 8 repeated utest
+    - start_j8_repeated_ant_test:
+        type: approval
+    - j8_repeated_ant_test:
+        requires:
+          - start_j8_repeated_ant_test
+          - build
+
+pre-commit_jobs: &pre-commit_jobs
+  jobs:
+    - start_pre-commit_tests:
+        type: approval
+    - build:
+        requires:
+          - start_pre-commit_tests
+    # Java 8 unit tests
+    - j8_unit_tests:
+        requires:
+          - build
+    - j8_unit_tests_repeat:
+        requires:
+          - build
+    - j8_jvm_dtests:
+        requires:
+          - build
+    - j8_jvm_dtests_repeat:
+        requires:
+          - build
+    # specialized unit tests (all run on request using Java 8)
+    - start_utests_long:
+        type: approval
+    - utests_long:
+        requires:
+          - start_utests_long
+          - build
+    - utests_long_repeat:
+        requires:
+          - start_utests_long
+          - build
+    - start_utests_compression:
+        type: approval
+    - utests_compression:
+        requires:
+          - start_utests_compression
+          - build
+    - utests_compression_repeat:
+        requires:
+          - start_utests_compression
+          - build
+    - start_utests_stress:
+        type: approval
+    - utests_stress:
+        requires:
+          - start_utests_stress
+          - build
+    - utests_stress_repeat:
+        requires:
+          - start_utests_stress
+          - build
+    - start_jvm_upgrade_dtests:
+        type: approval
+    - j8_dtest_jars_build:
+        requires:
+          - build
+          - start_jvm_upgrade_dtests
+    - j8_jvm_upgrade_dtests:
+        requires:
+          - j8_dtest_jars_build
+    - j8_jvm_upgrade_dtests_repeat:
+        requires:
+          - j8_dtest_jars_build
+    # Java 8 dtests
+    - j8_dtests:
+        requires:
+          - build
+    - j8_dtests_repeat:
+        requires:
+          - build
+    - j8_dtests_vnode:
+        requires:
+          - build
+    - j8_dtests_vnode_repeat:
+        requires:
+          - build
+    # Java 8 upgrade tests (on request)
+    - start_upgrade_tests:
+        type: approval
+    - j8_upgrade_dtests:
+        requires:
+          - start_upgrade_tests
+          - build
+    - j8_upgrade_dtests_repeat:
+        requires:
+          - start_upgrade_tests
+          - build
+    # Java 8 repeated utest
+    - j8_repeated_ant_test:
+        requires:
+          - build
 
 workflows:
     version: 2
-    build_and_run_tests: *with_dtest_jobs
-    #build_and_run_tests: *with_dtest_jobs_only
+    separate_tests: *separate_jobs
+    pre-commit_tests: *pre-commit_jobs
 
 executors:
   java8-executor:
@@ -227,7 +404,7 @@ executors:
         type: string
         default: medium
     docker:
-      - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+      - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
     resource_class: << parameters.exec_resource_class >>
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -322,7 +499,7 @@ jobs:
       - run_junit_tests:
           target: stress-test
 
-  j8_dtests-with-vnodes:
+  j8_dtests_vnode:
     <<: *j8_par_executor
     steps:
       - attach_workspace:
@@ -336,7 +513,7 @@ jobs:
           file_tag: j8_with_vnodes
           pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
 
-  j8_dtests-no-vnodes:
+  j8_dtests:
     <<: *j8_par_executor
     steps:
       - attach_workspace:
@@ -350,7 +527,7 @@ jobs:
           file_tag: j8_without_vnodes
           pytest_extra_args: '--skip-resource-intensive-tests'
 
-  j8_upgradetests-no-vnodes:
+  j8_upgrade_dtests:
     <<: *j8_par_executor
     steps:
       - attach_workspace:
@@ -367,59 +544,116 @@ jobs:
           extra_env_args: 'RUN_STATIC_UPGRADE_MATRIX=true'
           pytest_extra_args: '--execute-upgrade-tests'
 
-  j8_repeated_utest:
-    <<: *j8_par_executor
+  j8_unit_tests_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_unit_tests_repeat
+
+  utests_compression_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_compression_repeat
+
+  utests_system_keyspace_directory_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_system_keyspace_directory_repeat
+
+  utests_long_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_long_repeat
+
+  utests_stress_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_stress_repeat
+
+  j8_jvm_dtests_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_jvm_dtests_repeat
+
+  j8_jvm_upgrade_dtests_repeat:
+    <<: *j8_repeated_jvm_upgrade_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_jvm_upgrade_dtests_repeat
+
+  j8_repeated_ant_test:
+    <<: *j8_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
       - log_environment
       - run_repeated_utest:
-          target: ${REPEATED_UTEST_TARGET}
-          class: ${REPEATED_UTEST_CLASS}
-          methods: ${REPEATED_UTEST_METHODS}
-          count: ${REPEATED_UTEST_COUNT}
-          stop_on_failure: ${REPEATED_UTEST_STOP_ON_FAILURE}
+          target: ${REPEATED_ANT_TEST_TARGET}
+          class: ${REPEATED_ANT_TEST_CLASS}
+          methods: ${REPEATED_ANT_TEST_METHODS}
+          count: ${REPEATED_ANT_TEST_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
-  j8_repeated_dtest:
-    <<: *j8_par_executor
+  j8_dtests_repeat:
+    <<: *j8_repeated_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
       - clone_dtest
       - create_venv
       - run_repeated_dtest:
-          tests: ${REPEATED_DTEST_NAME}
-          vnodes: ${REPEATED_DTEST_VNODES}
+          tests: ${REPEATED_DTESTS}
+          vnodes: "false"
           upgrade: "false"
-          count: ${REPEATED_DTEST_COUNT}
-          stop_on_failure: ${REPEATED_DTEST_STOP_ON_FAILURE}
+          count: ${REPEATED_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
-  repeated_jvm_upgrade_dtest:
-    <<: *j8_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run_repeated_utest:
-          target: test-jvm-dtest-some
-          class: ${REPEATED_JVM_UPGRADE_DTEST_CLASS}
-          methods: ${REPEATED_JVM_UPGRADE_DTEST_METHODS}
-          count: ${REPEATED_JVM_UPGRADE_DTEST_COUNT}
-          stop_on_failure: ${REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE}
-
-  repeated_upgrade_dtest:
-    <<: *j8_par_executor
+  j8_dtests_vnode_repeat:
+    <<: *j8_repeated_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
       - clone_dtest
       - create_venv
       - run_repeated_dtest:
-          tests: ${REPEATED_UPGRADE_DTEST_NAME}
+          tests: ${REPEATED_DTESTS}
+          vnodes: "true"
+          upgrade: "false"
+          count: ${REPEATED_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  j8_upgrade_dtests_repeat:
+    <<: *j8_repeated_upgrade_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_UPGRADE_DTESTS}
           vnodes: "false"
           upgrade: "true"
-          stop_on_failure: ${REPEATED_UPGRADE_DTEST_STOP_ON_FAILURE}
-          count: ${REPEATED_UPGRADE_DTEST_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          count: ${REPEATED_UPGRADE_DTESTS_COUNT}
 
 commands:
   log_environment:
@@ -452,7 +686,7 @@ commands:
     - run:
         name: Clone Cassandra Repository (via git)
         command: |
-          git clone --single-branch --depth 1 --branch $CIRCLE_BRANCH git://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
+          git clone --single-branch --depth 1 --branch $CIRCLE_BRANCH https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
 
   clone_dtest:
     steps:
@@ -470,7 +704,7 @@ commands:
           cd ~/cassandra
           # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
           for x in $(seq 1 3); do
-              ${ANT_HOME}/bin/ant clean jar
+              ${ANT_HOME}/bin/ant clean jar build-test
               RETURN="$?"
               if [ "${RETURN}" -eq "0" ]; then
                   break
@@ -491,7 +725,7 @@ commands:
           export PATH=$JAVA_HOME/bin:$PATH
           cd ~/cassandra
           mkdir ~/dtest_jars
-          git remote add apache git://github.com/apache/cassandra.git
+          git remote add apache https://github.com/apache/cassandra.git
           for branch in cassandra-2.2 cassandra-3.0 cassandra-3.11 trunk; do
             # check out the correct cassandra version:
             git remote set-branches --add apache '$branch'
@@ -742,6 +976,181 @@ commands:
           path: ~/cassandra-dtest/logs
           destination: dtest_<<parameters.file_tag>>_logs
 
+  run_unit_tests_repeat:
+    steps:
+      - run_repeated_utests:
+          target: testsome
+          tests: ${REPEATED_UTESTS}
+          count: ${REPEATED_UTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  run_utests_compression_repeat:
+    steps:
+      - run_repeated_utests:
+          target: test-compression
+          tests: ${REPEATED_UTESTS}
+          count: ${REPEATED_UTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  run_utests_system_keyspace_directory_repeat:
+    steps:
+      - run_repeated_utests:
+          target: test-system-keyspace-directory
+          tests: ${REPEATED_UTESTS}
+          count: ${REPEATED_UTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  run_utests_long_repeat:
+    steps:
+      - run_repeated_utests:
+          target: long-testsome
+          tests: ${REPEATED_UTESTS_LONG}
+          count: ${REPEATED_UTESTS_LONG_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  run_utests_stress_repeat:
+    steps:
+      - run_repeated_utests:
+          target: stress-test-some
+          tests: ${REPEATED_UTESTS_STRESS}
+          count: ${REPEATED_UTESTS_STRESS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  run_jvm_dtests_repeat:
+    steps:
+      - run_repeated_utests:
+          target: test-jvm-dtest-some
+          tests: ${REPEATED_JVM_DTESTS}
+          count: ${REPEATED_JVM_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  run_jvm_upgrade_dtests_repeat:
+    steps:
+      - run_repeated_utests:
+          target: test-jvm-dtest-some
+          tests: ${REPEATED_JVM_UPGRADE_DTESTS}
+          count: ${REPEATED_JVM_UPGRADE_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  run_repeated_utests:
+    parameters:
+      target:
+        type: string
+      tests:
+        type: string
+      count:
+        type: string
+      stop_on_failure:
+        type: string
+    steps:
+      - run:
+          name: Repeatedly run new or modifed JUnit tests
+          no_output_timeout: 15m
+          command: |
+            set -x
+            export PATH=$JAVA_HOME/bin:$PATH
+            time mv ~/cassandra /tmp
+            cd /tmp/cassandra
+            if [ -d ~/dtest_jars ]; then
+              cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+            fi
+
+            # Calculate the number of test iterations to be run by the current parallel runner.
+            count=$((<<parameters.count>> / CIRCLE_NODE_TOTAL))
+            if (($CIRCLE_NODE_INDEX < (<<parameters.count>> % CIRCLE_NODE_TOTAL))); then
+              count=$((count+1))
+            fi
+
+            # Put manually specified tests and automatically detected tests together, removing duplicates
+            tests=$(echo <<parameters.tests>> | sed -e "s/<nil>//" | sed -e "s/ //" | tr "," "\n" | tr " " "\n" | sort -n | uniq -u)
+            echo "Tests to be repeated: ${tests}"
+
+            # Run each test class as many times as requested.
+            exit_code="$?"
+            for test in $tests; do
+
+                # Split class and method names from the test name
+                if [[ $test =~ "#" ]]; then
+                  class=${test%"#"*}
+                  method=${test#*"#"}
+                else
+                  class=$test
+                  method=""
+                fi
+
+                # Prepare the -Dtest.name argument.
+                # It can be the fully qualified class name or the short class name, depending on the target.
+                if [[ $target == "test" || \
+                      $target == "test-cdc" || \
+                      $target == "test-compression" || \
+                      $target == "test-system-keyspace-directory" || \
+                      $target == "long-test" || \
+                      $target == "stress-test" ]]; then
+                  name_arg="-Dtest.name=${class##*.}"
+                else
+                  name_arg="-Dtest.name=$class"
+                fi
+
+                # Prepare the -Dtest.methods argument, which is optional
+                if [ $method == "" ]; then
+                  methods_arg=""
+                else
+                  methods_arg="-Dtest.methods=$method"
+                fi
+
+                for i in $(seq -w 1 $count); do
+                  echo "Running test $test, iteration $i of $count"
+
+                  # run the test
+                  status="passes"
+                  if !( set -o pipefail && \
+                        ant <<parameters.target>> $name_arg $methods_arg -Dno-build-test=true | \
+                        tee stdout.txt \
+                      ); then
+                    status="fails"
+                    exit_code=1
+                  fi
+
+                  # move the stdout output file
+                  dest=/tmp/results/repeated_utests/stdout/${status}/${i}
+                  mkdir -p $dest
+                  mv stdout.txt $dest/${test}.txt
+
+                  # move the XML output files
+                  source=build/test/output
+                  dest=/tmp/results/repeated_utests/output/${status}/${i}
+                  mkdir -p $dest
+                  if [[ -d $source && -n "$(ls $source)" ]]; then
+                    mv $source/* $dest/
+                  fi
+
+                  # move the log files
+                  source=build/test/logs
+                  dest=/tmp/results/repeated_utests/logs/${status}/${i}
+                  mkdir -p $dest
+                  if [[ -d $source && -n "$(ls $source)" ]]; then
+                    mv $source/* $dest/
+                  fi
+
+                  # maybe stop iterations on test failure
+                  if [[ <<parameters.stop_on_failure>> = true ]] && (( $exit_code > 0 )); then
+                    break
+                  fi
+                done
+            done
+            (exit ${exit_code})
+      - store_test_results:
+          path: /tmp/results/repeated_utests/output
+      - store_artifacts:
+          path: /tmp/results/repeated_utests/stdout
+          destination: stdout
+      - store_artifacts:
+          path: /tmp/results/repeated_utests/output
+          destination: junitxml
+      - store_artifacts:
+          path: /tmp/results/repeated_utests/logs
+          destination: logs
+
   run_repeated_utest:
     parameters:
       target:
@@ -796,7 +1205,9 @@ commands:
                 if [[ $target == "test" || \
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
-                      $target == "test-system-keyspace-directory" ]]; then
+                      $target == "test-system-keyspace-directory" || \
+                      $target == "long-test" || \
+                      $target == "stress-test" ]]; then
                   name="-Dtest.name=$class_name"
                 else
                   name="-Dtest.name=$class_path"
@@ -913,6 +1324,8 @@ commands:
                 echo "** done env"
                 mkdir -p /tmp/results/dtests
 
+                tests_arg=$(echo <<parameters.tests>> | sed -e "s/,/ /g")
+
                 stop_on_failure_arg=""
                 if <<parameters.stop_on_failure>>; then
                   stop_on_failure_arg="-x"
@@ -925,11 +1338,11 @@ commands:
 
                 upgrade_arg=""
                 if <<parameters.upgrade>>; then
-                  upgrade_arg="--execute-upgrade-tests"
+                  upgrade_arg="--execute-upgrade-tests --upgrade-target-version-only --upgrade-version-selection all"
                 fi
 
                 # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
-                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir <<parameters.tests>> | tee /tmp/dtest/stdout.txt
+                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $tests_arg | tee /tmp/dtest/stdout.txt
               fi
             fi
       - store_test_results:

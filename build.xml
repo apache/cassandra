@@ -15,14 +15,25 @@
   limitations under the License.
 -->
 <project basedir="." default="jar" name="apache-cassandra"
-         xmlns:artifact="antlib:org.apache.maven.artifact.ant">
+         xmlns:artifact="antlib:org.apache.maven.artifact.ant"
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
+
+    <fail message="You need to use Ant of version at least 1.10 to continue.">
+      <condition>
+        <not>
+          <antversion atleast="1.10"/>
+        </not>
+      </condition>
+    </fail>
+
     <property environment="env"/>
     <property file="build.properties" />
     <property file="build.properties.default" />
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="3.11.11"/>
+    <property name="base.version" value="3.11.14"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -79,9 +90,11 @@
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
 
+    <property name="local.repository" value="${user.home}/.m2/repository" />
+
     <!-- details of what version of Maven ANT Tasks to fetch -->
     <property name="maven-ant-tasks.version" value="2.1.3" />
-    <property name="maven-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/maven-ant-tasks"/>
+    <property name="maven-ant-tasks.local" value="${local.repository}/org/apache/maven/maven-ant-tasks"/>
     <property name="maven-ant-tasks.url"
               value="https://repo.maven.apache.org/maven2/org/apache/maven/maven-ant-tasks" />
     <!-- details of how and which Maven repository we publish to -->
@@ -174,7 +187,7 @@
     <sequential>
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009-2019 The Apache Software Foundation"
+        bottom="Copyright &amp;copy; 2009-2022 The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8"
         maxmemory="256m">
         <filesets/>
@@ -250,13 +263,14 @@
         </wikitext-to-html>
     </target>
 
-    <target name="gen-doc" description="Generate documentation" depends="jar" unless="ant.gen-doc.skip">
+    <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
         <exec executable="make" osfamily="unix" dir="${doc.dir}">
-            <arg value="html"/>
+            <arg value="gen-asciidoc"/>
         </exec>
-        <exec executable="cmd" osfamily="dos" dir="${doc.dir}">
-            <arg value="/c"/>
-            <arg value="make.bat"/>
+    </target>
+
+    <target name="gen-doc" description="Generate documentation" depends="gen-asciidoc,generate-cql-html" unless="ant.gen-doc.skip">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}">
             <arg value="html"/>
         </exec>
     </target>
@@ -343,14 +357,14 @@
           <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2">
             <exclusion groupId="org.antlr" artifactId="stringtemplate"/>
           </dependency>
-          <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.7"/>
-          <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.7"/>
-          <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.7" />
-          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.1.3"/>
-          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.1.3"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.9.10"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.9.10.8"/>
-          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.9.10"/>
+          <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.25"/>
+          <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.25"/>
+          <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.25" />
+          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.9"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.9"/>
+          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.13.2"/>
+          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.13.2.2"/>
+          <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.13.2"/>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
@@ -358,7 +372,7 @@
             <exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
             <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
-          <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.11"/>
+          <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.26"/>
           <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.9.2">
 	         <exclusion groupId="commons-logging" artifactId="commons-logging"/>
 	         <exclusion groupId="org.apache.httpcomponents" artifactId="httpclient"/>
@@ -368,7 +382,7 @@
             <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
           </dependency>
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.8" scope="test"/>
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.13" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
@@ -377,9 +391,11 @@
           	<exclusion groupId="org.eclipse.jdt" artifactId="core"/>
 		    <exclusion groupId="ant" artifactId="ant"/>
 		    <exclusion groupId="junit" artifactId="junit"/>
+            <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3" scope="provided">
 		    <exclusion groupId="asm" artifactId="asm"/> <!-- this is the outdated version 3.1 -->
+            <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
           </dependency>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="4.2.2"/>
 
@@ -397,6 +413,8 @@
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.21" scope="test"/>
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.21" scope="test"/>
 
+          <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.4" scope="test"/>
+
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <!--dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" scope="provided"/-->
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.5" />
@@ -405,7 +423,7 @@
           <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.3">
             <exclusion groupId="org.hibernate" artifactId="hibernate-validator" />
           </dependency>
-          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
+          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.4" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.6">
             <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
           </dependency>
@@ -514,14 +532,14 @@
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-core"/>
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
-        <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.4" />
+        <dependency groupId="org.apache.ant" artifactId="ant-junit" />
         <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
              this that the new assertj's `assertj-parent-pom` depends on. -->
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
         <!-- coverage debs -->
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
-				
+
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom" scope="test"/>
         <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
@@ -770,6 +788,18 @@
         </testmacro>
     </target>
 
+    <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+      ant stress-test-some -Dtest.name=org.apache.cassandra.stress.settings.SettingsNodeTest
+      ant stress-test-some -Dtest.name=org.apache.cassandra.stress.settings.SettingsNodeTest -Dtest.methods=testDefaults
+    -->
+    <target name="stress-test-some" depends="stress-build-test, build-test" description="Runs stress tests">
+      <testmacro inputdir="${stress.test.src}"
+                 timeout="${test.timeout}">
+        <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+        <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
+      </testmacro>
+    </target>
+
 	<target name="_write-poms" depends="maven-declare-dependencies">
 	    <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
 	    <artifact:writepom pomRefId="thrift-pom" file="${build.dir}/${ant.project.name}-thrift-${version}.pom"/>
@@ -895,7 +925,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,gen-doc,build-test,stress-build-test,sources-jar,javadoc-jar"
+    <target name="artifacts" depends="jar,gen-doc,build-test,stress-build-test,sources-jar"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
@@ -1290,12 +1320,14 @@
     </antcall>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
-      <test name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
@@ -1305,12 +1337,27 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest -Dtest.methods=testLargeCount
+  -->
+  <target name="long-testsome" depends="build-test" description="Execute specific long unit tests" >
+    <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+    </testmacro>
+  </target>
+
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+    ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest
     ant burn-testsome -Dtest.name=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dtest.methods=testAllocate
   -->
   <target name="burn-testsome" depends="build-test" description="Execute specific burn unit tests" >
     <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
-      <test name="${test.name}" methods="${test.methods}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}"/>
     </testmacro>
   </target>
   <target name="test-compression" depends="build-test,stress-build" description="Execute unit tests with sstable compression enabled">
@@ -1412,6 +1459,10 @@
     </sequential>
   </target>
 
+  <!-- Use this with an simple class name for test class, and an optional csv list of methods like this:
+      ant cql-test-some -Dtest.name=ListsTest
+      ant cql-test-some -Dtest.name=ListsTest -Dtest.methods=testPrecisionTime_getNext_simple
+    -->
   <target name="cql-test-some" depends="build-test" description="Execute specific CQL tests" >
     <sequential>
       <echo message="running ${test.methods} tests from ${test.name}"/>
@@ -1435,7 +1486,8 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <test name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.dir}/output"/>
       </junit>
     </sequential>
   </target>
@@ -1599,12 +1651,14 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+      ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest
       ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest -Dtest.methods=looperTest
     -->
   <target name="test-jvm-dtest-some" depends="build-test" description="Execute some in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
-      <test name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
@@ -1885,4 +1939,5 @@
 
   <import file="${basedir}/.build/build-resolver.xml"/>
   <import file="${basedir}/.build/build-rat.xml"/>
+  <import file="${basedir}/.build/build-owasp.xml"/>
 </project>

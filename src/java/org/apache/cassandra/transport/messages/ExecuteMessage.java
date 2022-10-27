@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
@@ -26,7 +28,9 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -34,10 +38,13 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class ExecuteMessage extends Message.Request
 {
+    private static final NoSpamLogger nospam = NoSpamLogger.getLogger(logger, 10, TimeUnit.MINUTES);
+
     public static final Message.Codec<ExecuteMessage> codec = new Message.Codec<ExecuteMessage>()
     {
         public ExecuteMessage decode(ByteBuf body, ProtocolVersion version)
@@ -93,6 +100,16 @@ public class ExecuteMessage extends Message.Request
         {
             QueryHandler handler = ClientState.getCQLQueryHandler();
             ParsedStatement.Prepared prepared = handler.getPrepared(statementId);
+            if (prepared != null && !prepared.fullyQualified && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace)
+                && (prepared.statement instanceof ModificationStatement || prepared.statement instanceof SelectStatement))
+            {
+                state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.keyspace);
+                String msg = String.format("Tried to execute a prepared unqalified statement on a keyspace it was not prepared on. " +
+                                           " Executing the resulting prepared statement will return unexpected results: %s (on keyspace %s, previously prepared on %s)",
+                                           statementId, state.getClientState().getRawKeyspace(), prepared.keyspace);
+                nospam.error(msg);
+            }
+
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
 

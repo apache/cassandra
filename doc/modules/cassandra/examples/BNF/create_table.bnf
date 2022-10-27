@@ -1,0 +1,12 @@
+create_table_statement::= CREATE TABLE [ IF NOT EXISTS ] table_name '(' 
+	column_definition  ( ',' column_definition )*  
+	[ ',' PRIMARY KEY '(' primary_key ')' ] 
+	 ')' [ WITH table_options ] 
+column_definition::= column_name cql_type [ STATIC ] [ PRIMARY KEY] 
+primary_key::= partition_key [ ',' clustering_columns ] 
+partition_key::= column_name  | '(' column_name ( ',' column_name )* ')' 
+clustering_columns::= column_name ( ',' column_name )* 
+table_options:=: COMPACT STORAGE [ AND table_options ]  
+	| CLUSTERING ORDER BY '(' clustering_order ')' 
+	[ AND table_options ]  | options
+clustering_order::= column_name (ASC | DESC) ( ',' column_name (ASC | DESC) )*

@@ -1,0 +1,1 @@
+GRANT DESCRIBE ON ALL ROLES TO role_admin;

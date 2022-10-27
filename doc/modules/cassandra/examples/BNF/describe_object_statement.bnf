@@ -1,0 +1,1 @@
+describe_object_statement::= DESCRIBE object_name [WITH INTERNALS];

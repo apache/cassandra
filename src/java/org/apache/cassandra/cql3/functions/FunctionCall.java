@@ -204,7 +204,7 @@ public class FunctionCall extends Term.NonTerminal
 
         public String getText()
         {
-            return name + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
+            return name.toCQLString() + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
         }
     }
 }

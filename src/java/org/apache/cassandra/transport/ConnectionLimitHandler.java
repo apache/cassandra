@@ -18,15 +18,19 @@
 package org.apache.cassandra.transport;
 
 
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.util.Attribute;
+import io.netty.util.AttributeKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -40,8 +44,36 @@ import java.util.concurrent.atomic.AtomicLong;
 final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
 {
     private static final Logger logger = LoggerFactory.getLogger(ConnectionLimitHandler.class);
+    private static final AttributeKey<InetAddress> addressAttributeKey = AttributeKey.valueOf("address");
     private final ConcurrentMap<InetAddress, AtomicLong> connectionsPerClient = new ConcurrentHashMap<>();
     private final AtomicLong counter = new AtomicLong(0);
+
+    // Keep the remote address as a channel attribute.  The channel inactive callback needs
+    // to know the entry into the connetionsPerClient map and depending on the state of the remote
+    // an exception may be thrown trying to retrieve the address. Make sure the same address used
+    // to increment is used for decrement.
+    private static InetAddress setRemoteAddressAttribute(Channel channel)
+    {
+        Attribute<InetAddress> addressAttribute = channel.attr(addressAttributeKey);
+        SocketAddress remoteAddress = channel.remoteAddress();
+        if (remoteAddress instanceof InetSocketAddress)
+        {
+            addressAttribute.setIfAbsent(((InetSocketAddress) remoteAddress).getAddress());
+        }
+        else
+        {
+            logger.warn("Remote address of unknown type: {}, skipping per-IP connection limits",
+                              remoteAddress.getClass());
+        }
+        return addressAttribute.get();
+    }
+
+    private static InetAddress getRemoteAddressAttribute(Channel channel)
+    {
+        Attribute<InetAddress> addressAttribute = channel.attr(addressAttributeKey);
+        return addressAttribute.get();
+    }
+
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception
@@ -64,8 +96,12 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
             long perIpLimit = DatabaseDescriptor.getNativeTransportMaxConcurrentConnectionsPerIp();
             if (perIpLimit > 0)
             {
-                InetAddress address = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
-
+                InetAddress address = setRemoteAddressAttribute(ctx.channel());
+                if (address == null)
+                {
+                    ctx.close();
+                    return;
+                }
                 AtomicLong perIpCount = connectionsPerClient.get(address);
                 if (perIpCount == null)
                 {
@@ -93,9 +129,9 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
     public void channelInactive(ChannelHandlerContext ctx) throws Exception
     {
         counter.decrementAndGet();
-        InetAddress address = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
+        InetAddress address = getRemoteAddressAttribute(ctx.channel());
 
-        AtomicLong count = connectionsPerClient.get(address);
+        AtomicLong count = address == null ? null : connectionsPerClient.get(address);
         if (count != null)
         {
             if (count.decrementAndGet() <= 0)

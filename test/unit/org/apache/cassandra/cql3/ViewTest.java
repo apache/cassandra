@@ -18,13 +18,23 @@
 
 package org.apache.cassandra.cql3;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.commons.io.FileUtils;
 
 import junit.framework.Assert;
 import org.junit.After;
@@ -44,6 +54,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -52,6 +63,7 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
@@ -59,11 +71,11 @@ import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
-import static junit.framework.Assert.fail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(BMUnitRunner.class)
 public class ViewTest extends CQLTester
@@ -71,6 +83,7 @@ public class ViewTest extends CQLTester
     /** Latch used by {@link #testTruncateWhileBuilding()} Byteman injections. */
     @SuppressWarnings("unused")
     private static final CountDownLatch blockViewBuild = new CountDownLatch(1);
+    private static final AtomicInteger viewNameSeqNumber = new AtomicInteger();
 
     private static final ProtocolVersion protocolVersion = ProtocolVersion.CURRENT;
     private final List<String> views = new ArrayList<>();
@@ -90,7 +103,7 @@ public class ViewTest extends CQLTester
     public void end() throws Throwable
     {
         for (String viewName : views)
-            executeNet(protocolVersion, "DROP MATERIALIZED VIEW " + viewName);
+            executeNet(protocolVersion, "DROP MATERIALIZED VIEW IF EXISTS " + viewName);
     }
 
     private void createView(String name, String query) throws Throwable
@@ -121,6 +134,25 @@ public class ViewTest extends CQLTester
 
         execute("DROP MATERIALIZED VIEW IF EXISTS " + KEYSPACE + ".view_does_not_exist");
         execute("DROP MATERIALIZED VIEW IF EXISTS keyspace_does_not_exist.view_does_not_exist");
+    }
+
+    @Test
+    public void testNoBatchlogCleanupForLocalMutations() throws Throwable
+    {
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createTable("CREATE TABLE %s (k1 int primary key, v1 int)");
+        createView("view1", "CREATE MATERIALIZED VIEW view1 AS SELECT * FROM %%s WHERE k1 IS NOT NULL AND v1 IS NOT NULL PRIMARY KEY (v1, k1)");
+
+        ColumnFamilyStore batchlog = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
+        batchlog.disableAutoCompaction();
+        batchlog.forceBlockingFlush();
+        int batchlogSSTables = batchlog.getLiveSSTables().size();
+
+        updateView("INSERT INTO %s(k1, v1) VALUES(?, ?)", 1, 1);
+        batchlog.forceBlockingFlush();
+        assertEquals(batchlogSSTables, batchlog.getLiveSSTables().size());
     }
 
     @Test
@@ -1356,16 +1388,23 @@ public class ViewTest extends CQLTester
                     "c int, " +
                     "val int) WITH default_time_to_live = 60");
 
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
         createView("mv_ttl2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
 
         // Must NOT include "default_time_to_live" on alter Materialized View
         try
         {
-            executeNet(protocolVersion, "ALTER MATERIALIZED VIEW %s WITH default_time_to_live = 30");
+            executeNet(protocolVersion, "ALTER MATERIALIZED VIEW " + keyspace() + ".mv_ttl2 WITH default_time_to_live = 30");
             fail("Should fail if TTL is provided while altering materialized view");
         }
         catch (Exception e)
         {
+            // Make sure the message is clear. See CASSANDRA-16960
+            assertEquals("Forbidden default_time_to_live detected for a materialized view. Data in a materialized view always expire at the same time than the corresponding "
+                         + "data in the parent table. default_time_to_live must be set to zero, see CASSANDRA-12868 for more information",
+                         e.getMessage());
         }
     }
 
@@ -1503,6 +1542,124 @@ public class ViewTest extends CQLTester
         }
     }
 
+    @Test
+    public void testFunctionInWhereClause() throws Throwable
+    {
+        // Native token function with lowercase, should be unquoted in the schema where clause
+        assertEmpty(testFunctionInWhereClause("CREATE TABLE %s (k bigint PRIMARY KEY, v int)",
+                                              null,
+                                              "CREATE MATERIALIZED VIEW %s AS" +
+                                              "   SELECT * FROM %%s WHERE k = token(1) AND v IS NOT NULL " +
+                                              "   PRIMARY KEY (v, k)",
+                                              "k = token(1) AND v IS NOT NULL",
+                                              "INSERT INTO %s(k, v) VALUES (0, 1)",
+                                              "INSERT INTO %s(k, v) VALUES (2, 3)"));
+
+        // Native token function with uppercase, should be unquoted and lowercased in the schema where clause
+        assertEmpty(testFunctionInWhereClause("CREATE TABLE %s (k bigint PRIMARY KEY, v int)",
+                                              null,
+                                              "CREATE MATERIALIZED VIEW %s AS" +
+                                              "   SELECT * FROM %%s WHERE k = TOKEN(1) AND v IS NOT NULL" +
+                                              "   PRIMARY KEY (v, k)",
+                                              "k = token(1) AND v IS NOT NULL",
+                                              "INSERT INTO %s(k, v) VALUES (0, 1)",
+                                              "INSERT INTO %s(k, v) VALUES (2, 3)"));
+
+        // UDF with lowercase name, shouldn't be quoted in the schema where clause
+        assertRows(testFunctionInWhereClause("CREATE TABLE %s (k int PRIMARY KEY, v int)",
+                                             "CREATE FUNCTION fun()" +
+                                             "   CALLED ON NULL INPUT" +
+                                             "   RETURNS int LANGUAGE java" +
+                                             "   AS 'return 2;'",
+                                             "CREATE MATERIALIZED VIEW %s AS " +
+                                             "   SELECT * FROM %%s WHERE k = fun() AND v IS NOT NULL" +
+                                             "   PRIMARY KEY (v, k)",
+                                             "k = fun() AND v IS NOT NULL",
+                                             "INSERT INTO %s(k, v) VALUES (0, 1)",
+                                             "INSERT INTO %s(k, v) VALUES (2, 3)"), row(3, 2));
+
+        // UDF with uppercase name, should be quoted in the schema where clause
+        assertRows(testFunctionInWhereClause("CREATE TABLE %s (k int PRIMARY KEY, v int)",
+                                             "CREATE FUNCTION \"FUN\"()" +
+                                             "   CALLED ON NULL INPUT" +
+                                             "   RETURNS int" +
+                                             "   LANGUAGE java" +
+                                             "   AS 'return 2;'",
+                                             "CREATE MATERIALIZED VIEW %s AS " +
+                                             "   SELECT * FROM %%s WHERE k = \"FUN\"() AND v IS NOT NULL" +
+                                             "   PRIMARY KEY (v, k)",
+                                             "k = \"FUN\"() AND v IS NOT NULL",
+                                             "INSERT INTO %s(k, v) VALUES (0, 1)",
+                                             "INSERT INTO %s(k, v) VALUES (2, 3)"), row(3, 2));
+
+        // UDF with uppercase name conflicting with TOKEN keyword but not with native token function name,
+        // should be quoted in the schema where clause
+        assertRows(testFunctionInWhereClause("CREATE TABLE %s (k int PRIMARY KEY, v int)",
+                                             "CREATE FUNCTION \"TOKEN\"(x int)" +
+                                             "   CALLED ON NULL INPUT" +
+                                             "   RETURNS int" +
+                                             "   LANGUAGE java" +
+                                             "   AS 'return x;'",
+                                             "CREATE MATERIALIZED VIEW %s AS" +
+                                             "   SELECT * FROM %%s WHERE k = \"TOKEN\"(2) AND v IS NOT NULL" +
+                                             "   PRIMARY KEY (v, k)",
+                                             "k = \"TOKEN\"(2) AND v IS NOT NULL",
+                                             "INSERT INTO %s(k, v) VALUES (0, 1)",
+                                             "INSERT INTO %s(k, v) VALUES (2, 3)"), row(3, 2));
+
+        // UDF with lowercase name conflicting with both TOKEN keyword and native token function name,
+        // requires specifying the keyspace and should be quoted in the schema where clause
+        assertRows(testFunctionInWhereClause("CREATE TABLE %s (k int PRIMARY KEY, v int)",
+                                             "CREATE FUNCTION \"token\"(x int)" +
+                                             "   CALLED ON NULL INPUT" +
+                                             "   RETURNS int" +
+                                             "   LANGUAGE java" +
+                                             "   AS 'return x;'",
+                                             "CREATE MATERIALIZED VIEW %s AS" +
+                                             "   SELECT * FROM %%s " +
+                                             "   WHERE k = " + keyspace() + ".\"token\"(2) AND v IS NOT NULL" +
+                                             "   PRIMARY KEY (v, k)",
+                                             "k = " + keyspace() + ".\"token\"(2) AND v IS NOT NULL",
+                                             "INSERT INTO %s(k, v) VALUES (0, 1)",
+                                             "INSERT INTO %s(k, v) VALUES (2, 3)"), row(3, 2));
+    }
+
+    @Test
+    public void testSnapshotNameOfDroppedViewHasDroppedPrefix() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        boolean enableMaterializedViews = DatabaseDescriptor.getEnableMaterializedViews();
+        try
+        {
+            // create it
+            DatabaseDescriptor.setEnableMaterializedViews(true);
+            createView("viewtobedropped", "CREATE MATERIALIZED VIEW %s AS SELECT v FROM %%s WHERE k IS NOT NULL AND v IS NOT NULL PRIMARY KEY (v, k)");
+
+            // drop it
+            executeNet(protocolVersion, "DROP MATERIALIZED VIEW " + keyspace() + ".viewtobedropped");
+
+            String dataDir = DatabaseDescriptor.getAllDataFileLocations()[0];
+            // look for snapshots which have "dropped-" prefix, there has to be such
+            Pattern compile = Pattern.compile(String.format("%s/viewtobedropped-.*/snapshots/dropped-.*-viewtobedropped/.*", keyspace()));
+
+            List<File> collect = FileUtils.listFiles(new File(dataDir), null, true)
+                                          .stream()
+                                          .filter(file -> {
+                                              Path relativize = Paths.get(dataDir).relativize(file.toPath());
+                                              Matcher matcher = compile.matcher(relativize.toString());
+                                              return matcher.matches();
+                                          }).collect(Collectors.toList());
+            assertFalse(collect.isEmpty());
+        }
+        finally
+        {
+            DatabaseDescriptor.setEnableMaterializedViews(enableMaterializedViews);
+        }
+    }
+
     /**
      * Tests that truncating a table stops the ongoing builds of its materialized views,
      * so they don't write into the MV data that has been truncated in the base table.
@@ -1547,8 +1704,7 @@ public class ViewTest extends CQLTester
         assertRows(execute("SELECT * FROM mv"));
 
         // check that the view builder finishes and that the view is still empty after that
-        Util.spinAssertEquals(0, ViewTest::runningCompactions, 60);
-        assertTrue(SystemKeyspace.isViewBuilt(KEYSPACE, "mv"));
+        Util.spinAssertEquals(true, () -> SystemKeyspace.isViewBuilt(KEYSPACE, "mv"), 60);
         waitForViewMutations();
         assertRows(execute("SELECT * FROM mv"));
     }
@@ -1556,5 +1712,38 @@ public class ViewTest extends CQLTester
     private static int runningCompactions()
     {
         return CompactionManager.instance.getPendingTasks() + CompactionManager.instance.getActiveCompactions();
+    }
+
+    private UntypedResultSet testFunctionInWhereClause(String createTableQuery,
+                                                       String createFunctionQuery,
+                                                       String createViewQuery,
+                                                       String expectedSchemaWhereClause,
+                                                       String... insertQueries) throws Throwable
+    {
+        createTable(createTableQuery);
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        if (createFunctionQuery != null)
+        {
+            execute(createFunctionQuery);
+        }
+
+        String viewName = "view_" + viewNameSeqNumber.getAndIncrement();
+        createView(viewName, createViewQuery);
+
+        // Test the where clause stored in system_schema.views
+        String schemaQuery = String.format("SELECT where_clause FROM %s.%s WHERE keyspace_name = ? AND view_name = ?",
+                                           SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                           SchemaKeyspaceTables.VIEWS);
+        assertRows(execute(schemaQuery, keyspace(), viewName), row(expectedSchemaWhereClause));
+
+        for (String insert : insertQueries)
+        {
+            execute(insert);
+        }
+
+        return execute("SELECT * FROM " + viewName);
     }
 }

@@ -182,7 +182,7 @@ public class UpdateTest extends CQLTester
             assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                                  "UPDATE %s SET value = ? WHERE partitionKey > ? AND clustering_1 = ?", 7, 0, 1);
 
-            assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+            assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                                  "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ?", 7, 0, 1);
 
             assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
@@ -191,6 +191,27 @@ public class UpdateTest extends CQLTester
             assertInvalidMessage("Slice restrictions are not supported on the clustering columns in UPDATE statements",
                                  "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 > ?", 7, 0, 1);
         }
+    }
+
+    @Test
+    public void testUpdateWithContainsAndContainsKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, primary key (a, b))");
+
+        Object[] row = row(1, map(1, 1, 2, 2), 3);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", row);
+
+        assertRows(execute("SELECT * FROM %s"), row);
+
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS",
+                             "UPDATE %s SET c=3 WHERE a=1 AND b CONTAINS 1");
+
+        assertRows(execute("SELECT * FROM %s"), row);
+
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS KEY",
+                             "UPDATE %s SET c=3 WHERE a=1 AND b CONTAINS KEY 1");
+
+        assertRows(execute("SELECT * FROM %s"), row);
     }
 
     @Test
@@ -222,17 +243,17 @@ public class UpdateTest extends CQLTester
 
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "UPDATE %s SET values= {6} WHERE partitionKey = ? AND clustering_1 = ? AND value = ?", 3, 3, 3);
-        assertInvalidMessage("Non PRIMARY KEY columns found in where clause: values",
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                              "UPDATE %s SET value= ? WHERE partitionKey = ? AND clustering_1 = ? AND values CONTAINS ?", 6, 3, 3, 3);
         assertInvalidMessage("Some clustering keys are missing: clustering_1",
                              "UPDATE %s SET values= {6} WHERE partitionKey = ? AND value = ?", 3, 3);
-        assertInvalidMessage("Some clustering keys are missing: clustering_1",
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                              "UPDATE %s SET value= ? WHERE partitionKey = ? AND values CONTAINS ?", 6, 3, 3);
         assertInvalidMessage("Some partition key parts are missing: partitionkey",
                              "UPDATE %s SET values= {6} WHERE clustering_1 = ?", 3);
         assertInvalidMessage("Some partition key parts are missing: partitionkey",
                              "UPDATE %s SET values= {6} WHERE value = ?", 3);
-        assertInvalidMessage("Some partition key parts are missing: partitionkey",
+        assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                              "UPDATE %s SET value= ? WHERE values CONTAINS ?", 6, 3);
     }
 
@@ -369,7 +390,7 @@ public class UpdateTest extends CQLTester
             assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
                                  "UPDATE %s SET value = ? WHERE partitionKey > ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
-            assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
+            assertInvalidMessage("Cannot use UPDATE with CONTAINS",
                                  "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
             assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",

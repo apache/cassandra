@@ -1,0 +1,4 @@
+create_user_statement ::= CREATE USER [ IF NOT EXISTS ] role_name
+                          [ WITH PASSWORD string ]
+                          [ user_option ]
+user_option: SUPERUSER | NOSUPERUSER

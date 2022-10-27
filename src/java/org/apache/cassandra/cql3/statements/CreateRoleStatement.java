@@ -80,7 +80,7 @@ public class CreateRoleStatement extends AuthenticationStatement
      */
     private void grantPermissionsToCreator(ClientState state)
     {
-        // The creator of a Role automatically gets ALTER/DROP/AUTHORIZE permissions on it if:
+        // The creator of a Role automatically gets ALTER/DROP/AUTHORIZE/DESCRIBE permissions on it if:
         // * the user is not anonymous
         // * the configured IAuthorizer supports granting of permissions (not all do, AllowAllAuthorizer doesn't and
         //   custom external implementations may not)

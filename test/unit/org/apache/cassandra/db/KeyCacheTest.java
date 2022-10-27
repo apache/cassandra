@@ -18,12 +18,16 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.AfterClass;
@@ -32,6 +36,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cache.AutoSavingCache;
+import org.apache.cassandra.cache.ICache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -39,21 +45,37 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.hamcrest.Matchers;
+import org.mockito.Mockito;
+import org.mockito.internal.stubbing.answers.AnswersWithDelay;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class KeyCacheTest
 {
     private static final String KEYSPACE1 = "KeyCacheTest1";
+    private static final String KEYSPACE2 = "KeyCacheTest2";
     private static final String COLUMN_FAMILY1 = "Standard1";
     private static final String COLUMN_FAMILY2 = "Standard2";
     private static final String COLUMN_FAMILY3 = "Standard3";
     private static final String COLUMN_FAMILY4 = "Standard4";
     private static final String COLUMN_FAMILY5 = "Standard5";
     private static final String COLUMN_FAMILY6 = "Standard6";
+    private static final String COLUMN_FAMILY7 = "Standard7";
+    private static final String COLUMN_FAMILY8 = "Standard8";
+    private static final String COLUMN_FAMILY9 = "Standard9";
+
+    private static final String COLUMN_FAMILY_K2_1 = "Standard1";
 
 
     @BeforeClass
@@ -67,7 +89,15 @@ public class KeyCacheTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY3),
                                     SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY4),
                                     SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY5),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY6));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY6),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY7),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY8),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY9));
+
+        SchemaLoader.createKeyspace(KEYSPACE2,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE2, COLUMN_FAMILY_K2_1));
+
     }
 
     @AfterClass
@@ -306,6 +336,112 @@ public class KeyCacheTest
         Util.getAll(Util.cmd(cfs, "key2").build());
 
         assertKeyCacheSize(noEarlyOpen ? 4 : 2, KEYSPACE1, cf);
+    }
+
+    @Test
+    public void testKeyCacheLoadNegativeCacheLoadTime() throws Exception
+    {
+        DatabaseDescriptor.setCacheLoadTimeout(-1);
+        String cf = COLUMN_FAMILY7;
+
+        createAndInvalidateCache(Collections.singletonList(Pair.create(KEYSPACE1, cf)), 100);
+
+        CacheService.instance.keyCache.loadSaved();
+
+        // Here max time to load cache is negative which means no time left to load cache. So the keyCache size should
+        // be zero after loadSaved().
+        assertKeyCacheSize(0, KEYSPACE1, cf);
+        assertEquals(0, CacheService.instance.keyCache.size());
+    }
+
+    @Test
+    public void testKeyCacheLoadTwoTablesTime() throws Exception
+    {
+        DatabaseDescriptor.setCacheLoadTimeout(60);
+        String columnFamily1 = COLUMN_FAMILY8;
+        String columnFamily2 = COLUMN_FAMILY_K2_1;
+        int numberOfRows = 100;
+        List<Pair<String, String>> tables = new ArrayList<>(2);
+        tables.add(Pair.create(KEYSPACE1, columnFamily1));
+        tables.add(Pair.create(KEYSPACE2, columnFamily2));
+
+        createAndInvalidateCache(tables, numberOfRows);
+
+        CacheService.instance.keyCache.loadSaved();
+
+        // Here max time to load cache is negative which means no time left to load cache. So the keyCache size should
+        // be zero after load.
+        assertKeyCacheSize(numberOfRows, KEYSPACE1, columnFamily1);
+        assertKeyCacheSize(numberOfRows, KEYSPACE2, columnFamily2);
+        assertEquals(numberOfRows * tables.size(), CacheService.instance.keyCache.size());
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Test
+    public void testKeyCacheLoadCacheLoadTimeExceedingLimit() throws Exception
+    {
+        DatabaseDescriptor.setCacheLoadTimeout(2);
+        int delayMillis = 1000;
+        int numberOfRows = 100;
+
+        String cf = COLUMN_FAMILY9;
+
+        createAndInvalidateCache(Collections.singletonList(Pair.create(KEYSPACE1, cf)), numberOfRows);
+
+        // Testing cache load. Here using custom built AutoSavingCache instance as simulating delay is not possible with
+        // 'CacheService.instance.keyCache'. 'AutoSavingCache.loadSaved()' is returning no.of entries loaded so we don't need
+        // to instantiate ICache.class.
+        CacheService.KeyCacheSerializer keyCacheSerializer = new CacheService.KeyCacheSerializer();
+        CacheService.KeyCacheSerializer keyCacheSerializerSpy = Mockito.spy(keyCacheSerializer);
+        AutoSavingCache autoSavingCache = new AutoSavingCache(mock(ICache.class),
+                                                              CacheService.CacheType.KEY_CACHE,
+                                                              keyCacheSerializerSpy);
+
+        doAnswer(new AnswersWithDelay(delayMillis, answer -> keyCacheSerializer.deserialize(answer.getArgument(0),
+                                                                                            answer.getArgument(1)) ))
+               .when(keyCacheSerializerSpy).deserialize(any(DataInputPlus.class), any(ColumnFamilyStore.class));
+
+        long maxExpectedKeyCache = Math.min(numberOfRows,
+                                            1 + TimeUnit.SECONDS.toMillis(DatabaseDescriptor.getCacheLoadTimeout()) / delayMillis);
+
+        long keysLoaded = autoSavingCache.loadSaved();
+        assertThat(keysLoaded, Matchers.lessThanOrEqualTo(maxExpectedKeyCache));
+        assertNotEquals(0, keysLoaded);
+        Mockito.verify(keyCacheSerializerSpy, Mockito.times(1)).cleanupAfterDeserialize();
+    }
+
+    private void createAndInvalidateCache(List<Pair<String, String>> tables, int numberOfRows) throws ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        // empty the cache
+        CacheService.instance.invalidateKeyCache();
+        assertEquals(0, CacheService.instance.keyCache.size());
+
+        for(Pair<String, String> entry : tables)
+        {
+            String keyspace = entry.left;
+            String cf = entry.right;
+            ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(cf);
+
+            // insert data and force to disk
+            SchemaLoader.insertData(keyspace, cf, 0, numberOfRows);
+            store.forceBlockingFlush();
+        }
+        for(Pair<String, String> entry : tables)
+        {
+            String keyspace = entry.left;
+            String cf = entry.right;
+            // populate the cache
+            readData(keyspace, cf, 0, numberOfRows);
+            assertKeyCacheSize(numberOfRows, keyspace, cf);
+        }
+
+        // force the cache to disk
+        CacheService.instance.keyCache.submitWrite(CacheService.instance.keyCache.size()).get();
+
+        CacheService.instance.invalidateKeyCache();
+        assertEquals(0, CacheService.instance.keyCache.size());
     }
 
     private static void readData(String keyspace, String columnFamily, int startRow, int numberOfRows)

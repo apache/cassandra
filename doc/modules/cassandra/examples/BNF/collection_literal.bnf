@@ -1,0 +1,4 @@
+collection_literal::= map_literal | set_literal | list_literal 
+map_literal::= '\{' [ term ':' term (',' term : term)* ] '}' 
+set_literal::= '\{' [ term (',' term)* ] '}' 
+list_literal::= '[' [ term (',' term)* ] ']'

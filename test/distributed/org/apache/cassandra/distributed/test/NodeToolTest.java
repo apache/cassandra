@@ -50,4 +50,14 @@ public class NodeToolTest extends TestBaseImpl
             assertEquals("Non-empty error output", "", ringResult.getStderr());
         }
     }
+
+    @Test
+    public void testSetCacheCapacityWhenDisabled() throws Throwable
+    {
+        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0")).start()))
+        {
+            NodeToolResult ringResult = cluster.get(1).nodetoolResult("setcachecapacity", "1", "1", "1");
+            ringResult.asserts().stderrContains("is not permitted as this cache is disabled");
+        }
+    }
 }

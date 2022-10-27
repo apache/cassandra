@@ -38,20 +38,28 @@ public class PingMessage
 {
     public static IVersionedSerializer<PingMessage> serializer = new PingMessageSerializer();
 
+    private final int connectionType;
+
+    public PingMessage(int connectionType)
+    {
+        this.connectionType = connectionType;
+    }
+
     public static class PingMessageSerializer implements IVersionedSerializer<PingMessage>
     {
-        public void serialize(PingMessage t, DataOutputPlus out, int version)
+        @Override
+        public void serialize(PingMessage t, DataOutputPlus out, int version) throws IOException
         {
-            throw new UnsupportedOperationException();
+            out.writeByte(t.connectionType);
         }
 
+        @Override
         public PingMessage deserialize(DataInputPlus in, int version) throws IOException
         {
-            // throw away the one byte of the payload
-            in.readByte();
-            return new PingMessage();
+            return new PingMessage(in.readByte());
         }
 
+        @Override
         public long serializedSize(PingMessage t, int version)
         {
             return 1;

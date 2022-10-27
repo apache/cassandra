@@ -27,17 +27,18 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 public abstract class CFStatement extends ParsedStatement
 {
     protected final CFName cfName;
-
+    protected Boolean fullyQualified;
     protected CFStatement(CFName cfName)
     {
         this.cfName = cfName;
+        this.fullyQualified = cfName != null ? cfName.hasKeyspace() : null;
     }
 
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
     {
         if (!cfName.hasKeyspace())
         {
-            // XXX: We explicitely only want to call state.getKeyspace() in this case, as we don't want to throw
+            // XXX: We explicitly only want to call state.getKeyspace() in this case, as we don't want to throw
             // if not logged in any keyspace but a keyspace is explicitely set on the statement. So don't move
             // the call outside the 'if' or replace the method by 'prepareKeyspace(state.getKeyspace())'
             cfName.setKeyspace(state.getKeyspace(), true);
@@ -49,6 +50,13 @@ public abstract class CFStatement extends ParsedStatement
     {
         if (!cfName.hasKeyspace())
             cfName.setKeyspace(keyspace, true);
+    }
+
+    public boolean isFullyQualified()
+    {
+        if (fullyQualified == null)
+            throw new IllegalStateException("Cannot determine whether or not the query was fully qualified");
+        return fullyQualified;
     }
 
     public String keyspace()

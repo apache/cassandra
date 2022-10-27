@@ -51,19 +51,16 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
     {
     }
 
+    @Override
     public ByteBuffer next()
     {
         return iter.next();
     }
 
-    public void init(Map<String, String> options, AbstractType validator)
+    public void init(Map<String, String> options, AbstractType<?> validator)
     {
         DelimiterTokenizingOptions tokenizingOptions = DelimiterTokenizingOptions.buildFromMap(options);
         delimiter = tokenizingOptions.getDelimiter();
-
-        if (!VALID_ANALYZABLE_TYPES.containsKey(validator))
-            throw new IllegalArgumentException(String.format("Only text types supported, got %s", validator));
-
         charset = VALID_ANALYZABLE_TYPES.get(validator);
     }
 
@@ -100,7 +97,7 @@ public class DelimiterAnalyzer extends AbstractAnalyzer
         };
     }
 
-
+    @Override
     public boolean isTokenizing()
     {
         return true;

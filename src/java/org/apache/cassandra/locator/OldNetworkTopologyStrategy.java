@@ -25,8 +25,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * This Replication Strategy returns the nodes responsible for a given
@@ -37,6 +43,8 @@ import org.apache.cassandra.dht.Token;
  */
 public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
 {
+    private static final Logger logger = LoggerFactory.getLogger(OldNetworkTopologyStrategy.class);
+
     public OldNetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
@@ -113,6 +121,29 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
             throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
         }
         validateReplicationFactor(configOptions.get("replication_factor"));
+    }
+
+    public void maybeWarnOnOptions()
+    {
+        if (!SchemaConstants.isLocalSystemKeyspace(keyspaceName) && !SchemaConstants.isReplicatedSystemKeyspace(keyspaceName))
+        {
+            int nodeCount = StorageService.instance.getHostIdToEndpoint().size();
+            // nodeCount==0 on many tests
+            int rf = getReplicationFactor();
+            if (rf > nodeCount && nodeCount != 0)
+            {
+                String msg = "Your replication factor " + rf
+                             + " for keyspace "
+                             + keyspaceName
+                             + " is higher than the number of nodes "
+                             + nodeCount;
+                if (ClientWarn.instance.getWarnings() == null || !ClientWarn.instance.getWarnings().contains(msg))
+                {
+                    ClientWarn.instance.warn(msg);
+                    logger.warn(msg);
+                }
+            }
+        }
     }
 
     public Collection<String> recognizedOptions()

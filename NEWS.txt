@@ -27,6 +27,24 @@ Logback has not been upgraded to avoid breaking deployments and customizations
 based on older versions. If you are using vulnerable components you will need
 to upgrade to a newer version of Logback or stop using the vulnerable components.
 
+PLEASE READ: CVE-2021-44521 SCRIPTED UDF SYSTEM ACCESS (CASSANDRA-17352)
+------------------------------------------------------------------------
+
+If you have enabled scripted UDFs and run without UDF threads in cassandra.yaml:
+
+    enable_user_defined_functions_threads: false
+
+an attacker could access java.lang.System methods and execute arbitrary code on
+the machine. Disabling UDF threads is still considered insecure and not recommended.
+
+To continue running without UDF threads you will need to set:
+
+    allow_insecure_udfs: true
+
+and if you need access to java.lang.System for existing UDFs, set:
+
+    allow_extra_insecure_udfs: true
+
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
@@ -41,6 +59,29 @@ When upgrading major versions of Cassandra, you will be unable to
 restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
+
+3.11.12
+=======
+
+Upgrading
+---------
+    - Before you upgrade, if you are using `cassandra.auth_bcrypt_gensalt_log2_rounds` property,
+      confirm it is set to value lower than 31 otherwise Cassandra will fail to start. See CASSANDRA-9384
+      for further details. You also need to regenerate passwords for users for who the password
+      was created while the above property was set to be more than 30 otherwise they will not be able to log in.
+    - The config properties for setting the streaming throughput `stream_throughput_outbound_megabits_per_sec` and
+      `inter_dc_stream_throughput_outbound_megabits_per_sec` were incorrectly interpreted as mebibits. This has
+      been fixed by CASSANDRA-17243, so the values for these properties will now indicate a throughput ~4.6% lower than
+      what was actually applied in previous versions. This also affects the setters and getters for these properties in
+      the JMX MBean `org.apache.cassandra.db:type=StorageService` and the nodetool commands `set/getstreamthroughput`
+      and `set/getinterdcstreamthroughput`.
+
+Statement re-prepare storms
+---------------------------
+    - CASSANDRA-15252 has changed how prepared statement ids are computed in order to avoid infinite re-prepare
+      loops caused by the driver. This new behaviour will be picked up only when the entire cluster has been updated
+      to 3.0.26 or higher. In case of a mixed version cluster, different major versions will be taken as a minimum
+      required version.
 
 3.11.11
 =======

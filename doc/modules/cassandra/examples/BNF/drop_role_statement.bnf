@@ -1,0 +1,1 @@
+drop_role_statement ::= DROP ROLE [ IF EXISTS ] role_name

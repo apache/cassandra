@@ -27,6 +27,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.UnavailableException;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class AuthCacheTest
 {
@@ -131,6 +132,29 @@ public class AuthCacheTest
         cache.get("expect-exception");
     }
 
+    @Test
+    public void testCassandraExceptionPassThroughWhenCacheRefreshed() throws InterruptedException
+    {
+        setValidity(50);
+        TestCache<String, Integer> cache = new TestCache<>(this::countingLoaderWithException, this::setValidity, () -> validity, () -> isCacheEnabled);
+        cache.get("10");
+
+        // wait until the cached record expires
+        Thread.sleep(60);
+
+        for (int i = 1; i <= 5; i++)
+        {
+            try
+            {
+                cache.get("10");
+                fail("Did not get expected Exception on attempt " + i);
+            }
+            catch (UnavailableException expected)
+            {
+            }
+        }
+    }
+
     private void setValidity(int validity)
     {
         this.validity = validity;
@@ -140,6 +164,16 @@ public class AuthCacheTest
     {
         loadCounter++;
         return Integer.parseInt(s);
+    }
+
+    private Integer countingLoaderWithException(String s)
+    {
+        Integer loadedValue = countingLoader(s);
+
+        if (loadCounter > 1)
+            throw new UnavailableException(ConsistencyLevel.QUORUM, 3, 1);
+
+        return loadedValue;
     }
 
     private static class TestCache<K, V> extends AuthCache<K, V>

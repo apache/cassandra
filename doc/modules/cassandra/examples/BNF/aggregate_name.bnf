@@ -1,0 +1,1 @@
+aggregate_name::= [keyspace_name '.' ] name
