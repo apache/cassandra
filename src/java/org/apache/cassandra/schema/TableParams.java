@@ -51,6 +51,7 @@ public final class TableParams
         DEFAULT_TIME_TO_LIVE,
         EXTENSIONS,
         GC_GRACE_SECONDS,
+        INCREMENTAL_BACKUPS,
         MAX_INDEX_INTERVAL,
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         MIN_INDEX_INTERVAL,
@@ -72,6 +73,7 @@ public final class TableParams
     public final double bloomFilterFpChance;
     public final double crcCheckChance;
     public final int gcGraceSeconds;
+    public final boolean incrementalBackups;
     public final int defaultTimeToLive;
     public final int memtableFlushPeriodInMs;
     public final int minIndexInterval;
@@ -95,6 +97,7 @@ public final class TableParams
                             : builder.bloomFilterFpChance;
         crcCheckChance = builder.crcCheckChance;
         gcGraceSeconds = builder.gcGraceSeconds;
+        incrementalBackups = builder.incrementalBackups;
         defaultTimeToLive = builder.defaultTimeToLive;
         memtableFlushPeriodInMs = builder.memtableFlushPeriodInMs;
         minIndexInterval = builder.minIndexInterval;
@@ -127,6 +130,7 @@ public final class TableParams
                             .crcCheckChance(params.crcCheckChance)
                             .defaultTimeToLive(params.defaultTimeToLive)
                             .gcGraceSeconds(params.gcGraceSeconds)
+                            .incrementalBackups(params.incrementalBackups)
                             .maxIndexInterval(params.maxIndexInterval)
                             .memtableFlushPeriodInMs(params.memtableFlushPeriodInMs)
                             .minIndexInterval(params.minIndexInterval)
@@ -211,7 +215,8 @@ public final class TableParams
             && allowAutoSnapshot == p.allowAutoSnapshot
             && bloomFilterFpChance == p.bloomFilterFpChance
             && crcCheckChance == p.crcCheckChance
-            && gcGraceSeconds == p.gcGraceSeconds
+            && gcGraceSeconds == p.gcGraceSeconds 
+            && incrementalBackups == p.incrementalBackups
             && defaultTimeToLive == p.defaultTimeToLive
             && memtableFlushPeriodInMs == p.memtableFlushPeriodInMs
             && minIndexInterval == p.minIndexInterval
@@ -234,6 +239,7 @@ public final class TableParams
                                 bloomFilterFpChance,
                                 crcCheckChance,
                                 gcGraceSeconds,
+                                incrementalBackups,
                                 defaultTimeToLive,
                                 memtableFlushPeriodInMs,
                                 minIndexInterval,
@@ -257,6 +263,7 @@ public final class TableParams
                           .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
                           .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
+                          .add(Option.INCREMENTAL_BACKUPS.toString(), incrementalBackups)
                           .add(Option.DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
                           .add(Option.MEMTABLE_FLUSH_PERIOD_IN_MS.toString(), memtableFlushPeriodInMs)
                           .add(Option.MIN_INDEX_INTERVAL.toString(), minIndexInterval)
@@ -310,6 +317,8 @@ public final class TableParams
                .newLine()
                .append("AND gc_grace_seconds = ").append(gcGraceSeconds)
                .newLine()
+               .append("AND incremental_backups = ").append(incrementalBackups)
+               .newLine()
                .append("AND max_index_interval = ").append(maxIndexInterval)
                .newLine()
                .append("AND memtable_flush_period_in_ms = ").append(memtableFlushPeriodInMs)
@@ -328,6 +337,7 @@ public final class TableParams
         private Double bloomFilterFpChance;
         private double crcCheckChance = 1.0;
         private int gcGraceSeconds = 864000; // 10 days
+        private boolean incrementalBackups = true;
         private int defaultTimeToLive = 0;
         private int memtableFlushPeriodInMs = 0;
         private int minIndexInterval = 128;
@@ -378,6 +388,12 @@ public final class TableParams
         public Builder gcGraceSeconds(int val)
         {
             gcGraceSeconds = val;
+            return this;
+        }
+
+        public Builder incrementalBackups(boolean val)
+        {
+            incrementalBackups = val;
             return this;
         }
 

@@ -133,6 +133,9 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(Option.GC_GRACE_SECONDS))
             builder.gcGraceSeconds(getInt(Option.GC_GRACE_SECONDS));
+        
+        if (hasOption(Option.INCREMENTAL_BACKUPS)) 
+            builder.incrementalBackups(getBoolean(Option.INCREMENTAL_BACKUPS.toString(), true));
 
         if (hasOption(Option.MAX_INDEX_INTERVAL))
             builder.maxIndexInterval(getInt(Option.MAX_INDEX_INTERVAL));
