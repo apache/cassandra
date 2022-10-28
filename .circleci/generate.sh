@@ -175,6 +175,7 @@ elif $all; then
 
 elif (!($has_env_vars)); then
   print_help
+  exit 0
 fi
 
 # add new or modified tests to the sets of tests to be repeated
