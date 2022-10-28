@@ -115,6 +115,10 @@ public class BootstrapTest extends TestBaseImpl
     /**
      * Confirm that, in the absence of the reset_bootstrap_progress param being set and in the face of a found prior
      * partial bootstrap, we error out and don't complete our bootstrap.
+     *
+     * Test w/out vnodes only; logic is identical for both run env but the token alloc in this test doesn't work for
+     * vnode env and it's not worth the lift to update it to work in both env.
+     *
      * @throws Throwable
      */
     @Test
@@ -131,6 +135,7 @@ public class BootstrapTest extends TestBaseImpl
 
         boolean sawException = false;
         try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withoutVNodes()
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
                                         .withConfig(config -> config.with(NETWORK, GOSSIP))
