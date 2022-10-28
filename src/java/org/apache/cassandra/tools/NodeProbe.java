@@ -2005,6 +2005,8 @@ public class NodeProbe implements AutoCloseable
             {
                 out.println("Resuming bootstrap");
                 monitor.awaitCompletion();
+                if (monitor.getError() != null)
+                    throw monitor.getError();
             }
             else
             {
