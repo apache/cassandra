@@ -396,7 +396,7 @@ public class ProxyHandlerConnectionsTest
 
     private void connect(OutboundConnection outbound) throws Throwable
     {
-        tryConnect(outbound, 10, SECONDS, true);
+        tryConnect(outbound, 30, SECONDS, true);
     }
 
     private void tryConnect(OutboundConnection outbound, long timeout, TimeUnit timeUnit, boolean throwOnFailure) throws Throwable
