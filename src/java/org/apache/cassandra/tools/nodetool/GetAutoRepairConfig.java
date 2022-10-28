@@ -47,7 +47,8 @@ public class GetAutoRepairConfig extends NodeToolCmd
             for (Set<String> dcGroup : probe.getDCGroups()) {
                 sb.append("\n" + Joiner.on(',').skipNulls().join(dcGroup));
             }
-            sb.append("\n auto repair history table delete hosts clear buffer in seconds: " + probe.getAutoRepairHistoryClearDeleteHostsBufferInSec());
+            sb.append("\nauto repair history table delete hosts clear buffer in seconds: " + probe.getAutoRepairHistoryClearDeleteHostsBufferInSec());
+            sb.append("\nrepair primary token-range: " + probe.getPrimaryTokenRangeOnly());
 
             System.out.println(sb.toString());
         }

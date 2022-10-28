@@ -2422,6 +2422,16 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.getCurrentRingHostIds();
     }
 
+    public boolean getPrimaryTokenRangeOnly()
+    {
+        return autoRepairProxy.getRepairPrimaryTokenRangeOnly();
+    }
+
+    public void setPrimaryTokenRangeOnly(boolean primaryTokenRangeOnly)
+    {
+        autoRepairProxy.setPrimaryTokenRangeOnly(primaryTokenRangeOnly);
+    }
+
     public boolean isDecommissionFailed()
     {
         return ssProxy.isDecommissionFailed();
