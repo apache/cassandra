@@ -131,6 +131,7 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
             .failure()
             .errorContains("Cannot join the ring until bootstrap completes");
 
+        node.nodetoolResult("bootstrap", "resume").asserts().failure();
         RewriteEnabled.disable();
         node.nodetoolResult("bootstrap", "resume").asserts().success();
         if (isWriteSurvey)
