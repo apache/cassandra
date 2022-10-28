@@ -39,7 +39,12 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Ordering;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Triple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -251,7 +256,24 @@ public class CommitLogReplayer implements CommitLogReadHandler
             if (keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 flushingSystem = true;
 
-            futures.addAll(keyspace.flush(flushReason));
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+            {
+                ListenableFuture<CommitLogPosition> f = cfs.forceFlush(flushReason);
+                futures.add(f);
+                Futures.addCallback(f, new FutureCallback<>() {
+                    @Override
+                    public void onSuccess(CommitLogPosition ignored)
+                    {
+                        mutationInitiator.onFlushed(cfs.metadata.id);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable throwable)
+                    {
+                        // no-op
+                    }
+                }, MoreExecutors.directExecutor());
+            }
         }
 
         // also flush batchlog incase of any MV updates
@@ -295,6 +317,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     // or c) are part of a cf that was dropped.
                     // Keep in mind that the cf.name() is suspect. do every thing based on the cfid instead.
                     Mutation.PartitionUpdateCollector newPUCollector = null;
+                    List<Triple<PartitionUpdate, Long, Integer>> updatesAndPositions = new ArrayList<>();
                     int replayedCount = 0;
                     for (PartitionUpdate update : commitLogReplayer.replayFilter.filter(mutation))
                     {
@@ -303,13 +326,13 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
                         // replay if current segment is newer than last flushed one or,
                         // if it is the last known segment, if we are after the commit log segment position
-                        if (commitLogReplayer.shouldReplay(update.metadata().id, new CommitLogPosition(segmentId, entryLocation)))
+                        if (shouldReplay(update.metadata().id, commitLogReplayer, segmentId, entryLocation))
                         {
                             if (newPUCollector == null)
                                 newPUCollector = new Mutation.PartitionUpdateCollector(mutation.getKeyspaceName(), mutation.key());
                             newPUCollector.add(update);
                             replayedCount++;
-                            onReplayed(update);
+                            updatesAndPositions.add(Triple.of(update, segmentId, entryLocation));
                         }
                         else
                         {
@@ -320,7 +343,12 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     {
                         assert !newPUCollector.isEmpty();
 
-                        Keyspace.open(newPUCollector.getKeyspaceName()).apply(newPUCollector.build(), WriteOptions.FOR_COMMITLOG_REPLAY);
+                        Keyspace.open(newPUCollector.getKeyspaceName()).applyFuture(newPUCollector.build(), WriteOptions.FOR_COMMITLOG_REPLAY, false)
+                                .thenRun(() -> {
+                                    for (Triple<PartitionUpdate, Long, Integer> updateAndPosition : updatesAndPositions)
+                                        onReplayed(updateAndPosition.getLeft(), updateAndPosition.getMiddle(), updateAndPosition.getRight());
+                                });
+
                         commitLogReplayer.keyspacesReplayed.computeIfAbsent(keyspace, k -> new AtomicInteger(0))
                                 .addAndGet(replayedCount);
                     }
@@ -329,7 +357,23 @@ public class CommitLogReplayer implements CommitLogReadHandler
             return Stage.MUTATION.submit(runnable, serializedSize);
         }
 
-        protected void onReplayed(PartitionUpdate update)
+        /**
+         * Return true if mutation at given commitlog position should be replayed into memtable
+         */
+        protected boolean shouldReplay(TableId tableId, CommitLogReplayer commitLogReplayer, long segmentId, int entryLocation)
+        {
+            return commitLogReplayer.shouldReplay(tableId, new CommitLogPosition(segmentId, entryLocation));
+        }
+
+        /**
+         * Called when a table is flushed successfully, including table without replayed mutation
+         */
+        protected void onFlushed(TableId tableId)
+        {
+            // CNDB will override it to monitor flush status
+        }
+
+        protected void onReplayed(PartitionUpdate update, long segmentId, int entryLocation)
         {
             // Override for test purposes
         }
@@ -482,7 +526,8 @@ public class CommitLogReplayer implements CommitLogReadHandler
      */
     private boolean shouldReplay(TableId tableId, CommitLogPosition position)
     {
-        return !cfPersisted.get(tableId).contains(position);
+        IntervalSet<CommitLogPosition> intervalSet = cfPersisted.get(tableId);
+        return intervalSet == null || !intervalSet.contains(position);
     }
 
     protected boolean pointInTimeExceeded(Mutation fm)
