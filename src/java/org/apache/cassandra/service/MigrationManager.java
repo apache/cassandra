@@ -495,6 +495,10 @@ public class MigrationManager
 
         Schema.instance.clear();
 
+        // clean the all version information from the MigrationCoordinator
+        MigrationCoordinator.instance.reset();
+
+        // now report again the versions we are aware of
         Set<InetAddress> liveEndpoints = Gossiper.instance.getLiveMembers();
         liveEndpoints.remove(FBUtilities.getBroadcastAddress());
 
