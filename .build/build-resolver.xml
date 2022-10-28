@@ -33,7 +33,6 @@
 
     <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
 
-    <property name="lib.geomet.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
     <!--
        Fetch Resolver Ant Tasks and Cassandra's dependencies.
     -->
