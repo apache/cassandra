@@ -24,6 +24,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -40,14 +47,9 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test for the truncate operation.
@@ -195,7 +197,7 @@ public class RecoveryManagerTruncateTest
         volatile int skipped;
 
         @Override
-        protected void onReplayed(PartitionUpdate update)
+        protected void onReplayed(PartitionUpdate update, long segmentId, int position)
         {
             if (KEYSPACE1.equals(update.metadata().keyspace))
             {
