@@ -30,9 +30,9 @@
  import org.apache.cassandra.db.marshal.*;
  import org.apache.cassandra.transport.ProtocolVersion;
 
- public class MathFcts
+ public final class MathFctsUtil
  {
-     public static Logger logger = LoggerFactory.getLogger(MathFcts.class);
+     public static Logger logger = LoggerFactory.getLogger(MathFctsUtil.class);
 
      private static final ImmutableList<NumberType<?>> numTypes = ImmutableList.of(ByteType.instance,
                                                                                    ShortType.instance,
@@ -43,6 +43,10 @@
                                                                                    IntegerType.instance,
                                                                                    DecimalType.instance,
                                                                                    CounterColumnType.instance);
+
+     private MathFctsUtil()
+     {
+     }
 
      public static Collection<Function> all()
      {

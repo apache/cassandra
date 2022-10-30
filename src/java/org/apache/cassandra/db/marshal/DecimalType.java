@@ -421,6 +421,7 @@ public class DecimalType extends NumberType<BigDecimal>
 
     protected BigDecimal log(BigDecimal input)
     {
+        if (input.compareTo(BigDecimal.ZERO) <= 0) throw new ArithmeticException("Natural log of number zero or less");
         int precision = input.precision();
         precision = Math.max(MIN_SIGNIFICANT_DIGITS, precision);
         precision = Math.min(MAX_PRECISION.getPrecision(), precision);
@@ -435,6 +436,7 @@ public class DecimalType extends NumberType<BigDecimal>
 
     protected BigDecimal log10(BigDecimal input)
     {
+        if (input.compareTo(BigDecimal.ZERO) <= 0) throw new ArithmeticException("Log10 of number zero or less");
         int precision = input.precision();
         precision = Math.max(MIN_SIGNIFICANT_DIGITS, precision);
         precision = Math.min(MAX_PRECISION.getPrecision(), precision);
