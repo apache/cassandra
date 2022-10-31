@@ -88,6 +88,15 @@ default_env_vars: &default_env_vars
     # The number of times that the manually specified Python dtests should be run.
     REPEATED_DTESTS_COUNT: 500
 
+    # Comma-separated list of Python large dtests that should be repeatedly run, for example:
+    # REPEATED_LARGE_DTESTS: replace_address_test.py
+    # REPEATED_LARGE_DTESTS: replace_address_test.py::TestReplaceAddress
+    # REPEATED_LARGE_DTESTS: replace_address_test.py::TestReplaceAddress::test_replace_stopped_node
+    # REPEATED_LARGE_DTESTS: replace_address_test.py,materialized_views_test.py
+    REPEATED_LARGE_DTESTS:
+    # The number of times that the manually specified Python large dtests should be run.
+    REPEATED_LARGE_DTESTS_COUNT: 100
+
     # Comma-separated list of Python dtests that should be repeatedly run, for example:
     # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py
     # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py::TestCQLNodes2RF1_Upgrade_current_4_0_x_To_indev_4_0_x
@@ -125,6 +134,12 @@ j8_small_par_executor: &j8_small_par_executor
   executor:
     name: java8-executor
     #exec_resource_class: xlarge
+  parallelism: 1
+
+j8_small_executor: &j8_small_executor
+  executor:
+    name: java8-executor
+    exec_resource_class: medium
   parallelism: 1
 
 j8_medium_par_executor: &j8_medium_par_executor
@@ -191,6 +206,18 @@ separate_jobs: &separate_jobs
         requires:
           - start_j8_jvm_dtests_repeat
           - build
+    - start_j8_cqlshlib_tests:
+        type: approval
+    - j8_cqlshlib_tests:
+        requires:
+          - start_j8_cqlshlib_tests
+          - build
+    - start_j8_cqlshlib_cython_tests:
+        type: approval
+    - j8_cqlshlib_cython_tests:
+        requires:
+          - start_j8_cqlshlib_cython_tests
+          - build
     # specialized unit tests (all run using Java 8)
     - start_utests_long:
         type: approval
@@ -234,7 +261,7 @@ separate_jobs: &separate_jobs
         requires:
           - start_jvm_upgrade_dtests_repeat
           - j8_dtest_jars_build
-    # Java 8 dtests
+    # Python DTests
     - start_j8_dtests:
         type: approval
     - j8_dtests:
@@ -259,7 +286,32 @@ separate_jobs: &separate_jobs
         requires:
           - start_j8_dtests_vnode_repeat
           - build
-    # Java 8 upgrade tests
+    # Python large DTests
+    - start_j8_dtests_large:
+        type: approval
+    - j8_dtests_large:
+        requires:
+          - start_j8_dtests_large
+          - build
+    - start_j8_dtests_large_repeat:
+        type: approval
+    - j8_dtests_large_repeat:
+        requires:
+          - start_j8_dtests_large_repeat
+          - build
+    - start_j8_dtests_large_vnode:
+        type: approval
+    - j8_dtests_large_vnode:
+        requires:
+          - start_j8_dtests_large_vnode
+          - build
+    - start_j8_dtests_large_vnode_repeat:
+        type: approval
+    - j8_dtests_large_vnode_repeat:
+        requires:
+          - start_j8_dtests_large_vnode_repeat
+          - build
+    # Python upgrade tests
     - start_j8_upgrade_dtests:
         type: approval
     - j8_upgrade_dtests:
@@ -301,6 +353,12 @@ pre-commit_jobs: &pre-commit_jobs
     - j8_jvm_dtests_repeat:
         requires:
           - build
+    - j8_cqlshlib_tests:
+        requires:
+          - build
+    - j8_cqlshlib_cython_tests:
+        requires:
+          - build
     # specialized unit tests (all run on request using Java 8)
     - start_utests_long:
         type: approval
@@ -334,7 +392,7 @@ pre-commit_jobs: &pre-commit_jobs
     - j8_jvm_upgrade_dtests_repeat:
         requires:
           - j8_dtest_jars_build
-    # Java 8 dtests
+    # Python DTests
     - j8_dtests:
         requires:
           - build
@@ -346,6 +404,25 @@ pre-commit_jobs: &pre-commit_jobs
           - build
     - j8_dtests_vnode_repeat:
         requires:
+          - build
+    # Large Python DTests
+    - start_j8_dtests_large:
+        type: approval
+    - j8_dtests_large:
+        requires:
+          - start_j8_dtests_large
+          - build
+    - j8_dtests_large_repeat:
+        requires:
+          - start_j8_dtests_large
+          - build
+    - j8_dtests_large_vnode:
+        requires:
+          - start_j8_dtests_large
+          - build
+    - j8_dtests_large_vnode_repeat:
+        requires:
+          - start_j8_dtests_large
           - build
     # Java 8 upgrade tests (on request)
     - start_upgrade_dtests:
@@ -416,6 +493,20 @@ jobs:
       - log_environment
       - run_parallel_junit_tests
 
+  j8_cqlshlib_tests:
+    <<: *j8_small_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_cqlshlib_tests
+
+  j8_cqlshlib_cython_tests:
+    <<: *j8_small_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_cqlshlib_cython_tests
+
   j8_jvm_dtests:
     <<: *j8_seq_executor
     steps:
@@ -445,6 +536,7 @@ jobs:
     steps:
       - attach_workspace:
           at: /home/cassandra
+      - log_environment
       - run_junit_tests:
           target: long-test
 
@@ -485,6 +577,34 @@ jobs:
       - run_dtests:
           file_tag: j8_without_vnodes
           pytest_extra_args: '--skip-resource-intensive-tests'
+
+  j8_dtests_large_vnode:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_large_with_vnodes
+          run_dtests_extra_args: '--use-vnodes --only-resource-intensive-tests --force-resource-intensive-tests'
+      - run_dtests:
+          file_tag: j8_large_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=32 --only-resource-intensive-tests --force-resource-intensive-tests'
+
+  j8_dtests_large:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_large_without_vnodes
+          run_dtests_extra_args: '--only-resource-intensive-tests --force-resource-intensive-tests'
+      - run_dtests:
+          file_tag: j8_large_without_vnodes
+          pytest_extra_args: '--num-tokens=32 --only-resource-intensive-tests --force-resource-intensive-tests'
 
   j8_upgrade_dtests:
     <<: *j8_par_executor
@@ -588,6 +708,36 @@ jobs:
           upgrade: "false"
           count: ${REPEATED_DTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  j8_dtests_large_repeat:
+    <<: *j8_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_LARGE_DTESTS}
+          vnodes: "false"
+          upgrade: "false"
+          count: ${REPEATED_LARGE_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--only-resource-intensive-tests --force-resource-intensive-tests"
+
+  j8_dtests_large_vnode_repeat:
+    <<: *j8_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_LARGE_DTESTS}
+          vnodes: "true"
+          upgrade: "false"
+          count: ${REPEATED_LARGE_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--only-resource-intensive-tests --force-resource-intensive-tests"
 
   j8_upgrade_dtests_repeat:
     <<: *j8_repeated_upgrade_dtest_executor
@@ -764,8 +914,6 @@ commands:
     steps:
     - run:
         name: Run Unit Tests (<<parameters.target>>)
-        # Please note that we run `clean` and therefore rebuild the project, as we can't run tests on Java 8 in case
-        # based on Java 11 builds.
         command: |
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
@@ -773,7 +921,7 @@ commands:
           if [ -d ~/dtest_jars ]; then
             cp ~/dtest_jars/dtest* /tmp/cassandra/build/
           fi
-          ant clean <<parameters.target>> -Dno-build-test=true
+          ant <<parameters.target>> -Dno-build-test=true
         no_output_timeout: <<parameters.no_output_timeout>>
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -798,8 +946,6 @@ commands:
     steps:
     - run:
         name: Run Unit Tests (<<parameters.target>>)
-        # Please note that we run `clean` and therefore rebuild the project, as we can't run tests on Java 8 in case
-        # based on Java 11 builds.
         command: |
           set -x
           export PATH=$JAVA_HOME/bin:$PATH
@@ -822,6 +968,41 @@ commands:
     - store_artifacts:
         path: /tmp/cassandra/build/test/logs
         destination: logs
+
+  run_cqlshlib_tests:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 15m
+    steps:
+      - run:
+          name: Run cqlshlib Unit Tests
+          command: |
+            export PATH=$JAVA_HOME/bin:$PATH
+            time mv ~/cassandra /tmp
+            cd /tmp/cassandra/
+            ./pylib/cassandra-cqlsh-tests.sh $(pwd)
+          no_output_timeout: <<parameters.no_output_timeout>>
+      - store_test_results:
+          path: /tmp/cassandra/pylib
+
+  run_cqlshlib_cython_tests:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 15m
+    steps:
+      - run:
+          name: Run cqlshlib Unit Tests
+          command: |
+            export PATH=$JAVA_HOME/bin:$PATH
+            export cython="yes"
+            time mv ~/cassandra /tmp
+            cd /tmp/cassandra/
+            ./pylib/cassandra-cqlsh-tests.sh $(pwd)
+          no_output_timeout: <<parameters.no_output_timeout>>
+      - store_test_results:
+          path: /tmp/cassandra/pylib
 
   create_venv:
     steps:
@@ -911,7 +1092,12 @@ commands:
             mkdir -p /tmp/results/dtests
             # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
             export SPLIT_TESTS=`cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt`
-            set -o pipefail && cd ~/cassandra-dtest && pytest <<parameters.pytest_extra_args>> --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_<<parameters.file_tag>>.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            if [ ! -z "$SPLIT_TESTS" ]; then
+              set -o pipefail && cd ~/cassandra-dtest && pytest <<parameters.pytest_extra_args>> --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_<<parameters.file_tag>>.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            else
+              echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
+              (exit 1)
+            fi
       - store_test_results:
           path: /tmp/results
       - store_artifacts:
@@ -1230,9 +1416,12 @@ commands:
         type: string
       stop_on_failure:
         type: string
+      extra_dtest_args:
+        type: string
+        default: ""
     steps:
       - run:
-          name: Run repeated Python dtest
+          name: Run repeated Python DTests
           no_output_timeout: 15m
           command: |
             if [ "<<parameters.tests>>" == "<nil>" ]; then
@@ -1275,7 +1464,7 @@ commands:
 
                 vnodes_args=""
                 if <<parameters.vnodes>>; then
-                  vnodes_args="--use-vnodes --num-tokens=16"
+                  vnodes_args="--use-vnodes --num-tokens=32"
                 fi
 
                 upgrade_arg=""
@@ -1284,7 +1473,7 @@ commands:
                 fi
 
                 # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
-                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $tests_arg | tee /tmp/dtest/stdout.txt
+                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir <<parameters.extra_dtest_args>> $tests_arg | tee /tmp/dtest/stdout.txt
               fi
             fi
       - store_test_results:
