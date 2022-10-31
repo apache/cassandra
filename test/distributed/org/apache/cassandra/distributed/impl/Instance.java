@@ -614,7 +614,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // see org.apache.cassandra.service.CassandraDaemon.setup
                 StorageService.instance.populateTokenMetadata();
 
-                logSystemInfo();
+                CassandraDaemon.logSystemInfo(inInstancelogger);
 
                 try
                 {
@@ -1146,32 +1146,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 JVMStabilityInspector.inspectThrowable(e);
             }
-        }
-    }
-    private void logSystemInfo()
-    {
-        if (inInstancelogger.isInfoEnabled())
-        {
-            try
-            {
-                inInstancelogger.info("Hostname: {}", InetAddress.getLocalHost().getHostName() + ":" + DatabaseDescriptor.getStoragePort() + ":" + DatabaseDescriptor.getSSLStoragePort());
-            }
-            catch (UnknownHostException e1)
-            {
-                inInstancelogger.info("Could not resolve local host");
-            }
-
-            inInstancelogger.info("JVM vendor/version: {}/{}", JAVA_VM_NAME.getString(), JAVA_VERSION.getString());
-            inInstancelogger.info("Heap size: {}/{}",
-                        FBUtilities.prettyPrintMemory(Runtime.getRuntime().totalMemory()),
-                        FBUtilities.prettyPrintMemory(Runtime.getRuntime().maxMemory()));
-
-            for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
-                inInstancelogger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
-
-            inInstancelogger.info("Classpath: {}", JAVA_CLASS_PATH.getString());
-
-            inInstancelogger.info("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
         }
     }
 }
