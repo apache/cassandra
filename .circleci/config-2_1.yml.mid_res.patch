@@ -1,5 +1,5 @@
---- config-2_1.yml	2022-10-15 14:49:08.115591764 +0100
-+++ config-2_1.yml.MIDRES	2022-10-15 14:50:05.881594331 +0100
+--- config-2_1.yml	2022-10-26 14:52:04.000000000 -0600
++++ config-2_1.yml.MIDRES	2022-10-27 06:21:41.000000000 -0600
 @@ -127,45 +127,65 @@
    executor:
      name: java8-executor
@@ -7,7 +7,7 @@
 -  parallelism: 4
 +    exec_resource_class: medium
 +  parallelism: 25
- 
+
  j8_small_par_executor: &j8_small_par_executor
    executor:
      name: java8-executor
@@ -15,7 +15,7 @@
 -  parallelism: 1
 +    exec_resource_class: large
 +  parallelism: 10
- 
+
  j8_medium_par_executor: &j8_medium_par_executor
    executor:
      name: java8-executor
@@ -35,68 +35,77 @@
 +    name: java8-executor
 +    exec_resource_class: xlarge
 +  parallelism: 100
- 
+
  j8_seq_executor: &j8_seq_executor
    executor:
      name: java8-executor
      #exec_resource_class: xlarge
 +    exec_resource_class: medium
    parallelism: 1 # sequential, single container tests: no parallelism benefits
- 
+
  j8_repeated_utest_executor: &j8_repeated_utest_executor
    executor:
      name: java8-executor
 -  parallelism: 4
 +    exec_resource_class: medium
 +  parallelism: 25
- 
+
  j8_repeated_dtest_executor: &j8_repeated_dtest_executor
    executor:
      name: java8-executor
 -  parallelism: 4
 +    exec_resource_class: large
 +  parallelism: 25
- 
+
  j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
    executor:
      name: java8-executor
 -  parallelism: 4
 +    exec_resource_class: xlarge
 +  parallelism: 25
- 
+
  j8_repeated_jvm_upgrade_dtest_executor: &j8_repeated_jvm_upgrade_dtest_executor
    executor:
      name: java8-executor
 -  parallelism: 4
 +    exec_resource_class: large
 +  parallelism: 25
- 
+
  separate_jobs: &separate_jobs
    jobs:
-@@ -500,7 +520,7 @@
+@@ -524,7 +531,7 @@
            target: stress-test
- 
+
    j8_dtests_vnode:
 -    <<: *j8_par_executor
 +    <<: *j8_large_par_executor
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -514,7 +534,7 @@
+@@ -538,7 +545,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
- 
+
    j8_dtests:
 -    <<: *j8_par_executor
 +    <<: *j8_large_par_executor
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -528,7 +548,7 @@
+@@ -552,7 +559,7 @@
            pytest_extra_args: '--skip-resource-intensive-tests'
- 
+
    j8_upgrade_dtests:
 -    <<: *j8_par_executor
 +    <<: *j8_very_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -680,7 +687,7 @@
+           count: ${REPEATED_UPGRADE_DTESTS_COUNT}
+
+   j8_dtests_offheap:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
      steps:
        - attach_workspace:
            at: /home/cassandra
