@@ -1,6 +1,6 @@
---- config-2_1.yml	2022-12-22 17:06:24.000000000 -0500
-+++ config-2_1.yml.MIDRES	2022-12-22 17:20:36.000000000 -0500
-@@ -119,45 +119,65 @@
+--- config-2_1.yml	2023-01-25 13:41:30.000000000 -0500
++++ config-2_1.yml.MIDRES	2023-01-25 15:34:38.000000000 -0500
+@@ -128,13 +128,15 @@
    executor:
      name: java8-executor
      #exec_resource_class: xlarge
@@ -16,10 +16,13 @@
 +    exec_resource_class: large
 +  parallelism: 10
  
+ j8_small_executor: &j8_small_executor
+   executor:
+@@ -145,34 +147,51 @@
  j8_medium_par_executor: &j8_medium_par_executor
    executor:
      name: java8-executor
-     #exec_resource_class: xlarge
+-    #exec_resource_class: xlarge
 -  parallelism: 1
 +    exec_resource_class: large
 +  parallelism: 4
@@ -73,7 +76,7 @@
  
  separate_jobs: &separate_jobs
    jobs:
-@@ -459,7 +479,7 @@
+@@ -557,7 +576,7 @@
            target: testclasslist-compression
  
    j8_dtests_vnode:
@@ -82,7 +85,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -473,7 +493,7 @@
+@@ -571,7 +590,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
  
    j8_dtests:
@@ -91,8 +94,26 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -487,7 +507,7 @@
+@@ -585,7 +604,7 @@
            pytest_extra_args: '--skip-resource-intensive-tests'
+ 
+   j8_dtests_large_vnode:
+-    <<: *j8_par_executor
++    <<: *j8_medium_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -599,7 +618,7 @@
+           pytest_extra_args: '--use-vnodes --num-tokens=32 --only-resource-intensive-tests --force-resource-intensive-tests'
+ 
+   j8_dtests_large:
+-    <<: *j8_par_executor
++    <<: *j8_medium_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -613,7 +632,7 @@
+           pytest_extra_args: '--num-tokens=32 --only-resource-intensive-tests --force-resource-intensive-tests'
  
    j8_upgrade_dtests:
 -    <<: *j8_par_executor
@@ -100,3 +121,12 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
+@@ -1193,7 +1212,7 @@
+             # Put manually specified tests and automatically detected tests together, removing duplicates
+             tests=$(echo <<parameters.tests>> | sed -e "s/<nil>//" | sed -e "s/ //" | tr "," "\n" | tr " " "\n" | sort -n | uniq -u)
+             echo "Tests to be repeated: ${tests}"
+-            
++
+             # Prepare the testtag for the target, used by the test macro in build.xml to group the output files
+             target=<<parameters.target>>
+             testtag=""
