@@ -1,5 +1,5 @@
---- config-2_1.yml	2022-11-05 18:28:58.000000000 -0400
-+++ config-2_1.yml.HIGHRES	2022-11-05 18:47:13.000000000 -0400
+--- config-2_1.yml	2023-02-02 18:32:16.000000000 -0500
++++ config-2_1.yml.HIGHRES	2023-02-02 18:35:17.000000000 -0500
 @@ -40,8 +40,8 @@
      CASSANDRA_SKIP_SYNC: true
      DTEST_REPO: https://github.com/apache/cassandra-dtest.git
@@ -11,7 +11,7 @@
  
      # Whether the repeated test iterations should stop on the first failure by default.
      REPEATED_TESTS_STOP_ON_FAILURE: false
-@@ -125,46 +125,50 @@
+@@ -134,14 +134,14 @@
  j8_par_executor: &j8_par_executor
    executor:
      name: java8-executor
@@ -28,6 +28,9 @@
 +    exec_resource_class: xlarge
 +  parallelism: 2
  
+ j8_small_executor: &j8_small_executor
+   executor:
+@@ -152,34 +152,38 @@
  j8_medium_par_executor: &j8_medium_par_executor
    executor:
      name: java8-executor
