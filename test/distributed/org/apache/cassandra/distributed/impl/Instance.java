@@ -581,7 +581,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
                 // so extract it to populate ExecutorFactory.Global
-
                 ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
                 if (config.has(GOSSIP))
                 {
@@ -601,6 +600,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
                 CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
+                CassandraDaemon.logSystemInfo(inInstancelogger);
                 CommitLog.instance.start();
 
                 CassandraDaemon.getInstanceForTesting().runStartupChecks();
@@ -613,8 +613,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // Same order to populate tokenMetadata for the first time,
                 // see org.apache.cassandra.service.CassandraDaemon.setup
                 StorageService.instance.populateTokenMetadata();
-
-                CassandraDaemon.logSystemInfo(inInstancelogger);
 
                 try
                 {
