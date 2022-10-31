@@ -42,7 +42,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_QUORUM;
-import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_SERIAL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -770,17 +769,14 @@ public class CASTest extends CASCommonTestCases
     public void testWriteTimeoutExceptionUsingPaxosInLwtPerformaceTest() throws IOException
     {
 
-        // Use 'schemachange' to create a keyspace and a table, using RF = 3.
         THREE_NODES.schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}", KEYSPACE));
 
         String tableName = tableName("t");
         String table = KEYSPACE + "." + tableName;
         THREE_NODES.schemaChange("CREATE TABLE " + table + " (k int PRIMARY KEY, v int)");
 
-        // Use 'execute' to insert, update and select. LOCAL_QUORUM to be used for insert and update, LOCAL_SERIAL for select.
         THREE_NODES.coordinator(1).execute("INSERT INTO " + table + " (k, v) VALUES (5, 5) IF NOT EXISTS", LOCAL_QUORUM);
         THREE_NODES.coordinator(1).execute("UPDATE " + table + " SET v = 123 WHERE k = 5 IF EXISTS", LOCAL_QUORUM);
-        THREE_NODES.coordinator(1).execute("SELECT * FROM " + table + " WHERE k = 5", LOCAL_SERIAL);
 
     }
 
