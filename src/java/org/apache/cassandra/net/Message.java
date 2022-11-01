@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -500,7 +501,9 @@ public class Message<T>
         {
             return Collections.unmodifiableMap(params);
         }
-    }
+
+        @Nullable
+        public String getJaegerSpan() { return (String) params.get(ParamType.JAEGER_SPAN)};
 
     @SuppressWarnings("WeakerAccess")
     public static class Builder<T>

@@ -62,9 +62,8 @@ public enum ParamType
     LOCAL_READ_SIZE_FAIL(10, "LRSF", Int64Serializer.serializer),
     LOCAL_READ_SIZE_WARN(11, "LRSW", Int64Serializer.serializer),
     ROW_INDEX_READ_SIZE_FAIL(12, "RIRSF", Int64Serializer.serializer),
-    ROW_INDEX_READ_SIZE_WARN(13, "RIRSW", Int64Serializer.serializer);
-    OTEL_SPAN_ID(14, "OTEL SPAN ID", UUID.Serializer.serializer);   // younger zero is always flags
-    OTEL_TRACE_ID(15, "OTEL TRACE ID", UUID.Serializer.serializer);
+    ROW_INDEX_READ_SIZE_WARN(13, "RIRSW", Int64Serializer.serializer),
+    JAEGER_SPAN(14, "JAEGER", String.serializers);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string
