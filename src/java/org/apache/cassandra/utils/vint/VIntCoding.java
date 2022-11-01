@@ -50,6 +50,7 @@ import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -60,6 +61,16 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  */
 public class VIntCoding
 {
+
+    protected static final FastThreadLocal<byte[]> encodingBuffer = new FastThreadLocal<byte[]>()
+    {
+        @Override
+        public byte[] initialValue()
+        {
+            return new byte[9];
+        }
+    };
+
     public static final int MAX_SIZE = 10;
 
     public static long readUnsignedVInt(DataInput input) throws IOException
@@ -214,7 +225,7 @@ public class VIntCoding
         {
             int limit = output.limit();
             int pos = output.position();
-            if (limit - pos >= size)
+            if (limit - pos >= 8)
             {
                 int shift = (8 - size) << 3;
                 int extraBytes = size - 1;
@@ -222,6 +233,10 @@ public class VIntCoding
                 long register = (value << shift) | mask;
                 output.putLong(pos, register);
                 output.position(pos + size);
+            }
+            else
+            {
+                output.put(VIntCoding.encodeUnsignedVInt(value, size), 0, size);
             }
         }
         else if (size == 9)
@@ -245,6 +260,26 @@ public class VIntCoding
     public static void writeVInt(long value, ByteBuffer output) throws IOException
     {
         writeUnsignedVInt(encodeZigZag64(value), output);
+    }
+
+    /**
+     * @return a TEMPORARY THREAD LOCAL BUFFER containing the encoded bytes of the value
+     * This byte[] must be discarded by the caller immediately, and synchronously
+     */
+    @Inline
+    private static byte[] encodeUnsignedVInt(long value, int size)
+    {
+        byte[] encodingSpace = encodingBuffer.get();
+
+        int extraBytes = size - 1;
+        for (int i = extraBytes ; i >= 0; --i)
+        {
+            encodingSpace[i] = (byte) value;
+            value >>= 8;
+        }
+        encodingSpace[0] |= VIntCoding.encodeExtraBytesToRead(extraBytes);
+
+        return encodingSpace;
     }
 
     /**
