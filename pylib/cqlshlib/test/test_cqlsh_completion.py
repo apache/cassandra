@@ -128,7 +128,7 @@ class CqlshCompletionCase(BaseTestCase):
                                           split_completed_lines=split_completed_lines)
 
         if immediate:
-            msg = 'cqlsh completed %r, but we expected %r' % (completed, immediate)
+            msg = 'cqlsh completed %r (%d), but we expected %r (%d)' % (completed, len(completed), immediate, len(immediate))
             self.assertEqual(completed, immediate, msg=msg)
             return
 
@@ -489,8 +489,10 @@ class TestCqlshCompletion(CqlshCompletionCase):
                              "b = 'eggs'"),
                             choices=['AND', 'IF', ';'])
 
-    def test_complete_in_batch(self):
-        pass
+    def test_complete_in_begin_batch(self):
+        self.trycompletions('BEGIN ', choices=['BATCH', 'COUNTER', 'UNLOGGED'])
+        self.trycompletions('BEGIN BATCH ', choices=['DELETE', 'INSERT', 'UPDATE', 'USING'])
+        self.trycompletions('BEGIN BATCH INSERT ', immediate='INTO ' )
 
     def test_complete_in_create_keyspace(self):
         self.trycompletions('create keyspace ', '', choices=('<identifier>', '<quotedName>', 'IF'))
@@ -565,6 +567,23 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
         self.trycompletions('DROP KEYSPACE I',
                             immediate='F EXISTS ' + self.cqlsh.keyspace + ' ;')
+
+    def test_complete_in_create_type(self):
+        self.trycompletions('CREATE TYPE foo ', choices=['(', '.'])
+
+    def test_complete_in_drop_type(self):
+        self.trycompletions('DROP TYPE ', choices=['IF', 'system_views.',
+                                                    'tags', 'system_traces.', 'system_distributed.',
+                                                    'phone_number', 'band_info_type', 'address', 'system.', 'system_schema.',
+                                                    'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
+                                                    ])
+
+    def test_complete_in_create_trigger(self):
+        self.trycompletions('CREATE TRIGGER ', choices=['<identifier>', '<quotedName>', 'IF' ])
+        self.trycompletions('CREATE TRIGGER foo ', immediate='ON ' )
+        self.trycompletions('CREATE TRIGGER foo ON ', choices=['system.', 'system_auth.',
+                                           'system_distributed.', 'system_schema.', 'system_traces.', 'system_views.',
+                                           'system_virtual_schema.' ], other_choices_ok=True)
 
     def create_columnfamily_table_template(self, name):
         """Parameterized test for CREATE COLUMNFAMILY and CREATE TABLE. Since
@@ -970,7 +989,30 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER ROLE foo WITH ', choices=['ACCESS', 'HASHED', 'LOGIN', 'OPTIONS', 'PASSWORD', 'SUPERUSER'])
         self.trycompletions('ALTER ROLE foo WITH ACCESS TO ', choices=['ALL', 'DATACENTERS'])
 
+    def test_complete_in_drop_role(self):
+        self.trycompletions('DROP ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
+
+
+    def test_complete_in_list(self):
+        self.trycompletions('LIST ', choices=['ALL', 'AUTHORIZE', 'DESCRIBE', 'EXECUTE', 'ROLES', 'USERS', 'ALTER', 'CREATE', 'DROP', 'MODIFY', 'SELECT'])
+
+
+    # Non-CQL Shell Commands
+
+    def test_complete_in_capture(self):
+        self.trycompletions('CAPTURE ', choices=['OFF', ';', '<enter>'], other_choices_ok=True)
+
+    def test_complete_in_paging(self):
+        self.trycompletions('PAGING ', choices=['ON', 'OFF', ';', '<enter>', '<wholenumber>' ] )
+        self.trycompletions('PAGING 50 ', choices=[';', '<enter>' ] )
+
+    def test_complete_in_serial(self):
+        self.trycompletions('SERIAL CONSISTENCY ', choices=[';', '<enter>', 'LOCAL_SERIAL', 'SERIAL'])
+
     def test_complete_in_show(self):
         self.trycompletions('SHOW ', choices=['HOST', 'REPLICAS', 'SESSION', 'VERSION'])
         self.trycompletions('SHOW SESSION ', choices=['<uuid>'])
         self.trycompletions('SHOW REPLICAS ', choices=['-', '<wholenumber>'])
+
+    def test_complete_in_tracing(self):
+        self.trycompletions('TRACING ', choices=[';', '<enter>', 'OFF', 'ON'])
