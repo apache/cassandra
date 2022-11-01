@@ -596,6 +596,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
                 CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
+                CassandraDaemon.logSystemInfo(inInstancelogger);
                 CommitLog.instance.start();
 
                 CassandraDaemon.getInstanceForTesting().runStartupChecks();
