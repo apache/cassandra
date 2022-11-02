@@ -17,7 +17,7 @@ to do so by submitting your contribution like any other patch following
 
 | xref:cassandra:getting_started/index.adoc[Getting started] | Newbie starting point
 
-| xref:cassandra:new/index.adoc[What's new in 4.0] | What's new in Cassandra 4.0
+| xref:cassandra:new/index.adoc[What's new in 4.1] | What's new in Cassandra 4.1
 
 | xref:cassandra:architecture/index.adoc[Architecture] | Cassandra's big picture
 
