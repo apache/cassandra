@@ -28,6 +28,7 @@ import java.util.stream.IntStream;
 
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -195,6 +196,11 @@ public class BootstrapTest extends TestBaseImpl
             cluster.run(asList(pullSchemaFrom(cluster.get(1)),
                                bootstrap()),
                         newInstance.config().num());
+        }
+        catch (AssumptionViolatedException ave)
+        {
+            // We get an AssumptionViolatedException if we're in a test job configured w/vnodes
+            throw ave;
         }
         catch (RuntimeException rte)
         {
