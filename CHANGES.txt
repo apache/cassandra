@@ -1,4 +1,5 @@
 4.1-beta2
+ * Restore streaming_keep_alive_period on the netty control streaming channel (CASSANDRA-17768)
  * Move Schema.FORCE_LOAD_KEYSPACES and Schema.FORCE_LOAD_KEYSPACES_PROP to CassandraRelevantProps (CASSANDRA-17783)
  * Add --resolve-ip option to nodetool gossipinfo (CASSANDRA-17934)
  * Allow pre-V5 global limit on bytes in flight to revert to zero asynchronously in RateLimitingTest (CASSANDRA-17927)

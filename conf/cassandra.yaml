@@ -1145,12 +1145,14 @@ slow_query_log_timeout: 500ms
 # since this is a requirement for general correctness of last write wins.
 # internode_timeout: true
 
-# Set keep-alive period for streaming
-# This node will send a keep-alive message periodically with this period.
-# If the node does not receive a keep-alive message from the peer for
-# 2 keep-alive cycles the stream session times out and fail
-# Default value is 300s (5 minutes), which means stalled stream
-# times out in 10 minutes by default
+# Set period for idle state control messages for earlier detection of failed streams
+# This node will send a keep-alive message periodically on the streaming's control channel.
+# This ensures that any eventual SocketTimeoutException will occur within 2 keep-alive cycles
+# If the node cannot send, or timeouts sending, the keep-alive message on the netty control channel
+# the stream session is closed.
+# Default value is 300s (5 minutes), which means stalled streams
+# are detected within 10 minutes
+# Specify 0 to disable.
 # Min unit: s
 # streaming_keep_alive_period: 300s
 

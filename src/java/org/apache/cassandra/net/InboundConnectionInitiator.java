@@ -452,7 +452,12 @@ public class InboundConnectionInitiator
             }
 
             BufferPools.forNetworking().setRecycleWhenFreeForCurrentThread(false);
-            NettyStreamingChannel streamingChannel = new NettyStreamingChannel(current_version, channel, StreamingChannel.Kind.CONTROL);
+
+            // we can't infer the type of streaming connection at this point,
+            // so we use CONTROL unconditionally; it's ugly but does what we want
+            // (establishes an AsyncStreamingInputPlus)
+            NettyStreamingChannel streamingChannel =
+                new NettyStreamingChannel(current_version, channel, StreamingChannel.Kind.CONTROL);
             pipeline.replace(this, "streamInbound", streamingChannel);
             executorFactory().startThread(String.format("Stream-Deserializer-%s-%s", from, channel.id()),
                                           new StreamDeserializingTask(null, streamingChannel, current_version));
