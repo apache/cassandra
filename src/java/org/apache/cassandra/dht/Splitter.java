@@ -60,6 +60,7 @@ public abstract class Splitter
 
         List<Token> boundaries = new ArrayList<>();
         BigInteger sum = BigInteger.ZERO;
+        BigInteger tokensLeft = totalTokens;
         for (Range<Token> r : localRanges)
         {
             Token right = token(r.right);
@@ -70,8 +71,14 @@ public abstract class Splitter
                 BigInteger withinRangeBoundary = perPart.subtract(sum);
                 left = left.add(withinRangeBoundary);
                 boundaries.add(tokenForValue(left));
+                tokensLeft = tokensLeft.subtract(perPart);
                 currentRangeWidth = currentRangeWidth.subtract(withinRangeBoundary);
                 sum = BigInteger.ZERO;
+                int partsLeft = parts - boundaries.size();
+                if (partsLeft == 0)
+                    break;
+                else if (partsLeft == 1)
+                    perPart = tokensLeft;
             }
             sum = sum.add(currentRangeWidth);
         }
