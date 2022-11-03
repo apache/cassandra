@@ -652,7 +652,7 @@ public class LongBTreeTest
     // return a value with the search position
     private static List<Integer> randomKeys(Random random, Iterable<Integer> canonical, boolean mixInNotPresentItems)
     {
-        boolean useFake = mixInNotPresentItems && random.nextBoolean();
+        final boolean useFake = mixInNotPresentItems && random.nextBoolean();
         final float fakeRatio = random.nextFloat();
         List<Integer> results = new ArrayList<>();
         Long fakeLb = (long) Integer.MIN_VALUE, fakeUb = null;
@@ -670,12 +670,12 @@ public class LongBTreeTest
             }
             else
             {
-                // otherwise we emit a fake value in the range immediately proceeding the last real value, and not
+                // otherwise we emit a fake value in the range immediately preceeding the last real value, and not
                 // exceeding the real value that would have proceeded (ignoring any other suppressed real values since)
                 if (fakeUb == null)
                     fakeUb = v.longValue() - 1;
                 long mid = (fakeLb + fakeUb) / 2;
-                assert mid < fakeUb;
+                assert mid < v.longValue();
                 results.add((int) mid);
                 fakeLb = mid;
             }
