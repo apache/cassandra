@@ -31,6 +31,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
@@ -79,9 +82,9 @@ public class SplitterTest
 
         for (int i = 1; i <= (rt - lt); i++)
         {
-            List<Token> splits = splitter.splitOwnedRanges(i, Arrays.asList(new Splitter.WeightedRange(1.0d, range)), false);
-            logger.info("{} splits of {} are: {}", i, range, splits);
-            Assertions.assertThat(splits).hasSize(i);
+            Splitter.SplitResult splits = splitter.splitOwnedRanges(i, Arrays.asList(new Splitter.WeightedRange(1.0d, range)), Splitter.SplitType.ALWAYS_SPLIT);
+            logger.info("{} splits of {} are: {}", i, range, splits.boundaries);
+            Assertions.assertThat(splits.boundaries).hasSize(i);
         }
     }
 

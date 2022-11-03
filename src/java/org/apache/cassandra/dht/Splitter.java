@@ -230,9 +230,13 @@ public abstract class Splitter
                 sum = BigInteger.ZERO;
                 int partsLeft = parts - boundaries.size();
                 if (partsLeft == 0)
+                {
                     break;
+                }
                 else if (partsLeft == 1)
+                {
                     perPart = tokensLeft;
+                }
             }
             sum = sum.add(currentRangeWidth);
         }
