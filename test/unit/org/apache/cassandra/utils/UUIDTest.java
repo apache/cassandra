@@ -43,7 +43,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 
 
-public class UUIDTests
+public class UUIDTest
 {
     @Test
     public void verifyType1()

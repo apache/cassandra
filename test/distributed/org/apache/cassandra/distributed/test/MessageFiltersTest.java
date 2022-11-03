@@ -49,7 +49,7 @@ import org.apache.cassandra.net.Verb;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class MessageFiltersTest extends TestBaseImpl
+public class MessageFiltersTest extends DistributedTestBaseImpl
 {
     @Test
     public void simpleInboundFiltersTest()

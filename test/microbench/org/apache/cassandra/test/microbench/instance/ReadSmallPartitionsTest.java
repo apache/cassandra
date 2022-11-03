@@ -39,7 +39,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Fork(value = 1)
 @Threads(1)
 @State(Scope.Benchmark)
-public class ReadTestSmallPartitions extends ReadTest
+public class ReadSmallPartitionsTest extends ReadTest
 {
     String readStatement()
     {

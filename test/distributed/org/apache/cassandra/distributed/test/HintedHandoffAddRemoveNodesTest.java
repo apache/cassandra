@@ -48,7 +48,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 /**
  * Tests around removing and adding nodes from and to a cluster while hints are still outstanding.
  */
-public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
+public class HintedHandoffAddRemoveNodesTest extends DistributedTestBaseImpl
 {
     @SuppressWarnings("Convert2MethodRef")
     @Test

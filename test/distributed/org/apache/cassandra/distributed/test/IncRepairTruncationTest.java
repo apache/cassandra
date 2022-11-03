@@ -44,7 +44,7 @@ import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher;
 import static org.apache.cassandra.distributed.test.PreviewRepairTest.insert;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-public class IncRepairTruncationTest extends TestBaseImpl
+public class IncRepairTruncationTest extends DistributedTestBaseImpl
 {
     @Test
     public void testTruncateDuringIncRepair() throws IOException, InterruptedException, ExecutionException

@@ -42,7 +42,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.streaming.StreamException;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -54,7 +54,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAn
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
 
-public class FailedBootstrapTest extends TestBaseImpl
+public class FailedBootstrapTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(FailedBootstrapTest.class);
 

@@ -25,7 +25,7 @@ import org.apache.cassandra.distributed.Cluster;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 
-public class SchemaDisagreementTest extends TestBaseImpl
+public class SchemaDisagreementTest extends DistributedTestBaseImpl
 {
     /**
      * If a node isn't aware of a column, but receives a mutation without that column, the write should succeed.

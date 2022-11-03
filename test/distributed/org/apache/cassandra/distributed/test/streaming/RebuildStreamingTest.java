@@ -27,12 +27,12 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class RebuildStreamingTest extends TestBaseImpl
+public class RebuildStreamingTest extends DistributedTestBaseImpl
 {
     @Test
     public void test() throws IOException

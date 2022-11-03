@@ -50,7 +50,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 @RunWith(Parameterized.class)
-public class TopologyChangeTest extends TestBaseImpl
+public class TopologyChangeTest extends DistributedTestBaseImpl
 {
     static class EventStateListener implements Host.StateListener
     {

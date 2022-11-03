@@ -41,7 +41,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
  *
  * Write timeouts are handled by simply re-reading the variable and checking if locking has actually succeeded.
  */
-public class CasCriticalSectionTest extends TestBaseImpl
+public class CasCriticalSectionTest extends DistributedTestBaseImpl
 {
     private static Random rng = new Random();
     private static final int threadCount = 5;

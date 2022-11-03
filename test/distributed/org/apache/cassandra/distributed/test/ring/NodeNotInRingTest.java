@@ -27,14 +27,14 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.action.GossipHelper;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class NodeNotInRingTest extends TestBaseImpl
+public class NodeNotInRingTest extends DistributedTestBaseImpl
 {
     @Test
     public void nodeNotInRingTest() throws Throwable

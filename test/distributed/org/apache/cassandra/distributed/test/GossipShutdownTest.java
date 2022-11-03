@@ -45,7 +45,7 @@ import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK;
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_SYN;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-public class GossipShutdownTest extends TestBaseImpl
+public class GossipShutdownTest extends DistributedTestBaseImpl
 {
     /**
      * Makes sure that a node that has shutdown doesn't come back as live (without being restarted)

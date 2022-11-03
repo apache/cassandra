@@ -60,7 +60,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class OptimiseStreamsRepairTest extends TestBaseImpl
+public class OptimiseStreamsRepairTest extends DistributedTestBaseImpl
 {
     @Test
     public void testBasic() throws Exception

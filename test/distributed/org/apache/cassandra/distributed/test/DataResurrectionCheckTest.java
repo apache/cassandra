@@ -54,7 +54,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-public class DataResurrectionCheckTest extends TestBaseImpl
+public class DataResurrectionCheckTest extends DistributedTestBaseImpl
 {
     @Test
     public void testDataResurrectionCheck() throws Exception

@@ -39,7 +39,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.getDirectorie
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.updateAddress;
 
-public class IPMembershipTest extends TestBaseImpl
+public class IPMembershipTest extends DistributedTestBaseImpl
 {
     /**
      * Port of replace_address_test.py::fail_without_replace_test to jvm-dtest

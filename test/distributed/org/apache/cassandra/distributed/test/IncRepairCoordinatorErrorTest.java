@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.TimeUUID;
 import static org.apache.cassandra.net.Verb.FINALIZE_COMMIT_MSG;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class IncRepairCoordinatorErrorTest extends TestBaseImpl
+public class IncRepairCoordinatorErrorTest extends DistributedTestBaseImpl
 {
     @Test
     public void errorTest() throws Exception

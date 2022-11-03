@@ -29,7 +29,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import static org.junit.Assert.assertFalse;
 import static org.psjava.util.AssertStatus.assertTrue;
 
-public class TimeoutAbortTest extends TestBaseImpl
+public class TimeoutAbortTest extends DistributedTestBaseImpl
 {
     @Test
     public void timeoutTest() throws IOException, InterruptedException

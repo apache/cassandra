@@ -45,7 +45,7 @@ import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.assertj.core.api.Assertions;
 
 @RunWith(Parameterized.class)
-public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImpl
+public class UnableToParseClientMessageFromBlockedSubnetTest extends DistributedTestBaseImpl
 {
     private static Cluster CLUSTER;
     private static List<String> CLUSTER_EXCLUDED_SUBNETS;

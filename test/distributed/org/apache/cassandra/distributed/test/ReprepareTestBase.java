@@ -57,7 +57,7 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.fail;
 
-public class ReprepareTestBase extends TestBaseImpl
+public class ReprepareTestBase extends DistributedTestBaseImpl
 {
     protected static ReprepareTestConfiguration cfg(boolean withUse, boolean skipBrokenBehaviours)
     {

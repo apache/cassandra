@@ -42,7 +42,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SchemaTest extends TestBaseImpl
+public class SchemaTest extends DistributedTestBaseImpl
 {
     public static final String TABLE_ONE = "tbl_one";
     public static final String TABLE_TWO = "tbl_two";

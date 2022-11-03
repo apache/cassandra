@@ -33,7 +33,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 
 import static org.junit.Assert.assertEquals;
 
-public class NodeToolTest extends TestBaseImpl
+public class NodeToolTest extends DistributedTestBaseImpl
 {
     private static Cluster CLUSTER;
     private static IInvokableInstance NODE;

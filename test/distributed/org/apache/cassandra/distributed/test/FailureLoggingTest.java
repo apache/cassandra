@@ -46,7 +46,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class FailureLoggingTest extends TestBaseImpl
+public class FailureLoggingTest extends DistributedTestBaseImpl
 {
     private static Cluster cluster;
     

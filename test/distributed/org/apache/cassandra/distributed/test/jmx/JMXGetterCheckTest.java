@@ -39,13 +39,13 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.utils.JMXServerUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.IS_DISABLED_MBEAN_REGISTRATION;
 import static org.apache.cassandra.cql3.CQLTester.getAutomaticallyAllocatedPort;
 
-public class JMXGetterCheckTest extends TestBaseImpl
+public class JMXGetterCheckTest extends DistributedTestBaseImpl
 {
     private static final Set<String> IGNORE_ATTRIBUTES = ImmutableSet.of(
     "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost" // throws unsupported saying the feature was removed... dropped in CASSANDRA-15375

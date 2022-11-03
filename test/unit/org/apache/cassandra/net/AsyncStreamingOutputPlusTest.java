@@ -48,7 +48,7 @@ public class AsyncStreamingOutputPlusTest
     @Test
     public void testSuccess() throws IOException
     {
-        EmbeddedChannel channel = new TestChannel(4);
+        EmbeddedChannel channel = new ChannelForTesting(4);
         ByteBuf read;
         try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
         {
@@ -152,7 +152,7 @@ public class AsyncStreamingOutputPlusTest
         File file = populateTempData("zero_copy_" + zeroCopy);
         int length = (int) file.length();
 
-        EmbeddedChannel channel = new TestChannel(4);
+        EmbeddedChannel channel = new ChannelForTesting(4);
         StreamManager.StreamRateLimiter limiter = zeroCopy ? StreamManager.getEntireSSTableRateLimiter(FBUtilities.getBroadcastAddressAndPort())
                                                            : StreamManager.getRateLimiter(FBUtilities.getBroadcastAddressAndPort());
 

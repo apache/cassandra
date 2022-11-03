@@ -23,7 +23,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class RestartTest extends TestBaseImpl
+public class RestartTest extends DistributedTestBaseImpl
 {
     @Test
     public void test() throws Exception

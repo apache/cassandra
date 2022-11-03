@@ -36,7 +36,7 @@ import org.apache.cassandra.distributed.api.LogResult;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class TombstoneWarningTest extends TestBaseImpl
+public class TombstoneWarningTest extends DistributedTestBaseImpl
 {
     private static final int COMPACTION_TOMBSTONE_WARN = 75;
     private static final ICluster<IInvokableInstance> cluster;

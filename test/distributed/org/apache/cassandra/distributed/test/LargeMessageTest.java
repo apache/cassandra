@@ -27,7 +27,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 
-public class LargeMessageTest extends TestBaseImpl
+public class LargeMessageTest extends DistributedTestBaseImpl
 {
     @Test
     public void testLargeMessage() throws Throwable

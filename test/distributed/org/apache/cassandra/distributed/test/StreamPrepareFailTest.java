@@ -36,7 +36,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class StreamPrepareFailTest extends TestBaseImpl
+public class StreamPrepareFailTest extends DistributedTestBaseImpl
 {
     @Test
     public void streamPrepareFailTest() throws Throwable

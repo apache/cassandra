@@ -33,7 +33,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.Metrics;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.Verb;
@@ -54,7 +54,7 @@ import static org.awaitility.Awaitility.await;
 /**
  * Tests {@link HintsServiceMetrics}.
  */
-public class HintsServiceMetricsTest extends TestBaseImpl
+public class HintsServiceMetricsTest extends DistributedTestBaseImpl
 {
     private static final int NUM_ROWS = 100;
     private static final int NUM_FAILURES_PER_NODE = 5;

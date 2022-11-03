@@ -41,7 +41,7 @@ import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class StreamsDiskSpaceTest extends TestBaseImpl
+public class StreamsDiskSpaceTest extends DistributedTestBaseImpl
 {
     @Test
     public void testAbortStreams() throws Exception

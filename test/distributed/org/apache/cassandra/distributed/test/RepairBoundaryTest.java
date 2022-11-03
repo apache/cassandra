@@ -43,7 +43,7 @@ import static org.apache.cassandra.service.StorageService.instance;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.apache.cassandra.utils.progress.ProgressEventType.COMPLETE;
 
-public class RepairBoundaryTest extends TestBaseImpl
+public class RepairBoundaryTest extends DistributedTestBaseImpl
 {
     private static Cluster cluster;
 

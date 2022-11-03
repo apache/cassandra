@@ -56,7 +56,7 @@ import org.assertj.core.api.Assertions;
  * paging issue without needing to send proper messages.
  */
 @RunWith(Parameterized.class)
-public class UnableToParseClientMessageTest extends TestBaseImpl
+public class UnableToParseClientMessageTest extends DistributedTestBaseImpl
 {
     /** Used by {@link #badBody()} */
     private static boolean BAD_BODY_SEEN_LOGS = false;

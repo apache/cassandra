@@ -31,7 +31,7 @@ import org.junit.Test;
 
 import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.TestChannel;
+import org.apache.cassandra.net.ChannelForTesting;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -41,13 +41,13 @@ import org.apache.cassandra.streaming.messages.CompleteMessage;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
-import static org.apache.cassandra.net.TestChannel.REMOTE_ADDR;
+import static org.apache.cassandra.net.ChannelForTesting.REMOTE_ADDR;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingMultiplexedChannelTest
 {
     private NettyStreamingChannel streamingChannel;
-    private TestChannel channel;
+    private ChannelForTesting channel;
     private StreamSession session;
     private StreamingMultiplexedChannel sender;
     private StreamingMultiplexedChannel.FileStreamTask fileStreamTask;
@@ -61,7 +61,7 @@ public class StreamingMultiplexedChannelTest
     @Before
     public void setUp()
     {
-        channel = new TestChannel();
+        channel = new ChannelForTesting();
         streamingChannel = new NettyStreamingChannel(current_version, channel, StreamingChannel.Kind.CONTROL);
         TimeUUID pendingRepair = nextTimeUUID();
         session = new StreamSession(StreamOperation.BOOTSTRAP, REMOTE_ADDR, new NettyStreamingConnectionFactory(), streamingChannel, current_version, true, 0, pendingRepair, PreviewKind.ALL);

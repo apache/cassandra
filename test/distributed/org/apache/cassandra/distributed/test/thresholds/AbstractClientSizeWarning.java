@@ -46,7 +46,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.service.ClientWarn;
@@ -56,7 +56,7 @@ import org.assertj.core.api.Condition;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public abstract class AbstractClientSizeWarning extends TestBaseImpl
+public abstract class AbstractClientSizeWarning extends DistributedTestBaseImpl
 {
     private static final String CQL_PK_READ = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
     private static final String CQL_TABLE_SCAN = "SELECT * FROM " + KEYSPACE + ".tbl";

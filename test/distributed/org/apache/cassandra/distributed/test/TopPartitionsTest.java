@@ -48,7 +48,7 @@ import static org.junit.Assert.assertEquals;
 import static org.psjava.util.AssertStatus.assertTrue;
 
 @RunWith(Parameterized.class)
-public class TopPartitionsTest extends TestBaseImpl
+public class TopPartitionsTest extends DistributedTestBaseImpl
 {
     public enum Repair
     {

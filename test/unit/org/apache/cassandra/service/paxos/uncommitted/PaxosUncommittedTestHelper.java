@@ -34,7 +34,7 @@ import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
 
-class PaxosUncommittedTests
+class PaxosUncommittedTestHelper
 {
     static
     {

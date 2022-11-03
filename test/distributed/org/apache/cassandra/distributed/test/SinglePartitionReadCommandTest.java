@@ -26,7 +26,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class SinglePartitionReadCommandTest extends TestBaseImpl
+public class SinglePartitionReadCommandTest extends DistributedTestBaseImpl
 {
     @Test
     public void testNonCompactTableWithOnlyUpdatedColumnOnOneNodeAndColumnDeletionOnTheOther() throws Throwable

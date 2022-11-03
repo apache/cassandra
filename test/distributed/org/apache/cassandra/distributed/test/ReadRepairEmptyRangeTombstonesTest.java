@@ -42,7 +42,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  * See CASSANDRA-15924.
  */
 @RunWith(Parameterized.class)
-public class ReadRepairEmptyRangeTombstonesTest extends TestBaseImpl
+public class ReadRepairEmptyRangeTombstonesTest extends DistributedTestBaseImpl
 {
     private static final int NUM_NODES = 2;
 

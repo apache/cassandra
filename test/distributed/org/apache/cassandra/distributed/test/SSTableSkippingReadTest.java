@@ -30,7 +30,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 
-public class SSTableSkippingReadTest extends TestBaseImpl
+public class SSTableSkippingReadTest extends DistributedTestBaseImpl
 {
     @Test
     public void skippedSSTableWithPartitionDeletionTest() throws Throwable

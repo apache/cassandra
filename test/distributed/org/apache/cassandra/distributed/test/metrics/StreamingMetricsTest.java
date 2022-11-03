@@ -28,7 +28,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StreamingMetrics;
 
@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 
-public class StreamingMetricsTest extends TestBaseImpl
+public class StreamingMetricsTest extends DistributedTestBaseImpl
 {
 
     private static InetAddressAndPort getNodeAddress(Cluster cluster, int num)

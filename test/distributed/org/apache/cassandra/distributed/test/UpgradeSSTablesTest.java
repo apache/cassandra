@@ -49,7 +49,7 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
-public class UpgradeSSTablesTest extends TestBaseImpl
+public class UpgradeSSTablesTest extends DistributedTestBaseImpl
 {
     @Test
     public void upgradeSSTablesInterruptsOngoingCompaction() throws Throwable

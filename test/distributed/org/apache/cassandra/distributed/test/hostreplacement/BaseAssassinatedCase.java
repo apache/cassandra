@@ -26,7 +26,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
@@ -38,7 +38,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAn
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public abstract class BaseAssassinatedCase extends TestBaseImpl
+public abstract class BaseAssassinatedCase extends DistributedTestBaseImpl
 {
     protected static final int SEED_NUM = 1;
     protected static final int NODE_TO_REMOVE_NUM = 2;

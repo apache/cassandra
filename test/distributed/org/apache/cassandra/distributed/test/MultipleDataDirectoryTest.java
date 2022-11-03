@@ -39,7 +39,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 
-public class MultipleDataDirectoryTest extends TestBaseImpl
+public class MultipleDataDirectoryTest extends DistributedTestBaseImpl
 {
     private static Cluster CLUSTER;
     private static IInvokableInstance NODE;

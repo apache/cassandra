@@ -44,7 +44,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.fail;
 
-public class CompactionDiskSpaceTest extends TestBaseImpl
+public class CompactionDiskSpaceTest extends DistributedTestBaseImpl
 {
     @Test
     public void testNoSpaceLeft() throws IOException

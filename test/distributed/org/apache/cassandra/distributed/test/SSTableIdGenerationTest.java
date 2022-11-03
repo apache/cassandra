@@ -69,7 +69,7 @@ import static org.apache.cassandra.distributed.shared.FutureUtils.waitOn;
 import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class SSTableIdGenerationTest extends TestBaseImpl
+public class SSTableIdGenerationTest extends DistributedTestBaseImpl
 {
     private final static String ENABLE_UUID_FIELD_NAME = "uuid_sstable_identifiers_enabled";
     private final static String SNAPSHOT_TAG = "test";
@@ -81,7 +81,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
-        TestBaseImpl.beforeClass();
+        DistributedTestBaseImpl.beforeClass();
 
         originalSecurityManager = System.getSecurityManager();
         // we prevent system exit and convert it to exception becuase this is one of the expected test outcomes,

@@ -44,7 +44,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class VirtualTableLogsTest extends TestBaseImpl
+public class VirtualTableLogsTest extends DistributedTestBaseImpl
 {
     @Test
     public void testVTableOutput() throws Throwable

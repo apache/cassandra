@@ -43,7 +43,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
-public class GossipSettlesTest extends TestBaseImpl
+public class GossipSettlesTest extends DistributedTestBaseImpl
 {
     @Test
     public void testGossipSettles() throws Throwable

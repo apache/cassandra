@@ -58,7 +58,7 @@ import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImp
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.UNINITIALIZED;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-public class AbstractEncryptionOptionsImpl extends TestBaseImpl
+public class AbstractEncryptionOptionsImpl extends DistributedTestBaseImpl
 {
     final Logger logger = LoggerFactory.getLogger(EncryptionOptions.class);
     final static String validKeyStorePath = "test/conf/cassandra_ssl_test.keystore";

@@ -49,7 +49,7 @@ public class CASMultiDCTest
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
-        TestBaseImpl.beforeClass();
+        DistributedTestBaseImpl.beforeClass();
         Consumer<IInstanceConfig> conf = config -> config
                                                    .with(Feature.NETWORK)
                                                    .set("paxos_variant", "v2")

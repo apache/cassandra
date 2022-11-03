@@ -29,7 +29,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
-import org.apache.cassandra.db.memtable.TestMemtable;
+import org.apache.cassandra.db.memtable.MemtableForTesting;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -563,7 +563,7 @@ public class AlterTest extends CQLTester
         Class<? extends Memtable> defaultClass = getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable().getClass();
 
         testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
-        testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_fullname", MemtableForTesting.FACTORY, SkipListMemtable.class);
         testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
 
         // verify memtable does not change on other ALTER

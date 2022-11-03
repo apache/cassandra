@@ -34,7 +34,7 @@ import org.apache.cassandra.service.StorageService;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class MoveTest extends TestBaseImpl
+public class MoveTest extends DistributedTestBaseImpl
 {
     private static final String KEYSPACE = "move_test_ks";
     private static final String TABLE = "tbl";

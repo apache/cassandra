@@ -42,7 +42,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
@@ -61,7 +61,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.utils.AssertionUtils.isThrowable;
 
-public class RequestTimeoutTest extends TestBaseImpl
+public class RequestTimeoutTest extends DistributedTestBaseImpl
 {
     private static final AtomicInteger NEXT = new AtomicInteger(0);
     public static final int COORDINATOR = 1;

@@ -44,7 +44,7 @@ import static org.junit.Assert.assertEquals;
  * mechanism that ensures distributed index and filtering queries at read consistency levels > ONE/LOCAL_ONE
  * avoid stale replica results.
  */
-public class ReplicaFilteringProtectionTest extends TestBaseImpl
+public class ReplicaFilteringProtectionTest extends DistributedTestBaseImpl
 {
     private static final int REPLICAS = 2;
     private static final int ROWS = 3;

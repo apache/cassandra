@@ -47,7 +47,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertFalse;
 
-public class ClearSnapshotTest extends TestBaseImpl
+public class ClearSnapshotTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(ClearSnapshotTest.class);
 

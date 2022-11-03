@@ -44,7 +44,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class EphemeralSnapshotTest extends TestBaseImpl
+public class EphemeralSnapshotTest extends DistributedTestBaseImpl
 {
     private static final String snapshotName = "snapshotname";
     private static final String snapshotName2 = "second-snapshot";

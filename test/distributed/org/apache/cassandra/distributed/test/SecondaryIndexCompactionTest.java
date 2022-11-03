@@ -36,7 +36,7 @@ import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class SecondaryIndexCompactionTest extends TestBaseImpl
+public class SecondaryIndexCompactionTest extends DistributedTestBaseImpl
 {
     @Test
     public void test2iCompaction() throws IOException

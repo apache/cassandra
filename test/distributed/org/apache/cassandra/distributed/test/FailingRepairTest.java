@@ -77,7 +77,7 @@ import org.apache.cassandra.service.StorageService;
 import org.awaitility.Awaitility;
 
 @RunWith(Parameterized.class)
-public class FailingRepairTest extends TestBaseImpl implements Serializable
+public class FailingRepairTest extends DistributedTestBaseImpl implements Serializable
 {
     private static ICluster<IInvokableInstance> CLUSTER;
 

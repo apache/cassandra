@@ -30,7 +30,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
-public class LargeColumnTest extends TestBaseImpl
+public class LargeColumnTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(LargeColumnTest.class);
 

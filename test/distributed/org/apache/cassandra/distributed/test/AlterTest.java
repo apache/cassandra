@@ -40,7 +40,7 @@ import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNe
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertFalse;
 
-public class AlterTest extends TestBaseImpl
+public class AlterTest extends DistributedTestBaseImpl
 {
     @Test
     public void getAndSetCompressionParametersTest() throws Throwable

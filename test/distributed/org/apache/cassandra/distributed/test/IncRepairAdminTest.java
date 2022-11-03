@@ -49,7 +49,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertTrue;
 
-public class IncRepairAdminTest extends TestBaseImpl
+public class IncRepairAdminTest extends DistributedTestBaseImpl
 {
     @Test
     public void testManualSessionFail() throws IOException

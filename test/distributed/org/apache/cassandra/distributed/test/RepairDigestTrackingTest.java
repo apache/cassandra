@@ -72,7 +72,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class RepairDigestTrackingTest extends TestBaseImpl
+public class RepairDigestTrackingTest extends DistributedTestBaseImpl
 {
     private static final String TABLE = "tbl";
     private static final String KS_TABLE = KEYSPACE + '.' + TABLE;

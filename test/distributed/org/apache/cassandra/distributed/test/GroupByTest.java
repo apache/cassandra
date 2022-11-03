@@ -42,7 +42,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class GroupByTest extends TestBaseImpl
+public class GroupByTest extends DistributedTestBaseImpl
 {
     @Test
     public void groupByWithDeletesAndSrpOnPartitions() throws Throwable

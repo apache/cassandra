@@ -26,7 +26,7 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 
-public class MetricsTest extends TestBaseImpl
+public class MetricsTest extends DistributedTestBaseImpl
 {
     @Test
     public void testMetrics() throws Throwable

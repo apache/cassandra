@@ -36,7 +36,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableZeroCopyWriter;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -45,7 +45,7 @@ import org.assertj.core.api.Assertions;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
-public class StreamCloseInMiddleTest extends TestBaseImpl
+public class StreamCloseInMiddleTest extends DistributedTestBaseImpl
 {
     @Test
     public void zeroCopy() throws IOException

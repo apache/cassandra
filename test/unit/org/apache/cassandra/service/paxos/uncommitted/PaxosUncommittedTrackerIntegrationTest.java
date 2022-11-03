@@ -37,8 +37,8 @@ import org.apache.cassandra.utils.CloseableIterator;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
 import static org.apache.cassandra.service.paxos.Commit.*;
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.ALL_RANGES;
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.PAXOS_CFS;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.ALL_RANGES;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.PAXOS_CFS;
 
 public class PaxosUncommittedTrackerIntegrationTest
 {

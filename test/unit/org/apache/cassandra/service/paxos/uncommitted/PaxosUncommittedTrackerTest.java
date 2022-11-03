@@ -41,7 +41,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.CloseableIterator;
 
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.*;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.*;
 
 public class PaxosUncommittedTrackerTest
 {

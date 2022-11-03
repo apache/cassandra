@@ -44,7 +44,7 @@ import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 
-public class TestBaseImpl extends DistributedTestBase
+public class DistributedTestBaseImpl extends DistributedTestBase
 {
     public static final Object[][] EMPTY_ROWS = new Object[0][];
     public static final boolean[] BOOLEANS = new boolean[]{ false, true };

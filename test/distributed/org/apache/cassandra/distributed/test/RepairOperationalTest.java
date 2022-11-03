@@ -36,7 +36,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class RepairOperationalTest extends TestBaseImpl
+public class RepairOperationalTest extends DistributedTestBaseImpl
 {
     @Test
     public void compactionBehindTest() throws IOException

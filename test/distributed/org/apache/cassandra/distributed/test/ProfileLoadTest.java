@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-public class ProfileLoadTest extends TestBaseImpl
+public class ProfileLoadTest extends DistributedTestBaseImpl
 {
     @Test
     public void testScheduledSamplingTaskLogs() throws IOException

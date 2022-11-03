@@ -45,14 +45,14 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOT
 /**
  * Replaces python dtest bootstrap_test.py::TestBootstrap::test_bootstrap_binary_disabled
  */
-public class BootstrapBinaryDisabledTest extends TestBaseImpl
+public class BootstrapBinaryDisabledTest extends DistributedTestBaseImpl
 {
     static String originalResetBootstrapProgress = null;
 
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
-        TestBaseImpl.beforeClass();
+        DistributedTestBaseImpl.beforeClass();
         originalResetBootstrapProgress = RESET_BOOTSTRAP_PROGRESS.getString();
         RESET_BOOTSTRAP_PROGRESS.setBoolean(false);
     }

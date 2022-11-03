@@ -22,7 +22,7 @@ package org.apache.cassandra.test.microbench.instance;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Param;
 
-public class ReadTestWidePartitions extends ReadTest
+public class ReadWidePartitionsTest extends ReadTest
 {
     @Param({"1000", "4"}) // wide and very wide partitions
     int partitions = 4;

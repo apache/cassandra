@@ -46,7 +46,7 @@ public class CASContentionTest extends CASTestBase
     public static void beforeClass() throws Throwable
     {
         System.setProperty("cassandra.paxos.use_self_execution", "false");
-        TestBaseImpl.beforeClass();
+        DistributedTestBaseImpl.beforeClass();
         Consumer<IInstanceConfig> conf = config -> config
                 .set("paxos_variant", "v2")
                 .set("write_request_timeout_in_ms", 20000L)

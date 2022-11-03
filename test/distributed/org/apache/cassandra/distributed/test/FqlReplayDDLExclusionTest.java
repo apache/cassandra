@@ -38,7 +38,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class FqlReplayDDLExclusionTest extends TestBaseImpl
+public class FqlReplayDDLExclusionTest extends DistributedTestBaseImpl
 {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();

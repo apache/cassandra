@@ -42,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * "replicated" -> includes disk usage for data outside the node's primary range
  * "unreplicated" -> indicates disk usage scaled down by replication factor across the entire cluster
  */
-public class ClusterStorageUsageTest extends TestBaseImpl
+public class ClusterStorageUsageTest extends DistributedTestBaseImpl
 {
     private static final DefaultNameFactory FACTORY = new DefaultNameFactory("Storage");
     private static final int MUTATIONS = 1000;

@@ -27,7 +27,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 
-public class MetricsCountQueriesTest extends TestBaseImpl
+public class MetricsCountQueriesTest extends DistributedTestBaseImpl
 {
     @Test
     public void testMetricsCountQueries() throws Throwable

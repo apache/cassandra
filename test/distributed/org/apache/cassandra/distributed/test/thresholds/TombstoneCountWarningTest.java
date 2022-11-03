@@ -55,7 +55,7 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
@@ -71,7 +71,7 @@ import org.assertj.core.api.Condition;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class TombstoneCountWarningTest extends TestBaseImpl
+public class TombstoneCountWarningTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(TombstoneCountWarningTest.class);
 

@@ -29,7 +29,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertTrue;
 
-public class AuthTest extends TestBaseImpl
+public class AuthTest extends DistributedTestBaseImpl
 {
     /**
      * Simply tests that initialisation of a test Instance results in

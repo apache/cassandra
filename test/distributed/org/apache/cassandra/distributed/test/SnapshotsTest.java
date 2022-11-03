@@ -41,7 +41,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 
-public class SnapshotsTest extends TestBaseImpl
+public class SnapshotsTest extends DistributedTestBaseImpl
 {
     public static final Integer SNAPSHOT_CLEANUP_PERIOD_SECONDS = 1;
     public static final Integer FIVE_SECONDS = 5;

@@ -40,7 +40,7 @@ public class AsyncMessageOutputPlusTest
     @Test
     public void testSuccess() throws IOException
     {
-        EmbeddedChannel channel = new TestChannel(4);
+        EmbeddedChannel channel = new ChannelForTesting(4);
         ByteBuf read;
         try (AsyncMessageOutputPlus out = new AsyncMessageOutputPlus(channel, 32, Integer.MAX_VALUE, PayloadAllocator.simple))
         {

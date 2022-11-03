@@ -31,10 +31,10 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
-public abstract class FuzzTestBase extends TestBaseImpl
+public abstract class FuzzTestBase extends DistributedTestBaseImpl
 {
     protected static Configuration configuration;
     public static final int RF = 2;

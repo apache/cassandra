@@ -32,7 +32,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
@@ -47,7 +47,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.stopAll;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.validateRows;
 
-public class HostReplacementOfDownedClusterTest extends TestBaseImpl
+public class HostReplacementOfDownedClusterTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(HostReplacementOfDownedClusterTest.class);
 

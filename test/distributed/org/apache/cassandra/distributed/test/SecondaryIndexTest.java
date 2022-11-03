@@ -41,7 +41,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.utils.TimeUUID;
 
-public class SecondaryIndexTest extends TestBaseImpl
+public class SecondaryIndexTest extends DistributedTestBaseImpl
 {
     private static final int NUM_NODES = 3;
     private static final int REPLICATION_FACTOR = 1;

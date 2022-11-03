@@ -59,6 +59,13 @@
 
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
+
+  </module>
+
+  <module name="RegexpOnFilename">
+    <property name="fileNamePattern" value="^(?!(?:Test))(?!.*?(?:Tests)).*$"/>
+    <property name="match" value="false"/>
+    <property name="fileExtensions" value="java"/>
   </module>
 
 </module>

@@ -66,7 +66,7 @@ import static org.junit.Assert.fail;
  * Remove the dc2 node
  * Check the keyspace can be altered again to remove it
  */
-public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
+public class UpdateSystemAuthAfterDCExpansionTest extends DistributedTestBaseImpl
 {
     static final Logger logger = LoggerFactory.getLogger(UpdateSystemAuthAfterDCExpansionTest.class);
     static final String username = "shinynewuser";
@@ -114,7 +114,7 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
         // reduce the time from 10s to prevent "Cannot process role related query as the role manager isn't yet setup."
         // exception from CassandraRoleManager
         System.setProperty("cassandra.superuser_setup_delay_ms", "0");
-        TestBaseImpl.beforeClass();
+        DistributedTestBaseImpl.beforeClass();
     }
 
     public void validateExpandAndContract(String initialDatacenters,

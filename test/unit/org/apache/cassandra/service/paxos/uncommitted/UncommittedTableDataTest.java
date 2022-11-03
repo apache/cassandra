@@ -47,7 +47,7 @@ import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData.Flush
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData.Merge;
 import org.apache.cassandra.utils.CloseableIterator;
 
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.*;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTestHelper.*;
 
 public class UncommittedTableDataTest
 {

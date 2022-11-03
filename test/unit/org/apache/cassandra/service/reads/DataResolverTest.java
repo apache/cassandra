@@ -69,7 +69,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
-import org.apache.cassandra.service.reads.repair.TestableReadRepair;
+import org.apache.cassandra.service.reads.repair.ReadRepairForTesting;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.assertClustering;
@@ -86,7 +86,7 @@ import static org.junit.Assert.assertTrue;
 public class DataResolverTest extends AbstractReadResponseTest
 {
     private ReadCommand command;
-    private TestableReadRepair readRepair;
+    private ReadRepairForTesting readRepair;
     private Keyspace ks;
     private ColumnFamilyStore cfs;
 
@@ -109,7 +109,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         command = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).build();
-        readRepair = new TestableReadRepair(command);
+        readRepair = new ReadRepairForTesting(command);
         Token token = Murmur3Partitioner.instance.getMinimumToken();
         EndpointsForRange.Builder replicas = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE, num);
         for (int i = 0; i < num; i++)
@@ -360,7 +360,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveWithBothEmpty()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        TestableReadRepair readRepair = new TestableReadRepair(command);
+        ReadRepairForTesting readRepair = new ReadRepairForTesting(command);
         DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
         resolver.preprocess(response(command, replicas.get(0).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
         resolver.preprocess(response(command, replicas.get(1).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
@@ -737,7 +737,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        ReadRepairForTesting readRepair = new ReadRepairForTesting(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
 
         long[] ts = {100, 200};
@@ -789,7 +789,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        ReadRepairForTesting readRepair = new ReadRepairForTesting(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
 
         long[] ts = {100, 200};
@@ -833,7 +833,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        ReadRepairForTesting readRepair = new ReadRepairForTesting(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
 
         long[] ts = {100, 200};
@@ -883,7 +883,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        ReadRepairForTesting readRepair = new ReadRepairForTesting(cmd);
         DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
 
         long[] ts = {100, 200};

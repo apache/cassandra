@@ -42,7 +42,7 @@ import static org.junit.Assert.assertTrue;
  * These tests replace the nodetool-related Python dtests in hintedhandoff_test.py.
  */
 @RunWith(Parameterized.class)
-public class HintedHandoffNodetoolTest extends TestBaseImpl
+public class HintedHandoffNodetoolTest extends DistributedTestBaseImpl
 {
     private static Cluster cluster;
 

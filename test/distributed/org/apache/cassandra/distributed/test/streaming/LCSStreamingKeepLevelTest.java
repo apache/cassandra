@@ -28,7 +28,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -36,7 +36,7 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertTrue;
 
-public class LCSStreamingKeepLevelTest extends TestBaseImpl
+public class LCSStreamingKeepLevelTest extends DistributedTestBaseImpl
 {
     @Test
     public void testDecom() throws IOException

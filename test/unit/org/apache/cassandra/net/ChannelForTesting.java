@@ -32,7 +32,7 @@ import io.netty.channel.FileRegion;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class TestChannel extends EmbeddedChannel
+public class ChannelForTesting extends EmbeddedChannel
 {
     public static final InetAddressAndPort REMOTE_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 0);
 
@@ -42,12 +42,12 @@ public class TestChannel extends EmbeddedChannel
     ChannelOutboundBuffer flush;
     long flushBytes;
 
-    public TestChannel()
+    public ChannelForTesting()
     {
         this(Integer.MAX_VALUE);
     }
 
-    public TestChannel(int inFlightLimit)
+    public ChannelForTesting(int inFlightLimit)
     {
         this.inFlightLimit = inFlightLimit;
     }

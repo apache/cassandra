@@ -34,7 +34,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.awaitility.Awaitility.await;
 
-public class AllowAutoSnapshotTest extends TestBaseImpl
+public class AllowAutoSnapshotTest extends DistributedTestBaseImpl
 {
     @Test
     public void testAllowAutoSnapshotOnAutoSnapshotEnabled() throws Exception

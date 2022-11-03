@@ -26,13 +26,13 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertTrue;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class ToggleCDCOnRepairEnabledTest extends TestBaseImpl
+public class ToggleCDCOnRepairEnabledTest extends DistributedTestBaseImpl
 {
     @Test
     public void testCDCOnRepairIsEnabled() throws Exception

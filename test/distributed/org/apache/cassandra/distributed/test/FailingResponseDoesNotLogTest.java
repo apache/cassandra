@@ -56,7 +56,7 @@ import org.assertj.core.api.Assertions;
  * This class makes sure we do not do logging/update metrics for client from a specific set of ip domains, so as long
  * as we still do not log/update metrics, then the test is doing the right thing.
  */
-public class FailingResponseDoesNotLogTest extends TestBaseImpl
+public class FailingResponseDoesNotLogTest extends DistributedTestBaseImpl
 {
     @BeforeClass
     public static void beforeClassTopLevel() // need to make sure not to conflict with TestBaseImpl.beforeClass

@@ -33,7 +33,7 @@ import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
-import org.apache.cassandra.db.memtable.TestMemtable;
+import org.apache.cassandra.db.memtable.MemtableForTesting;
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -604,7 +604,7 @@ public class CreateTest extends CQLTester
         testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("trie", MemtableParams.get("trie").factory(), TrieMemtable.class);
         testMemtableConfig("skiplist_remapped", SkipListMemtable.FACTORY, SkipListMemtable.class);
-        testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
+        testMemtableConfig("test_fullname", MemtableForTesting.FACTORY, SkipListMemtable.class);
         testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("default", MemtableParams.DEFAULT.factory(), defaultClass);
 

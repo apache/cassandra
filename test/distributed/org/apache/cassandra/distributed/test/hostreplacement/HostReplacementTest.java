@@ -36,7 +36,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.DistributedTestBaseImpl;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
@@ -49,7 +49,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.getTokenMetad
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 
-public class HostReplacementTest extends TestBaseImpl
+public class HostReplacementTest extends DistributedTestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(HostReplacementTest.class);
 
