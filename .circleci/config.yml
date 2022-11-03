@@ -83,7 +83,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
+          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed -Dno-build-test=true
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -1327,7 +1327,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit -Dno-build-test=true
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -2064,7 +2064,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed
+          ant testclasslist -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=distributed -Dno-build-test=true
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -2127,7 +2127,7 @@ jobs:
           if [ -d ~/dtest_jars ]; then
             cp ~/dtest_jars/dtest* /tmp/cassandra/build/
           fi
-          ant clean long-test
+          ant clean long-test -Dno-build-test=true
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -2236,7 +2236,7 @@ jobs:
           if [ -z "$test_timeout" ]; then
             test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
           fi
-          ant testclasslist-compression -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+          ant testclasslist-compression -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit -Dno-build-test=true
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
