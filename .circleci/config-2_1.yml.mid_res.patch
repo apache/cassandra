@@ -1,6 +1,6 @@
---- config-2_1.yml	2022-10-15 14:49:08.115591764 +0100
-+++ config-2_1.yml.MIDRES	2022-10-15 14:50:05.881594331 +0100
-@@ -127,45 +127,65 @@
+--- config-2_1.yml	2022-10-27 10:16:44.059665934 +0100
++++ config-2_1.yml.MIDRES	2022-10-27 10:18:01.949746099 +0100
+@@ -126,45 +126,65 @@
    executor:
      name: java8-executor
      #exec_resource_class: xlarge
@@ -73,7 +73,7 @@
  
  separate_jobs: &separate_jobs
    jobs:
-@@ -500,7 +520,7 @@
+@@ -531,7 +551,7 @@
            target: stress-test
  
    j8_dtests_vnode:
@@ -82,7 +82,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -514,7 +534,7 @@
+@@ -545,7 +565,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
  
    j8_dtests:
@@ -91,7 +91,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -528,7 +548,7 @@
+@@ -559,7 +579,7 @@
            pytest_extra_args: '--skip-resource-intensive-tests'
  
    j8_upgrade_dtests:

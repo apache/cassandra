@@ -109,7 +109,6 @@ default_env_vars: &default_env_vars
     # REPEATED_ANT_TEST_TARGET: test-jvm-dtest-some
     # REPEATED_ANT_TEST_TARGET: test-cdc
     # REPEATED_ANT_TEST_TARGET: test-compression
-    # REPEATED_ANT_TEST_TARGET: test-system-keyspace-directory
     REPEATED_ANT_TEST_TARGET: testsome
     # The name of JUnit class to be run multiple times, for example:
     # REPEATED_ANT_TEST_CLASS: org.apache.cassandra.cql3.ViewTest
@@ -199,7 +198,7 @@ separate_jobs: &separate_jobs
         requires:
           - start_j8_jvm_dtests_repeat
           - build
-    # specialized unit tests (all run using Java 8)
+    # specialized unit tests (all run on request)
     - start_utests_long:
         type: approval
     - utests_long:
@@ -211,6 +210,18 @@ separate_jobs: &separate_jobs
     - utests_long_repeat:
         requires:
           - start_utests_long_repeat
+          - build
+    - start_utests_cdc:
+        type: approval
+    - utests_cdc:
+        requires:
+          - start_utests_cdc
+          - build
+    - start_utests_cdc_repeat:
+        type: approval
+    - utests_cdc_repeat:
+        requires:
+          - start_utests_cdc_repeat
           - build
     - start_utests_compression:
         type: approval
@@ -320,7 +331,7 @@ pre-commit_jobs: &pre-commit_jobs
     - j8_jvm_dtests_repeat:
         requires:
           - build
-    # specialized unit tests (all run on request using Java 8)
+    # specialized unit tests (all run on request)
     - start_utests_long:
         type: approval
     - utests_long:
@@ -330,6 +341,16 @@ pre-commit_jobs: &pre-commit_jobs
     - utests_long_repeat:
         requires:
           - start_utests_long
+          - build
+    - start_utests_cdc:
+        type: approval
+    - utests_cdc:
+        requires:
+          - start_utests_cdc
+          - build
+    - utests_cdc_repeat:
+        requires:
+          - start_utests_cdc
           - build
     - start_utests_compression:
         type: approval
@@ -481,6 +502,16 @@ jobs:
       - run_junit_tests:
           target: long-test
 
+  utests_cdc:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: testclasslist-cdc
+
   utests_compression:
     <<: *j8_par_executor
     steps:
@@ -552,6 +583,14 @@ jobs:
       - log_environment
       - run_unit_tests_repeat
 
+  utests_cdc_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_cdc_repeat
+
   utests_compression_repeat:
     <<: *j8_repeated_utest_executor
     steps:
@@ -559,14 +598,6 @@ jobs:
           at: /home/cassandra
       - log_environment
       - run_utests_compression_repeat
-
-  utests_system_keyspace_directory_repeat:
-    <<: *j8_repeated_utest_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run_utests_system_keyspace_directory_repeat
 
   utests_long_repeat:
     <<: *j8_repeated_utest_executor
@@ -984,18 +1015,18 @@ commands:
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
-  run_utests_compression_repeat:
+  run_utests_cdc_repeat:
     steps:
       - run_repeated_utests:
-          target: test-compression
+          target: test-cdc
           tests: ${REPEATED_UTESTS}
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
-  run_utests_system_keyspace_directory_repeat:
+  run_utests_compression_repeat:
     steps:
       - run_repeated_utests:
-          target: test-system-keyspace-directory
+          target: test-compression
           tests: ${REPEATED_UTESTS}
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
@@ -1065,6 +1096,15 @@ commands:
             tests=$(echo <<parameters.tests>> | sed -e "s/<nil>//" | sed -e "s/ //" | tr "," "\n" | tr " " "\n" | sort -n | uniq -u)
             echo "Tests to be repeated: ${tests}"
 
+            # Prepare the testtag for the target, used by the test macro in build.xml to group the output files
+            target=<<parameters.target>>
+            testtag=""
+            if [[ $target == "test-cdc" ]]; then
+              testtag="cdc"
+            elif [[ $target == "test-compression" ]]; then
+              testtag="compression"
+            fi
+
             # Run each test class as many times as requested.
             exit_code="$?"
             for test in $tests; do
@@ -1083,7 +1123,6 @@ commands:
                 if [[ $target == "test" || \
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
-                      $target == "test-system-keyspace-directory" || \
                       $target == "long-test" || \
                       $target == "stress-test" ]]; then
                   name_arg="-Dtest.name=${class##*.}"
@@ -1092,7 +1131,7 @@ commands:
                 fi
 
                 # Prepare the -Dtest.methods argument, which is optional
-                if [ $method == "" ]; then
+                if [[ $method == "" ]]; then
                   methods_arg=""
                 else
                   methods_arg="-Dtest.methods=$method"
@@ -1117,7 +1156,7 @@ commands:
                   mv stdout.txt $dest/${test}.txt
 
                   # move the XML output files
-                  source=build/test/output
+                  source=build/test/output/${testtag}
                   dest=/tmp/results/repeated_utests/output/${status}/${i}
                   mkdir -p $dest
                   if [[ -d $source && -n "$(ls $source)" ]]; then
@@ -1125,7 +1164,7 @@ commands:
                   fi
 
                   # move the log files
-                  source=build/test/logs
+                  source=build/test/logs/${testtag}
                   dest=/tmp/results/repeated_utests/logs/${status}/${i}
                   mkdir -p $dest
                   if [[ -d $source && -n "$(ls $source)" ]]; then
@@ -1205,7 +1244,6 @@ commands:
                 if [[ $target == "test" || \
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
-                      $target == "test-system-keyspace-directory" || \
                       $target == "long-test" || \
                       $target == "stress-test" ]]; then
                   name="-Dtest.name=$class_name"
