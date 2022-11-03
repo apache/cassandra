@@ -193,6 +193,12 @@ j11_small_executor: &j11_small_executor
     #exec_resource_class: medium
   parallelism: 1
 
+j11_seq_executor: &j11_seq_executor
+  executor:
+    name: java11-executor
+    #exec_resource_class: xlarge
+  parallelism: 1 # sequential, single container tests: no parallelism benefits
+
 j8_repeated_utest_executor: &j8_repeated_utest_executor
   executor:
     name: java8-executor
@@ -298,66 +304,150 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j11_unit_tests_repeat
           - j8_build
-    # specialized unit tests (all run on request using Java 8)
-    - start_utests_long:
+    # specialized unit tests (all run on request)
+    - start_j8_utests_long:
         type: approval
-    - utests_long:
+    - j8_utests_long:
         requires:
-          - start_utests_long
+          - start_j8_utests_long
           - j8_build
-    - start_utests_long_repeat:
+    - start_j11_utests_long:
         type: approval
-    - utests_long_repeat:
+    - j11_utests_long:
         requires:
-          - start_utests_long_repeat
+          - start_j11_utests_long
           - j8_build
-    - start_utests_compression:
+    - start_j8_utests_long_repeat:
         type: approval
-    - utests_compression:
+    - j8_utests_long_repeat:
         requires:
-          - start_utests_compression
+          - start_j8_utests_long_repeat
           - j8_build
-    - start_utests_compression_repeat:
+    - start_j11_utests_long_repeat:
         type: approval
-    - utests_compression_repeat:
+    - j11_utests_long_repeat:
         requires:
-          - start_utests_compression_repeat
+          - start_j11_utests_long_repeat
           - j8_build
-    - start_utests_stress:
+    - start_j8_utests_cdc:
         type: approval
-    - utests_stress:
+    - j8_utests_cdc:
         requires:
-          - start_utests_stress
+          - start_j8_utests_cdc
           - j8_build
-    - start_utests_stress_repeat:
+    - start_j11_utests_cdc:
         type: approval
-    - utests_stress_repeat:
+    - j11_utests_cdc:
         requires:
-          - start_utests_stress_repeat
+          - start_j11_utests_cdc
           - j8_build
-    - start_utests_fqltool:
+    - start_j8_utests_cdc_repeat:
         type: approval
-    - utests_fqltool:
+    - j8_utests_cdc_repeat:
         requires:
-          - start_utests_fqltool
+          - start_j8_utests_cdc_repeat
           - j8_build
-    - start_utests_fqltool_repeat:
+    - start_j11_utests_cdc_repeat:
         type: approval
-    - utests_fqltool_repeat:
+    - j11_utests_cdc_repeat:
         requires:
-          - start_utests_fqltool_repeat
+          - start_j11_utests_cdc_repeat
           - j8_build
-    - start_utests_system_keyspace_directory:
+    - start_j8_utests_compression:
         type: approval
-    - utests_system_keyspace_directory:
+    - j8_utests_compression:
         requires:
-          - start_utests_system_keyspace_directory
+          - start_j8_utests_compression
           - j8_build
-    - start_utests_system_keyspace_directory_repeat:
+    - start_j11_utests_compression:
         type: approval
-    - utests_system_keyspace_directory_repeat:
+    - j11_utests_compression:
         requires:
-          - start_utests_system_keyspace_directory_repeat
+          - start_j11_utests_compression
+          - j8_build
+    - start_j8_utests_compression_repeat:
+        type: approval
+    - j8_utests_compression_repeat:
+        requires:
+          - start_j8_utests_compression_repeat
+          - j8_build
+    - start_j11_utests_compression_repeat:
+        type: approval
+    - j11_utests_compression_repeat:
+        requires:
+          - start_j11_utests_compression_repeat
+          - j8_build
+    - start_j8_utests_stress:
+        type: approval
+    - j8_utests_stress:
+        requires:
+          - start_j8_utests_stress
+          - j8_build
+    - start_j11_utests_stress:
+        type: approval
+    - j11_utests_stress:
+        requires:
+          - start_j11_utests_stress
+          - j8_build
+    - start_j8_utests_stress_repeat:
+        type: approval
+    - j8_utests_stress_repeat:
+        requires:
+          - start_j8_utests_stress_repeat
+          - j8_build
+    - start_j11_utests_stress_repeat:
+        type: approval
+    - j11_utests_stress_repeat:
+        requires:
+          - start_j11_utests_stress_repeat
+          - j8_build
+    - start_j8_utests_fqltool:
+        type: approval
+    - j8_utests_fqltool:
+        requires:
+          - start_j8_utests_fqltool
+          - j8_build
+    - start_j11_utests_fqltool:
+        type: approval
+    - j11_utests_fqltool:
+        requires:
+          - start_j11_utests_fqltool
+          - j8_build
+    - start_j8_utests_fqltool_repeat:
+        type: approval
+    - j8_utests_fqltool_repeat:
+        requires:
+          - start_j8_utests_fqltool_repeat
+          - j8_build
+    - start_j11_utests_fqltool_repeat:
+        type: approval
+    - j11_utests_fqltool_repeat:
+        requires:
+          - start_j11_utests_fqltool_repeat
+          - j8_build
+    - start_j8_utests_system_keyspace_directory:
+        type: approval
+    - j8_utests_system_keyspace_directory:
+        requires:
+          - start_j8_utests_system_keyspace_directory
+          - j8_build
+    - start_j11_utests_system_keyspace_directory:
+        type: approval
+    - j11_utests_system_keyspace_directory:
+        requires:
+          - start_j11_utests_system_keyspace_directory
+          - j8_build
+    - start_j8_utests_system_keyspace_directory_repeat:
+        type: approval
+    - j8_utests_system_keyspace_directory_repeat:
+        requires:
+          - start_j8_utests_system_keyspace_directory_repeat
+          - j8_build
+    - start_j11_utests_system_keyspace_directory_repeat:
+        type: approval
+    - j11_utests_system_keyspace_directory_repeat:
+        requires:
+          - start_j11_utests_system_keyspace_directory_repeat
           - j8_build
     - start_j8_dtest_jars_build:
         type: approval
@@ -538,52 +628,112 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
     - j11_unit_tests_repeat:
         requires:
           - j8_build
-    # specialized unit tests (all run on request using Java 8)
+    # specialized unit tests (all run on request)
     - start_utests_long:
         type: approval
-    - utests_long:
+    - j8_utests_long:
         requires:
           - start_utests_long
           - j8_build
-    - utests_long_repeat:
+    - j11_utests_long:
         requires:
           - start_utests_long
+          - j8_build
+    - j8_utests_long_repeat:
+        requires:
+          - start_utests_long
+          - j8_build
+    - j11_utests_long_repeat:
+        requires:
+          - start_utests_long
+          - j8_build
+    - start_utests_cdc:
+        type: approval
+    - j8_utests_cdc:
+        requires:
+          - start_utests_cdc
+          - j8_build
+    - j11_utests_cdc:
+        requires:
+          - start_utests_cdc
+          - j8_build
+    - j8_utests_cdc_repeat:
+        requires:
+          - start_utests_cdc
+          - j8_build
+    - j11_utests_cdc_repeat:
+        requires:
+          - start_utests_cdc
           - j8_build
     - start_utests_compression:
         type: approval
-    - utests_compression:
+    - j8_utests_compression:
         requires:
           - start_utests_compression
           - j8_build
-    - utests_compression_repeat:
+    - j11_utests_compression:
+        requires:
+          - start_utests_compression
+          - j8_build
+    - j8_utests_compression_repeat:
+        requires:
+          - start_utests_compression
+          - j8_build
+    - j11_utests_compression_repeat:
         requires:
           - start_utests_compression
           - j8_build
     - start_utests_stress:
         type: approval
-    - utests_stress:
+    - j8_utests_stress:
         requires:
           - start_utests_stress
           - j8_build
-    - utests_stress_repeat:
+    - j11_utests_stress:
+        requires:
+          - start_utests_stress
+          - j8_build
+    - j8_utests_stress_repeat:
+        requires:
+          - start_utests_stress
+          - j8_build
+    - j11_utests_stress_repeat:
         requires:
           - start_utests_stress
           - j8_build
     - start_utests_fqltool:
         type: approval
-    - utests_fqltool:
+    - j8_utests_fqltool:
         requires:
           - start_utests_fqltool
           - j8_build
-    - utests_fqltool_repeat:
+    - j11_utests_fqltool:
         requires:
           - start_utests_fqltool
           - j8_build
-    - utests_system_keyspace_directory:
+    - j8_utests_fqltool_repeat:
+        requires:
+          - start_utests_fqltool
+          - j8_build
+    - j11_utests_fqltool_repeat:
+        requires:
+          - start_utests_fqltool
+          - j8_build
+    - start_utests_system_keyspace_directory:
+        type: approval
+    - j8_utests_system_keyspace_directory:
         requires:
           - j8_build
-    - utests_system_keyspace_directory_repeat:
+    - j11_utests_system_keyspace_directory:
         requires:
+          - start_utests_system_keyspace_directory
+          - j8_build
+    - j8_utests_system_keyspace_directory_repeat:
+        requires:
+          - j8_build
+    - j11_utests_system_keyspace_directory_repeat:
+        requires:
+          - start_utests_system_keyspace_directory
           - j8_build
     - start_jvm_upgrade_dtests:
         type: approval
@@ -742,6 +892,79 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_cqlsh_tests
           - j11_build
+    # specialized unit tests (all run on request)
+    - start_j11_utests_long:
+        type: approval
+    - j11_utests_long:
+        requires:
+          - start_j11_utests_long
+          - j11_build
+    - start_j11_utests_long_repeat:
+        type: approval
+    - j11_utests_long_repeat:
+        requires:
+          - start_j11_utests_long_repeat
+          - j11_build
+    - start_j11_utests_cdc:
+        type: approval
+    - j11_utests_cdc:
+        requires:
+          - start_j11_utests_cdc
+          - j11_build
+    - start_j11_utests_cdc_repeat:
+        type: approval
+    - j11_utests_cdc_repeat:
+        requires:
+          - start_j11_utests_cdc_repeat
+          - j11_build
+    - start_j11_utests_compression:
+        type: approval
+    - j11_utests_compression:
+        requires:
+          - start_j11_utests_compression
+          - j11_build
+    - start_j11_utests_compression_repeat:
+        type: approval
+    - j11_utests_compression_repeat:
+        requires:
+          - start_j11_utests_compression_repeat
+          - j11_build
+    - start_j11_utests_stress:
+        type: approval
+    - j11_utests_stress:
+        requires:
+          - start_j11_utests_stress
+          - j11_build
+    - start_j11_utests_stress_repeat:
+        type: approval
+    - j11_utests_stress_repeat:
+        requires:
+          - start_j11_utests_stress_repeat
+          - j11_build
+    - start_j11_utests_fqltool:
+        type: approval
+    - j11_utests_fqltool:
+        requires:
+          - start_j11_utests_fqltool
+          - j11_build
+    - start_j11_utests_fqltool_repeat:
+        type: approval
+    - j11_utests_fqltool_repeat:
+        requires:
+          - start_j11_utests_fqltool_repeat
+          - j11_build
+    - start_j11_utests_system_keyspace_directory:
+        type: approval
+    - j11_utests_system_keyspace_directory:
+        requires:
+          - start_j11_utests_system_keyspace_directory
+          - j11_build
+    - start_j11_utests_system_keyspace_directory_repeat:
+        type: approval
+    - j11_utests_system_keyspace_directory_repeat:
+        requires:
+          - start_j11_utests_system_keyspace_directory_repeat
+          - j11_build
     # Java 11 repeated utest
     - start_j11_repeated_ant_test:
         type: approval
@@ -817,6 +1040,67 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
           - j11_build
     - j11_cqlsh_dtests_py38_vnode:
         requires:
+          - j11_build
+    # specialized unit tests (all run on request)
+    - start_utests_long:
+        type: approval
+    - j11_utests_long:
+        requires:
+          - start_utests_long
+          - j11_build
+    - j11_utests_long_repeat:
+        requires:
+          - start_utests_long
+          - j11_build
+    - start_utests_cdc:
+        type: approval
+    - j11_utests_cdc:
+        requires:
+          - start_utests_cdc
+          - j11_build
+    - j11_utests_cdc_repeat:
+        requires:
+          - start_utests_cdc
+          - j11_build
+    - start_utests_compression:
+        type: approval
+    - j11_utests_compression:
+        requires:
+          - start_utests_compression
+          - j11_build
+    - j11_utests_compression_repeat:
+        requires:
+          - start_utests_compression
+          - j11_build
+    - start_utests_stress:
+        type: approval
+    - j11_utests_stress:
+        requires:
+          - start_utests_stress
+          - j11_build
+    - j11_utests_stress_repeat:
+        requires:
+          - start_utests_stress
+          - j11_build
+    - start_utests_fqltool:
+        type: approval
+    - j11_utests_fqltool:
+        requires:
+          - start_utests_fqltool
+          - j11_build
+    - j11_utests_fqltool_repeat:
+        requires:
+          - start_utests_fqltool
+          - j11_build
+    - start_utests_system_keyspace_directory:
+        type: approval
+    - j11_utests_system_keyspace_directory:
+        requires:
+          - start_utests_system_keyspace_directory
+          - j11_build
+    - j11_utests_system_keyspace_directory_repeat:
+        requires:
+          - start_utests_system_keyspace_directory
           - j11_build
 
 workflows:
@@ -1000,7 +1284,7 @@ jobs:
           at: /home/cassandra
       - run_cqlshlib_tests
 
-  utests_long:
+  j8_utests_long:
     <<: *j8_seq_executor
     steps:
       - attach_workspace:
@@ -1008,7 +1292,35 @@ jobs:
       - run_junit_tests:
           target: long-test
 
-  utests_compression:
+  j11_utests_long:
+    <<: *j11_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: long-test
+
+  j8_utests_cdc:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: testclasslist-cdc
+
+  j11_utests_cdc:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: testclasslist-cdc
+
+  j8_utests_compression:
     <<: *j8_par_executor
     steps:
       - attach_workspace:
@@ -1018,7 +1330,17 @@ jobs:
       - run_parallel_junit_tests:
           target: testclasslist-compression
 
-  utests_stress:
+  j11_utests_compression:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: testclasslist-compression
+
+  j8_utests_stress:
     <<: *j8_seq_executor
     steps:
       - attach_workspace:
@@ -1026,7 +1348,15 @@ jobs:
       - run_junit_tests:
           target: stress-test
 
-  utests_fqltool:
+  j11_utests_stress:
+    <<: *j11_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: stress-test
+
+  j8_utests_fqltool:
     <<: *j8_seq_executor
     steps:
       - attach_workspace:
@@ -1034,8 +1364,26 @@ jobs:
       - run_junit_tests:
           target: fqltool-test
 
-  utests_system_keyspace_directory:
+  j11_utests_fqltool:
+    <<: *j8_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: fqltool-test
+
+  j8_utests_system_keyspace_directory:
     <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: testclasslist-system-keyspace-directory
+
+  j11_utests_system_keyspace_directory:
+    <<: *j11_par_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -1256,46 +1604,6 @@ jobs:
       - log_environment
       - run_unit_tests_repeat
 
-  utests_compression_repeat:
-    <<: *j8_repeated_utest_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run_utests_compression_repeat
-
-  utests_system_keyspace_directory_repeat:
-    <<: *j8_repeated_utest_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run_utests_system_keyspace_directory_repeat
-
-  utests_fqltool_repeat:
-    <<: *j8_repeated_utest_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run_utests_fqltool_repeat
-
-  utests_long_repeat:
-    <<: *j8_repeated_utest_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run_utests_long_repeat
-
-  utests_stress_repeat:
-    <<: *j8_repeated_utest_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - log_environment
-      - run_utests_stress_repeat
-
   j11_unit_tests_repeat:
     <<: *j11_repeated_utest_executor
     steps:
@@ -1303,6 +1611,102 @@ jobs:
           at: /home/cassandra
       - log_environment
       - run_unit_tests_repeat
+
+  j8_utests_cdc_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_cdc_repeat
+
+  j11_utests_cdc_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_cdc_repeat
+
+  j8_utests_compression_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_compression_repeat
+
+  j11_utests_compression_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_compression_repeat
+
+  j8_utests_system_keyspace_directory_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_system_keyspace_directory_repeat
+
+  j11_utests_system_keyspace_directory_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_system_keyspace_directory_repeat
+
+  j8_utests_fqltool_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_fqltool_repeat
+
+  j11_utests_fqltool_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_fqltool_repeat
+
+  j8_utests_long_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_long_repeat
+
+  j11_utests_long_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_long_repeat
+
+  j8_utests_stress_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_stress_repeat
+
+  j11_utests_stress_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_stress_repeat
 
   j8_jvm_dtests_repeat:
     <<: *j8_repeated_utest_executor
@@ -1835,6 +2239,14 @@ commands:
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
+  run_utests_cdc_repeat:
+    steps:
+      - run_repeated_utests:
+          target: test-cdc
+          tests: ${REPEATED_UTESTS}
+          count: ${REPEATED_UTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
   run_utests_compression_repeat:
     steps:
       - run_repeated_utests:
@@ -1945,14 +2357,25 @@ commands:
             # Put manually specified tests and automatically detected tests together, removing duplicates
             tests=$(echo <<parameters.tests>> | sed -e "s/<nil>//" | sed -e "s/ //" | tr "," "\n" | tr " " "\n" | sort -n | uniq -u)
             echo "Tests to be repeated: ${tests}"
-            
+
             # Prepare the JVM dtests vnodes argument, which is optional.
             vnodes=<<parameters.vnodes>>
             vnodes_args=""
             if [ "$vnodes" = true ] ; then
               vnodes_args="-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
             fi
-            
+
+            # Prepare the testtag for the target, used by the test macro in build.xml to group the output files
+            target=<<parameters.target>>
+            testtag=""
+            if [[ $target == "test-cdc" ]]; then
+              testtag="cdc"
+            elif [[ $target == "test-compression" ]]; then
+              testtag="compression"
+            elif [[ $target == "test-system-keyspace-directory" ]]; then
+              testtag="system_keyspace_directory"
+            fi
+
             # Run each test class as many times as requested.
             exit_code="$?"
             for test in $tests; do
@@ -1982,7 +2405,7 @@ commands:
                 fi
             
                 # Prepare the -Dtest.methods argument, which is optional
-                if [ $method == "" ]; then
+                if [[ $method == "" ]]; then
                   methods_arg=""
                 else
                   methods_arg="-Dtest.methods=$method"
@@ -2007,7 +2430,7 @@ commands:
                   mv stdout.txt $dest/${test}.txt
 
                   # move the XML output files
-                  source=build/test/output
+                  source=build/test/output/${testtag}
                   dest=/tmp/results/repeated_utests/output/${status}/${i}
                   mkdir -p $dest
                   if [[ -d $source && -n "$(ls $source)" ]]; then
@@ -2015,7 +2438,7 @@ commands:
                   fi
 
                   # move the log files
-                  source=build/test/logs
+                  source=build/test/logs/${testtag}
                   dest=/tmp/results/repeated_utests/logs/${status}/${i}
                   mkdir -p $dest
                   if [[ -d $source && -n "$(ls $source)" ]]; then
