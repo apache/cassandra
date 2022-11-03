@@ -91,7 +91,7 @@ public abstract class RepairMessage
     private static boolean supportsTimeouts(InetAddressAndPort from, UUID parentSessionId)
     {
         CassandraVersion remoteVersion = Nodes.peers().map(from, NodeInfo::getReleaseVersion, () -> null);
-        if (remoteVersion != null && remoteVersion.compareTo(SUPPORTS_TIMEOUTS) >= 0)
+        if (remoteVersion != null && remoteVersion.compareTo(SUPPORTS_TIMEOUTS, true) >= 0)
             return true;
         logger.warn("[#{}] Not failing repair due to remote host {} not supporting repair message timeouts (version = {})", parentSessionId, from, remoteVersion);
         return false;
