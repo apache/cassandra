@@ -342,14 +342,14 @@ public class LongBTreeTest
         final CountDownLatch latch = new CountDownLatch(threads);
         final AtomicLong errors = new AtomicLong();
         final AtomicLong count = new AtomicLong();
-        final long totalCount = threads * perThreadTrees * perTreeSelections;
+        final long totalCount = threads * perThreadTrees * perTreeSelections / 100;
         for (int t = 0 ; t < threads ; t++)
         {
             Runnable runnable = () -> {
                 final Random seedGenerator = new Random(outerSeedGenerator.nextLong());
                 try
                 {
-                    for (int i = 0 ; i < perThreadTrees ; i++)
+                    for (int i = 0 ; i < perThreadTrees / 100; i++)
                     {
                         long dataSeed = seedGenerator.nextLong();
                         RandomTree tree = randomTree(dataSeed, minTreeSize, maxTreeSize);
@@ -784,7 +784,7 @@ public class LongBTreeTest
     @Test
     public void testIndividualInsertsMediumSparseRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(randomSeed(), perThreadTrees / 10, 500, 10, 1, true);
+        testInsertions(randomSeed(), perThreadTrees / 1000, 500, 10, 1, true);
     }
 
     @Test
@@ -796,14 +796,14 @@ public class LongBTreeTest
     @Test
     public void testLargeBatchesLargeRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(randomSeed(), perThreadTrees / 10, Math.max(maxTreeSize, 5000), 3, 100, true);
+        testInsertions(randomSeed(), perThreadTrees / 1000, Math.max(maxTreeSize, 5000), 3, 100, true);
     }
 
     @Test
     public void testRandomRangeAndBatches() throws ExecutionException, InterruptedException
     {
         Random seedGenerator = new Random(randomSeed());
-        for (int i = 0 ; i < perThreadTrees / 100 ; i++)
+        for (int i = 0 ; i < perThreadTrees / 1000 ; i++)
         {
             int treeSize = nextInt(seedGenerator, maxTreeSize / 10, maxTreeSize * 10);
             testInsertions(seedGenerator.nextLong(), threads * 10, treeSize, nextInt(seedGenerator, 1, 100) / 10f, treeSize / 100, true);
@@ -818,7 +818,7 @@ public class LongBTreeTest
 
     private static void testInsertions(long seed, int perTestCount, float testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
     {
-        int tests = perThreadTrees * threads;
+        int tests = perThreadTrees * threads / 100;
         testInsertions(seed, tests, perTestCount, testKeyRatio, modificationBatchSize, quickEquality);
     }
 
