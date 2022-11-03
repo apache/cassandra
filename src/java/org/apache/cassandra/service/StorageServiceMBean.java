@@ -782,7 +782,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
      * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
      *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
-     * @param specificSources list of sources that can be used for rebuilding. Mostly other nodes in the cluster.
+     * @param specificSources list of sources that can be used for rebuilding. Must be other nodes in the cluster.
+     *                        The format of the string is comma separated values.
      */
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources);
 
@@ -794,7 +795,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
     *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
     * @param specificSources list of sources that can be used for rebuilding. Mostly other nodes in the cluster.
-    * @param excludeLocalDatacenterNodes Flag to indicate whether local data center nodes should be excluded as a source for streaming.
+    * @param excludeLocalDatacenterNodes Flag to indicate whether local data center nodes should be excluded as sources for streaming.
     */
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes);
 

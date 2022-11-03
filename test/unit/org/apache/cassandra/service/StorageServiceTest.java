@@ -169,7 +169,6 @@ public class StorageServiceTest
         assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
     }
 
-<<<<<<< Updated upstream
     @Test
     public void testSetGetSSTablePreemptiveOpenIntervalInMB()
     {
@@ -299,19 +298,21 @@ public class StorageServiceTest
                 storageService.setBatchSizeWarnThresholdInKiB(2 * 1024 * 1024);
                 fail("Should have received an IllegalArgumentException batch_size_warn_threshold = 2GiB");
             }
-            catch (IllegalArgumentException ignored) { }
+            catch (IllegalArgumentException ignored)
+            {
+            }
             Assert.assertEquals(1024, storageService.getBatchSizeWarnThresholdInKiB());
         }
         finally
         {
             storageService.setBatchSizeWarnThresholdInKiB(previousBatchSizeWarnThreshold);
         }
-=======
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testLocalDatacenterNodesExcludedDuringRebuild()
     {
         StorageService service = StorageService.instance;
         service.rebuild(DatabaseDescriptor.getLocalDataCenter(), "StorageServiceTest", null, null, true);
->>>>>>> Stashed changes
     }
 }

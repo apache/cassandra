@@ -1288,7 +1288,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         rebuild(sourceDc, keyspace, tokens, specificSources, false);
     }
 
-    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes)
     {
         // check ongoing rebuild
         if (!isRebuilding.compareAndSet(false, true))
@@ -1296,18 +1296,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
         }
 
-<<<<<<< Updated upstream
-        try
-=======
         // fail if source DC is local and --exclude-local-dc is set
         if (sourceDc != null && sourceDc.equals(DatabaseDescriptor.getLocalDataCenter()) && excludeLocalDatacenterNodes)
         {
             throw new IllegalArgumentException("Cannot set source data center to be local data center, when excludeLocalDataCenter flag is set");
         }
 
-        // check the arguments
-        if (keyspace == null && tokens != null)
->>>>>>> Stashed changes
+        try
         {
             // check the arguments
             if (keyspace == null && tokens != null)
