@@ -1,5 +1,5 @@
---- config-2_1.yml	2022-10-15 12:44:53.878216263 +0100
-+++ config-2_1.yml.HIGHRES	2022-10-15 12:45:49.850511983 +0100
+--- config-2_1.yml	2022-10-25 12:28:18.966893212 +0100
++++ config-2_1.yml.HIGHRES	2022-10-25 12:29:12.625678547 +0100
 @@ -148,14 +148,14 @@
  j8_par_executor: &j8_par_executor
    executor:
@@ -19,7 +19,7 @@
  
  j8_small_executor: &j8_small_executor
    executor:
-@@ -166,62 +166,68 @@
+@@ -166,68 +166,74 @@
  j8_medium_par_executor: &j8_medium_par_executor
    executor:
      name: java8-executor
@@ -59,6 +59,13 @@
 -  parallelism: 1
 +    exec_resource_class: xlarge
 +  parallelism: 5
+ 
+ j11_seq_executor: &j11_seq_executor
+   executor:
+     name: java11-executor
+-    #exec_resource_class: xlarge
++    exec_resource_class: xlarge
+   parallelism: 1 # sequential, single container tests: no parallelism benefits
  
  j8_repeated_utest_executor: &j8_repeated_utest_executor
    executor:

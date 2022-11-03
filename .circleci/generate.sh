@@ -259,20 +259,28 @@ delete_job()
 if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS=" )); then
   delete_job "j8_unit_tests_repeat"
   delete_job "j11_unit_tests_repeat"
-  delete_job "utests_compression_repeat"
-  delete_job "utests_system_keyspace_directory_repeat"
+  delete_job "j8_utests_cdc_repeat"
+  delete_job "j11_utests_cdc_repeat"
+  delete_job "j8_utests_compression_repeat"
+  delete_job "j11_utests_compression_repeat"
+  delete_job "j8_utests_system_keyspace_directory_repeat"
+  delete_job "j11_utests_system_keyspace_directory_repeat"
 fi
 if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then
-  delete_job "utests_long_repeat"
+  delete_job "j8_utests_long_repeat"
+  delete_job "j11_utests_long_repeat"
 fi
 if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_STRESS=")); then
-  delete_job "utests_stress_repeat"
+  delete_job "j8_utests_stress_repeat"
+  delete_job "j11_utests_stress_repeat"
 fi
 if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_FQLTOOL=")); then
-  delete_job "utests_fqltool_repeat"
+  delete_job "j8_utests_fqltool_repeat"
+  delete_job "j11_utests_fqltool_repeat"
 fi
 if (! (echo "$env_vars" | grep -q "REPEATED_SIMULATOR_DTESTS=")); then
   delete_job "j8_simulator_dtests_repeat"
+  delete_job "j11_simulator_dtests_repeat"
 fi
 if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
   delete_job "j8_jvm_dtests_repeat"
