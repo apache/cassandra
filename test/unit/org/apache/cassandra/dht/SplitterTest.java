@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -27,11 +28,17 @@ import java.util.Set;
 
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.assertj.core.api.Assertions;
+
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class SplitterTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(SplitterTest.class);
 
     @Test
     public void randomSplitTestNoVNodesRandomPartitioner()
@@ -54,6 +61,23 @@ public class SplitterTest
     public void randomSplitTestVNodesMurmur3Partitioner()
     {
         randomSplitTestVNodes(new Murmur3Partitioner());
+    }
+
+    // CASSANDRA-18013
+    @Test
+    public void testSplitOwnedRanges() {
+        Splitter splitter = Murmur3Partitioner.instance.splitter().get();
+        long lt = 0;
+        long rt = 31;
+        Range<Token> range = new Range<>(splitter.tokenForValue(BigInteger.valueOf(lt)),
+                                         splitter.tokenForValue(BigInteger.valueOf(rt)));
+
+        for (int i = 1; i <= (rt - lt); i++)
+        {
+            List<Token> splits = splitter.splitOwnedRanges(i, Arrays.asList(range), false);
+            logger.info("{} splits of {} are: {}", i, range, splits);
+            Assertions.assertThat(splits).hasSize(i);
+        }
     }
 
     public void randomSplitTestNoVNodes(IPartitioner partitioner)
