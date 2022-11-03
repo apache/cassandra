@@ -1004,6 +1004,13 @@ commands:
             # Put manually specified tests and automatically detected tests together, removing duplicates
             tests=$(echo <<parameters.tests>> | sed -e "s/<nil>//" | sed -e "s/ //" | tr "," "\n" | tr " " "\n" | sort -n | uniq -u)
             echo "Tests to be repeated: ${tests}"
+            
+            # Prepare the testtag for the target, used by the test macro in build.xml to group the output files
+            target=<<parameters.target>>
+            testtag=""
+            if [[ $target == "test-compression" ]]; then
+              testtag="compression"
+            fi
 
             # Run each test class as many times as requested.
             exit_code="$?"
@@ -1031,7 +1038,7 @@ commands:
                 fi
 
                 # Prepare the -Dtest.methods argument, which is optional
-                if [ $method == "" ]; then
+                if [[ $method == "" ]]; then
                   methods_arg=""
                 else
                   methods_arg="-Dtest.methods=$method"
@@ -1056,7 +1063,7 @@ commands:
                   mv stdout.txt $dest/${test}.txt
 
                   # move the XML output files
-                  source=build/test/output
+                  source=build/test/output/${testtag}
                   dest=/tmp/results/repeated_utests/output/${status}/${i}
                   mkdir -p $dest
                   if [[ -d $source && -n "$(ls $source)" ]]; then
@@ -1064,7 +1071,7 @@ commands:
                   fi
 
                   # move the log files
-                  source=build/test/logs
+                  source=build/test/logs/${testtag}
                   dest=/tmp/results/repeated_utests/logs/${status}/${i}
                   mkdir -p $dest
                   if [[ -d $source && -n "$(ls $source)" ]]; then
