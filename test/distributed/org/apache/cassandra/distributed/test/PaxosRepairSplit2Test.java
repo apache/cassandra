@@ -200,7 +200,7 @@ public class PaxosRepairSplit2Test extends DistributedTestBaseImpl
         Ballot staleBallot = Paxos.newBallot(Ballot.none(), org.apache.cassandra.db.ConsistencyLevel.SERIAL);
         try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
-                                                             .set("paxos_purge_grace_period", 0)
+                                                             .set("paxos_purge_grace_period", 0 + "s")
                                                              .set("truncate_request_timeout_in_ms", 1000L)))
         )
         {
@@ -474,7 +474,7 @@ public class PaxosRepairSplit2Test extends DistributedTestBaseImpl
         try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
                                                              .set("paxos_state_purging", "legacy")
-                                                             .set("paxos_purge_grace_period", 0)
+                                                             .set("paxos_purge_grace_period", 0 + "s")
                                                              .set("truncate_request_timeout_in_ms", 1000L)))
         )
         {
