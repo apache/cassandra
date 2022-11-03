@@ -215,6 +215,7 @@ public abstract class Splitter
         // otherwise continue by splitting ranges
 
         BigInteger sum = BigInteger.ZERO;
+        BigInteger tokensLeft = totalTokens;
         for (WeightedRange weightedRange : weightedRanges)
         {
             BigInteger currentRangeWidth = weightedRange.totalTokens(this);
@@ -224,8 +225,18 @@ public abstract class Splitter
                 BigInteger withinRangeBoundary = perPart.subtract(sum);
                 left = left.add(withinRangeBoundary);
                 boundaries.add(tokenForValue(left));
+                tokensLeft = tokensLeft.subtract(perPart);
                 currentRangeWidth = currentRangeWidth.subtract(withinRangeBoundary);
                 sum = BigInteger.ZERO;
+                int partsLeft = parts - boundaries.size();
+                if (partsLeft == 0)
+                {
+                    break;
+                }
+                else if (partsLeft == 1)
+                {
+                    perPart = tokensLeft;
+                }
             }
             sum = sum.add(currentRangeWidth);
         }

@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -28,7 +29,11 @@ import java.util.stream.Collectors;
 
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.utils.Pair;
+import org.assertj.core.api.Assertions;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.junit.Assert.assertEquals;
@@ -38,6 +43,7 @@ import static org.junit.Assert.fail;
 
 public class SplitterTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(SplitterTest.class);
 
     @Test
     public void randomSplitTestNoVNodesRandomPartitioner()
@@ -463,6 +469,24 @@ public class SplitterTest
     public void testPositionInRangeMurmur3Partitioner()
     {
         testPositionInRangeMultiRange(new Murmur3Partitioner());
+    }
+
+    // STAR-1590
+    @Test
+    public void testSplitOwnedRangesForSmallRange() {
+        Splitter splitter = getSplitter(Murmur3Partitioner.instance);
+        long lt = 0;
+        long rt = 31;
+        Range<Token> range = new Range<>(getWrappedToken(Murmur3Partitioner.instance, BigInteger.valueOf(lt)),
+                                         getWrappedToken(Murmur3Partitioner.instance, BigInteger.valueOf(rt)));
+
+        for (int i = 1; i <= (rt - lt); i++)
+        {
+            Splitter.SplitResult splits = splitter.splitOwnedRanges(i, Arrays.asList(new Splitter.WeightedRange(1.0d, range)), Splitter.SplitType.ALWAYS_SPLIT);
+            logger.info("{} splits of {} are: {}", i, range, splits.boundaries);
+            Assertions.assertThat(splits.boundaries).hasSize(i);
+        }
+
     }
 
     private static void testPositionInRangeMultiRange(IPartitioner partitioner)
