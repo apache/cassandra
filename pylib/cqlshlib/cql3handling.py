@@ -1313,7 +1313,7 @@ syntax_rules += r'''
                                       ( "WITH" <cfamProperty> ( "AND" <cfamProperty> )* )?
                                     ;
 
-<createUserTypeStatement> ::= "CREATE" "TYPE" ( ks=<nonSystemKeyspaceName> dot="." )? typename=<cfOrKsName> "(" newcol=<cident> <storageType>
+<createUserTypeStatement> ::= "CREATE" "TYPE" ("IF" "NOT" "EXISTS")? ( ks=<nonSystemKeyspaceName> dot="." )? typename=<cfOrKsName> "(" newcol=<cident> <storageType>
                                 ( "," [newcolname]=<cident> <storageType> )*
                             ")"
                          ;
@@ -1377,7 +1377,7 @@ syntax_rules += r'''
 <dropMaterializedViewStatement> ::= "DROP" "MATERIALIZED" "VIEW" ("IF" "EXISTS")? mv=<materializedViewName>
                                   ;
 
-<dropUserTypeStatement> ::= "DROP" "TYPE" ut=<userTypeName>
+<dropUserTypeStatement> ::= "DROP" "TYPE" ( "IF" "EXISTS" )? ut=<userTypeName>
                           ;
 
 <dropFunctionStatement> ::= "DROP" "FUNCTION" ( "IF" "EXISTS" )? <userFunctionName>
@@ -1488,12 +1488,12 @@ syntax_rules += r'''
              | <unreservedKeyword>
              ;
 
-<createRoleStatement> ::= "CREATE" "ROLE" <rolename>
+<createRoleStatement> ::= "CREATE" "ROLE" ("IF" "NOT" "EXISTS")? <rolename>
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
                         ;
 
 <alterRoleStatement> ::= "ALTER" "ROLE" ("IF" "EXISTS")? <rolename>
-                              ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
+                              ( "WITH" <roleProperty> ("AND" <roleProperty>)*)
                        ;
 
 <roleProperty> ::= (("HASHED")? "PASSWORD") "=" <stringLiteral>
@@ -1504,7 +1504,7 @@ syntax_rules += r'''
                  | "ACCESS" "TO" "ALL" "DATACENTERS"
                  ;
 
-<dropRoleStatement> ::= "DROP" "ROLE" <rolename>
+<dropRoleStatement> ::= "DROP" "ROLE" ("IF" "EXISTS")? <rolename>
                       ;
 
 <grantRoleStatement> ::= "GRANT" <rolename> "TO" <rolename>
