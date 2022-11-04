@@ -406,6 +406,8 @@ public final class Types implements Iterable<UserType>
             @Override
             public boolean equals(Object other)
             {
+                if (other == null)
+                    return false;
                 return name.equals(((RawUDT) other).name);
             }
         }

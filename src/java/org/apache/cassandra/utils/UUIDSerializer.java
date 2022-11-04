@@ -27,7 +27,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class UUIDSerializer implements IVersionedSerializer<UUID>
 {
-    public static UUIDSerializer serializer = new UUIDSerializer();
+    public static final UUIDSerializer serializer = new UUIDSerializer();
 
     public void serialize(UUID uuid, DataOutputPlus out, int version) throws IOException
     {

@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.tools.nodetool.stats;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -46,26 +49,26 @@ public class StatsTableComparator implements Comparator<StatsTable>
     /**
      * Names of supported sort keys as they should be specified on the command line.
      */
-    public static final String[] supportedSortKeys = { "average_live_cells_per_slice_last_five_minutes",
-                                                       "average_tombstones_per_slice_last_five_minutes",
-                                                       "bloom_filter_false_positives", "bloom_filter_false_ratio",
-                                                       "bloom_filter_off_heap_memory_used", "bloom_filter_space_used",
-                                                       "compacted_partition_maximum_bytes",
-                                                       "compacted_partition_mean_bytes",
-                                                       "compacted_partition_minimum_bytes",
-                                                       "compression_metadata_off_heap_memory_used", "dropped_mutations",
-                                                       "full_name", "index_summary_off_heap_memory_used",
-                                                       "local_read_count", "local_read_latency_ms",
-                                                       "local_write_latency_ms",
-                                                       "maximum_live_cells_per_slice_last_five_minutes",
-                                                       "maximum_tombstones_per_slice_last_five_minutes",
-                                                       "memtable_cell_count", "memtable_data_size",
-                                                       "memtable_off_heap_memory_used", "memtable_switch_count",
-                                                       "number_of_partitions_estimate", "off_heap_memory_used_total",
-                                                       "pending_flushes", "percent_repaired", "read_latency", "reads",
-                                                       "space_used_by_snapshots_total", "space_used_live",
-                                                       "space_used_total", "sstable_compression_ratio", "sstable_count",
-                                                       "table_name", "write_latency", "writes" };
+    public static final List<String> supportedSortKeys = Collections.unmodifiableList(Arrays.asList("average_live_cells_per_slice_last_five_minutes",
+                                                                                                    "average_tombstones_per_slice_last_five_minutes",
+                                                                                                    "bloom_filter_false_positives", "bloom_filter_false_ratio",
+                                                                                                    "bloom_filter_off_heap_memory_used", "bloom_filter_space_used",
+                                                                                                    "compacted_partition_maximum_bytes",
+                                                                                                    "compacted_partition_mean_bytes",
+                                                                                                    "compacted_partition_minimum_bytes",
+                                                                                                    "compression_metadata_off_heap_memory_used", "dropped_mutations",
+                                                                                                    "full_name", "index_summary_off_heap_memory_used",
+                                                                                                    "local_read_count", "local_read_latency_ms",
+                                                                                                    "local_write_latency_ms",
+                                                                                                    "maximum_live_cells_per_slice_last_five_minutes",
+                                                                                                    "maximum_tombstones_per_slice_last_five_minutes",
+                                                                                                    "memtable_cell_count", "memtable_data_size",
+                                                                                                    "memtable_off_heap_memory_used", "memtable_switch_count",
+                                                                                                    "number_of_partitions_estimate", "off_heap_memory_used_total",
+                                                                                                    "pending_flushes", "percent_repaired", "read_latency", "reads",
+                                                                                                    "space_used_by_snapshots_total", "space_used_live",
+                                                                                                    "space_used_total", "sstable_compression_ratio", "sstable_count",
+                                                                                                    "table_name", "write_latency", "writes" ));
 
     public StatsTableComparator(String sortKey, boolean humanReadable)
     {
@@ -86,13 +89,13 @@ public class StatsTableComparator implements Comparator<StatsTable>
     {
         int sign = ascending ? 1 : -1;
         if (Double.isNaN(x) && !Double.isNaN(y))
-            return sign * Double.valueOf(0D).compareTo(Double.valueOf(y));
+            return sign * Double.compare(0D, y);
         else if (!Double.isNaN(x) && Double.isNaN(y))
-            return sign * Double.valueOf(x).compareTo(Double.valueOf(0D));
+            return sign * Double.compare(x, 0D);
         else if (Double.isNaN(x) && Double.isNaN(y))
             return 0;
         else
-            return sign * Double.valueOf(x).compareTo(Double.valueOf(y));
+            return sign * Double.compare(x, y);
     }
 
     /**
@@ -107,8 +110,8 @@ public class StatsTableComparator implements Comparator<StatsTable>
             return sign;
         else if (null == x && null == y)
             return 0;
-        long sizeX = humanReadable ? FileUtils.parseFileSize(x) : Long.valueOf(x);
-        long sizeY = humanReadable ? FileUtils.parseFileSize(y) : Long.valueOf(y);
+        long sizeX = humanReadable ? FileUtils.parseFileSize(x) : Long.parseLong(x);
+        long sizeY = humanReadable ? FileUtils.parseFileSize(y) : Long.parseLong(y);
         return sign * Long.compare(sizeX, sizeY);
     }
 
@@ -162,18 +165,15 @@ public class StatsTableComparator implements Comparator<StatsTable>
         }
         else if (sortKey.equals("compacted_partition_maximum_bytes"))
         {
-            result = sign * Long.valueOf(stx.compactedPartitionMaximumBytes)
-                            .compareTo(Long.valueOf(sty.compactedPartitionMaximumBytes));
+            result = sign * Long.compare(stx.compactedPartitionMaximumBytes, sty.compactedPartitionMaximumBytes);
         }
         else if (sortKey.equals("compacted_partition_mean_bytes"))
         {
-            result = sign * Long.valueOf(stx.compactedPartitionMeanBytes)
-                            .compareTo(Long.valueOf(sty.compactedPartitionMeanBytes));
+            result = sign * Long.compare(stx.compactedPartitionMeanBytes, sty.compactedPartitionMeanBytes);
         }
         else if (sortKey.equals("compacted_partition_minimum_bytes"))
         {
-            result = sign * Long.valueOf(stx.compactedPartitionMinimumBytes)
-                            .compareTo(Long.valueOf(sty.compactedPartitionMinimumBytes));
+            result = sign * Long.compare(stx.compactedPartitionMinimumBytes, sty.compactedPartitionMinimumBytes);
         }
         else if (sortKey.equals("compression_metadata_off_heap_memory_used"))
         {
@@ -213,8 +213,7 @@ public class StatsTableComparator implements Comparator<StatsTable>
         }
         else if (sortKey.equals("local_read_count") || sortKey.equals("reads"))
         {
-            result = sign * Long.valueOf(stx.localReadCount)
-                            .compareTo(Long.valueOf(sty.localReadCount));
+            result = sign * Long.compare(stx.localReadCount, sty.localReadCount);
         }
         else if (sortKey.equals("local_read_latency_ms") || sortKey.equals("read_latency"))
         {
@@ -222,8 +221,7 @@ public class StatsTableComparator implements Comparator<StatsTable>
         }
         else if (sortKey.equals("local_write_count") || sortKey.equals("writes"))
         {
-            result = sign * Long.valueOf(stx.localWriteCount)
-                            .compareTo(Long.valueOf(sty.localWriteCount));
+            result = sign * Long.compare(stx.localWriteCount, sty.localWriteCount);
         }
         else if (sortKey.equals("local_write_latency_ms") || sortKey.equals("write_latency"))
         {
@@ -231,13 +229,11 @@ public class StatsTableComparator implements Comparator<StatsTable>
         }
         else if (sortKey.equals("maximum_live_cells_per_slice_last_five_minutes"))
         {
-            result = sign * Long.valueOf(stx.maximumLiveCellsPerSliceLastFiveMinutes)
-                            .compareTo(Long.valueOf(sty.maximumLiveCellsPerSliceLastFiveMinutes));
+            result = sign * Long.compare(stx.maximumLiveCellsPerSliceLastFiveMinutes, sty.maximumLiveCellsPerSliceLastFiveMinutes);
         }
         else if (sortKey.equals("maximum_tombstones_per_slice_last_five_minutes"))
         {
-            result = sign * Long.valueOf(stx.maximumTombstonesPerSliceLastFiveMinutes)
-                            .compareTo(Long.valueOf(sty.maximumTombstonesPerSliceLastFiveMinutes));
+            result = sign * Long.compare(stx.maximumTombstonesPerSliceLastFiveMinutes, sty.maximumTombstonesPerSliceLastFiveMinutes);
         }
         else if (sortKey.equals("memtable_cell_count"))
         {

@@ -559,6 +559,7 @@ public final class PathUtils
 
         private static List<Thread> onExitThreads = new ArrayList<>();
 
+        @SuppressWarnings("DoNotCall")
         private static void runOnExitThreadsAndClear()
         {
             List<Thread> toRun;

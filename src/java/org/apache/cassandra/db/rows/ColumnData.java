@@ -60,7 +60,7 @@ public abstract class ColumnData implements IMeasurableMemory
         return reconciler;
     }
 
-    public static PostReconciliationFunction noOp = new PostReconciliationFunction()
+    public static final PostReconciliationFunction noOp = new PostReconciliationFunction()
     {
         @Override
         public Cell<?> merge(Cell<?> previous, Cell<?> insert)

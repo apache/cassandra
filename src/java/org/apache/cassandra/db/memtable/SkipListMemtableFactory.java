@@ -43,5 +43,5 @@ public class SkipListMemtableFactory implements Memtable.Factory
     }
 
     public static final SkipListMemtableFactory INSTANCE = new SkipListMemtableFactory();
-    public static InheritingClass CONFIGURATION = new InheritingClass(null, SkipListMemtable.class.getName(), ImmutableMap.of());
+    public static final InheritingClass CONFIGURATION = new InheritingClass(null, SkipListMemtable.class.getName(), ImmutableMap.of());
 }

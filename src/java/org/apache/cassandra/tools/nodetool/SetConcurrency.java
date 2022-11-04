@@ -41,8 +41,8 @@ public class SetConcurrency extends NodeToolCmd
     {
         checkArgument(args.size() >= 2 && args.size() <= 3, "setconcurrency requires stage name, optional core pool size and maximum concurrency");
 
-        int corePoolSize = args.size() == 2 ? -1 : Integer.valueOf(args.get(1));
-        int maximumPoolSize = args.size() == 2 ? Integer.valueOf(args.get(1)) : Integer.valueOf(args.get(2));
+        int corePoolSize = args.size() == 2 ? -1 : Integer.parseInt(args.get(1));
+        int maximumPoolSize = args.size() == 2 ? Integer.parseInt(args.get(1)) : Integer.parseInt(args.get(2));
 
         checkArgument(args.size() == 2 || corePoolSize >= 0, "Core pool size must be non-negative");
         checkArgument(maximumPoolSize >= 0, "Maximum pool size must be non-negative");

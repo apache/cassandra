@@ -36,7 +36,7 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
  */
 public class StreamMessageHeader
 {
-    public static FileMessageHeaderSerializer serializer = new FileMessageHeaderSerializer();
+    public static final FileMessageHeaderSerializer serializer = new FileMessageHeaderSerializer();
 
     public final TableId tableId;
     public TimeUUID planId;

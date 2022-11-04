@@ -36,7 +36,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 
 public abstract class TimeFcts
 {
-    public static Logger logger = LoggerFactory.getLogger(TimeFcts.class);
+    public static final Logger logger = LoggerFactory.getLogger(TimeFcts.class);
 
     public static void addFunctionsTo(NativeFunctions functions)
     {

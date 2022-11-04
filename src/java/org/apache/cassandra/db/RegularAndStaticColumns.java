@@ -33,7 +33,7 @@ import static java.util.Comparator.naturalOrder;
  */
 public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
 {
-    public static RegularAndStaticColumns NONE = new RegularAndStaticColumns(Columns.NONE, Columns.NONE);
+    public static final RegularAndStaticColumns NONE = new RegularAndStaticColumns(Columns.NONE, Columns.NONE);
     static final long EMPTY_SIZE = ObjectSizes.measure(NONE);
 
     public final Columns statics;

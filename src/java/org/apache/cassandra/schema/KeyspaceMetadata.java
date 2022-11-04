@@ -273,8 +273,7 @@ public final class KeyspaceMetadata implements SchemaElement
                    .appendQuotingIfNeeded(name)
                    .append(';')
                    .newLine()
-                   .append("*/")
-                   .toString();
+                   .append("*/");
         }
         else
         {
@@ -292,8 +291,7 @@ public final class KeyspaceMetadata implements SchemaElement
 
             builder.append("  AND durable_writes = ")
                    .append(params.durableWrites)
-                   .append(';')
-                   .toString();
+                   .append(';');
         }
         return builder.toString();
     }

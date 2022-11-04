@@ -23,7 +23,7 @@ import org.apache.cassandra.streaming.StreamSession;
 
 public class SessionFailedMessage extends StreamMessage
 {
-    public static Serializer<SessionFailedMessage> serializer = new Serializer<SessionFailedMessage>()
+    public static final Serializer<SessionFailedMessage> serializer = new Serializer<SessionFailedMessage>()
     {
         public SessionFailedMessage deserialize(DataInputPlus in, int version)
         {

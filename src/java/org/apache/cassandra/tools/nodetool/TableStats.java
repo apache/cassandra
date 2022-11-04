@@ -81,7 +81,7 @@ public class TableStats extends NodeToolCmd
             throw new IllegalArgumentException("arguments for -F are json,yaml only.");
         }
 
-        if (!sortKey.isEmpty() && !Arrays.asList(StatsTableComparator.supportedSortKeys).contains(sortKey))
+        if (!sortKey.isEmpty() && !StatsTableComparator.supportedSortKeys.contains(sortKey))
         {
             throw new IllegalArgumentException(String.format("argument for sort must be one of: %s",
                                                String.join(", ", StatsTableComparator.supportedSortKeys)));

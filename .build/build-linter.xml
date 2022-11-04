@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project basedir="." name="apache-cassandra--linter-tasks"
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
+
+  <condition property="no-spotbugs">
+        <or>
+            <isset property="no-spotbugs"/>
+            <isset property="spotbugs.skip"/>
+            <isset property="no-linter"/>
+        </or>
+  </condition>
+
+  <!-- Generic task to run linters; when adding new linters, make sure to depend on it here -->
+  <target name="check" depends="spotbugs" />
+
+	<!-- SpotBugs -->
+  <target name="_init-spotbugs" depends="resolver-retrieve-build,build-project" unless="no-spotbugs">
+      <path id="spotbugs.lib.path">
+        <!-- Make sure to exclude loggers as we use DEBUG logging causing the output to be very dense... -->
+        <path refid="cassandra.classpath.test.nologgers" />
+      </path>
+      <taskdef resource="edu/umd/cs/findbugs/anttask/tasks.properties"
+               classpathref="spotbugs.lib.path" />
+  </target>
+  <condition property="_spotbugs_jvm_args" value="" else="--add-modules=ALL-SYSTEM">
+    <equals arg1="${ant.java.version}" arg2="1.8" />
+  </condition>
+  <resources id="spotbugs-adjustments">
+    <!-- Set this twice to go from LOW -> MID -> HIGH -->
+    <string>SE_NO_SERIALVERSIONID=raise</string>
+    <string>SE_NO_SERIALVERSIONID=raise</string>
+    <!-- The Clonable interface implies more than just a simple method to copy, so for cases that want a simple copy method, they should not be required to use a different name -->
+    <string>CN_IMPLEMENTS_CLONE_BUT_NOT_CLONEABLE=lower</string>
+    <!-- Cassandra style guide calls out that equals/hashCode should only exist if used; for cases where only one is used, we then only want that one method... this goes against java recommendations so need to lower this warning -->
+    <string>HE_EQUALS_USE_HASHCODE=lower</string>
+    <string>HE_EQUALS_USE_HASHCODE=lower</string>
+  </resources>
+  <pathconvert preserveduplicates="true" property="spotbugs-adjustments-concat" refid="spotbugs-adjustments" pathsep="," />
+  <target name="spotbugs" depends="_init-spotbugs,jar" description="Run SpotBugs code analysis" unless="no-spotbugs">
+    <!-- TODO do we add if="java.version.8"?  Validate JDK11 -->
+    <!-- quietErrors=true is so errors are only in the output, dont need in stdout as well -->
+    <spotbugs classpathref="spotbugs.lib.path"
+              debug="false"
+              quietErrors="true"
+              jvmargs="${_spotbugs_jvm_args}"
+              output="html"
+              outputFile="${build.dir}/spotbugs.html"
+              stylesheet="fancy-hist.xsl"
+              excludefilter="${ant.build.src}/spotbugs-exclude-tests.xml"
+              includeFilter="${ant.build.src}/spotbugs-include.xml"
+              adjustPriority="${spotbugs-adjustments-concat}"
+              errorProperty="spotbugs.error"
+              warningsProperty="spotbugs.warning"
+              >
+      <sourcePath path="${build.src.java}" />
+      <sourcePath path="${build.src.gen-java}" />
+      <class location="${build.dir}/${final.name}.jar" />
+      <sourcePath path="${test.dir}/burn" />
+      <sourcePath path="${test.dir}/distributed" />
+      <sourcePath path="${test.dir}/long" />
+      <sourcePath path="${test.dir}/memory" />
+      <sourcePath path="${test.dir}/microbench" />
+      <sourcePath path="${test.dir}/simulator/main" />
+      <sourcePath path="${test.dir}/simulator/test" />
+      <sourcePath path="${test.dir}/unit" />
+      <class location="${test.classes}" />
+    </spotbugs>
+    <fail if:set="spotbugs.error" message="SpotBugs failed to run" />
+    <fail if:set="spotbugs.warning" message="SpotBugs detected warnings; look into ${build.dir}/spotbugs.html for more details" />
+  </target>
+
+
+</project>

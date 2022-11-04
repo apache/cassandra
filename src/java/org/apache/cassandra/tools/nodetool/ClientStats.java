@@ -76,7 +76,7 @@ public class ClientStats extends NodeToolCmd
                 {
                     table.add(client.get(ClientStat.PROTOCOL_VERSION),
                               client.get(ClientStat.INET_ADDRESS),
-                              sdf.format(new Date(Long.valueOf(client.get(ClientStat.LAST_SEEN_TIME)))));
+                              sdf.format(new Date(Long.parseLong(client.get(ClientStat.LAST_SEEN_TIME)))));
                 }
 
                 table.printTo(out);

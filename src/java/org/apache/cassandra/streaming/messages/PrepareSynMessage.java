@@ -29,7 +29,7 @@ import org.apache.cassandra.streaming.StreamSummary;
 
 public class PrepareSynMessage extends StreamMessage
 {
-    public static Serializer<PrepareSynMessage> serializer = new Serializer<PrepareSynMessage>()
+    public static final Serializer<PrepareSynMessage> serializer = new Serializer<PrepareSynMessage>()
     {
         public PrepareSynMessage deserialize(DataInputPlus input, int version) throws IOException
         {

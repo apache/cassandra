@@ -23,7 +23,7 @@ import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 
 public final class SystemViewsKeyspace extends VirtualKeyspace
 {
-    public static SystemViewsKeyspace instance = new SystemViewsKeyspace();
+    public static final SystemViewsKeyspace instance = new SystemViewsKeyspace();
 
     private SystemViewsKeyspace()
     {

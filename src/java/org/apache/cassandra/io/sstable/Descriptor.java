@@ -47,7 +47,7 @@ public class Descriptor
     private final static String LEGACY_TMP_REGEX_STR = "^((.*)\\-(.*)\\-)?tmp(link)?\\-((?:l|k).)\\-(\\d)*\\-(.*)$";
     private final static Pattern LEGACY_TMP_REGEX = Pattern.compile(LEGACY_TMP_REGEX_STR);
 
-    public static String TMP_EXT = ".tmp";
+    public static final String TMP_EXT = ".tmp";
 
     public static final char FILENAME_SEPARATOR = '-';
 

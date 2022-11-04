@@ -131,37 +131,37 @@ public class AuditLogOptions extends BinLogOptions
 
         public Builder withIncludedKeyspaces(final String includedKeyspaces)
         {
-            sanitise(includedKeyspaces).map(v -> this.includedKeyspaces = v);
+            sanitise(includedKeyspaces).ifPresent(v -> this.includedKeyspaces = v);
             return this;
         }
 
         public Builder withExcludedKeyspaces(final String excludedKeyspaces)
         {
-            sanitise(excludedKeyspaces).map(v -> this.excludedKeyspaces = v);
+            sanitise(excludedKeyspaces).ifPresent(v -> this.excludedKeyspaces = v);
             return this;
         }
 
         public Builder withIncludedCategories(final String includedCategories)
         {
-            sanitise(includedCategories).map(v -> this.includedCategories = v.toUpperCase());
+            sanitise(includedCategories).ifPresent(v -> this.includedCategories = v.toUpperCase());
             return this;
         }
 
         public Builder withExcludedCategories(final String excludedCategories)
         {
-            sanitise(excludedCategories).map(v -> this.excludedCategories = v.toUpperCase());
+            sanitise(excludedCategories).ifPresent(v -> this.excludedCategories = v.toUpperCase());
             return this;
         }
 
         public Builder withIncludedUsers(final String includedUsers)
         {
-            sanitise(includedUsers).map(v -> this.includedUsers = v);
+            sanitise(includedUsers).ifPresent(v -> this.includedUsers = v);
             return this;
         }
 
         public Builder withExcludedUsers(final String excludedUsers)
         {
-            sanitise(excludedUsers).map(v -> this.excludedUsers = v);
+            sanitise(excludedUsers).ifPresent(v -> this.excludedUsers = v);
             return this;
         }
 
@@ -173,7 +173,7 @@ public class AuditLogOptions extends BinLogOptions
 
         public Builder withRollCycle(final String rollCycle)
         {
-            sanitise(rollCycle).map(v -> this.rollCycle = v.toUpperCase());
+            sanitise(rollCycle).ifPresent(v -> this.rollCycle = v.toUpperCase());
             return this;
         }
 
@@ -228,12 +228,12 @@ public class AuditLogOptions extends BinLogOptions
 
             opts.enabled = this.enabled;
             opts.logger = this.logger;
-            sanitise(this.includedKeyspaces).map(v -> opts.included_keyspaces = v);
-            sanitise(this.excludedKeyspaces).map(v -> opts.excluded_keyspaces = v);
-            sanitise(this.includedCategories).map(v -> opts.included_categories = v.toUpperCase());
-            sanitise(this.excludedCategories).map(v -> opts.excluded_categories = v.toUpperCase());
-            sanitise(this.includedUsers).map(v -> opts.included_users = v);
-            sanitise(this.excludedUsers).map(v -> opts.excluded_users = v);
+            sanitise(this.includedKeyspaces).ifPresent(v -> opts.included_keyspaces = v);
+            sanitise(this.excludedKeyspaces).ifPresent(v -> opts.excluded_keyspaces = v);
+            sanitise(this.includedCategories).ifPresent(v -> opts.included_categories = v.toUpperCase());
+            sanitise(this.excludedCategories).ifPresent(v -> opts.excluded_categories = v.toUpperCase());
+            sanitise(this.includedUsers).ifPresent(v -> opts.included_users = v);
+            sanitise(this.excludedUsers).ifPresent(v -> opts.excluded_users = v);
             opts.roll_cycle = this.rollCycle;
             opts.audit_logs_dir = this.auditLogDir;
             opts.max_queue_weight = this.maxQueueWeight;

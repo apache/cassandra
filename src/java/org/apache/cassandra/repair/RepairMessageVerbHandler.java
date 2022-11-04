@@ -44,7 +44,7 @@ import static org.apache.cassandra.net.Verb.VALIDATION_RSP;
  */
 public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 {
-    public static RepairMessageVerbHandler instance = new RepairMessageVerbHandler();
+    public static final RepairMessageVerbHandler instance = new RepairMessageVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(RepairMessageVerbHandler.class);
 
