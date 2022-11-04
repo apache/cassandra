@@ -121,8 +121,11 @@ public class ShadowRoundTest
             assertThat(e.getMessage()).startsWith("Unable to contact any seeds");
         }
 
-        // we expect one SYN for each seed during shadow round + additional SYNs after gossiper has been enabled
-        assertTrue(spySyn.messagesIntercepted() > noOfSeeds);
+        // We expect one SYN for each seed during shadow round +
+        // there may be some additional SYNs after gossiper has been enabled
+        int messagesIntercepted = spySyn.messagesIntercepted();
+        assertTrue(String.format("Intercepted messages count should be >= number of seeds %d, but got %d instead",
+                                 noOfSeeds, messagesIntercepted), messagesIntercepted >= noOfSeeds);
 
         // we don't expect to emit any GOSSIP_DIGEST_ACK2 or SCHEMA_PULL messages
         assertEquals(0, spyAck2.messagesIntercepted());
