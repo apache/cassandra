@@ -42,6 +42,7 @@ public class BadQueryMetrics
     public static Gauge<Integer> incorrectCompactionCount;
     public static Gauge<Integer> incorrectCLCount;
     public static Gauge<Integer> tooManyTombstoneCount;
+    public static Gauge<Integer> mvInUse;
 
     public static void setup()
     {
@@ -107,6 +108,13 @@ public class BadQueryMetrics
             public Integer getValue()
             {
                 return DatabaseDescriptor.getBadQueryReporter().getStats(BadQuery.BadQueryCategory.TOO_MANY_TOMBSTONES);
+            }
+        });
+        mvInUse = Metrics.register(factory.createMetricName("mvInUse"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return DatabaseDescriptor.getBadQueryReporter().getStats(BadQuery.BadQueryCategory.MV_IN_USE);
             }
         });
     }

@@ -39,6 +39,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.MonitoringService;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class BadQueryInSyslogTest extends CQLTester
 {
@@ -48,6 +49,7 @@ public class BadQueryInSyslogTest extends CQLTester
     private static TableMetadata cfm;
     private static ColumnMetadata v;
     private static ColumnMetadata s;
+    private static ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private static BadQueriesInSystemLog bq;
     ColumnFamilyStore cfs;
 
@@ -77,8 +79,16 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Before
-    public void truncate()
+    public void truncate() throws Throwable
     {
+        try
+        {
+            executeNet(protocolVersion, String.format("CREATE MATERIALIZED VIEW %s.view1 AS SELECT k, v, i FROM %s.%s WHERE v IS NOT NULL AND i IS NOT NULL AND k IS NOT NULL PRIMARY KEY (v, k, i)", KEYSPACE, KEYSPACE, TABLE));
+        }
+        catch (Throwable e)
+        {
+            // View already exists
+        }
         MonitoringService.instance.setBadQueryTracingFraction(1.0);
         cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         cfs.truncateBlocking();
@@ -89,6 +99,12 @@ public class BadQueryInSyslogTest extends CQLTester
     {
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k', 's')");
         QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k'");
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+    }
+
+    private void executeCQLMV()
+    {
+        QueryProcessor.executeInternal("SELECT * FROM ks.view1 WHERE v='k'");
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
@@ -170,5 +186,21 @@ public class BadQueryInSyslogTest extends CQLTester
         MonitoringService.instance.setBadQueryTombstoneLimit(Integer.MIN_VALUE);
         executeCQL();
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.TOO_MANY_TOMBSTONES).size() == 0);
+    }
+
+    @Test
+    public void testMVIsExperimentalWithTracingDisabled()
+    {
+        DatabaseDescriptor.setBadQueryTracingStatus(false);
+        executeCQLMV();
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.MV_IN_USE).size() == 0);
+    }
+
+    @Test
+    public void testMVIsExperimentalWithTracingEnabled()
+    {
+        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        executeCQLMV();
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.MV_IN_USE).size() > 0);
     }
 }

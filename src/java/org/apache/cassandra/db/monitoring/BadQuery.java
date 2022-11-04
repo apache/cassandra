@@ -46,7 +46,8 @@ public class BadQuery
         LARGE_PARTITION_WRITE("large partition write"),
         INCORRECT_COMPACTION_STRATEBY("incorrect compaction strategy"),
         INCORRECT_CONSISTENCY_LEVEL("incorrect consistency level"),
-        TOO_MANY_TOMBSTONES("too many tombstones");
+        TOO_MANY_TOMBSTONES("too many tombstones"),
+        MV_IN_USE("mv is in use");
 
         private final String text;
 
@@ -271,4 +272,17 @@ public class BadQuery
         }
     }
 
+    /**
+     * Check if MV is being used or not. MV has been marked an experimental
+     * feature in Open Source Cassandra.
+     *
+     * @param cfm table metadata.
+     */
+    public static void checkForMV(TableMetadata cfm)
+    {
+        if (shouldTrace(cfm.keyspace))
+        {
+            MvInUse.checkForMV(cfm);
+        }
+    }
 }

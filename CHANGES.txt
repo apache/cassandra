@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-17159] Include MV as one of the anti-pattern and include in the ticket
  * [SO-14979] Add a metric to track keycache progress during startup
  * [SO-16847] Nodetool option to enable/disable primary-range only option in AutoRepair
  * [SO-16904] Change CQLSH default consistency level from ONE --> LOCAL_QUORUM

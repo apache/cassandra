@@ -26,6 +26,7 @@ public abstract class BadQueryTypes
 {
     String keySpace;
     String tableName;
+    boolean isMV;
 
     BadQueryTypes(String keySpace,
                   String tableName)
@@ -34,12 +35,28 @@ public abstract class BadQueryTypes
         this.tableName = tableName;
     }
 
+    BadQueryTypes(String keySpace,
+                  String tableName,
+                  boolean isMV)
+    {
+        this.keySpace = keySpace;
+        this.tableName = tableName;
+        this.isMV = isMV;
+    }
+
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
         sb.append("ks:");
         sb.append(keySpace);
-        sb.append(", table:");
+        if (isMV)
+        {
+            sb.append(", mv:");
+        }
+        else
+        {
+            sb.append(", table:");
+        }
         sb.append(tableName);
         return sb.toString();
     }

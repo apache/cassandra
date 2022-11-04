@@ -252,7 +252,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
         BadQuery.checkForCLSettings(this.table, options.getConsistency());
-
+        BadQuery.checkForMV(this.table);
         cl.validateForRead();
         Guardrails.readConsistencyLevels.guard(EnumSet.of(cl), state.getClientState());
 
@@ -486,9 +486,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                               int nowInSec,
                                               Dispatcher.RequestTime requestTime)
     {
+
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
+
+        BadQuery.checkForMV(this.table);
 
         Selectors selectors = selection.newSelectors(options);
         AggregationSpecification aggregationSpec = getAggregationSpec(options);
