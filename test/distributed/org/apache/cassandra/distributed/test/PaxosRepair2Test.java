@@ -102,9 +102,9 @@ import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBal
 import org.apache.cassandra.utils.CloseableIterator;
 
 // quick workaround for metaspace ooms, will properly reuse clusters later
-public class PaxosRepairTest2 extends TestBaseImpl
+public class PaxosRepair2Test extends TestBaseImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(PaxosRepairTest2.class);
+    private static final Logger logger = LoggerFactory.getLogger(PaxosRepair2Test.class);
     private static final String TABLE = "tbl";
 
     static
@@ -341,7 +341,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
 
     private static void assertLowBoundPurged(Cluster cluster)
     {
-        cluster.forEach(PaxosRepairTest2::assertLowBoundPurged);
+        cluster.forEach(PaxosRepair2Test::assertLowBoundPurged);
     }
 
     @Test

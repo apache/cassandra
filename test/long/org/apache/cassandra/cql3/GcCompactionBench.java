@@ -34,6 +34,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.junit.Assert;
+
+import org.apache.cassandra.anttasks.IgnoreInvalidTestName;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -49,6 +51,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
+@IgnoreInvalidTestName
 public class GcCompactionBench extends CQLTester
 {
     private static final String SIZE_TIERED_STRATEGY = "SizeTieredCompactionStrategy', 'min_sstable_size' : '0";

@@ -16,30 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.anttasks;
 
-import java.util.Collection;
-
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * This base class tests all keywords which took a long time. Hence it was split into multiple
- * KeywordTestSplitN to prevent CI timing out. If timeouts reappear split it further
+ * Annotation meant to be put on a test class which is not named according to convention.
+ *
+ * The convention is that a name of a test class has to end with 'Test' string.
  */
-@RunWith(Parameterized.class)
-public class KeywordTestSplit2 extends KeywordTestBase
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface IgnoreInvalidTestName
 {
-    static int SPLIT = 2;
-    static int TOTAL_SPLITS = 2;
-
-    @Parameterized.Parameters(name = "keyword {0} isReserved {1}")
-    public static Collection<Object[]> keywords() {
-        return KeywordTestBase.getKeywordsForSplit(SPLIT, TOTAL_SPLITS);
-    }
-
-    public KeywordTestSplit2(String keyword, boolean isReserved)
-    {
-        super(keyword, isReserved);
-    }
 }

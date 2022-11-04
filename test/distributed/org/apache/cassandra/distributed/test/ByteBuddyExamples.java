@@ -28,6 +28,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.anttasks.IgnoreInvalidTestName;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -41,6 +42,7 @@ import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+@IgnoreInvalidTestName
 public class ByteBuddyExamples extends TestBaseImpl
 {
     @Test
