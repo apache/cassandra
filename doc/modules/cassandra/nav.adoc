@@ -7,13 +7,6 @@
 *** xref:getting_started/production.adoc[Production recommendations]
 
 ** xref:new/index.adoc[What's new]
-*** xref:new/java11.adoc[Support for Java 11]
-*** xref:new/virtualtables.adoc[Virtual tables]
-*** xref:new/auditlogging.adoc[Audit logging]
-*** xref:new/fqllogging.adoc[Full query logging]
-*** xref:new/messaging.adoc[Improved internode Messaging]
-*** xref:new/streaming.adoc[Improved streaming]
-*** xref:new/transientreplication.adoc[Transient replication]
 
 ** xref:architecture/index.adoc[Architecture]
 *** xref:architecture/overview.adoc[Overview]
