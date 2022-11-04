@@ -137,7 +137,7 @@ generate.sh -m \
 For configuration changes meant to be permanent in the Apache repo you should never edit
 the `config.yml` file manually. Instead, you should edit the `config-2_1.yml` file and then
 regenerate the `config.yml`, `config.yml.LOWRES`, `config.yml.MIDRES` and `config.yml.HIGHRES`
-files by runnining the `generate.sh` script without any flags. For using this script you
+files by runnining the `generate.sh` script with `-a` flag. For using this script you
 need to install the [CircleCI CLI](https://circleci.com/docs/2.0/local-cli/#install).
 
 As for temporal changes done while working in a patch, such as pointing to you dtest repo or
@@ -146,7 +146,7 @@ and then regenerate `config.yml` with the `generate.sh` script using a `-l`/`-m`
 When this flag is used only the `config.yml` will be generated.
 
 Please note that any previous swapping or edition of the generated files will be overriden
-by running `generate.sh` without arguments, returning `config.yml` to the default LOWRES. So if
+by running `generate.sh` with `-a` argument, returning `config.yml` to the default LOWRES. So if
 you previously swapped your `config.yml` to MIDRES or HIGHRES you would need to either swap it
 again or use the `-l`/`-m`/`-h` script flags.
 
