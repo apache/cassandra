@@ -56,16 +56,18 @@ public class Predicates<T> extends Guardrail
      * Creates a new {@link Predicates} guardrail.
      *
      * @param name             the identifying name of the guardrail
+     * @param reason           the optional description of the reason for guarding the operation
      * @param warnPredicate    a {@link ClientState}-based predicate provider that is used to check if given value should trigger a warning.
      * @param failurePredicate a {@link ClientState}-based predicate provider that is used to check if given value should trigger a failure.
      * @param messageProvider  a function to generate the warning or error message if the guardrail is triggered
      */
     Predicates(String name,
+               @Nullable String reason,
                Function<ClientState, Predicate<T>> warnPredicate,
                Function<ClientState, Predicate<T>> failurePredicate,
                MessageProvider<T> messageProvider)
     {
-        super(name);
+        super(name, reason);
         this.warnPredicate = warnPredicate;
         this.failurePredicate = failurePredicate;
         this.messageProvider = messageProvider;

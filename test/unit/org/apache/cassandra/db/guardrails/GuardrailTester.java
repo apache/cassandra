@@ -353,9 +353,17 @@ public abstract class GuardrailTester extends CQLTester
 
             if (guardrail != null)
             {
-                String prefix = guardrail.decorateMessage("");
-                assertTrue(format("Full error message '%s' doesn't start with the prefix '%s'", e.getMessage(), prefix),
-                           e.getMessage().startsWith(prefix));
+                String message = e.getMessage();
+                String prefix = guardrail.decorateMessage("").replace(". " + guardrail.reason, "");
+                assertTrue(format("Full error message '%s' doesn't start with the prefix '%s'", message, prefix),
+                           message.startsWith(prefix));
+
+                String reason = guardrail.reason;
+                if (reason != null)
+                {
+                    assertTrue(format("Full error message '%s' doesn't end with the reason '%s'", message, reason),
+                               message.endsWith(reason));
+                }
             }
 
             assertTrue(format("Full error message '%s' does not contain expected message '%s'", e.getMessage(), failMessage),
@@ -412,9 +420,16 @@ public abstract class GuardrailTester extends CQLTester
             String warning = warnings.get(i);
             if (guardrail != null)
             {
-                String prefix = guardrail.decorateMessage("");
+                String prefix = guardrail.decorateMessage("").replace(". " + guardrail.reason, "");
                 assertTrue(format("Warning log message '%s' doesn't start with the prefix '%s'", warning, prefix),
                            warning.startsWith(prefix));
+
+                String reason = guardrail.reason;
+                if (reason != null)
+                {
+                    assertTrue(format("Warning log message '%s' doesn't end with the reason '%s'", warning, reason),
+                               warning.endsWith(reason));
+                }
             }
 
             assertTrue(format("Warning log message '%s' does not contain expected message '%s'", warning, message),
