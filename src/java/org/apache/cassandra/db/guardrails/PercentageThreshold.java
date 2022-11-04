@@ -20,6 +20,8 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.function.ToLongFunction;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.service.ClientState;
 
 /**
@@ -33,16 +35,18 @@ public class PercentageThreshold extends MaxThreshold
      * Creates a new threshold guardrail.
      *
      * @param name            the identifying name of the guardrail
+     * @param reason          the optional description of the reason for guarding the operation
      * @param warnThreshold   a {@link ClientState}-based provider of the value above which a warning should be triggered.
      * @param failThreshold   a {@link ClientState}-based provider of the value above which the operation should be aborted.
      * @param messageProvider a function to generate the warning or error message if the guardrail is triggered
      */
     public PercentageThreshold(String name,
+                               @Nullable String reason,
                                ToLongFunction<ClientState> warnThreshold,
                                ToLongFunction<ClientState> failThreshold,
                                ErrorMessageProvider messageProvider)
     {
-        super(name, warnThreshold, failThreshold, messageProvider);
+        super(name, reason, warnThreshold, failThreshold, messageProvider);
     }
 
     @Override

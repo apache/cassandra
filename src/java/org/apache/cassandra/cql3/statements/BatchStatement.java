@@ -647,7 +647,7 @@ public class BatchStatement implements CQLStatement
         public BatchStatement prepare(ClientState state)
         {
             List<ModificationStatement> statements = new ArrayList<>(parsedStatements.size());
-            parsedStatements.forEach(s -> statements.add(s.prepare(bindVariables)));
+            parsedStatements.forEach(s -> statements.add(s.prepare(state, bindVariables)));
 
             Attributes prepAttrs = attrs.prepare("[batch]", "[batch]");
             prepAttrs.collectMarkerSpecification(bindVariables);
