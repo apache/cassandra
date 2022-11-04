@@ -1,12 +1,11 @@
-= New Features in Apache Cassandra 4.0
+= New Features in Apache Cassandra 5.0
 
-This section covers the new features in Apache Cassandra 4.0.
+This section covers the new features in Apache Cassandra 5.0.
 
-* xref:new/java11.adoc[Java 11]
-* xref:new/virtualtables.adoc[Virtual tables]
-* xref:new/auditlogging.adoc[Audit logging]
-* xref:new/fqllogging.adoc[Full query logging]
-* xref:new/messaging.adoc[Messaging]
-* xref:new/streaming.adoc[Streaming]
-* xref:new/transientreplication.adoc[Transient replication]
-* xref:configuration/configuration.adoc[Configuration]
+* https://cwiki.apache.org/confluence/x/FQRACw[ACID Transactions (Accord)]
+* https://issues.apache.org/jira/browse/CASSANDRA-16052[Storage Attached Indexes]
+* https://issues.apache.org/jira/browse/CASSANDRA-17240[Trie Memtables]
+* https://github.com/apache/cassandra/blob/trunk/NEWS.txt[More Guardrails]
+* https://issues.apache.org/jira/browse/CASSANDRA-8877[TTL and writetime on collections and UDTs]
+* https://cwiki.apache.org/confluence/x/YyD1D[Transactional Cluster Metadata]
+* https://issues.apache.org/jira/browse/CASSANDRA-16895[JDK 17]
