@@ -24,7 +24,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -106,14 +106,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -133,7 +133,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -285,14 +285,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -312,7 +312,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -464,14 +464,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -491,7 +491,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -643,14 +643,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -670,7 +670,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -766,14 +766,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -864,14 +864,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -891,7 +891,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -987,14 +987,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1014,7 +1014,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1062,14 +1062,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1089,7 +1089,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1241,14 +1241,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1268,7 +1268,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1350,14 +1350,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1377,7 +1377,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1425,14 +1425,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1452,7 +1452,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1500,14 +1500,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1527,7 +1527,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1679,14 +1679,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1706,7 +1706,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1855,14 +1855,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1882,7 +1882,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1978,14 +1978,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2087,14 +2087,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2150,14 +2150,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2177,7 +2177,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2259,14 +2259,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2354,14 +2354,14 @@ jobs:
     - CASSANDRA_SKIP_SYNC: true
     - DTEST_REPO: https://github.com/apache/cassandra-dtest.git
     - DTEST_BRANCH: trunk
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
+    - CCM_MAX_HEAP_SIZE: 2048M
+    - CCM_HEAP_NEWSIZE: 512M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
     - REPEATED_UTESTS: null
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.SchemaTest
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2395,6 +2395,12 @@ workflows:
     - j8_jvm_dtests:
         requires:
         - start_j8_jvm_dtests
+        - build
+    - start_j8_jvm_dtests_repeat:
+        type: approval
+    - j8_jvm_dtests_repeat:
+        requires:
+        - start_j8_jvm_dtests_repeat
         - build
     - start_utests_long:
         type: approval
@@ -2449,6 +2455,9 @@ workflows:
         requires:
         - build
     - j8_jvm_dtests:
+        requires:
+        - build
+    - j8_jvm_dtests_repeat:
         requires:
         - build
     - start_utests_long:
