@@ -1814,6 +1814,7 @@ drop_compact_storage_enabled: false
 # items_per_collection_fail_threshold: -1
 #
 # Guardrail to allow/disallow querying with ALLOW FILTERING. Defaults to true.
+# ALLOW FILTERING can potentially visit all the data in the table and have unpredictable performance.
 # allow_filtering_enabled: true
 #
 # Guardrail to allow/disallow setting SimpleStrategy via keyspace creation or alteration. Defaults to true.

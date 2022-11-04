@@ -306,7 +306,8 @@ public class SSTableGenerator
                                                  new AbstractMarker.Raw(values.size() - 1)));
         }
 
-        StatementRestrictions restrictions = new StatementRestrictions(StatementType.DELETE,
+        StatementRestrictions restrictions = new StatementRestrictions(null,
+                                                                       StatementType.DELETE,
                                                                        metadata,
                                                                        builder.build(),
                                                                        new VariableSpecifications(variableNames),

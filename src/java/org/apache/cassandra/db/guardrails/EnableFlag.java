@@ -39,16 +39,29 @@ public class EnableFlag extends Guardrail
      * Creates a new {@link EnableFlag} guardrail.
      *
      * @param name        the identifying name of the guardrail
+     * @param reason      the optional description of the reason for guarding the operation
      * @param enabled     a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
      *                    guardrail is enabled.
      * @param featureName The feature that is guarded by this guardrail (for reporting in error messages), {@link
      *                    EnableFlag#ensureEnabled(String, ClientState)} can specify a different {@code featureName}.
      */
-    public EnableFlag(String name, Predicate<ClientState> enabled, String featureName)
+    public EnableFlag(String name, @Nullable String reason, Predicate<ClientState> enabled, String featureName)
     {
-        super(name);
+        super(name, reason);
         this.enabled = enabled;
         this.featureName = featureName;
+    }
+
+    /**
+     * Returns whether the guarded feature is enabled or not.
+     *
+     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
+     *              A {@code null} value means that the check should be done regardless of the query.
+     * @return {@code true} is the feature is enabled, {@code false} otherwise.
+     */
+    public boolean isEnabled(@Nullable ClientState state)
+    {
+        return !enabled(state) || enabled.test(state);
     }
 
     /**
@@ -80,7 +93,7 @@ public class EnableFlag extends Guardrail
      */
     public void ensureEnabled(String featureName, @Nullable ClientState state)
     {
-        if (enabled(state) && !enabled.test(state))
+        if (!isEnabled(state))
             fail(featureName + " is not allowed", state);
     }
 }

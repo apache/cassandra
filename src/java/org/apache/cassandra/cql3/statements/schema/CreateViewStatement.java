@@ -272,7 +272,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
             throw ire("WHERE clause for materialized view '%s' cannot contain custom index expressions", viewName);
 
         StatementRestrictions restrictions =
-            new StatementRestrictions(StatementType.SELECT,
+            new StatementRestrictions(state,
+                                      StatementType.SELECT,
                                       table,
                                       whereClause,
                                       VariableSpecifications.empty(),

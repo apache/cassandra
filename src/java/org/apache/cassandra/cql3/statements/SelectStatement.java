@@ -1075,17 +1075,17 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         {
             // Cache locally for use by Guardrails
             this.state = state;
-            return prepare(false);
+            return prepare(state, false);
         }
 
-        public SelectStatement prepare(boolean forView) throws InvalidRequestException
+        public SelectStatement prepare(ClientState state, boolean forView) throws InvalidRequestException
         {
             TableMetadata table = Schema.instance.validateTable(keyspace(), name());
 
             List<Selectable> selectables = RawSelector.toSelectables(selectClause, table);
             boolean containsOnlyStaticColumns = selectOnlyStaticColumns(table, selectables);
 
-            StatementRestrictions restrictions = prepareRestrictions(table, bindVariables, containsOnlyStaticColumns, forView);
+            StatementRestrictions restrictions = prepareRestrictions(state, table, bindVariables, containsOnlyStaticColumns, forView);
 
             // If we order post-query, the sorted column needs to be in the ResultSet for sorting,
             // even if we don't ultimately ship them to the client (CASSANDRA-4911).
@@ -1215,12 +1215,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
          * @return the restrictions
          * @throws InvalidRequestException if a problem occurs while building the restrictions
          */
-        private StatementRestrictions prepareRestrictions(TableMetadata metadata,
+        private StatementRestrictions prepareRestrictions(ClientState state,
+                                                          TableMetadata metadata,
                                                           VariableSpecifications boundNames,
                                                           boolean selectsOnlyStaticColumns,
                                                           boolean forView) throws InvalidRequestException
         {
-            return new StatementRestrictions(StatementType.SELECT,
+            return new StatementRestrictions(state,
+                                             StatementType.SELECT,
                                              metadata,
                                              whereClause,
                                              boundNames,

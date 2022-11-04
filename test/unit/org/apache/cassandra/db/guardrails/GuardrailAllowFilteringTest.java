@@ -22,8 +22,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import org.apache.cassandra.service.ClientState;
 
 public class GuardrailAllowFilteringTest extends GuardrailTester
 {
@@ -33,7 +36,7 @@ public class GuardrailAllowFilteringTest extends GuardrailTester
     public void setupTest()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)");
-        enableState = getGuardrial();
+        enableState = getGuardrail();
     }
 
     @After
@@ -47,7 +50,7 @@ public class GuardrailAllowFilteringTest extends GuardrailTester
         guardrails().setAllowFilteringEnabled(allowFilteringEnabled);
     }
 
-    private boolean getGuardrial()
+    private boolean getGuardrail()
     {
         return guardrails().getAllowFilteringEnabled();
     }
@@ -90,5 +93,25 @@ public class GuardrailAllowFilteringTest extends GuardrailTester
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspaceTables.TABLES,
                                   currentTable()));
+    }
+
+    @Test
+    public void testRequiredAllowFiltering()
+    {
+        setGuardrail(true);
+        assertRequiredAllowFilteringThrows(systemClientState, StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+        assertRequiredAllowFilteringThrows(superClientState, StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+        assertRequiredAllowFilteringThrows(userClientState, StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+
+        setGuardrail(false);
+        assertRequiredAllowFilteringThrows(systemClientState, StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+        assertRequiredAllowFilteringThrows(superClientState, StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+        assertRequiredAllowFilteringThrows(userClientState, StatementRestrictions.CANNOT_USE_ALLOW_FILTERING_MESSAGE);
+    }
+
+    private void assertRequiredAllowFilteringThrows(ClientState state, String message)
+    {
+        String query = "SELECT * FROM %s WHERE a = 5";
+        assertThrows(() -> execute(state, query), InvalidRequestException.class, message);
     }
 }

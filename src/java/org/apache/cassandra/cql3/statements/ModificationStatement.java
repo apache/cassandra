@@ -940,10 +940,10 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
         public ModificationStatement prepare(ClientState state)
         {
-            return prepare(bindVariables);
+            return prepare(state, bindVariables);
         }
 
-        public ModificationStatement prepare(VariableSpecifications bindVariables)
+        public ModificationStatement prepare(ClientState state, VariableSpecifications bindVariables)
         {
             TableMetadata metadata = Schema.instance.validateTable(keyspace(), name());
 
@@ -952,7 +952,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
             Conditions preparedConditions = prepareConditions(metadata, bindVariables);
 
-            return prepareInternal(metadata, bindVariables, preparedConditions, preparedAttributes);
+            return prepareInternal(state, metadata, bindVariables, preparedConditions, preparedAttributes);
         }
 
         /**
@@ -1011,7 +1011,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             return builder.build();
         }
 
-        protected abstract ModificationStatement prepareInternal(TableMetadata metadata,
+        protected abstract ModificationStatement prepareInternal(ClientState state,
+                                                                 TableMetadata metadata,
                                                                  VariableSpecifications bindVariables,
                                                                  Conditions conditions,
                                                                  Attributes attrs);
@@ -1026,7 +1027,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
          * @param conditions the conditions
          * @return the restrictions
          */
-        protected StatementRestrictions newRestrictions(TableMetadata metadata,
+        protected StatementRestrictions newRestrictions(ClientState state,
+                                                        TableMetadata metadata,
                                                         VariableSpecifications boundNames,
                                                         Operations operations,
                                                         WhereClause where,
@@ -1036,7 +1038,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 throw new InvalidRequestException(CUSTOM_EXPRESSIONS_NOT_ALLOWED);
 
             boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions);
-            return new StatementRestrictions(type, metadata, where, boundNames, applyOnlyToStaticColumns, false, false);
+            return new StatementRestrictions(state, type, metadata, where, boundNames, applyOnlyToStaticColumns, false, false);
         }
 
         public List<Pair<ColumnIdentifier, ColumnCondition.Raw>> getConditions()
