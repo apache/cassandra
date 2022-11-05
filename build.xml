@@ -946,7 +946,7 @@
         </copy>
     </target>
 
-    <target name="stress-test" depends="stress-build-test, maybe-build-test" description="Runs stress tests">
+    <target name="stress-test" depends="maybe-build-test" description="Runs stress tests">
         <testmacro inputdir="${stress.test.src}"
                        timeout="${test.timeout}">
         </testmacro>
@@ -956,7 +956,7 @@
       ant stress-test-some -Dtest.name=org.apache.cassandra.stress.generate.DistributionGaussianTest
       ant stress-test-some -Dtest.name=org.apache.cassandra.stress.generate.DistributionGaussianTest -Dtest.methods=simpleGaussian
     -->
-    <target name="stress-test-some" depends="stress-build-test, maybe-build-test" description="Runs stress tests">
+    <target name="stress-test-some" depends="maybe-build-test" description="Runs stress tests">
         <testmacro inputdir="${stress.test.src}"
                        timeout="${test.timeout}">
           <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
@@ -1269,10 +1269,10 @@
     See CASSANDRA-16625 and CASSANDRA-18000 for further details.
      -->
   <target name="maybe-build-test" unless="no-build-test">
-    <antcall target="build-test"/>
+    <antcall target="build-test" inheritRefs="true"/>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib"
+  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib"
           description="Compile test classes">
     <antcall target="_build-test"/>
   </target>
