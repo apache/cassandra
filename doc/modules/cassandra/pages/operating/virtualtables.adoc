@@ -1,0 +1,410 @@
+= Virtual Tables
+
+Apache Cassandra 4.0 implements virtual tables (https://issues.apache.org/jira/browse/CASSANDRA-7622[CASSANDRA-7622]).
+Virtual tables are tables backed by an API instead of data explicitly managed and stored as SSTables. 
+Apache Cassandra 4.0 implements a virtual keyspace interface for virtual tables. 
+Virtual tables are specific to each node.
+
+Some of the features of virtual tables are the ability to:
+
+* expose metrics through CQL
+* expose YAML configuration information
+
+Virtual keyspaces and tables are quite different from regular tables and keyspaces:
+
+* Virtual tables are created in special keyspaces and not just any keyspace.
+* Virtual tables are managed by Cassandra. Users cannot run DDL to create new virtual tables or DML to modify existing virtual tables.
+* Virtual tables are currently read-only, although that may change in a later version.
+* Virtual tables are local only, non-distributed, and thus not replicated.
+* Virtual tables have no associated SSTables.
+* Consistency level of the queries sent to virtual tables are ignored.
+* All existing virtual tables use `LocalPartitioner`. 
+Since a virtual table is not replicated the partitioner sorts in order of partition keys instead of by their hash.
+* Making advanced queries using `ALLOW FILTERING` and aggregation functions can be executed in virtual tables, even though in normal tables we dont recommend it.
+
+== Virtual Keyspaces
+
+Apache Cassandra 4.0 has added two new keyspaces for virtual tables:
+
+* `system_virtual_schema` 
+* `system_views`. 
+
+The `system_virtual_schema` keyspace has three tables: `keyspaces`,
+`columns` and `tables` for the virtual keyspace, table, and column definitions, respectively.
+These tables contain schema information for the virtual tables.
+It is used by Cassandra internally and a user should not access it directly.
+
+The `system_views` keyspace contains the actual virtual tables.
+
+== Virtual Table Limitations
+
+Before disccusing virtual keyspaces and tables, note that virtual keyspaces and tables have some limitations. 
+These limitations are subject to change.
+Virtual keyspaces cannot be altered or dropped. 
+In fact, no operations can be performed against virtual keyspaces.
+
+Virtual tables cannot be created in virtual keyspaces.
+Virtual tables cannot be altered, dropped, or truncated.
+Secondary indexes, types, functions, aggregates, materialized views, and triggers cannot be created for virtual tables.
+Expiring time-to-live (TTL) columns cannot be created.
+Virtual tables do not support conditional updates or deletes.
+Aggregates may be run in SELECT statements.
+
+Conditional batch statements cannot include mutations for virtual tables, nor can a virtual table statement be included in a logged batch.
+In fact, mutations for virtual and regular tables cannot occur in the same batch table.
+
+== Virtual Tables
+
+Each of the virtual tables in the `system_views` virtual keyspace contain different information.
+
+The following table describes the virtual tables: 
+
+[width="98%",cols="27%,73%",]
+|===
+|Virtual Table |Description
+
+|caches |Displays the general cache information including cache name, capacity_bytes, entry_count, hit_count, hit_ratio double,
+recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and size_bytes.
+
+|clients |Lists information about all connected clients.
+
+|coordinator_read_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator reads.
+
+|coordinator_scan |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator scans.
+
+|coordinator_write_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator writes.
+
+|disk_usage |Records disk usage including disk_space, keyspace_name, and table_name, sorted by system keyspaces.
+
+|internode_inbound |Lists information about the inbound internode messaging.
+
+|internode_outbound |Information about the outbound internode messaging.
+
+|local_read_latency |Records counts, keyspace_name, table_name, max, median, and per_second for local reads.
+
+|local_scan |Records counts, keyspace_name, table_name, max, median, and per_second for local scans.
+
+|local_write_latency |Records counts, keyspace_name, table_name, max, median, and per_second for local writes.
+
+|max_partition_size |A table metric for maximum partition size.
+
+|rows_per_read |Records counts, keyspace_name, tablek_name, max, and median for rows read.
+
+|settings |Displays configuration settings in cassandra.yaml.
+
+|sstable_tasks |Lists currently running tasks and progress on SSTables, for operations like compaction and upgrade.
+
+|system_properties |Displays environmental system properties set on the node.
+
+|thread_pools |Lists metrics for each thread pool.
+
+|tombstones_per_read |Records counts, keyspace_name, tablek_name, max, and median for tombstones.
+|===
+
+We shall discuss some of the virtual tables in more detail next.
+
+=== Clients Virtual Table
+
+The `clients` virtual table lists all active connections (connected
+clients) including their ip address, port, connection stage, driver
+name, driver version, hostname, protocol version, request count, ssl
+enabled, ssl protocol and user name:
+
+....
+cqlsh:system_views> select * from system_views.clients;
+ address   | port  | connection_stage | driver_name | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
+-----------+-------+------------------+-------------+----------------+-----------+------------------+---------------+------------------+-------------+--------------+-----------
+ 127.0.0.1 | 50628 |            ready |        null |           null | localhost |                4 |            55 |             null |       False |         null | anonymous
+ 127.0.0.1 | 50630 |            ready |        null |           null | localhost |                4 |            70 |             null |       False |         null | anonymous
+
+(2 rows)
+....
+
+Some examples of how `clients` can be used are:
+
+* To find applications using old incompatible versions of drivers before
+upgrading and with `nodetool enableoldprotocolversions` and
+`nodetool disableoldprotocolversions` during upgrades.
+* To identify clients sending too many requests.
+* To find if SSL is enabled during the migration to and from ssl.
+
+The virtual tables may be described with `DESCRIBE` statement. The DDL
+listed however cannot be run to create a virtual table. As an example
+describe the `system_views.clients` virtual table:
+
+....
+cqlsh:system_views> DESC TABLE system_views.clients;
+CREATE TABLE system_views.clients (
+  address inet,
+  connection_stage text,
+  driver_name text,
+  driver_version text,
+  hostname text,
+  port int,
+  protocol_version int,
+  request_count bigint,
+  ssl_cipher_suite text,
+  ssl_enabled boolean,
+  ssl_protocol text,
+  username text,
+  PRIMARY KEY (address, port)) WITH CLUSTERING ORDER BY (port ASC)
+  AND compaction = {'class': 'None'}
+  AND compression = {};
+....
+
+=== Caches Virtual Table
+
+The `caches` virtual table lists information about the caches. The four
+caches presently created are chunks, counters, keys and rows. A query on
+the `caches` virtual table returns the following details:
+
+....
+cqlsh:system_views> SELECT * FROM system_views.caches;
+name     | capacity_bytes | entry_count | hit_count | hit_ratio | recent_hit_rate_per_second | recent_request_rate_per_second | request_count | size_bytes
+---------+----------------+-------------+-----------+-----------+----------------------------+--------------------------------+---------------+------------
+  chunks |      229638144 |          29 |       166 |      0.83 |                          5 |                              6 |           200 |     475136
+counters |       26214400 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
+    keys |       52428800 |          14 |       124 |  0.873239 |                          4 |                              4 |           142 |       1248
+    rows |              0 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
+
+(4 rows)
+....
+
+=== Settings Virtual Table
+
+The `settings` table is rather useful and lists all the current
+configuration settings from the `cassandra.yaml`. The encryption options
+are overridden to hide the sensitive truststore information or
+passwords. The configuration settings however cannot be set using DML on
+the virtual table presently: :
+
+....
+cqlsh:system_views> SELECT * FROM system_views.settings;
+
+name                                 | value
+-------------------------------------+--------------------
+  allocate_tokens_for_keyspace       | null
+  audit_logging_options_enabled      | false
+  auto_snapshot                      | true
+  automatic_sstable_upgrade          | false
+  cluster_name                       | Test Cluster
+  enable_transient_replication       | false
+  hinted_handoff_enabled             | true
+  hints_directory                    | /home/ec2-user/cassandra/data/hints
+  incremental_backups                | false
+  initial_token                      | null
+                           ...
+                           ...
+                           ...
+  rpc_address                        | localhost
+  ssl_storage_port                   | 7001
+  start_native_transport             | true
+  storage_port                       | 7000
+  stream_entire_sstables             | true
+  (224 rows)
+....
+
+The `settings` table can be really useful if yaml file has been changed
+since startup and dont know running configuration, or to find if they
+have been modified via jmx/nodetool or virtual tables.
+
+=== Thread Pools Virtual Table
+
+The `thread_pools` table lists information about all thread pools.
+Thread pool information includes active tasks, active tasks limit,
+blocked tasks, blocked tasks all time, completed tasks, and pending
+tasks. A query on the `thread_pools` returns following details:
+
+....
+cqlsh:system_views> select * from system_views.thread_pools;
+
+name                         | active_tasks | active_tasks_limit | blocked_tasks | blocked_tasks_all_time | completed_tasks | pending_tasks
+------------------------------+--------------+--------------------+---------------+------------------------+-----------------+---------------
+            AntiEntropyStage |            0 |                  1 |             0 |                      0 |               0 |             0
+        CacheCleanupExecutor |            0 |                  1 |             0 |                      0 |               0 |             0
+          CompactionExecutor |            0 |                  2 |             0 |                      0 |             881 |             0
+        CounterMutationStage |            0 |                 32 |             0 |                      0 |               0 |             0
+                 GossipStage |            0 |                  1 |             0 |                      0 |               0 |             0
+             HintsDispatcher |            0 |                  2 |             0 |                      0 |               0 |             0
+       InternalResponseStage |            0 |                  2 |             0 |                      0 |               0 |             0
+         MemtableFlushWriter |            0 |                  2 |             0 |                      0 |               1 |             0
+           MemtablePostFlush |            0 |                  1 |             0 |                      0 |               2 |             0
+       MemtableReclaimMemory |            0 |                  1 |             0 |                      0 |               1 |             0
+              MigrationStage |            0 |                  1 |             0 |                      0 |               0 |             0
+                   MiscStage |            0 |                  1 |             0 |                      0 |               0 |             0
+               MutationStage |            0 |                 32 |             0 |                      0 |               0 |             0
+   Native-Transport-Requests |            1 |                128 |             0 |                      0 |             130 |             0
+      PendingRangeCalculator |            0 |                  1 |             0 |                      0 |               1 |             0
+PerDiskMemtableFlushWriter_0 |            0 |                  2 |             0 |                      0 |               1 |             0
+                   ReadStage |            0 |                 32 |             0 |                      0 |              13 |             0
+                 Repair-Task |            0 |         2147483647 |             0 |                      0 |               0 |             0
+        RequestResponseStage |            0 |                  2 |             0 |                      0 |               0 |             0
+                     Sampler |            0 |                  1 |             0 |                      0 |               0 |             0
+    SecondaryIndexManagement |            0 |                  1 |             0 |                      0 |               0 |             0
+          ValidationExecutor |            0 |         2147483647 |             0 |                      0 |               0 |             0
+           ViewBuildExecutor |            0 |                  1 |             0 |                      0 |               0 |             0
+           ViewMutationStage |            0 |                 32 |             0 |                      0 |               0 |             0
+....
+
+(24 rows)
+
+=== Internode Inbound Messaging Virtual Table
+
+The `internode_inbound` virtual table is for the internode inbound
+messaging. Initially no internode inbound messaging may get listed. In
+addition to the address, port, datacenter and rack information includes
+corrupt frames recovered, corrupt frames unrecovered, error bytes, error
+count, expired bytes, expired count, processed bytes, processed count,
+received bytes, received count, scheduled bytes, scheduled count,
+throttled count, throttled nanos, using bytes, using reserve bytes. A
+query on the `internode_inbound` returns following details:
+
+....
+cqlsh:system_views> SELECT * FROM system_views.internode_inbound;
+address | port | dc | rack | corrupt_frames_recovered | corrupt_frames_unrecovered |
+error_bytes | error_count | expired_bytes | expired_count | processed_bytes |
+processed_count | received_bytes | received_count | scheduled_bytes | scheduled_count | throttled_count | throttled_nanos | using_bytes | using_reserve_bytes
+---------+------+----+------+--------------------------+----------------------------+-
+----------
+(0 rows)
+....
+
+=== SSTables Tasks Virtual Table
+
+The `sstable_tasks` could be used to get information about running
+tasks. It lists following columns:
+
+....
+cqlsh:system_views> SELECT * FROM sstable_tasks;
+keyspace_name | table_name | task_id                              | kind       | progress | total    | unit
+---------------+------------+--------------------------------------+------------+----------+----------+-------
+       basic |      wide2 | c3909740-cdf7-11e9-a8ed-0f03de2d9ae1 | compaction | 60418761 | 70882110 | bytes
+       basic |      wide2 | c7556770-cdf7-11e9-a8ed-0f03de2d9ae1 | compaction |  2995623 | 40314679 | bytes
+....
+
+As another example, to find how much time is remaining for SSTable
+tasks, use the following query:
+
+....
+SELECT total - progress AS remaining
+FROM system_views.sstable_tasks;
+....
+
+=== Other Virtual Tables
+
+Some examples of using other virtual tables are as follows.
+
+Find tables with most disk usage:
+
+....
+cqlsh> SELECT * FROM disk_usage WHERE mebibytes > 1 ALLOW FILTERING;
+
+keyspace_name | table_name | mebibytes
+---------------+------------+-----------
+   keyspace1 |  standard1 |       288
+  tlp_stress |   keyvalue |      3211
+....
+
+Find queries on table/s with greatest read latency:
+
+....
+cqlsh> SELECT * FROM  local_read_latency WHERE per_second > 1 ALLOW FILTERING;
+
+keyspace_name | table_name | p50th_ms | p99th_ms | count    | max_ms  | per_second
+---------------+------------+----------+----------+----------+---------+------------
+  tlp_stress |   keyvalue |    0.043 |    0.152 | 49785158 | 186.563 |  11418.356
+....
+
+
+== Example
+
+[arabic, start=1]
+. To list the keyspaces, enter ``cqlsh`` and run the CQL command ``DESCRIBE KEYSPACES``:
+
+[source, cql]
+----
+cqlsh> DESC KEYSPACES;
+system_schema  system          system_distributed  system_virtual_schema
+system_auth    system_traces   system_views
+----
+
+[arabic, start=2]
+. To view the virtual table schema, run the CQL commands ``USE system_virtual_schema`` and ``SELECT * FROM tables``:
+
+[source, cql]
+----
+cqlsh> USE system_virtual_schema;
+cqlsh> SELECT * FROM tables;
+----
+ 
+results in:
+
+[source, cql]
+----
+ keyspace_name         | table_name                | comment
+-----------------------+---------------------------+--------------------------------------
+          system_views |                    caches |                        system caches
+          system_views |                   clients |          currently connected clients
+          system_views |  coordinator_read_latency |
+          system_views |  coordinator_scan_latency |
+          system_views | coordinator_write_latency |
+          system_views |                disk_usage |
+          system_views |         internode_inbound |
+          system_views |        internode_outbound |
+          system_views |        local_read_latency |
+          system_views |        local_scan_latency |
+          system_views |       local_write_latency |
+          system_views |        max_partition_size |
+          system_views |             rows_per_read |
+          system_views |                  settings |                     current settings
+          system_views |             sstable_tasks |                current sstable tasks
+          system_views |         system_properties | Cassandra relevant system properties
+          system_views |              thread_pools |
+          system_views |       tombstones_per_read |
+ system_virtual_schema |                   columns |           virtual column definitions
+ system_virtual_schema |                 keyspaces |         virtual keyspace definitions
+ system_virtual_schema |                    tables |            virtual table definitions
+
+(21 rows)
+----
+
+[arabic, start=3]
+. To view the virtual tables, run the CQL commands ``USE system_view`` and ``DESCRIBE tables``:
+
+[source, cql]
+----
+cqlsh> USE system_view;;
+cqlsh> DESCRIBE tables;
+----
+
+results in:
+
+[source, cql]
+----
+sstable_tasks       clients                   coordinator_write_latency
+disk_usage          local_write_latency       tombstones_per_read
+thread_pools        internode_outbound        settings
+local_scan_latency  coordinator_scan_latency  system_properties
+internode_inbound   coordinator_read_latency  max_partition_size
+local_read_latency  rows_per_read             caches
+----
+
+[arabic, start=4]
+. To look at any table data, run the CQL command ``SELECT``:
+
+[source, cql]
+----
+cqlsh> USE system_view;;
+cqlsh> SELECT * FROM clients LIMIT 2;
+----
+ results in:
+
+[source, cql]
+----
+ address   | port  | connection_stage | driver_name            | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
+-----------+-------+------------------+------------------------+----------------+-----------+------------------+---------------+------------------+-------------+--------------+-----------
+ 127.0.0.1 | 37308 |            ready | DataStax Python Driver |   3.21.0.post0 | localhost |                4 |            17 |             null |       False |         null | anonymous
+ 127.0.0.1 | 37310 |            ready | DataStax Python Driver |   3.21.0.post0 | localhost |                4 |             8 |             null |       False |         null | anonymous
+
+(2 rows)
+----
