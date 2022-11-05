@@ -782,7 +782,7 @@
         </copy>
     </target>
 
-    <target name="stress-test" depends="stress-build-test, maybe-build-test" description="Runs stress tests">
+    <target name="stress-test" depends="maybe-build-test" description="Runs stress tests">
         <testmacro inputdir="${stress.test.src}"
                        timeout="${test.timeout}">
         </testmacro>
@@ -792,7 +792,7 @@
       ant stress-test-some -Dtest.name=org.apache.cassandra.stress.settings.SettingsNodeTest
       ant stress-test-some -Dtest.name=org.apache.cassandra.stress.settings.SettingsNodeTest -Dtest.methods=testDefaults
     -->
-    <target name="stress-test-some" depends="stress-build-test, maybe-build-test" description="Runs stress tests">
+    <target name="stress-test-some" depends="maybe-build-test" description="Runs stress tests">
       <testmacro inputdir="${stress.test.src}"
                  timeout="${test.timeout}">
         <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
@@ -925,7 +925,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,gen-doc,build-test,stress-build-test,sources-jar"
+    <target name="artifacts" depends="jar,gen-doc,build-test,sources-jar"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
@@ -1101,10 +1101,10 @@
     See CASSANDRA-16625 and CASSANDRA-18000 for further details.
      -->
   <target name="maybe-build-test" unless="no-build-test">
-    <antcall target="build-test"/>
+    <antcall target="build-test" inheritRefs="true"/>
   </target>
 
-  <target name="build-test" depends="jar,stress-build" description="Compile test classes">
+  <target name="build-test" depends="jar,stress-build-test" description="Compile test classes">
     <javac
      compiler="modern"
      debug="true"
