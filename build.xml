@@ -1081,7 +1081,7 @@
     See CASSANDRA-16625 and CASSANDRA-18000 for further details.
      -->
   <target name="maybe-build-test" unless="no-build-test">
-    <antcall target="build-test"/>
+    <antcall target="build-test" inheritRefs="true"/>
   </target>
 
   <target name="build-test" depends="jar,stress-build" description="Compile test classes">
