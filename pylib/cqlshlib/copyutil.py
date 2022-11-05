@@ -203,7 +203,7 @@ class ReceivingChannels(object):
         while True:
             try:
                 readable, _, _ = select.select(self._readers, [], [], timeout)
-            except select.error, exc:
+            except select.error as exc:
                 # Do not abort on window resize:
                 if exc[0] != errno.EINTR:
                     raise
