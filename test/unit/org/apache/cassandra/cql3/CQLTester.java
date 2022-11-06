@@ -867,7 +867,12 @@ public abstract class CQLTester
 
     protected String createTable(String keyspace, String query)
     {
-        String currentTable = createTableName();
+        return createTable(keyspace, query, null);
+    }
+
+    protected String createTable(String keyspace, String query, String tableName)
+    {
+        String currentTable = createTableName(tableName);
         String fullQuery = formatQuery(keyspace, query);
         logger.info(fullQuery);
         schemaChange(fullQuery);
@@ -876,7 +881,12 @@ public abstract class CQLTester
 
     protected String createTableName()
     {
-        String currentTable = String.format("table_%02d", seqNumber.getAndIncrement());
+        return createTableName(null);
+    }
+
+    protected String createTableName(String tableName)
+    {
+        String currentTable = tableName == null ? String.format("table_%02d", seqNumber.getAndIncrement()) : tableName;
         tables.add(currentTable);
         return currentTable;
     }
