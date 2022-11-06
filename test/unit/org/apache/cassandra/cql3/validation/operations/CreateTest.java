@@ -66,6 +66,21 @@ import static org.junit.Assert.fail;
 public class CreateTest extends CQLTester
 {
     @Test
+    public void testCreateTableWithNameCapitalPAndColumnDuration() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (a INT PRIMARY KEY, b DURATION);", "P");
+        execute("INSERT INTO %s (a, b) VALUES (1, PT0S)");
+        assertRows(execute("SELECT * FROM %s"), row(1, Duration.newInstance(0, 0, 0)));
+    }
+
+    @Test
+    public void testCreateKeyspaceWithNameCapitalP() throws Throwable
+    {
+        executeFormattedQuery("CREATE KEYSPACE IF NOT EXISTS P WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeFormattedQuery("DROP KEYSPACE P");
+    }
+
+    @Test
     public void testCreateTableWithSmallintColumns() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b smallint, c smallint, primary key (a, b));");
