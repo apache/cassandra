@@ -236,8 +236,13 @@ abstract class ElementsSelector extends Selector
         private ElementSelector(Selector selected, ByteBuffer key)
         {
             super(selected);
-            assert selected.getType() instanceof MapType || selected.getType() instanceof SetType : "this shouldn't have passed validation in Selectable";
-            this.type = (CollectionType<?>) selected.getType();
+            AbstractType<?> type = selected.getType();
+            if (type instanceof ReversedType)
+            {
+                type = ((ReversedType<?>) type).baseType;
+            }
+            assert type instanceof MapType || type instanceof SetType : "this shouldn't have passed validation in Selectable";
+            this.type = (CollectionType<?>) type;
             this.key = key;
         }
 
@@ -282,9 +287,14 @@ abstract class ElementsSelector extends Selector
         private SliceSelector(Selector selected, ByteBuffer from, ByteBuffer to)
         {
             super(selected);
-            assert selected.getType() instanceof MapType || selected.getType() instanceof SetType : "this shouldn't have passed validation in Selectable";
+            AbstractType<?> type = selected.getType();
+            if (type instanceof ReversedType)
+            {
+                type = ((ReversedType<?>) type).baseType;
+            }
+            assert type instanceof MapType || type instanceof SetType : "this shouldn't have passed validation in Selectable";
             assert from != null && to != null : "We can have unset buffers, but not nulls";
-            this.type = (CollectionType<?>) selected.getType();
+            this.type = (CollectionType<?>) type;
             this.from = from;
             this.to = to;
         }
