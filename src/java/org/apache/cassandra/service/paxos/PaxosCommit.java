@@ -260,7 +260,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
      */
     private void response(boolean success, InetAddressAndPort from)
     {
-        if (consistencyForCommit.isDatacenterLocal() && InOurDc.endpoints().test(from))
+        if (consistencyForCommit.isDatacenterLocal() && !InOurDc.endpoints().test(from))
             return;
 
         long responses = responsesUpdater.addAndGet(this, success ? 0x1L : 0x100000000L);
