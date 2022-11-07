@@ -1,3 +1,6 @@
+4.0.10
+ * Fix nested selection of reversed collections (CASSANDRA-17913)
+
 4.0.9
  * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
  * Backport CASSANDRA-17205 to 4.0 branch - Remove self-reference in SSTableTidier (CASSANDRA-18332)
