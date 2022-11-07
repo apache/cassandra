@@ -991,6 +991,7 @@
   <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars,checkstyle-test"
           description="Compile test classes">
     <antcall target="_build-test"/>
+    <checktestnameshelper/>
   </target>
 
   <target name="_build-test">
@@ -1026,6 +1027,18 @@
       <fileset dir="${test.resources}"/>
     </copy>
   </target>
+
+  <macrodef name="checktestnameshelper">
+    <sequential>
+      <taskdef name="test-name-check_" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
+        <classpath>
+          <path refid="cassandra.classpath.test"/>
+          <path location="${fqltool.build.classes}"/>
+        </classpath>
+      </taskdef>
+      <test-name-check_/>
+    </sequential>
+  </macrodef>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
   <macrodef name="testhelper">

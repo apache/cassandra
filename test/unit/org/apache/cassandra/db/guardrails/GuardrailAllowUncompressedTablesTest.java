@@ -24,7 +24,7 @@ import org.junit.Test;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
-public class GuardrailAllowUncompressedTables extends GuardrailTester
+public class GuardrailAllowUncompressedTablesTest extends GuardrailTester
 {
     private void setGuardrail(boolean enabled)
     {
