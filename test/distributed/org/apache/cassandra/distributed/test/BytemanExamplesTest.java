@@ -29,7 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.shared.Byteman;
 
-public class BytemanExamples
+public class BytemanExamplesTest
 {
     @Test
     public void rewriteFromText() throws IOException
