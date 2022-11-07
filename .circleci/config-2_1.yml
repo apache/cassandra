@@ -1365,7 +1365,7 @@ jobs:
           target: fqltool-test
 
   j11_utests_fqltool:
-    <<: *j8_seq_executor
+    <<: *j11_seq_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
