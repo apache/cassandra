@@ -266,12 +266,6 @@ public class AccordCommandStore extends CommandStore implements SafeCommandStore
         return dataStore;
     }
 
-    @Override
-    public Timestamp uniqueNow(Timestamp atLeast)
-    {
-        return time.uniqueNow(atLeast);
-    }
-
     public void processBlocking(Runnable runnable)
     {
         try
@@ -321,6 +315,16 @@ public class AccordCommandStore extends CommandStore implements SafeCommandStore
     }
 
     @Override
+    public Timestamp preaccept(TxnId txnId, Keys keys)
+    {
+        Timestamp max = maxConflict(keys);
+        long epoch = latestEpoch();
+        if (txnId.compareTo(max) > 0 && txnId.epoch >= epoch && !agent.isExpired(txnId, time.now()))
+            return txnId;
+
+        return time.uniqueNow(max);
+    }
+
     public Timestamp maxConflict(Keys keys)
     {
         // TODO: efficiency
