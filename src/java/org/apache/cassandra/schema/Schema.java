@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import org.apache.commons.lang3.ObjectUtils;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -74,9 +75,6 @@ public class Schema implements SchemaProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(Schema.class);
 
-    public static final String FORCE_LOAD_LOCAL_KEYSPACES_PROP = "cassandra.schema.force_load_local_keyspaces";
-    private static final boolean FORCE_LOAD_LOCAL_KEYSPACES = Boolean.getBoolean(FORCE_LOAD_LOCAL_KEYSPACES_PROP);
-
     public static final Schema instance = new Schema();
 
     private volatile Keyspaces distributedKeyspaces = Keyspaces.none();
@@ -108,7 +106,7 @@ public class Schema implements SchemaProvider
     private Schema()
     {
         this.online = isDaemonInitialized();
-        this.localKeyspaces = (FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized())
+        this.localKeyspaces = (CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getBoolean() || isDaemonInitialized() || isToolInitialized())
                               ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata())
                               : Keyspaces.none();
 

@@ -309,7 +309,12 @@ public enum CassandraRelevantProperties
     LOOSE_DEF_OF_EMPTY_ENABLED(Config.PROPERTY_PREFIX + "gossiper.loose_empty_enabled"),
 
     // Maximum number of rows in system_views.logs table
-    LOGS_VIRTUAL_TABLE_MAX_ROWS("cassandra.virtual.logs.max.rows", Integer.toString(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS));
+    LOGS_VIRTUAL_TABLE_MAX_ROWS("cassandra.virtual.logs.max.rows", Integer.toString(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS)),
+
+    /** Used when running in Client mode and the system and schema keyspaces need to be initialized outside of their normal initialization path **/
+    FORCE_LOAD_LOCAL_KEYSPACES("cassandra.schema.force_load_local_keyspaces"),
+    ;
+
 
 
     CassandraRelevantProperties(String key, String defaultVal)
