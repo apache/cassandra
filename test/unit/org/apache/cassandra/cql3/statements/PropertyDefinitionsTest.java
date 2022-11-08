@@ -21,64 +21,45 @@
 package org.apache.cassandra.cql3.statements;
 
 import org.junit.Test;
-import org.junit.Before;
 
 import org.apache.cassandra.exceptions.SyntaxException;
 
+import static org.apache.cassandra.cql3.statements.PropertyDefinitions.parseBoolean;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class PropertyDefinitionsTest {
-    
-    PropertyDefinitions definitions;
-    
-    @Before
-    public void setUp()
-    {
-        definitions = new PropertyDefinitions();
-    }
-
+public class PropertyDefinitionsTest
+{
     @Test
     public void testPostiveBooleanParsing()
     {
-        for (String[] pair : new String[][] {{"prop1", "1"},
-                                             {"prop2", "true"},
-                                             {"prop3", "True"},
-                                             {"prop4", "TrUe"},
-                                             {"prop5", "yes"},
-                                             {"prop6", "Yes" }})
-        {
-            definitions.addProperty(pair[0], pair[1]);
-            assertTrue(definitions.getBoolean(pair[0], false));
-        }
+        assertTrue(parseBoolean("prop1", "1"));
+        assertTrue(parseBoolean("prop2", "true"));
+        assertTrue(parseBoolean("prop3", "True"));
+        assertTrue(parseBoolean("prop4", "TrUe"));
+        assertTrue(parseBoolean("prop5", "yes"));
+        assertTrue(parseBoolean("prop6", "Yes"));
     }
 
     @Test
     public void testNegativeBooleanParsing()
     {
-        for (String[] pair : new String[][] {{"prop1", "0"},
-                                             {"prop2", "false"},
-                                             {"prop3", "False"},
-                                             {"prop4", "FaLse"},
-                                             {"prop5", "no"},
-                                             {"prop6", "No" }})
-        {
-            definitions.addProperty(pair[0], pair[1]);
-            assertFalse(definitions.getBoolean(pair[0], true));
-        }
+        assertFalse(parseBoolean("prop1", "0"));
+        assertFalse(parseBoolean("prop2", "false"));
+        assertFalse(parseBoolean("prop3", "False"));
+        assertFalse(parseBoolean("prop4", "FaLse"));
+        assertFalse(parseBoolean("prop6", "No"));
     }
 
     @Test(expected = SyntaxException.class)
     public void testInvalidPositiveBooleanParsing()
     {
-        definitions.addProperty("cdc", "tru");
-        definitions.getBoolean("cdc", false);
+        parseBoolean("cdc", "tru");
     }
 
     @Test(expected = SyntaxException.class)
     public void testInvalidNegativeBooleanParsing()
     {
-        definitions.addProperty("cdc", "fals");
-        definitions.getBoolean("cdc", false);
+        parseBoolean("cdc", "fals");
     }
 }

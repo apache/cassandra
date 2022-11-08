@@ -36,22 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
-import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
-import static org.apache.cassandra.schema.TableParams.Option.CACHING;
-import static org.apache.cassandra.schema.TableParams.Option.CDC;
-import static org.apache.cassandra.schema.TableParams.Option.COMMENT;
-import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
-import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
-import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
-import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
-import static org.apache.cassandra.schema.TableParams.Option.EXTENSIONS;
-import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
-import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
-import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERIOD_IN_MS;
-import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
-import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
-import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
+import static org.apache.cassandra.schema.TableParams.Option.*;
 
 public final class TableParams
 {
@@ -102,8 +87,8 @@ public final class TableParams
     {
         comment = builder.comment;
         bloomFilterFpChance = builder.bloomFilterFpChance == -1
-                              ? builder.compaction.defaultBloomFilterFbChance()
-                              : builder.bloomFilterFpChance;
+                            ? builder.compaction.defaultBloomFilterFbChance()
+                            : builder.bloomFilterFpChance;
         crcCheckChance = builder.crcCheckChance;
         gcGraceSeconds = builder.gcGraceSeconds;
         defaultTimeToLive = builder.defaultTimeToLive;

@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
@@ -35,21 +34,7 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
-import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
-import static org.apache.cassandra.schema.TableParams.Option.CACHING;
-import static org.apache.cassandra.schema.TableParams.Option.CDC;
-import static org.apache.cassandra.schema.TableParams.Option.COMMENT;
-import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
-import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
-import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
-import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
-import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
-import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
-import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERIOD_IN_MS;
-import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
-import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
-import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
+import static org.apache.cassandra.schema.TableParams.Option.*;
 
 public final class TableAttributes extends PropertyDefinitions
 {
@@ -87,7 +72,7 @@ public final class TableAttributes extends PropertyDefinitions
 
     public TableId getId() throws ConfigurationException
     {
-        String id = getSimple(ID);
+        String id = getString(ID);
         try
         {
             return id != null ? TableId.fromString(id) : null;
@@ -114,7 +99,7 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(COMPRESSION))
         {
-            //crc_check_chance was "promoted" from a compression property to a top-level-property after #9839
+            //crc_check_chance was "promoted" from a compression property to a top-level-property after #9839,
             //so we temporarily accept it to be defined as a compression option, to maintain backwards compatibility
             Map<String, String> compressionOpts = getMap(COMPRESSION);
             if (compressionOpts.containsKey(CRC_CHECK_CHANCE.toString().toLowerCase()))
@@ -158,50 +143,14 @@ public final class TableAttributes extends PropertyDefinitions
         return builder.build();
     }
 
-    private double getDeprecatedCrcCheckChance(Map<String, String> compressionOpts)
+    public boolean hasOption(Option option)
     {
-        String value = compressionOpts.get(CRC_CHECK_CHANCE.toString().toLowerCase());
-        try
-        {
-            return Double.parseDouble(value);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new SyntaxException(format("Invalid double value %s for crc_check_chance.'", value));
-        }
-    }
-
-    private double getDouble(Option option)
-    {
-        String value = getString(option);
-
-        try
-        {
-            return Double.parseDouble(value);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new SyntaxException(format("Invalid double value %s for '%s'", value, option));
-        }
-    }
-
-    private int getInt(Option option)
-    {
-        String value = getString(option);
-
-        try
-        {
-            return Integer.parseInt(value);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new SyntaxException(format("Invalid integer value %s for '%s'", value, option));
-        }
+        return hasProperty(option.toString());
     }
 
     private String getString(Option option)
     {
-        String value = getSimple(option.toString());
+        String value = getString(option.toString());
         if (value == null)
             throw new IllegalStateException(format("Option '%s' is absent", option));
         return value;
@@ -217,11 +166,22 @@ public final class TableAttributes extends PropertyDefinitions
 
     private boolean getBoolean(Option option)
     {
-        return getBoolean(option.toString(), false);
+        return parseBoolean(option.toString(), getString(option));
     }
 
-    public boolean hasOption(Option option)
+    private int getInt(Option option)
     {
-        return hasProperty(option.toString());
+        return parseInt(option.toString(), getString(option));
+    }
+
+    private double getDouble(Option option)
+    {
+        return parseDouble(option.toString(), getString(option));
+    }
+
+    private double getDeprecatedCrcCheckChance(Map<String, String> compressionOpts)
+    {
+        String value = compressionOpts.get(CRC_CHECK_CHANCE.toString().toLowerCase());
+        return parseDouble(CRC_CHECK_CHANCE.toString(), value);
     }
 }
