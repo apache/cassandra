@@ -24,7 +24,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -52,6 +54,9 @@ import static org.junit.Assert.fail;
 
 public class StorageServiceTest
 {
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
     static InetAddressAndPort aAddress;
     static InetAddressAndPort bAddress;
     static InetAddressAndPort cAddress;
@@ -309,10 +314,12 @@ public class StorageServiceTest
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testLocalDatacenterNodesExcludedDuringRebuild()
     {
         StorageService service = StorageService.instance;
         service.rebuild(DatabaseDescriptor.getLocalDataCenter(), "StorageServiceTest", null, null, true);
+        thrown.expect(IllegalArgumentException.class);
+        thrown.expectMessage("Cannot set source data center to be local data center, when excludeLocalDataCenter flag is set");
     }
 }
