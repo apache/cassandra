@@ -23,6 +23,7 @@ import accord.api.Result;
 import accord.local.Command;
 import accord.local.Node;
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 
 public class AccordAgent implements Agent
 {
@@ -48,5 +49,12 @@ public class AccordAgent implements Agent
     public void onHandledException(Throwable throwable)
     {
         // TODO: this
+    }
+
+    @Override
+    public boolean isExpired(TxnId initiated, long now)
+    {
+        // TODO: this
+        return false;
     }
 }
