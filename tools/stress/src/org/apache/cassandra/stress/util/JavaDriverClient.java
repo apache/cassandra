@@ -19,6 +19,7 @@ package org.apache.cassandra.stress.util;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -47,7 +48,7 @@ public class JavaDriverClient
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
     }
 
-    public final String host;
+    public final List<String> hosts;
     public final int port;
     public final String username;
     public final String password;
@@ -63,15 +64,15 @@ public class JavaDriverClient
 
     private static final ConcurrentMap<String, PreparedStatement> stmts = new ConcurrentHashMap<>();
 
-    public JavaDriverClient(StressSettings settings, String host, int port)
+    public JavaDriverClient(StressSettings settings, List<String> hosts, int port)
     {
-        this(settings, host, port, new EncryptionOptions());
+        this(settings, hosts, port, new EncryptionOptions());
     }
 
-    public JavaDriverClient(StressSettings settings, String host, int port, EncryptionOptions encryptionOptions)
+    public JavaDriverClient(StressSettings settings, List<String> hosts, int port, EncryptionOptions encryptionOptions)
     {
         this.protocolVersion = settings.mode.protocolVersion;
-        this.host = host;
+        this.hosts = hosts;
         this.port = port;
         this.username = settings.mode.username;
         this.password = settings.mode.password;
@@ -133,10 +134,15 @@ public class JavaDriverClient
                                      .setMaxRequestsPerConnection(HostDistance.LOCAL, maxPendingPerConnection)
                                      .setNewConnectionThreshold(HostDistance.LOCAL, 100);
 
-        HostAndPort hap = HostAndPort.fromString(host).withDefaultPort(port);
-        InetSocketAddress contact = new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPort());
+        List<InetSocketAddress> contacts = new ArrayList<>();
+        for (String host : hosts)
+        {
+            HostAndPort hap = HostAndPort.fromString(host).withDefaultPort(port);
+            InetSocketAddress contact = new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPort());
+            contacts.add(contact);
+        }
         Cluster.Builder clusterBuilder = Cluster.builder()
-                                                .addContactPointsWithPorts(contact)
+                                                .addContactPointsWithPorts(contacts)
                                                 .withPoolingOptions(poolingOpts)
                                                 .withoutJMXReporting()
                                                 .withProtocolVersion(protocolVersion)
