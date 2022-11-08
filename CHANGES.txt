@@ -3,6 +3,7 @@
  * Add --resolve-ip option to nodetool gossipinfo (CASSANDRA-17934)
  * Allow pre-V5 global limit on bytes in flight to revert to zero asynchronously in RateLimitingTest (CASSANDRA-17927)
 Merged from 4.0:
+ * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
  * Fix possible race condition on repair snapshots (CASSANDRA-17955)
  * Fix ASM bytecode version inconsistency (CASSANDRA-17873)
  * Remove empty cq4 files in log directory to not fail the startup of BinLog (CASSANDRA-17933)
