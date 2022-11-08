@@ -241,6 +241,7 @@ public class AccordTestUtils
         {
             @Override public Id id() { return node;}
             @Override public long epoch() {return 1; }
+            @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return new Timestamp(1, now.getAsLong(), 0, node); }
         };
         return new InMemoryCommandStore.Synchronized(0, 0, 1, 8,
@@ -262,6 +263,7 @@ public class AccordTestUtils
         {
             @Override public Id id() { return node;}
             @Override public long epoch() {return 1; }
+            @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return new Timestamp(1, now.getAsLong(), 0, node); }
         };
         return new AccordCommandStore(0, 0, 0, 1,
