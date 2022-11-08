@@ -93,6 +93,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.memory.HeapPool;
+import org.apache.cassandra.utils.reflection.ReflectionUtils;
 
 import static java.lang.Integer.min;
 import static java.util.Collections.emptyMap;
@@ -778,7 +779,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             Field field = Clock.Global.class.getDeclaredField("instance");
             field.setAccessible(true);
 
-            Field modifiersField = Field.class.getDeclaredField("modifiers");
+            Field modifiersField = ReflectionUtils.getModifiersField();
             modifiersField.setAccessible(true);
             modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
 

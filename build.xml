@@ -153,25 +153,52 @@
         <equals arg1="${ant.java.version}" arg2="1.8"/>
     </condition>
     <condition property="java.version.11">
-        <not><isset property="java.version.8"/></not>
+        <equals arg1="${ant.java.version}" arg2="11"/>
+    </condition>
+    <condition property="java.version.17">
+        <equals arg1="${ant.java.version}" arg2="17"/>
     </condition>
     <fail><condition><not><or>
         <isset property="java.version.8"/>
         <isset property="java.version.11"/>
+        <isset property="java.version.17"/>
     </or></not></condition></fail>
 
-    <resources id="_jvm11_arg_items">
-        <string>-Djdk.attach.allowAttachSelf=true</string>
+    <condition property="arch_x86">
+      <equals arg1="${os.arch}" arg2="x86" />
+    </condition>
+    <condition property="jvm_xss" value="-Xss256k" else="-Xss512k">
+      <isset property="arch_x86" />
+    </condition>
 
+    <resources id="_jvm_gc_cms">
         <string>-XX:+UseConcMarkSweepGC</string>
         <string>-XX:+CMSParallelRemarkEnabled</string>
-        <string>-XX:SurvivorRatio=8</string>
-        <string>-XX:MaxTenuringThreshold=1</string>
         <string>-XX:CMSInitiatingOccupancyFraction=75</string>
         <string>-XX:+UseCMSInitiatingOccupancyOnly</string>
         <string>-XX:CMSWaitDuration=10000</string>
         <string>-XX:+CMSParallelInitialMarkEnabled</string>
         <string>-XX:+CMSEdenChunksRecordAlways</string>
+    </resources>
+    <resources id="_jvm_gc_shenandoah">
+        <string>-XX:+UseShenandoahGC</string>
+    </resources>
+    <resources id="_jvm_gc_zgc">
+        <string>-XX:+UseZGC</string>
+    </resources>
+    <property name="jvm_gc" value="zgc" />
+    <condition property="_jvm_gc_id" value="_jvm_gc_cms" else="_jvm_gc_${jvm_gc}">
+      <or>
+        <isset property="java.version.8" />
+        <isset property="java.version.11" />
+      </or>
+    </condition>
+    <resources id="_jvm11_arg_items">
+        <resources refid="${_jvm_gc_id}" />
+        <string>-Djdk.attach.allowAttachSelf=true</string>
+
+        <string>-XX:SurvivorRatio=8</string>
+        <string>-XX:MaxTenuringThreshold=1</string>
 
         <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
         <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
@@ -190,9 +217,17 @@
         <string>--add-opens java.base/jdk.internal.module=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED</string>
         <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
+
+        <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm_args_concat" refid="_jvm11_arg_items" pathsep=" "/>
-    <condition property="java11-jvmargs" value="${_jvm_args_concat}" else="">
+    <condition property="jvmargs" value="${_jvm_args_concat}" else="">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
@@ -223,10 +258,16 @@
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
     </resources>
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
+    <resources id="_jvm17_test_arg_items">
+        <string>-Dio.netty.tryReflectionSetAccessible=true</string>
+    </resources>
+    <pathconvert property="_jvm17_test_arg_items_concat" refid="_jvm17_test_arg_items" pathsep=" "/>
+    <!-- property _std-test-jvmargs can only be set once, so if this doesnt set it, the next one will -->
+    <condition property="_std-test-jvmargs" value="${_jvm17_test_arg_items_concat}">
+      <isset property="java.version.17" />
+    </condition>
     <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}" else="${_jvm8_test_arg_items_concat}">
-        <not>
-            <equals arg1="${ant.java.version}" arg2="1.8"/>
-        </not>
+      <isset property="java.version.11" />
     </condition>
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
@@ -458,7 +499,7 @@
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg line="${java11-jvmargs}"/>
+        <jvmarg line="${jvmargs}"/>
       </java>
     </target>
 
@@ -1079,7 +1120,7 @@
         <jvmarg value="-ea"/>
         <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
         <jvmarg value="-Dcassandra.debugrefcount=true"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="${jvm_xss}"/>
         <!-- When we do classloader manipulation SoftReferences can cause memory leaks
              that can OOM our test runs. The next two settings informs our GC
              algorithm to limit the metaspace size and clean up SoftReferences
@@ -1098,7 +1139,7 @@
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
-        <jvmarg line="${java11-jvmargs}"/>
+        <jvmarg line="${jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
         <jvmarg line="${_std-test-jvmargs}" />
@@ -1410,7 +1451,7 @@
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="${jvm_xss}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
@@ -1456,7 +1497,7 @@
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="${jvm_xss}"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
@@ -1647,6 +1688,7 @@
     </testmacro>
   </target>
 
+  <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
     <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
@@ -1655,6 +1697,7 @@
       <jvmarg value="-Dcassandra.skip_sync=true" />
       <jvmarg value="-Dcassandra.debugrefcount=false"/>
       <jvmarg value="-Dcassandra.test.simulator.determinismcheck=strict"/>
+      <jvmarg value="-Dcassandra.test.simulator.print_asm=${simulator.asm.print}" />
       <!-- Support Simulator Tests -->
       <jvmarg line="-javaagent:${test.lib}/jars/simulator-asm.jar"/>
       <jvmarg line="-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar"/>
@@ -1752,7 +1795,7 @@
     <replace file=".idea/misc.xml" token="1.8" value="11"/>
     <replaceregexp file=".idea/workspace.xml"
                    match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)&quot;"
-                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}&quot;"
+                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${jvmargs}&quot;"
                    byline="true"/>
 
       <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
