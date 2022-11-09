@@ -42,7 +42,8 @@ public class SetAutoRepairConfig extends NodeToolCmd
     @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
             description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
                     "[threads|subranges|minrepairfreqinhours|sstablehigherthreshold|ignorekeyspacesregex" +
-                    "|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|ignoredcs|historydeletehostsclearbufferinsec|primarytokenrangeonly]",
+                    "|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|ignoredcs" +
+                    "|historydeletehostsclearbufferinsec|primarytokenrangeonly|parallelrepaircount|parallelrepairpercentage]",
             required = true)
     private List<String> args = new ArrayList<>();
 
@@ -143,6 +144,14 @@ public class SetAutoRepairConfig extends NodeToolCmd
         else if (paramType.equals("primarytokenrangeonly"))
         {
             probe.setPrimaryTokenRangeOnly(Boolean.parseBoolean(paramVal));
+        }
+        else if (paramType.equals("parallelrepaircount"))
+        {
+            probe.setParallelRepairCountInGroup(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("parallelrepairpercentage"))
+        {
+            probe.setParallelRepairPercentageInGroup(Integer.parseInt(paramVal));
         }
     }
 }

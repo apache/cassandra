@@ -188,4 +188,24 @@ public interface AutoRepairServiceMBean
      * Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
      */
     public void setPrimaryTokenRangeOnly(boolean primaryTokenRangeOnly);
+
+    /**
+     * Return percentage of the nodes in one group should run repair parallelly
+     */
+    public int getParallelRepairPercentageInGroup();
+
+    /**
+     * Set percentage of the nodes in one group should run repair parallelly
+     */
+    public void setParallelRepairPercentageInGroup(int percentageInGroup);
+
+    /**
+     * Return number of the nodes in one group should run repair parallelly
+     */
+    public int getParallelRepairCountInGroup();
+
+    /**
+     * Return number of the nodes in one group should run repair parallelly
+     */
+    public void setParallelRepairCountInGroup(int countInGroup);
 }

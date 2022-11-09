@@ -392,11 +392,11 @@ public class AutoRepairUtils
 
     public static int getMaxNumberOfNodeRunAutoRepairInGroup(int groupSize) {
         if (groupSize == 0) {
-             return Math.max(DatabaseDescriptor.getAutoRepairParallelRepairCountInGroup(), 1);
+             return Math.max(AutoRepairService.instance.getParallelRepairCountInGroup(), 1);
         }
         // we will use the max number from config between auto_repair_parallel_repair_count_in_group and auto_repair_parallel_repair_percentage_in_group
-        int value = Math.max(groupSize * DatabaseDescriptor.getAutoRepairParallelRepairPercentageInGroup() / 100,
-                        DatabaseDescriptor.getAutoRepairParallelRepairCountInGroup());
+        int value = Math.max(groupSize * AutoRepairService.instance.getParallelRepairPercentageInGroup() / 100,
+                             AutoRepairService.instance.getParallelRepairCountInGroup());
         // make sure at least one node getting repaired
         return Math.max(1, value);
     }

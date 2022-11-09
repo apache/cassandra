@@ -49,6 +49,8 @@ public class GetAutoRepairConfig extends NodeToolCmd
             }
             sb.append("\nauto repair history table delete hosts clear buffer in seconds: " + probe.getAutoRepairHistoryClearDeleteHostsBufferInSec());
             sb.append("\nrepair primary token-range: " + probe.getPrimaryTokenRangeOnly());
+            sb.append("\nnumber of parallel repairs within group: " + probe.getParallelRepairCountInGroup());
+            sb.append("\npercentage of parallel repairs within group: " + probe.getParallelRepairPercentageInGroup());
 
             System.out.println(sb.toString());
         }

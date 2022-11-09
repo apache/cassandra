@@ -2422,6 +2422,22 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.getCurrentRingHostIds();
     }
 
+    public int getParallelRepairPercentageInGroup() {
+        return autoRepairProxy.getParallelRepairPercentageInGroup();
+    }
+
+    public void setParallelRepairPercentageInGroup(int percentageInGroup) {
+        autoRepairProxy.setParallelRepairPercentageInGroup(percentageInGroup);
+    }
+
+    public int getParallelRepairCountInGroup() {
+        return autoRepairProxy.getParallelRepairCountInGroup();
+    }
+
+    public void setParallelRepairCountInGroup(int countInGroup) {
+        autoRepairProxy.setParallelRepairCountInGroup(countInGroup);
+    }
+
     public boolean getPrimaryTokenRangeOnly()
     {
         return autoRepairProxy.getRepairPrimaryTokenRangeOnly();

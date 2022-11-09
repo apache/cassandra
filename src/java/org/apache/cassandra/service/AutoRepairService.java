@@ -50,6 +50,8 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private Set<Set<String>> autoRepairDCGroups = new HashSet<>();
     private int autoRepairHistoryClearDeleteHostsBufferInSec;
     private boolean primaryTokenRangeOnly;
+    private int parallelRepairPercentageInGroup;
+    private int parallelRepairCountInGroup;
 
     public static final AutoRepairService instance = new AutoRepairService();
 
@@ -251,5 +253,21 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setPrimaryTokenRangeOnly(boolean primaryTokenRangeOnly)
     {
         this.primaryTokenRangeOnly = primaryTokenRangeOnly;
+    }
+
+    public int getParallelRepairPercentageInGroup() {
+        return parallelRepairPercentageInGroup;
+    }
+
+    public void setParallelRepairPercentageInGroup(int percentageInGroup) {
+        this.parallelRepairPercentageInGroup = percentageInGroup;
+    }
+
+    public int getParallelRepairCountInGroup() {
+        return parallelRepairCountInGroup;
+    }
+
+    public void setParallelRepairCountInGroup(int countInGroup) {
+        this.parallelRepairCountInGroup = countInGroup;
     }
 }

@@ -199,6 +199,8 @@ public class AutoRepair
         }
         AutoRepairService.instance.setIgnoreDCs(ignoreDCs);
         AutoRepairService.instance.setPrimaryTokenRangeOnly(DatabaseDescriptor.getPrimaryTokenRangeOnly());
+        AutoRepairService.instance.setParallelRepairPercentageInGroup(DatabaseDescriptor.getAutoRepairParallelRepairPercentageInGroup());
+        AutoRepairService.instance.setParallelRepairCountInGroup(DatabaseDescriptor.getAutoRepairParallelRepairCountInGroup());
 
         Set<Set<String>> DCGroups = new HashSet<>();
         if (DatabaseDescriptor.getAutoRepairDCGroups().length() > 0) {
