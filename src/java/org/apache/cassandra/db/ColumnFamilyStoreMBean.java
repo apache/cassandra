@@ -162,6 +162,15 @@ public interface ColumnFamilyStoreMBean
     public List<String> getSSTablesForKey(String key, boolean hexFormat);
 
     /**
+     * Returns a list of filenames that contain the given key and which level they belong to.
+     * Requires table to be compacted with {@link org.apache.cassandra.db.compaction.LeveledCompactionStrategy}
+     * @param key
+     * @param hexFormat
+     * @return list of filenames and levels containing the key
+     */
+    public Map<Integer, Collection<String>> getSSTablesForKeyWithLevel(String key, boolean hexFormat);
+
+    /**
      * Load new sstables from the given directory
      *
      * @param srcPaths the path to the new sstables - if it is an empty set, the data directories will be scanned
@@ -224,6 +233,11 @@ public interface ColumnFamilyStoreMBean
      *         array index corresponds to level(int[0] is for level 0, ...).
      */
     public long[] getPerLevelSizeBytes();
+
+    /**
+     * @return true if the table is using LeveledCompactionStrategy. false otherwise.
+     */
+    public boolean isLeveledCompaction();
 
     /**
      * @return sstable count for each bucket in TWCS. null unless time window compaction is used.

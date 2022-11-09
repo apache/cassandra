@@ -1,4 +1,5 @@
 4.2
+ * Add option to print level in nodetool getsstables output (CASSANDRA-18023)
  * Implement a guardrail for not having zero default_time_to_live on tables with TWCS (CASSANDRA-18042)
  * Add CQL scalar functions for collection aggregation (CASSANDRA-18060)
  * Make cassandra.replayList property for CommitLogReplayer possible to react on keyspaces only (CASSANDRA-18044)
