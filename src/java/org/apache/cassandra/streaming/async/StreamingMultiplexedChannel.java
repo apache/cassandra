@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
@@ -36,6 +37,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.StreamDeserializingTask;
@@ -43,6 +45,7 @@ import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
+import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -166,8 +169,11 @@ public class StreamingMultiplexedChannel
         StreamingChannel channel = factory.create(to, messagingVersion, StreamingChannel.Kind.CONTROL);
         executorFactory().startThread(String.format("Stream-Deserializer-%s-%s", to.toString(), channel.id()),
                                       new StreamDeserializingTask(session, channel, messagingVersion));
+
         session.attachInbound(channel);
         session.attachOutbound(channel);
+
+        scheduleKeepAliveTask(channel);
 
         logger.debug("Creating control {}", channel.description());
         return channel;
@@ -246,7 +252,7 @@ public class StreamingMultiplexedChannel
      *
      * Note: this is called from the netty event loop.
      *
-     * @return null if the message was processed sucessfully; else, a {@link java.util.concurrent.Future} to indicate
+     * @return null if the message was processed successfully; else, a {@link java.util.concurrent.Future} to indicate
      * the status of aborting any remaining tasks in the session.
      */
     Future<?> onMessageComplete(Future<?> future, StreamMessage msg)
@@ -405,6 +411,72 @@ public class StreamingMultiplexedChannel
         {
             threadToChannelMap.remove(currentThread());
         }
+    }
+
+    /**
+     * Periodically sends the {@link KeepAliveMessage}.
+     * <p>
+     * NOTE: this task, and the callback function are executed in the netty event loop.
+     */
+    class KeepAliveTask implements Runnable
+    {
+        private final StreamingChannel channel;
+
+        /**
+         * A reference to the scheduled task for this instance so that it may be cancelled.
+         */
+        ScheduledFuture<?> future;
+
+        KeepAliveTask(StreamingChannel channel)
+        {
+            this.channel = channel;
+        }
+
+        @Override
+        public void run()
+        {
+            // if the channel has been closed, cancel the scheduled task and return
+            if (!channel.connected() || closed)
+            {
+                if (null != future)
+                    future.cancel(false);
+                return;
+            }
+
+            if (logger.isTraceEnabled())
+                logger.trace("{} Sending keep-alive to {}.", createLogTag(session, channel), session.peer);
+
+            sendControlMessage(new KeepAliveMessage()).addListener(f ->
+            {
+                if (f.isSuccess() || f.isCancelled())
+                    return;
+
+                if (logger.isDebugEnabled())
+                    logger.debug("{} Could not send keep-alive message (perhaps stream session is finished?).",
+                                 createLogTag(session, channel), f.cause());
+            });
+        }
+    }
+
+    private void scheduleKeepAliveTask(StreamingChannel channel)
+    {
+        if (!(channel instanceof NettyStreamingChannel))
+            return;
+
+        int keepAlivePeriod = DatabaseDescriptor.getStreamingKeepAlivePeriod();
+        if (keepAlivePeriod <= 0)
+            return;
+
+        if (logger.isDebugEnabled())
+            logger.debug("{} Scheduling keep-alive task with {}s period.", createLogTag(session, channel), keepAlivePeriod);
+
+        KeepAliveTask task = new KeepAliveTask(channel);
+        ScheduledFuture<?> scheduledFuture =
+            ((NettyStreamingChannel)channel).channel
+                                            .eventLoop()
+                                            .scheduleAtFixedRate(task, keepAlivePeriod, keepAlivePeriod, TimeUnit.SECONDS);
+        task.future = scheduledFuture;
+        channelKeepAlives.add(scheduledFuture);
     }
 
     /**
