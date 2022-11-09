@@ -26,7 +26,9 @@ import java.util.*;
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -131,6 +133,72 @@ public class TypeParser
             return getAbstractType(name);
     }
 
+    /**
+     * parse PartitionOrdering from old version of PartitionOrdering' string format 
+     * */
+    private static  AbstractType<?> defaultParsePartitionOrdering(TypeParser typeParser)
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        Iterator<String> argIterator = typeParser.getKeyValueParameters().keySet().iterator();
+        if (argIterator.hasNext()) {
+            partitioner = FBUtilities.newPartitioner(argIterator.next());
+            assert !argIterator.hasNext();
+        }
+        return partitioner.partitionOrdering();
+    }
+
+    //the format is (partitioner:type)
+    public AbstractType<?> getPartitionerDefinedOrder()
+    {
+        if (isEOS())
+            return defaultParsePartitionOrdering(this);
+        skipBlank();
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+        Pair<Boolean, AbstractType<?>>  result = null;
+        ++idx; // skipping '('
+
+        if (str.charAt(idx) == ')')
+        {
+            ++idx;
+            return  defaultParsePartitionOrdering(this);
+        }
+        skipBlank();
+        String k = readNextIdentifier();
+        skipBlank();
+        if (str.charAt(idx) == ':')
+        {
+            ++idx;
+            skipBlank();
+        }
+        else if (str.charAt(idx) != ',' && str.charAt(idx) != ')')
+        {
+            return defaultParsePartitionOrdering(this);
+        }
+        IPartitioner partitioner = FBUtilities.newPartitioner(k);
+        AbstractType<?> type = partitioner.partitionOrdering();
+        if (partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
+        {
+            PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) partitioner.partitionOrdering();
+            ++idx;
+            try
+            {
+                type = tmp.withBaseType(parse());
+            }
+            catch (Throwable throwable)
+            {
+                Iterator<String> argIterator = this.getKeyValueParameters().keySet().iterator();
+                if (argIterator.hasNext())
+                {
+                    partitioner = FBUtilities.newPartitioner(argIterator.next());
+                    assert !argIterator.hasNext();
+                }
+                return partitioner.partitionOrdering();
+            }
+        }
+        return type;
+    }
+    
     public Map<String, String> getKeyValueParameters() throws SyntaxException
     {
         if (isEOS())
@@ -575,5 +643,10 @@ public class TypeParser
         }
         sb.append(')');
         return sb.toString();
+    }
+
+    public TypeParser clone()
+    {
+        return new TypeParser(this.str, this.idx);
     }
 }

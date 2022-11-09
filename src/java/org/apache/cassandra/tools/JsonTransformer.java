@@ -36,10 +36,7 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -179,7 +176,7 @@ public final class JsonTransformer
         try
         {
             json.writeStartObject();
-
+          
             json.writeFieldName("partition");
             json.writeStartObject();
             json.writeFieldName("key");
@@ -344,7 +341,12 @@ public final class JsonTransformer
                 }
                 else
                 {
-                    json.writeRawValue(column.cellValueType().toJSONString(clustering.get(i), ProtocolVersion.CURRENT));
+                    AbstractType<?> type = column.cellValueType();
+                    if (type instanceof PartitionerDefinedOrder)
+                    {
+                        type = ((PartitionerDefinedOrder)type).getBaseType();
+                    }
+                    json.writeRawValue(type.toJSONString(clustering.get(i), ProtocolVersion.CURRENT));
                 }
             }
             json.writeEndArray();

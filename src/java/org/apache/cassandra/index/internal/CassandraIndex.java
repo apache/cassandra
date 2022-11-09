@@ -30,6 +30,7 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -756,6 +757,13 @@ public abstract class CassandraIndex implements Index
         ColumnDefinition indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
 
+        AbstractType<?> indexTableMokePkType =  baseCfsMetadata.partitioner.partitionOrdering();
+        if(indexTableMokePkType instanceof PartitionerDefinedOrder)
+        {
+            PartitionerDefinedOrder tmp =  (PartitionerDefinedOrder)indexTableMokePkType;
+            indexTableMokePkType = tmp.withBaseType(baseCfsMetadata.getKeyValidator());
+        }
+
         // Tables for legacy KEYS indexes are non-compound and dense
         CFMetaData.Builder builder = indexMetadata.isKeys()
                                      ? CFMetaData.Builder.create(baseCfsMetadata.ksName,
@@ -766,8 +774,8 @@ public abstract class CassandraIndex implements Index
 
         builder =  builder.withId(baseCfsMetadata.cfId)
                           .withPartitioner(new LocalPartitioner(indexedValueType))
-                          .addPartitionKey(indexedColumn.name, indexedColumn.type)
-                          .addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
+                          .addPartitionKey(indexedColumn.name, utils.getIndexedPartitionKeyType(indexedColumn))
+                          .addClusteringColumn("partition_key", indexTableMokePkType);
 
         if (indexMetadata.isKeys())
         {

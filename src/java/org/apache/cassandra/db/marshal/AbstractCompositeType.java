@@ -254,6 +254,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+        //TODO suppor toJSONString for AbstractCompositeType
         throw new UnsupportedOperationException();
     }
 

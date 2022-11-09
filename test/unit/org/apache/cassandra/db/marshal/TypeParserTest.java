@@ -105,4 +105,25 @@ public class TypeParserTest
         }
         assertSame(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
     }
+
+
+    @Test
+    public void testParsePartitionerOrderWithBaseType() throws ConfigurationException, SyntaxException
+    {
+        for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
+            ByteOrderedPartitioner.instance,
+            RandomPartitioner.instance,
+            OrderPreservingPartitioner.instance })
+        {
+            AbstractType<?> type = partitioner.partitionOrdering();
+            if (type instanceof PartitionerDefinedOrder)
+            {
+                PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
+                tmp.withBaseType(Int32Type.instance);
+            }
+            System.out.println(type.toString());
+            assertSame(type, TypeParser.parse(type.toString()));
+        }
+        assertSame(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
+    }
 }
