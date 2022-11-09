@@ -10,6 +10,7 @@ Merged from 4.0:
  * Fix multiple BufferPool bugs (CASSANDRA-16681)
  * Fix StorageService.getNativeaddress handling of IPv6 addresses (CASSANDRA-17945)
 Merged from 3.11:
+ * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
  * Suppress CVE-2022-42003 and CVE-2022-42004 (CASSANDRA-17966)
  * Make LongBufferPoolTest insensitive to timing (CASSANDRA-16681)
 Merged from 3.0:
