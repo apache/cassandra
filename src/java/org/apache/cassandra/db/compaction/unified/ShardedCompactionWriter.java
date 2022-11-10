@@ -99,4 +99,11 @@ public class ShardedCompactionWriter extends CompactionAwareWriter
         // Note: computationally non-trivial; can be optimized if we save start/stop shards and size per table.
         return Math.round(boundaries.shardAdjustedKeyCount(sstables) * survivalRatio);
     }
+
+    @Override
+    protected void doPrepare()
+    {
+        sstableWriter.forEachWriter(boundaries::applyTokenSpaceCoverage);
+        super.doPrepare();
+    }
 }

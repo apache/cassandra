@@ -375,7 +375,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
         // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
         // nb (4.0.0): originating host id
-        // nc (4.1): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
+        // nc (4.2): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
+        //           token space coverage
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
@@ -393,6 +394,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasImprovedMinMax;
         private final boolean hasPartitionLevelDeletionPresenceMarker;
         private final boolean hasKeyRange;
+        private final boolean hasTokenSpaceCoverage;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -420,6 +422,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasImprovedMinMax = version.compareTo("nc") >= 0;
             hasPartitionLevelDeletionPresenceMarker = version.compareTo("nc") >= 0;
             hasKeyRange = version.compareTo("nc") >= 0;
+            hasTokenSpaceCoverage = version.compareTo("nc") >= 0;
         }
 
         @Override
@@ -498,6 +501,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public boolean hasImprovedMinMax()
         {
             return hasImprovedMinMax;
+        }
+
+        @Override
+        public boolean hasTokenSpaceCoverage()
+        {
+            return hasTokenSpaceCoverage;
         }
 
         @Override

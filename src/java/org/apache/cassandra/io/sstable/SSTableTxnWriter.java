@@ -50,9 +50,9 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         this.writer = writer;
     }
 
-    public boolean append(UnfilteredRowIterator iterator)
+    public void append(UnfilteredRowIterator iterator)
     {
-        return writer.append(iterator);
+        writer.append(iterator);
     }
 
     public String getFilename()
