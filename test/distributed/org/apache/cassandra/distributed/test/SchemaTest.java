@@ -143,7 +143,8 @@ public class SchemaTest extends TestBaseImpl
             // when schema is removed and there is a node to fetch it from, node 1 should immediately restore the schema
             //noinspection Convert2MethodRef
 
-            waitForIt(10, 3, () -> cluster.get(1).callOnInstance(() -> FailureDetector.instance.isAlive(address1)));
+            waitForIt(10, 3, () -> cluster.get(1).callOnInstance(() -> FailureDetector.instance.isAlive(address2)));
+            waitForIt(10, 3, () -> cluster.get(2).callOnInstance(() -> FailureDetector.instance.isAlive(address1)));
             cluster.get(2).runOnInstance(() -> StorageService.instance.resetLocalSchema());
             waitForIt(10, 3, () -> cluster.get(2).callOnInstance(() -> Schema.instance.getCFMetaData(KEYSPACE, "tbl") != null));
         }
