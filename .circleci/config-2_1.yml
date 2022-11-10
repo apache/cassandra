@@ -505,6 +505,19 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j8_dtests_vnode
           - j8_build
+    # Java 8 off-heap dtests
+    - start_j8_dtests_offheap:
+        type: approval
+    - j8_dtests_offheap:
+        requires:
+          - start_j8_dtests_offheap
+          - j8_build
+    - start_j8_dtests_offheap_repeat:
+        type: approval
+    - j8_dtests_offheap_repeat:
+        requires:
+          - start_j8_dtests_offheap_repeat
+          - j8_build
     # Java 11 dtests
     - start_j11_dtests:
         type: approval
@@ -517,6 +530,19 @@ j8_separate_jobs: &j8_separate_jobs
     - j11_dtests_vnode:
         requires:
           - start_j11_dtests_vnode
+          - j8_build
+    # Java 11 off-heap dtests
+    - start_j11_dtests_offheap:
+        type: approval
+    - j11_dtests_offheap:
+        requires:
+          - start_j11_dtests_offheap
+          - j8_build
+    - start_j11_dtests_offheap_repeat:
+        type: approval
+    - j11_dtests_offheap_repeat:
+        requires:
+          - start_j11_dtests_offheap_repeat
           - j8_build
     # Java 8 upgrade tests
     - start_upgrade_dtests:
@@ -544,6 +570,17 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
         - start_j8_cqlsh_tests
         - j8_build
+    # Java 8 cqlsh offheap dtests offheap
+    - start_j8_cqlsh_tests_offheap:
+        type: approval
+    - j8_cqlsh_dtests_py3_offheap:
+        requires:
+          - start_j8_cqlsh_tests_offheap
+          - j8_build
+    - j8_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j8_cqlsh_tests_offheap
+          - j8_build
     # Java 11 cqlsh dtests
     - start_j11_cqlsh_tests:
         type: approval
@@ -562,6 +599,17 @@ j8_separate_jobs: &j8_separate_jobs
     - j11_cqlsh_dtests_py38_vnode:
         requires:
           - start_j11_cqlsh_tests
+          - j8_build
+    # Java 11 cqlsh dtests off-heap
+    - start_j11_cqlsh_tests_offheap:
+        type: approval
+    - j11_cqlsh_dtests_py3_offheap:
+        requires:
+          - start_j11_cqlsh_tests_offheap
+          - j8_build
+    - j11_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j11_cqlsh_tests_offheap
           - j8_build
     # Java 8 repeated utest
     - start_j8_repeated_ant_test:
@@ -803,6 +851,16 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
     - j8_dtests_vnode_repeat:
         requires:
           - j8_build
+    - start_j8_dtests_offheap:
+        type: approval
+    - j8_dtests_offheap:
+        requires:
+          - start_j8_dtests_offheap
+          - j8_build
+    - j8_dtests_offheap_repeat:
+        requires:
+          - start_j8_dtests_offheap
+          - j8_build
     # Java 11 dtests
     - j11_dtests:
         requires:
@@ -815,6 +873,16 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
           - j8_build
     - j11_dtests_vnode_repeat:
         requires:
+          - j8_build
+    - start_j11_dtests_offheap:
+        type: approval
+    - j11_dtests_offheap:
+        requires:
+          - start_j11_dtests_offheap
+          - j8_build
+    - j11_dtests_offheap_repeat:
+        requires:
+          - start_j11_dtests_offheap
           - j8_build
     # Java 8 upgrade tests (on request)
     - start_upgrade_dtests:
@@ -840,6 +908,17 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
     - j8_cqlsh_dtests_py38_vnode:
         requires:
           - j8_build
+    # Java 8 cqlsh dtests offheap
+    - start_j8_cqlsh_dtests_offheap:
+        type: approval
+    - j8_cqlsh_dtests_py3_offheap:
+        requires:
+          - start_j8_cqlsh_dtests_offheap
+          - j8_build
+    - j8_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j8_cqlsh_dtests_offheap
+          - j8_build
     # Java 11 cqlsh dtests
     - j11_cqlsh_dtests_py3:
         requires:
@@ -852,6 +931,17 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
           - j8_build
     - j11_cqlsh_dtests_py38_vnode:
         requires:
+          - j8_build
+    # Java 11 cqlsh dtests off-heap
+    - start_j11_cqlsh-dtests-offheap:
+        type: approval
+    - j11_cqlsh_dtests_py3_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
+          - j8_build
+    - j11_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
           - j8_build
 
 j11_separate_jobs: &j11_separate_jobs
@@ -917,6 +1007,18 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_dtests_vnode
           - j11_build
+    - start_j11_dtests_offheap:
+        type: approval
+    - j11_dtests_offheap:
+        requires:
+          - start_j11_dtests_offheap
+          - j11_build
+    - start_j11_dtests_offheap_repeat:
+        type: approval
+    - j11_dtests_offheap_repeat:
+        requires:
+          - start_j11_dtests_offheap_repeat
+          - j11_build
     - start_j11_cqlsh_tests:
         type: approval
     - j11_cqlsh_dtests_py3:
@@ -934,6 +1036,16 @@ j11_separate_jobs: &j11_separate_jobs
     - j11_cqlsh_dtests_py38_vnode:
         requires:
           - start_j11_cqlsh_tests
+          - j11_build
+    - start_j11_cqlsh-dtests-offheap:
+        type: approval
+    - j11_cqlsh_dtests_py3_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
+          - j11_build
+    - j11_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
           - j11_build
     # specialized unit tests (all run on request)
     - start_j11_utests_long:
@@ -1084,6 +1196,18 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_dtests_vnode_repeat:
         requires:
           - j11_build
+    - start_j11_dtests_offheap:
+        type: approval
+    - j11_dtests_offheap:
+        requires:
+          - start_j11_dtests_offheap
+          - j11_build
+    - start_j11_dtests_offheap_repeat:
+        type: approval
+    - j11_dtests_offheap_repeat:
+        requires:
+          - start_j11_dtests_offheap_repeat
+          - j11_build
     - j11_cqlsh_dtests_py3:
         requires:
           - j11_build
@@ -1095,6 +1219,16 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
           - j11_build
     - j11_cqlsh_dtests_py38_vnode:
         requires:
+          - j11_build
+    - start_j11_cqlsh-dtests-offheap:
+        type: approval
+    - j11_cqlsh_dtests_py3_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
+          - j11_build
+    - j11_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
           - j11_build
     # specialized unit tests (all run on request)
     - start_utests_long:
@@ -1491,6 +1625,20 @@ jobs:
           file_tag: j8_with_vnodes
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
 
+  j8_dtests_offheap:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql'"
+      - run_dtests:
+          file_tag: j8_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+
   j11_dtests_vnode:
     <<: *j11_par_executor
     steps:
@@ -1505,6 +1653,21 @@ jobs:
     - run_dtests:
         file_tag: j11_with_vnodes
         pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+
+  j11_dtests_offheap:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j11_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql'"
+      - run_dtests:
+          file_tag: j11_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
 
   j8_dtests:
     <<: *j8_par_executor
@@ -1564,6 +1727,21 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
+  j8_cqlsh_dtests_py3_offheap:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+      - run_dtests:
+          file_tag: j8_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+
   j8_cqlsh_dtests_py38_vnode:
     <<: *j8_par_executor
     steps:
@@ -1579,6 +1757,24 @@ jobs:
       - run_dtests:
           file_tag: j8_with_vnodes
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
+          python_version: '3.8'
+
+  j8_cqlsh_dtests_py38_offheap:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.8'
+      - create_dtest_containers:
+          file_tag: j8_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.8'
+      - run_dtests:
+          file_tag: j8_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
@@ -1630,6 +1826,21 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
+  j11_cqlsh_dtests_py3_offheap:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j11_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+      - run_dtests:
+          file_tag: j11_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+
   j11_cqlsh_dtests_py38_vnode:
     <<: *j11_par_executor
     steps:
@@ -1645,6 +1856,24 @@ jobs:
       - run_dtests:
           file_tag: j11_with_vnodes
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
+          python_version: '3.8'
+
+  j11_cqlsh_dtests_py38_offheap:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.8'
+      - create_dtest_containers:
+          file_tag: j11_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.8'
+      - run_dtests:
+          file_tag: j11_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
@@ -1913,6 +2142,21 @@ jobs:
           count: ${REPEATED_DTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
+  j8_dtests_offheap_repeat:
+    <<: *j8_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_DTESTS}
+          vnodes: "true"
+          upgrade: "false"
+          count: ${REPEATED_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--use-off-heap-memtables --skip-resource-intensive-tests"
+
   j11_dtests_repeat:
     <<: *j11_repeated_dtest_executor
     steps:
@@ -1942,6 +2186,21 @@ jobs:
           upgrade: "false"
           count: ${REPEATED_DTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  j11_dtests_offheap_repeat:
+    <<: *j11_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_DTESTS}
+          vnodes: "true"
+          upgrade: "false"
+          count: ${REPEATED_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--use-off-heap-memtables --skip-resource-intensive-tests"
 
   j8_upgrade_dtests_repeat:
     <<: *j8_repeated_upgrade_dtest_executor
@@ -2724,6 +2983,9 @@ commands:
         type: string
       stop_on_failure:
         type: string
+      extra_dtest_args:
+        type: string
+        default: ""
     steps:
       - run:
           name: Run repeated Python dtest
@@ -2778,7 +3040,7 @@ commands:
                 fi
 
                 # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
-                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $tests_arg | tee /tmp/dtest/stdout.txt
+                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir <<parameters.extra_dtest_args>> $tests_arg | tee /tmp/dtest/stdout.txt
               fi
             fi
       - store_test_results:
