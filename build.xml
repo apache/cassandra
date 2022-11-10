@@ -155,13 +155,9 @@
     <condition property="java.version.11">
         <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
-    <condition property="java.version.17">
-        <equals arg1="${ant.java.version}" arg2="17"/>
-    </condition>
-    <fail><condition><not><or>
+    <fail message="Unsupported JDK version used: ${ant.java.version}"><condition><not><or>
         <isset property="java.version.8"/>
         <isset property="java.version.11"/>
-        <isset property="java.version.17"/>
     </or></not></condition></fail>
 
     <condition property="arch_x86">
@@ -171,34 +167,18 @@
       <isset property="arch_x86" />
     </condition>
 
-    <resources id="_jvm_gc_cms">
+    <resources id="_jvm11_arg_items">
+        <string>-Djdk.attach.allowAttachSelf=true</string>
         <string>-XX:+UseConcMarkSweepGC</string>
         <string>-XX:+CMSParallelRemarkEnabled</string>
+        <string>-XX:SurvivorRatio=8</string>
+        <string>-XX:MaxTenuringThreshold=1</string>
         <string>-XX:CMSInitiatingOccupancyFraction=75</string>
         <string>-XX:+UseCMSInitiatingOccupancyOnly</string>
         <string>-XX:CMSWaitDuration=10000</string>
         <string>-XX:+CMSParallelInitialMarkEnabled</string>
         <string>-XX:+CMSEdenChunksRecordAlways</string>
-    </resources>
-    <resources id="_jvm_gc_shenandoah">
-        <string>-XX:+UseShenandoahGC</string>
-    </resources>
-    <resources id="_jvm_gc_zgc">
-        <string>-XX:+UseZGC</string>
-    </resources>
-    <property name="jvm_gc" value="zgc" />
-    <condition property="_jvm_gc_id" value="_jvm_gc_cms" else="_jvm_gc_${jvm_gc}">
-      <or>
-        <isset property="java.version.8" />
-        <isset property="java.version.11" />
-      </or>
-    </condition>
-    <resources id="_jvm11_arg_items">
-        <resources refid="${_jvm_gc_id}" />
-        <string>-Djdk.attach.allowAttachSelf=true</string>
 
-        <string>-XX:SurvivorRatio=8</string>
-        <string>-XX:MaxTenuringThreshold=1</string>
 
         <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
         <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
@@ -217,14 +197,6 @@
         <string>--add-opens java.base/jdk.internal.module=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED</string>
         <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
-
-        <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm_args_concat" refid="_jvm11_arg_items" pathsep=" "/>
     <condition property="jvmargs" value="${_jvm_args_concat}" else="">
@@ -258,14 +230,6 @@
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
     </resources>
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
-    <resources id="_jvm17_test_arg_items">
-        <string>-Dio.netty.tryReflectionSetAccessible=true</string>
-    </resources>
-    <pathconvert property="_jvm17_test_arg_items_concat" refid="_jvm17_test_arg_items" pathsep=" "/>
-    <!-- property _std-test-jvmargs can only be set once, so if this doesnt set it, the next one will -->
-    <condition property="_std-test-jvmargs" value="${_jvm17_test_arg_items_concat}">
-      <isset property="java.version.17" />
-    </condition>
     <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}" else="${_jvm8_test_arg_items_concat}">
       <isset property="java.version.11" />
     </condition>
