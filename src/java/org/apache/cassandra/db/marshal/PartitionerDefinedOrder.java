@@ -34,25 +34,33 @@ import org.apache.cassandra.utils.FBUtilities;
 public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 {
     private final IPartitioner partitioner;
-
+    private final AbstractType<?> baseType; 
+    
     public PartitionerDefinedOrder(IPartitioner partitioner)
     {
         super(ComparisonType.CUSTOM);
         this.partitioner = partitioner;
+        this.baseType = null;
+    }
+
+    public PartitionerDefinedOrder(IPartitioner partitioner, AbstractType<?> baseType)
+    {
+        super(ComparisonType.CUSTOM);
+        this.partitioner = partitioner;
+        this.baseType = baseType;
     }
 
     public static AbstractType<?> getInstance(TypeParser parser)
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        Iterator<String> argIterator = parser.getKeyValueParameters().keySet().iterator();
-        if (argIterator.hasNext())
-        {
-            partitioner = FBUtilities.newPartitioner(argIterator.next());
-            assert !argIterator.hasNext();
-        }
-        return partitioner.partitionOrdering();
+        TypeParser clone = parser.clone();
+        return clone.getPartitionerDefinedOrder();
     }
 
+    public AbstractType<?> withBaseType(AbstractType<?> baseType)  
+    {
+        return new PartitionerDefinedOrder(this.partitioner, baseType);
+    }
+    
     @Override
     public <V> ByteBuffer compose(V value, ValueAccessor<V> accessor)
     {
@@ -84,7 +92,8 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        throw new UnsupportedOperationException();
+        assert baseType != null && !baseType.equals(this);
+        return baseType.toJSONString(buffer, protocolVersion);
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
@@ -107,6 +116,30 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toString()
     {
-        return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
+      if(baseType != null)
+      {
+        return String.format("%s(%s:(%s))", getClass().getName(),  partitioner.getClass().getName(), baseType.toString());
+      }
+      return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
     }
+
+  public AbstractType<?>  getBaseType()
+  {
+    return baseType;
+  }
+
+  @Override
+  public boolean equals(Object obj)
+  {
+    if (this == obj)
+    {
+      return true;
+    }
+    if (obj instanceof PartitionerDefinedOrder)
+    {
+      PartitionerDefinedOrder other = (PartitionerDefinedOrder) obj;
+      return this.baseType == other.baseType && this.partitioner == other.partitioner;
+    }
+    return false;
+  }
 }

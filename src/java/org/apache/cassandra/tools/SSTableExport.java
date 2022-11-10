@@ -71,8 +71,8 @@ public class SSTableExport
 
     static
     {
-        DatabaseDescriptor.clientInitialization();
-
+        DatabaseDescriptor.clientInitialization(false);
+        
         Option optKey = new Option(KEY_OPTION, true, "List of included partition keys");
         // Number of times -k <key> can be passed on the command line.
         optKey.setArgs(500);

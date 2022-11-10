@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +39,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter.Indenter;
 import com.fasterxml.jackson.core.util.MinimalPrettyPrinter;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -201,7 +206,8 @@ public final class JsonTransformer
         try
         {
             json.writeStartObject();
-
+            json.writeObjectField("table kind", metadata.kind.name());
+            
             json.writeFieldName("partition");
             json.writeStartObject();
             json.writeFieldName("key");
@@ -367,7 +373,12 @@ public final class JsonTransformer
                 }
                 else
                 {
-                    json.writeRawValue(column.cellValueType().toJSONString(clustering.get(i), clustering.accessor(), ProtocolVersion.CURRENT));
+                    AbstractType<?> type = column.cellValueType();
+                    if (type instanceof PartitionerDefinedOrder)
+                    {
+                        type = ((PartitionerDefinedOrder)type).getBaseType();
+                    }
+                    json.writeRawValue(type.toJSONString(clustering.get(i), clustering.accessor(), ProtocolVersion.CURRENT));
                 }
             }
             json.writeEndArray();

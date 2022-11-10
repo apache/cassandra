@@ -246,7 +246,6 @@ public class SchemaLoader
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
             useCompression(schema, compressionParams(CompressionParams.DEFAULT_CHUNK_LENGTH));
     }
-
     public static void createKeyspace(String name, KeyspaceParams params)
     {
         MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(name, params, Tables.of()), true);
@@ -383,7 +382,6 @@ public class SchemaLoader
                                  .addStaticColumn("val", AsciiType.instance)
                                  .addRegularColumn("val2", AsciiType.instance);
     }
-
     public static TableMetadata.Builder compositeIndexCFMD(String ksName, String cfName, boolean withRegularIndex) throws ConfigurationException
     {
         return compositeIndexCFMD(ksName, cfName, withRegularIndex, false);
@@ -741,7 +739,6 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
             builder.build().apply();
         }
     }
-
 
     public static void cleanupSavedCaches()
     {

@@ -30,7 +30,6 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.IndexMetadata;
-
 /**
  * Index on the element and value of cells participating in a collection.
  *
