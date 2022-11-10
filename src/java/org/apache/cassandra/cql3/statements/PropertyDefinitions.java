@@ -27,7 +27,8 @@ import org.apache.cassandra.exceptions.SyntaxException;
 
 public class PropertyDefinitions
 {
-    private static final Pattern PATTERN_POSITIVE = Pattern.compile("(1|true|yes)");
+    private static final Pattern POSITIVE_PATTERN = Pattern.compile("(1|true|yes)");
+    private static final Pattern NEGATIVE_PATTERN = Pattern.compile("(0|false|no)");
     
     protected static final Logger logger = LoggerFactory.getLogger(PropertyDefinitions.class);
 
@@ -84,17 +85,29 @@ public class PropertyDefinitions
         return properties.containsKey(name);
     }
 
-    public String getString(String key, String defaultValue) throws SyntaxException
+    public static boolean parseBoolean(String key, String value) throws SyntaxException
     {
-        String value = getSimple(key);
-        return value != null ? value : defaultValue;
+        if (null == value)
+            throw new IllegalArgumentException("value argument can't be null");
+
+        String lowerCasedValue = value.toLowerCase();
+
+        if (POSITIVE_PATTERN.matcher(lowerCasedValue).matches())
+            return true;
+        else if (NEGATIVE_PATTERN.matcher(lowerCasedValue).matches())
+            return false;
+
+        throw new SyntaxException(String.format("Invalid boolean value %s for '%s'. " +
+                                                "Positive values can be '1', 'true' or 'yes'. " +
+                                                "Negative values can be '0', 'false' or 'no'.",
+                                                value, key));
     }
 
     // Return a property value, typed as a Boolean
     public Boolean getBoolean(String key, Boolean defaultValue) throws SyntaxException
     {
         String value = getSimple(key);
-        return (value == null) ? defaultValue : PATTERN_POSITIVE.matcher(value.toLowerCase()).matches();
+        return (value == null) ? defaultValue : parseBoolean(key, value);
     }
 
     // Return a property value, typed as a double
