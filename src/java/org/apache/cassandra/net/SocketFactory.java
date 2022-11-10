@@ -215,7 +215,7 @@ public final class SocketFactory
      * Creates a new {@link SslHandler} from provided SslContext.
      * @param peer enables endpoint verification for remote address when not null
      */
-    static SslHandler newSslHandler(Channel channel, SslContext sslContext, @Nullable InetSocketAddress peer)
+    public static SslHandler newSslHandler(Channel channel, SslContext sslContext, @Nullable InetSocketAddress peer)
     {
         if (peer == null)
             return sslContext.newHandler(channel.alloc());
