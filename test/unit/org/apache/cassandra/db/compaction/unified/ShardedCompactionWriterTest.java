@@ -122,6 +122,7 @@ public class ShardedCompactionWriterTest extends CQLTester
         {
             assertEquals((double) rdr.onDiskLength() / totalOnDiskLength,
                          (double) getFilterSize(rdr) / totalBFSize, 0.1);
+            assertEquals(1.0 / numOutputSSTables, rdr.tokenSpaceCoverage(), 0.05);
         }
 
         validateData(cfs, rowCount);
@@ -194,6 +195,7 @@ public class ShardedCompactionWriterTest extends CQLTester
 
             assertEquals((double) rdr.onDiskLength() / totalOnDiskLength,
                          (double) getFilterSize(rdr) / totalBFSize, 0.1);
+            assertEquals(expectedTokenShare, rdr.tokenSpaceCoverage(), expectedTokenShare * 0.05);
             assertEquals(expectedSize, rdr.onDiskLength(), expectedSize * 0.1);
         }
 

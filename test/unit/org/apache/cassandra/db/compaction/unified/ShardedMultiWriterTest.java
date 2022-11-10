@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
@@ -84,6 +85,10 @@ public class ShardedMultiWriterTest extends CQLTester
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         assertEquals(numOutputSSTables, cfs.getLiveSSTables().size());
+        for (SSTableReader rdr : cfs.getLiveSSTables())
+        {
+            assertEquals(1.0 / numOutputSSTables, rdr.tokenSpaceCoverage(), 0.05);
+        }
 
         validateData(rowCount);
         cfs.truncateBlocking();

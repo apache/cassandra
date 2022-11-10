@@ -101,10 +101,10 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         }
     }
 
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
         maybeSwitchWriter(partition.partitionKey());
-        return currentWriter.append(partition);
+        currentWriter.append(partition);
     }
 
     @Override

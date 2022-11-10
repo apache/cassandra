@@ -24,6 +24,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
@@ -210,6 +211,11 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
             double inShardSize = covered == shardSpan ? shardSpanSize() : ShardManagerDiskAware.this.rangeSpanned(covered);
             double totalSize = ShardManagerDiskAware.this.rangeSpanned(targetSpan);
             return inShardSize / totalSize;
+        }
+
+        public double rangeSpanned(PartitionPosition first, PartitionPosition last)
+        {
+            return ShardManagerDiskAware.this.rangeSpanned(first, last);
         }
 
         public int shardIndex()

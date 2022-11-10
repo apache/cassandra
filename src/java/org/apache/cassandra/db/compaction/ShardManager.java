@@ -96,7 +96,12 @@ public interface ShardManager
      */
     default double rangeSpanned(SSTableReader rdr)
     {
-        double span = rangeSpanned(rdr.getFirst(), rdr.getLast());
+        double reported = rdr.tokenSpaceCoverage();
+        double span;
+        if (reported > 0)   // also false for NaN
+            span = reported;
+        else
+            span = rangeSpanned(rdr.getFirst(), rdr.getLast());
 
         if (span >= MINIMUM_TOKEN_COVERAGE)
             return span;

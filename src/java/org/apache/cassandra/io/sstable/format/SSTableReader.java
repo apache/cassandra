@@ -844,6 +844,19 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
+     * @return the fraction of the token space for which this sstable has content. In the simplest case this is just the
+     * size of the interval returned by {@link #getBounds()}, but the sstable may contain "holes" when the locally-owned
+     * range is not contiguous (e.g. with vnodes).
+     * As this is affected by the local ranges which can change, the token space fraction is calculated at the time of
+     * writing the sstable and stored with its metadata.
+     * For older sstables that do not contain this metadata field, this method returns NaN.
+     */
+    public double tokenSpaceCoverage()
+    {
+        return sstableMetadata.tokenSpaceCoverage;
+    }
+
+    /**
      * The length in bytes of the on disk size for this SSTable. For compressed files, this is not the same thing
      * as the data length (see {@link #uncompressedLength()}).
      */

@@ -197,6 +197,7 @@ public class ShardManagerTest
         SSTableReader mock = Mockito.mock(SSTableReader.class);
         Mockito.when(mock.getFirst()).thenReturn(keyAt(start));
         Mockito.when(mock.getLast()).thenReturn(keyAt(end));
+        Mockito.when(mock.tokenSpaceCoverage()).thenReturn(reportedCoverage);
         return mock;
     }
 

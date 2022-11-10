@@ -126,7 +126,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
     }
 
     @Override
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
         DecoratedKey key = partition.partitionKey();
 
@@ -142,7 +142,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
             writers[++currentWriter] = createWriter();
         }
 
-        return writers[currentWriter].append(partition) != null;
+        writers[currentWriter].append(partition);
     }
 
     @Override
@@ -151,7 +151,10 @@ public class ShardedMultiWriter implements SSTableMultiWriter
         List<SSTableReader> sstables = new ArrayList<>(writers.length);
         for (SSTableWriter writer : writers)
             if (writer != null)
+            {
+                boundaries.applyTokenSpaceCoverage(writer);
                 sstables.add(writer.finish(openResult));
+            }
         return sstables;
     }
 
@@ -235,7 +238,10 @@ public class ShardedMultiWriter implements SSTableMultiWriter
     {
         for (SSTableWriter writer : writers)
             if (writer != null)
+            {
+                boundaries.applyTokenSpaceCoverage(writer);
                 writer.prepareToCommit();
+    }
     }
 
     @Override

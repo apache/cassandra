@@ -21,9 +21,11 @@ package org.apache.cassandra.db.compaction;
 import java.util.Set;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 public interface ShardTracker
 {
@@ -50,6 +52,8 @@ public interface ShardTracker
      */
     double fractionInShard(Range<Token> targetSpan);
 
+    double rangeSpanned(PartitionPosition first, PartitionPosition last);
+
     int shardIndex();
 
     default long shardAdjustedKeyCount(Set<SSTableReader> sstables)
@@ -59,5 +63,11 @@ public interface ShardTracker
         for (SSTableReader sstable : sstables)
             shardAdjustedKeyCount += sstable.estimatedKeys() * fractionInShard(ShardManager.coveringRange(sstable));
         return shardAdjustedKeyCount;
+    }
+
+    default void applyTokenSpaceCoverage(SSTableWriter writer)
+    {
+        if (writer.getFirst() != null)
+            writer.setTokenSpaceCoverage(rangeSpanned(writer.getFirst(), writer.getLast()));
     }
 }

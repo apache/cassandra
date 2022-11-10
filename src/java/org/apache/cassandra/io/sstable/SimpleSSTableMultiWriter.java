@@ -44,10 +44,9 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         this.writer = writer;
     }
 
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
-        AbstractRowIndexEntry indexEntry = writer.append(partition);
-        return indexEntry != null;
+        writer.append(partition);
     }
 
     public Collection<SSTableReader> finish(boolean openResult)

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Set;
 
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -107,6 +108,12 @@ public class ShardManagerTrivial implements ShardManager
 
         @Override
         public double fractionInShard(Range<Token> targetSpan)
+        {
+            return 1;
+        }
+
+        @Override
+        public double rangeSpanned(PartitionPosition first, PartitionPosition last)
         {
             return 1;
         }
