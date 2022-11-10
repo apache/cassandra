@@ -1,4 +1,5 @@
 4.0.8
+ * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
  * Fix error message about type hints (CASSANDRA-17915)
  * Fix possible race condition on repair snapshots (CASSANDRA-17955)
  * Fix ASM bytecode version inconsistency (CASSANDRA-17873)
