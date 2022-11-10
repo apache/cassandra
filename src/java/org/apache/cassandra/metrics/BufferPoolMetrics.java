@@ -17,55 +17,34 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.utils.memory.BufferPool;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
-public class BufferPoolMetrics
+public interface BufferPoolMetrics
 {
-    /** Total number of hits */
-    public final Meter hits;
-
-    /** Total number of misses */
-    public final Meter misses;
-
-    /** Total size of buffer pools, in bytes, including overflow allocation */
-    public final Gauge<Long> size;
-
-    /** Total size, in bytes, of active buffered being used from the pool currently + overflow */
-    public final Gauge<Long> usedSize;
-
-    /**
-     * Total size, in bytes, of direct or heap buffers allocated by the pool but not part of the pool
-     * either because they are too large to fit or because the pool has exceeded its maximum limit or because it's
-     * on-heap allocation.
-     */
-    public final Gauge<Long> overflowSize;
-
-    public BufferPoolMetrics(String scope, BufferPool bufferPool)
+    static BufferPoolMetrics create(String name, BufferPool bufferPool)
     {
-        MetricNameFactory factory = new DefaultNameFactory("BufferPool", scope);
-
-        hits = Metrics.meter(factory.createMetricName("Hits"));
-
-        misses = Metrics.meter(factory.createMetricName("Misses"));
-
-        overflowSize = Metrics.register(factory.createMetricName("OverflowSize"), bufferPool::overflowMemoryInBytes);
-
-        usedSize = Metrics.register(factory.createMetricName("UsedSize"), bufferPool::usedSizeInBytes);
-
-        size = Metrics.register(factory.createMetricName("Size"), bufferPool::sizeInBytes);
+        return CassandraRelevantProperties.USE_MICROMETER.getBoolean()
+               ? new MicrometerBufferPoolMetrics(name, bufferPool)
+               : new CodahaleBufferPoolMetrics(name, bufferPool);
     }
+
+    void markHit();
+
+    long hits();
+
+    void markMissed();
+
+    long misses();
+
+    long overflowSize();
+
+    long usedSize();
+
+    long size();
 
     /**
      * used to register alias for 3.0/3.11 compatibility
      */
-    public void register3xAlias()
-    {
-        MetricNameFactory legacyFactory = new DefaultNameFactory("BufferPool");
-        Metrics.registerMBean(misses, legacyFactory.createMetricName("Misses").getMBeanName());
-        Metrics.registerMBean(size, legacyFactory.createMetricName("Size").getMBeanName());
-    }
+    void register3xAlias();
 }

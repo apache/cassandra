@@ -18,25 +18,40 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.Arrays;
 import java.util.Random;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.memory.BufferPool;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.USE_MICROMETER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 
+@RunWith(Parameterized.class)
 public class BufferPoolMetricsTest
 {
     private BufferPool bufferPool;
     private BufferPoolMetrics metrics;
+
+    // Test with both MicrometerBufferPoolMetrics and CodahaleBufferPoolMetrics
+    @Parameterized.Parameters(name = "useMicrometerMetrics {0}")
+    public static Iterable<Object[]> params()
+    {
+        return Arrays.asList(new Object[][]{ { false }, { true } });
+    }
+
+    @Parameterized.Parameter
+    public boolean useMicrometerMetrics = false;
 
     @BeforeClass()
     public static void setup() throws ConfigurationException
@@ -47,6 +62,8 @@ public class BufferPoolMetricsTest
     @Before
     public void setUp()
     {
+        // The USE_MICROMETER value is used when the BufferPool constructor creates BufferPoolMetrics
+        USE_MICROMETER.setBoolean(useMicrometerMetrics);
         this.bufferPool = new BufferPool("test_" + System.currentTimeMillis(), 16 * 1024L * 1024L, true);
         this.metrics = bufferPool.metrics();
     }
@@ -55,8 +72,8 @@ public class BufferPoolMetricsTest
     public void testMetricsSize()
     {
         // basically want to test changes in the metric being reported as the buffer pool grows - starts at zero
-        assertThat(metrics.size.getValue()).isEqualTo(bufferPool.sizeInBytes())
-                                           .isEqualTo(0);
+        assertThat(metrics.size()).isEqualTo(bufferPool.sizeInBytes())
+                                  .isEqualTo(0);
 
         // the idea is to test changes in the sizeOfBufferPool metric which starts at zero. it will bump up
         // after the first request for a ByteBuffer and the idea from there will be to keep requesting them
@@ -79,9 +96,9 @@ public class BufferPoolMetricsTest
             totalBytesRequestedFromPool = totalBytesRequestedFromPool + nextSizeToRequest;
             bufferPool.get(nextSizeToRequest, BufferType.OFF_HEAP);
 
-            assertThat(metrics.size.getValue()).as(assertionMessage)
-                                               .isEqualTo(bufferPool.sizeInBytes())
-                                               .isGreaterThanOrEqualTo(totalBytesRequestedFromPool);
+            assertThat(metrics.size()).as(assertionMessage)
+                                      .isEqualTo(bufferPool.sizeInBytes())
+                                      .isGreaterThanOrEqualTo(totalBytesRequestedFromPool);
 
             if (initialSizeInBytesAfterZero == 0)
             {
@@ -101,13 +118,13 @@ public class BufferPoolMetricsTest
         }
 
         assertThat(exitedBeforeMax).as(assertionMessage).isTrue();
-        assertEquals(0, metrics.misses.getCount());
+        assertEquals(0, metrics.misses());
     }
 
     @Test
     public void testMetricsOverflowSize()
     {
-        assertEquals(0, metrics.overflowSize.getValue().longValue());
+        assertEquals(0, metrics.overflowSize());
 
         final int tinyBufferSizeThatHits = BufferPool.NORMAL_CHUNK_SIZE - 1;
         final int bigBufferSizeThatMisses = BufferPool.NORMAL_CHUNK_SIZE + 1;
@@ -116,20 +133,20 @@ public class BufferPoolMetricsTest
         for (int ix = 0; ix < iterations; ix++)
         {
             bufferPool.get(tinyBufferSizeThatHits, BufferType.OFF_HEAP);
-            assertEquals(0, metrics.overflowSize.getValue().longValue());
+            assertEquals(0, metrics.overflowSize());
         }
 
         for (int ix = 0; ix < iterations; ix++)
         {
             bufferPool.get(bigBufferSizeThatMisses, BufferType.OFF_HEAP);
-            assertEquals(bigBufferSizeThatMisses * (ix + 1), metrics.overflowSize.getValue().longValue());
+            assertEquals(bigBufferSizeThatMisses * (ix + 1), metrics.overflowSize());
         }
     }
 
     @Test
     public void testMetricsUsedSize()
     {
-        assertEquals(0, metrics.usedSize.getValue().longValue());
+        assertEquals(0, metrics.usedSize());
 
         final int tinyBufferSizeThatHits = BufferPool.NORMAL_CHUNK_SIZE - 1;
         final int bigBufferSizeThatMisses = BufferPool.NORMAL_CHUNK_SIZE + 1;
@@ -139,20 +156,20 @@ public class BufferPoolMetricsTest
         for (int ix = 0; ix < iterations; ix++)
         {
             bufferPool.get(tinyBufferSizeThatHits, BufferType.OFF_HEAP);
-            assertEquals(usedSize += tinyBufferSizeThatHits, metrics.usedSize.getValue().longValue());
+            assertEquals(usedSize += tinyBufferSizeThatHits, metrics.usedSize());
         }
 
         for (int ix = 0; ix < iterations; ix++)
         {
             bufferPool.get(bigBufferSizeThatMisses, BufferType.OFF_HEAP);
-            assertEquals(usedSize += bigBufferSizeThatMisses, metrics.usedSize.getValue().longValue());
+            assertEquals(usedSize += bigBufferSizeThatMisses, metrics.usedSize());
         }
     }
 
     @Test
     public void testMetricsHits()
     {
-        assertEquals(0, metrics.hits.getCount());
+        assertEquals(0, metrics.hits());
 
         final int tinyBufferSizeThatHits = BufferPool.NORMAL_CHUNK_SIZE - 1;
         final int bigBufferSizeThatMisses = BufferPool.NORMAL_CHUNK_SIZE + 1;
@@ -161,21 +178,21 @@ public class BufferPoolMetricsTest
         for (int ix = 0; ix < iterations; ix++)
         {
             bufferPool.get(tinyBufferSizeThatHits, BufferType.OFF_HEAP);
-            assertEquals(ix + 1, metrics.hits.getCount());
+            assertEquals(ix + 1, metrics.hits());
         }
 
-        long currentHits = metrics.hits.getCount();
+        long currentHits = metrics.hits();
         for (int ix = 0; ix < iterations; ix++)
         {
             bufferPool.get(bigBufferSizeThatMisses + ix, BufferType.OFF_HEAP);
-            assertEquals(currentHits, metrics.hits.getCount());
+            assertEquals(currentHits, metrics.hits());
         }
     }
 
     @Test
     public void testMetricsMisses()
     {
-        assertEquals(0, metrics.misses.getCount());
+        assertEquals(0, metrics.misses());
 
         final int tinyBufferSizeThatHits = BufferPool.NORMAL_CHUNK_SIZE - 1;
         final int bigBufferSizeThatMisses = BufferPool.NORMAL_CHUNK_SIZE + 1;
@@ -184,28 +201,28 @@ public class BufferPoolMetricsTest
         for (int ix = 0; ix < iterations; ix++)
         {
             bufferPool.get(tinyBufferSizeThatHits, BufferType.OFF_HEAP);
-            assertEquals(0, metrics.misses.getCount());
+            assertEquals(0, metrics.misses());
         }
 
         for (int ix = 0; ix < iterations; ix++)
         {
             bufferPool.get(bigBufferSizeThatMisses + ix, BufferType.OFF_HEAP);
-            assertEquals(ix + 1, metrics.misses.getCount());
+            assertEquals(ix + 1, metrics.misses());
         }
     }
 
     @Test
     public void testZeroSizeRequestsDontChangeMetrics()
     {
-        assertEquals(0, metrics.misses.getCount());
-        assertThat(metrics.size.getValue()).isEqualTo(bufferPool.sizeInBytes())
-                                           .isEqualTo(0);
+        assertEquals(0, metrics.misses());
+        assertThat(metrics.size()).isEqualTo(bufferPool.sizeInBytes())
+                                  .isEqualTo(0);
 
         bufferPool.get(0, BufferType.OFF_HEAP);
 
-        assertEquals(0, metrics.misses.getCount());
-        assertThat(metrics.size.getValue()).isEqualTo(bufferPool.sizeInBytes())
-                                           .isEqualTo(0);
+        assertEquals(0, metrics.misses());
+        assertThat(metrics.size()).isEqualTo(bufferPool.sizeInBytes())
+                                  .isEqualTo(0);
 
         bufferPool.get(65536, BufferType.OFF_HEAP);
         bufferPool.get(0, BufferType.OFF_HEAP);
@@ -213,23 +230,23 @@ public class BufferPoolMetricsTest
         bufferPool.get(0, BufferType.OFF_HEAP);
         bufferPool.get(0, BufferType.OFF_HEAP);
 
-        assertEquals(0, metrics.misses.getCount());
-        assertThat(metrics.size.getValue()).isEqualTo(bufferPool.sizeInBytes())
-                                           .isGreaterThanOrEqualTo(65536);
+        assertEquals(0, metrics.misses());
+        assertThat(metrics.size()).isEqualTo(bufferPool.sizeInBytes())
+                                  .isGreaterThanOrEqualTo(65536);
     }
 
     @Test
     public void testFailedRequestsDontChangeMetrics()
     {
-        assertEquals(0, metrics.misses.getCount());
-        assertThat(metrics.size.getValue()).isEqualTo(bufferPool.sizeInBytes())
-                                           .isEqualTo(0);
+        assertEquals(0, metrics.misses());
+        assertThat(metrics.size()).isEqualTo(bufferPool.sizeInBytes())
+                                  .isEqualTo(0);
 
         tryRequestNegativeBufferSize();
 
-        assertEquals(0, metrics.misses.getCount());
-        assertThat(metrics.size.getValue()).isEqualTo(bufferPool.sizeInBytes())
-                                           .isEqualTo(0);
+        assertEquals(0, metrics.misses());
+        assertThat(metrics.size()).isEqualTo(bufferPool.sizeInBytes())
+                                  .isEqualTo(0);
 
         bufferPool.get(65536, BufferType.OFF_HEAP);
         tryRequestNegativeBufferSize();
@@ -237,9 +254,9 @@ public class BufferPoolMetricsTest
         tryRequestNegativeBufferSize();
         tryRequestNegativeBufferSize();
 
-        assertEquals(0, metrics.misses.getCount());
-        assertThat(metrics.size.getValue()).isEqualTo(bufferPool.sizeInBytes())
-                                           .isGreaterThanOrEqualTo(65536);
+        assertEquals(0, metrics.misses());
+        assertThat(metrics.size()).isEqualTo(bufferPool.sizeInBytes())
+                                  .isGreaterThanOrEqualTo(65536);
     }
 
     private void tryRequestNegativeBufferSize()
