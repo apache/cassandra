@@ -102,9 +102,9 @@ import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBal
 import org.apache.cassandra.utils.CloseableIterator;
 
 // quick workaround for metaspace ooms, will properly reuse clusters later
-public class PaxosRepairTest2 extends TestBaseImpl
+public class PaxosRepair2Test extends TestBaseImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(PaxosRepairTest2.class);
+    private static final Logger logger = LoggerFactory.getLogger(PaxosRepair2Test.class);
     private static final String TABLE = "tbl";
 
     static
@@ -200,7 +200,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
         Ballot staleBallot = Paxos.newBallot(Ballot.none(), org.apache.cassandra.db.ConsistencyLevel.SERIAL);
         try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
-                                                             .set("paxos_purge_grace_period", 0)
+                                                             .set("paxos_purge_grace_period", "0s")
                                                              .set("truncate_request_timeout_in_ms", 1000L)))
         )
         {
@@ -208,7 +208,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
             repair(cluster, KEYSPACE, TABLE);
 
             // stop and start node 2 to test loading paxos repair history from disk
-            cluster.get(2).shutdown();
+            cluster.get(2).shutdown().get();
             cluster.get(2).startup();
 
             for (int i=0; i<cluster.size(); i++)
@@ -233,7 +233,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
             });
 
             // shutdown node 3 so we're guaranteed to see the stale proposal
-            cluster.get(3).shutdown();
+            cluster.get(3).shutdown().get();
 
             // the stale inflight proposal should be ignored and the query should succeed
             String query = "INSERT INTO " + KEYSPACE + '.' + TABLE + " (k, v) VALUES (1, 2) IF NOT EXISTS";
@@ -341,7 +341,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
 
     private static void assertLowBoundPurged(Cluster cluster)
     {
-        cluster.forEach(PaxosRepairTest2::assertLowBoundPurged);
+        cluster.forEach(PaxosRepair2Test::assertLowBoundPurged);
     }
 
     @Test
@@ -351,7 +351,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
         System.setProperty("cassandra.disable_paxos_auto_repairs", "true");
         try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
-                                                             .set("disable_paxos_repair", false)
+                                                             .set("paxos_repair_enabled", true)
                                                              .set("truncate_request_timeout_in_ms", 1000L)))
         )
         {
@@ -474,7 +474,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
         try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
                                                              .set("paxos_state_purging", "legacy")
-                                                             .set("paxos_purge_grace_period", 0)
+                                                             .set("paxos_purge_grace_period", "0s")
                                                              .set("truncate_request_timeout_in_ms", 1000L)))
         )
         {

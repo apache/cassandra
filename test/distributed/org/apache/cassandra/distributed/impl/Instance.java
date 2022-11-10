@@ -721,6 +721,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 ActiveRepairService.instance.start();
                 StreamManager.instance.start();
+
+                PaxosState.startAutoRepairs();
+
                 CassandraDaemon.getInstanceForTesting().completeSetup();
             }
             catch (Throwable t)
