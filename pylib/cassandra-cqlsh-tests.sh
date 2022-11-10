@@ -78,7 +78,7 @@ pip freeze
 
 if [ "$cython" = "yes" ]; then
     TESTSUITE_NAME="${TESTSUITE_NAME}.cython"
-    pip install "Cython>=0.20,<0.25"
+    pip install "Cython>=0.27.2,<0.28"
     cd pylib/; python setup.py build_ext --inplace
     cd ${WORKSPACE}
 else
