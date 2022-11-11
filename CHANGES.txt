@@ -1,5 +1,4 @@
 4.2
- * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
  * Add nodetool forcecompact to remove tombstoned or ttl'd data ignoring GC grace for given table and partition keys (CASSANDRA-17711)
  * Offer IF (NOT) EXISTS in cqlsh completion for CREATE TYPE, DROP TYPE, CREATE ROLE and DROP ROLE (CASSANDRA-16640)
  * Nodetool bootstrap resume will now return an error if the operation fails (CASSANDRA-16491)
@@ -109,6 +108,7 @@ Merged from 4.1:
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
+ * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
  * Fix possible race condition on repair snapshots (CASSANDRA-17955)
  * Fix ASM bytecode version inconsistency (CASSANDRA-17873)
  * Remove empty cq4 files in log directory to not fail the startup of BinLog (CASSANDRA-17933)
