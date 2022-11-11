@@ -260,7 +260,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
             {
                 ListenableFuture<CommitLogPosition> f = cfs.forceFlush(flushReason);
                 futures.add(f);
-                Futures.addCallback(f, new FutureCallback<>() {
+                Futures.addCallback(f, new FutureCallback<CommitLogPosition>() {
                     @Override
                     public void onSuccess(CommitLogPosition ignored)
                     {
