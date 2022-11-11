@@ -235,7 +235,7 @@
             <file file="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/pure_sasl-0.6.2-py2-none-any.zip"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2-py3-none-any.zip"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2.py3-none-any.zip"/>
         </copy>
         <copy todir="${build.lib}/sigar-bin/" quiet="true">
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-freebsd-6.so"/>
