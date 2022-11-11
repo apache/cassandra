@@ -457,7 +457,15 @@ public class Nodes
             localReader = objectMapper.readerFor(LocalInfo.class);
             localWriter = objectMapper.writerFor(LocalInfo.class);
 
-            localInfo = transactionalRead(localPath, localBackupPath, localTempPath, localReader::readValue, LocalInfo::new);
+            try
+            {
+                localInfo = transactionalRead(localPath, localBackupPath, localTempPath, localReader::readValue, LocalInfo::new);
+            }
+            catch (FSReadError e)
+            {
+                logger.warn("Failed to load localinfo at startup. Creating new local table", e);
+                localInfo = new LocalInfo();
+            }
             getOrInitializeLocalHostId();
         }
 
@@ -654,7 +662,7 @@ public class Nodes
         private final Path peersBackupPath;
         private final Path peersTempPath;
 
-        private final ConcurrentMap<InetAddressAndPort, PeerInfo> peers;
+        private ConcurrentMap<InetAddressAndPort, PeerInfo> peers;
         private volatile boolean closed;
 
         public Peers(ObjectMapper objectMapper, Path storageDirectory)
@@ -666,7 +674,15 @@ public class Nodes
             peerReader = objectMapper.readerFor(new TypeReference<Collection<PeerInfo>>() {});
             peerWriter = objectMapper.writerFor(new TypeReference<Collection<PeerInfo>>() {});
 
-            peers = transactionalRead(peersPath, peersBackupPath, peersTempPath, this::read, ConcurrentHashMap::new);
+            try
+            {
+                peers = transactionalRead(peersPath, peersBackupPath, peersTempPath, this::read, ConcurrentHashMap::new);
+            }
+            catch (FSReadError e)
+            {
+                logger.warn("Failed to read peers at startup. Creating new peers table", e);
+                peers = new ConcurrentHashMap<>();
+            }
         }
 
         private synchronized void saveToDisk()
@@ -884,6 +900,7 @@ public class Nodes
                     nodes = instance;
                     if (nodes == null)
                     {
+                        logger.debug("Initialising nodes instance at {}", DatabaseDescriptor.getMetadataDirectory().resolve("nodes").toPath());
                         nodes = instance = new Nodes(DatabaseDescriptor.getMetadataDirectory().resolve("nodes").toPath());
                     }
                 }
