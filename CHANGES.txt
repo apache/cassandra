@@ -1,4 +1,5 @@
 4.2
+ * Change shebangs of Python scripts to resolve Python 3 from env command (CASSANDRA-17832)
  * Add reasons to guardrail messages and consider guardrails in the error message for needed ALLOW FILTERING (CASSANDRA-17967)
  * Add support for CQL functions on collections, tuples and UDTs (CASSANDRA-17811)
  * Add flag to exclude nodes from local DC when running nodetool rebuild (CASSANDRA-17870)
