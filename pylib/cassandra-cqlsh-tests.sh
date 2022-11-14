@@ -51,6 +51,7 @@ if [ "$CASSANDRA_USE_JDK11" = true ] ; then
     TESTSUITE_NAME="${TESTSUITE_NAME}.jdk11"
 else
     TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
+    unset JAVA11_HOME
 fi
 
 ant -buildfile ${CASSANDRA_DIR}/build.xml realclean
