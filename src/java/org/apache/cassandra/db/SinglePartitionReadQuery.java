@@ -173,7 +173,10 @@ public interface SinglePartitionReadQuery extends ReadQuery
             this.nowInSec = firstQuery.nowInSec();
             this.selectsFullPartitions = firstQuery.selectsFullPartition();
             for (int i = 1; i < queries.size(); i++)
+            {
                 assert queries.get(i).nowInSec() == nowInSec;
+                assert queries.get(i).limits() == DataLimits.NONE || queries.get(i).limits().equals(limits) : String.format("Limits set on individual queries should be either undefined or the same as the limits passed to this constructor: query(%d).limits=%s != %s", i, queries.get(i).limits(), limits);
+            }
         }
 
         public int nowInSec()

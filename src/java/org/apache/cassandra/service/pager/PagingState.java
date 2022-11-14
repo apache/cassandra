@@ -23,6 +23,9 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -47,6 +50,8 @@ import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
 @SuppressWarnings("WeakerAccess")
 public class PagingState
 {
+    private static final Logger logger = LoggerFactory.getLogger(PagingState.class);
+
     public final ByteBuffer partitionKey;  // Can be null for single partition queries.
     public final RowMark rowMark;          // Can be null if not needed.
     public final int remaining;
@@ -113,10 +118,14 @@ public class PagingState
         }
         catch (IOException e)
         {
-            throw new ProtocolException("Invalid value for the paging state");
+            String msg =  "Failed to deserialize the paging state with protocol version: " + protocolVersion;
+            logger.trace(msg, e);
+            throw new ProtocolException(msg, protocolVersion);
         }
 
-        throw new ProtocolException("Invalid value for the paging state");
+        String msg =  "The serialized paging state does not match any serialization format for protocol version: " + protocolVersion;
+        logger.trace(msg);
+        throw new ProtocolException(msg, protocolVersion);
     }
 
     /*

@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.service.pager;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -54,12 +55,12 @@ public interface QueryPager
             return ReadExecutionController.empty();
         }
 
-        public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
+        public PartitionIterator fetchPage(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
         {
             return EmptyIterators.partition();
         }
 
-        public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
+        public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
         {
             return EmptyIterators.partition();
         }
@@ -94,13 +95,19 @@ public interface QueryPager
      * {@code consistency} is a serial consistency.
      * @return the page of result.
      */
-    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException;
+    public PartitionIterator fetchPage(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException;
+
+    // TODO remove this method
+    default PartitionIterator fetchPage(int pageSizeInRows, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
+    {
+        return fetchPage(PageSize.inRows(pageSizeInRows), consistency, clientState, queryStartNanoTime);
+    }
 
     /**
      * Starts a new read operation.
      * <p>
-     * This must be called before {@link fetchPageInternal} and passed to it to protect the read.
-     * The returned object <b>must</b> be closed on all path and it is thus strongly advised to
+     * This must be called before {@link #fetchPageInternal(PageSize, ReadExecutionController)} and passed to it
+     * to protect the read. The returned object <b>must</b> be closed on all path and it is thus strongly advised to
      * use it in a try-with-ressource construction.
      *
      * @return a newly started order group for this {@code QueryPager}.
@@ -114,7 +121,13 @@ public interface QueryPager
      * @param executionController the {@code ReadExecutionController} protecting the read.
      * @return the page of result.
      */
-    public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException;
+    public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException;
+
+    // TODO remove this method
+    default PartitionIterator fetchPageInternal(int pageSizeInRows, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
+    {
+        return fetchPageInternal(PageSize.inRows(pageSizeInRows), executionController);
+    }
 
     /**
      * Whether or not this pager is exhausted, i.e. whether or not a call to
