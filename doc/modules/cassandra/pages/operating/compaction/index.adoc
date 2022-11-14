@@ -188,16 +188,14 @@ compacted at once.
 
 == Fully expired SSTables
 
-If an sstable contains only tombstones and it is guaranteed that that
-sstable is not shadowing data in any other sstable compaction can drop
-that sstable. If you see SSTables with only tombstones (note that TTL:ed
-data is considered tombstones once the time to live has expired) but it
+If an SSTable contains only tombstones and it is guaranteed that
+SSTable is not shadowing data in any other SSTable, then the compaction can drop
+that SSTable. If you see SSTables with only tombstones (note that TTL-ed
+data is considered tombstones once the time-to-live has expired), but it
 is not being dropped by compaction, it is likely that other SSTables
 contain older data. There is a tool called `sstableexpiredblockers` that
 will list which SSTables are droppable and which are blocking them from
-being dropped. This is especially useful for time series compaction with
-`TimeWindowCompactionStrategy` (and the deprecated
-`DateTieredCompactionStrategy`). With `TimeWindowCompactionStrategy` it
+being dropped. With `TimeWindowCompactionStrategy` it
 is possible to remove the guarantee (not check for shadowing data) by
 enabling `unsafe_aggressive_sstable_expiration`.
 

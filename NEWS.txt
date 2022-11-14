@@ -135,7 +135,7 @@ New features
 Upgrading
 ---------
     - Ephemeral marker files for snapshots done by repairs are not created anymore,
-      there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there
+      there is a dedicated flag in snapshot manifest instead. On upgrade of a node to this version, on node's start, in case there
       are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
       will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
     - There were new table properties introduced called 'allow_auto_snapshot' and 'incremental_backups' (see section 'New features'). Hence, upgraded
@@ -146,6 +146,8 @@ Upgrading
      4.1.0 or 4.0.0-4.0.7. If that is your case, please use protocol v4 or higher in your driver. See CASSANDRA-17507
      for further details.
    - Added API for alternative sstable implementations. For details, see src/java/org/apache/cassandra/io/sstable/SSTable_API.md
+   - DateTieredCompactionStrategy was removed. Please change the compaction strategy for the tables using this strategy
+     to TimeWindowCompactionStrategy before upgrading to this version.
 
 Deprecation
 -----------

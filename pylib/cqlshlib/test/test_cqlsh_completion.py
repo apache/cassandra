@@ -669,7 +669,6 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             + "{'class': '",
                             choices=['SizeTieredCompactionStrategy',
                                      'LeveledCompactionStrategy',
-                                     'DateTieredCompactionStrategy',
                                      'TimeWindowCompactionStrategy'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'S",
@@ -708,14 +707,6 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'CLUSTERING',
                                      'COMPACT', 'caching', 'comment',
                                      'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
-        self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
-                            + "{'class': 'DateTieredCompactionStrategy', '",
-                            choices=['base_time_seconds', 'max_sstable_age_days',
-                                     'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
-                                     'tombstone_compaction_interval', 'tombstone_threshold',
-                                     'enabled', 'unchecked_tombstone_compaction',
-                                     'max_window_size_seconds',
-                                     'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'TimeWindowCompactionStrategy', '",
                             choices=['compaction_window_unit', 'compaction_window_size',

@@ -562,7 +562,7 @@ link:#cachingOptions[below].
 The `compaction` property must at least define the `'class'` sub-option,
 that defines the compaction strategy class to use. The default supported
 class are `'SizeTieredCompactionStrategy'`,
-`'LeveledCompactionStrategy'`, `'DateTieredCompactionStrategy'` and
+`'LeveledCompactionStrategy'` and
 `'TimeWindowCompactionStrategy'`. Custom strategy can be provided by
 specifying the full class name as a link:#constants[string constant].
 The rest of the sub-options depends on the chosen class. The sub-options
@@ -617,18 +617,6 @@ default groups sstable whose sizes diverges by at most 50%).
 sizes should stay less or equal to `sstable_size_in_mb`, it is possible
 to exceptionally have a larger sstable as during compaction, data for a
 given partition key are never split into 2 sstables
-
-|`timestamp_resolution` |DateTieredCompactionStrategy |MICROSECONDS |The
-timestamp resolution used when inserting data, could be MILLISECONDS,
-MICROSECONDS etc (should be understandable by Java TimeUnit) - don’t
-change this unless you do mutations with USING TIMESTAMP (or equivalent
-directly in the client)
-
-|`base_time_seconds` |DateTieredCompactionStrategy |60 |The base size of
-the time windows.
-
-|`max_sstable_age_days` |DateTieredCompactionStrategy |365 |SSTables
-only containing data that is older than this will never be compacted.
 
 |`timestamp_resolution` |TimeWindowCompactionStrategy |MICROSECONDS |The
 timestamp resolution used when inserting data, could be MILLISECONDS,

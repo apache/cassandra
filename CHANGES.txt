@@ -1,4 +1,5 @@
 5.0
+ * Remove DateTieredCompactionStrategy (CASSANDRA-18043)
  * Add system_views.max_sstable_size and system_views.max_sstable_duration tables (CASSANDRA-18333)
  * Extend implicit allow-filtering for virtual tables to clustering columns (CASSANDRA-18331)
  * Upgrade maven-shade-plugin to 3.4.1 to fix shaded dtest JAR build (CASSANDRA-18136)

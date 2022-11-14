@@ -36,7 +36,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
-import org.apache.cassandra.db.compaction.DateTieredCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
@@ -151,7 +150,6 @@ public class SSTableIdGenerationTest extends TestBaseImpl
     public final void testCompactionStrategiesWithMixedSSTables() throws Exception
     {
         testCompactionStrategiesWithMixedSSTables(SizeTieredCompactionStrategy.class,
-                                                  DateTieredCompactionStrategy.class,
                                                   TimeWindowCompactionStrategy.class,
                                                   LeveledCompactionStrategy.class);
     }

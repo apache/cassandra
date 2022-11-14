@@ -97,14 +97,6 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'fanout_size'
     )
 
-    date_tiered_compaction_strategy_options = (
-        'base_time_seconds',
-        'max_sstable_age_days',
-        'min_threshold',
-        'max_window_size_seconds',
-        'timestamp_resolution'
-    )
-
     time_window_compaction_strategy_options = (
         'compaction_window_unit',
         'compaction_window_size',
@@ -554,8 +546,6 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
             opts = opts.union(set(CqlRuleSet.size_tiered_compaction_strategy_options))
         elif csc == 'LeveledCompactionStrategy':
             opts = opts.union(set(CqlRuleSet.leveled_compaction_strategy_options))
-        elif csc == 'DateTieredCompactionStrategy':
-            opts = opts.union(set(CqlRuleSet.date_tiered_compaction_strategy_options))
         elif csc == 'TimeWindowCompactionStrategy':
             opts = opts.union(set(CqlRuleSet.time_window_compaction_strategy_options))
 

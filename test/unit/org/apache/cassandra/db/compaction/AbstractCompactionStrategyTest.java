@@ -19,8 +19,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -44,15 +42,11 @@ public class AbstractCompactionStrategyTest
     private static final String KEYSPACE1 = "Keyspace1";
     private static final String LCS_TABLE = "LCS_TABLE";
     private static final String STCS_TABLE = "STCS_TABLE";
-    private static final String DTCS_TABLE = "DTCS_TABLE";
     private static final String TWCS_TABLE = "TWCS_TABLE";
 
     @BeforeClass
     public static void loadData() throws ConfigurationException
     {
-        Map<String, String> stcsOptions = new HashMap<>();
-        stcsOptions.put("tombstone_compaction_interval", "1");
-
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -60,13 +54,10 @@ public class AbstractCompactionStrategyTest
                                                 .compaction(CompactionParams.lcs(Collections.emptyMap())),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STCS_TABLE)
                                                 .compaction(CompactionParams.stcs(Collections.emptyMap())),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, DTCS_TABLE)
-                                                .compaction(CompactionParams.create(DateTieredCompactionStrategy.class, Collections.emptyMap())),
                                     SchemaLoader.standardCFMD(KEYSPACE1, TWCS_TABLE)
                                                 .compaction(CompactionParams.create(TimeWindowCompactionStrategy.class, Collections.emptyMap())));
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(LCS_TABLE).disableAutoCompaction();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(STCS_TABLE).disableAutoCompaction();
-        Keyspace.open(KEYSPACE1).getColumnFamilyStore(DTCS_TABLE).disableAutoCompaction();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(TWCS_TABLE).disableAutoCompaction();
     }
 
@@ -76,7 +67,6 @@ public class AbstractCompactionStrategyTest
 
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(LCS_TABLE).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(STCS_TABLE).truncateBlocking();
-        Keyspace.open(KEYSPACE1).getColumnFamilyStore(DTCS_TABLE).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(TWCS_TABLE).truncateBlocking();
     }
 
@@ -90,12 +80,6 @@ public class AbstractCompactionStrategyTest
     public void testGetNextBackgroundTaskDoesNotBlockSTCS()
     {
         testGetNextBackgroundTaskDoesNotBlock(STCS_TABLE);
-    }
-
-    @Test(timeout=30000)
-    public void testGetNextBackgroundTaskDoesNotBlockDTCS()
-    {
-        testGetNextBackgroundTaskDoesNotBlock(DTCS_TABLE);
     }
 
     @Test(timeout=30000)
