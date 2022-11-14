@@ -25,13 +25,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
@@ -51,10 +51,18 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
-import static org.apache.cassandra.net.MessagingService.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_41;
+import static org.apache.cassandra.net.MessagingService.VERSION_50;
+import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
-import static org.apache.cassandra.utils.vint.VIntCoding.*;
+import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
+import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
+import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt32;
+import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
 
 /**
  * Immutable main unit of internode communication - what used to be {@code MessageIn} and {@code MessageOut} fused
@@ -1425,6 +1433,8 @@ public class Message<T>
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize41;
+    private int serializedSize42;
 
     /**
      * Serialized size of the entire message, for the provided messaging version. Caches the calculated value.
@@ -1445,6 +1455,14 @@ public class Message<T>
                 if (serializedSize40 == 0)
                     serializedSize40 = serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+            case VERSION_41:
+                if (serializedSize41 == 0)
+                    serializedSize41 = serializer.serializedSize(this, VERSION_41);
+                return serializedSize41;
+            case VERSION_50:
+                if (serializedSize42 == 0)
+                    serializedSize42 = serializer.serializedSize(this, VERSION_50);
+                return serializedSize42;
             default:
                 throw new IllegalStateException();
         }
@@ -1453,6 +1471,8 @@ public class Message<T>
     private int payloadSize30   = -1;
     private int payloadSize3014 = -1;
     private int payloadSize40   = -1;
+    private int payloadSize41   = -1;
+    private int payloadSize42   = -1;
 
     private int payloadSize(int version)
     {
@@ -1470,6 +1490,14 @@ public class Message<T>
                 if (payloadSize40 < 0)
                     payloadSize40 = serializer.payloadSize(this, VERSION_40);
                 return payloadSize40;
+            case VERSION_41:
+                if (payloadSize41 < 0)
+                    payloadSize41 = serializer.payloadSize(this, VERSION_41);
+                return payloadSize41;
+            case VERSION_50:
+                if (payloadSize42 < 0)
+                    payloadSize42 = serializer.payloadSize(this, VERSION_50);
+                return payloadSize42;
             default:
                 throw new IllegalStateException();
         }

@@ -211,6 +211,8 @@ public class MessagingService extends MessagingServiceMBeanImpl
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
+    public static final int VERSION_41 = 13;
+    public static final int VERSION_50 = 14;
     public static final int minimum_version = VERSION_30;
     public static final int current_version = VERSION_40;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
@@ -235,9 +237,11 @@ public class MessagingService extends MessagingServiceMBeanImpl
 
     public enum Version
     {
-        VERSION_30(10),
-        VERSION_3014(11),
-        VERSION_40(12);
+        VERSION_30(MessagingService.VERSION_30),
+        VERSION_3014(MessagingService.VERSION_3014),
+        VERSION_40(MessagingService.VERSION_40),
+        VERSION_41(MessagingService.VERSION_41),
+        VERSION_50(MessagingService.VERSION_50);
 
         public final int value;
 
