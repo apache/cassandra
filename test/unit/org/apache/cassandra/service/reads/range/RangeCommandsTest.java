@@ -287,6 +287,12 @@ public class RangeCommandsTest extends CQLTester
         {
             return wrapped.withBytesLimit(bytesLimit);
         }
+
+        @Override
+        public DataLimits withCountedPerPartitionLimit(int newCountedLimit)
+        {
+            return wrapped.withCountedPerPartitionLimit(newCountedLimit);
+        }
     }
 
     public static final class MockedIndex extends StubIndex
