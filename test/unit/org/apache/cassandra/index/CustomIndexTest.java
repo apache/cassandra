@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -672,7 +673,7 @@ public class CustomIndexTest extends CQLTester
         // Index the partition with an Indexer which artificially simulates additional concurrent
         // flush activity by periodically issuing barriers on the read & write op groupings
         DecoratedKey targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(0));
-        indexManager.indexPartition(targetKey, Collections.singleton(index), totalRows / 10);
+        indexManager.indexPartition(targetKey, Collections.singleton(index), PageSize.inRows(totalRows / 10));
 
         // When indexing is done check that:
         // * The base table's read ordering at finish was > the one at the start (i.e. that
@@ -731,7 +732,7 @@ public class CustomIndexTest extends CQLTester
         for (int pageSize = 1; pageSize <= 5; pageSize++)
         {
             targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(1));
-            indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
+            indexManager.indexPartition(targetKey, Collections.singleton(index), PageSize.inRows(pageSize));
             assertEquals(3, index.rowsInserted.size());
             assertEquals(0, index.rangeTombstones.size());
             assertTrue(index.partitionDeletions.get(0).isLive());
@@ -741,7 +742,7 @@ public class CustomIndexTest extends CQLTester
         for (int pageSize = 1; pageSize <= 5; pageSize++)
         {
             targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(2));
-            indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
+            indexManager.indexPartition(targetKey, Collections.singleton(index), PageSize.inRows(pageSize));
             assertEquals(1, index.rowsInserted.size());
             assertEquals(0, index.rangeTombstones.size());
             assertTrue(index.partitionDeletions.get(0).isLive());
@@ -751,7 +752,7 @@ public class CustomIndexTest extends CQLTester
         for (int pageSize = 1; pageSize <= 5; pageSize++)
         {
             targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(3));
-            indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
+            indexManager.indexPartition(targetKey, Collections.singleton(index), PageSize.inRows(pageSize));
             assertEquals(1, index.rowsInserted.size());
             assertEquals(2, index.rangeTombstones.size());
             assertTrue(index.partitionDeletions.get(0).isLive());
@@ -761,7 +762,7 @@ public class CustomIndexTest extends CQLTester
         for (int pageSize = 1; pageSize <= 5; pageSize++)
         {
             targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(5));
-            indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
+            indexManager.indexPartition(targetKey, Collections.singleton(index), PageSize.inRows(pageSize));
             assertEquals(1, index.partitionDeletions.size());
             assertFalse(index.partitionDeletions.get(0).isLive());
             index.reset();
@@ -790,7 +791,7 @@ public class CustomIndexTest extends CQLTester
 
         // Index the partition
         DecoratedKey targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(0));
-        indexManager.indexPartition(targetKey, Collections.singleton(index), totalRows);
+        indexManager.indexPartition(targetKey, Collections.singleton(index), PageSize.inRows(totalRows));
 
         // Assert only one partition is counted
         assertEquals(1, index.beginCalls);
@@ -821,7 +822,7 @@ public class CustomIndexTest extends CQLTester
 
         // Index the partition
         DecoratedKey targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(1));
-        indexManager.indexPartition(targetKey, Sets.newHashSet(index, index2), 1);
+        indexManager.indexPartition(targetKey, Sets.newHashSet(index, index2), PageSize.inRows(1));
 
         // and both indexes should have the same range tombstone
         assertEquals(index.rangeTombstones, index2.rangeTombstones);

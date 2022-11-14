@@ -97,12 +97,6 @@ public interface QueryPager
      */
     public PartitionIterator fetchPage(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException;
 
-    // TODO remove this method
-    default PartitionIterator fetchPage(int pageSizeInRows, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
-    {
-        return fetchPage(PageSize.inRows(pageSizeInRows), consistency, clientState, queryStartNanoTime);
-    }
-
     /**
      * Starts a new read operation.
      * <p>
@@ -122,12 +116,6 @@ public interface QueryPager
      * @return the page of result.
      */
     public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException;
-
-    // TODO remove this method
-    default PartitionIterator fetchPageInternal(int pageSizeInRows, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
-    {
-        return fetchPageInternal(PageSize.inRows(pageSizeInRows), executionController);
-    }
 
     /**
      * Whether or not this pager is exhausted, i.e. whether or not a call to

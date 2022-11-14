@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLogger;
@@ -47,7 +48,7 @@ public class DumpTest
         ConsistencyLevel.LOCAL_QUORUM,
         values,
         true,
-        1,
+        PageSize.inRows(1),
         null,
         null,
         ProtocolVersion.CURRENT,
@@ -104,7 +105,7 @@ public class DumpTest
         ConsistencyLevel.LOCAL_QUORUM,
         values,
         true,
-        1,
+        PageSize.inRows(1),
         null,
         null,
         ProtocolVersion.CURRENT,

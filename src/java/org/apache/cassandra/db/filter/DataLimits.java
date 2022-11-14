@@ -178,18 +178,6 @@ public abstract class DataLimits
         return counter.counted() < count() && counter.bytesCounted() < bytes();
     }
 
-    // TODO remove this method
-    public DataLimits forPaging(int pageSizeInRows)
-    {
-        return forPaging(PageSize.inRows(pageSizeInRows));
-    }
-
-    // TODO remove this method
-    public DataLimits forPaging(int pageSizeInRows, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
-    {
-        return forPaging(PageSize.inRows(pageSizeInRows), lastReturnedKey, lastReturnedKeyRemaining);
-    }
-
     public abstract DataLimits forPaging(PageSize pageSize);
     public abstract DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining);
 

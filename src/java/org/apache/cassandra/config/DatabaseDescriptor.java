@@ -71,6 +71,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -938,6 +939,11 @@ public class DatabaseDescriptor
 
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+
+        if (conf.aggregation_subpage_size.toBytes() < 0)
+            throw new ConfigurationException("aggregation_subpage_size_in_kb must be >= 0");
+
+        setAggregationSubPageSize(getAggregationSubPageSize());
     }
 
     @VisibleForTesting
@@ -4675,5 +4681,20 @@ public class DatabaseDescriptor
     public static Map<String, Supplier<SSTableFormat<?, ?>>> getSSTableFormatFactories()
     {
         return Objects.requireNonNull(sstableFormatFactories, "Forgot to initialize DatabaseDescriptor?");
+    }
+
+    public static PageSize getAggregationSubPageSize()
+    {
+        if (conf.aggregation_subpage_size.toBytes() == 0)
+            return PageSize.NONE;
+
+        return PageSize.inBytes(conf.aggregation_subpage_size.toBytes());
+    }
+
+    public static void setAggregationSubPageSize(PageSize pageSize)
+    {
+        Preconditions.checkArgument(!pageSize.isDefined() || pageSize.getUnit() == PageSize.PageUnit.BYTES);
+        Preconditions.checkArgument(pageSize.bytes() >= 0);
+        conf.aggregation_subpage_size = new DataStorageSpec.IntBytesBound(pageSize.bytes());
     }
 }

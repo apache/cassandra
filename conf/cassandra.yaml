@@ -1660,6 +1660,10 @@ report_unconfirmed_repaired_data_mismatches: false
 # warming of auth caches prior to node completing startup. See CASSANDRA-16958
 # auth_cache_warming_enabled: false
 
+# This is the page size used internally by aggregation queries. It aims to limit the memory used by aggregation
+# queries when there is a lot of data to aggregate.
+# aggregation_subpage_size: 2MiB
+
 #########################
 # EXPERIMENTAL FEATURES #
 #########################

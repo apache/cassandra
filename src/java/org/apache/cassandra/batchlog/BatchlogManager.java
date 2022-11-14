@@ -36,6 +36,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
@@ -219,7 +220,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         String query = String.format("SELECT id, mutations, version FROM %s.%s WHERE token(id) > token(?) AND token(id) <= token(?)",
                                      SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      SystemKeyspace.BATCHES);
-        UntypedResultSet batches = executeInternalWithPaging(query, pageSize, lastReplayedUuid, limitUuid);
+        UntypedResultSet batches = executeInternalWithPaging(query, PageSize.inRows(pageSize), lastReplayedUuid, limitUuid);
         processBatchlogEntries(batches, pageSize, rateLimiter);
         lastReplayedUuid = limitUuid;
         logger.trace("Finished replayFailedBatches");

@@ -103,7 +103,7 @@ public class QueryMessage extends Message.Request
         CQLStatement statement = null;
         try
         {
-            if (options.getPageSize() == 0)
+            if (options.getPageSize().getSize() == 0)
                 throw new ProtocolException("The page size cannot be 0");
 
             if (traceRequest)
@@ -135,8 +135,11 @@ public class QueryMessage extends Message.Request
     {
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         builder.put("query", query);
-        if (options.getPageSize() > 0)
-            builder.put("page_size", Integer.toString(options.getPageSize()));
+        if (options.getPageSize().isDefined())
+        {
+            builder.put("page_size", Integer.toString(options.getPageSize().getSize()));
+            builder.put("page_size_unit", options.getPageSize().getUnit().name());
+        }
         if (options.getConsistency() != null)
             builder.put("consistency_level", options.getConsistency().name());
         if (options.getSerialConsistency() != null)
@@ -148,7 +151,7 @@ public class QueryMessage extends Message.Request
     @Override
     public String toString()
     {
-        return String.format("QUERY %s [pageSize = %d] at consistency %s", 
+        return String.format("QUERY %s [pageSize = %s] at consistency %s",
                              query, options.getPageSize(), options.getConsistency());
     }
 }

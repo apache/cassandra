@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -52,6 +53,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class SystemKeyspaceMigrator41
 {
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspaceMigrator41.class);
+    private static final PageSize DEFAULT_PAGE_SIZE = PageSize.inRows(1000);
 
     private SystemKeyspaceMigrator41()
     {
@@ -162,7 +164,7 @@ public class SystemKeyspaceMigrator41
                      })
         );
     }
-    
+
     @VisibleForTesting
     static void migrateCompactionHistory()
     {
@@ -191,7 +193,7 @@ public class SystemKeyspaceMigrator41
     /**
      * Perform table migration by reading data from the old table, converting it, and adding to the new table.
      * If oldName and newName are same, it means data in the table will be refreshed.
-     * 
+     *
      * @param truncateIfExists truncate the existing table if it exists before migration; if it is disabled
      *                         and the new table is not empty and oldName is not equal to newName, no migration is performed
      * @param oldName          old table name
@@ -217,10 +219,10 @@ public class SystemKeyspaceMigrator41
         String insert = String.format("INSERT INTO %s.%s (%s) VALUES (%s)", SchemaConstants.SYSTEM_KEYSPACE_NAME, newName,
                                       StringUtils.join(columns, ", "), StringUtils.repeat("?", ", ", columns.length));
 
-        UntypedResultSet rows = QueryProcessor.executeInternal(query);
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, DEFAULT_PAGE_SIZE);
 
         assert rows != null : String.format("Migrating rows from legacy %s to %s was not done as returned rows from %s are null!", oldName, newName, oldName);
-        
+
         int transferred = 0;
         logger.info("Migrating rows from legacy {} to {}", oldName, newName);
         for (UntypedResultSet.Row row : rows)
