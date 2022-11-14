@@ -813,6 +813,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
             return DataLimits.groupByLimits(cqlRowLimit,
                                             cqlPerPartitionLimit,
+                                            DataLimits.NO_LIMIT,
                                             pageSize,
                                             aggregationSpec);
         }
