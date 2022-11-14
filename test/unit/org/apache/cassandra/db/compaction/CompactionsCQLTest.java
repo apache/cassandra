@@ -112,19 +112,6 @@ public class CompactionsCQLTest extends CQLTester
         waitForMinor(KEYSPACE, currentTable(), SLEEP_TIME, true);
     }
 
-
-    @Test
-    public void testTriggerMinorCompactionDTCS() throws Throwable
-    {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'DateTieredCompactionStrategy', 'min_threshold':2};");
-        assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
-        execute("insert into %s (id) values ('1') using timestamp 1000"); // same timestamp = same window = minor compaction triggered
-        flush();
-        execute("insert into %s (id) values ('1') using timestamp 1000");
-        flush();
-        waitForMinor(KEYSPACE, currentTable(), SLEEP_TIME, true);
-    }
-
     @Test
     public void testTriggerMinorCompactionTWCS() throws Throwable
     {
@@ -217,21 +204,21 @@ public class CompactionsCQLTest extends CQLTester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
         Map<String, String> localOptions = new HashMap<>();
-        localOptions.put("class", "DateTieredCompactionStrategy");
+        localOptions.put("class", "SizeTieredCompactionStrategy");
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
-        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), SizeTieredCompactionStrategy.class));
         // Invalidate disk boundaries to ensure that boundary invalidation will not cause the old strategy to be reloaded
         getCurrentColumnFamilyStore().invalidateLocalRanges();
         // altering something non-compaction related
         execute("ALTER TABLE %s WITH gc_grace_seconds = 1000");
         // should keep the local compaction strat
-        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), SizeTieredCompactionStrategy.class));
         // Alter keyspace replication settings to force compaction strategy reload
         execute("alter keyspace "+keyspace()+" with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");
         // should keep the local compaction strat
-        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), SizeTieredCompactionStrategy.class));
         // altering a compaction option
-        execute("ALTER TABLE %s WITH compaction = {'class':'SizeTieredCompactionStrategy', 'min_threshold':3}");
+        execute("ALTER TABLE %s WITH compaction = {'class':'SizeTieredCompactionStrategy', 'min_threshold': 3}");
         // will use the new option
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), SizeTieredCompactionStrategy.class));
     }
@@ -241,24 +228,23 @@ public class CompactionsCQLTest extends CQLTester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
         Map<String, String> localOptions = new HashMap<>();
-        localOptions.put("class", "DateTieredCompactionStrategy");
+        localOptions.put("class", "SizeTieredCompactionStrategy");
         localOptions.put("enabled", "false");
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         localOptions.clear();
-        localOptions.put("class", "DateTieredCompactionStrategy");
+        localOptions.put("class", "SizeTieredCompactionStrategy");
         // localOptions.put("enabled", "true"); - this is default!
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
     }
-
 
     @Test
     public void testSetLocalCompactionStrategyEnable() throws Throwable
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
         Map<String, String> localOptions = new HashMap<>();
-        localOptions.put("class", "DateTieredCompactionStrategy");
+        localOptions.put("class", "LeveledCompactionStrategy");
 
         getCurrentColumnFamilyStore().disableAutoCompaction();
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
@@ -266,8 +252,6 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
     }
-
-
 
     @Test(expected = IllegalArgumentException.class)
     public void testBadLocalCompactionStrategyOptions()
