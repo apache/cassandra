@@ -1,4 +1,5 @@
 4.2
+ * Adding endpoint verification option to client_encryption_options (CASSANDRA-18034)
  * Replace 'wcwidth.py' with pypi module (CASSANDRA-17287)
  * Add nodetool forcecompact to remove tombstoned or ttl'd data ignoring GC grace for given table and partition keys (CASSANDRA-17711)
  * Offer IF (NOT) EXISTS in cqlsh completion for CREATE TYPE, DROP TYPE, CREATE ROLE and DROP ROLE (CASSANDRA-16640)
