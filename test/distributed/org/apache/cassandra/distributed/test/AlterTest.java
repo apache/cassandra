@@ -18,17 +18,29 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.util.List;
+
+import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
@@ -39,6 +51,7 @@ import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistribut
 import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNetworkTopology;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 public class AlterTest extends TestBaseImpl
 {
@@ -105,6 +118,75 @@ public class AlterTest extends TestBaseImpl
                 assertFalse(result.warnings().isEmpty());
                 assertThat(result.warnings().get(0)).contains("Your replication factor 2 for keyspace abc is higher than the number of nodes 1 for datacenter dc0");
             }
+        }
+    }
+
+    @Test
+    public void unknownMemtableConfigurationTest() throws Throwable
+    {
+        Logger logger = LoggerFactory.getLogger(getClass());
+        try (Cluster cluster = Cluster.build(1)
+                                      .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3, 1))
+                                      .withConfig(c -> c.with(Feature.values())
+                                                        .set("memtable", ImmutableMap.of(
+                                                        "configurations", ImmutableMap.of(
+                                                            "testconfig", ImmutableMap.of(
+                                                                "class_name", "SkipListMemtable")))))
+                                      .start())
+        {
+            init(cluster);
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int PRIMARY KEY)");
+
+            // Start Node 2 without the memtable configuration definition.
+            IInvokableInstance node1 = cluster.get(1);
+            IInvokableInstance node2 = ClusterUtils.addInstance(cluster, node1.config(), c -> c.set("memtable", ImmutableMap.of()));
+            node2.startup(cluster);
+
+            try
+            {
+                cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl WITH memtable = 'testconfig'", false, node2);
+                fail("Expected ALTER to fail with unknown memtable configuration.");
+            }
+            catch (Throwable t)
+            {
+                // expected
+                logger.info("Expected: {}", t.getMessage());
+                Assert.assertTrue(Throwables.isCausedBy(t, x -> x.getMessage().matches("Memtable configuration.*not found.*")));
+            }
+            long mark = node2.logs().mark();
+
+            cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl WITH memtable = 'testconfig'", false, node1);
+            // the above should succeed, the configuration is acceptable to node1
+
+            final String schema1 = QueryResultUtil.expand(node1.executeInternalWithResult("SELECT * FROM system_schema.tables WHERE keyspace_name=?", KEYSPACE));
+            final String schema2 = QueryResultUtil.expand(node2.executeInternalWithResult("SELECT * FROM system_schema.tables WHERE keyspace_name=?", KEYSPACE));
+            logger.info("node1 schema: \n{}", schema1);
+            logger.info("node2 schema: \n{}", schema2);
+            Assert.assertEquals(schema1, schema2);
+            List<String> errorInLog = node2.logs().grep(mark, "ERROR.*Invalid memtable configuration.*").getResult();
+            Assert.assertTrue(errorInLog.size() > 0);
+            logger.info(Lists.listToString(errorInLog));
+
+            // Add a new node that has an invalid definition but should accept the already defined table schema.
+            IInvokableInstance node3 = ClusterUtils.addInstance(cluster,
+                                                                node2.config(),
+                                                                c -> c.set("memtable", ImmutableMap.of(
+                                                                "configurations", ImmutableMap.of(
+                                                                    "testconfig", ImmutableMap.of(
+                                                                        "class_name", "NotExistingMemtable")))));
+            node3.startup(cluster);
+            final String schema3 = QueryResultUtil.expand(node3.executeInternalWithResult("SELECT * FROM system_schema.tables WHERE keyspace_name=?", KEYSPACE));
+            logger.info("node3 schema: \n{}", schema3);
+            Assert.assertEquals(schema1, schema3);
+
+            errorInLog = node3.logs().grep("ERROR.*Invalid memtable configuration.*").getResult();
+            Assert.assertTrue(errorInLog.size() > 0);
+            logger.info(Lists.listToString(errorInLog));
+
+            // verify that all nodes can write to the table
+            node1.executeInternalWithResult("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)", 1);
+            node2.executeInternalWithResult("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)", 2);
+            node3.executeInternalWithResult("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)", 3);
         }
     }
 }
