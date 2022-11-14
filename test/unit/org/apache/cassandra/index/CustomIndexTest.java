@@ -20,7 +20,15 @@
  */
 package org.apache.cassandra.index;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,14 +40,23 @@ import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
+import org.apache.cassandra.db.CassandraWriteContext;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -49,6 +66,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -672,7 +690,7 @@ public class CustomIndexTest extends CQLTester
         // Index the partition with an Indexer which artificially simulates additional concurrent
         // flush activity by periodically issuing barriers on the read & write op groupings
         DecoratedKey targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(0));
-        indexManager.indexPartition(targetKey, Collections.singleton(index), totalRows / 10);
+        indexManager.indexPartition(targetKey, Collections.singleton(index), PageSize.inRows(totalRows / 10));
 
         // When indexing is done check that:
         // * The base table's read ordering at finish was > the one at the start (i.e. that
@@ -728,8 +746,9 @@ public class CustomIndexTest extends CQLTester
         StubIndex index = (StubIndex) indexManager.getIndexByName(indexName);
 
         DecoratedKey targetKey;
-        for (int pageSize = 1; pageSize <= 5; pageSize++)
+        for (int rows = 1; rows <= 5; rows++)
         {
+            PageSize pageSize = PageSize.inRows(rows);
             targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(1));
             indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
             assertEquals(3, index.rowsInserted.size());
@@ -738,8 +757,9 @@ public class CustomIndexTest extends CQLTester
             index.reset();
         }
 
-        for (int pageSize = 1; pageSize <= 5; pageSize++)
+        for (int rows = 1; rows <= 5; rows++)
         {
+            PageSize pageSize = PageSize.inRows(rows);
             targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(2));
             indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
             assertEquals(1, index.rowsInserted.size());
@@ -748,8 +768,9 @@ public class CustomIndexTest extends CQLTester
             index.reset();
         }
 
-        for (int pageSize = 1; pageSize <= 5; pageSize++)
+        for (int rows = 1; rows <= 5; rows++)
         {
+            PageSize pageSize = PageSize.inRows(rows);
             targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(3));
             indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
             assertEquals(1, index.rowsInserted.size());
@@ -758,8 +779,9 @@ public class CustomIndexTest extends CQLTester
             index.reset();
         }
 
-        for (int pageSize = 1; pageSize <= 5; pageSize++)
+        for (int rows = 1; rows <= 5; rows++)
         {
+            PageSize pageSize = PageSize.inRows(rows);
             targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(5));
             indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
             assertEquals(1, index.partitionDeletions.size());
@@ -790,7 +812,7 @@ public class CustomIndexTest extends CQLTester
 
         // Index the partition
         DecoratedKey targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(0));
-        indexManager.indexPartition(targetKey, Collections.singleton(index), totalRows);
+        indexManager.indexPartition(targetKey, Collections.singleton(index), PageSize.inRows(totalRows));
 
         // Assert only one partition is counted
         assertEquals(1, index.beginCalls);
@@ -821,7 +843,7 @@ public class CustomIndexTest extends CQLTester
 
         // Index the partition
         DecoratedKey targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(1));
-        indexManager.indexPartition(targetKey, Sets.newHashSet(index, index2), 1);
+        indexManager.indexPartition(targetKey, Sets.newHashSet(index, index2), PageSize.inRows(1));
 
         // and both indexes should have the same range tombstone
         assertEquals(index.rangeTombstones, index2.rangeTombstones);
