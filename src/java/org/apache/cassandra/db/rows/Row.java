@@ -130,7 +130,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
     /**
      * Whether the row has some live information (i.e. it's not just deletion informations).
-     * 
+     *
      * @param nowInSec the current time to decide what is deleted and what isn't
      * @param enforceStrictLiveness whether the row should be purged if there is no PK liveness info,
      *                              normally retrieved from {@link TableMetadata#enforceStrictLiveness()}
@@ -339,6 +339,14 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public Row withRowDeletion(DeletionTime deletion);
 
     public int dataSize();
+
+    /**
+     * Returns the size of the data hold by this row that is live at {@code nowInSec}.
+     *
+     * @param nowInSec the query timestamp in seconds
+     * @return the size of the data hold by this row that is live at {@code nowInSec}.
+     */
+    int liveDataSize(long nowInSec);
 
     public long unsharedHeapSizeExcludingData();
 

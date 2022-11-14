@@ -568,6 +568,16 @@ public class BTreeRow extends AbstractRow
     }
 
     @Override
+    public int liveDataSize(long nowInSec)
+    {
+        int dataSize = clustering.dataSize()
+                       + primaryKeyLivenessInfo.dataSize()
+                       + deletion.dataSize();
+
+        return Ints.checkedCast(accumulate((cd, v) -> v + cd.liveDataSize(nowInSec), dataSize));
+    }
+
+    @Override
     public long unsharedHeapSize()
     {
         long heapSize = EMPTY_SIZE

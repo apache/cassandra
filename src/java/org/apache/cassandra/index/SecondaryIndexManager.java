@@ -62,6 +62,7 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -180,8 +181,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 {
     private static final Logger logger = LoggerFactory.getLogger(SecondaryIndexManager.class);
 
-    // default page size (in rows) when rebuilding the index for a whole partition
-    public static final int DEFAULT_PAGE_SIZE = 10000;
+    public static final PageSize DEFAULT_PAGE_SIZE = PageSize.inRows(10000);
+    private static final PageSize INDEXING_PAGE_SIZE = PageSize.inBytes(32 * 1024 * 1024);
 
     /**
      * All registered indexes.
@@ -1074,7 +1075,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return !indexes.isEmpty();
     }
 
-    public void indexPartition(DecoratedKey key, Set<Index> indexes, int pageSize)
+    public void indexPartition(DecoratedKey key, Set<Index> indexes, PageSize pageSize)
     {
         indexPartition(key, indexes, pageSize, baseCfs.metadata().regularAndStaticColumns());
     }
@@ -1087,7 +1088,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * @param pageSize the number of {@link Unfiltered} objects to process in a single page
      * @param columns the columns indexed by at least one of the supplied indexes
      */
-    public void indexPartition(DecoratedKey key, Set<Index> indexes, int pageSize, RegularAndStaticColumns columns)
+    public void indexPartition(DecoratedKey key, Set<Index> indexes, PageSize pageSize, RegularAndStaticColumns columns)
     {
         if (logger.isTraceEnabled())
             logger.trace("Indexing partition {}", baseCfs.metadata().partitionKeyType.getString(key.getKey()));
@@ -1198,42 +1199,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     /**
-     * Return the page size used when indexing an entire partition
+     * Returns the page size used when indexing an entire partition.
      */
-    public int calculateIndexingPageSize()
+    public PageSize calculateIndexingPageSize()
     {
-        if (FORCE_DEFAULT_INDEXING_PAGE_SIZE.getBoolean())
-            return DEFAULT_PAGE_SIZE;
-
-        double targetPageSizeInBytes = 32 * 1024 * 1024;
-        double meanPartitionSize = baseCfs.getMeanPartitionSize();
-        if (meanPartitionSize <= 0)
-            return DEFAULT_PAGE_SIZE;
-
-        int meanCellsPerPartition = baseCfs.getMeanEstimatedCellPerPartitionCount();
-        if (meanCellsPerPartition <= 0)
-            return DEFAULT_PAGE_SIZE;
-
-        int columnsPerRow = baseCfs.metadata().regularColumns().size();
-        if (columnsPerRow <= 0)
-            return DEFAULT_PAGE_SIZE;
-
-        int meanRowsPerPartition = meanCellsPerPartition / columnsPerRow;
-        double meanRowSize = meanPartitionSize / meanRowsPerPartition;
-
-        int pageSize = (int) Math.max(1, Math.min(DEFAULT_PAGE_SIZE, targetPageSizeInBytes / meanRowSize));
-
-        if (logger.isTraceEnabled())
-            logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
-                         pageSize,
-                         baseCfs.metadata.keyspace,
-                         baseCfs.metadata.name,
-                         meanPartitionSize,
-                         meanCellsPerPartition,
-                         meanRowsPerPartition,
-                         meanRowSize);
-
-        return pageSize;
+        return FORCE_DEFAULT_INDEXING_PAGE_SIZE.getBoolean() ? DEFAULT_PAGE_SIZE : INDEXING_PAGE_SIZE;
     }
 
     /**

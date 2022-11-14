@@ -907,6 +907,8 @@ public class Config
 
     public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();
 
+    public volatile DataStorageSpec.IntBytesBound aggregation_subpage_size = new DataStorageSpec.IntBytesBound(2, DataStorageSpec.DataStorageUnit.MEBIBYTES);
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()} See CASSANDRA-12550
      */

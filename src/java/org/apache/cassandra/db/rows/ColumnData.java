@@ -278,6 +278,14 @@ public abstract class ColumnData implements IMeasurableMemory
      */
     public abstract int dataSize();
 
+    /**
+     * The size of the data hold by this {@code ColumnData} that is live at {@code nowInSec}.
+     *
+     * @param nowInSec the query timestamp in seconds
+     * @return the size used by the live data of this {@code ColumnData}.
+     */
+    public abstract int liveDataSize(long nowInSec);
+
     public abstract long unsharedHeapSizeExcludingData();
 
     public abstract long unsharedHeapSize();

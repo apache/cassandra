@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +39,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.SchemaElement;
@@ -160,7 +162,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
 
         // The paging implemented here uses some arbitray row number as the partition-key for paging,
         // which is used to skip/limit the result from the Java Stream. This works good enough for
-        // reasonably sized schemas. Even a 'DESCRIBE SCHEMA' for an abnormally schema with 10000 tables
+        // reasonably sized schemas. Even a 'DESCRIBE SCHEMA' for an abnormal schema with 10000 tables
         // completes within a few seconds. This seems good enough for now. Once Cassandra actually supports
         // more than a few hundred tables, the implementation here should be reconsidered.
         //
@@ -172,24 +174,51 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         //   (vint bytes) serialized schema hash (currently the result of Keyspaces.hashCode())
         //
 
+        Stream<List<ByteBuffer>> stream = describe(state.getClientState(), keyspaces).map(e -> toRow(e, includeInternalDetails));
+
         long offset = getOffset(pagingState, schemaVersion);
-        int pageSize = options.getPageSize();
-
-        Stream<? extends T> stream = describe(state.getClientState(), keyspaces);
-
         if (offset > 0L)
             stream = stream.skip(offset);
-        if (pageSize > 0)
-            stream = stream.limit(pageSize);
 
-        List<List<ByteBuffer>> bbRows = stream.map(e -> toRow(e, includeInternalDetails))
-                                              .collect(Collectors.toList());
+        PageSize pageSize = options.getPageSize();
+        List<List<ByteBuffer>> bbRows;
+        boolean hasMore = false;
+
+        if (pageSize.isDefined())
+        {
+            if (pageSize.getUnit() == PageSize.PageUnit.ROWS)
+            {
+                stream = stream.limit(pageSize.rows());
+                bbRows = stream.collect(Collectors.toList());
+                hasMore = bbRows.size() == pageSize.rows();
+            }
+            else
+            {
+                bbRows = new ArrayList<>();
+                Iterator<List<ByteBuffer>> it = stream.iterator();
+                long size = 0;
+                while (it.hasNext() && size < pageSize.bytes())
+                {
+                    List<ByteBuffer> row = it.next();
+                    bbRows.add(row);
+                    for (ByteBuffer buf : row)
+                        size += buf.remaining();
+                }
+                hasMore = it.hasNext();
+            }
+        }
+        else
+        {
+            bbRows = stream.collect(Collectors.toList());
+        }
 
         ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata(state.getClientState()));
         ResultSet result = ResultSet.fromByteBufferRows(resultMetadata, bbRows);
 
-        if (pageSize > 0 && bbRows.size() == pageSize)
-            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schemaVersion));
+        if (hasMore)
+        {
+            result.metadata.setHasMorePages(getPagingState(offset + bbRows.size(), schemaVersion));
+        }
 
         return new ResultMessage.Rows(result);
     }

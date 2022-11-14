@@ -35,6 +35,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CIDR;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -61,7 +62,7 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
     private SelectStatement getCidrGroupsStatement;
     private SelectStatement getCidrsForCidrGroupStatement;
 
-    private static final int PAGE_SIZE = 128;
+    private static final PageSize PAGE_SIZE = PageSize.inRows(128);
 
     public void setup()
     {
