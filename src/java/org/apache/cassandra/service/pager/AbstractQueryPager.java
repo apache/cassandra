@@ -17,10 +17,21 @@
  */
 package org.apache.cassandra.service.pager;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -59,12 +70,12 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         return query.executionController();
     }
 
-    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime)
+    public PartitionIterator fetchPage(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime)
     {
         if (isExhausted())
             return EmptyIterators.partition();
 
-        pageSize = Math.min(pageSize, remaining);
+        pageSize = PageSize.inRows(Math.min(pageSize.rows, remaining));
         Pager pager = new RowPager(limits.forPaging(pageSize), query.nowInSec());
         ReadQuery readQuery = nextPageReadQuery(pageSize);
         if (readQuery == null)
@@ -75,12 +86,12 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         return Transformation.apply(readQuery.execute(consistency, clientState, queryStartNanoTime), pager);
     }
 
-    public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController)
+    public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController)
     {
         if (isExhausted())
             return EmptyIterators.partition();
 
-        pageSize = Math.min(pageSize, remaining);
+        pageSize = PageSize.inRows(Math.min(pageSize.rows, remaining));
         RowPager pager = new RowPager(limits.forPaging(pageSize), query.nowInSec());
         ReadQuery readQuery = nextPageReadQuery(pageSize);
         if (readQuery == null)
@@ -91,12 +102,12 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         return Transformation.apply(readQuery.executeInternal(executionController), pager);
     }
 
-    public UnfilteredPartitionIterator fetchPageUnfiltered(TableMetadata metadata, int pageSize, ReadExecutionController executionController)
+    public UnfilteredPartitionIterator fetchPageUnfiltered(TableMetadata metadata, PageSize pageSize, ReadExecutionController executionController)
     {
         if (isExhausted())
             return EmptyIterators.unfilteredPartition(metadata);
 
-        pageSize = Math.min(pageSize, remaining);
+        pageSize = PageSize.inRows(Math.min(pageSize.rows, remaining));
         UnfilteredPager pager = new UnfilteredPager(limits.forPaging(pageSize), query.nowInSec());
         ReadQuery readQuery = nextPageReadQuery(pageSize);
         if (readQuery == null)
@@ -246,7 +257,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         return remainingInPartition;
     }
 
-    protected abstract T nextPageReadQuery(int pageSize);
+    protected abstract T nextPageReadQuery(PageSize pageSize);
     protected abstract void recordLast(DecoratedKey key, Row row);
     protected abstract boolean isPreviouslyReturnedPartition(DecoratedKey key);
 }

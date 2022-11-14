@@ -20,12 +20,24 @@ package org.apache.cassandra.db.filter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.aggregation.AggregationSpecification;
 import org.apache.cassandra.db.aggregation.GroupMaker;
 import org.apache.cassandra.db.aggregation.GroupingState;
-import org.apache.cassandra.db.aggregation.AggregationSpecification;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.CachedPartition;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.BasePartitions;
 import org.apache.cassandra.db.transform.BaseRows;
 import org.apache.cassandra.db.transform.StoppingTransformation;
@@ -139,8 +151,8 @@ public abstract class DataLimits
         return counter.counted() < count();
     }
 
-    public abstract DataLimits forPaging(int pageSize);
-    public abstract DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining);
+    public abstract DataLimits forPaging(PageSize pageSize);
+    public abstract DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining);
 
     public abstract DataLimits forShortReadRetry(int toFetch);
 
@@ -387,14 +399,14 @@ public abstract class DataLimits
             return isDistinct;
         }
 
-        public DataLimits forPaging(int pageSize)
+        public DataLimits forPaging(PageSize pageSize)
         {
-            return new CQLLimits(pageSize, perPartitionLimit, isDistinct);
+            return new CQLLimits(pageSize.rows, perPartitionLimit, isDistinct);
         }
 
-        public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
-            return new CQLPagingLimits(pageSize, perPartitionLimit, isDistinct, lastReturnedKey, lastReturnedKeyRemaining);
+            return new CQLPagingLimits(pageSize.rows, perPartitionLimit, isDistinct, lastReturnedKey, lastReturnedKeyRemaining);
         }
 
         public DataLimits forShortReadRetry(int toFetch)
@@ -579,13 +591,13 @@ public abstract class DataLimits
         }
 
         @Override
-        public DataLimits forPaging(int pageSize)
+        public DataLimits forPaging(PageSize pageSize)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
             throw new UnsupportedOperationException();
         }
@@ -713,9 +725,9 @@ public abstract class DataLimits
         }
 
         @Override
-        public DataLimits forPaging(int pageSize)
+        public DataLimits forPaging(PageSize pageSize)
         {
-            return new CQLGroupByLimits(pageSize,
+            return new CQLGroupByLimits(pageSize.rows,
                                         groupPerPartitionLimit,
                                         rowLimit,
                                         groupBySpec,
@@ -723,9 +735,9 @@ public abstract class DataLimits
         }
 
         @Override
-        public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
-            return new CQLGroupByPagingLimits(pageSize,
+            return new CQLGroupByPagingLimits(pageSize.rows,
                                               groupPerPartitionLimit,
                                               rowLimit,
                                               groupBySpec,
@@ -1078,13 +1090,13 @@ public abstract class DataLimits
         }
 
         @Override
-        public DataLimits forPaging(int pageSize)
+        public DataLimits forPaging(PageSize pageSize)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
             throw new UnsupportedOperationException();
         }
