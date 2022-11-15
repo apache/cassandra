@@ -108,9 +108,16 @@ public abstract class DataLimits
 
     public DataLimits reducedBy(Counter counter)
     {
-        return withCountedLimit(Math.max(0, count() - counter.counted()))
-               .withCountedPerPartitionLimit(Math.max(0, perPartitionCount() - counter.countedInCurrentPartition()))
-               .withBytesLimit(Math.max(0, bytes() - counter.bytesCounted()));
+        DataLimits limits = this;
+
+        if (count() < NO_LIMIT)
+            limits = limits.withCountedLimit(Math.max(0, count() - counter.counted()));
+        if (perPartitionCount() < NO_LIMIT)
+            limits = limits.withCountedPerPartitionLimit(Math.max(0, perPartitionCount() - counter.countedInCurrentPartition()));
+        if (bytes() < NO_LIMIT)
+            limits = limits.withBytesLimit(Math.max(0, bytes() - counter.bytesCounted()));
+
+        return limits;
     }
 
     public enum Kind

@@ -76,7 +76,7 @@ public class PartitionRangePagerTest extends AbstractPartitionsPagerTest
     @Override
     protected ReadCommand makePartitionsSliceQuery(int limit, int perPartitionLimit, ColumnFamilyStore cfs, String startKeyInc, String endKeyExcl, String startClustInc, String endClustExcl)
     {
-        return rangeSliceQuery(limit, perPartitionLimit, PageSize.NONE, cfs, startKeyInc, endKeyExcl, startClustInc, endClustExcl);
+        return rangeSliceQuery(limit, perPartitionLimit, PageSize.NONE, cfs, startKeyInc, endKeyExcl, startClustInc, endClustExcl).build();
     }
 
     @Override

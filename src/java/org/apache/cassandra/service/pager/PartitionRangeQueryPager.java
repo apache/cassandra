@@ -59,6 +59,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
         restoreState(lastReturnedKey, remaining, remainingInPartition);
     }
 
+    @Override
     public PartitionRangeQueryPager withUpdatedLimit(DataLimits newLimits)
     {
         return new PartitionRangeQueryPager(query.withUpdatedLimit(newLimits),

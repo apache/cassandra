@@ -24,6 +24,7 @@ import java.util.*;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.aggregation.AggregationSpecification;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -51,6 +52,8 @@ public abstract class AbstractReadCommandBuilder
     private ClusteringBound<?> upperClusteringBound;
 
     private NavigableSet<Clustering<?>> clusterings;
+
+    private AggregationSpecification aggregationSpecification;
 
     // Use Util.cmd() instead of this ctor directly
     AbstractReadCommandBuilder(ColumnFamilyStore cfs)
@@ -138,6 +141,12 @@ public abstract class AbstractReadCommandBuilder
         return this;
     }
 
+    public AbstractReadCommandBuilder withAggregationSpecification(AggregationSpecification spec)
+    {
+        this.aggregationSpecification = spec;
+        return this;
+    }
+
     private ByteBuffer bb(Object value, AbstractType<?> type)
     {
         return value instanceof ByteBuffer ? (ByteBuffer)value : ((AbstractType)type).decompose(value);
@@ -220,8 +229,19 @@ public abstract class AbstractReadCommandBuilder
 
     protected DataLimits makeLimits()
     {
-        DataLimits limits = DataLimits.cqlLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
-                                                 perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit);
+        DataLimits limits;
+        if (aggregationSpecification != null)
+        {
+            limits = DataLimits.groupByLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
+                                              perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit,
+                                              DataLimits.NO_LIMIT, DataLimits.NO_LIMIT,
+                                              aggregationSpecification);
+        }
+        else
+        {
+            limits = DataLimits.cqlLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
+                                          perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit);
+        }
         if (pageSize.isDefined())
             limits = limits.forPaging(pageSize);
         return limits;
@@ -240,7 +260,7 @@ public abstract class AbstractReadCommandBuilder
         }
 
         @Override
-        public ReadCommand build()
+        public SinglePartitionReadCommand build()
         {
             return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
         }

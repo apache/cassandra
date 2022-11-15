@@ -40,11 +40,6 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
     protected final T query;
 
-    /**
-     * The limits provided as a part of the query (rows limit, per partition rows limit)
-     */
-    protected final DataLimits limits;
-
     protected final ProtocolVersion protocolVersion;
 
     private final boolean enforceStrictLiveness;
@@ -88,11 +83,10 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     {
         this.query = query;
         this.protocolVersion = protocolVersion;
-        this.limits = query.limits();
         this.enforceStrictLiveness = query.metadata().enforceStrictLiveness();
 
-        this.remaining = limits.count();
-        this.remainingInPartition = limits.perPartitionCount();
+        this.remaining = query.limits().count();
+        this.remainingInPartition = query.limits().perPartitionCount();
     }
 
     @Override
@@ -154,20 +148,26 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     }
 
     /**
-     * For subsequent pages we want to limit the number of rows to the minimum of the currently set limit in the query
-     * and the number of remaining rows. Note that paging itself will be applied separately.
-     * Immediate question may be - can the remaining number of rows be ever greater than limits.count()? it may happen
-     * in case of multipartition queries, in such case query limit pertains to the total number of rows rather than
-     * rows in the partition. The partition limit may not even be set, and thus it is equal {@link Integer#MAX_VALUE}.
+     * Limits for the next page are basically the initial CQL limits reduced by the counts of data fetches so far on
+     * previous pages, that is - remaining and remainingInPartition. The fact that we use the minimum of the actual
+     * limits and remaining amounts is that, the remaining amounts are computed against the initial CQL limits, while
+     * the actual limits might have been updated by {@link #withUpdatedLimit(DataLimits)} and we want that none of those
+     * can be exceeded.
+     * <p/>
+     * TL;DR - this situation takes place when we do aggregation with grouping, while paging results by groups. When
+     * the next page of groups is fetched, the remaining counters denote the CQL limits ({@link #remaining}
+     * {@link #remainingInPartition}) while the actual limits are updated with the groups page size ({@link #limits()}).
+     * Since both limits need to be obeyed, and we can only specify one limit, we simply use the minimum of both for
+     * the next page.
      */
     protected DataLimits nextPageLimits()
     {
-        return limits.withCountedLimit(Math.min(limits.count(), remaining));
+        return limits().withCountedLimit(Math.min(limits().count(), remaining))
+                       .withCountedPerPartitionLimit(Math.min(limits().perPartitionCount(), remainingInPartition));
     }
 
     private class UnfilteredPagerTransformation extends PagerTransformation<Unfiltered>
     {
-
         private UnfilteredPagerTransformation(DataLimits pageLimits, int nowInSec)
         {
             super(pageLimits, nowInSec);
@@ -182,7 +182,6 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
     private class RowPagerTransformation extends PagerTransformation<Row>
     {
-
         private RowPagerTransformation(DataLimits pageLimits, int nowInSec)
         {
             super(pageLimits, nowInSec);
@@ -294,7 +293,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         public Row applyToRow(Row row)
         {
             if (!currentKey.equals(lastKey))
-                remainingInPartition = limits.perPartitionCount();
+                remainingInPartition = limits().perPartitionCount();
             lastKey = currentKey;
             lastRow = row;
             return row;
@@ -316,8 +315,8 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     protected void restoreState(DecoratedKey lastKey, int remaining, int remainingInPartition)
     {
         this.lastKey = lastKey;
-        this.remaining = Math.min(remaining, this.remaining);
-        this.remainingInPartition = Math.min(remainingInPartition, this.remainingInPartition);
+        this.remaining = remaining;
+        this.remainingInPartition = remainingInPartition;
     }
 
     @Override
@@ -330,6 +329,12 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     public int maxRemaining()
     {
         return remaining;
+    }
+
+    @Override
+    public DataLimits limits()
+    {
+        return query.limits();
     }
 
     protected int remainingInPartition()
@@ -356,7 +361,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     public String toString()
     {
         return new StringJoiner(", ", AbstractQueryPager.class.getSimpleName() + "[", "]")
-               .add("limits=" + limits)
+               .add("limits=" + limits())
                .add("remaining=" + remaining)
                .add("lastCounter=" + lastCounter)
                .add("lastKey=" + lastKey)

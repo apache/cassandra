@@ -50,39 +50,52 @@ public interface QueryPager
 {
     QueryPager EMPTY = new QueryPager()
     {
+        @Override
         public ReadExecutionController executionController()
         {
             return ReadExecutionController.empty();
         }
 
+        @Override
         public PartitionIterator fetchPage(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
         {
             return EmptyIterators.partition();
         }
 
+        @Override
         public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
         {
             return EmptyIterators.partition();
         }
 
+        @Override
         public boolean isExhausted()
         {
             return true;
         }
 
+        @Override
         public int maxRemaining()
         {
             return 0;
         }
 
+        @Override
         public PagingState state()
         {
             return null;
         }
 
+        @Override
         public QueryPager withUpdatedLimit(DataLimits newLimits)
         {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public DataLimits limits()
+        {
+            return DataLimits.NONE;
         }
     };
 
@@ -145,8 +158,13 @@ public interface QueryPager
     /**
      * Creates a new <code>QueryPager</code> that use the new limits.
      *
-     * @param newLimits the new limits
+     * @param newLimits                the new limits
      * @return a new <code>QueryPager</code> that use the new limits
      */
     public QueryPager withUpdatedLimit(DataLimits newLimits);
+
+    /**
+     * Returns the limits of this pager.
+     */
+    public DataLimits limits();
 }

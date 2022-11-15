@@ -4695,6 +4695,6 @@ public class DatabaseDescriptor
     {
         Preconditions.checkArgument(!pageSize.isDefined() || pageSize.getUnit() == PageSize.PageUnit.BYTES);
         Preconditions.checkArgument(pageSize.bytes() >= 0);
-        conf.aggregation_subpage_size = new DataStorageSpec.IntBytesBound(pageSize.bytes());
+        conf.aggregation_subpage_size = new DataStorageSpec.IntBytesBound(pageSize.isDefined() ? pageSize.bytes() : 0);
     }
 }

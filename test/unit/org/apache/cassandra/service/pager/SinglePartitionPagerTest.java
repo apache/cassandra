@@ -50,15 +50,15 @@ import static org.mockito.Mockito.when;
 
 public class SinglePartitionPagerTest extends QueryPagerTest
 {
-    private ReadCommand makeSliceQuery(int limit, int perPartitionLimit, boolean isReversed)
+    protected ReadCommand makeSliceQuery(int limit, int perPartitionLimit, boolean isReversed)
     {
-        return sliceQuery(limit, perPartitionLimit, PageSize.NONE, cfs(KEYSPACE1, CF_STANDARD), "k0", "c1", "c9", isReversed);
+        return sliceQuery(limit, perPartitionLimit, PageSize.NONE, cfs(KEYSPACE1, CF_STANDARD), "k0", "c1", "c9", isReversed).build();
     }
 
-    private ReadCommand makeNamesQuery(int limit, int perPartitionLimit)
+    protected ReadCommand makeNamesQuery(int limit, int perPartitionLimit)
     {
         return namesQuery(limit, perPartitionLimit, PageSize.NONE, cfs(KEYSPACE1, CF_STANDARD),
-                          "k0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8");
+                          "k0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8").build();
     }
 
     @Test

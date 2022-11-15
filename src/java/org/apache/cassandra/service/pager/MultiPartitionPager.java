@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.util.Arrays;
 import java.util.StringJoiner;
 import javax.annotation.Nonnull;
 
@@ -57,20 +56,20 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
 {
     private static final Logger logger = LoggerFactory.getLogger(MultiPartitionPager.class);
 
-    private static final SinglePartitionPager[] NO_PAGERS = new SinglePartitionPager[0];
+    private static final SinglePartitionReadQuery[] NO_QUERIES = new SinglePartitionReadQuery[0];
 
-    /**
-     * A pager per queried partition
-     */
     @Nonnull
-    private final SinglePartitionPager[] pagers;
+    private final SinglePartitionReadQuery[] queries;
 
+    private SinglePartitionPager curPager;
     /**
      * The limits provided as a part of the query (rows limit, per partition rows limit)
      */
     private final DataLimits limits;
 
     private final int nowInSec;
+
+    private final ProtocolVersion protocolVersion;
 
     /**
      * Initially set to the user limits provided in the query (via the LIMIT clause - that value is obtained
@@ -82,12 +81,13 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     /**
      * The index of the current single partition pager
      */
-    private int curPagerIdx;
+    private int curQueryIdx;
 
     public MultiPartitionPager(SinglePartitionReadQuery.Group<T> group, PagingState state, ProtocolVersion protocolVersion)
     {
         this.limits = group.limits();
         this.nowInSec = group.nowInSec();
+        this.protocolVersion = protocolVersion;
 
         int firstNotExhaustedQueryIdx = 0;
 
@@ -100,51 +100,54 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
 
         if (firstNotExhaustedQueryIdx >= group.queries.size())
         {
-            pagers = NO_PAGERS;
+            queries = NO_QUERIES;
             return;
         }
 
-        pagers = new SinglePartitionPager[group.queries.size() - firstNotExhaustedQueryIdx];
-        SinglePartitionReadQuery query = group.queries.get(firstNotExhaustedQueryIdx);
-        int pagerIdx = 0;
-        pagers[pagerIdx++] = query.getPager(state, protocolVersion);
-
-        // Following ones haven't been started yet
-        for (int idx = firstNotExhaustedQueryIdx + 1; idx < group.queries.size(); idx++)
-        {
-            query = group.queries.get(idx);
-            pagers[pagerIdx++] = query.getPager(null, protocolVersion);
-        }
+        queries = group.queries.stream().toArray(SinglePartitionReadQuery[]::new);
 
         remaining = state == null ? limits.count() : Math.min(state.remaining, limits.count());
+
+        curQueryIdx = firstNotExhaustedQueryIdx;
+        SinglePartitionReadQuery query = queries[curQueryIdx];
+        curPager = query.withUpdatedLimit(limits.withCountedLimit(remaining)).getPager(state, protocolVersion);
     }
 
-    private MultiPartitionPager(SinglePartitionPager[] pagers,
+    private MultiPartitionPager(SinglePartitionReadQuery[] queries,
                                 DataLimits limits,
                                 int nowInSec,
                                 int remaining,
-                                int curPagerIdx)
+                                SinglePartitionPager curPager,
+                                int curQueryIdx,
+                                ProtocolVersion protocolVersion)
     {
-        this.pagers = pagers;
+        this.queries = queries;
         this.limits = limits;
         this.nowInSec = nowInSec;
         this.remaining = remaining;
-        this.curPagerIdx = curPagerIdx;
+        this.curPager = curPager;
+        this.curQueryIdx = curQueryIdx;
+        this.protocolVersion = protocolVersion;
     }
 
     @Override
     public QueryPager withUpdatedLimit(DataLimits newLimits)
     {
-        // this may seem to be buggy because it does not update either the `remaining` counter or the other pagers
-        // but both of them are updated whenever we move to the new pager (see the iterator)
-        SinglePartitionPager[] newPagers = Arrays.copyOf(pagers, pagers.length);
-        newPagers[curPagerIdx] = newPagers[curPagerIdx].withUpdatedLimit(newLimits);
+        moveToNextNonEmptyPager();
 
-        return new MultiPartitionPager<T>(newPagers,
+        return new MultiPartitionPager<T>(queries,
                                           newLimits,
                                           nowInSec,
-                                          Math.min(newLimits.count(), remaining),
-                                          curPagerIdx);
+                                          remaining,
+                                          curPager,
+                                          curQueryIdx,
+                                          protocolVersion);
+    }
+
+    @Override
+    public DataLimits limits()
+    {
+        return limits;
     }
 
     @Override
@@ -154,36 +157,50 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         if (isExhausted())
             return null;
 
-        SinglePartitionPager pager = pagers[curPagerIdx];
-        PagingState state = pager.state();
+        PagingState state = curPager.state();
         PagingState.RowMark rowMark = state == null ? null : state.rowMark;
-        return new PagingState(pager.key(), rowMark, remaining, pager.remainingInPartition());
+        return new PagingState(curPager.key(), rowMark, remaining, curPager.remainingInPartition());
+    }
+
+    private boolean isLastQuery()
+    {
+        assert queries.length > 0;
+        return curQueryIdx == (queries.length - 1);
     }
 
     @Override
     public boolean isExhausted()
     {
-        if (remaining == 0)
+        if (remaining == 0 || curPager == null)
             return true;
 
-        for (int idx = curPagerIdx; idx < pagers.length; idx++) {
-            if (!pagers[idx].isExhausted())
-                return false;
-        }
+        if (!curPager.isExhausted())
+            return false;
 
-        return true;
+        return isLastQuery();
     }
 
-    private void moveToNextNonEmptyPager()
+    private boolean moveToNextNonEmptyPager()
     {
-        while (curPagerIdx < pagers.length && pagers[curPagerIdx].isExhausted())
-            curPagerIdx++;
+        if (isExhausted())
+            return false;
+
+        int oldIdx = curQueryIdx;
+        while (curPager.isExhausted())
+        {
+            if (isLastQuery())
+                break;
+
+            curQueryIdx++;
+            curPager = queries[curQueryIdx].withUpdatedLimit(limits.withCountedLimit(remaining)).getPager(null, protocolVersion);
+        }
+        return curQueryIdx > oldIdx;
     }
 
     public ReadExecutionController executionController()
     {
-        if (curPagerIdx < pagers.length)
-            return pagers[curPagerIdx].executionController();
+        if (remaining > 0 && curPager != null)
+            return curPager.executionController();
 
         throw new AssertionError("Shouldn't be called on an exhausted pager");
     }
@@ -202,10 +219,10 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
 
     /**
      * This is an iterator over RowIterators (subsequent partitions). It starts from {@link #pagers}
-     * at {@link #curPagerIdx} and make sure that the overall amount of data does not exceed
+     * at {@link #curQueryIdx} and make sure that the overall amount of data does not exceed
      * the provided {@link PagersIterator#pageSize} and user-defined data limits. This means that it can cut
      * the row iteration in the first partition or return multiple partitions and cut the row iterator
-     * in n-th partition. It will update the {@link #curPagerIdx} index and {@link #remaining} as it goes.
+     * in n-th partition. It will update the {@link #curQueryIdx} index and {@link #remaining} as it goes.
      */
     private class PagersIterator extends AbstractIterator<RowIterator> implements PartitionIterator
     {
@@ -222,11 +239,18 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         private final ReadExecutionController executionController;
 
         /**
-         * While the iterator executes individual queries, and they have their own limits and counters, the outer query
-         * needs its own counter which has to be tracked manually. It is a sum of data counts measured by the counters
-         * of inner queries. It is required to do the outer query paging.
+         * The limits adjusted for the current page - the initial query limits with count limit reduced by what has been
+         * counted so far on the previously fetched pages. In other words, the upper limit of items that can be
+         * fetched on this page (before actually applying paging).
+         */
+        private final DataLimits curPageLimits;
+
+        /**
+         * The counter used to count data on the current page across all the traversed internal pagers. In contains
+         * a sum of what has been counted by the internal pagers on this page.
          */
         private final DataLimits.Counter curPageCounter;
+
 
         public PagersIterator(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, ReadExecutionController executionController, long queryStartNanoTime)
         {
@@ -235,21 +259,12 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
             this.clientState = clientState;
             this.executionController = executionController;
             this.queryStartNanoTime = queryStartNanoTime;
-            this.curPageCounter = limits.forPaging(pageSize).newCounter(nowInSec, true, true, false);
+            this.curPageLimits = limits.withCountedLimit(remaining);
+            this.curPageCounter = curPageLimits.forPaging(pageSize)
+                                               .newCounter(nowInSec, true, true, false);
 
             if (logger.isTraceEnabled())
                 logger.trace("Fetching a new page - created {}", this);
-        }
-
-        /**
-         * Returns new limits for a single partition pager. Those limits are the global limits decreased by what has
-         * been counted so far on the current page for the outer query. Additinally, it takes into account global
-         * remaining limit (limits specified by CQL clause).
-         */
-        private DataLimits getNextPagerLimits()
-        {
-            DataLimits newLimits = limits.reducedBy(curPageCounter);
-            return newLimits.count() > remaining ? newLimits.withCountedLimit(remaining) : newLimits;
         }
 
         protected RowIterator computeNext()
@@ -262,7 +277,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                     // we've just reached the end of partition - let's close the row iterator and update the global counters
                     partitionIterator.close();
 
-                    lastPartitionCounter = pagers[curPagerIdx].getLastCounter();
+                    lastPartitionCounter = curPager.getLastCounter();
 
                     // the counts of data measured by the lastly iterated partition are added to the outer query counter
                     curPageCounter.add(lastPartitionCounter);
@@ -273,11 +288,12 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 // We are done if:
                 // - we have reached the page size,
                 // - or in the case of GROUP BY if the current pager is not exhausted - which means that we read all the rows withing the limit before exhausting the pager
-                boolean isDone = curPageCounter.isDone() || (partitionIterator != null && limits.isGroupByLimit() && !pagers[curPagerIdx].isExhausted());
+                boolean isDone = curPageCounter.isDone() || (partitionIterator != null && limits.isGroupByLimit() && !curPager.isExhausted());
 
                 // move to the next non-empty partition (pager)
+                boolean isNewPartition = false;
                 if (!isDone)
-                    moveToNextNonEmptyPager();
+                    isNewPartition = moveToNextNonEmptyPager();
 
                 if (isDone || isExhausted())
                 {
@@ -285,19 +301,17 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                     return endOfData();
                 }
 
-                SinglePartitionPager curPager = pagers[curPagerIdx];
-
-                // since a new partition is started... it is for resetting per partition count in the outer counter
-                // EMPTY_STATIC_ROW is passed to just not pass null - we simply don't care here because if a static
-                // row is encountered, it will be handled by inner counter of a partition query - that is, its data
-                // will be counted by inner counter and then added to the outer counter as above
-                curPageCounter.applyToPartition(curPager.query.partitionKey(), Rows.EMPTY_STATIC_ROW);
+                if (isNewPartition)
+                    // since a new partition is started... it is for resetting per partition count in the outer counter
+                    // EMPTY_STATIC_ROW is passed to just not pass null - we simply don't care here because if a static
+                    // row is encountered, it will be handled by inner counter of a partition query - that is, its data
+                    // will be counted by inner counter and then added to the outer counter as above
+                    curPageCounter.applyToPartition(curPager.query.partitionKey(), Rows.EMPTY_STATIC_ROW);
 
                 // initially individual queries have their limits set to the initial value passed in the constructor
-                // the limits for subsequent queries have to be reduced by what has been counted so far for the outer
-                // query
-                curPager = curPager.withUpdatedLimit(getNextPagerLimits());
-                pagers[curPagerIdx] = curPager;
+                // the limits for subsequent queries have to be adjusted to the current page limits reduced by what has
+                // been counted so far on this page
+                curPager = curPager.withUpdatedLimit(curPageLimits.reducedBy(curPageCounter));
 
                 // a single page may span multiple partitions, so we may be in a middle of a page when switching
                 // to the next partition; therefore, a full page should not be requested from the next partition query,
@@ -338,8 +352,8 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     public String toString()
     {
         return new StringJoiner(", ", MultiPartitionPager.class.getSimpleName() + "[", "]")
-               .add("current=" + curPagerIdx)
-               .add("pagers.length=" + pagers.length)
+               .add("current=" + curQueryIdx)
+               .add("queries.length=" + queries.length)
                .add("limit=" + limits)
                .add("remaining=" + remaining)
                .toString();

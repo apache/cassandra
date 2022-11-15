@@ -76,7 +76,7 @@ public class MultiPartitionPagerTest extends AbstractPartitionsPagerTest
                                                                                                                  new ClusteringIndexSliceFilter(Slices.ALL, false));
         QueryPager multiPartitionPager = new MultiPartitionPager<>(singlePartitionReadQueryGroup, state, ProtocolVersion.CURRENT);
         Assertions.assertThat(multiPartitionPager.toString())
-                  .contains("pagers.length=2")
+                  .contains("queries.length=2")
                   .contains("limit=" + limits)
                   .contains("remaining=19")
                   .contains("current=0");
@@ -99,12 +99,12 @@ public class MultiPartitionPagerTest extends AbstractPartitionsPagerTest
     @Override
     protected ReadQuery makePartitionsSliceQuery(int limit, int perPartitionLimit, ColumnFamilyStore cfs, String startKeyInc, String endKeyExcl, String startClustInc, String endClustExcl)
     {
-        return makeGroup(limit, perPartitionLimit, startKeyInc, endKeyExcl, key -> sliceQuery(cfs, key, startClustInc, endClustExcl));
+        return makeGroup(limit, perPartitionLimit, startKeyInc, endKeyExcl, key -> sliceQuery(cfs, key, startClustInc, endClustExcl).build());
     }
 
     @Override
     protected ReadQuery makePartitionsNamesQuery(int limit, int perPartitionLimit, ColumnFamilyStore cfs, String startKeyInc, String endKeyExcl, String... clusts)
     {
-        return makeGroup(limit, perPartitionLimit, startKeyInc, endKeyExcl, key -> namesQuery(cfs, key, clusts));
+        return makeGroup(limit, perPartitionLimit, startKeyInc, endKeyExcl, key -> namesQuery(cfs, key, clusts).build());
     }
 }

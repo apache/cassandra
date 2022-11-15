@@ -40,11 +40,24 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * {@code QueryPager} that takes care of fetching the pages for aggregation queries.
- * <p>
+ * <p/>
  * For aggregation/group by queries, the user page size is in number of groups. But each group could be composed of very
  * many rows so to avoid running into OOMs, this pager will page internal queries into sub-pages. So each call to
  * {@link #fetchPage(PageSize, ConsistencyLevel, ClientState, long)} may (transparently) yield multiple internal queries
  * (sub-pages).
+ * <p/>
+ * TL;DR
+ * The sub-pager is the source of data, and the following limits need to be maintained when fetching a page of internal
+ * results:
+ * <ul>
+ * <li>CQL limit for the total maximum groups number (provided by user as CQL clause)</li>
+ * <li>CQL limit for the maximum number of groups per partition (provided by user as CQL clause)</li>
+ * <li>page size specified in the number of groups</li>
+ * <li>sub-pager page size in rows, bytes or both</li>
+ * </ul>
+ * There is no way to specify all the limits separately when fetching next page from the sub-pager. Therefore, they need
+ * to be squashed.
+ *
  */
 public final class AggregationQueryPager implements QueryPager
 {
@@ -87,7 +100,7 @@ public final class AggregationQueryPager implements QueryPager
         if (pageSize.isDefined() && pageSize.getUnit() != PageSize.PageUnit.ROWS)
             throw new InvalidRequestException("Paging in bytes is not supported for aggregation queries. Please specify the page size in rows.");
 
-        if (limits.isGroupByLimit())
+        if (subPager.limits().isGroupByLimit())
             return new GroupByPartitionIterator(pageSize, subPageSize, consistency, clientState, queryStartNanoTime);
 
         return new AggregationPartitionIterator(subPageSize, consistency, clientState, queryStartNanoTime);
@@ -111,7 +124,7 @@ public final class AggregationQueryPager implements QueryPager
         if (pageSize.isDefined() && pageSize.getUnit() != PageSize.PageUnit.ROWS)
             throw new InvalidRequestException("Paging in bytes is not supported for aggregation queries. Please specify the page size in rows.");
 
-        if (limits.isGroupByLimit())
+        if (limits().isGroupByLimit())
             return new GroupByPartitionIterator(pageSize, subPageSize, executionController, nanoTime());
 
         return new AggregationPartitionIterator(subPageSize, executionController, nanoTime());
@@ -139,6 +152,12 @@ public final class AggregationQueryPager implements QueryPager
     public QueryPager withUpdatedLimit(DataLimits newLimits)
     {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public DataLimits limits()
+    {
+        return limits;
     }
 
     /**
@@ -203,8 +222,8 @@ public final class AggregationQueryPager implements QueryPager
 
         public GroupByPartitionIterator(PageSize groupsPageSize,
                                         PageSize subPageSize,
-                                         ConsistencyLevel consistency,
-                                         ClientState clientState,
+                                        ConsistencyLevel consistency,
+                                        ClientState clientState,
                                         long queryStartNanoTime)
         {
             this(groupsPageSize, subPageSize, consistency, clientState, null, queryStartNanoTime);
@@ -231,7 +250,7 @@ public final class AggregationQueryPager implements QueryPager
             this.clientState = clientState;
             this.executionController = executionController;
             this.queryStartNanoTime = queryStartNanoTime;
-            subPager = subPager.withUpdatedLimit(limits.withCountedLimit(groupsPageSize.minRowsCount(maxRemaining())));
+            subPager = subPager.withUpdatedLimit(limits().withCountedLimit(groupsPageSize.rows()));
 
             if (logger.isTraceEnabled())
                 logger.trace("Fetching a new page - created {}", this);
@@ -265,7 +284,7 @@ public final class AggregationQueryPager implements QueryPager
          */
         private void fetchNextRowIterator()
         {
-            // we haven't started yet, fetch the first sub page (partition iterator with sub-page limit)
+            // we haven't started yet, fetch the first subpage (partition iterator with sub-page limit)
             if (partitionIterator == null)
             {
                 initialMaxRemaining = subPager.maxRemaining();
@@ -285,7 +304,7 @@ public final class AggregationQueryPager implements QueryPager
                     return;
                 }
 
-                subPager = updatePagerLimit(subPager, limits.withCountedLimit(remaining), lastPartitionKey, lastClustering);
+                subPager = updatePagerLimit(subPager, limits().withCountedLimit(remaining), lastPartitionKey, lastClustering);
                 partitionIterator = fetchSubPage(subPageSize);
             }
 
@@ -441,7 +460,7 @@ public final class AggregationQueryPager implements QueryPager
                    .add("subPageSize=" + subPageSize)
                    .add("endOfData=" + endOfData)
                    .add("closed=" + closed)
-                   .add("limits=" + limits)
+                   .add("limits=" + limits())
                    .add("lastPartitionKey=" + lastPartitionKey)
                    .add("lastClustering=" + ((lastClustering != null && subPager.executionController() != null) ? lastClustering.toString(subPager.executionController().metadata()): String.valueOf(lastClustering)))
                    .add("initialMaxRemaining=" + initialMaxRemaining)
@@ -454,7 +473,7 @@ public final class AggregationQueryPager implements QueryPager
     public String toString()
     {
         return new StringJoiner(", ", AggregationQueryPager.class.getSimpleName() + "[", "]")
-               .add("limits=" + limits)
+               .add("limits=" + limits())
                .add("subPageSize=" + subPageSize)
                .add("subPager=" + subPager)
                .toString();

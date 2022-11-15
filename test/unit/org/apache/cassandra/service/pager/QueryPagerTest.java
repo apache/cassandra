@@ -24,8 +24,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.Consumer;
@@ -46,6 +48,8 @@ import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.AbstractReadCommandBuilder;
+import org.apache.cassandra.db.AbstractReadCommandBuilder.PartitionRangeBuilder;
+import org.apache.cassandra.db.AbstractReadCommandBuilder.SinglePartitionBuilder;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -59,6 +63,8 @@ import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
@@ -85,9 +91,10 @@ public abstract class QueryPagerTest
 
     public static final String KEYSPACE1 = "QueryPagerTest";
     public static final String CF_STANDARD = "Standard1";
+    public static final String CF_STANDARD2 = "Standard2";
     public static final String KEYSPACE_CQL = "cql_keyspace";
-    public static final String CF_CQL = "table2";
-    public static final String PER_TEST_CF_CQL_WITH_STATIC = "with_static";
+    public static final String CF_CQL = "table_clust1";
+    public static final String PER_TEST_CF_CQL_WITH_STATIC = "table_with_static";
     public static final int nowInSec = FBUtilities.nowInSeconds();
     public static List<String> tokenOrderedKeys;
 
@@ -112,7 +119,14 @@ public abstract class QueryPagerTest
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
+                                    TableMetadata.builder(KEYSPACE1, CF_STANDARD2)
+                                                 .addPartitionKeyColumn("key", AsciiType.instance)
+                                                 .addClusteringColumn("name", AsciiType.instance)
+                                                 .addClusteringColumn("c", Int32Type.instance)
+                                                 .addRegularColumn("val", AsciiType.instance)
+                                                 .compression(SchemaLoader.getCompressionParameters())
+        );
 
         SchemaLoader.createKeyspace(KEYSPACE_CQL,
                                     KeyspaceParams.simple(1),
@@ -131,7 +145,7 @@ public abstract class QueryPagerTest
         addData();
     }
 
-    private static String string(ByteBuffer bb)
+    static String string(ByteBuffer bb)
     {
         try
         {
@@ -146,9 +160,11 @@ public abstract class QueryPagerTest
     public static void addData()
     {
         cfs(KEYSPACE1, CF_STANDARD).clearUnsafe();
+        cfs(KEYSPACE1, CF_STANDARD2).clearUnsafe();
 
         int nbKeys = 10;
         int nbCols = 10;
+        int nbCols2 = 10;
 
         SortedSet<String> tokens = Sets.newTreeSet(Comparator.comparing(a -> cfs(KEYSPACE1, CF_STANDARD).getPartitioner().decorateKey(bytes(a))));
 
@@ -160,11 +176,16 @@ public abstract class QueryPagerTest
         // *
         for (int i = 0; i < nbKeys; i++)
         {
+            tokens.add("k" + i);
             for (int j = 0; j < nbCols; j++)
             {
-                tokens.add("k" + i);
                 RowUpdateBuilder builder = new RowUpdateBuilder(cfs(KEYSPACE1, CF_STANDARD).metadata(), FBUtilities.timestampMicros(), "k" + i);
                 builder.clustering("c" + j).add("val", "").build().applyUnsafe();
+                for (int k = 0; k < nbCols2; k++)
+                {
+                    RowUpdateBuilder builder2 = new RowUpdateBuilder(cfs(KEYSPACE1, CF_STANDARD2).metadata(), FBUtilities.timestampMicros(), "k" + i);
+                    builder2.clustering("c" + j, k).add("val", "").build().applyUnsafe();
+                }
             }
         }
 
@@ -187,9 +208,9 @@ public abstract class QueryPagerTest
         StringBuilder sb = new StringBuilder();
         List<FilteredPartition> partitionList = new ArrayList<>();
         int rows = 0;
-        try (//ReadExecutionController executionController = pager.executionController();
-//             PartitionIterator iterator = pager.fetchPageInternal(pageSize, executionController))
-             PartitionIterator iterator = pager.fetchPage(pageSize, ConsistencyLevel.ONE, ClientState.forInternalCalls(), System.nanoTime()))
+        try (ReadExecutionController executionController = pager.executionController();
+             PartitionIterator iterator = pager.fetchPageInternal(pageSize, executionController))
+//             PartitionIterator iterator = pager.fetchPage(pageSize, ConsistencyLevel.ONE, ClientState.forInternalCalls(), System.nanoTime()))
         {
             while (iterator.hasNext())
             {
@@ -245,12 +266,12 @@ public abstract class QueryPagerTest
         return ret;
     }
 
-    static SinglePartitionReadCommand namesQuery(ColumnFamilyStore cfs, String key, String... names)
+    static SinglePartitionBuilder namesQuery(ColumnFamilyStore cfs, String key, String... names)
     {
         return namesQuery(-1, -1, null, cfs, key, names);
     }
 
-    static SinglePartitionReadCommand namesQuery(int limit, int perPartitionLimit, PageSize pageSize, ColumnFamilyStore cfs, String key, String... names)
+    static SinglePartitionBuilder namesQuery(int limit, int perPartitionLimit, PageSize pageSize, ColumnFamilyStore cfs, String key, String... names)
     {
         AbstractReadCommandBuilder builder = Util.cmd(cfs, key).withNowInSeconds(nowInSec);
         for (String name : names)
@@ -262,20 +283,20 @@ public abstract class QueryPagerTest
         if (pageSize != null && !pageSize.equals(PageSize.NONE))
             builder.withPageSize(pageSize);
 
-        return (SinglePartitionReadCommand) builder.build();
+        return (SinglePartitionBuilder) builder;
     }
 
-    static SinglePartitionReadCommand sliceQuery(ColumnFamilyStore cfs, String key, String start, String end)
+    static SinglePartitionBuilder sliceQuery(ColumnFamilyStore cfs, String key, String start, String end)
     {
         return sliceQuery(-1, -1, PageSize.NONE, cfs, key, start, end, false);
     }
 
-    static SinglePartitionReadCommand sliceQuery(ColumnFamilyStore cfs, String key, String start, String end, boolean reversed)
+    static SinglePartitionBuilder sliceQuery(ColumnFamilyStore cfs, String key, String start, String end, boolean reversed)
     {
         return sliceQuery(-1, -1, PageSize.NONE, cfs, key, start, end, reversed);
     }
 
-    static SinglePartitionReadCommand sliceQuery(int limit, int perPartitionLimit, PageSize pageSize, ColumnFamilyStore cfs, String key, String start, String end, boolean reversed)
+    static SinglePartitionBuilder sliceQuery(int limit, int perPartitionLimit, PageSize pageSize, ColumnFamilyStore cfs, String key, String start, String end, boolean reversed)
     {
         AbstractReadCommandBuilder builder = Util.cmd(cfs, key).fromIncl(start).toExcl(end).withNowInSeconds(nowInSec);
         if (reversed)
@@ -287,7 +308,7 @@ public abstract class QueryPagerTest
         if (pageSize != null && !pageSize.equals(PageSize.NONE))
             builder.withPageSize(pageSize);
 
-        return (SinglePartitionReadCommand) builder.build();
+        return (SinglePartitionBuilder) builder;
     }
 
     static ReadCommand rangeNamesQuery(int limit, int perPartitionLimit, PageSize pageSize, ColumnFamilyStore cfs, String keyStart, String keyEnd, String... names)
@@ -308,7 +329,7 @@ public abstract class QueryPagerTest
         return builder.build();
     }
 
-    static ReadCommand rangeSliceQuery(int limit, int perPartitionLimit, PageSize pageSize, ColumnFamilyStore cfs, String keyStart, String keyEnd, String start, String end)
+    static PartitionRangeBuilder rangeSliceQuery(int limit, int perPartitionLimit, PageSize pageSize, ColumnFamilyStore cfs, String keyStart, String keyEnd, String start, String end)
     {
         AbstractReadCommandBuilder builder = Util.cmd(cfs)
                                                  .fromKeyIncl(keyStart)
@@ -323,10 +344,10 @@ public abstract class QueryPagerTest
         if (pageSize != null && !pageSize.equals(PageSize.NONE))
             builder.withPageSize(pageSize);
 
-        return builder.build();
+        return (PartitionRangeBuilder) builder;
     }
 
-    static void assertRow(FilteredPartition p, String key, String... names)
+    void assertRow(FilteredPartition p, String key, String... names)
     {
         ByteBuffer[] bbs = new ByteBuffer[names.length];
         for (int i = 0; i < names.length; i++)
@@ -334,7 +355,7 @@ public abstract class QueryPagerTest
         assertRow(p, key, bbs);
     }
 
-    static void assertRow(FilteredPartition p, String key, ByteBuffer... names)
+    void assertRow(FilteredPartition p, String key, ByteBuffer... names)
     {
         assertEquals(key, string(p.partitionKey().getKey()));
         assertFalse(p.isEmpty());
@@ -356,8 +377,12 @@ public abstract class QueryPagerTest
         return command.getPager(state, protocolVersion);
     }
 
-
     QueryPager checkNextPage(QueryPager pager, ReadQuery command, boolean testPagingState, PageSize pageSize, int expectedRows, Consumer<List<FilteredPartition>> assertion)
+    {
+        return checkNextPage(pager, command, testPagingState, pageSize, PageSize.NONE, expectedRows, assertion);
+    }
+
+    QueryPager checkNextPage(QueryPager pager, ReadQuery command, boolean testPagingState, PageSize pageSize, PageSize subPageSize, int expectedRows, Consumer<List<FilteredPartition>> assertion)
     {
         if (pager == null)
         {
@@ -368,6 +393,8 @@ public abstract class QueryPagerTest
             assertFalse(pager.isExhausted());
             pager = maybeRecreate(pager, command, testPagingState);
         }
+        if (pager.limits().isGroupByLimit() && !(pager instanceof AggregationQueryPager))
+            pager = new AggregationQueryPager(pager, subPageSize, command.limits());
         List<FilteredPartition> partition = query(pager, pageSize, expectedRows);
         assertion.accept(partition);
         return pager;
