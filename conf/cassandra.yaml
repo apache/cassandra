@@ -1394,6 +1394,7 @@ client_encryption_options:
   keystore_password: cassandra
   # Verify client certificates
   require_client_auth: false
+  # require_endpoint_verification: false
   # Set trustore and truststore_password if require_client_auth is true
   # truststore: conf/.truststore
   # truststore_password: cassandra
