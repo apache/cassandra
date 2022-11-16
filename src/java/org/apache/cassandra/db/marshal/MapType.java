@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Maps;
@@ -376,5 +377,11 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             sb.append(values.toJSONString(vv, protocolVersion));
         }
         return sb.append("}").toString();
+    }
+
+    @Override
+    public void forEach(ByteBuffer input, ProtocolVersion version, Consumer<ByteBuffer> action)
+    {
+        throw new UnsupportedOperationException();
     }
 }

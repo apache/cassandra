@@ -107,6 +107,9 @@ New features
       is set to true and table property is set to false, incremental backups for that specific table will not be done.
       When 'incremental_backups' in casandra.yaml is set to false, the newly added table property does not have any effect.
       Both properties have to be set to true (cassandra.yaml and table property) in order to make incremental backups.
+    - Added new CQL native scalar functions for collections. The new functions are mostly analogous to the existing
+      aggregation functions, but they operate on the elements of collection columns. The new functions are `map_keys`,
+      `map_values`, `collection_count`, `collection_min`, `collection_max`, `collection_sum` and `collection_avg`.
 
 Upgrading
 ---------
