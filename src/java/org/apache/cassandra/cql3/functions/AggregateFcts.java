@@ -160,6 +160,8 @@ public abstract class AggregateFcts
 
     /**
      * The AVG function for decimal values.
+     * </p>
+     * The average of an empty value set returns zero.
      */
     public static final NativeAggregateFunction avgFunctionForDecimal =
             new NativeAggregateFunction("avg", DecimalType.instance, DecimalType.instance)
@@ -239,6 +241,9 @@ public abstract class AggregateFcts
 
     /**
      * The AVG function for varint values.
+     * </p>
+     * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
+     * so the returned average won't have a decimal part.
      */
     public static final NativeAggregateFunction avgFunctionForVarint =
             new NativeAggregateFunction("avg", IntegerType.instance, IntegerType.instance)
@@ -282,6 +287,9 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for byte values (tinyint).
+     * </p>
+     * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
+     * values exceeds the maximum value that the type can represent.
      */
     public static final NativeAggregateFunction sumFunctionForByte =
             new NativeAggregateFunction("sum", ByteType.instance, ByteType.instance)
@@ -318,6 +326,9 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for byte values (tinyint).
+     * </p>
+     * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
+     * so the returned average won't have a decimal part.
      */
     public static final NativeAggregateFunction avgFunctionForByte =
             new NativeAggregateFunction("avg", ByteType.instance, ByteType.instance)
@@ -336,6 +347,9 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for short values (smallint).
+     * </p>
+     * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
+     * values exceeds the maximum value that the type can represent.
      */
     public static final NativeAggregateFunction sumFunctionForShort =
             new NativeAggregateFunction("sum", ShortType.instance, ShortType.instance)
@@ -372,6 +386,9 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for for short values (smallint).
+     * </p>
+     * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
+     * so the returned average won't have a decimal part.
      */
     public static final NativeAggregateFunction avgFunctionForShort =
             new NativeAggregateFunction("avg", ShortType.instance, ShortType.instance)
@@ -390,6 +407,9 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for int32 values.
+     * </p>
+     * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
+     * values exceeds the maximum value that the type can represent.
      */
     public static final NativeAggregateFunction sumFunctionForInt32 =
             new NativeAggregateFunction("sum", Int32Type.instance, Int32Type.instance)
@@ -426,6 +446,9 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for int32 values.
+     * </p>
+     * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
+     * so the returned average won't have a decimal part.
      */
     public static final NativeAggregateFunction avgFunctionForInt32 =
             new NativeAggregateFunction("avg", Int32Type.instance, Int32Type.instance)
@@ -444,6 +467,9 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for long values.
+     * </p>
+     * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
+     * values exceeds the maximum value that the type can represent.
      */
     public static final NativeAggregateFunction sumFunctionForLong =
             new NativeAggregateFunction("sum", LongType.instance, LongType.instance)
@@ -456,6 +482,9 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for long values.
+     * </p>
+     * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
+     * so the returned average won't have a decimal part.
      */
     public static final NativeAggregateFunction avgFunctionForLong =
             new NativeAggregateFunction("avg", LongType.instance, LongType.instance)
@@ -474,6 +503,9 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for float values.
+     * </p>
+     * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
+     * values exceeds the maximum value that the type can represent.
      */
     public static final NativeAggregateFunction sumFunctionForFloat =
             new NativeAggregateFunction("sum", FloatType.instance, FloatType.instance)
@@ -492,6 +524,8 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for float values.
+     * </p>
+     * The average of an empty value set returns zero.
      */
     public static final NativeAggregateFunction avgFunctionForFloat =
             new NativeAggregateFunction("avg", FloatType.instance, FloatType.instance)
@@ -510,6 +544,9 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for double values.
+     * </p>
+     * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
+     * values exceeds the maximum value that the type can represent.
      */
     public static final NativeAggregateFunction sumFunctionForDouble =
             new NativeAggregateFunction("sum", DoubleType.instance, DoubleType.instance)
@@ -670,6 +707,8 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for double values.
+     * </p>
+     * The average of an empty value set returns zero.
      */
     public static final NativeAggregateFunction avgFunctionForDouble =
             new NativeAggregateFunction("avg", DoubleType.instance, DoubleType.instance)

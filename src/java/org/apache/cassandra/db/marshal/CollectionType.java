@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Iterator;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -357,4 +358,11 @@ public abstract class CollectionType<T> extends AbstractType<T>
             ByteBufferUtil.skipWithVIntLength(in);
         }
     }
+
+    public int size(ByteBuffer buffer)
+    {
+        return CollectionSerializer.readCollectionSize(buffer.duplicate(), ByteBufferAccessor.instance, ProtocolVersion.V3);
+    }
+
+    public abstract void forEach(ByteBuffer input, ProtocolVersion version, Consumer<ByteBuffer> action);
 }
