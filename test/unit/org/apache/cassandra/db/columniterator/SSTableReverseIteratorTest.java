@@ -34,7 +34,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -89,7 +88,7 @@ public class SSTableReverseIteratorTest
         DecoratedKey dk = tbl.getPartitioner().decorateKey(Int32Type.instance.decompose(key));
         if (sstable instanceof BigTableReader)
         {
-            RowIndexEntry<IndexInfo> indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
+            RowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
             Assert.assertTrue(indexEntry.isIndexed());
             Assert.assertTrue(indexEntry.columnsIndexCount() > 2);
         }

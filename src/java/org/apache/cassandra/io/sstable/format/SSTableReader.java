@@ -34,6 +34,7 @@ import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.slf4j.Logger;
@@ -166,6 +167,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public static final Comparator<SSTableReader> maxTimestampDescending = (o1, o2) -> Long.compare(o2.getMaxTimestamp(), o1.getMaxTimestamp());
     public static final Comparator<SSTableReader> maxTimestampAscending = (o1, o2) -> Long.compare(o1.getMaxTimestamp(), o2.getMaxTimestamp());
 
+    public abstract AbstractRowIndexEntry deserializeKeyCacheValue(DataInputPlus input) throws IOException;
+
+    public abstract ClusteringPrefix<?> getLowerBoundPrefixFromCache(DecoratedKey partitionKey, ClusteringIndexFilter filter);
+
     // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
     public static final class UniqueIdentifier {}
 
@@ -215,7 +220,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     protected final IFilter bf;
     public final IndexSummary indexSummary;
 
-    protected InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache;
+    protected InstrumentingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache;
 
     protected final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
@@ -714,7 +719,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
-        InstrumentingCache<KeyCacheKey, RowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
+        InstrumentingCache<KeyCacheKey, AbstractRowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
         if (maybeKeyCache.getCapacity() > 0)
             keyCache = maybeKeyCache;
 
@@ -1327,8 +1332,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return new KeyCacheKey(metadata(), descriptor, key.getKey());
     }
 
-    public void cacheKey(DecoratedKey key, RowIndexEntry info)
+    public void cacheKey(DecoratedKey key, AbstractRowIndexEntry info)
     {
+        assert info.getSSTableFormat().getType() == descriptor.formatType;
+
         CachingParams caching = metadata().params.caching;
 
         if (!caching.cacheKeys() || keyCache == null || keyCache.getCapacity() == 0)
@@ -1339,34 +1346,40 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         keyCache.put(cacheKey, info);
     }
 
-    public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
+    public AbstractRowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
     {
         if (isKeyCacheEnabled())
             return getCachedPosition(new KeyCacheKey(metadata(), descriptor, key.getKey()), updateStats);
         return null;
     }
 
-    protected RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
+    protected AbstractRowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
+        AbstractRowIndexEntry cachedEntry;
         if (isKeyCacheEnabled())
         {
             if (updateStats)
             {
-                RowIndexEntry cachedEntry = keyCache.get(unifiedKey);
+                cachedEntry = keyCache.get(unifiedKey);
                 keyCacheRequest.incrementAndGet();
                 if (cachedEntry != null)
                 {
                     keyCacheHit.incrementAndGet();
                     bloomFilterTracker.addTruePositive();
                 }
-                return cachedEntry;
             }
             else
             {
-                return keyCache.getInternal(unifiedKey);
+                cachedEntry = keyCache.getInternal(unifiedKey);
             }
         }
-        return null;
+        else
+        {
+            cachedEntry = null;
+        }
+
+        assert cachedEntry == null || cachedEntry.getSSTableFormat().getType() == descriptor.formatType;
+        return cachedEntry;
     }
 
     public boolean isKeyCacheEnabled()
@@ -1412,11 +1425,29 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param listener a listener used to handle internal events
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected abstract long getPosition(PartitionPosition key,
-                                                 Operator op,
-                                                 boolean updateCacheAndStats,
-                                                 boolean permitMatchPastLast,
-                                                 SSTableReadsListener listener);
+    protected long getPosition(PartitionPosition key,
+                               Operator op,
+                               boolean updateCacheAndStats,
+                               boolean permitMatchPastLast,
+                               SSTableReadsListener listener)
+    {
+        AbstractRowIndexEntry rie = getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
+        return rie != null ? rie.position : -1;
+    }
+
+    /**
+     * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     * allow key selection by token bounds but only if op != * EQ
+     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     * @param updateCacheAndStats true if updating stats and cache
+     * @param listener a listener used to handle internal events
+     * @return The index entry corresponding to the key, or null if the key is not present
+     */
+    protected abstract AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key,
+                                                              Operator op,
+                                                              boolean updateCacheAndStats,
+                                                              boolean permitMatchPastLast,
+                                                              SSTableReadsListener listener);
 
     public abstract UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
 
@@ -1721,7 +1752,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return bloomFilterTracker.getRecentTrueNegativeCount();
     }
 
-    public InstrumentingCache<KeyCacheKey, RowIndexEntry> getKeyCache()
+    public InstrumentingCache<KeyCacheKey, AbstractRowIndexEntry> getKeyCache()
     {
         return keyCache;
     }

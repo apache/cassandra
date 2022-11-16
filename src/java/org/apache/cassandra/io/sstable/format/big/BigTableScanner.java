@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
@@ -62,7 +61,7 @@ public class BigTableScanner implements ISSTableScanner
 
     private final ColumnFilter columns;
     private final DataRange dataRange;
-    private final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final SSTableReadsListener listener;
     private long startScan = -1;
     private long bytesScanned = 0;

@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.codahale.metrics.Histogram;
-import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ArrayClustering;
@@ -35,6 +34,8 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -136,7 +137,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  * </p>
  *
  */
-public class RowIndexEntry<T> implements IMeasurableMemory
+public class RowIndexEntry extends AbstractRowIndexEntry
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new RowIndexEntry(0));
 
@@ -158,17 +159,16 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         indexInfoReadsHistogram = Metrics.histogram(factory.createMetricName("IndexInfoReads"), false);
     }
 
-    public final long position;
-
     public RowIndexEntry(long position)
     {
-        this.position = position;
+        super(position);
     }
 
     /**
      * @return true if this index entry contains the row-level tombstone and column summary.  Otherwise,
      * caller should fetch these from the row header.
      */
+    @Override
     public boolean isIndexed()
     {
         return columnsIndexCount() > 1;
@@ -179,16 +179,25 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         return false;
     }
 
+    @Override
     public DeletionTime deletionTime()
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public int columnsIndexCount()
     {
         return 0;
     }
 
+    @Override
+    public SSTableFormat getSSTableFormat()
+    {
+        return BigFormat.instance;
+    }
+
+    @Override
     public long unsharedHeapSize()
     {
         return EMPTY_SIZE;
@@ -205,7 +214,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
      * @param offsets           offsets of IndexInfo offsets
      * @param idxInfoSerializer the {@link IndexInfo} serializer
      */
-    public static RowIndexEntry<IndexInfo> create(long dataFilePosition, long indexFilePosition,
+    public static RowIndexEntry create(long dataFilePosition, long indexFilePosition,
                                                   DeletionTime deletionTime, long headerLength, int columnIndexCount,
                                                   int indexedPartSize,
                                                   List<IndexInfo> indexSamples, int[] offsets,
@@ -227,7 +236,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                                            deletionTime, headerLength, columnIndexCount,
                                            indexedPartSize, idxInfoSerializer);
         // Last case is that there are no index samples.
-        return new RowIndexEntry<>(dataFilePosition);
+        return new RowIndexEntry(dataFilePosition);
     }
 
     public IndexInfoRetriever openWithIndex(FileHandle indexFile)
@@ -235,32 +244,33 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         return null;
     }
 
-    public interface IndexSerializer<T>
+    public interface IndexSerializer
     {
-        void serialize(RowIndexEntry<T> rie, DataOutputPlus out, ByteBuffer indexInfo) throws IOException;
+        void serialize(RowIndexEntry rie, DataOutputPlus out, ByteBuffer indexInfo) throws IOException;
 
-        RowIndexEntry<T> deserialize(DataInputPlus in, long indexFilePosition) throws IOException;
-        default RowIndexEntry<T> deserialize(RandomAccessReader reader) throws IOException
+        RowIndexEntry deserialize(DataInputPlus in, long indexFilePosition) throws IOException;
+        default RowIndexEntry deserialize(RandomAccessReader reader) throws IOException
         {
             return deserialize(reader, reader.getFilePointer());
 
         }
 
-        default RowIndexEntry<T> deserialize(FileDataInput input) throws IOException
+        default RowIndexEntry deserialize(FileDataInput input) throws IOException
         {
             return deserialize(input, input.getFilePointer());
 
         }
 
-        void serializeForCache(RowIndexEntry<T> rie, DataOutputPlus out) throws IOException;
-        RowIndexEntry<T> deserializeForCache(DataInputPlus in) throws IOException;
+        void serializeForCache(RowIndexEntry rie, DataOutputPlus out) throws IOException;
+
+        RowIndexEntry deserializeForCache(DataInputPlus in) throws IOException;
 
         long deserializePositionAndSkip(DataInputPlus in) throws IOException;
 
-        ISerializer<T> indexInfoSerializer();
+        ISerializer indexInfoSerializer();
     }
 
-    public static final class Serializer implements IndexSerializer<IndexInfo>
+    public static final class Serializer implements IndexSerializer
     {
         private final IndexInfo.Serializer idxInfoSerializer;
         private final Version version;
@@ -271,29 +281,33 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.version = version;
         }
 
+        @Override
         public IndexInfo.Serializer indexInfoSerializer()
         {
             return idxInfoSerializer;
         }
 
-        public void serialize(RowIndexEntry<IndexInfo> rie, DataOutputPlus out, ByteBuffer indexInfo) throws IOException
+        @Override
+        public void serialize(RowIndexEntry rie, DataOutputPlus out, ByteBuffer indexInfo) throws IOException
         {
             rie.serialize(out, indexInfo);
         }
 
-        public void serializeForCache(RowIndexEntry<IndexInfo> rie, DataOutputPlus out) throws IOException
+        @Override
+        public void serializeForCache(RowIndexEntry rie, DataOutputPlus out) throws IOException
         {
             rie.serializeForCache(out);
         }
 
-        public RowIndexEntry<IndexInfo> deserializeForCache(DataInputPlus in) throws IOException
+        @Override
+        public RowIndexEntry deserializeForCache(DataInputPlus in) throws IOException
         {
             long position = in.readUnsignedVInt();
 
             switch (in.readByte())
             {
                 case CACHE_NOT_INDEXED:
-                    return new RowIndexEntry<>(position);
+                    return new RowIndexEntry(position);
                 case CACHE_INDEXED:
                     return new IndexedEntry(position, in, idxInfoSerializer);
                 case CACHE_INDEXED_SHALLOW:
@@ -321,14 +335,15 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             }
         }
 
-        public RowIndexEntry<IndexInfo> deserialize(DataInputPlus in, long indexFilePosition) throws IOException
+        @Override
+        public RowIndexEntry deserialize(DataInputPlus in, long indexFilePosition) throws IOException
         {
             long position = in.readUnsignedVInt();
 
             int size = (int)in.readUnsignedVInt();
             if (size == 0)
             {
-                return new RowIndexEntry<>(position);
+                return new RowIndexEntry(position);
             }
             else
             {
@@ -402,6 +417,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             return (overhead * entries) + bytes;
         }
 
+        @Override
         public long deserializePositionAndSkip(DataInputPlus in) throws IOException
         {
             long position = in.readUnsignedVInt();
@@ -469,7 +485,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
     /**
      * An entry in the row index for a row whose columns are indexed - used for both legacy and current formats.
      */
-    private static final class IndexedEntry extends RowIndexEntry<IndexInfo>
+    private static final class IndexedEntry extends RowIndexEntry
     {
         private static final long BASE_SIZE;
 
@@ -583,6 +599,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                     return columnsIndex[index];
                 }
 
+                @Override
                 public void close()
                 {
                     indexInfoGetsHistogram.update(retrievals);
@@ -601,6 +618,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 + ObjectSizes.sizeOfReferenceArray(columnsIndex.length);
         }
 
+        @Override
         public void serialize(DataOutputPlus out, ByteBuffer indexInfo) throws IOException
         {
             assert indexedPartSize != Integer.MIN_VALUE;
@@ -646,7 +664,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
      * An entry in the row index for a row whose columns are indexed and the {@link IndexInfo} objects
      * are not read into the key cache.
      */
-    private static final class ShallowIndexedEntry extends RowIndexEntry<IndexInfo>
+    private static final class ShallowIndexedEntry extends RowIndexEntry
     {
         private static final long BASE_SIZE;
 
@@ -795,6 +813,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.offsetsOffset = offsetsOffset;
         }
 
+        @Override
         IndexInfo fetchIndex(int index) throws IOException
         {
             // seek to position in "offsets to IndexInfo" table
@@ -845,6 +864,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.indexReader = indexReader;
         }
 
+        @Override
         public final IndexInfo columnsIndex(int index) throws IOException
         {
             retrievals++;
@@ -853,6 +873,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         abstract IndexInfo fetchIndex(int index) throws IOException;
 
+        @Override
         public void close() throws IOException
         {
             indexReader.close();

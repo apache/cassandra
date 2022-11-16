@@ -36,6 +36,9 @@ public interface SSTableFormat
     SSTableWriter.Factory getWriterFactory();
     SSTableReader.Factory getReaderFactory();
 
+    boolean isKeyCacheSupported();
+    AbstractRowIndexEntry.KeyCacheValueSerializer<?, ?> getKeyCacheValueSerializer();
+
     enum Type
     {
         //The original sstable format

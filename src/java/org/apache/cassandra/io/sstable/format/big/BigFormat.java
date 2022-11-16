@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
+import java.io.IOException;
 import java.util.Collection;
 
 import org.apache.cassandra.db.SerializationHeader;
@@ -25,6 +26,8 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.TimeUUID;
@@ -72,6 +75,41 @@ public class BigFormat implements SSTableFormat
     public SSTableReader.Factory getReaderFactory()
     {
         return readerFactory;
+    }
+
+    @Override
+    public boolean isKeyCacheSupported()
+    {
+        return true;
+    }
+
+    @Override
+    public AbstractRowIndexEntry.KeyCacheValueSerializer<BigTableReader, RowIndexEntry> getKeyCacheValueSerializer()
+    {
+        return KeyCacheValueSerializer.instance;
+    }
+
+    static class KeyCacheValueSerializer implements AbstractRowIndexEntry.KeyCacheValueSerializer<BigTableReader, RowIndexEntry>
+    {
+        private final static KeyCacheValueSerializer instance = new KeyCacheValueSerializer();
+
+        @Override
+        public void skip(DataInputPlus input) throws IOException
+        {
+            RowIndexEntry.Serializer.skipForCache(input);
+        }
+
+        @Override
+        public RowIndexEntry deserialize(BigTableReader reader, DataInputPlus input) throws IOException
+        {
+            return reader.deserializeKeyCacheValue(input);
+        }
+
+        @Override
+        public void serialize(RowIndexEntry entry, DataOutputPlus output) throws IOException
+        {
+            entry.serializeForCache(output);
+        }
     }
 
     static class WriterFactory extends SSTableWriter.Factory

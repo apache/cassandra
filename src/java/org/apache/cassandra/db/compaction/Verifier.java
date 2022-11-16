@@ -32,7 +32,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
@@ -86,7 +85,7 @@ public class Verifier implements Closeable
     private final RandomAccessReader dataFile;
     private final RandomAccessReader indexFile;
     private final VerifyInfo verifyInfo;
-    private final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Options options;
     private final boolean isOffline;
     /**

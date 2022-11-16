@@ -20,11 +20,11 @@ package org.apache.cassandra.io.sstable;
 import java.util.Collection;
 import java.util.Collections;
 
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -45,7 +45,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 
     public boolean append(UnfilteredRowIterator partition)
     {
-        RowIndexEntry<?> indexEntry = writer.append(partition);
+        AbstractRowIndexEntry indexEntry = writer.append(partition);
         return indexEntry != null;
     }
 

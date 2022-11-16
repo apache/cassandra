@@ -354,6 +354,7 @@ public class SSTableReaderTest
         CompactionManager.instance.performMaximal(store, false);
 
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
+        Assume.assumeTrue(sstable.isKeyCacheEnabled());
         // existing, non-cached key
         sstable.getPosition(k(2), SSTableReader.Operator.EQ);
         assertEquals(1, sstable.getKeyCacheRequest());

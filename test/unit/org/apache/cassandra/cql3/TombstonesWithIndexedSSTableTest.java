@@ -24,7 +24,6 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
@@ -81,7 +80,7 @@ public class TombstonesWithIndexedSSTableTest extends CQLTester
                 {
                     // The line below failed with key caching off (CASSANDRA-11158)
                     @SuppressWarnings("unchecked")
-                    RowIndexEntry<IndexInfo> indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
+                    RowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
                     if (indexEntry != null && indexEntry.isIndexed())
                     {
                         try (FileDataInput reader = sstable.openIndexReader())

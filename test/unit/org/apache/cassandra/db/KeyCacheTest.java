@@ -44,13 +44,17 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.assertj.core.api.Assertions;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 import org.mockito.internal.stubbing.answers.AnswersWithDelay;
@@ -64,6 +68,8 @@ import static org.mockito.Mockito.mock;
 
 public class KeyCacheTest
 {
+    private static boolean cacheSupported;
+
     private static final String KEYSPACE1 = "KeyCacheTest1";
     private static final String KEYSPACE2 = "KeyCacheTest2";
     private static final String COLUMN_FAMILY1 = "Standard1";
@@ -83,6 +89,7 @@ public class KeyCacheTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        cacheSupported = SSTableFormat.Type.current().info.isKeyCacheSupported();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -142,7 +149,7 @@ public class KeyCacheTest
         assertKeyCacheSize(100, KEYSPACE1, cf);
 
         // really? our caches don't implement the map interface? (hence no .addAll)
-        Map<KeyCacheKey, RowIndexEntry> savedMap = new HashMap<>();
+        Map<KeyCacheKey, AbstractRowIndexEntry> savedMap = new HashMap<>();
         Map<KeyCacheKey, RowIndexEntry.IndexInfoRetriever> savedInfoMap = new HashMap<>();
         for (Iterator<KeyCacheKey> iter = CacheService.instance.keyCache.keyIterator();
              iter.hasNext();)
@@ -150,10 +157,13 @@ public class KeyCacheTest
             KeyCacheKey k = iter.next();
             if (k.desc.ksname.equals(KEYSPACE1) && k.desc.cfname.equals(cf))
             {
-                RowIndexEntry rie = CacheService.instance.keyCache.get(k);
+                AbstractRowIndexEntry rie = CacheService.instance.keyCache.get(k);
                 savedMap.put(k, rie);
-                SSTableReader sstr = readerForKey(k);
-                savedInfoMap.put(k, rie.openWithIndex(sstr.getIndexFile()));
+                if (rie instanceof RowIndexEntry)
+                {
+                    BigTableReader sstr = (BigTableReader) readerForKey(k);
+                    savedInfoMap.put(k, ((RowIndexEntry) rie).openWithIndex(sstr.getIndexFile()));
+                }
             }
         }
 
@@ -167,19 +177,24 @@ public class KeyCacheTest
         assertKeyCacheSize(savedMap.size(), KEYSPACE1, cf);
 
         // probably it's better to add equals/hashCode to RowIndexEntry...
-        for (Map.Entry<KeyCacheKey, RowIndexEntry> entry : savedMap.entrySet())
+        for (Map.Entry<KeyCacheKey, AbstractRowIndexEntry> entry : savedMap.entrySet())
         {
-            RowIndexEntry expected = entry.getValue();
-            RowIndexEntry actual = CacheService.instance.keyCache.get(entry.getKey());
+            AbstractRowIndexEntry expected = entry.getValue();
+            AbstractRowIndexEntry actual = CacheService.instance.keyCache.get(entry.getKey());
             assertEquals(expected.position, actual.position);
             assertEquals(expected.columnsIndexCount(), actual.columnsIndexCount());
+            assertEquals(expected.getSSTableFormat(), actual.getSSTableFormat());
             for (int i = 0; i < expected.columnsIndexCount(); i++)
             {
                 SSTableReader actualSstr = readerForKey(entry.getKey());
-                try (RowIndexEntry.IndexInfoRetriever actualIir = actual.openWithIndex(actualSstr.getIndexFile()))
+                Assertions.assertThat(actualSstr.descriptor.formatType).isEqualTo(expected.getSSTableFormat().getType());
+                if (actual instanceof RowIndexEntry)
                 {
-                    RowIndexEntry.IndexInfoRetriever expectedIir = savedInfoMap.get(entry.getKey());
-                    assertEquals(expectedIir.columnsIndex(i), actualIir.columnsIndex(i));
+                    try (RowIndexEntry.IndexInfoRetriever actualIir = ((RowIndexEntry) actual).openWithIndex(((BigTableReader) actualSstr).getIndexFile()))
+                    {
+                        RowIndexEntry.IndexInfoRetriever expectedIir = savedInfoMap.get(entry.getKey());
+                        assertEquals(expectedIir.columnsIndex(i), actualIir.columnsIndex(i));
+                    }
                 }
             }
             if (expected.isIndexed())
@@ -376,7 +391,7 @@ public class KeyCacheTest
         // be zero after load.
         assertKeyCacheSize(numberOfRows, KEYSPACE1, columnFamily1);
         assertKeyCacheSize(numberOfRows, KEYSPACE2, columnFamily2);
-        assertEquals(numberOfRows * tables.size(), CacheService.instance.keyCache.size());
+        assertEquals(cacheSupported ? numberOfRows * tables.size() : 0, CacheService.instance.keyCache.size());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -409,8 +424,16 @@ public class KeyCacheTest
 
         long keysLoaded = autoSavingCache.loadSaved();
         assertThat(keysLoaded, Matchers.lessThanOrEqualTo(maxExpectedKeyCache));
-        assertNotEquals(0, keysLoaded);
-        Mockito.verify(keyCacheSerializerSpy, Mockito.times(1)).cleanupAfterDeserialize();
+        if (cacheSupported)
+        {
+            assertNotEquals(0, keysLoaded);
+            Mockito.verify(keyCacheSerializerSpy, Mockito.times(1)).cleanupAfterDeserialize();
+        }
+        else
+        {
+            assertEquals(0, keysLoaded);
+            Mockito.verify(keyCacheSerializerSpy, Mockito.never()).cleanupAfterDeserialize();
+        }
     }
 
     private void createAndInvalidateCache(List<Pair<String, String>> tables, int numberOfRows) throws ExecutionException, InterruptedException
@@ -465,6 +488,6 @@ public class KeyCacheTest
             if (k.desc.ksname.equals(keyspace) && k.desc.cfname.equals(columnFamily))
                 size++;
         }
-        assertEquals(expected, size);
+        assertEquals(cacheSupported ? expected : 0, size);
     }
 }

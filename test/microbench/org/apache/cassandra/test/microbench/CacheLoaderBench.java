@@ -31,7 +31,7 @@ import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -107,7 +107,7 @@ public class CacheLoaderBench extends CQLTester
                 sstable.getPosition(Util.dk("key"), SSTableReader.Operator.EQ);
         }
 
-        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = CacheService.instance.keyCache;
 
         // serialize to file
         keyCache.submitWrite(keyCache.size()).get();
@@ -116,7 +116,7 @@ public class CacheLoaderBench extends CQLTester
     @Setup(Level.Invocation)
     public void setupKeyCache()
     {
-        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = CacheService.instance.keyCache;
         keyCache.clear();
     }
 
@@ -130,7 +130,7 @@ public class CacheLoaderBench extends CQLTester
     @Benchmark
     public void keyCacheLoadTest() throws Throwable
     {
-        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = CacheService.instance.keyCache;
 
         keyCache.loadSavedAsync().get();
     }

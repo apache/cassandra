@@ -69,7 +69,7 @@ public class BigTableWriter extends SSTableWriter
     private DataPosition dataMark;
     private long lastEarlyOpenLength = 0;
     private final Optional<ChunkCache> chunkCache = Optional.ofNullable(ChunkCache.instance);
-    private final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
     private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
                                                         .trickleFsync(DatabaseDescriptor.getTrickleFsync())

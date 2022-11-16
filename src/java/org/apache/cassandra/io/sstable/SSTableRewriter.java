@@ -27,9 +27,9 @@ import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -69,7 +69,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private final boolean eagerWriterMetaRelease; // true if the writer metadata should be released when switch is called
 
     private SSTableWriter writer;
-    private Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<>();
+    private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
 
     // for testing (TODO: remove when have byteman setup)
     private boolean throwEarly, throwLate;
@@ -117,12 +117,12 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         return writer;
     }
 
-    public RowIndexEntry append(UnfilteredRowIterator partition)
+    public AbstractRowIndexEntry append(UnfilteredRowIterator partition)
     {
         // we do this before appending to ensure we can resetAndTruncate() safely if the append fails
         DecoratedKey key = partition.partitionKey();
         maybeReopenEarly(key);
-        RowIndexEntry index = writer.append(partition);
+        AbstractRowIndexEntry index = writer.append(partition);
         if (DatabaseDescriptor.shouldMigrateKeycacheOnCompaction())
         {
             if (!transaction.isOffline() && index != null)
@@ -141,7 +141,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     }
 
     // attempts to append the row, if fails resets the writer position
-    public RowIndexEntry tryAppend(UnfilteredRowIterator partition)
+    public AbstractRowIndexEntry tryAppend(UnfilteredRowIterator partition)
     {
         writer.mark();
         try
@@ -223,7 +223,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         if (!cachedKeys.isEmpty())
         {
             invalidateKeys = new ArrayList<>(cachedKeys.size());
-            for (Map.Entry<DecoratedKey, RowIndexEntry> cacheKey : cachedKeys.entrySet())
+            for (Map.Entry<DecoratedKey, AbstractRowIndexEntry> cacheKey : cachedKeys.entrySet())
             {
                 invalidateKeys.add(cacheKey.getKey());
                 newReader.cacheKey(cacheKey.getKey(), cacheKey.getValue());

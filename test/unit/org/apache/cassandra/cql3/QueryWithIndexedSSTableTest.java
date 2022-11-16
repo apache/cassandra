@@ -23,7 +23,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -63,7 +62,7 @@ public class QueryWithIndexedSSTableTest extends CQLTester
         {
             if (sstable instanceof BigTableReader)
             {
-                RowIndexEntry<IndexInfo> indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
+                RowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
                 hasIndexed |= indexEntry != null && indexEntry.isIndexed();
             }
         }

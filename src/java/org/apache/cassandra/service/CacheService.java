@@ -41,8 +41,9 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
@@ -81,7 +82,7 @@ public class CacheService implements CacheServiceMBean
 
     public final static CacheService instance = new CacheService();
 
-    public final AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache;
+    public final AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache;
     public final AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache;
     public final AutoSavingCache<CounterCacheKey, ClockAndCount> counterCache;
 
@@ -97,7 +98,7 @@ public class CacheService implements CacheServiceMBean
     /**
      * @return auto saving cache object
      */
-    private AutoSavingCache<KeyCacheKey, RowIndexEntry> initKeyCache()
+    private AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> initKeyCache()
     {
         logger.info("Initializing key cache with capacity of {} MiBs.", DatabaseDescriptor.getKeyCacheSizeInMiB());
 
@@ -105,9 +106,9 @@ public class CacheService implements CacheServiceMBean
 
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
-        ICache<KeyCacheKey, RowIndexEntry> kc;
+        ICache<KeyCacheKey, AbstractRowIndexEntry> kc;
         kc = CaffeineCache.create(keyCacheInMemoryCapacity);
-        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
 
@@ -413,7 +414,7 @@ public class CacheService implements CacheServiceMBean
         }
     }
 
-    public static class KeyCacheSerializer implements CacheSerializer<KeyCacheKey, RowIndexEntry>
+    public static class KeyCacheSerializer implements CacheSerializer<KeyCacheKey, AbstractRowIndexEntry>
     {
         // For column families with many SSTables the linear nature of getSSTables slowed down KeyCache loading
         // by orders of magnitude. So we cache the sstables once and rely on cleanupAfterDeserialize to cleanup any
@@ -422,7 +423,7 @@ public class CacheService implements CacheServiceMBean
 
         public void serialize(KeyCacheKey key, DataOutputPlus out, ColumnFamilyStore cfs) throws IOException
         {
-            RowIndexEntry entry = CacheService.instance.keyCache.getInternal(key);
+            AbstractRowIndexEntry entry = CacheService.instance.keyCache.getInternal(key);
             if (entry == null)
                 return;
 
@@ -439,13 +440,14 @@ public class CacheService implements CacheServiceMBean
                 out.writeInt(Integer.MIN_VALUE); // backwards compatibility for "int based generation only"
                 ByteBufferUtil.writeWithShortLength(key.desc.id.asBytes(), out);
             }
-            out.writeBoolean(true);
-
-            SerializationHeader header = new SerializationHeader(false, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
-            new RowIndexEntry.Serializer(key.desc.version, header).serializeForCache(entry, out);
+            // format type id is stored so that in case there is no sstable for the key we can figure out which
+            // serializer (of which sstable format) was used and thus as can use the right implemnentation to skip
+            // the unmatched entry
+            out.writeByte(key.desc.formatType.ordinal());
+            entry.serializeForCache(out);
         }
 
-        public Future<Pair<KeyCacheKey, RowIndexEntry>> deserialize(DataInputPlus input, ColumnFamilyStore cfs) throws IOException
+        public Future<Pair<KeyCacheKey, AbstractRowIndexEntry>> deserialize(DataInputPlus input, ColumnFamilyStore cfs) throws IOException
         {
             boolean skipEntry = cfs == null || !cfs.isKeyCacheEnabled();
 
@@ -462,7 +464,12 @@ public class CacheService implements CacheServiceMBean
             SSTableId generationId = generation == Integer.MIN_VALUE
                                                    ? SSTableIdFactory.instance.fromBytes(ByteBufferUtil.readWithShortLength(input))
                                                    : new SequenceBasedSSTableId(generation); // Backwards compatibility for "int based generation sstables"
-            input.readBoolean(); // backwards compatibility for "promoted indexes" boolean
+            int typeOrdinal = input.readByte();
+            if (typeOrdinal < 0 || typeOrdinal >= SSTableFormat.Type.values().length)
+                throw new IOException("Failed to deserialize key of key cache - invalid type ordinal " + typeOrdinal);
+            SSTableFormat.Type type = SSTableFormat.Type.values()[typeOrdinal];
+            AbstractRowIndexEntry.KeyCacheValueSerializer<?, ?> serializer = type.info.getKeyCacheValueSerializer();
+
             SSTableReader reader = null;
             if (!skipEntry)
             {
@@ -487,12 +494,11 @@ public class CacheService implements CacheServiceMBean
                 // wrong is during upgrade, in which case we fail at deserialization. This is not a huge deal however since 1) this is unlikely enough that
                 // this won't affect many users (if any) and only once, 2) this doesn't prevent the node from starting and 3) CASSANDRA-10219 shows that this
                 // part of the code has been broken for a while without anyone noticing (it is, btw, still broken until CASSANDRA-10219 is fixed).
-                RowIndexEntry.Serializer.skipForCache(input);
+
+                serializer.skip(input);
                 return null;
             }
-
-            RowIndexEntry.IndexSerializer<?> indexSerializer = new RowIndexEntry.Serializer(reader.descriptor.version, reader.header);
-            RowIndexEntry<?> entry = indexSerializer.deserializeForCache(input);
+            AbstractRowIndexEntry entry = reader.deserializeKeyCacheValue(input);
             return ImmediateFuture.success(Pair.create(new KeyCacheKey(cfs.metadata(), reader.descriptor, key), entry));
         }
 

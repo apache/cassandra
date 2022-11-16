@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,6 +36,7 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
     @BeforeClass
     public static void setupClass() throws IOException
     {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
         AbstractClientSizeWarning.setupClass();
 
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {

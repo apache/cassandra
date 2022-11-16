@@ -69,7 +69,7 @@ public class Scrubber implements Closeable
     private final RandomAccessReader dataFile;
     private final RandomAccessReader indexFile;
     private final ScrubInfo scrubInfo;
-    private final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
     private int goodPartitions;
     private int badPartitions;

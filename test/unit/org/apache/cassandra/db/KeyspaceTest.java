@@ -21,8 +21,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.schema.Schema;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -411,7 +411,7 @@ public class KeyspaceTest extends CQLTester
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         if (sstable instanceof BigTableReader)
         {
-            RowIndexEntry<?> indexEntry = ((BigTableReader) sstable).getRowIndexEntry(Util.dk("0"), SSTableReader.Operator.EQ);
+            AbstractRowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(Util.dk("0"), SSTableReader.Operator.EQ);
             assert indexEntry.columnsIndexCount() > 2;
         }
 

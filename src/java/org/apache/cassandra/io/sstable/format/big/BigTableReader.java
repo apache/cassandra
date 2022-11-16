@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +43,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReason;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -52,7 +56,7 @@ public class BigTableReader extends SSTableReader
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
-    private final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
     BigTableReader(SSTableReaderBuilder builder)
     {
@@ -67,7 +71,7 @@ public class BigTableReader extends SSTableReader
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
-        RowIndexEntry<IndexInfo> rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, false, listener);
+        RowIndexEntry rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, false, listener);
         return rowIterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
@@ -128,7 +132,7 @@ public class BigTableReader extends SSTableReader
      * allow key selection by token bounds but only if op != * EQ
      * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
      */
-    public final RowIndexEntry<IndexInfo> getRowIndexEntry(PartitionPosition key, Operator op)
+    public final RowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op)
     {
         return getRowIndexEntry(key, op, true, false, SSTableReadsListener.NOOP_LISTENER);
     }
@@ -140,7 +144,8 @@ public class BigTableReader extends SSTableReader
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected RowIndexEntry<IndexInfo> getRowIndexEntry(PartitionPosition key,
+    @Override
+    protected RowIndexEntry getRowIndexEntry(PartitionPosition key,
                                                         Operator op,
                                                         boolean updateCacheAndStats,
                                                         boolean permitMatchPastLast,
@@ -169,14 +174,14 @@ public class BigTableReader extends SSTableReader
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey) key;
-            RowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
-            if (cachedPosition != null)
+            AbstractRowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
+            if (cachedPosition != null && cachedPosition.getSSTableFormat().getType() == SSTableFormat.Type.BIG)
             {
                 // we do not need to track "true positive" for Bloom Filter here because it has been already tracked
                 // inside getCachedPosition method
                 listener.onSSTableSelected(this, SelectionReason.KEY_CACHE_HIT);
                 Tracing.trace("Key cache hit for sstable {}", descriptor.id);
-                return cachedPosition;
+                return (RowIndexEntry) cachedPosition;
             }
         }
 
@@ -259,7 +264,7 @@ public class BigTableReader extends SSTableReader
                 if (opSatisfied)
                 {
                     // read data position from index entry
-                    RowIndexEntry<IndexInfo> indexEntry = rowIndexEntrySerializer.deserialize(in);
+                    RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
                     if (exactMatch && updateCacheAndStats)
                     {
                         assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
@@ -316,7 +321,7 @@ public class BigTableReader extends SSTableReader
                                boolean permitMatchPastLast,
                                SSTableReadsListener listener)
     {
-        RowIndexEntry<IndexInfo> rowIndexEntry = getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
+        RowIndexEntry rowIndexEntry = getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
         return rowIndexEntry != null ? rowIndexEntry.position : -1;
     }
 
@@ -339,5 +344,36 @@ public class BigTableReader extends SSTableReader
         }
 
         return key;
+    }
+
+    @Override
+    public RowIndexEntry deserializeKeyCacheValue(DataInputPlus input) throws IOException
+    {
+        return rowIndexEntrySerializer.deserializeForCache(input);
+    }
+
+    @Override
+    public ClusteringPrefix<?> getLowerBoundPrefixFromCache(DecoratedKey partitionKey, ClusteringIndexFilter filter)
+    {
+        RowIndexEntry rowIndexEntry = (RowIndexEntry) getCachedPosition(partitionKey, false);
+        if (rowIndexEntry == null || !rowIndexEntry.indexOnHeap())
+            return null;
+
+        try (RowIndexEntry.IndexInfoRetriever onHeapRetriever = rowIndexEntry.openWithIndex(null))
+        {
+            IndexInfo column = onHeapRetriever.columnsIndex(filter.isReversed() ? rowIndexEntry.columnsIndexCount() - 1 : 0);
+            ClusteringPrefix<?> lowerBoundPrefix = filter.isReversed() ? column.lastName : column.firstName;
+            assert lowerBoundPrefix.getRawValues().length <= metadata().comparator.size() :
+            String.format("Unexpected number of clustering values %d, expected %d or fewer for %s",
+                          lowerBoundPrefix.getRawValues().length,
+                          metadata().comparator.size(),
+                          getFilename());
+            return lowerBoundPrefix;
+        }
+        catch (IOException e)
+        {
+            throw new AssertionError("Failed to deserialize row index entry", e);
+        }
+
     }
 }
