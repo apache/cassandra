@@ -52,9 +52,13 @@ public class BigTableReader extends SSTableReader
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
+    private final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+
     BigTableReader(SSTableReaderBuilder builder)
     {
         super(builder);
+
+        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
     }
 
     public UnfilteredRowIterator rowIterator(DecoratedKey key,
@@ -252,7 +256,7 @@ public class BigTableReader extends SSTableReader
                 if (opSatisfied)
                 {
                     // read data position from index entry
-                    RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
+                    RowIndexEntry<IndexInfo> indexEntry = rowIndexEntrySerializer.deserialize(in);
                     if (exactMatch && updateCacheAndStats)
                     {
                         assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
@@ -295,5 +299,24 @@ public class BigTableReader extends SSTableReader
         return null;
     }
 
+    @Override
+    public DecoratedKey keyAt(long indexPosition) throws IOException
+    {
+        DecoratedKey key;
+        try (FileDataInput in = ifile.createReader(indexPosition))
+        {
+            if (in.isEOF())
+                return null;
 
+            key = decorateKey(ByteBufferUtil.readWithShortLength(in));
+
+            // hint read path about key location if caching is enabled
+            // this saves index summary lookup and index file iteration which whould be pretty costly
+            // especially in presence of promoted column indexes
+            if (isKeyCacheEnabled())
+                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
+        }
+
+        return key;
+    }
 }

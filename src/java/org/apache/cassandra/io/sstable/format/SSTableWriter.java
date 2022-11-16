@@ -40,7 +40,6 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -70,7 +69,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected long maxDataAge = -1;
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
-    protected final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
     protected final SerializationHeader header;
     protected final TransactionalProxy txnProxy = txnProxy();
     protected final Collection<SSTableFlushObserver> observers;
@@ -102,7 +100,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.isTransient = isTransient;
         this.metadataCollector = metadataCollector;
         this.header = header;
-        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
         this.observers = observers == null ? Collections.emptySet() : observers;
     }
 

@@ -17,15 +17,14 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
-
-import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +33,8 @@ import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.FSWriteError;
@@ -68,6 +69,7 @@ public class BigTableWriter extends SSTableWriter
     private DataPosition dataMark;
     private long lastEarlyOpenLength = 0;
     private final Optional<ChunkCache> chunkCache = Optional.ofNullable(ChunkCache.instance);
+    private final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
 
     private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
                                                         .trickleFsync(DatabaseDescriptor.getTrickleFsync())
@@ -87,6 +89,8 @@ public class BigTableWriter extends SSTableWriter
     {
         super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers);
         lifecycleNewTracker.trackNew(this); // must track before any files are created
+
+        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
 
         if (compression)
         {
@@ -111,7 +115,7 @@ public class BigTableWriter extends SSTableWriter
         chunkCache.ifPresent(dbuilder::withChunkCache);
         iwriter = new IndexWriter(keyCount);
 
-        columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, getRowIndexEntrySerializer().indexInfoSerializer());
+        columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, rowIndexEntrySerializer.indexInfoSerializer());
     }
 
     /**
@@ -232,7 +236,7 @@ public class BigTableWriter extends SSTableWriter
                                                        columnIndexWriter.indexInfoSerializedSize(),
                                                        columnIndexWriter.indexSamples(),
                                                        columnIndexWriter.offsets(),
-                                                       getRowIndexEntrySerializer().indexInfoSerializer());
+                                                       rowIndexEntrySerializer.indexInfoSerializer());
 
             long endPosition = dataFile.position();
             long rowSize = endPosition - startPosition;
@@ -250,11 +254,6 @@ public class BigTableWriter extends SSTableWriter
         {
             throw new FSWriteError(e, dataFile.getPath());
         }
-    }
-
-    private RowIndexEntry.IndexSerializer<IndexInfo> getRowIndexEntrySerializer()
-    {
-        return (RowIndexEntry.IndexSerializer<IndexInfo>) rowIndexEntrySerializer;
     }
 
     private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
