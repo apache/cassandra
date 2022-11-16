@@ -165,7 +165,9 @@
     <condition property="arch_x86">
       <equals arg1="${os.arch}" arg2="x86" />
     </condition>
-    <condition property="jvm_xss" value="-Xss256k" else="-Xss512k">
+    <!-- On non-X86 JDK 8 (such as M1 Mac) the smallest allowed Xss is 384k; so need a larger value
+    when on these platforms. -->
+    <condition property="jvm_xss" value="-Xss256k" else="-Xss384k">
       <isset property="arch_x86" />
     </condition>
 
