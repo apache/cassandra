@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -196,5 +197,11 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
     public Class<Map<K, V>> getType()
     {
         return (Class) Map.class;
+    }
+
+    @Override
+    public void forEach(ByteBuffer input, ProtocolVersion version, Consumer<ByteBuffer> action)
+    {
+        throw new UnsupportedOperationException();
     }
 }

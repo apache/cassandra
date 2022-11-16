@@ -238,7 +238,7 @@ For every xref:cql/types.adoc#native-types[type] supported by CQL, the function 
 Conversely, the function `blobAsType` takes a 64-bit `blob` argument and converts it to a `bigint` value. 
 For example, `bigintAsBlob(3)` returns `0x0000000000000003` and `blobAsBigint(0x0000000000000003)` returns `3`.
 
-==== Math Functions
+===== Math Functions
 
 Cql provides the following math functions: `abs`, `exp`, `log`, `log10`, and `round`.
 The return type for these functions is always the same as the input type.
@@ -256,6 +256,29 @@ The return type for these functions is always the same as the input type.
 |`log10` | Returns the log base 10 of the input.
 
 |`round` | Rounds the input to the nearest whole number using rounding mode `HALF_UP`.
+|===
+
+===== Collection functions
+
+A number of functions are provided to operate on collection columns.
+
+[cols=",,",options="header",]
+|===
+|Function name |Input type |Description
+
+| `map_keys` | `map` | Gets the keys of the `map` argument, returned as a `set`.
+
+| `map_values` | `map` | Gets the values of the `map` argument, returned as a `list`.
+
+| `collection_count` | `map`, `set` or `list` | Gets the number of elements in the collection argument.
+
+| `collection_min` | `set` or `list` | Gets the minimum element in the collection argument.
+
+| `collection_max` | `set` or `list` | Gets the maximum element in the collection argument.
+
+| `collection_sum` | numeric `set` or `list` | Computes the sum of the elements in the collection argument. The returned value is of the same type as the input collection elements, so there is a risk of overflowing the data type if the sum of the values exceeds the maximum value that the type can represent.
+
+| `collection_avg` | numeric `set` or `list` | Computes the average of the elements in the collection argument. The average of an empty collection returns zero. The returned value is of the same type as the input collection elements, which might include rounding and truncations. For example `collection_avg([1, 2])` returns `1` instead of `1.5`.
 |===
 
 [[user-defined-scalar-functions]]
@@ -427,7 +450,9 @@ include::example$CQL/min_max.cql[]
 
 ===== Sum
 
-The `sum` function sums up all the values returned by a query for a given column. 
+The `sum` function sums up all the values returned by a query for a given column.
+
+The returned value is of the same type as the input collection elements, so there is a risk of overflowing if the sum of the values exceeds the maximum value that the type can represent.
 
 For example:
 
@@ -436,15 +461,35 @@ For example:
 include::example$CQL/sum.cql[]
 ----
 
+The returned value is of the same type as the input values, so there is a risk of overflowing the type if the sum of the
+values exceeds the maximum value that the type can represent. You can use type casting to cast the input values as a
+type large enough to contain the type. For example:
+
+[source,cql]
+----
+include::example$CQL/sum_with_cast.cql[]
+----
+
 ===== Avg
 
-The `avg` function computes the average of all the values returned by a query for a given column. 
+The `avg` function computes the average of all the values returned by a query for a given column.
 
 For example:
 
 [source,cql]
 ----
 include::example$CQL/avg.cql[]
+----
+
+The average of an empty collection returns zero.
+
+The returned value is of the same type as the input values, which might include rounding and truncations.
+For example `collection_avg([1, 2])` returns `1` instead of `1.5`.
+You can use type casting to cast to a type with the desired decimal precision. For example:
+
+[source,cql]
+----
+include::example$CQL/avg_with_cast.cql[]
 ----
 
 [[user-defined-aggregates-functions]]

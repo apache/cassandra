@@ -22,6 +22,11 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.NumberType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.lang.String.format;
@@ -42,7 +47,10 @@ public interface FunctionParameter
      * @return the inferred data type of the parameter, or {@link null} it isn't possible to infer it
      */
     @Nullable
-    AbstractType<?> inferType(String keyspace, AssignmentTestable arg, @Nullable AbstractType<?> receiverType);
+    default AbstractType<?> inferType(String keyspace, AssignmentTestable arg, @Nullable AbstractType<?> receiverType)
+    {
+        return arg.getCompatibleTypeIfKnown(keyspace);
+    }
 
     void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType);
 
@@ -103,6 +111,125 @@ public interface FunctionParameter
             public String toString()
             {
                 return "any";
+            }
+        };
+    }
+
+    /**
+     * @return a function parameter definition that accepts values of type {@link CollectionType}, independently of the
+     * types of its elements.
+     */
+    public static FunctionParameter anyCollection()
+    {
+        return new FunctionParameter()
+        {
+            @Override
+            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
+            {
+                if (!argType.isCollection())
+                    throw new InvalidRequestException(format("Function %s requires a collection argument, " +
+                                                             "but found argument %s of type %s",
+                                                             name, arg, argType.asCQL3Type()));
+            }
+
+            @Override
+            public String toString()
+            {
+                return "collection";
+            }
+        };
+    }
+
+    /**
+     * @return a function parameter definition that accepts values of type {@link SetType} or {@link ListType}.
+     */
+    public static FunctionParameter setOrList()
+    {
+        return new FunctionParameter()
+        {
+            @Override
+            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
+            {
+                if (argType.isCollection())
+                {
+                    CollectionType.Kind kind = ((CollectionType<?>) argType).kind;
+                    if (kind == CollectionType.Kind.SET || kind == CollectionType.Kind.LIST)
+                        return;
+                }
+
+                throw new InvalidRequestException(format("Function %s requires a set or list argument, " +
+                                                         "but found argument %s of type %s",
+                                                         name, arg, argType.asCQL3Type()));
+            }
+
+            @Override
+            public String toString()
+            {
+                return "numeric_set_or_list";
+            }
+        };
+    }
+
+    /**
+     * @return a function parameter definition that accepts values of type {@link SetType} or {@link ListType},
+     * provided that its elements are numeric.
+     */
+    public static FunctionParameter numericSetOrList()
+    {
+        return new FunctionParameter()
+        {
+            @Override
+            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
+            {
+                AbstractType<?> elementType = null;
+                if (argType.isCollection())
+                {
+                    CollectionType<?> collectionType = (CollectionType<?>) argType;
+                    if (collectionType.kind == CollectionType.Kind.SET)
+                    {
+                        elementType = ((SetType<?>) argType).getElementsType();
+                    }
+                    else if (collectionType.kind == CollectionType.Kind.LIST)
+                    {
+                        elementType = ((ListType<?>) argType).getElementsType();
+                    }
+                }
+
+                if (!(elementType instanceof NumberType))
+                    throw new InvalidRequestException(format("Function %s requires a numeric set/list argument, " +
+                                                             "but found argument %s of type %s",
+                                                             name, arg, argType.asCQL3Type()));
+            }
+
+            @Override
+            public String toString()
+            {
+                return "numeric_set_or_list";
+            }
+        };
+    }
+
+    /**
+     * @return a function parameter definition that accepts values of type {@link MapType}, independently of the types
+     * of the map keys and values.
+     */
+    public static FunctionParameter anyMap()
+    {
+        return new FunctionParameter()
+        {
+            @Override
+            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
+            {
+                if (!argType.isUDT() && !(argType instanceof MapType))
+                    throw new InvalidRequestException(format("Function %s requires a map argument, " +
+                                                             "but found argument %s of type %s",
+                                                             name, arg, argType.asCQL3Type()));
+            }
+
+            @Override
+            public String toString()
+            {
+                return "map";
             }
         };
     }
