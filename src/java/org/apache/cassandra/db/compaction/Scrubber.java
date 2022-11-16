@@ -68,7 +68,7 @@ public class Scrubber implements Closeable
     private final RandomAccessReader dataFile;
     private final RandomAccessReader indexFile;
     private final ScrubInfo scrubInfo;
-    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
+    private final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
 
     private int goodPartitions;
     private int badPartitions;
@@ -111,9 +111,7 @@ public class Scrubber implements Closeable
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
         this.reinsertOverflowedTTLRows = reinsertOverflowedTTLRows;
-        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(cfs.metadata(),
-                                                                                                        sstable.descriptor.version,
-                                                                                                        sstable.header);
+        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(sstable.descriptor.version, sstable.header);
 
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
 

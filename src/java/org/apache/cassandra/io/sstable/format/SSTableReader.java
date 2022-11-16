@@ -674,7 +674,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         this.bf = bf;
         this.maxDataAge = maxDataAge;
         this.openReason = openReason;
-        this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata.get(), desc.version, header);
+        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(desc.version, header);
         tidy = new InstanceTidier(descriptor, metadata.id);
         selfRef = new Ref<>(this, tidy);
     }

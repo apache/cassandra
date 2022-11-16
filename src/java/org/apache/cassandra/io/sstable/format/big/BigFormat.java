@@ -19,16 +19,14 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.util.Collection;
 
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**
@@ -74,12 +72,6 @@ public class BigFormat implements SSTableFormat
     public SSTableReader.Factory getReaderFactory()
     {
         return readerFactory;
-    }
-
-    @Override
-    public RowIndexEntry.IndexSerializer getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header)
-    {
-        return new RowIndexEntry.Serializer(version, header);
     }
 
     static class WriterFactory extends SSTableWriter.Factory
