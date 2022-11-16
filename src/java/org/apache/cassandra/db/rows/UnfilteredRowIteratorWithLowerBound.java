@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;

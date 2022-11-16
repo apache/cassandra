@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,7 +25,14 @@ import com.codahale.metrics.Histogram;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.filter.RowIndexEntryReadSizeTooLargeException;
+import org.apache.cassandra.db.ArrayClustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.MessageParams;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.RejectException;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -852,6 +859,14 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
             indexInfoGetsHistogram.update(retrievals);
             indexInfoReadsHistogram.update(retrievals);
+        }
+    }
+
+    public static class RowIndexEntryReadSizeTooLargeException extends RejectException
+    {
+        public RowIndexEntryReadSizeTooLargeException(String message)
+        {
+            super(message);
         }
     }
 }
