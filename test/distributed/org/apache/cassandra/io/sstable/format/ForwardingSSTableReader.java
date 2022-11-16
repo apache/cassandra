@@ -278,7 +278,7 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    protected RowIndexEntry getPosition(PartitionPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast, SSTableReadsListener listener)
+    protected long getPosition(PartitionPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast, SSTableReadsListener listener)
     {
         return delegate.getPosition(key, op, updateCacheAndStats, permitMatchPastLast, listener);
     }
@@ -296,9 +296,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, boolean tombstoneOnly)
+    public UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, long dataPosition, boolean tombstoneOnly)
     {
-        return delegate.simpleIterator(file, key, indexEntry, tombstoneOnly);
+        return delegate.simpleIterator(file, key, dataPosition, tombstoneOnly);
     }
 
     @Override

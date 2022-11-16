@@ -180,7 +180,7 @@ public class SSTableReaderTest
             for (int j = 0; j < 100; j += 2)
             {
                 DecoratedKey dk = Util.dk(String.valueOf(j));
-                FileDataInput file = sstable.getFileDataInput(sstable.getPosition(dk, SSTableReader.Operator.EQ).position);
+                FileDataInput file = sstable.getFileDataInput(sstable.getPosition(dk, SSTableReader.Operator.EQ));
                 DecoratedKey keyInDisk = sstable.decorateKey(ByteBufferUtil.readWithShortLength(file));
                 assert keyInDisk.equals(dk) : format("%s != %s in %s", keyInDisk, dk, file.getPath());
             }
@@ -189,7 +189,7 @@ public class SSTableReaderTest
             for (int j = 1; j < 110; j += 2)
             {
                 DecoratedKey dk = Util.dk(String.valueOf(j));
-                assert sstable.getPosition(dk, SSTableReader.Operator.EQ) == null;
+                assert sstable.getPosition(dk, SSTableReader.Operator.EQ) < 0;
             }
         }
         finally
@@ -301,10 +301,10 @@ public class SSTableReaderTest
         CompactionManager.instance.performMaximal(store, false);
 
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
-        long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ).position;
-        long p3 = sstable.getPosition(k(3), SSTableReader.Operator.EQ).position;
-        long p6 = sstable.getPosition(k(6), SSTableReader.Operator.EQ).position;
-        long p7 = sstable.getPosition(k(7), SSTableReader.Operator.EQ).position;
+        long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ);
+        long p3 = sstable.getPosition(k(3), SSTableReader.Operator.EQ);
+        long p6 = sstable.getPosition(k(6), SSTableReader.Operator.EQ);
+        long p7 = sstable.getPosition(k(7), SSTableReader.Operator.EQ);
 
         SSTableReader.PartitionPositionBounds p = sstable.getPositionsForRanges(makeRanges(t(2), t(6))).get(0);
 

@@ -67,7 +67,7 @@ public class BigTableReader extends SSTableReader
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
-        RowIndexEntry rie = getPosition(key, SSTableReader.Operator.EQ, listener);
+        RowIndexEntry<IndexInfo> rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, false, listener);
         return rowIterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
@@ -122,12 +122,15 @@ public class BigTableReader extends SSTableReader
             return getScanner();
     }
 
-
-    @SuppressWarnings("resource") // caller to close
-    @Override
-    public UnfilteredRowIterator simpleIterator(FileDataInput dfile, DecoratedKey key, RowIndexEntry position, boolean tombstoneOnly)
+    /**
+     * Retrieves the position while updating the key cache and the stats.
+     * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     * allow key selection by token bounds but only if op != * EQ
+     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     */
+    public final RowIndexEntry<IndexInfo> getRowIndexEntry(PartitionPosition key, Operator op)
     {
-        return SSTableIdentityIterator.create(this, dfile, position, key, tombstoneOnly);
+        return getRowIndexEntry(key, op, true, false, SSTableReadsListener.NOOP_LISTENER);
     }
 
     /**
@@ -137,11 +140,11 @@ public class BigTableReader extends SSTableReader
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected RowIndexEntry getPosition(PartitionPosition key,
-                                        Operator op,
-                                        boolean updateCacheAndStats,
-                                        boolean permitMatchPastLast,
-                                        SSTableReadsListener listener)
+    protected RowIndexEntry<IndexInfo> getRowIndexEntry(PartitionPosition key,
+                                                        Operator op,
+                                                        boolean updateCacheAndStats,
+                                                        boolean permitMatchPastLast,
+                                                        SSTableReadsListener listener)
     {
         // Having no index file is impossible in a normal operation. The only way it might happen is running
         // Scrubber that does not really rely onto this method.
@@ -171,7 +174,7 @@ public class BigTableReader extends SSTableReader
             {
                 // we do not need to track "true positive" for Bloom Filter here because it has been already tracked
                 // inside getCachedPosition method
-                listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);
+                listener.onSSTableSelected(this, SelectionReason.KEY_CACHE_HIT);
                 Tracing.trace("Key cache hit for sstable {}", descriptor.id);
                 return cachedPosition;
             }
@@ -278,7 +281,7 @@ public class BigTableReader extends SSTableReader
                     }
                     if (op == Operator.EQ && updateCacheAndStats)
                         bloomFilterTracker.addTruePositive();
-                    listener.onSSTableSelected(this, indexEntry, SelectionReason.INDEX_ENTRY_FOUND);
+                    listener.onSSTableSelected(this, SelectionReason.INDEX_ENTRY_FOUND);
                     Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndexCount(), descriptor.id);
                     return indexEntry;
                 }
@@ -297,6 +300,24 @@ public class BigTableReader extends SSTableReader
         listener.onSSTableSkipped(this, SkippingReason.INDEX_ENTRY_NOT_FOUND);
         Tracing.trace("Partition index lookup complete (bloom filter false positive) for sstable {}", descriptor.id);
         return null;
+    }
+
+    /**
+     * @param key                 The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     *                            allow key selection by token bounds but only if op != * EQ
+     * @param op                  The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     * @param updateCacheAndStats true if updating stats and cache
+     * @return The index entry corresponding to the key, or null if the key is not present
+     */
+    @Override
+    protected long getPosition(PartitionPosition key,
+                               Operator op,
+                               boolean updateCacheAndStats,
+                               boolean permitMatchPastLast,
+                               SSTableReadsListener listener)
+    {
+        RowIndexEntry<IndexInfo> rowIndexEntry = getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
+        return rowIndexEntry != null ? rowIndexEntry.position : -1;
     }
 
     @Override

@@ -150,8 +150,8 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 
         createAndPopulateTable(keyspaceName, corruptDataTable, cfs -> {
             SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
-            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
+            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ);
+            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ);
             long startPosition = Math.min(row0Start, row1Start);
 
             try (RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw"))

@@ -921,7 +921,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             // TODO: merge with caller's firstKeyBeyond() work,to save time
             if (newStart.compareTo(first) > 0)
             {
-                final long dataStart = getPosition(newStart, Operator.EQ).position;
+                final long dataStart = getPosition(newStart, Operator.EQ);
                 final long indexStart = getIndexScanPosition(newStart);
                 this.tidy.runOnClose = new DropPageCache(dfile, dataStart, ifile, indexStart, runOnClose);
             }
@@ -1307,10 +1307,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             if (leftBound.compareTo(last) > 0 || rightBound.compareTo(first) < 0)
                 continue;
 
-            long left = getPosition(leftBound, Operator.GT).position;
+            long left = getPosition(leftBound, Operator.GT);
             long right = (rightBound.compareTo(last) > 0)
                          ? uncompressedLength()
-                         : getPosition(rightBound, Operator.GT).position;
+                         : getPosition(rightBound, Operator.GT);
 
             if (left == right)
                 // empty range
@@ -1380,7 +1380,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * allow key selection by token bounds but only if op != * EQ
      * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
      */
-    public final RowIndexEntry getPosition(PartitionPosition key, Operator op)
+    public final long getPosition(PartitionPosition key, Operator op)
     {
         return getPosition(key, op, SSTableReadsListener.NOOP_LISTENER);
     }
@@ -1392,12 +1392,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param listener the {@code SSTableReaderListener} that must handle the notifications.
      */
-    public final RowIndexEntry getPosition(PartitionPosition key, Operator op, SSTableReadsListener listener)
+    public final long getPosition(PartitionPosition key, Operator op, SSTableReadsListener listener)
     {
         return getPosition(key, op, true, false, listener);
     }
 
-    public final RowIndexEntry getPosition(PartitionPosition key,
+    public final long getPosition(PartitionPosition key,
                                            Operator op,
                                            boolean updateCacheAndStats)
     {
@@ -1412,7 +1412,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param listener a listener used to handle internal events
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected abstract RowIndexEntry getPosition(PartitionPosition key,
+    protected abstract long getPosition(PartitionPosition key,
                                                  Operator op,
                                                  boolean updateCacheAndStats,
                                                  boolean permitMatchPastLast,
@@ -1420,7 +1420,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public abstract UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
 
-    public abstract UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, boolean tombstoneOnly);
+    public UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, long dataPosition, boolean tombstoneOnly)
+    {
+        return SSTableIdentityIterator.create(this, file, dataPosition, key, tombstoneOnly);
+    }
 
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
@@ -1974,7 +1977,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     {
         // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
         // we check index file instead.
-        return bf instanceof AlwaysPresentFilter && getPosition(key, Operator.EQ, false) != null || bf.isPresent(key);
+        return bf instanceof AlwaysPresentFilter && getPosition(key, Operator.EQ, false) >= 0 || bf.isPresent(key);
     }
 
     /**

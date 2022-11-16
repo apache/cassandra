@@ -23,6 +23,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -59,8 +61,11 @@ public class QueryWithIndexedSSTableTest extends CQLTester
         boolean hasIndexed = false;
         for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
         {
-            RowIndexEntry indexEntry = sstable.getPosition(dk, SSTableReader.Operator.EQ);
-            hasIndexed |= indexEntry != null && indexEntry.isIndexed();
+            if (sstable instanceof BigTableReader)
+            {
+                RowIndexEntry<IndexInfo> indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
+                hasIndexed |= indexEntry != null && indexEntry.isIndexed();
+            }
         }
         assert hasIndexed;
 
