@@ -54,6 +54,7 @@ import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -85,6 +86,9 @@ import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static java.lang.String.format;
+import static java.lang.System.setProperty;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMIT_LOG_REPLAY_LIST;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -107,6 +111,11 @@ public abstract class CommitLogTest
     protected static final String STANDARD1 = "Standard1";
     private static final String STANDARD2 = "Standard2";
     private static final String CUSTOM1 = "Custom1";
+    private static final String KEYSPACE1_REPLAY = "CommitLogTestReplay1";
+    private static final String KEYSPACE1_REPLAY_TABLE1 = "CommitLogTestReplay1Table1";
+    private static final String KEYSPACE1_REPLAY_TABLE2 = "CommitLogTestReplay1Table2";
+    private static final String KEYSPACE2_REPLAY = "CommitLogTestReplay2";
+    private static final String KEYSPACE2_REPLAY_TABLE2 = "CommitLogTestReplay2Table2";
 
     private static JVMStabilityInspector.Killer oldKiller;
     private static KillerForTests testKiller;
@@ -168,6 +177,14 @@ public abstract class CommitLogTest
                                     KeyspaceParams.simpleTransient(1),
                                     SchemaLoader.standardCFMD(KEYSPACE2, STANDARD1, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable),
                                     SchemaLoader.standardCFMD(KEYSPACE2, STANDARD2, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable));
+        SchemaLoader.createKeyspace(KEYSPACE1_REPLAY,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable),
+                                    SchemaLoader.standardCFMD(KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE2, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable));
+        SchemaLoader.createKeyspace(KEYSPACE2_REPLAY,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE2_REPLAY, KEYSPACE2_REPLAY_TABLE2, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable));
+
         CompactionManager.instance.disableAutoCompaction();
 
         testKiller = new KillerForTests();
@@ -181,6 +198,10 @@ public abstract class CommitLogTest
     @AfterClass
     public static void afterClass()
     {
+        SchemaTestUtil.dropKeyspaceIfExist(KEYSPACE1, true);
+        SchemaTestUtil.dropKeyspaceIfExist(KEYSPACE2, true);
+        SchemaTestUtil.dropKeyspaceIfExist(KEYSPACE1_REPLAY, true);
+        SchemaTestUtil.dropKeyspaceIfExist(KEYSPACE2_REPLAY, true);
         JVMStabilityInspector.replaceKiller(oldKiller);
     }
 
@@ -412,7 +433,7 @@ public abstract class CommitLogTest
 
         Collection<CommitLogSegment> segments = CommitLog.instance.segmentManager.getActiveSegments();
 
-        assertEquals(String.format("Expected 3 segments but got %d (%s)", segments.size(), getDirtyCFIds(segments)),
+        assertEquals(format("Expected 3 segments but got %d (%s)", segments.size(), getDirtyCFIds(segments)),
                      3,
                      segments.size());
 
@@ -425,7 +446,7 @@ public abstract class CommitLogTest
         segments = CommitLog.instance.segmentManager.getActiveSegments();
 
         // Assert we still have both our segment
-        assertEquals(String.format("Expected 1 segment but got %d (%s)", segments.size(), getDirtyCFIds(segments)),
+        assertEquals(format("Expected 1 segment but got %d (%s)", segments.size(), getDirtyCFIds(segments)),
                      1,
                      segments.size());
     }
@@ -536,12 +557,12 @@ public abstract class CommitLogTest
             String message = exception.getMessage();
 
             long mutationSize = mutation.serializedSize(MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
-            final String expectedMessagePrefix = String.format("Rejected an oversized mutation (%d/%d) for keyspace: %s.",
+            final String expectedMessagePrefix = format("Rejected an oversized mutation (%d/%d) for keyspace: %s.",
                                                                mutationSize,
                                                                DatabaseDescriptor.getMaxMutationSize(),
                                                                KEYSPACE1);
             assertTrue(message.startsWith(expectedMessagePrefix));
-            assertTrue(message.contains(String.format("%s.%s and 1 more.", STANDARD1, key)));
+            assertTrue(message.contains(format("%s.%s and 1 more.", STANDARD1, key)));
         }
     }
 
@@ -788,6 +809,150 @@ public abstract class CommitLogTest
         replayer.replayFiles(files);
 
         assertEquals(cellCount, replayer.cells);
+    }
+
+    @Test
+    public void testReplayListProperty() throws Throwable
+    {
+        // only keyspace
+        assertReplay(2, () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(), KEYSPACE1_REPLAY));
+
+        // only keyspaces
+        assertReplay(3, () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
+                                          format("%s,%s", KEYSPACE1_REPLAY, KEYSPACE2_REPLAY)));
+
+        // only table with keyspace
+        assertReplay(1,
+                     () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
+                                       format("%s.%s",
+                                              KEYSPACE1_REPLAY,
+                                              KEYSPACE1_REPLAY_TABLE1)));
+
+        // mix of keyspace and tables with keyspaces
+        assertReplay(2,
+                     () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
+                                       format("%s.%s,%s",
+                                              KEYSPACE1_REPLAY,
+                                              KEYSPACE1_REPLAY_TABLE1,
+                                              KEYSPACE2_REPLAY)));
+
+        // only tables with keyspaces
+        assertReplay(2,
+                     () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
+                                       format("%s.%s,%s.%s",
+                                              KEYSPACE1_REPLAY,
+                                              KEYSPACE1_REPLAY_TABLE1,
+                                              KEYSPACE2_REPLAY,
+                                              KEYSPACE2_REPLAY_TABLE2)));
+
+        // mix of keyspace and tables with keyspaces within same keyspace.
+        assertReplay(2,
+                     () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
+                                       format("%s.%s,%s",
+                                              KEYSPACE1_REPLAY,
+                                              KEYSPACE1_REPLAY_TABLE1,
+                                              KEYSPACE1_REPLAY)));
+
+        // test for wrong formats
+
+        String invalidFormat = format("%s.%s.%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE1_REPLAY);
+
+        try
+        {
+            assertReplay(2,
+                         () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat));
+            fail(format("replay should fail on -D%s=%s as it is in invalid format",
+                        COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat));
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals(format("%s property contains an item which is not " +
+                                "in format 'keyspace' or 'keyspace.table' but it is '%s'",
+                                COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat),
+                         ex.getMessage());
+        }
+
+        String invalidFormat2 = format("%s.%s,%s.", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE1_REPLAY);
+
+        try
+        {
+            assertReplay(2,
+                         () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat2));
+            fail(format("replay should fail on -D%s=%s as it is in invalid format",
+                        COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat2));
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals(format("Invalid pair: '%s.'", KEYSPACE1_REPLAY), ex.getMessage());
+        }
+    }
+
+    private static class ReplayListPropertyReplayer extends CommitLogReplayer
+    {
+        private final ReplayFilter replayFilter;
+
+        ReplayListPropertyReplayer(CommitLog commitLog,
+                                   CommitLogPosition globalPosition,
+                                   Map<TableId, IntervalSet<CommitLogPosition>> cfPersisted,
+                                   ReplayFilter replayFilter)
+        {
+            super(commitLog, globalPosition, cfPersisted, replayFilter);
+            this.replayFilter = replayFilter;
+        }
+
+        public int count = 0;
+
+        @Override
+        public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
+        {
+            count += Iterables.size(replayFilter.filter(m));
+            super.handleMutation(m, size, entryLocation, desc);
+        }
+    }
+
+    private void assertReplay(int expectedReplayedMutations, Runnable systemPropertySetter) throws Throwable
+    {
+        try
+        {
+            systemPropertySetter.run();
+
+            CommitLog.instance.resetUnsafe(true);
+
+            ColumnFamilyStore ks1tb1 = Keyspace.open(KEYSPACE1_REPLAY).getColumnFamilyStore(KEYSPACE1_REPLAY_TABLE1);
+            ColumnFamilyStore ks1tb2 = Keyspace.open(KEYSPACE1_REPLAY).getColumnFamilyStore(KEYSPACE1_REPLAY_TABLE2);
+            ColumnFamilyStore ks2tb2 = Keyspace.open(KEYSPACE2_REPLAY).getColumnFamilyStore(KEYSPACE2_REPLAY_TABLE2);
+
+            Mutation mutation1 = new RowUpdateBuilder(ks1tb1.metadata(), 0, "key1")
+            .clustering("c1").add("val", ByteBuffer.allocate(100)).build();
+
+            Mutation mutation2 = new RowUpdateBuilder(ks1tb2.metadata(), 0, "key2")
+            .clustering("c2").add("val", ByteBuffer.allocate(100)).build();
+
+            Mutation mutation3 = new RowUpdateBuilder(ks2tb2.metadata(), 0, "key3")
+            .clustering("c3").add("val", ByteBuffer.allocate(100)).build();
+
+            CommitLog.instance.add(mutation1);
+            CommitLog.instance.add(mutation2);
+            CommitLog.instance.add(mutation3);
+            CommitLog.instance.sync(true);
+
+            Map<TableId, IntervalSet<CommitLogPosition>> cfPersisted = new HashMap<TableId, IntervalSet<CommitLogPosition>>() {{
+                put(ks1tb1.metadata().id, IntervalSet.empty());
+                put(ks1tb2.metadata().id, IntervalSet.empty());
+                put(ks2tb2.metadata().id, IntervalSet.empty());
+            }};
+
+            List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
+            File[] files = new File(CommitLog.instance.segmentManager.storageDirectory).tryList((file, name) -> activeSegments.contains(name));
+            ReplayListPropertyReplayer replayer = new ReplayListPropertyReplayer(CommitLog.instance, CommitLogPosition.NONE, cfPersisted, CommitLogReplayer.ReplayFilter.create());
+            replayer.replayFiles(files);
+
+            assertEquals(expectedReplayedMutations, replayer.count);
+        }
+        finally
+        {
+            System.clearProperty(COMMIT_LOG_REPLAY_LIST.getKey());
+        }
     }
 
     @Test

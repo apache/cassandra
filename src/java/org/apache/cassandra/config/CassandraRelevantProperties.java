@@ -313,9 +313,24 @@ public enum CassandraRelevantProperties
 
     /** Used when running in Client mode and the system and schema keyspaces need to be initialized outside of their normal initialization path **/
     FORCE_LOAD_LOCAL_KEYSPACES("cassandra.schema.force_load_local_keyspaces"),
+
+    // commit log relevant properties
+    /**
+     * Entities to replay mutations for upon commit log replay, property is meant to contain
+     * comma-separated entities which are either names of keyspaces or keyspaces and tables or their mix.
+     * Examples:
+     * just keyspaces
+     * -Dcassandra.replayList=ks1,ks2,ks3
+     * specific tables
+     * -Dcassandra.replayList=ks1.tb1,ks2.tb2
+     * mix of tables and keyspaces
+     * -Dcassandra.replayList=ks1.tb1,ks2
+     *
+     * If only keyspaces are specified, mutations for all tables in such keyspace will be replayed
+     * */
+    COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null)
+
     ;
-
-
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
