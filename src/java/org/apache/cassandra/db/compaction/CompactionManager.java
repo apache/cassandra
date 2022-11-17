@@ -985,7 +985,10 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     for (AbstractCompactionTask task : tasks)
                         if (task != null)
+                        {
+                            task.setCompactionType(OperationType.MAJOR_COMPACTION);
                             task.execute(active);
+                        }
                 }
             };
 

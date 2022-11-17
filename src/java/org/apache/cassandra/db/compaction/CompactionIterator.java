@@ -202,9 +202,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 CompactionIterator.this.updateCounterFor(merged);
 
-                if (type != OperationType.COMPACTION || !controller.cfs.indexManager.hasIndexes())
+                if ( (type != OperationType.COMPACTION && type != OperationType.MAJOR_COMPACTION) 
+                    || !controller.cfs.indexManager.hasIndexes() ) 
+                {
                     return null;
-
+                }
+                
                 Columns statics = Columns.NONE;
                 Columns regulars = Columns.NONE;
                 for (int i=0, isize=versions.size(); i<isize; i++)

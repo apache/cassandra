@@ -1016,7 +1016,10 @@ public class CompactionStrategyManager implements INotificationConsumer
             {
                 for (AbstractStrategyHolder holder : holders)
                 {
-                    tasks.addAll(holder.getMaximalTasks(gcBefore, splitOutput));
+                    for (AbstractCompactionTask task: holder.getMaximalTasks(gcBefore, splitOutput)) 
+                    {
+                        tasks.add(task.setCompactionType(operationType));
+                    }
                 }
             }
             finally
