@@ -191,4 +191,13 @@ public class CompactionTaskTest
             cfs.getTracker().removeUnsafe(sstables);
         }
     }
+    
+    @Test
+    public void testMajorCompactTask()
+    {
+        //major compact without range/pk specified 
+        CompactionTasks compactionTasks = cfs.getCompactionStrategyManager().getMaximalTasks(Integer.MAX_VALUE, false, OperationType.MAJOR_COMPACTION);
+        boolean anyMatch = compactionTasks.stream().anyMatch(task -> !(task.compactionType.equals(OperationType.MAJOR_COMPACTION)));
+        Assert.assertFalse(anyMatch);
+    }
 }
