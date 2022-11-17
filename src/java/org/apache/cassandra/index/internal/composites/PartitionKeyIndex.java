@@ -17,19 +17,15 @@
  */
 package org.apache.cassandra.index.internal.composites;
 
-import org.apache.cassandra.db.CBuilder;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.ClusteringPrefix;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
+import java.nio.ByteBuffer;
+
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.IndexEntry;
 import org.apache.cassandra.schema.IndexMetadata;
-
-import java.nio.ByteBuffer;
 
 /**
  * Index on a PARTITION_KEY column definition.
@@ -98,5 +94,4 @@ public class PartitionKeyIndex extends CassandraIndex
     {
         return !data.hasLiveData(nowInSec, enforceStrictLiveness);
     }
-
 }

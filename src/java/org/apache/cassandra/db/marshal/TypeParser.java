@@ -21,20 +21,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
-import org.apache.cassandra.config.DatabaseDescriptor;
+
 import org.apache.cassandra.cql3.FieldIdentifier;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -138,73 +131,6 @@ public class TypeParser
             return getAbstractType(name);
     }
 
-    /**
-     * parse PartitionOrdering from old version of PartitionOrdering' string format 
-     * */
-    private static  AbstractType<?> defaultParsePartitionOrdering(TypeParser typeParser)
-    {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        Iterator<String> argIterator = typeParser.getKeyValueParameters().keySet().iterator();
-        if (argIterator.hasNext()) {
-            partitioner = FBUtilities.newPartitioner(argIterator.next());
-            assert !argIterator.hasNext();
-        }
-        return partitioner.partitionOrdering();
-    }
-    
-    //the format is (partitioner:type)
-    public AbstractType<?> getPartitionerDefinedOrder() 
-    {
-        if (isEOS())
-            return defaultParsePartitionOrdering(this);
-        skipBlank();
-        if (str.charAt(idx) != '(')
-            throw new IllegalStateException();
-        Pair<Boolean, AbstractType<?>>  result = null;
-        ++idx; // skipping '('
-
-        if (str.charAt(idx) == ')')
-        {
-            ++idx;
-            return  defaultParsePartitionOrdering(this);
-        }
-        skipBlank();
-        String k = readNextIdentifier();
-        skipBlank();
-        if (str.charAt(idx) == ':')
-        {
-            ++idx;
-            skipBlank();
-        }
-        else if (str.charAt(idx) != ',' && str.charAt(idx) != ')')
-        {
-            return defaultParsePartitionOrdering(this);
-        }
-        IPartitioner partitioner = FBUtilities.newPartitioner(k);
-        AbstractType<?> type = partitioner.partitionOrdering();
-        if (partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
-        {
-            PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) partitioner.partitionOrdering();
-            ++idx;
-            try 
-            {
-                type = tmp.withBaseType(parse());
-            } 
-            catch (Throwable throwable) 
-            {
-                Iterator<String> argIterator = this.getKeyValueParameters().keySet().iterator();
-                if (argIterator.hasNext())
-                {
-                    partitioner = FBUtilities.newPartitioner(argIterator.next());
-                    assert !argIterator.hasNext();
-                }
-                return partitioner.partitionOrdering();
-            }
-        }
-        return type;
-    }
-    
-    
     public Map<String, String> getKeyValueParameters() throws SyntaxException
     {
         if (isEOS())
@@ -241,14 +167,15 @@ public class TypeParser
         }
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
-    
+
     public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException
     {
         List<AbstractType<?>> list = new ArrayList<>();
 
         if (isEOS())
             return list;
-        if ( str.charAt(idx) != '(')
+
+        if (str.charAt(idx) != '(')
             throw new IllegalStateException();
 
         ++idx; // skipping '('
@@ -648,10 +575,5 @@ public class TypeParser
         }
         sb.append(')');
         return sb.toString();
-    }
-    
-    public TypeParser clone()
-    {
-        return new TypeParser(str, idx);
     }
 }

@@ -33,7 +33,6 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -144,7 +143,7 @@ public abstract class CassandraIndex implements Index
                                                   Clustering<?> clustering,
                                                   CellPath path,
                                                   ByteBuffer cellValue);
-
+    
     public ColumnMetadata getIndexedColumn()
     {
         return indexedColumn;
@@ -736,18 +735,12 @@ public abstract class CassandraIndex implements Index
         ColumnMetadata indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
 
-        AbstractType<?> indexTableMokePkType =  baseCfsMetadata.partitioner.partitionOrdering();
-        if(indexTableMokePkType instanceof PartitionerDefinedOrder)
-        {
-            PartitionerDefinedOrder tmp =  (PartitionerDefinedOrder)indexTableMokePkType;
-            indexTableMokePkType = tmp.withBaseType(baseCfsMetadata.partitionKeyType);
-        }
         TableMetadata.Builder builder =
             TableMetadata.builder(baseCfsMetadata.keyspace, baseCfsMetadata.indexTableName(indexMetadata), baseCfsMetadata.id)
                          .kind(TableMetadata.Kind.INDEX)
                          .partitioner(new LocalPartitioner(indexedValueType))
-                         .addPartitionKeyColumn(indexedColumn.name, utils.getIndexedPartitionKeyType(indexedColumn))
-                         .addClusteringColumn("partition_key", indexTableMokePkType);
+                         .addPartitionKeyColumn(indexedColumn.name, indexedColumn.type)
+                         .addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
 
         // Adding clustering columns, which depends on the index type.
         builder = utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);
