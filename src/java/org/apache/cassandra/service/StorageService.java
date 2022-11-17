@@ -788,6 +788,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public synchronized void initServer(int schemaTimeoutMillis, int ringTimeoutMillis) throws ConfigurationException
     {
         logger.info("Cassandra version: {}", FBUtilities.getReleaseVersionString());
+        logger.info("Git SHA: {}", FBUtilities.getGitSHA());
         logger.info("CQL version: {}", QueryProcessor.CQL_VERSION);
         logger.info("Native protocol supported versions: {} (default: {})",
                     StringUtils.join(ProtocolVersion.supportedVersions(), ", "), ProtocolVersion.CURRENT);
@@ -1945,7 +1946,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (Boolean.getBoolean("cassandra.reset_bootstrap_progress"))
         {
             logger.info("Resetting bootstrap progress to start fresh");
-            SystemKeyspace.resetAvailableRanges();
+            SystemKeyspace.resetAvailableStreamedRanges();
         }
 
         // Force disk boundary invalidation now that local tokens are set
@@ -3659,6 +3660,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return FBUtilities.getReleaseVersionString();
     }
 
+    @Override
+    public String getGitSHA()
+    {
+        return FBUtilities.getGitSHA();
+    }
+
     public String getSchemaVersion()
     {
         return Schema.instance.getVersion().toString();
@@ -4063,6 +4070,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             cfStore.forceCompactionForKey(getKeyFromPartition(keyspaceName, cfStore.name, partitionKey));
         }
+    }
+
+    /***
+     * Forces compaction for a list of partition keys in a table
+     * The method will ignore the gc_grace_seconds for the partitionKeysIgnoreGcGrace during the comapction,
+     * in order to purge the tombstones and free up space quicker.
+     * @param keyspaceName keyspace name
+     * @param tableName table name
+     * @param partitionKeysIgnoreGcGrace partition keys ignoring the gc_grace_seconds
+     * @throws IOException on any I/O operation error
+     * @throws ExecutionException when attempting to retrieve the result of a task that aborted by throwing an exception
+     * @throws InterruptedException when a thread is waiting, sleeping, or otherwise occupied, and the thread is interrupted, either before or during the activity
+     */
+    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName,
+                                                   String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore cfStore = getValidKeyspace(keyspaceName).getColumnFamilyStore(tableName);
+        cfStore.forceCompactionKeysIgnoringGcGrace(partitionKeysIgnoreGcGrace);
     }
 
     /**

@@ -133,4 +133,18 @@ public class NodeToolTest extends TestBaseImpl
             ringResult.asserts().stdoutContains("Heap Memory");
         }
     }
+
+    @Test
+    public void testVersionIncludesGitSHAWhenVerbose() throws Throwable
+    {
+        NODE.nodetoolResult("version")
+            .asserts()
+            .success()
+            .stdoutNotContains("GitSHA:");
+
+        NODE.nodetoolResult("version", "--verbose")
+            .asserts()
+            .success()
+            .stdoutContains("GitSHA:");
+    }
 }

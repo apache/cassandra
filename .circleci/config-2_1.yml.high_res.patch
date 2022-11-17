@@ -1,6 +1,6 @@
---- config-2_1.yml	2022-10-19 18:01:31.517748550 +0300
-+++ config-2_1.yml.HIGHRES	2022-10-19 18:06:37.789192360 +0300
-@@ -149,14 +149,14 @@
+--- config-2_1.yml	2022-11-15 12:54:54.000000000 -0500
++++ config-2_1.yml.HIGHRES	2022-11-15 12:56:26.000000000 -0500
+@@ -158,14 +158,14 @@
  j8_par_executor: &j8_par_executor
    executor:
      name: java8-executor
@@ -19,7 +19,7 @@
  
  j8_small_executor: &j8_small_executor
    executor:
-@@ -167,62 +167,68 @@
+@@ -176,26 +176,26 @@
  j8_medium_par_executor: &j8_medium_par_executor
    executor:
      name: java8-executor
@@ -43,22 +43,29 @@
 +    exec_resource_class: xlarge
 +  parallelism: 100
  
--j11_small_par_executor: &j11_small_par_executor
-+j11_small_executor: &j11_small_executor
+ j11_small_par_executor: &j11_small_par_executor
    executor:
      name: java11-executor
 -    #exec_resource_class: xlarge
-+    exec_resource_class: medium
-   parallelism: 1
- 
--j11_small_executor: &j11_small_executor
-+j11_small_par_executor: &j11_small_par_executor
-   executor:
-     name: java11-executor
--    #exec_resource_class: medium
 -  parallelism: 1
 +    exec_resource_class: xlarge
 +  parallelism: 5
+ 
+ j11_small_executor: &j11_small_executor
+   executor:
+@@ -207,43 +207,49 @@
+   executor:
+     name: java11-executor
+     #exec_resource_class: xlarge
+-  parallelism: 1
++  parallelism: 2
+ 
+ j11_seq_executor: &j11_seq_executor
+   executor:
+     name: java11-executor
+-    #exec_resource_class: xlarge
++    exec_resource_class: xlarge
+   parallelism: 1 # sequential, single container tests: no parallelism benefits
  
  j8_repeated_utest_executor: &j8_repeated_utest_executor
    executor:
@@ -104,3 +111,39 @@
  
  j8_separate_jobs: &j8_separate_jobs
    jobs:
+@@ -2155,7 +2161,7 @@
+           python_version: '3.8'
+ 
+   j8_dtests_large_vnode:
+-    <<: *j8_par_executor
++    <<: *j8_seq_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -2169,7 +2175,7 @@
+           pytest_extra_args: '--use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests'
+ 
+   j8_dtests_large:
+-    <<: *j8_par_executor
++    <<: *j8_seq_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -2183,7 +2189,7 @@
+           pytest_extra_args: '--only-resource-intensive-tests --force-resource-intensive-tests'
+ 
+   j11_dtests_large_vnode:
+-    <<: *j11_par_executor
++    <<: *j11_seq_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -2197,7 +2203,7 @@
+           pytest_extra_args: '--use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests'
+ 
+   j11_dtests_large:
+-    <<: *j11_par_executor
++    <<: *j11_seq_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra

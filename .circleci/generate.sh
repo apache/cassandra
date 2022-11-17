@@ -56,6 +56,8 @@ print_help()
   echo "                   -e REPEATED_JVM_UPGRADE_DTESTS_COUNT=500"
   echo "                   -e REPEATED_DTESTS=cdc_test.py cqlsh_tests/test_cqlsh.py::TestCqlshSmoke"
   echo "                   -e REPEATED_DTESTS_COUNT=500"
+  echo "                   -e REPEATED_LARGE_DTESTS=consistency_test.py::TestAvailability::test_network_topology_strategy"
+  echo "                   -e REPEATED_LARGE_DTESTS=100"
   echo "                   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py upgrade_tests/paging_test.py"
   echo "                   -e REPEATED_UPGRADE_DTESTS_COUNT=25"
   echo "                   -e REPEATED_ANT_TEST_TARGET=testsome"
@@ -87,7 +89,7 @@ while getopts "e:almhf" opt; do
           ;;
       h ) highres=true
           ;;
-      e ) if (!($has_env_vars)); then
+      e ) if (! ($has_env_vars)); then
             env_vars="$OPTARG"
           else
             env_vars="$env_vars|$OPTARG"
@@ -128,6 +130,8 @@ if $has_env_vars && $check_env_vars; then
        [ "$key" != "REPEATED_JVM_UPGRADE_DTESTS_COUNT" ]  &&
        [ "$key" != "REPEATED_DTESTS" ] &&
        [ "$key" != "REPEATED_DTESTS_COUNT" ] &&
+       [ "$key" != "REPEATED_LARGE_DTESTS" ] &&
+       [ "$key" != "REPEATED_LARGE_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_UPGRADE_DTESTS" ] &&
        [ "$key" != "REPEATED_UPGRADE_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_ANT_TEST_TARGET" ] &&
@@ -187,12 +191,13 @@ elif $all; then
   # copy lower into config.yml to make sure this gets updated
   cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
 
-elif (!($has_env_vars)); then
+elif (! ($has_env_vars)); then
   print_help
+  exit 0
 fi
 
 # add new or modified tests to the sets of tests to be repeated
-if (!($all)); then
+if (! ($all)); then
   add_diff_tests ()
   {
     dir="${BASEDIR}/../${2}"
@@ -242,58 +247,88 @@ if $has_env_vars; then
   unset IFS
 fi
 
-# define function to remove unneeded jobs
+# Define function to remove unneeded jobs.
+# The first argument is the file name, and the second arguemnt is the job name.
 delete_job()
 {
   delete_yaml_block()
   {
-    sed -Ei.bak "/^    - ${1}/,/^    [^[:space:]]+|^  [^[:space:]]+/{//!d;}" $BASEDIR/config.yml
-    sed -Ei.bak "/^    - ${1}/d" $BASEDIR/config.yml
+    sed -Ei.bak "/^    - ${2}/,/^    [^[:space:]]+|^  [^[:space:]]+/{//!d;}" "$1"
+    sed -Ei.bak "/^    - ${2}/d" "$1"
   }
-  delete_yaml_block "${1}"
-  delete_yaml_block "start_${1}"
+  file="$BASEDIR/$1"
+  delete_yaml_block "$file" "${2}"
+  delete_yaml_block "$file" "start_${2}"
 }
 
-# removed unneeded repeated jobs
-if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS=" )); then
-  delete_job "j8_unit_tests_repeat"
-  delete_job "j11_unit_tests_repeat"
-  delete_job "utests_compression_repeat"
-  delete_job "utests_trie_repeat"
-  delete_job "utests_system_keyspace_directory_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then
-  delete_job "utests_long_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_STRESS=")); then
-  delete_job "utests_stress_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_FQLTOOL=")); then
-  delete_job "utests_fqltool_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_SIMULATOR_DTESTS=")); then
-  delete_job "j8_simulator_dtests_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
-  delete_job "j8_jvm_dtests_repeat"
-  delete_job "j8_jvm_dtests_vnode_repeat"
-  delete_job "j11_jvm_dtests_repeat"
-  delete_job "j11_jvm_dtests_vnode_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
-  delete_job "start_jvm_upgrade_dtests_repeat"
-  delete_job "j8_jvm_upgrade_dtests_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
-  delete_job "j8_dtests_repeat"
-  delete_job "j8_dtests_vnode_repeat"
-  delete_job "j11_dtests_repeat"
-  delete_job "j11_dtests_vnode_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
-  delete_job "j8_upgrade_dtests_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
-  delete_job "j8_repeated_ant_test"
-  delete_job "j11_repeated_ant_test"
+# Define function to remove any unneeded repeated jobs.
+# The first and only argument is the file name.
+delete_repeated_jobs()
+{
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS=" )); then
+    delete_job "$1" "j8_unit_tests_repeat"
+    delete_job "$1" "j11_unit_tests_repeat"
+    delete_job "$1" "j8_utests_cdc_repeat"
+    delete_job "$1" "j11_utests_cdc_repeat"
+    delete_job "$1" "j8_utests_compression_repeat"
+    delete_job "$1" "j11_utests_compression_repeat"
+    delete_job "$1" "j8_utests_trie_repeat"
+    delete_job "$1" "j11_utests_trie_repeat"
+    delete_job "$1" "j8_utests_system_keyspace_directory_repeat"
+    delete_job "$1" "j11_utests_system_keyspace_directory_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then
+    delete_job "$1" "j8_utests_long_repeat"
+    delete_job "$1" "j11_utests_long_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_STRESS=")); then
+    delete_job "$1" "j8_utests_stress_repeat"
+    delete_job "$1" "j11_utests_stress_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_FQLTOOL=")); then
+    delete_job "$1" "j8_utests_fqltool_repeat"
+    delete_job "$1" "j11_utests_fqltool_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_SIMULATOR_DTESTS=")); then
+    delete_job "$1" "j8_simulator_dtests_repeat"
+    delete_job "$1" "j11_simulator_dtests_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
+    delete_job "$1" "j8_jvm_dtests_repeat"
+    delete_job "$1" "j8_jvm_dtests_vnode_repeat"
+    delete_job "$1" "j11_jvm_dtests_repeat"
+    delete_job "$1" "j11_jvm_dtests_vnode_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
+    delete_job "$1" "start_jvm_upgrade_dtests_repeat"
+    delete_job "$1" "j8_jvm_upgrade_dtests_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
+    delete_job "$1" "j8_dtests_repeat"
+    delete_job "$1" "j8_dtests_vnode_repeat"
+    delete_job "$1" "j8_dtests_offheap_repeat"
+    delete_job "$1" "j11_dtests_repeat"
+    delete_job "$1" "j11_dtests_vnode_repeat"
+    delete_job "$1" "j11_dtests_offheap_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_LARGE_DTESTS=")); then
+    delete_job "$1" "j8_dtests_large_repeat"
+    delete_job "$1" "j8_dtests_large_vnode_repeat"
+    delete_job "$1" "j11_dtests_large_repeat"
+    delete_job "$1" "j11_dtests_large_vnode_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
+    delete_job "$1" "j8_upgrade_dtests_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
+    delete_job "$1" "j8_repeated_ant_test"
+    delete_job "$1" "j11_repeated_ant_test"
+  fi
+}
+
+delete_repeated_jobs "config.yml"
+if $all; then
+  delete_repeated_jobs "config.yml.LOWRES"
+  delete_repeated_jobs "config.yml.MIDRES"
+  delete_repeated_jobs "config.yml.HIGHRES"
 fi

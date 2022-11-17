@@ -15,26 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+package org.apache.cassandra.streaming.messages;
 
-@Command(name = "version", description = "Print cassandra version")
-public class Version extends NodeToolCmd
+import java.io.IOException;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertThat;
+import static org.hamcrest.CoreMatchers.equalTo;
+
+public class KeepAliveMessageTest
 {
-    @Option(title = "verbose",
-            name = {"-v", "--verbose"},
-            description = "Include additional information")
-    private boolean verbose = false;
 
-    @Override
-    public void execute(NodeProbe probe)
+    @Test
+    public void testSerializedSize() throws IOException
     {
-        probe.output().out.println("ReleaseVersion: " + probe.getReleaseVersion());
-        if (verbose)
-            probe.output().out.println("GitSHA: " + probe.getGitSHA());
+        assertThat(StreamMessage.serializedSize(new KeepAliveMessage(), 0), equalTo(1L));
     }
+
 }

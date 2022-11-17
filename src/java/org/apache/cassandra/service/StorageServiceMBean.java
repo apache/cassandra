@@ -103,6 +103,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getReleaseVersion();
 
     /**
+     * Fetch a string representation of the Cassandra git SHA.
+     * @return A string representation of the Cassandra git SHA.
+     */
+    public String getGitSHA();
+
+    /**
      * Fetch a string representation of the current Schema version.
      * @return A string representation of the Schema version.
      */
@@ -357,6 +363,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Forces major compactions for the range represented by the partition key
      */
     public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Forces compaction for a list of partition keys on a table.
+     * The method will ignore the gc_grace_seconds for the partitionKeysIgnoreGcGrace during the comapction,
+     * in order to purge the tombstones and free up space quicker.
+     */
+    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName, String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Trigger a cleanup of keys on a single keyspace

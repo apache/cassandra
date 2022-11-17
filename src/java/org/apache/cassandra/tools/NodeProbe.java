@@ -460,6 +460,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.forceKeyspaceCompactionForPartitionKey(keyspaceName, partitionKey, tableNames);
     }
 
+    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName, String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException
+    {
+        ssProxy.forceCompactionKeysIgnoringGcGrace(keyspaceName, tableName, partitionKeysIgnoreGcGrace);
+    }
+
     public void forceKeyspaceFlush(String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceKeyspaceFlush(keyspaceName, tableNames);
@@ -778,6 +783,11 @@ public class NodeProbe implements AutoCloseable
     public String getReleaseVersion()
     {
         return ssProxy.getReleaseVersion();
+    }
+
+    public String getGitSHA()
+    {
+        return ssProxy.getGitSHA();
     }
 
     public int getCurrentGenerationNumber()
@@ -1471,7 +1481,15 @@ public class NodeProbe implements AutoCloseable
 
     public String getGossipInfo(boolean withPort)
     {
-        return withPort ? fdProxy.getAllEndpointStatesWithPort() : fdProxy.getAllEndpointStates();
+        return getGossipInfo(withPort, false);
+    }
+
+    public String getGossipInfo(boolean withPort, boolean resolveIp)
+    {
+        if (resolveIp)
+            return withPort ? fdProxy.getAllEndpointStatesWithPortAndResolveIp() : fdProxy.getAllEndpointStatesWithResolveIp();
+        else
+            return withPort ? fdProxy.getAllEndpointStatesWithPort() : fdProxy.getAllEndpointStates();
     }
 
     public void stop(String string)
@@ -1992,6 +2010,8 @@ public class NodeProbe implements AutoCloseable
             {
                 out.println("Resuming bootstrap");
                 monitor.awaitCompletion();
+                if (monitor.getError() != null)
+                    throw monitor.getError();
             }
             else
             {

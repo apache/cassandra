@@ -24,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -38,11 +40,32 @@ import org.apache.cassandra.distributed.shared.Byteman;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
+
 /**
  * Replaces python dtest bootstrap_test.py::TestBootstrap::test_bootstrap_binary_disabled
  */
 public class BootstrapBinaryDisabledTest extends TestBaseImpl
 {
+    static String originalResetBootstrapProgress = null;
+
+    @BeforeClass
+    public static void beforeClass() throws Throwable
+    {
+        TestBaseImpl.beforeClass();
+        originalResetBootstrapProgress = RESET_BOOTSTRAP_PROGRESS.getString();
+        RESET_BOOTSTRAP_PROGRESS.setBoolean(false);
+    }
+
+    @AfterClass
+    public static void afterClass()
+    {
+        if (originalResetBootstrapProgress == null)
+            RESET_BOOTSTRAP_PROGRESS.clearValue();
+        else
+            RESET_BOOTSTRAP_PROGRESS.setString(originalResetBootstrapProgress);
+    }
+
     @Test
     public void test() throws IOException, TimeoutException
     {
@@ -108,6 +131,7 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
             .failure()
             .errorContains("Cannot join the ring until bootstrap completes");
 
+        node.nodetoolResult("bootstrap", "resume").asserts().failure();
         RewriteEnabled.disable();
         node.nodetoolResult("bootstrap", "resume").asserts().success();
         if (isWriteSurvey)

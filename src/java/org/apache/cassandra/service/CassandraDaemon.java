@@ -250,7 +250,7 @@ public class CassandraDaemon
 
         ThreadAwareSecurityManager.install();
 
-        logSystemInfo();
+        logSystemInfo(logger);
 
         NativeLibrary.tryMlockall();
 
@@ -482,6 +482,8 @@ public class CassandraDaemon
         else
             logger.info("Prewarming of auth caches is disabled");
 
+        PaxosState.startAutoRepairs();
+
         completeSetup();
     }
 
@@ -626,7 +628,7 @@ public class CassandraDaemon
         return setupCompleted;
     }
 
-    private void logSystemInfo()
+    public static void logSystemInfo(Logger logger)
     {
     	if (logger.isInfoEnabled())
     	{

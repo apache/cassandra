@@ -62,6 +62,7 @@ public class GossipInfoTest extends CQLTester
                 "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
                 "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
                 "                [(-u <username> | --username <username>)] gossipinfo\n" +
+                "                [(-r | --resolve-ip)]\n" +
                 "\n" +
                 "OPTIONS\n" +
                 "        -h <host>, --host <host>\n" +
@@ -78,6 +79,9 @@ public class GossipInfoTest extends CQLTester
                 "\n" +
                 "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
                 "            Path to the JMX password file\n" +
+                "\n" +
+                "        -r, --resolve-ip\n" +
+                "            Show node domain names instead of IPs\n" +
                 "\n" +
                 "        -u <username>, --username <username>\n" +
                 "            Remote jmx agent username\n" +
@@ -117,5 +121,32 @@ public class GossipInfoTest extends CQLTester
         tool.assertOnCleanExit();
         String newHeartbeatCount = StringUtils.substringBetween(stdout, "heartbeat:", "\n");
         assertThat(Integer.parseInt(origHeartbeatCount)).isLessThanOrEqualTo(Integer.parseInt(newHeartbeatCount));
+    }
+
+    @Test
+    public void testGossipInfoWithPortPrint()
+    {
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("-pp", "gossipinfo");
+        tool.assertOnCleanExit();
+        String stdout = tool.getStdout();
+        Assertions.assertThat(stdout).containsPattern("/127.0.0.1\\:[0-9]+\\s+generation");
+    }
+
+    @Test
+    public void testGossipInfoWithResolveIp()
+    {
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gossipinfo", "--resolve-ip");
+        tool.assertOnCleanExit();
+        String stdout = tool.getStdout();
+        Assertions.assertThat(stdout).containsPattern("^localhost\\s+generation");
+    }
+
+    @Test
+    public void testGossipInfoWithPortPrintAndResolveIp()
+    {
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("-pp", "gossipinfo", "--resolve-ip");
+        tool.assertOnCleanExit();
+        String stdout = tool.getStdout();
+        Assertions.assertThat(stdout).containsPattern("^localhost\\:[0-9]+\\s+generation");
     }
 }

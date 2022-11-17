@@ -1,4 +1,11 @@
 4.2
+ * Adding endpoint verification option to client_encryption_options (CASSANDRA-18034)
+ * Replace 'wcwidth.py' with pypi module (CASSANDRA-17287)
+ * Add nodetool forcecompact to remove tombstoned or ttl'd data ignoring GC grace for given table and partition keys (CASSANDRA-17711)
+ * Offer IF (NOT) EXISTS in cqlsh completion for CREATE TYPE, DROP TYPE, CREATE ROLE and DROP ROLE (CASSANDRA-16640)
+ * Nodetool bootstrap resume will now return an error if the operation fails (CASSANDRA-16491)
+ * Disable resumable bootstrap by default (CASSANDRA-17679)
+ * Include Git SHA in --verbose flag for nodetool version (CASSANDRA-17753)
  * Update Byteman to 4.0.20 and Jacoco to 0.8.8 (CASSANDRA-16413)
  * Add memtable option among possible tab completions for a table (CASSANDRA-17982)
  * Adds a trie-based memtable implementation (CASSANDRA-17240)
@@ -69,6 +76,12 @@
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.1:
+ * Avoid schema mismatch problems on memtable API misconfiguration (CASSANDRA-18040)
+ * Start Paxos auto repair in CassandraDaemon (CASSANDRA-18029)
+ * Fix error message about type hints (CASSANDRA-17915)
+ * Restore streaming_keep_alive_period on the netty control streaming channel (CASSANDRA-17768)
+ * Move Schema.FORCE_LOAD_KEYSPACES and Schema.FORCE_LOAD_KEYSPACES_PROP to CassandraRelevantProps (CASSANDRA-17783)
+ * Add --resolve-ip option to nodetool gossipinfo (CASSANDRA-17934)
  * Allow pre-V5 global limit on bytes in flight to revert to zero asynchronously in RateLimitingTest (CASSANDRA-17927)
  * We should not emit deprecation warning on startup for `key_cache_save_period`, `row_cache_save_period`, `counter_cache_save_period` (CASSANDRA-17904)
  * upsert with adder support is not consistent with numbers and strings in LWT (CASSANDRA-17857)
@@ -99,6 +112,8 @@ Merged from 4.1:
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
+ * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
+ * Fix possible race condition on repair snapshots (CASSANDRA-17955)
  * Fix ASM bytecode version inconsistency (CASSANDRA-17873)
  * Remove empty cq4 files in log directory to not fail the startup of BinLog (CASSANDRA-17933)
  * Fix multiple BufferPool bugs (CASSANDRA-16681)
@@ -125,6 +140,7 @@ Merged from 4.0:
  * Ensure FileStreamTask cannot compromise shared channel proxy for system table when interrupted (CASSANDRA-17663)
  * silence benign SslClosedEngineException (CASSANDRA-17565)
 Merged from 3.11:
+ * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
  * Suppress CVE-2022-42003 and CVE-2022-42004 (CASSANDRA-17966)
  * Make LongBufferPoolTest insensitive to timing (CASSANDRA-16681)
  * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)

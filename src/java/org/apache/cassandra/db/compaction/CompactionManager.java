@@ -1047,6 +1047,23 @@ public class CompactionManager implements CompactionManagerMBean
         forceCompaction(cfStore, () -> sstablesWithKey(cfStore, key), sstable -> sstable.maybePresent(key));
     }
 
+    public void forceCompactionForKeys(ColumnFamilyStore cfStore, Collection<DecoratedKey> keys)
+    {
+        com.google.common.base.Predicate<SSTableReader> predicate = sstable -> {
+            for (DecoratedKey key : keys)
+            {
+                if(sstable.maybePresent(key))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        forceCompaction(cfStore, () -> sstablesWithKeys(cfStore, keys), predicate);
+    }
+
     private static Collection<SSTableReader> sstablesWithKey(ColumnFamilyStore cfs, DecoratedKey key)
     {
         final Set<SSTableReader> sstables = new HashSet<>();
@@ -1058,6 +1075,18 @@ public class CompactionManager implements CompactionManagerMBean
                 sstables.add(sstable);
         }
         return sstables.isEmpty() ? Collections.emptyList() : sstables;
+    }
+
+    private static Collection<SSTableReader> sstablesWithKeys(ColumnFamilyStore cfs, Collection<DecoratedKey> decoratedKeys)
+    {
+        final Set<SSTableReader> sstables = new HashSet<>();
+
+        for (DecoratedKey decoratedKey : decoratedKeys)
+        {
+            sstables.addAll(sstablesWithKey(cfs, decoratedKey));
+        }
+
+        return sstables;
     }
 
     public void forceUserDefinedCompaction(String dataFiles)
