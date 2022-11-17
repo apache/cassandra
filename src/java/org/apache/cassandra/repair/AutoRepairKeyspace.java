@@ -41,7 +41,7 @@ public class AutoRepairKeyspace
      *
      * gen 0: original definition in 3.0
      */
-    public static final long GENERATION = 1;
+    public static final long GENERATION = 2;
 
     static final String AUTO_REPAIR_HISTORY = "auto_repair_history";
 
@@ -58,6 +58,7 @@ public class AutoRepairKeyspace
             + "repair_finish_ts timestamp,"
             + "delete_hosts set<uuid>,"
             + "delete_hosts_update_time timestamp,"
+            + "force_repair boolean,"
             + "PRIMARY KEY (pid, host_id))");
 
     private static final TableMetadata AutoRepairPriority =

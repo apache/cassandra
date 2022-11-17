@@ -177,6 +177,8 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-17719] Auto repair force repair should not affect normal turns
+ * [SO-17353] Add force auto-repair for newly joining nodes
  * [SO-16527] Nodetool option to setauto_repair_parallel_repair_count_in_group and auto_repair_parallel_repair_percentage_in_group in AutoRepair
  * [SO-17159] Include MV as one of the anti-pattern and include in the ticket
  * [SO-14979] Add a metric to track keycache progress during startup

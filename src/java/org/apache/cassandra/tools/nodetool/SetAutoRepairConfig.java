@@ -42,7 +42,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
     @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
             description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
                     "[threads|subranges|minrepairfreqinhours|sstablehigherthreshold|ignorekeyspacesregex" +
-                    "|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|ignoredcs" +
+                    "|repairOnlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|forcerepairhosts|ignoredcs" +
                     "|historydeletehostsclearbufferinsec|primarytokenrangeonly|parallelrepaircount|parallelrepairpercentage]",
             required = true)
     private List<String> args = new ArrayList<>();
@@ -94,42 +94,17 @@ public class SetAutoRepairConfig extends NodeToolCmd
         }
         else if (paramType.equals("priorityhost"))
         {
-            Set<InetAddressAndPort> hosts = new HashSet<>();
-            for (String host : Splitter.on(',').split(paramVal))
-            {
-                try
-                {
-                    hosts.add(InetAddressAndPort.getByName(host));
-                }
-                catch (UnknownHostException e)
-                {
-                    System.out.println("invalid ip address: " + host);
-                    continue;
-                }
-            }
-            // We can only set priority list for local group
-            Set<InetAddressAndPort> hostsInCurrentRing = AutoRepairUtils.processNodesByGroup(hosts);
-            if (hostsInCurrentRing.size() != hosts.size()) {
-                for (String host : Splitter.on(',').split(paramVal))
-                {
-                    InetAddress address;
-                    try
-                    {
-                        address = InetAddress.getByName(host);
-                    }
-                    catch (UnknownHostException e)
-                    {
-                        continue;
-                    }
-                    if (!hostsInCurrentRing.contains(address)) {
-                        System.out.println(host + " doesn't belong to this group, please add this host on another node" +
-                                           "which is located in the same DC.");
-                    }
-                }
-            }
+            Set<InetAddressAndPort> hostsInCurrentRing = validateLocalGroupHosts(paramVal);
             if (hostsInCurrentRing.size() > 0)
             {
                 probe.setRepairPriorityForHosts(hostsInCurrentRing);
+            }
+        }
+        else if (paramType.equals("forcerepairhosts"))
+        {
+            Set<InetAddressAndPort> hostsInCurrentRing = validateLocalGroupHosts(paramVal);
+            if (hostsInCurrentRing.size() > 0) {
+                probe.setForceRepairForHosts(hostsInCurrentRing);
             }
         }
         else if (paramType.equals("ignoredcs"))
@@ -153,5 +128,44 @@ public class SetAutoRepairConfig extends NodeToolCmd
         {
             probe.setParallelRepairPercentageInGroup(Integer.parseInt(paramVal));
         }
+    }
+
+    // some commands require user to input a list of hosts that is in the local group, this function helps to filter out
+    // any hosts that are not part of same local group with the node running this command
+    private Set<InetAddressAndPort> validateLocalGroupHosts(String paramVal){
+        Set<InetAddressAndPort> hosts = new HashSet<>();
+        for (String host : Splitter.on(',').split(paramVal))
+        {
+            try
+            {
+                hosts.add(InetAddressAndPort.getByName(host));
+            }
+            catch (UnknownHostException e)
+            {
+                System.out.println("invalid ip address: " + host);
+                continue;
+            }
+        }
+        // We can only process hosts in local group
+        Set<InetAddressAndPort> hostsInCurrentRing = AutoRepairUtils.processNodesByGroup(hosts);
+        if (hostsInCurrentRing.size() != hosts.size()) {
+            for (String host : Splitter.on(',').split(paramVal))
+            {
+                InetAddress address;
+                try
+                {
+                    address = InetAddress.getByName(host);
+                }
+                catch (UnknownHostException e)
+                {
+                    continue;
+                }
+                if (!hostsInCurrentRing.contains(address)) {
+                    System.out.println(host + " doesn't belong to this group, please add this host on another node" +
+                                       "which is located in the same DC.");
+                }
+            }
+        }
+        return hostsInCurrentRing;
     }
 }

@@ -127,6 +127,22 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public Set<String> getOnGoingForceRepairHostIdsByGroupHash(int groupHash)
+    {
+        Set<String> hostIds = new HashSet<>();
+        List<AutoRepairUtils.AutoRepairHistory> histories = AutoRepairUtils.getAutoRepairHistoryByGroupID(groupHash);
+        if (histories == null) {
+            return null;
+        }
+        AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(groupHash));
+        for (UUID id : currentRepairStatus.hostIdsWithOnGoingForceRepair)
+        {
+            hostIds.add(id.toString());
+        }
+        return hostIds;
+    }
+
+    @Override
     public void setRepairPriorityForHosts(Set<InetAddressAndPort> host)
     {
         AutoRepairUtils.addPriorityHost(host);
@@ -136,6 +152,11 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public Set<InetAddressAndPort> getRepairHostPriority()
     {
         return AutoRepairUtils.getPriorityHosts();
+    }
+
+    public void setForceRepairForHosts(Set<InetAddressAndPort> hosts)
+    {
+        AutoRepairUtils.setForceRepair(hosts);
     }
 
     @Override

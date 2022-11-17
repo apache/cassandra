@@ -43,9 +43,9 @@ public class AutoRepairStatus extends NodeTool.NodeToolCmd
         PrintStream out = probe.output().out;
         TableBuilder table = new TableBuilder();
 
-        table.add("data center group", "number of nodes doing repair", "host id(s)");
-        int totalRepairingNodes = 0;
-        Set<String> allhosts = new HashSet<>();
+        table.add("Data center group", "Active repairs", "Acitve force repairs");
+        Set<String> allHosts = new HashSet<>();
+        Set<String> allForceHosts = new HashSet<>();
         Set<Set<String>> dcGroups = probe.getDCGroups();
         if (dcGroups == null || dcGroups.isEmpty()) {
             dcGroups = new HashSet<>();
@@ -53,17 +53,21 @@ public class AutoRepairStatus extends NodeTool.NodeToolCmd
         }
         for (Set<String> group : dcGroups)
         {
-            Set<String> hostIds = probe.getOnGoingRepairHostIdsByGroupHash(group.hashCode());
+            Set<String> ongoingRepairHostIds = probe.getOnGoingRepairHostIdsByGroupHash(group.hashCode());
+            Set<String> ongoingForceRepairHostIds = probe.getOnGoingForceRepairHostIdsByGroupHash(group.hashCode());
             String groupName = group.isEmpty() ? "ALL NODES" : group.toString();
-            table.add(groupName, String.valueOf(hostIds.size()), getSetString(hostIds));
-            totalRepairingNodes += hostIds.size();
-            allhosts.addAll(hostIds);
+            table.add(groupName, getSetString(ongoingRepairHostIds), getSetString(ongoingForceRepairHostIds));
+            allHosts.addAll(ongoingRepairHostIds);
+            allForceHosts.addAll(ongoingForceRepairHostIds);
         }
-        table.add("Total", String.valueOf(totalRepairingNodes), allhosts.isEmpty() ? "EMPTY" : getSetString(allhosts));
+        table.add("Total", getSetString(allHosts), getSetString(allForceHosts));
         table.printTo(out);
     }
 
     private String getSetString(Set<String> hostIds) {
+        if (hostIds.isEmpty()) {
+            return "EMPTY";
+        }
         StringBuilder sb = new StringBuilder();
         for (String id :hostIds)
         {

@@ -88,6 +88,7 @@ public class AutoRepairUtils
     static final String COL_DELETE_HOSTS = "delete_hosts";  // this set stores the host ids which think the row should be deleted
     static final String COL_REPAIR_TURN = "repair_turn";  // this record the last repair turn. Normal turn or turn due to priority
     static final String COL_DELETE_HOSTS_UPDATE_TIME = "delete_hosts_update_time"; // the time when delete hosts are upated
+    static final String COL_FORCE_REPAIR = "force_repair";  // if set to true, the node will do non-primary range rapair
 
     final static String SELECT_REPAIR_HISTORY = String.format(
     "SELECT * FROM %s.%s WHERE pid = ?", SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY);
@@ -120,13 +121,19 @@ public class AutoRepairUtils
     );
 
     final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
-    "UPDATE %s.%s SET %s= ? WHERE %s = ? AND %s = ?"
-    , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,  COL_REPAIR_FINISH_TS, COL_PID, COL_HOST_ID
+
+    "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ?"
+    , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,  COL_REPAIR_FINISH_TS, COL_FORCE_REPAIR, COL_PID, COL_HOST_ID
     );
 
     final static String CLEAR_DELETE_HOSTS = String.format(
     "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ?"
     , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY,  COL_DELETE_HOSTS, COL_PID, COL_HOST_ID
+    );
+
+    final static String SET_FORCE_REPAIR = String.format(
+    "UPDATE %s.%s SET %s=true  WHERE %s = ? AND %s = ?"
+    , SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR, COL_PID, COL_HOST_ID
     );
 
     static ModificationStatement delStatementRepairHistory;
@@ -139,13 +146,15 @@ public class AutoRepairUtils
     static ModificationStatement recordFinishRepairHistoryStatement;
     static ModificationStatement addHostIDToDeleteHostsStatement;
     static ModificationStatement clearDeleteHostsStatement;
+    static ModificationStatement setForceRepairStatement;
     static ConsistencyLevel internalQueryCL;
 
-    enum RepairTurn
+    public enum RepairTurn
     {
         MY_TURN,
         NOT_MY_TURN,
-        MY_TURN_DUE_TO_PRIORITY
+        MY_TURN_DUE_TO_PRIORITY,
+        MY_TURN_FORCE_REPAIR
     }
 
     public static void setup()
@@ -166,6 +175,8 @@ public class AutoRepairUtils
                 .forInternalCalls());
         addHostIDToDeleteHostsStatement = (ModificationStatement) QueryProcessor.getStatement(ADD_HOST_ID_TO_DELETE_HOSTS, ClientState
         .forInternalCalls());
+        setForceRepairStatement = (ModificationStatement) QueryProcessor.getStatement(SET_FORCE_REPAIR, ClientState
+        .forInternalCalls());
         clearDeleteHostsStatement = (ModificationStatement) QueryProcessor.getStatement(CLEAR_DELETE_HOSTS, ClientState
         .forInternalCalls());
         delStatementRepairHistory = (ModificationStatement) QueryProcessor.getStatement(DEL_AUTO_REPAIR_HISTORY, ClientState
@@ -183,8 +194,10 @@ public class AutoRepairUtils
         long lastRepairFinishTime;
         Set<UUID> deleteHosts;
         long deleteHostsUpdateTime;
+        boolean forceRepair;
 
-        AutoRepairHistory(UUID hostId, String repairTurn, long lastRepairStartTime, long lastRepairFinishTime, Set<UUID> deleteHosts, long deleteHostsUpateTime)
+        AutoRepairHistory(UUID hostId, String repairTurn, long lastRepairStartTime, long lastRepairFinishTime,
+                          Set<UUID> deleteHosts, long deleteHostsUpateTime, boolean forceRepair)
         {
             this.hostId = hostId;
             this.repairTurn = repairTurn;
@@ -195,6 +208,7 @@ public class AutoRepairUtils
                 this.deleteHosts = new HashSet<>();
             }
             this.deleteHostsUpdateTime = deleteHostsUpateTime;
+            this.forceRepair = forceRepair;
         }
 
         public String toString()
@@ -217,16 +231,23 @@ public class AutoRepairUtils
     public static class CurrentRepairStatus
     {
         public Set<UUID> hostIdsWithOnGoingRepair;  // hosts that is running repair
+        public Set<UUID> hostIdsWithOnGoingForceRepair; // hosts that is running repair because of force repair
         Set<UUID> priority;
         List<AutoRepairHistory> historiesWithoutOnGoingRepair;  // hosts that is NOT running repair
 
         public CurrentRepairStatus(List<AutoRepairHistory> repairHistories, Set<UUID> priority)
         {
             hostIdsWithOnGoingRepair = new HashSet<>();
+            hostIdsWithOnGoingForceRepair = new HashSet<>();
             historiesWithoutOnGoingRepair = new ArrayList<>();
+
             for (AutoRepairHistory history: repairHistories) {
                 if (history.isRepairRunning()) {
-                    hostIdsWithOnGoingRepair.add(history.hostId);
+                    if (history.forceRepair) {
+                        hostIdsWithOnGoingForceRepair.add(history.hostId);
+                    } else {
+                        hostIdsWithOnGoingRepair.add(history.hostId);
+                    }
                 } else {
                     historiesWithoutOnGoingRepair.add(history);
                 }
@@ -238,6 +259,7 @@ public class AutoRepairUtils
         {
             return MoreObjects.toStringHelper(this).
                     add("hostIdsWithOnGoingRepair", hostIdsWithOnGoingRepair).
+                    add("hostIdsWithOnGoingForceRepair", hostIdsWithOnGoingForceRepair).
                     add("historiesWithoutOnGoingRepair", historiesWithoutOnGoingRepair).
                     add("priority", priority).
                     toString();
@@ -264,7 +286,9 @@ public class AutoRepairUtils
                 long lastRepairFinishTime = row.getLongOrDefault(COL_REPAIR_FINISH_TS, 0);
                 Set<UUID> deleteHosts = row.getSet(COL_DELETE_HOSTS, UUIDType.instance);
                 long deleteHostsUpdateTime = row.getLongOrDefault(COL_DELETE_HOSTS_UPDATE_TIME, 0);
-                repairHistories.add(new AutoRepairHistory(hostId, repairTurn, lastRepairStartTime, lastRepairFinishTime, deleteHosts, deleteHostsUpdateTime));
+                Boolean forceRepair = row.has(COL_FORCE_REPAIR) ? row.getBoolean(COL_FORCE_REPAIR) : false;
+                repairHistories.add(new AutoRepairHistory(hostId, repairTurn, lastRepairStartTime, lastRepairFinishTime,
+                                                          deleteHosts, deleteHostsUpdateTime, forceRepair));
             }
             return repairHistories;
         }
@@ -285,6 +309,34 @@ public class AutoRepairUtils
                                                                                 Lists.newArrayList(ByteBufferUtil.bytes(getLocalDCGroup().hashCode()),
                                                                                                    ByteBufferUtil.bytes(hostId))), Dispatcher.RequestTime.forImmediateExecution());
 
+    }
+
+    public static void setForceRepairNewNode(){
+        // this function will be called when a node bootstrap finished
+        int pid = getLocalDCGroup().hashCode();
+        UUID hostId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
+        // insert the data first
+        insertNewRepairHistory(System.currentTimeMillis(), System.currentTimeMillis());
+        setForceRepair(pid, hostId);
+    }
+
+    public static void setForceRepair(Set<InetAddressAndPort> hosts) {
+        // this function is used by nodetool
+        int pid = getLocalDCGroup().hashCode();
+        for (InetAddressAndPort host: hosts) {
+            UUID hostId = Gossiper.instance.getHostId(host);
+            setForceRepair(pid, hostId);
+        }
+    }
+
+    public static void setForceRepair(int pid, UUID hostId){
+        setForceRepairStatement.execute(QueryState.forInternalCalls(),
+                                        QueryOptions.forInternalCalls(internalQueryCL,
+                                                                      Lists.newArrayList(ByteBufferUtil.bytes(pid),
+                                                                                         ByteBufferUtil.bytes(hostId))),
+                                        System.nanoTime());
+
+        logger.info("Set force repair pid: {}, node: {}", pid, hostId);
     }
 
     public static CurrentRepairStatus getCurrentRepairStatus() {
@@ -453,6 +505,12 @@ public class AutoRepairUtils
             CurrentRepairStatus currentRepairStatus = getCurrentRepairStatus(autoRepairHistories);
             if (currentRepairStatus != null) {
                 logger.info("Latest repair status {}", currentRepairStatus);
+                //check if I am forced to run repair
+                for (AutoRepairHistory history : currentRepairStatus.historiesWithoutOnGoingRepair) {
+                    if (history.forceRepair && history.hostId.equals(myId)) {
+                        return MY_TURN_FORCE_REPAIR;
+                    }
+                }
             }
 
             int parallelRepairNumber = getMaxNumberOfNodeRunAutoRepairInGroup(
@@ -510,6 +568,9 @@ public class AutoRepairUtils
             else {
                 // no more repair can be run this time
                 //for some reason I was not done with the repair hence resume (maybe node restart in-between, etc.)
+                if (currentRepairStatus.hostIdsWithOnGoingForceRepair.contains(myId)) {
+                    return MY_TURN_FORCE_REPAIR;
+                }
                 return currentRepairStatus.hostIdsWithOnGoingRepair.contains(myId) ? MY_TURN : NOT_MY_TURN;
             }
         }

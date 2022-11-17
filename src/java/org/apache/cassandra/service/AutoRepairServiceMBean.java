@@ -70,14 +70,24 @@ public interface AutoRepairServiceMBean
     public int getRepairThreads();
 
     /**
-     * Get current repair status by group hash
+     * Get current ongoing repair host ids by group hash
      */
     public Set<String> getOnGoingRepairHostIdsByGroupHash(int groupHash);
+
+    /**
+     * Get current force repair host ids by group hash
+     */
+    public Set<String> getOnGoingForceRepairHostIdsByGroupHash(int groupHash);
 
     /**
      * Set repair priority for hosts
      */
     public void setRepairPriorityForHosts(Set<InetAddressAndPort> host);
+
+    /**
+     * Set force repair for hosts
+     */
+    public void setForceRepairForHosts(Set<InetAddressAndPort> host);
 
     /**
      * Get repair priority

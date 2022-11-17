@@ -4864,6 +4864,8 @@ public class DatabaseDescriptor
         return conf.auto_repair_dc_groups;
     }
 
+    public static boolean isAutoRepairForceRepairNewNode() {return conf.auto_repair_force_repair_new_node;}
+
     public static boolean getAutoRepairByKeyspace() {
         return conf.auto_repair_by_keyspace;
     }

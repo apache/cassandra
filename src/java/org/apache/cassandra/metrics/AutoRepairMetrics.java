@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.metrics;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import org.apache.cassandra.repair.AutoRepair;
+import org.apache.cassandra.repair.AutoRepairUtils;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -35,6 +37,9 @@ public class AutoRepairMetrics
     public static Gauge<Integer> skippedTablesCount;
     public static Gauge<Integer> longestUnrepairedSec;
     public static Gauge<Integer> failedTablesCount;
+    public static Counter repairTurnMyTurn;
+    public static Counter repairTurnMyTurnDueToPriority;
+    public static Counter repairTurnMyTurnForceRepair;
 
     public static void setup()
     {
@@ -84,5 +89,25 @@ public class AutoRepairMetrics
                 return AutoRepair.getRepairFailedTablesCount();
             }
         });
+
+        repairTurnMyTurn = Metrics.counter(factory.createMetricName("RepairTurnMyTurn"));
+        repairTurnMyTurnDueToPriority = Metrics.counter(factory.createMetricName("RepairTurnMyTurnDueToPriority"));
+        repairTurnMyTurnForceRepair = Metrics.counter(factory.createMetricName("RepairTurnMyTurnForceRepair"));
+    }
+
+    public static void recordTurn(AutoRepairUtils.RepairTurn turn){
+        switch (turn) {
+            case MY_TURN:
+                repairTurnMyTurn.inc();
+                break;
+            case MY_TURN_FORCE_REPAIR:
+                repairTurnMyTurnForceRepair.inc();
+                break;
+            case MY_TURN_DUE_TO_PRIORITY:
+                repairTurnMyTurnDueToPriority.inc();
+                break;
+            default:
+                throw new RuntimeException(String.format("Unrecoginized turn: {}", turn.name()));
+        }
     }
 }

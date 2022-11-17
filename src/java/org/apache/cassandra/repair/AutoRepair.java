@@ -252,8 +252,14 @@ public class AutoRepair
             //consistency level to use for local query
             UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
             AutoRepairUtils.RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(myId);
-            if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY)
+            if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
+                AutoRepairMetrics.recordTurn(turn);
+                // For normal auto repair, we will use primary range only repairs (Repair with -pr option).
+                // For some cases, we may set the auto_repair_primary_token_range_only flag to false then we will do repair
+                // without -pr. We may also do force repair for certain node that we want to repair all the data on one node
+                // When doing force repair, we want to repair without -pr.
+                boolean primaryRangeOnly = AutoRepairService.instance.getRepairPrimaryTokenRangeOnly() && turn != MY_TURN_FORCE_REPAIR;
                 totalTablesConsideredForRepair = 0;
                 if (lastRepairTimeInMs != 0)
                 {
@@ -320,7 +326,7 @@ public class AutoRepair
                             long startTime = System.currentTimeMillis();
                             //now run full repair on this table
                             Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
-                            if (!AutoRepairService.instance.getRepairPrimaryTokenRangeOnly())
+                            if (!primaryRangeOnly)
                             {
                                 // if we need to repair non-primary token ranges, then change the tokens accrodingly
                                 tokens = StorageService.instance.getLocalReplicas(keyspaceName).ranges();
@@ -397,7 +403,7 @@ public class AutoRepair
                                     if ((totalProcessedSubRanges % AutoRepairService.instance.getRepairThreads() == 0) ||
                                             (totalProcessedSubRanges == totalSubRanges))
                                     {
-                                        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, AutoRepairService.instance.getRepairPrimaryTokenRangeOnly(), false,
+                                        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false,
                                                                                 false, AutoRepairService.instance.getRepairThreads(), ranges, !ranges.isEmpty(), false,
                                                                                 false, PreviewKind.NONE, false, true,
                                                                                 false, false);

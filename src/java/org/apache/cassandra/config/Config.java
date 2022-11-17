@@ -703,6 +703,8 @@ public class Config
     // {phx4, dca5, dca6}. This means we can run repair parallely on 4 nodes, each in one group.
     public String auto_repair_dc_groups = "";
 
+    public boolean auto_repair_force_repair_new_node = false;
+
     public Long auto_repair_table_max_repair_time_in_sec = 6 * 60 * 60L;
 
     public Integer auto_repair_history_clear_delete_hosts_buffer_in_sec = 60 * 60 * 2; // two hours

@@ -183,6 +183,7 @@ import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.AutoRepairKeyspace;
+import org.apache.cassandra.repair.AutoRepairUtils;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
@@ -1237,11 +1238,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         boolean dataAvailable = true; // make this to false when bootstrap streaming failed
+        boolean forceRepair = false;
 
         if (shouldBootstrap)
         {
             current.addAll(prepareForBootstrap(schemaTimeoutMillis, ringTimeoutMillis));
             dataAvailable = bootstrap(bootstrapTokens, bootstrapTimeoutMillis);
+            // if bootstrap successfully, we will do force repair
+            forceRepair = dataAvailable;
         }
         else
         {
@@ -1266,6 +1270,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (dataAvailable)
             {
                 finishJoiningRing(shouldBootstrap, bootstrapTokens);
+                if (forceRepair && DatabaseDescriptor.isAutoRepairEnabled() && DatabaseDescriptor.isAutoRepairForceRepairNewNode()) {
+                    AutoRepairUtils.setForceRepairNewNode();
+                }
                 // remove the existing info about the replaced node.
                 if (!current.isEmpty())
                 {
