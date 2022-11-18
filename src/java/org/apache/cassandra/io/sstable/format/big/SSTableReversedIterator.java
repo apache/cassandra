@@ -15,19 +15,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.columniterator;
+package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.BufferClusteringBound;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.MutableDeletionInfo;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.UnfilteredValidation;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.sstable.AbstractSSTableIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.IndexState;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableMetadata;
@@ -37,7 +49,7 @@ import org.apache.cassandra.utils.btree.BTree;
 /**
  *  A Cell Iterator in reversed clustering order over SSTable
  */
-public class SSTableReversedIterator extends AbstractSSTableIterator
+public class SSTableReversedIterator extends AbstractSSTableIterator<RowIndexEntry>
 {
     /**
      * The index of the slice being processed.
@@ -80,7 +92,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         return slice < slices.size();
     }
 
-    private class ReverseReader extends Reader
+    private class ReverseReader extends AbstractReader
     {
         protected ReusablePartitionData buffer;
         protected Iterator<Unfiltered> iterator;

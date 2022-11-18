@@ -32,7 +32,7 @@ import org.apache.cassandra.io.util.FileHandle;
 // Used by indexed readers to store where they are of the index.
 public class IndexState implements AutoCloseable
 {
-    private final AbstractSSTableIterator.Reader reader;
+    private final AbstractSSTableIterator<RowIndexEntry>.AbstractReader reader;
     private final ClusteringComparator comparator;
 
     private final RowIndexEntry indexEntry;
@@ -44,7 +44,7 @@ public class IndexState implements AutoCloseable
     // Marks the beginning of the block corresponding to currentIndexIdx.
     private DataPosition mark;
 
-    public IndexState(AbstractSSTableIterator.Reader reader, ClusteringComparator comparator, RowIndexEntry indexEntry, boolean reversed, FileHandle indexFile)
+    public IndexState(AbstractSSTableIterator<RowIndexEntry>.AbstractReader reader, ClusteringComparator comparator, RowIndexEntry indexEntry, boolean reversed, FileHandle indexFile)
     {
         this.reader = reader;
         this.comparator = comparator;
