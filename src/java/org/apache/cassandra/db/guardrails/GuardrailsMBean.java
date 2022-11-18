@@ -620,4 +620,18 @@ public interface GuardrailsMBean
      *             -1 means disabled.
      */
     void setMaximumReplicationFactorThreshold (int warn, int fail);
+
+    /**
+     * Returns whether it is allowed to use 0 default TTL on a table with TimeWindowCompactionStrategy
+     *
+     * @return {@code true} if 0 default TTL is allowed, {@code false} otherwise.
+     */
+    boolean getZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled();
+
+    /**
+     * Sets whether users can use 0 default TTL on a table with TimeWindowCompactionStrategy
+     *
+     * @param enabled {@code true} if 0 default TTL on TWCS tables is allowed, {@code false} otherwise.
+     */
+    void setZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled(boolean enabled);
 }

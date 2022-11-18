@@ -33,11 +33,13 @@ import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.schema.TableParams.Option;
 
 /**
  * Entry point for Guardrails, storing the defined guardrails and providing a few global methods over them.
@@ -198,6 +200,20 @@ public final class Guardrails implements GuardrailsMBean
                    null,
                    state -> CONFIG_PROVIDER.getOrCreate(state).getCompactTablesEnabled(),
                    "Creation of new COMPACT STORAGE tables");
+
+    /**
+     * Guardrail disabling the creation of a new table when {@link Option#DEFAULT_TIME_TO_LIVE} is set to 0
+     * and compaction strategy is {@link TimeWindowCompactionStrategy} or its subclass. If this guardrail does not fail
+     * and such configuration combination is found, it will always warn.
+     */
+    public static final EnableFlag zeroDefaultTTLOnTWCSEnabled =
+    new EnableFlag("zero_default_ttl_on_twcs",
+                   "It is suspicious to use default_time_to_live set to 0 with such compaction strategy. " +
+                   "Please keep in mind that data will not start to automatically expire after they are older " +
+                   "than a respective compaction window unit of a certain size. ",
+                   state -> true,
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled(),
+                   "0 default_time_to_live on a table with " + TimeWindowCompactionStrategy.class.getSimpleName() + " compaction strategy");
 
     /**
      * Guardrail on the number of elements returned within page.
@@ -1011,6 +1027,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setMinimumReplicationFactorThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setMinimumReplicationFactorThreshold(warn, fail);
+    }
+
+    @Override
+    public boolean getZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled()
+    {
+        return DEFAULT_CONFIG.getZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled();
+    }
+
+    @Override
+    public void setZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled(enabled);
     }
 
     private static String toCSV(Set<String> values)

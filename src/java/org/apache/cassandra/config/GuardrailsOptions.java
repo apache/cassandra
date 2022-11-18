@@ -730,6 +730,21 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.maximum_replication_factor_fail_threshold = x);
     }
 
+    @Override
+    public boolean getZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled()
+    {
+        return config.zero_default_ttl_on_twcs_enabled;
+    }
+
+    @Override
+    public void setZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("zero_default_ttl_on_twcs_enabled",
+                                  enabled,
+                                  () -> config.zero_default_ttl_on_twcs_enabled,
+                                  x -> config.zero_default_ttl_on_twcs_enabled = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();

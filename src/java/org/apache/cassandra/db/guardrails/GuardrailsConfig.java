@@ -319,4 +319,18 @@ public interface GuardrailsConfig
      * @return The threshold to fail when replication factor is greater than threshold.
      */
     int getMaximumReplicationFactorFailThreshold();
+
+    /**
+     * Returns whether it is allowed to use 0 default TTL on a table with TimeWindowCompactionStrategy
+     *
+     * @return {@code true} if 0 default TTL is allowed, {@code false} otherwise.
+     */
+    boolean getZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled();
+
+    /**
+     * Sets whether users can use 0 default TTL on a table with TimeWindowCompactionStrategy
+     *
+     * @param enabled {@code true} if 0 default TTL on TWCS tables is allowed, {@code false} otherwise.
+     */
+    void setZeroDefaultTtlOnTimeWindowCompactionStrategyEnabled(boolean enabled);
 }
