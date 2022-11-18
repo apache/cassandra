@@ -443,6 +443,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super.validate(state);
 
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
+
+            validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)

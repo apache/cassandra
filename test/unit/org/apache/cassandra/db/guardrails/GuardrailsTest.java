@@ -39,6 +39,7 @@ public class GuardrailsTest extends GuardrailTester
 {
     public static final int DISABLED = -1;
     public static final String REASON = "Testing";
+    public static final String FEATURE = "Feature name";
 
     private void testDisabledThreshold(Threshold guard) throws Throwable
     {
@@ -281,6 +282,23 @@ public class GuardrailsTest extends GuardrailTester
         assertFails(() -> disabled.ensureEnabled(userClientState), "X is not allowed");
         assertValid(() -> disabled.ensureEnabled(systemClientState));
         assertValid(() -> disabled.ensureEnabled(superClientState));
+    }
+
+    @Test
+    public void testEnableFlagWarn() throws Throwable
+    {
+        EnableFlag disabledGuard = new EnableFlag("x", null, state -> true, state -> false, FEATURE);
+
+        assertFails(() -> disabledGuard.ensureEnabled(null), false, FEATURE + " is not allowed");
+        assertFails(() -> disabledGuard.ensureEnabled(userClientState), FEATURE + " is not allowed");
+        assertValid(() -> disabledGuard.ensureEnabled(systemClientState));
+        assertValid(() -> disabledGuard.ensureEnabled(superClientState));
+
+        EnableFlag enabledGuard = new EnableFlag("x", null, state -> true, state -> true, FEATURE);
+        assertWarns(() -> enabledGuard.ensureEnabled(null), FEATURE + " is not recommended");
+        assertWarns(() -> enabledGuard.ensureEnabled(userClientState), FEATURE + " is not recommended");
+        assertValid(() -> enabledGuard.ensureEnabled(systemClientState));
+        assertValid(() -> enabledGuard.ensureEnabled(superClientState));
     }
 
     @Test

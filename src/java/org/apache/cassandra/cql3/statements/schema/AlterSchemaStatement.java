@@ -26,6 +26,8 @@ import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -138,6 +140,14 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
                       "or contain non-alphanumeric-underscore characters (got '%s')",
                       SchemaConstants.NAME_LENGTH, keyspaceName);
         }
+    }
+
+    protected void validateDefaultTimeToLive(TableParams params)
+    {
+        if (params.defaultTimeToLive == 0
+            && !SchemaConstants.isSystemKeyspace(keyspaceName)
+            && TimeWindowCompactionStrategy.class.isAssignableFrom(params.compaction.klass()))
+            Guardrails.zeroTTLOnTWCSEnabled.ensureEnabled(state);
     }
 
     private void grantPermissionsOnResource(IResource resource, AuthenticatedUser user)

@@ -730,6 +730,36 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.maximum_replication_factor_fail_threshold = x);
     }
 
+    @Override
+    public boolean getZeroTTLOnTWCSWarned()
+    {
+        return config.zero_ttl_on_twcs_warned;
+    }
+
+    @Override
+    public void setZeroTTLOnTWCSWarned(boolean value)
+    {
+        updatePropertyWithLogging("zero_ttl_on_twcs_warned",
+                                  value,
+                                  () -> config.zero_ttl_on_twcs_warned,
+                                  x -> config.zero_ttl_on_twcs_warned = x);
+    }
+
+    @Override
+    public boolean getZeroTTLOnTWCSEnabled()
+    {
+        return config.zero_ttl_on_twcs_enabled;
+    }
+
+    @Override
+    public void setZeroTTLOnTWCSEnabled(boolean value)
+    {
+        updatePropertyWithLogging("zero_ttl_on_twcs_enabled",
+                                  value,
+                                  () -> config.zero_ttl_on_twcs_enabled,
+                                  x -> config.zero_ttl_on_twcs_enabled = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();
