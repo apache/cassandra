@@ -179,7 +179,7 @@ public class DescribeStatementTest extends CQLTester
                               "aggregate",
                               shortFunctionName(aNonDeterministic) + "(int)",
                               "CREATE AGGREGATE " + aNonDeterministic + "(int)\n" +
-                                      "    SFUNC " + shortFunctionName(fIntState) + "\n" +
+                                      "    SFUNC " + KEYSPACE_PER_TEST + "." + shortFunctionName(fIntState) + "\n" +
                                       "    STYPE int\n" +
                                   "    INITCOND 42;"));
             assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATE " + aDeterministic),
@@ -187,9 +187,9 @@ public class DescribeStatementTest extends CQLTester
                               "aggregate",
                               shortFunctionName(aDeterministic) + "(int)",
                               "CREATE AGGREGATE " + aDeterministic + "(int)\n" +
-                                      "    SFUNC " + shortFunctionName(fIntState) + "\n" +
+                                      "    SFUNC " + KEYSPACE_PER_TEST + "." + shortFunctionName(fIntState) + "\n" +
                                       "    STYPE int\n" +
-                                      "    FINALFUNC " + shortFunctionName(fFinal) + ";"));
+                                      "    FINALFUNC " + KEYSPACE_PER_TEST + "." + shortFunctionName(fFinal) + ";"));
             assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATES"),
                           row(KEYSPACE_PER_TEST,
                               "aggregate",
@@ -848,7 +848,7 @@ public class DescribeStatementTest extends CQLTester
                               "aggregate",
                               shortFunctionName(aggregate) + "(int)",
                               "CREATE AGGREGATE " + aggregate + "(int)\n" +
-                              "    SFUNC " + shortFunctionName(aggregationName) + "\n" +
+                              "    SFUNC " + KEYSPACE_PER_TEST + "." + shortFunctionName(aggregationName) + "\n" +
                               "    STYPE int\n" +
                               "    INITCOND 42;"));
         }
