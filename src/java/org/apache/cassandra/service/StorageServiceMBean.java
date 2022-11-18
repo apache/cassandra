@@ -782,8 +782,22 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
      * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
      *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
+     * @param specificSources list of sources that can be used for rebuilding. Must be other nodes in the cluster.
+     *                        The format of the string is comma separated values.
      */
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources);
+
+    /**
+    * Same as {@link #rebuild(String)}, but only for specified keyspace and ranges. It excludes local data center nodes
+    *
+    * @param sourceDc Name of DC from which to select sources for streaming or null to pick any node
+    * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
+    * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
+    *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
+    * @param specificSources list of sources that can be used for rebuilding. Mostly other nodes in the cluster.
+    * @param excludeLocalDatacenterNodes Flag to indicate whether local data center nodes should be excluded as sources for streaming.
+    */
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes);
 
     /** Starts a bulk load and blocks until it completes. */
     public void bulkLoad(String directory);
