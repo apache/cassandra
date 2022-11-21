@@ -130,8 +130,7 @@ public class AccordCommandTest
         commandStore.execute(accept, instance -> {
             Accept.AcceptReply reply = accept.apply(instance);
             Assert.assertTrue(reply.isOk());
-            Accept.AcceptOk ok = (Accept.AcceptOk) reply;
-            Assert.assertTrue(ok.deps.isEmpty());
+            Assert.assertTrue(reply.deps.isEmpty());
         }).get();
 
         commandStore.execute(accept, instance -> {
