@@ -325,6 +325,12 @@ public class AccordCommandStore extends CommandStore implements SafeCommandStore
         return time.uniqueNow(max);
     }
 
+    @Override
+    public NodeTimeService time()
+    {
+        return time;
+    }
+
     public Timestamp maxConflict(Keys keys)
     {
         // TODO: efficiency
