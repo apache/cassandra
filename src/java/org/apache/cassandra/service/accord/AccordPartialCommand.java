@@ -64,7 +64,9 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
 
     public AccordPartialCommand(Key key, Command command)
     {
-        this(command.txnId(), command.executeAt(), command.partialDeps().txnIds(key), command.status(), command.kind());
+        this(command.txnId(), command.executeAt(),
+             command.partialDeps() == null ? Collections.emptyList() : command.partialDeps().txnIds(key),
+             command.status(), command.kind());
     }
 
     public TxnId txnId()

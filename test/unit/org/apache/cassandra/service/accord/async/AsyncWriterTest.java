@@ -109,7 +109,7 @@ public class AsyncWriterTest
         blocking = AccordKeyspace.loadCommand(commandStore, blockingId);
         Assert.assertTrue(blocking.blockingApplyOn.getView().contains(waitingId));
 
-        // now change the blocking command and check it's changes are reflected in the waiting command
+        // now change the blocking command and check its changes are reflected in the waiting command
         context = new AsyncContext();
         blocking.setStatus(Status.ReadyToExecute);
         context.commands.add(blocking);
@@ -120,7 +120,7 @@ public class AsyncWriterTest
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            TxnId blockingSummary = waitingFinal.firstWaitingOnApply();
+            TxnId blockingSummary = waitingFinal.firstWaitingOnApply(null);
             Assert.assertEquals(blockingId, blockingSummary);
             commandStore.unsetContext(ctx);
         });
@@ -231,7 +231,7 @@ public class AsyncWriterTest
         // remove listener from PartialCommand
         commandStore.execute(contextFor(waitingId), cs -> {
             Command waiting = cs.command(waitingId);
-            TxnId blocking = ((AccordCommand)waiting).firstWaitingOnApply();
+            TxnId blocking = ((AccordCommand)waiting).firstWaitingOnApply(null);
             Assert.assertNotNull(blocking);
             Assert.assertEquals(blockingId, blocking);
         });

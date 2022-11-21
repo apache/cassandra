@@ -21,8 +21,6 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.messages.Accept;
-import accord.messages.Accept.AcceptNack;
-import accord.messages.Accept.AcceptOk;
 import accord.messages.Accept.AcceptReply;
 import accord.primitives.PartialRoute;
 import accord.primitives.TxnId;
@@ -108,15 +106,22 @@ public class AcceptSerializers
             {
                 default: throw new AssertionError();
                 case Success:
-                    out.writeByte(1);
-                    DepsSerializer.partialDeps.serialize(((AcceptOk)reply).deps, out, version);
+                    if (reply.deps != null)
+                    {
+                        out.writeByte(1);
+                        DepsSerializer.partialDeps.serialize(reply.deps, out, version);
+                    }
+                    else
+                    {
+                        out.writeByte(2);
+                    }
                     break;
                 case Redundant:
-                    out.writeByte(2);
+                    out.writeByte(3);
                     break;
                 case RejectedBallot:
-                    out.writeByte(3);
-                    CommandSerializers.ballot.serialize(((AcceptNack) reply).supersededBy, out, version);
+                    out.writeByte(4);
+                    CommandSerializers.ballot.serialize(reply.supersededBy, out, version);
             }
         }
 
@@ -128,11 +133,13 @@ public class AcceptSerializers
             {
                 default: throw new IllegalStateException("Unexpected AcceptNack type: " + type);
                 case 1:
-                    return new AcceptOk(DepsSerializer.partialDeps.deserialize(in, version));
+                    return new AcceptReply(DepsSerializer.partialDeps.deserialize(in, version));
                 case 2:
-                    return AcceptNack.REDUNDANT;
+                    return AcceptReply.ACCEPT_INVALIDATE;
                 case 3:
-                    return new AcceptNack(RejectedBallot, CommandSerializers.ballot.deserialize(in, version));
+                    return AcceptReply.REDUNDANT;
+                case 4:
+                    return new AcceptReply(CommandSerializers.ballot.deserialize(in, version));
             }
         }
 
@@ -144,12 +151,13 @@ public class AcceptSerializers
             {
                 default: throw new AssertionError();
                 case Success:
-                    size += DepsSerializer.partialDeps.serializedSize(((AcceptOk)reply).deps, version);
+                    if (reply.deps != null)
+                        size += DepsSerializer.partialDeps.serializedSize(reply.deps, version);
                     break;
                 case Redundant:
                     break;
                 case RejectedBallot:
-                    size += CommandSerializers.ballot.serializedSize(((AcceptNack) reply).supersededBy, version);
+                    size += CommandSerializers.ballot.serializedSize(reply.supersededBy, version);
             }
             return size;
         }
