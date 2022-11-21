@@ -46,6 +46,7 @@ import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.DeterministicIdentitySet;
@@ -142,6 +143,7 @@ public class AccordKeyspace
               + "route blob,"
               + "durability int,"
               + "txn blob,"
+              + "kind int,"
               + format("execute_at %s,", TIMESTAMP_TUPLE)
               + format("promised_ballot %s,", TIMESTAMP_TUPLE)
               + format("accepted_ballot %s,", TIMESTAMP_TUPLE)
@@ -189,6 +191,7 @@ public class AccordKeyspace
         static final ColumnMetadata route = getColumn(Commands, "route");
         static final ColumnMetadata durability = getColumn(Commands, "durability");
         static final ColumnMetadata txn = getColumn(Commands, "txn");
+        static final ColumnMetadata kind = getColumn(Commands, "kind");
         static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
         static final ColumnMetadata promised_ballot = getColumn(Commands, "promised_ballot");
         static final ColumnMetadata accepted_ballot = getColumn(Commands, "accepted_ballot");
@@ -447,6 +450,9 @@ public class AccordKeyspace
             if (command.partialTxn.hasModifications())
                 builder.addCell(live(CommandsColumns.txn, timestampMicros, serializeOrNull(command.partialTxn.get(), CommandsSerializers.partialTxn)));
 
+            if (command.kind.hasModifications())
+                builder.addCell(live(CommandsColumns.kind, timestampMicros, accessor.valueOf(command.kind.get().ordinal())));
+
             if (command.executeAt.hasModifications())
                 builder.addCell(live(CommandsColumns.execute_at, timestampMicros, serializeTimestamp(command.executeAt.get())));
 
@@ -457,7 +463,7 @@ public class AccordKeyspace
                 builder.addCell(live(CommandsColumns.accepted_ballot, timestampMicros, serializeTimestamp(command.accepted.get())));
 
             if (command.partialDeps.hasModifications())
-                builder.addCell(live(CommandsColumns.dependencies, timestampMicros, serialize(command.partialDeps.get(), CommandsSerializers.partialDeps)));
+                builder.addCell(live(CommandsColumns.dependencies, timestampMicros, serializeOrNull(command.partialDeps.get(), CommandsSerializers.partialDeps)));
 
             if (command.writes.hasModifications())
                 builder.addCell(live(CommandsColumns.writes, timestampMicros, serialize(command.writes.get(), CommandsSerializers.writes)));
@@ -593,10 +599,11 @@ public class AccordKeyspace
             // TODO: something less brittle than ordinal, more efficient than values()
             command.durability.load(Status.Durability.values()[row.getInt("durability", 0)]);
             command.partialTxn.load(deserializeOrNull(row.getBlob("txn"), CommandsSerializers.partialTxn));
+            command.kind.load(row.has("kind") ? Txn.Kind.values()[row.getInt("kind")] : null);
             command.executeAt.load(deserializeTimestampOrNull(row, "execute_at", Timestamp::new));
             command.promised.load(deserializeTimestampOrNull(row, "promised_ballot", Ballot::new));
             command.accepted.load(deserializeTimestampOrNull(row, "accepted_ballot", Ballot::new));
-            command.partialDeps.load(deserializeWithVersionOr(row, "dependencies", CommandsSerializers.partialDeps, () -> PartialDeps.NONE));
+            command.partialDeps.load(deserializeOrNull(row.getBlob("dependencies"), CommandsSerializers.partialDeps));
             command.writes.load(deserializeWithVersionOr(row, "writes", CommandsSerializers.writes, () -> null));
             command.result.load(deserializeWithVersionOr(row, "result", CommandsSerializers.result, () -> null));
             command.waitingOnCommit.load(deserializeTxnIdNavigableSet(row, "waiting_on_commit"));
