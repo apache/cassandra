@@ -254,7 +254,10 @@ public class AsyncWriter
         }
 
         // There won't be a txn to denormalize against until the command has been preaccepted
-        if (command.known().hasTxn && AccordPartialCommand.serializer.needsUpdate(command))
+        // TODO (now): this maybe insufficient for correctness? on Accept we use the explicitly provided keys to register
+        //             the transaction here. It's possible a sequence of two Accept, with second taking a higher timestamp
+        //             might not reflect the update timestamp in the map? Probably best addressed following Blake's refactor.
+        if (command.known().isDefinitionKnown() && AccordPartialCommand.serializer.needsUpdate(command))
         {
             for (Key key : command.partialTxn().keys())
             {

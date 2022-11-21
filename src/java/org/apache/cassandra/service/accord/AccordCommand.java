@@ -18,10 +18,13 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
@@ -115,6 +118,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     public final StoredValue<RoutingKey> homeKey;
     public final StoredValue<RoutingKey> progressKey;
     public final StoredValue<PartialTxn> partialTxn;
+    public final StoredValue<Txn.Kind> kind; // TODO: store this in TxnId
     public final StoredValue<Ballot> promised;
     public final StoredValue<Ballot> accepted;
     public final StoredValue<Timestamp> executeAt;
@@ -141,6 +145,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         progressKey = new StoredValue<>(rw());
         route = new StoredValue<>(rw());
         partialTxn = new StoredValue<>(rw());
+        kind = new StoredValue<>(rw());
         promised = new StoredValue<>(rw());
         accepted = new StoredValue<>(rw());
         executeAt = new StoredValue<>(rw());
@@ -235,6 +240,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         progressKey.set(null);
         route.set(null);
         partialTxn.set(null);
+        kind.set(null);
         executeAt.load(null);
         promised.set(Ballot.ZERO);
         accepted.set(Ballot.ZERO);
@@ -525,7 +531,13 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public Txn.Kind kind()
     {
-        return partialTxn.get().kind();
+        return kind.get();
+    }
+
+    @Override
+    public void setKind(Txn.Kind kind)
+    {
+        this.kind.set(kind);
     }
 
     @Override
@@ -762,7 +774,6 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         waitingOnCommit.blindAdd(txnId);
     }
 
-    @Override
     public boolean isWaitingOnCommit()
     {
         return !waitingOnCommit.getView().isEmpty();
@@ -788,7 +799,6 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         waitingOnApply.blindPut(executeAt, txnId);
     }
 
-    @Override
     public boolean isWaitingOnApply()
     {
         return !waitingOnApply.getView().isEmpty();
@@ -802,10 +812,21 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public TxnId firstWaitingOnApply()
+    public boolean isWaitingOnDependency()
+    {
+        return isWaitingOnCommit() || isWaitingOnApply();
+    }
+
+    @Override
+    public TxnId firstWaitingOnApply(@Nullable TxnId ifExecutesBefore)
     {
         if (!isWaitingOnApply())
             return null;
-        return waitingOnApply.getView().firstEntry().getValue();
+
+        Map.Entry<Timestamp, TxnId> first = waitingOnApply.getView().firstEntry();
+        if (ifExecutesBefore == null || first.getKey().compareTo(ifExecutesBefore) < 0)
+            return first.getValue();
+
+        return null;
     }
 }
