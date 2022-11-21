@@ -24,8 +24,6 @@ import accord.api.RoutingKey;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.messages.BeginInvalidation;
-import accord.messages.BeginInvalidation.InvalidateNack;
-import accord.messages.BeginInvalidation.InvalidateOk;
 import accord.messages.BeginInvalidation.InvalidateReply;
 import accord.primitives.AbstractRoute;
 import accord.primitives.Ballot;
@@ -46,7 +44,7 @@ public class BeginInvalidationSerializers
         public void serialize(BeginInvalidation begin, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(begin.txnId, out, version);
-            KeySerializers.routingKey.serialize(begin.someKey, out, version);
+            KeySerializers.routingKeys.serialize(begin.someKeys, out, version);
             CommandSerializers.ballot.serialize(begin.ballot, out, version);
         }
 
@@ -54,7 +52,7 @@ public class BeginInvalidationSerializers
         public BeginInvalidation deserialize(DataInputPlus in, int version) throws IOException
         {
             return new BeginInvalidation(CommandSerializers.txnId.deserialize(in, version),
-                                       KeySerializers.routingKey.deserialize(in, version),
+                                       KeySerializers.routingKeys.deserialize(in, version),
                                        CommandSerializers.ballot.deserialize(in, version));
         }
 
@@ -62,80 +60,45 @@ public class BeginInvalidationSerializers
         public long serializedSize(BeginInvalidation begin, int version)
         {
             return CommandSerializers.txnId.serializedSize(begin.txnId, version)
-                   + KeySerializers.routingKey.serializedSize(begin.someKey, version)
+                   + KeySerializers.routingKeys.serializedSize(begin.someKeys, version)
                    + CommandSerializers.ballot.serializedSize(begin.ballot, version);
         }
     };
 
     public static final IVersionedSerializer<InvalidateReply> reply = new IVersionedSerializer<InvalidateReply>()
     {
-        void serializeOk(InvalidateOk ok, DataOutputPlus out, int version) throws IOException
-        {
-            CommandSerializers.saveStatus.serialize(ok.status, out, version);
-            serializeNullable(KeySerializers.abstractRoute, ok.route, out, version);
-            serializeNullable(KeySerializers.routingKey, ok.homeKey, out, version);
-        }
-
-        InvalidateOk deserializeOk(DataInputPlus in, int version) throws IOException
-        {
-            SaveStatus status = CommandSerializers.saveStatus.deserialize(in, version);
-            AbstractRoute route = deserializeNullable(KeySerializers.abstractRoute, in, version);
-            RoutingKey homeKey = deserializeNullable(KeySerializers.routingKey, in, version);
-            return new InvalidateOk(status, route, homeKey);
-        }
-
-        long serializedOkSize(InvalidateOk ok, int version)
-        {
-            return CommandSerializers.saveStatus.serializedSize(ok.status, version)
-                   + serializedSizeNullable(KeySerializers.abstractRoute, ok.route, version)
-                   + serializedSizeNullable(KeySerializers.routingKey, ok.homeKey, version);
-        }
-
-        void serializeNack(InvalidateNack nack, DataOutputPlus out, int version) throws IOException
-        {
-            CommandSerializers.ballot.serialize(nack.supersededBy, out, version);
-            serializeNullable(KeySerializers.routingKey, nack.homeKey, out, version);
-        }
-
-        InvalidateNack deserializeNack(DataInputPlus in, int version) throws IOException
-        {
-            Ballot supersededBy = CommandSerializers.ballot.deserialize(in, version);
-            RoutingKey homeKey = deserializeNullable(KeySerializers.routingKey, in, version);
-            return new InvalidateNack(supersededBy, homeKey);
-        }
-
-        long serializedNackSize(InvalidateNack nack, int version)
-        {
-            return CommandSerializers.ballot.serializedSize(nack.supersededBy, version)
-                   + serializedSizeNullable(KeySerializers.routingKey, nack.homeKey, version);
-        }
-
         @Override
         public void serialize(InvalidateReply reply, DataOutputPlus out, int version) throws IOException
         {
-            out.writeBoolean(reply.isOk());
-            if (!reply.isOk())
-                serializeNack((InvalidateNack) reply, out, version);
-            else
-                serializeOk((InvalidateOk) reply, out, version);
+            serializeNullable(CommandSerializers.ballot, reply.supersededBy, out, version);
+            CommandSerializers.ballot.serialize(reply.accepted, out, version);
+            CommandSerializers.status.serialize(reply.status, out, version);
+            out.writeBoolean(reply.acceptedFastPath);
+            serializeNullable(KeySerializers.abstractRoute, reply.route, out, version);
+            serializeNullable(KeySerializers.routingKey, reply.homeKey, out, version);
         }
 
         @Override
         public InvalidateReply deserialize(DataInputPlus in, int version) throws IOException
         {
-            boolean isOk = in.readBoolean();
-            if (!isOk)
-                return deserializeNack(in, version);
-
-            return deserializeOk(in, version);
+            Ballot supersededBy = deserializeNullable(CommandSerializers.ballot, in, version);
+            Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
+            Status status = CommandSerializers.status.deserialize(in, version);
+            boolean acceptedFastPath = in.readBoolean();
+            AbstractRoute route = deserializeNullable(KeySerializers.abstractRoute, in, version);
+            RoutingKey homeKey = deserializeNullable(KeySerializers.routingKey, in, version);
+            return new InvalidateReply(supersededBy, accepted, status, acceptedFastPath, route, homeKey);
         }
 
         @Override
         public long serializedSize(InvalidateReply reply, int version)
         {
-            return TypeSizes.sizeof(reply.isOk())
-                   + (reply.isOk() ? serializedOkSize((InvalidateOk) reply, version)
-                                   : serializedNackSize((InvalidateNack) reply, version));
+            return serializedSizeNullable(CommandSerializers.ballot, reply.supersededBy, version)
+                    + CommandSerializers.ballot.serializedSize(reply.accepted, version)
+                    + CommandSerializers.status.serializedSize(reply.status, version)
+                    + TypeSizes.BOOL_SIZE
+                    + serializedSizeNullable(KeySerializers.abstractRoute, reply.route, version)
+                    + serializedSizeNullable(KeySerializers.routingKey, reply.homeKey, version);
         }
     };
 }
