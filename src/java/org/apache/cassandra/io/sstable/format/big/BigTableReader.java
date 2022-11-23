@@ -131,6 +131,43 @@ public class BigTableReader extends SSTableReader
     }
 
     /**
+     * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
+     */
+    @Override
+    public DecoratedKey firstKeyBeyond(PartitionPosition token)
+    {
+        if (token.compareTo(first) < 0)
+            return first;
+
+        long sampledPosition = getIndexScanPosition(token);
+
+        if (ifile == null)
+            return null;
+
+        String path = null;
+        try (FileDataInput in = ifile.createReader(sampledPosition))
+        {
+            path = in.getPath();
+            while (!in.isEOF())
+            {
+                ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
+                DecoratedKey indexDecoratedKey = decorateKey(indexKey);
+                if (indexDecoratedKey.compareTo(token) > 0)
+                    return indexDecoratedKey;
+
+                RowIndexEntry.Serializer.skip(in, descriptor.version);
+            }
+        }
+        catch (IOException e)
+        {
+            markSuspect();
+            throw new CorruptSSTableException(e, path);
+        }
+
+        return null;
+    }
+
+    /**
      * Retrieves the position while updating the key cache and the stats.
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
      * allow key selection by token bounds but only if op != * EQ

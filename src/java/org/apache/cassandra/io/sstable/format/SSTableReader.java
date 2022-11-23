@@ -1457,38 +1457,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
      */
-    public DecoratedKey firstKeyBeyond(PartitionPosition token)
-    {
-        if (token.compareTo(first) < 0)
-            return first;
-
-        long sampledPosition = getIndexScanPosition(token);
-
-        if (ifile == null)
-            return null;
-
-        String path = null;
-        try (FileDataInput in = ifile.createReader(sampledPosition))
-        {
-            path = in.getPath();
-            while (!in.isEOF())
-            {
-                ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
-                DecoratedKey indexDecoratedKey = decorateKey(indexKey);
-                if (indexDecoratedKey.compareTo(token) > 0)
-                    return indexDecoratedKey;
-
-                RowIndexEntry.Serializer.skip(in, descriptor.version);
-            }
-        }
-        catch (IOException e)
-        {
-            markSuspect();
-            throw new CorruptSSTableException(e, path);
-        }
-
-        return null;
-    }
+    public abstract DecoratedKey firstKeyBeyond(PartitionPosition token);
 
     /**
      * @return The length in bytes of the data for this SSTable. For
