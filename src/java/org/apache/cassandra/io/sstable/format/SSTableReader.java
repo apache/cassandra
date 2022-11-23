@@ -1169,7 +1169,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
     {
         long sampleKeyCount = 0;
-        List<IndexesBounds> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
+        List<IndexesBounds> sampleIndexes = indexSummary.getSampleIndexesForRanges(ranges);
         for (IndexesBounds sampleIndexRange : sampleIndexes)
             sampleKeyCount += (sampleIndexRange.upperPosition - sampleIndexRange.lowerPosition + 1);
 
@@ -1203,51 +1203,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return indexSummary.getKey(index);
     }
 
-    private static List<IndexesBounds> getSampleIndexesForRanges(IndexSummary summary, Collection<Range<Token>> ranges)
-    {
-        // use the index to determine a minimal section for each range
-        List<IndexesBounds> positions = new ArrayList<>();
-
-        for (Range<Token> range : Range.normalize(ranges))
-        {
-            PartitionPosition leftPosition = range.left.maxKeyBound();
-            PartitionPosition rightPosition = range.right.maxKeyBound();
-
-            int left = summary.binarySearch(leftPosition);
-            if (left < 0)
-                left = (left + 1) * -1;
-            else
-                // left range are start exclusive
-                left = left + 1;
-            if (left == summary.size())
-                // left is past the end of the sampling
-                continue;
-
-            int right = Range.isWrapAround(range.left, range.right)
-                    ? summary.size() - 1
-                    : summary.binarySearch(rightPosition);
-            if (right < 0)
-            {
-                // range are end inclusive so we use the previous index from what binarySearch give us
-                // since that will be the last index we will return
-                right = (right + 1) * -1;
-                if (right == 0)
-                    // Means the first key is already stricly greater that the right bound
-                    continue;
-                right--;
-            }
-
-            if (left > right)
-                // empty range
-                continue;
-            positions.add(new IndexesBounds(left, right));
-        }
-        return positions;
-    }
-
     public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
     {
-        final List<IndexesBounds> indexRanges = getSampleIndexesForRanges(indexSummary, Collections.singletonList(range));
+        final List<IndexesBounds> indexRanges = indexSummary.getSampleIndexesForRanges(Collections.singletonList(range));
 
         if (indexRanges.isEmpty())
             return Collections.emptyList();

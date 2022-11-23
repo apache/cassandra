@@ -21,6 +21,9 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +31,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -259,6 +265,48 @@ public class IndexSummary extends WrappedSharedCloseable
     public int getEffectiveIndexIntervalAfterIndex(int index)
     {
         return Downsampling.getEffectiveIndexIntervalAfterIndex(index, samplingLevel, minIndexInterval);
+    }
+
+    public List<SSTableReader.IndexesBounds> getSampleIndexesForRanges(Collection<Range<Token>> ranges)
+    {
+        // use the index to determine a minimal section for each range
+        List<SSTableReader.IndexesBounds> positions = new ArrayList<>();
+
+        for (Range<Token> range : Range.normalize(ranges))
+        {
+            PartitionPosition leftPosition = range.left.maxKeyBound();
+            PartitionPosition rightPosition = range.right.maxKeyBound();
+
+            int left = binarySearch(leftPosition);
+            if (left < 0)
+                left = (left + 1) * -1;
+            else
+                // left range are start exclusive
+                left = left + 1;
+            if (left == size())
+                // left is past the end of the sampling
+                continue;
+
+            int right = Range.isWrapAround(range.left, range.right)
+                        ? size() - 1
+                        : binarySearch(rightPosition);
+            if (right < 0)
+            {
+                // range are end inclusive so we use the previous index from what binarySearch give us
+                // since that will be the last index we will return
+                right = (right + 1) * -1;
+                if (right == 0)
+                    // Means the first key is already stricly greater that the right bound
+                    continue;
+                right--;
+            }
+
+            if (left > right)
+                // empty range
+                continue;
+            positions.add(new SSTableReader.IndexesBounds(left, right));
+        }
+        return positions;
     }
 
     public IndexSummary sharedCopy()
