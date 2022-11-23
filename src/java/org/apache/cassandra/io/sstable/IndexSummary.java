@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -307,6 +309,47 @@ public class IndexSummary extends WrappedSharedCloseable
             positions.add(new SSTableReader.IndexesBounds(left, right));
         }
         return positions;
+    }
+
+    public Iterable<byte[]> getKeySamples(final Range<Token> range)
+    {
+        final List<SSTableReader.IndexesBounds> indexRanges = getSampleIndexesForRanges(Collections.singletonList(range));
+
+        if (indexRanges.isEmpty())
+            return Collections.emptyList();
+
+        return () -> new Iterator<byte[]>()
+        {
+            private Iterator<SSTableReader.IndexesBounds> rangeIter = indexRanges.iterator();
+            private SSTableReader.IndexesBounds current;
+            private int idx;
+
+            public boolean hasNext()
+            {
+                if (current == null || idx > current.upperPosition)
+                {
+                    if (rangeIter.hasNext())
+                    {
+                        current = rangeIter.next();
+                        idx = current.lowerPosition;
+                        return true;
+                    }
+                    return false;
+                }
+
+                return true;
+            }
+
+            public byte[] next()
+            {
+                return getKey(idx++);
+            }
+
+            public void remove()
+            {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     public IndexSummary sharedCopy()
