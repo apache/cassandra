@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -67,6 +68,20 @@ public class BigTableReader extends SSTableReader
         super(builder);
 
         this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
+    }
+
+    @Override
+    protected List<AutoCloseable> setupInstance(boolean trackHotness)
+    {
+        ArrayList<AutoCloseable> closeables = Lists.newArrayList(bf, indexSummary, ifile);
+        closeables.addAll(super.setupInstance(trackHotness));
+        return closeables;
+    }
+
+    public void releaseSummary()
+    {
+        closeInternalComponent(indexSummary);
+        assert indexSummary.isCleanedUp();
     }
 
     public UnfilteredRowIterator rowIterator(DecoratedKey key,

@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
@@ -808,32 +809,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         synchronized (tidy.global)
         {
             final Runnable existing = tidy.runOnClose;
-            tidy.runOnClose = AndThen.get(existing, runOnClose);
-        }
-    }
-
-    private static class AndThen implements Runnable
-    {
-        final Runnable runFirst;
-        final Runnable runSecond;
-
-        private AndThen(Runnable runFirst, Runnable runSecond)
-        {
-            this.runFirst = runFirst;
-            this.runSecond = runSecond;
-        }
-
-        public void run()
-        {
-            runFirst.run();
-            runSecond.run();
-        }
-
-        static Runnable get(Runnable runFirst, Runnable runSecond)
-        {
-            if (runFirst == null)
-                return runSecond;
-            return new AndThen(runFirst, runSecond);
+            tidy.runOnClose = () -> {
+                if (existing != null)
+                    existing.run();
+                if (runOnClose != null)
+                    runOnClose.run();
+            };
         }
     }
 
@@ -1060,9 +1041,21 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return indexSummary.getEffectiveIndexInterval();
     }
 
-    public void releaseSummary()
+    protected void closeInternalComponent(AutoCloseable closeable)
     {
-        tidy.releaseSummary();
+        synchronized (tidy.global)
+        {
+            boolean removed = tidy.closeables.remove(closeable);
+            Preconditions.checkState(removed);
+            try
+            {
+                closeable.close();
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeException("Failed to close " + closeable, ex);
+            }
+        }
     }
 
     private void validate()
@@ -1863,9 +1856,16 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return selfRef.ref();
     }
 
+    protected List<AutoCloseable> setupInstance(boolean trackHotness)
+    {
+        return Collections.singletonList(dfile);
+    }
+
     void setup(boolean trackHotness)
     {
-        tidy.setup(this, TRACK_ACTIVITY && trackHotness);
+        assert tidy.closeables == null;
+        trackHotness &= TRACK_ACTIVITY;
+        tidy.setup(this, trackHotness, setupInstance(trackHotness));
         this.readMeter = tidy.global.readMeter;
     }
 
@@ -1879,11 +1879,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     {
         identities.add(this);
         identities.add(tidy.globalRef);
-        dfile.addTo(identities);
-        ifile.addTo(identities);
-        bf.addTo(identities);
-        indexSummary.addTo(identities);
-
+        tidy.closeables.forEach(c -> {
+            if (c instanceof SharedCloseable)
+                ((SharedCloseable) c).addTo(identities);
+        });
     }
 
     public boolean maybePresent(DecoratedKey key)
@@ -1902,16 +1901,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * When the InstanceTidier cleansup, it releases its reference to its GlobalTidy; when all InstanceTidiers
      * for that type have run, the GlobalTidy cleans up.
      */
-    private static final class InstanceTidier implements Tidy
+    protected static final class InstanceTidier implements Tidy
     {
         private final Descriptor descriptor;
         private final TableId tableId;
-        private IFilter bf;
-        private IndexSummary summary;
 
-        private FileHandle dfile;
-        private FileHandle ifile;
+        private List<? extends AutoCloseable> closeables;
         private Runnable runOnClose;
+
         private boolean isReplaced = false;
 
         // a reference to our shared tidy instance, that
@@ -1921,26 +1918,24 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
         private volatile boolean setup;
 
-        void setup(SSTableReader reader, boolean trackHotness)
+        public void setup(SSTableReader reader, boolean trackHotness, Collection<? extends AutoCloseable> closeables)
         {
             this.setup = true;
-            this.bf = reader.bf;
-            this.summary = reader.indexSummary;
-            this.dfile = reader.dfile;
-            this.ifile = reader.ifile;
             // get a new reference to the shared descriptor-type tidy
             this.globalRef = GlobalTidy.get(reader);
             this.global = globalRef.get();
             if (trackHotness)
                 global.ensureReadMeter();
+            this.closeables = new ArrayList<>(closeables);
         }
 
-        InstanceTidier(Descriptor descriptor, TableId tableId)
+        private InstanceTidier(Descriptor descriptor, TableId tableId)
         {
             this.descriptor = descriptor;
             this.tableId = tableId;
         }
 
+        @Override
         public void tidy()
         {
             if (logger.isTraceEnabled())
@@ -1958,7 +1953,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                 barrier.issue();
             }
             else
+            {
                 barrier = null;
+            }
 
             ScheduledExecutors.nonPeriodicTasks.execute(new Runnable()
             {
@@ -1973,17 +1970,36 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                     if (logger.isTraceEnabled())
                         logger.trace("Async instance tidier for {}, after barrier", descriptor);
 
-                    if (bf != null)
-                        bf.close();
-                    if (summary != null)
-                        summary.close();
-                    if (runOnClose != null)
+                    Throwable exceptions = null;
+                    if (runOnClose != null) try
+                    {
                         runOnClose.run();
-                    if (dfile != null)
-                        dfile.close();
-                    if (ifile != null)
-                        ifile.close();
-                    globalRef.release();
+                    }
+                    catch (RuntimeException | Error ex)
+                    {
+                        logger.error("Failed to run on-close listeners for sstable " + descriptor.baseFilename(), ex);
+                        exceptions = ex;
+                    }
+
+                    Throwable closeExceptions = Throwables.close(null, closeables);
+                    if (closeExceptions != null)
+                    {
+                        logger.error("Failed to close some sstable components of " + descriptor.baseFilename(), closeExceptions);
+                        exceptions = Throwables.merge(exceptions, closeExceptions);
+                    }
+
+                    try
+                    {
+                        globalRef.release();
+                    }
+                    catch (RuntimeException | Error ex)
+                    {
+                        logger.error("Failed to release the global ref of " + descriptor.baseFilename(), ex);
+                        exceptions = Throwables.merge(exceptions, ex);
+                    }
+
+                    if (exceptions != null)
+                        JVMStabilityInspector.inspectThrowable(exceptions);
 
                     if (logger.isTraceEnabled())
                         logger.trace("Async instance tidier for {}, completed", descriptor);
@@ -1997,16 +2013,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             });
         }
 
+        @Override
         public String name()
         {
             return descriptor.toString();
-        }
-
-        void releaseSummary()
-        {
-            summary.close();
-            assert summary.isCleanedUp();
-            summary = null;
         }
     }
 
