@@ -907,40 +907,15 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             // TODO: merge with caller's firstKeyBeyond() work,to save time
             if (newStart.compareTo(first) > 0)
             {
-                final long dataStart = getPosition(newStart, Operator.EQ);
-                final long indexStart = getIndexScanPosition(newStart);
-                this.tidy.runOnClose = new DropPageCache(dfile, dataStart, ifile, indexStart, runOnClose);
+                Map<FileHandle, Long> handleAndPositions = new LinkedHashMap<>(2);
+                if (dfile != null)
+                    handleAndPositions.put(dfile, getPosition(newStart, Operator.EQ));
+                if (ifile != null)
+                    handleAndPositions.put(ifile, getIndexScanPosition(newStart));
+                runOnClose(() -> handleAndPositions.forEach(FileHandle::dropPageCache));
             }
 
             return cloneAndReplace(newStart, OpenReason.MOVED_START);
-        }
-    }
-
-    private static class DropPageCache implements Runnable
-    {
-        final FileHandle dfile;
-        final long dfilePosition;
-        final FileHandle ifile;
-        final long ifilePosition;
-        final Runnable andThen;
-
-        private DropPageCache(FileHandle dfile, long dfilePosition, FileHandle ifile, long ifilePosition, Runnable andThen)
-        {
-            this.dfile = dfile;
-            this.dfilePosition = dfilePosition;
-            this.ifile = ifile;
-            this.ifilePosition = ifilePosition;
-            this.andThen = andThen;
-        }
-
-        public void run()
-        {
-            dfile.dropPageCache(dfilePosition);
-
-            if (ifile != null)
-                ifile.dropPageCache(ifilePosition);
-            if (andThen != null)
-                andThen.run();
         }
     }
 
