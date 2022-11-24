@@ -521,7 +521,6 @@ public abstract class Selection
     {
         private final SelectorFactories factories;
         private final boolean collectWritetimes;
-        private final boolean collectMaxWritetimes;
         private final boolean collectTTLs;
 
         public SelectionWithProcessing(TableMetadata table,
@@ -542,7 +541,6 @@ public abstract class Selection
 
             this.factories = factories;
             this.collectWritetimes = factories.containsWritetimeSelectorFactory();
-            this.collectMaxWritetimes = factories.containsMaxWritetimeSelectorFactory();
             this.collectTTLs = factories.containsTTLSelectorFactory();
 
             for (ColumnMetadata orderingColumn : orderingColumns)
@@ -621,7 +619,7 @@ public abstract class Selection
                 @Override
                 public boolean collectWritetimes()
                 {
-                    return collectWritetimes || collectMaxWritetimes;
+                    return collectWritetimes;
                 }
 
                 @Override
