@@ -164,7 +164,6 @@ public class ContentionStrategy
         default LatencySelector write(double percentile) { return (read, write) -> write.get(percentile); }
         default LatencySelector maxReadWrite(double percentile) { return (read, write) -> max(read.get(percentile), write.get(percentile)); }
     }
-
     static interface LatencyModifier
     {
         long modify(long latency, int attempts);
@@ -409,7 +408,7 @@ public class ContentionStrategy
         }
 
         long wait = waitRandomizer.wait(minWaitMicros, maxWaitMicros, attempts);
-        return nanoTime() + wait;
+        return nanoTime() + MICROSECONDS.toNanos(wait);
     }
 
     private boolean doWaitForContention(long deadline, int attempts, TableMetadata table, DecoratedKey partitionKey, ConsistencyLevel consistency, Type type)
