@@ -195,7 +195,7 @@ public class BigTableVerifier implements IVerifier
         if (options.checkOwnsTokens && !isOffline && !(cfs.getPartitioner() instanceof LocalPartitioner))
         {
             outputHandler.debug("Checking that all tokens are owned by the current node");
-            try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
+            try (KeyIterator iter = sstable.keyIterator())
             {
                 List<Range<Token>> ownedRanges = Range.normalize(tokenLookup.apply(cfs.metadata.keyspace));
                 if (ownedRanges.isEmpty())

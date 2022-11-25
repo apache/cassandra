@@ -309,4 +309,9 @@ public class ColumnIndex
                ? buffer.buffer().limit()
                : indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0);
     }
+
+    public long getInitialPosition()
+    {
+        return initialPosition;
+    }
 }

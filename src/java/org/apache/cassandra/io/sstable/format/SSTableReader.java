@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -1263,6 +1264,13 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return SSTableIdentityIterator.create(this, file, dataPosition, key, tombstoneOnly);
     }
 
+    public abstract KeyReader keyReader() throws IOException;
+
+    public KeyIterator keyIterator() throws IOException
+    {
+        return new KeyIterator(keyReader(), getPartitioner(), uncompressedLength(), new ReentrantReadWriteLock());
+    }
+
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
      */
@@ -1439,7 +1447,17 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
     }
 
-    public abstract DecoratedKey keyAt(long indexPosition) throws IOException;
+    /**
+     * Reads the key stored at the position saved in SASI.
+     * <p>
+     * When SASI is created, it uses key locations retrieved from {@link KeyReader#keyPositionForSecondaryIndex()}.
+     * This method is to read the key stored at such position. It is up to the concrete SSTable format implementation
+     * what that position means and which file it refers. The only requirement is that it is consistent with what
+     * {@link KeyReader#keyPositionForSecondaryIndex()} returns.
+     *
+     * @return key if found, {@code null} otherwise
+     */
+    public abstract DecoratedKey keyAtPositionFromSecondaryIndex(long keyPositionFromSecondaryIndex) throws IOException;
 
     public boolean isPendingRepair()
     {

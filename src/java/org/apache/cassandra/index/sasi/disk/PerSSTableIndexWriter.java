@@ -98,15 +98,18 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             indexes.put(entry.getKey(), newIndex(entry.getValue()));
     }
 
+    @Override
     public void begin()
     {}
 
-    public void startPartition(DecoratedKey key, long curPosition)
+    @Override
+    public void startPartition(DecoratedKey key, long keyPosition, long KeyPositionForSASI)
     {
         currentKey = key;
-        currentKeyPosition = curPosition;
+        currentKeyPosition = KeyPositionForSASI;
     }
 
+    @Override
     public void nextUnfilteredCluster(Unfiltered unfiltered)
     {
         if (!unfiltered.isRow())
@@ -126,6 +129,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         });
     }
 
+    @Override
     public void complete()
     {
         if (isComplete)

@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable.format;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.io.sstable.KeyReader;
 
 /**
  * Observer for events in the lifecycle of writing out an sstable.
@@ -34,10 +35,14 @@ public interface SSTableFlushObserver
      * Called when a new partition in being written to the sstable,
      * but before any cells are processed (see {@link #nextUnfilteredCluster(Unfiltered)}).
      *
-     * @param key The key being appended to SSTable.
-     * @param indexPosition The position of the key in the SSTable PRIMARY_INDEX file.
+     * @param key                the key being appended to SSTable.
+     * @param keyPosition        the position of the key in the SSTable data file
+     * @param KeyPositionForSASI SSTable format specific key position for storage attached indexes, it can be
+     *                           in data file or in some index file. It is the same position as returned by
+     *                           {@link KeyReader#keyPositionForSecondaryIndex()} for the same format, and the same
+     *                           position as expected by {@link SSTableReader#keyAtPositionFromSecondaryIndex(long)}.
      */
-    void startPartition(DecoratedKey key, long indexPosition);
+    void startPartition(DecoratedKey key, long keyPosition, long KeyPositionForSASI);
 
     /**
      * Called after the unfiltered cluster is written to the sstable.

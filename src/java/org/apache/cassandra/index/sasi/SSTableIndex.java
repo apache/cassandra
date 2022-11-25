@@ -176,7 +176,7 @@ public class SSTableIndex
         {
             try
             {
-                return sstable.keyAt(offset);
+                return sstable.keyAtPositionFromSecondaryIndex(offset);
             }
             catch (IOException e)
             {

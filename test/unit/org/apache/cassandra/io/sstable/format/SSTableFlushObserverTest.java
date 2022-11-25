@@ -24,40 +24,45 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.ColumnMetadata;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Triple;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
-
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-
-import org.junit.Assert;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 public class SSTableFlushObserverTest
 {
@@ -75,12 +80,12 @@ public class SSTableFlushObserverTest
     public void testFlushObserver()
     {
         TableMetadata cfm =
-            TableMetadata.builder(KS_NAME, CF_NAME)
-                         .addPartitionKeyColumn("id", UTF8Type.instance)
-                         .addRegularColumn("first_name", UTF8Type.instance)
-                         .addRegularColumn("age", Int32Type.instance)
-                         .addRegularColumn("height", LongType.instance)
-                         .build();
+        TableMetadata.builder(KS_NAME, CF_NAME)
+                     .addPartitionKeyColumn("id", UTF8Type.instance)
+                     .addRegularColumn("first_name", UTF8Type.instance)
+                     .addRegularColumn("age", Int32Type.instance)
+                     .addRegularColumn("height", LongType.instance)
+                     .build();
 
         LifecycleTransaction transaction = LifecycleTransaction.offline(OperationType.COMPACTION);
         FlushObserver observer = new FlushObserver();
@@ -116,21 +121,21 @@ public class SSTableFlushObserverTest
 
             ByteBuffer key = UTF8Type.instance.fromString("key1");
             expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(27)),
-                                               BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("jack")),
+                                               BufferCell.live(getColumn(cfm, "first_name"), now, UTF8Type.instance.fromString("jack")),
                                                BufferCell.live(getColumn(cfm, "height"), now, LongType.instance.decompose(183L))));
 
             writer.append(new RowIterator(cfm, key.duplicate(), Collections.singletonList(buildRow(expected.get(key)))));
 
             key = UTF8Type.instance.fromString("key2");
             expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(30)),
-                                               BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("jim")),
+                                               BufferCell.live(getColumn(cfm, "first_name"), now, UTF8Type.instance.fromString("jim")),
                                                BufferCell.live(getColumn(cfm, "height"), now, LongType.instance.decompose(180L))));
 
             writer.append(new RowIterator(cfm, key, Collections.singletonList(buildRow(expected.get(key)))));
 
             key = UTF8Type.instance.fromString("key3");
             expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(30)),
-                                               BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("ken")),
+                                               BufferCell.live(getColumn(cfm, "first_name"), now, UTF8Type.instance.fromString("ken")),
                                                BufferCell.live(getColumn(cfm, "height"), now, LongType.instance.decompose(178L))));
 
             writer.append(new RowIterator(cfm, key, Collections.singletonList(buildRow(expected.get(key)))));
@@ -145,10 +150,11 @@ public class SSTableFlushObserverTest
         Assert.assertTrue(observer.isComplete);
         Assert.assertEquals(expected.size(), observer.rows.size());
 
-        for (Pair<ByteBuffer, Long> e : observer.rows.keySet())
+        for (Triple<ByteBuffer, Long, Long> e : observer.rows.keySet())
         {
-            ByteBuffer key = e.left;
-            Long indexPosition = e.right;
+            ByteBuffer key = e.getLeft();
+            long dataPosition = e.getMiddle();
+            long indexPosition = e.getRight();
 
             try (FileDataInput index = reader.ifile.createReader(indexPosition))
             {
@@ -190,18 +196,21 @@ public class SSTableFlushObserverTest
 
     private static class FlushObserver implements SSTableFlushObserver
     {
-        private final Multimap<Pair<ByteBuffer, Long>, Cell<?>> rows = ArrayListMultimap.create();
-        private Pair<ByteBuffer, Long> currentKey;
+        private final Multimap<Triple<ByteBuffer, Long, Long>, Cell<?>> rows = ArrayListMultimap.create();
+        private final Multimap<Triple<ByteBuffer, Long, Long>, Cell<?>> staticRows = ArrayListMultimap.create();
+
+        private Triple<ByteBuffer, Long, Long> currentKey;
         private boolean isComplete;
 
         @Override
         public void begin()
-        {}
+        {
+        }
 
         @Override
-        public void startPartition(DecoratedKey key, long indexPosition)
+        public void startPartition(DecoratedKey key, long dataPosition, long indexPosition)
         {
-            currentKey = Pair.create(key.getKey(), indexPosition);
+            currentKey = ImmutableTriple.of(key.getKey(), dataPosition, indexPosition);
         }
 
         @Override

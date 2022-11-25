@@ -120,6 +120,12 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
         return BigTableScanner.getScanner(this, columns, dataRange, listener);
     }
 
+    @Override
+    public KeyReader keyReader() throws IOException
+    {
+        return BigTableKeyReader.create(ifile, rowIndexEntrySerializer);
+    }
+
     /**
      * Direct I/O SSTableScanner over an iterator of bounds.
      *
@@ -392,10 +398,10 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
     }
 
     @Override
-    public DecoratedKey keyAt(long indexPosition) throws IOException
+    public DecoratedKey keyAtPositionFromSecondaryIndex(long keyPositionFromSecondaryIndex) throws IOException
     {
         DecoratedKey key;
-        try (FileDataInput in = ifile.createReader(indexPosition))
+        try (FileDataInput in = ifile.createReader(keyPositionFromSecondaryIndex))
         {
             if (in.isEOF())
                 return null;

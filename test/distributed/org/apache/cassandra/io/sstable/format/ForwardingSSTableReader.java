@@ -33,6 +33,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.io.sstable.KeyReader;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.Slices;
@@ -53,7 +54,6 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.TableMetadata;
@@ -259,6 +259,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public KeyReader keyReader() throws IOException
+    {
+        return delegate.keyReader();
+    }
+
+    @Override
     public DecoratedKey firstKeyBeyond(PartitionPosition token)
     {
         return delegate.firstKeyBeyond(token);
@@ -373,9 +379,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public DecoratedKey keyAt(long indexPosition) throws IOException
+    public DecoratedKey keyAtPositionFromSecondaryIndex(long keyPositionFromSecondaryIndex) throws IOException
     {
-        return delegate.keyAt(indexPosition);
+        return delegate.keyAtPositionFromSecondaryIndex(keyPositionFromSecondaryIndex);
     }
 
     @Override
