@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
@@ -57,7 +58,7 @@ import org.apache.cassandra.utils.OutputHandler;
  * SSTableReaders are open()ed by Keyspace.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
-public class BigTableReader extends SSTableReader
+public class BigTableReader extends SSTableReader implements IndexSummarySupport
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
@@ -78,10 +79,17 @@ public class BigTableReader extends SSTableReader
         return closeables;
     }
 
-    public void releaseSummary()
+    @Override
+    public void releaseComponents()
     {
         closeInternalComponent(indexSummary);
         assert indexSummary.isCleanedUp();
+    }
+
+    @Override
+    public IndexSummary getIndexSummary()
+    {
+        return indexSummary;
     }
 
     public UnfilteredRowIterator rowIterator(DecoratedKey key,
@@ -431,6 +439,44 @@ public class BigTableReader extends SSTableReader
             throw new AssertionError("Failed to deserialize row index entry", e);
         }
 
+    }
+
+    /**
+     * @return An estimate of the number of keys in this SSTable based on the index summary.
+     */
+    @Override
+    public long estimatedKeys()
+    {
+        return indexSummary.getEstimatedKeyCount();
+    }
+
+    /**
+     * @param ranges
+     * @return An estimate of the number of keys for given ranges in this SSTable.
+     */
+    @Override
+    public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
+    {
+        long sampleKeyCount = 0;
+        List<IndexesBounds> sampleIndexes = indexSummary.getSampleIndexesForRanges(ranges);
+        for (IndexesBounds sampleIndexRange : sampleIndexes)
+            sampleKeyCount += (sampleIndexRange.upperPosition - sampleIndexRange.lowerPosition + 1);
+
+        // adjust for the current sampling level: (BSL / SL) * index_interval_at_full_sampling
+        long estimatedKeys = sampleKeyCount * ((long) Downsampling.BASE_SAMPLING_LEVEL * indexSummary.getMinIndexInterval()) / indexSummary.getSamplingLevel();
+        return Math.max(1, estimatedKeys);
+    }
+
+    @Override
+    public int getEstimationSamples()
+    {
+        return indexSummary.size();
+    }
+
+    @Override
+    public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
+    {
+        return Iterables.transform(indexSummary.getKeySamples(range), bytes -> decorateKey(ByteBuffer.wrap(bytes)));
     }
 
     @Override

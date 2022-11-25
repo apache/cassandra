@@ -356,7 +356,7 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
 
         private final BigTableGaugeProvider<Long> indexSummaryOffHeapMemoryUsed = new BigTableGaugeProvider<>("IndexSummaryOffHeapMemoryUsed",
                                                                                                               0L,
-                                                                                                              SSTableReader::getIndexSummaryOffHeapSize,
+                                                                                                              r -> r.getIndexSummary().getOffHeapSize(),
                                                                                                               Long::sum);
 
         private final List<GaugeProvider<?, ?>> gaugeProviders = Arrays.asList(indexSummaryOffHeapMemoryUsed);

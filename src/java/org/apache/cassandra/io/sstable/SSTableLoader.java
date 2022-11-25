@@ -23,7 +23,6 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
-import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.io.FSError;
@@ -183,8 +182,7 @@ public class SSTableLoader implements StreamEventHandler
                                               }
 
                                               // to conserve heap space when bulk loading
-                                              if (sstable instanceof BigTableReader)
-                                                ((BigTableReader) sstable).releaseSummary();
+                                              sstable.releaseComponents();
                                           }
                                           catch (FSError e)
                                           {

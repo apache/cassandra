@@ -38,6 +38,7 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import net.openhft.chronicle.core.util.ThrowingSupplier;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.WrappedExecutorPlus;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -71,7 +72,6 @@ import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -1890,22 +1890,17 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submitIfRunning(runnable, "cache write");
     }
 
-    public List<SSTableReader> runIndexSummaryRedistribution(IndexSummaryRedistribution redistribution) throws IOException
+    public <T, E extends Throwable> T runWithActiveCompactions(Holder holder, ThrowingSupplier<T, E> callable) throws E
     {
-        return runIndexSummaryRedistribution(redistribution, active);
-    }
-
-    @VisibleForTesting
-    List<SSTableReader> runIndexSummaryRedistribution(IndexSummaryRedistribution redistribution, ActiveCompactionsTracker activeCompactions) throws IOException
-    {
-        activeCompactions.beginCompaction(redistribution);
+        ActiveCompactionsTracker tracker = active;
+        active.beginCompaction(holder);
         try
         {
-            return redistribution.redistributeSummaries();
+            return callable.get();
         }
         finally
         {
-            activeCompactions.finishCompaction(redistribution);
+            tracker.finishCompaction(holder);
         }
     }
 

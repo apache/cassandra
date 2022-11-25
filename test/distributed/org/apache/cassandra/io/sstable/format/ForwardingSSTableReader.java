@@ -145,27 +145,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public int getIndexSummarySamplingLevel()
+    public void releaseComponents()
     {
-        return delegate.getIndexSummarySamplingLevel();
-    }
-
-    @Override
-    public long getIndexSummaryOffHeapSize()
-    {
-        return delegate.getIndexSummaryOffHeapSize();
-    }
-
-    @Override
-    public int getMinIndexInterval()
-    {
-        return delegate.getMinIndexInterval();
-    }
-
-    @Override
-    public double getEffectiveIndexInterval()
-    {
-        return delegate.getEffectiveIndexInterval();
+        delegate.releaseComponents();
     }
 
     @Override
@@ -214,24 +196,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
     {
         return delegate.estimatedKeysForRanges(ranges);
-    }
-
-    @Override
-    public int getIndexSummarySize()
-    {
-        return delegate.getIndexSummarySize();
-    }
-
-    @Override
-    public int getMaxIndexSummarySize()
-    {
-        return delegate.getMaxIndexSummarySize();
-    }
-
-    @Override
-    public byte[] getIndexSummaryKey(int index)
-    {
-        return delegate.getIndexSummaryKey(index);
     }
 
     @Override
@@ -778,5 +742,11 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public IVerifier getVerifier(OutputHandler outputHandler, boolean isOffline, IVerifier.Options options)
     {
         return delegate.getVerifier(outputHandler, isOffline, options);
+    }
+
+    @Override
+    public int getEstimationSamples()
+    {
+        return delegate.getEstimationSamples();
     }
 }

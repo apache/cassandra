@@ -28,15 +28,15 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -81,26 +81,41 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         this.compactionId = nextTimeUUID();
     }
 
-    public List<SSTableReader> redistributeSummaries() throws IOException
+    private static <T extends SSTableReader & IndexSummarySupport> List<T> getIndexSummarySupportingAndCloseOthers(LifecycleTransaction txn) {
+        List<T> filtered = new ArrayList<>();
+        List<SSTableReader> cancels = new ArrayList<>();
+        for (SSTableReader sstable : txn.originals())
+        {
+            if (sstable instanceof IndexSummarySupport)
+                filtered.add((T) sstable);
+            else
+                cancels.add(sstable);
+        }
+        txn.cancel(cancels);
+        return filtered;
+    }
+
+    public <T extends SSTableReader & IndexSummarySupport> List<T> redistributeSummaries() throws IOException
     {
         long start = nanoTime();
         logger.info("Redistributing index summaries");
-        List<SSTableReader> redistribute = new ArrayList<>();
+        List<T> redistribute = new ArrayList<>();
+
         for (LifecycleTransaction txn : transactions.values())
         {
-            redistribute.addAll(txn.originals());
+            redistribute.addAll(getIndexSummarySupportingAndCloseOthers(txn));
         }
 
         long total = nonRedistributingOffHeapSize;
-        for (SSTableReader sstable : redistribute)
-            total += sstable.getIndexSummaryOffHeapSize();
+        for (T sstable : redistribute)
+            total += sstable.getIndexSummary().getOffHeapSize();
 
         logger.info("Beginning redistribution of index summaries for {} sstables with memory pool size {} MiB; current spaced used is {} MiB",
                      redistribute.size(), memoryPoolBytes / 1024L / 1024L, total / 1024.0 / 1024.0);
 
-        final Map<SSTableReader, Double> readRates = new HashMap<>(redistribute.size());
+        final Map<T, Double> readRates = new HashMap<>(redistribute.size());
         double totalReadsPerSec = 0.0;
-        for (SSTableReader sstable : redistribute)
+        for (T sstable : redistribute)
         {
             if (isStopRequested())
                 throw new CompactionInterruptedException(getCompactionInfo());
@@ -115,14 +130,14 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         logger.trace("Total reads/sec across all sstables in index summary resize process: {}", totalReadsPerSec);
 
         // copy and sort by read rates (ascending)
-        List<SSTableReader> sstablesByHotness = new ArrayList<>(redistribute);
+        List<T> sstablesByHotness = new ArrayList<>(redistribute);
         Collections.sort(sstablesByHotness, new ReadRateComparator(readRates));
 
         long remainingBytes = memoryPoolBytes - nonRedistributingOffHeapSize;
 
         logger.trace("Index summaries for compacting SSTables are using {} MiB of space",
                      (memoryPoolBytes - remainingBytes) / 1024.0 / 1024.0);
-        List<SSTableReader> newSSTables;
+        List<T> newSSTables;
         try (Refs<SSTableReader> refs = Refs.ref(sstablesByHotness))
         {
             newSSTables = adjustSamplingLevels(sstablesByHotness, transactions, totalReadsPerSec, remainingBytes);
@@ -131,8 +146,8 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                 txn.finish();
         }
         total = nonRedistributingOffHeapSize;
-        for (SSTableReader sstable : newSSTables)
-            total += sstable.getIndexSummaryOffHeapSize();
+        for (T sstable : newSSTables)
+            total += sstable.getIndexSummary().getOffHeapSize();
 
         logger.info("Completed resizing of index summaries; current approximate memory used: {} MiB, time spent: {}ms",
                     total / 1024.0 / 1024.0, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
@@ -140,20 +155,21 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         return newSSTables;
     }
 
-    private List<SSTableReader> adjustSamplingLevels(List<SSTableReader> sstables,
-                                                     Map<TableId, LifecycleTransaction> transactions,
-                                                     double totalReadsPerSec, long memoryPoolCapacity) throws IOException
+    private <T extends SSTableReader & IndexSummarySupport> List<T> adjustSamplingLevels(List<T> sstables,
+                                                                                         Map<TableId, LifecycleTransaction> transactions,
+                                                                                         double totalReadsPerSec,
+                                                                                         long memoryPoolCapacity) throws IOException
     {
-        List<ResampleEntry> toDownsample = new ArrayList<>(sstables.size() / 4);
-        List<ResampleEntry> toUpsample = new ArrayList<>(sstables.size() / 4);
-        List<ResampleEntry> forceResample = new ArrayList<>();
-        List<ResampleEntry> forceUpsample = new ArrayList<>();
-        List<SSTableReader> newSSTables = new ArrayList<>(sstables.size());
+        List<ResampleEntry<T>> toDownsample = new ArrayList<>(sstables.size() / 4);
+        List<ResampleEntry<T>> toUpsample = new ArrayList<>(sstables.size() / 4);
+        List<ResampleEntry<T>> forceResample = new ArrayList<>();
+        List<ResampleEntry<T>> forceUpsample = new ArrayList<>();
+        List<T> newSSTables = new ArrayList<>(sstables.size());
 
         // Going from the coldest to the hottest sstables, try to give each sstable an amount of space proportional
         // to the number of total reads/sec it handles.
         remainingSpace = memoryPoolCapacity;
-        for (SSTableReader sstable : sstables)
+        for (T sstable : sstables)
         {
             if (isStopRequested())
                 throw new CompactionInterruptedException(getCompactionInfo());
@@ -165,26 +181,26 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             long idealSpace = Math.round(remainingSpace * (readsPerSec / totalReadsPerSec));
 
             // figure out how many entries our idealSpace would buy us, and pick a new sampling level based on that
-            int currentNumEntries = sstable.getIndexSummarySize();
-            double avgEntrySize = sstable.getIndexSummaryOffHeapSize() / (double) currentNumEntries;
+            int currentNumEntries = sstable.getIndexSummary().size();
+            double avgEntrySize = sstable.getIndexSummary().getOffHeapSize() / (double) currentNumEntries;
             long targetNumEntries = Math.max(1, Math.round(idealSpace / avgEntrySize));
-            int currentSamplingLevel = sstable.getIndexSummarySamplingLevel();
-            int maxSummarySize = sstable.getMaxIndexSummarySize();
+            int currentSamplingLevel = sstable.getIndexSummary().getSamplingLevel();
+            int maxSummarySize = sstable.getIndexSummary().getMaxNumberOfEntries();
 
             // if the min_index_interval changed, calculate what our current sampling level would be under the new min
-            if (sstable.getMinIndexInterval() != minIndexInterval)
+            if (sstable.getIndexSummary().getMinIndexInterval() != minIndexInterval)
             {
-                int effectiveSamplingLevel = (int) Math.round(currentSamplingLevel * (minIndexInterval / (double) sstable.getMinIndexInterval()));
-                maxSummarySize = (int) Math.round(maxSummarySize * (sstable.getMinIndexInterval() / (double) minIndexInterval));
+                int effectiveSamplingLevel = (int) Math.round(currentSamplingLevel * (minIndexInterval / (double) sstable.getIndexSummary().getMinIndexInterval()));
+                maxSummarySize = (int) Math.round(maxSummarySize * (sstable.getIndexSummary().getMinIndexInterval() / (double) minIndexInterval));
                 logger.trace("min_index_interval changed from {} to {}, so the current sampling level for {} is effectively now {} (was {})",
-                             sstable.getMinIndexInterval(), minIndexInterval, sstable, effectiveSamplingLevel, currentSamplingLevel);
+                             sstable.getIndexSummary().getMinIndexInterval(), minIndexInterval, sstable, effectiveSamplingLevel, currentSamplingLevel);
                 currentSamplingLevel = effectiveSamplingLevel;
             }
 
             int newSamplingLevel = IndexSummaryBuilder.calculateSamplingLevel(currentSamplingLevel, currentNumEntries, targetNumEntries,
                     minIndexInterval, maxIndexInterval);
             int numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, maxSummarySize);
-            double effectiveIndexInterval = sstable.getEffectiveIndexInterval();
+            double effectiveIndexInterval = sstable.getIndexSummary().getEffectiveIndexInterval();
 
             if (logger.isTraceEnabled())
                 logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
@@ -200,7 +216,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                 logger.trace("Forcing resample of {} because the current index interval ({}) is below min_index_interval ({})",
                         sstable, effectiveIndexInterval, minIndexInterval);
                 long spaceUsed = (long) Math.ceil(avgEntrySize * numEntriesAtNewSamplingLevel);
-                forceResample.add(new ResampleEntry(sstable, spaceUsed, newSamplingLevel));
+                forceResample.add(new ResampleEntry<T>(sstable, spaceUsed, newSamplingLevel));
                 remainingSpace -= spaceUsed;
             }
             else if (effectiveIndexInterval > maxIndexInterval)
@@ -209,28 +225,28 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                 logger.trace("Forcing upsample of {} because the current index interval ({}) is above max_index_interval ({})",
                         sstable, effectiveIndexInterval, maxIndexInterval);
                 newSamplingLevel = Math.max(1, (BASE_SAMPLING_LEVEL * minIndexInterval) / maxIndexInterval);
-                numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, sstable.getMaxIndexSummarySize());
+                numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, sstable.getIndexSummary().getMaxNumberOfEntries());
                 long spaceUsed = (long) Math.ceil(avgEntrySize * numEntriesAtNewSamplingLevel);
-                forceUpsample.add(new ResampleEntry(sstable, spaceUsed, newSamplingLevel));
+                forceUpsample.add(new ResampleEntry<T>(sstable, spaceUsed, newSamplingLevel));
                 remainingSpace -= avgEntrySize * numEntriesAtNewSamplingLevel;
             }
             else if (targetNumEntries >= currentNumEntries * UPSAMPLE_THRESHOLD && newSamplingLevel > currentSamplingLevel)
             {
                 long spaceUsed = (long) Math.ceil(avgEntrySize * numEntriesAtNewSamplingLevel);
-                toUpsample.add(new ResampleEntry(sstable, spaceUsed, newSamplingLevel));
+                toUpsample.add(new ResampleEntry<T>(sstable, spaceUsed, newSamplingLevel));
                 remainingSpace -= avgEntrySize * numEntriesAtNewSamplingLevel;
             }
             else if (targetNumEntries < currentNumEntries * DOWNSAMPLE_THESHOLD && newSamplingLevel < currentSamplingLevel)
             {
                 long spaceUsed = (long) Math.ceil(avgEntrySize * numEntriesAtNewSamplingLevel);
-                toDownsample.add(new ResampleEntry(sstable, spaceUsed, newSamplingLevel));
+                toDownsample.add(new ResampleEntry<T>(sstable, spaceUsed, newSamplingLevel));
                 remainingSpace -= spaceUsed;
             }
             else
             {
                 // keep the same sampling level
                 logger.trace("SSTable {} is within thresholds of ideal sampling", sstable);
-                remainingSpace -= sstable.getIndexSummaryOffHeapSize();
+                remainingSpace -= sstable.getIndexSummary().getOffHeapSize();
                 newSSTables.add(sstable);
                 transactions.get(sstable.metadata().id).cancel(sstable);
             }
@@ -239,10 +255,10 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
         if (remainingSpace > 0)
         {
-            Pair<List<SSTableReader>, List<ResampleEntry>> result = distributeRemainingSpace(toDownsample, remainingSpace);
+            Pair<List<T>, List<ResampleEntry<T>>> result = distributeRemainingSpace(toDownsample, remainingSpace);
             toDownsample = result.right;
             newSSTables.addAll(result.left);
-            for (SSTableReader sstable : result.left)
+            for (T sstable : result.left)
                 transactions.get(sstable.metadata().id).cancel(sstable);
         }
 
@@ -251,20 +267,20 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         toDownsample.addAll(forceResample);
         toDownsample.addAll(toUpsample);
         toDownsample.addAll(forceUpsample);
-        for (ResampleEntry entry : toDownsample)
+        for (ResampleEntry<T> entry : toDownsample)
         {
             if (isStopRequested())
                 throw new CompactionInterruptedException(getCompactionInfo());
 
-            SSTableReader sstable = entry.sstable;
+            T sstable = entry.sstable;
             logger.trace("Re-sampling index summary for {} from {}/{} to {}/{} of the original number of entries",
-                         sstable, sstable.getIndexSummarySamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
+                         sstable, sstable.getIndexSummary().getSamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
                          entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
             ColumnFamilyStore cfs = Keyspace.open(sstable.metadata().keyspace).getColumnFamilyStore(sstable.metadata().id);
             long oldSize = sstable.bytesOnDisk();
             long oldSizeUncompressed = sstable.logicalBytesOnDisk();
 
-            SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(cfs, entry.newSamplingLevel);
+            T replacement = (T) sstable.cloneWithNewSummarySamplingLevel(cfs, entry.newSamplingLevel);
             long newSize = replacement.bytesOnDisk();
             long newSizeUncompressed = replacement.logicalBytesOnDisk();
 
@@ -307,31 +323,24 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     }
 
     @VisibleForTesting
-    static Pair<List<SSTableReader>, List<ResampleEntry>> distributeRemainingSpace(List<ResampleEntry> toDownsample, long remainingSpace)
+    static <T extends SSTableReader & IndexSummarySupport> Pair<List<T>, List<ResampleEntry<T>>> distributeRemainingSpace(List<ResampleEntry<T>> toDownsample, long remainingSpace)
     {
         // sort by the amount of space regained by doing the downsample operation; we want to try to avoid operations
         // that will make little difference.
-        Collections.sort(toDownsample, new Comparator<ResampleEntry>()
-        {
-            public int compare(ResampleEntry o1, ResampleEntry o2)
-            {
-                return Double.compare(o1.sstable.getIndexSummaryOffHeapSize() - o1.newSpaceUsed,
-                                      o2.sstable.getIndexSummaryOffHeapSize() - o2.newSpaceUsed);
-            }
-        });
+        Collections.sort(toDownsample, Comparator.comparingDouble(o -> o.sstable.getIndexSummary().getOffHeapSize() - o.newSpaceUsed));
 
         int noDownsampleCutoff = 0;
-        List<SSTableReader> willNotDownsample = new ArrayList<>();
+        List<T> willNotDownsample = new ArrayList<>();
         while (remainingSpace > 0 && noDownsampleCutoff < toDownsample.size())
         {
-            ResampleEntry entry = toDownsample.get(noDownsampleCutoff);
+            ResampleEntry<T> entry = toDownsample.get(noDownsampleCutoff);
 
-            long extraSpaceRequired = entry.sstable.getIndexSummaryOffHeapSize() - entry.newSpaceUsed;
+            long extraSpaceRequired = entry.sstable.getIndexSummary().getOffHeapSize() - entry.newSpaceUsed;
             // see if we have enough leftover space to keep the current sampling level
             if (extraSpaceRequired <= remainingSpace)
             {
                 logger.trace("Using leftover space to keep {} at the current sampling level ({})",
-                             entry.sstable, entry.sstable.getIndexSummarySamplingLevel());
+                             entry.sstable, entry.sstable.getIndexSummary().getSamplingLevel());
                 willNotDownsample.add(entry.sstable);
                 remainingSpace -= extraSpaceRequired;
             }
@@ -358,9 +367,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     /** Utility class for sorting sstables by their read rates. */
     private static class ReadRateComparator implements Comparator<SSTableReader>
     {
-        private final Map<SSTableReader, Double> readRates;
+        private final Map<? extends SSTableReader, Double> readRates;
 
-        ReadRateComparator(Map<SSTableReader, Double> readRates)
+        ReadRateComparator(Map<? extends SSTableReader, Double> readRates)
         {
             this.readRates = readRates;
         }
@@ -381,13 +390,13 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         }
     }
 
-    private static class ResampleEntry
+    private static class ResampleEntry<T extends SSTableReader & IndexSummarySupport>
     {
-        public final SSTableReader sstable;
+        public final T sstable;
         public final long newSpaceUsed;
         public final int newSamplingLevel;
 
-        ResampleEntry(SSTableReader sstable, long newSpaceUsed, int newSamplingLevel)
+        ResampleEntry(T sstable, long newSpaceUsed, int newSamplingLevel)
         {
             this.sstable = sstable;
             this.newSpaceUsed = newSpaceUsed;

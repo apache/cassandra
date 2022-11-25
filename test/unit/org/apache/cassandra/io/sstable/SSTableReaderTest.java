@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -51,7 +52,9 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedRegions;
@@ -63,6 +66,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.ServerTestUtils.getLiveBigTableReaders;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -701,6 +705,7 @@ public class SSTableReaderTest
     @Test
     public void testIndexSummaryUpsampleAndReload() throws Exception
     {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
         int originalMaxSegmentSize = MmappedRegions.MAX_SEGMENT_SIZE;
         MmappedRegions.MAX_SEGMENT_SIZE = 40; // each index entry is ~11 bytes, so this will generate lots of segments
 
@@ -731,18 +736,18 @@ public class SSTableReaderTest
         Util.flush(store);
         CompactionManager.instance.performMaximal(store, false);
 
-        Collection<SSTableReader> sstables = store.getLiveSSTables();
+        Collection<BigTableReader> sstables = getLiveBigTableReaders(store);
         assert sstables.size() == 1;
-        final SSTableReader sstable = sstables.iterator().next();
+        final BigTableReader sstable = sstables.iterator().next();
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(Collections.singletonList(sstable), OperationType.UNKNOWN))
         {
-            SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(store, sstable.getIndexSummarySamplingLevel() + 1);
+            SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(store, sstable.getIndexSummary().getSamplingLevel() + 1);
             txn.update(replacement, true);
             txn.finish();
         }
-        SSTableReader reopen = SSTableReader.open(sstable.descriptor);
-        assert reopen.getIndexSummarySamplingLevel() == sstable.getIndexSummarySamplingLevel() + 1;
+        BigTableReader reopen = (BigTableReader) SSTableReader.open(sstable.descriptor);
+        assert reopen.getIndexSummary().getSamplingLevel() == sstable.getIndexSummary().getSamplingLevel() + 1;
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS)

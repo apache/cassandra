@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -996,26 +995,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return readMeter;
     }
 
-    public int getIndexSummarySamplingLevel()
-    {
-        return indexSummary.getSamplingLevel();
-    }
-
-    public long getIndexSummaryOffHeapSize()
-    {
-        return indexSummary.getOffHeapSize();
-    }
-
-    public int getMinIndexInterval()
-    {
-        return indexSummary.getMinIndexInterval();
-    }
-
-    public double getEffectiveIndexInterval()
-    {
-        return indexSummary.getEffectiveIndexInterval();
-    }
-
     protected void closeInternalComponent(AutoCloseable closeable)
     {
         synchronized (tidy.global)
@@ -1032,6 +1011,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             }
         }
     }
+
+    /**
+     * This method is expected to close the components which occupy memory but are not needed when we just want to
+     * stream the components (for example, when SSTable is opened with SSTableLoader). The method should call
+     * {@link #closeInternalComponent(AutoCloseable)} for each such component. Leaving the implementation empty is
+     * valid, but may impact memory usage.
+     */
+    public abstract void releaseComponents();
 
     private void validate()
     {
@@ -1125,56 +1112,21 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * @return An estimate of the number of keys in this SSTable based on the index summary.
      */
-    public long estimatedKeys()
-    {
-        return indexSummary.getEstimatedKeyCount();
-    }
+    public abstract long estimatedKeys();
 
     /**
      * @param ranges
      * @return An estimate of the number of keys for given ranges in this SSTable.
      */
-    public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
-    {
-        long sampleKeyCount = 0;
-        List<IndexesBounds> sampleIndexes = indexSummary.getSampleIndexesForRanges(ranges);
-        for (IndexesBounds sampleIndexRange : sampleIndexes)
-            sampleKeyCount += (sampleIndexRange.upperPosition - sampleIndexRange.lowerPosition + 1);
-
-        // adjust for the current sampling level: (BSL / SL) * index_interval_at_full_sampling
-        long estimatedKeys = sampleKeyCount * ((long) Downsampling.BASE_SAMPLING_LEVEL * indexSummary.getMinIndexInterval()) / indexSummary.getSamplingLevel();
-        return Math.max(1, estimatedKeys);
-    }
+    public abstract long estimatedKeysForRanges(Collection<Range<Token>> ranges);
 
     /**
      * Returns the number of entries in the IndexSummary.  At full sampling, this is approximately 1/INDEX_INTERVALth of
      * the keys in this SSTable.
      */
-    public int getIndexSummarySize()
-    {
-        return indexSummary.size();
-    }
+    public abstract int getEstimationSamples();
 
-    /**
-     * Returns the approximate number of entries the IndexSummary would contain if it were at full sampling.
-     */
-    public int getMaxIndexSummarySize()
-    {
-        return indexSummary.getMaxNumberOfEntries();
-    }
-
-    /**
-     * Returns the key for the index summary entry at `index`.
-     */
-    public byte[] getIndexSummaryKey(int index)
-    {
-        return indexSummary.getKey(index);
-    }
-
-    public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
-    {
-        return Iterables.transform(indexSummary.getKeySamples(range), bytes -> decorateKey(ByteBuffer.wrap(bytes)));
-    }
+    public abstract Iterable<DecoratedKey> getKeySamples(final Range<Token> range);
 
     /**
      * Determine the minimal set of sections that can be extracted from this SSTable to cover the given ranges.

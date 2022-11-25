@@ -241,7 +241,7 @@ public class View
     // METHODS TO CONSTRUCT FUNCTIONS FOR MODIFYING A VIEW:
 
     // return a function to un/mark the provided readers compacting in a view
-    static Function<View, View> updateCompacting(final Set<SSTableReader> unmark, final Iterable<SSTableReader> mark)
+    static Function<View, View> updateCompacting(final Set<? extends SSTableReader> unmark, final Iterable<? extends SSTableReader> mark)
     {
         if (unmark.isEmpty() && Iterables.isEmpty(mark))
             return Functions.identity();
@@ -259,7 +259,7 @@ public class View
 
     // construct a predicate to reject views that do not permit us to mark these readers compacting;
     // i.e. one of them is either already compacting, has been compacted, or has been replaced
-    static Predicate<View> permitCompacting(final Iterable<SSTableReader> readers)
+    static Predicate<View> permitCompacting(final Iterable<? extends SSTableReader> readers)
     {
         return new Predicate<View>()
         {
