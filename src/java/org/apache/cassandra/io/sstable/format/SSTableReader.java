@@ -1037,33 +1037,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
             key = first;
 
-        return getIndexScanPositionFromBinarySearchResult(indexSummary.binarySearch(key), indexSummary);
-    }
-
-    @VisibleForTesting
-    public static long getIndexScanPositionFromBinarySearchResult(int binarySearchResult, IndexSummary referencedIndexSummary)
-    {
-        if (binarySearchResult == -1)
-            return 0;
-        else
-            return referencedIndexSummary.getPosition(getIndexSummaryIndexFromBinarySearchResult(binarySearchResult));
-    }
-
-    public static int getIndexSummaryIndexFromBinarySearchResult(int binarySearchResult)
-    {
-        if (binarySearchResult < 0)
-        {
-            // binary search gives us the first index _greater_ than the key searched for,
-            // i.e., its insertion position
-            int greaterThan = (binarySearchResult + 1) * -1;
-            if (greaterThan == 0)
-                return -1;
-            return greaterThan - 1;
-        }
-        else
-        {
-            return binarySearchResult;
-        }
+        return indexSummary.getScanPositionFromBinarySearch(key);
     }
 
     /**

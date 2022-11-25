@@ -278,8 +278,8 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
         }
 
         int binarySearchResult = indexSummary.binarySearch(key);
-        long sampledPosition = getIndexScanPositionFromBinarySearchResult(binarySearchResult, indexSummary);
-        int sampledIndex = getIndexSummaryIndexFromBinarySearchResult(binarySearchResult);
+        long sampledPosition = indexSummary.getScanPositionFromBinarySearchResult(binarySearchResult);
+        int sampledIndex = IndexSummary.getIndexFromBinarySearchResult(binarySearchResult);
 
         int effectiveInterval = indexSummary.getEffectiveIndexIntervalAfterIndex(sampledIndex);
 

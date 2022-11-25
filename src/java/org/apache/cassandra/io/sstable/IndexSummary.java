@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -350,6 +351,37 @@ public class IndexSummary extends WrappedSharedCloseable
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    public long getScanPositionFromBinarySearch(PartitionPosition key)
+    {
+        return getScanPositionFromBinarySearchResult(binarySearch(key));
+    }
+
+    @VisibleForTesting
+    public long getScanPositionFromBinarySearchResult(int binarySearchResult)
+    {
+        if (binarySearchResult == -1)
+            return 0;
+        else
+            return getPosition(getIndexFromBinarySearchResult(binarySearchResult));
+    }
+
+    public static int getIndexFromBinarySearchResult(int binarySearchResult)
+    {
+        if (binarySearchResult < 0)
+        {
+            // binary search gives us the first index _greater_ than the key searched for,
+            // i.e., its insertion position
+            int greaterThan = (binarySearchResult + 1) * -1;
+            if (greaterThan == 0)
+                return -1;
+            return greaterThan - 1;
+        }
+        else
+        {
+            return binarySearchResult;
+        }
     }
 
     public IndexSummary sharedCopy()

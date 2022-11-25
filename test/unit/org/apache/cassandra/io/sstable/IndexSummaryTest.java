@@ -38,7 +38,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -388,10 +387,10 @@ public class IndexSummaryTest
     {
         for (DecoratedKey key : keys)
         {
-            long orig = SSTableReader.getIndexScanPositionFromBinarySearchResult(original.binarySearch(key), original);
+            long orig = original.getScanPositionFromBinarySearchResult(original.binarySearch(key));
             int binarySearch = downsampled.binarySearch(key);
-            int index = SSTableReader.getIndexSummaryIndexFromBinarySearchResult(binarySearch);
-            int scanFrom = (int) SSTableReader.getIndexScanPositionFromBinarySearchResult(index, downsampled);
+            int index = IndexSummary.getIndexFromBinarySearchResult(binarySearch);
+            int scanFrom = (int) downsampled.getScanPositionFromBinarySearchResult(index);
             assert scanFrom <= orig;
             int effectiveInterval = downsampled.getEffectiveIndexIntervalAfterIndex(index);
             DecoratedKey k = null;
