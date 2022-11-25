@@ -70,7 +70,7 @@ public abstract class SSTableReaderBuilder
     protected DecoratedKey first;
     protected DecoratedKey last;
     protected IFilter bf;
-    protected FileHandle ifile;
+    public FileHandle ifile;
     protected FileHandle dfile;
 
     public SSTableReaderBuilder(Descriptor descriptor,

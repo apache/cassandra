@@ -72,11 +72,12 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
 
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final IndexSummary indexSummary;
+    private final FileHandle ifile;
 
     BigTableReader(SSTableReaderBuilder builder)
     {
         super(builder);
-
+        this.ifile = builder.ifile;
         this.indexSummary = builder.summary;
         this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
     }

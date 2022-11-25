@@ -214,8 +214,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public final OpenReason openReason;
     public final UniqueIdentifier instanceId = new UniqueIdentifier();
 
-    // indexfile and datafile: might be null before a call to load()
-    protected final FileHandle ifile;
     protected final FileHandle dfile;
     protected final IFilter bf;
 
@@ -630,7 +628,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
              builder.openReason,
              builder.header,
              builder.dfile,
-             builder.ifile,
              builder.bf);
     }
 
@@ -642,14 +639,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                             OpenReason openReason,
                             SerializationHeader header,
                             FileHandle dfile,
-                            FileHandle ifile,
                             IFilter bf)
     {
         super(desc, components, metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
         this.sstableMetadata = sstableMetadata;
         this.header = header;
         this.dfile = dfile;
-        this.ifile = ifile;
         this.bf = bf;
         this.maxDataAge = maxDataAge;
         this.openReason = openReason;

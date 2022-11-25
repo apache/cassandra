@@ -159,7 +159,7 @@ public class SSTableFlushObserverTest
 
             if (sstableFormat == SSTableFormat.Type.BIG)
             {
-                try (FileDataInput index = reader.ifile.createReader(indexPosition))
+                try (FileDataInput index = ((BigTableReader) reader).getIndexFile().createReader(indexPosition))
                 {
                     ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(index);
                     Assert.assertEquals(0, UTF8Type.instance.compare(key, indexKey));
