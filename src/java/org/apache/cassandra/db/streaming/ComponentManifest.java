@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.streaming;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -31,17 +30,13 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import java.io.IOException;
 import java.util.*;
 
+import org.apache.cassandra.io.util.File;
+
 /**
  * SSTable components and their sizes to be tranfered via entire-sstable-streaming
  */
-import org.apache.cassandra.io.util.File;
-
 public final class ComponentManifest implements Iterable<Component>
 {
-    private static final List<Component> STREAM_COMPONENTS = ImmutableList.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,
-                                                                             Component.COMPRESSION_INFO, Component.FILTER, Component.SUMMARY,
-                                                                             Component.DIGEST, Component.CRC);
-
     private final LinkedHashMap<Component, Long> components;
 
     public ComponentManifest(Map<Component, Long> components)
@@ -52,9 +47,9 @@ public final class ComponentManifest implements Iterable<Component>
     @VisibleForTesting
     public static ComponentManifest create(Descriptor descriptor)
     {
-        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(STREAM_COMPONENTS.size());
+        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(descriptor.getFormat().streamingComponents().size());
 
-        for (Component component : STREAM_COMPONENTS)
+        for (Component component : descriptor.getFormat().streamingComponents())
         {
             File file = new File(descriptor.filenameFor(component));
             if (!file.exists())

@@ -54,6 +54,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
@@ -156,14 +157,17 @@ public class SSTableFlushObserverTest
             long dataPosition = e.getMiddle();
             long indexPosition = e.getRight();
 
-            try (FileDataInput index = reader.ifile.createReader(indexPosition))
+            if (sstableFormat == SSTableFormat.Type.BIG)
             {
-                ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(index);
-                Assert.assertEquals(0, UTF8Type.instance.compare(key, indexKey));
-            }
-            catch (IOException ex)
-            {
-                throw new FSReadError(ex, reader.getIndexFilename());
+                try (FileDataInput index = reader.ifile.createReader(indexPosition))
+                {
+                    ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(index);
+                    Assert.assertEquals(0, UTF8Type.instance.compare(key, indexKey));
+                }
+                catch (IOException ex)
+                {
+                    throw new FSReadError(ex, ((BigTableReader) reader).getIndexFile().path());
+                }
             }
 
             Assert.assertEquals(expected.get(key), observer.rows.get(e));

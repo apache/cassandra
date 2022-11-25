@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.streaming;
 
-import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +29,6 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Mutable SSTable components and their hardlinks to avoid concurrent sstable component modification
@@ -41,8 +39,6 @@ import org.apache.cassandra.io.util.File;
 public class ComponentContext implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(ComponentContext.class);
-
-    private static final Set<Component> MUTABLE_COMPONENTS = ImmutableSet.of(Component.STATS, Component.SUMMARY);
 
     private final Map<Component, File> hardLinks;
     private final ComponentManifest manifest;
@@ -57,7 +53,7 @@ public class ComponentContext implements AutoCloseable
     {
         Map<Component, File> hardLinks = new HashMap<>(1);
 
-        for (Component component : MUTABLE_COMPONENTS)
+        for (Component component : descriptor.getFormat().mutableComponents())
         {
             File file = new File(descriptor.filenameFor(component));
             if (!file.exists())

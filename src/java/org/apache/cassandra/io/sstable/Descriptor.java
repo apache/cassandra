@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -153,7 +154,7 @@ public class Descriptor
         return buff.toString();
     }
 
-    public SSTableFormat getFormat()
+    public SSTableFormat<?, ?> getFormat()
     {
         return formatType.info;
     }
@@ -169,6 +170,18 @@ public class Descriptor
             ret.add(tmpFile);
 
         return ret;
+    }
+
+    public Set<Component> getComponents(Set<Component> alwaysAdd, Set<Component> optional)
+    {
+        ImmutableSet.Builder<Component> builder = ImmutableSet.builder();
+        builder.addAll(alwaysAdd);
+        for (Component component : optional)
+        {
+            if (fileFor(component).exists())
+                builder.add(component);
+        }
+        return builder.build();
     }
 
     public static boolean isValidFile(File file)

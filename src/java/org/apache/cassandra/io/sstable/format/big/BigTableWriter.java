@@ -20,10 +20,13 @@ package org.apache.cassandra.io.sstable.format.big;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -50,6 +53,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
@@ -76,6 +80,8 @@ public class BigTableWriter extends SSTableWriter
                                                         .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
                                                         .build();
 
+
+
     public BigTableWriter(Descriptor descriptor,
                           long keyCount,
                           long repairedAt,
@@ -87,7 +93,7 @@ public class BigTableWriter extends SSTableWriter
                           Collection<SSTableFlushObserver> observers,
                           LifecycleNewTracker lifecycleNewTracker)
     {
-        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers);
+        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, components(metadata.getLocal()));
         lifecycleNewTracker.trackNew(this); // must track before any files are created
 
         this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
@@ -661,4 +667,30 @@ public class BigTableWriter extends SSTableWriter
             return accumulate;
         }
     }
+
+    private static Set<Component> components(TableMetadata metadata)
+    {
+        Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA,
+                                                                         Component.PRIMARY_INDEX,
+                                                                         Component.STATS,
+                                                                         Component.SUMMARY,
+                                                                         Component.TOC,
+                                                                         Component.DIGEST));
+
+        if (metadata.params.bloomFilterFpChance < 1.0)
+            components.add(Component.FILTER);
+
+        if (metadata.params.compression.isEnabled())
+        {
+            components.add(Component.COMPRESSION_INFO);
+        }
+        else
+        {
+            // it would feel safer to actually add this component later in maybeWriteDigest(),
+            // but the components are unmodifiable after construction
+            components.add(Component.CRC);
+        }
+        return components;
+    }
+
 }

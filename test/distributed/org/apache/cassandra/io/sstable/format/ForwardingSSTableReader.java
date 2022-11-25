@@ -661,12 +661,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public String getIndexFilename()
-    {
-        return delegate.getIndexFilename();
-    }
-
-    @Override
     public String getColumnFamilyName()
     {
         return delegate.getColumnFamilyName();

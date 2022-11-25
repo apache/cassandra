@@ -103,7 +103,7 @@ public class StandaloneVerifier
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
             {
                 Set<Component> components = entry.getValue();
-                if (!components.contains(Component.DATA) || !components.contains(Component.PRIMARY_INDEX))
+                if (!components.containsAll(entry.getKey().getFormat().primaryComponents()))
                     continue;
 
                 try
