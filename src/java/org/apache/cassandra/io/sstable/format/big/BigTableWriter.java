@@ -376,15 +376,15 @@ public class BigTableWriter extends SSTableWriter
             int dataBufferSize = optimizationStrategy.bufferSize(partitionSizeHistogram.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
             dfile = dbuilder.bufferSize(dataBufferSize).complete(boundary.dataLength);
             invalidateCacheAtBoundary(dfile);
-            sstable = SSTableReader.internalOpen(descriptor,
-                                                 components, metadata,
-                                                 ifile, dfile,
-                                                 indexSummary,
-                                                 iwriter.bf.sharedCopy(),
-                                                 maxDataAge,
-                                                 stats,
-                                                 SSTableReader.OpenReason.EARLY,
-                                                 header);
+            sstable = BigTableReader.internalOpen(descriptor,
+                                                  components, metadata,
+                                                  ifile, dfile,
+                                                  indexSummary,
+                                                  iwriter.bf.sharedCopy(),
+                                                  maxDataAge,
+                                                  stats,
+                                                  SSTableReader.OpenReason.EARLY,
+                                                  header);
 
             // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
             sstable.first = getMinimalKey(first);
@@ -445,17 +445,17 @@ public class BigTableWriter extends SSTableWriter
                 dbuilder.withCompressionMetadata(((CompressedSequentialWriter) dataFile).open(0));
             dfile = dbuilder.bufferSize(dataBufferSize).complete();
             invalidateCacheAtBoundary(dfile);
-            sstable = SSTableReader.internalOpen(descriptor,
-                                                 components,
-                                                 metadata,
-                                                 ifile,
-                                                 dfile,
-                                                 indexSummary,
-                                                 iwriter.bf.sharedCopy(),
-                                                 maxDataAge,
-                                                 stats,
-                                                 openReason,
-                                                 header);
+            sstable = BigTableReader.internalOpen(descriptor,
+                                                  components,
+                                                  metadata,
+                                                  ifile,
+                                                  dfile,
+                                                  indexSummary,
+                                                  iwriter.bf.sharedCopy(),
+                                                  maxDataAge,
+                                                  stats,
+                                                  openReason,
+                                                  header);
             sstable.first = getMinimalKey(first);
             sstable.last = getMinimalKey(last);
             return sstable;

@@ -50,6 +50,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
@@ -1279,17 +1280,17 @@ public class LogTransactionTest extends AbstractTransactionalTest
         StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, header)
                                                  .get(MetadataType.STATS);
-        SSTableReader reader = SSTableReader.internalOpen(descriptor,
-                                                          components,
-                                                          cfs.metadata,
-                                                          iFile,
-                                                          dFile,
-                                                          MockSchema.indexSummary.sharedCopy(),
-                                                          new AlwaysPresentFilter(),
-                                                          1L,
-                                                          metadata,
-                                                          SSTableReader.OpenReason.NORMAL,
-                                                          header);
+        SSTableReader reader = BigTableReader.internalOpen(descriptor,
+                                                           components,
+                                                           cfs.metadata,
+                                                           iFile,
+                                                           dFile,
+                                                           MockSchema.indexSummary.sharedCopy(),
+                                                           new AlwaysPresentFilter(),
+                                                           1L,
+                                                           metadata,
+                                                           SSTableReader.OpenReason.NORMAL,
+                                                           header);
         reader.first = reader.last = MockSchema.readerBounds(generation);
         return reader;
     }

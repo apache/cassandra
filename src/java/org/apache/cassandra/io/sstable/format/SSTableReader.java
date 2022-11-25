@@ -65,7 +65,6 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -227,7 +226,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     // technically isCompacted is not necessary since it should never be unreferenced unless it is also compacted,
     // but it seems like a good extra layer of protection against reference counting bugs to not delete data based on that alone
-    protected final AtomicBoolean isSuspect = new AtomicBoolean(false);
+    public final AtomicBoolean isSuspect = new AtomicBoolean(false);
 
     // not final since we need to be able to change level on a file.
     protected volatile StatsMetadata sstableMetadata;
@@ -592,27 +591,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
-     */
-    public static SSTableReader internalOpen(Descriptor desc,
-                                             Set<Component> components,
-                                             TableMetadataRef metadata,
-                                             FileHandle ifile,
-                                             FileHandle dfile,
-                                             IndexSummary summary,
-                                             IFilter bf,
-                                             long maxDataAge,
-                                             StatsMetadata sstableMetadata,
-                                             OpenReason openReason,
-                                             SerializationHeader header)
-    {
-        assert desc != null && ifile != null && dfile != null && summary != null && bf != null && sstableMetadata != null;
-
-        return new SSTableReaderBuilder.ForWriter(desc, metadata, maxDataAge, components, sstableMetadata, openReason, header)
-                .bf(bf).ifile(ifile).dfile(dfile).summary(summary).build();
-    }
-
-    /**
      * Best-effort checking to verify the expected compression info component exists, according to the TOC file.
      * The verification depends on the existence of TOC file. If absent, the verification is skipped.
      * @param descriptor
@@ -778,7 +756,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      *
      * @param task to be guarded by sstable lock
      */
-    public <R> R runWithLock(CheckedFunction<Descriptor, R, IOException> task) throws IOException
+    public <R, E extends Exception> R runWithLock(CheckedFunction<Descriptor, R, E> task) throws E
     {
         synchronized (tidy.global)
         {
@@ -819,50 +797,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * Clone this reader with the provided start and open reason, and set the clone as replacement.
-     *
-     * @param newFirst the first key for the replacement (which can be different from the original due to the pre-emptive
-     * opening of compaction results).
-     * @param reason the {@code OpenReason} for the replacement.
-     *
-     * @return the cloned reader. That reader is set as a replacement by the method.
-     */
-    private SSTableReader cloneAndReplace(DecoratedKey newFirst, OpenReason reason)
-    {
-        return cloneAndReplace(newFirst, reason, indexSummary.sharedCopy());
-    }
-
-    /**
-     * Clone this reader with the new values and set the clone as replacement.
-     *
-     * @param newFirst the first key for the replacement (which can be different from the original due to the pre-emptive
-     * opening of compaction results).
-     * @param reason the {@code OpenReason} for the replacement.
-     * @param newSummary the index summary for the replacement.
-     *
-     * @return the cloned reader. That reader is set as a replacement by the method.
-     */
-    private SSTableReader cloneAndReplace(DecoratedKey newFirst, OpenReason reason, IndexSummary newSummary)
-    {
-        SSTableReader replacement = internalOpen(descriptor,
-                                                 components,
-                                                 metadata,
-                                                 ifile != null ? ifile.sharedCopy() : null,
-                                                 dfile.sharedCopy(),
-                                                 newSummary,
-                                                 bf.sharedCopy(),
-                                                 maxDataAge,
-                                                 sstableMetadata,
-                                                 reason,
-                                                 header);
-
-        replacement.first = newFirst;
-        replacement.last = last;
-        replacement.isSuspect.set(isSuspect.get());
-        return replacement;
-    }
-
-    /**
      * Clone this reader with the new values and set the clone as replacement.
      *
      * @param newBloomFilter for the replacement
@@ -870,126 +804,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @return the cloned reader. That reader is set as a replacement by the method.
      */
     @VisibleForTesting
-    public SSTableReader cloneAndReplace(IFilter newBloomFilter)
-    {
-        SSTableReader replacement = internalOpen(descriptor,
-                                                 components,
-                                                 metadata,
-                                                 ifile.sharedCopy(),
-                                                 dfile.sharedCopy(),
-                                                 indexSummary,
-                                                 newBloomFilter,
-                                                 maxDataAge,
-                                                 sstableMetadata,
-                                                 openReason,
-                                                 header);
+    public abstract SSTableReader cloneAndReplace(IFilter newBloomFilter);
 
-        replacement.first = first;
-        replacement.last = last;
-        replacement.isSuspect.set(isSuspect.get());
-        return replacement;
-    }
+    public abstract SSTableReader cloneWithRestoredStart(DecoratedKey restoredStart);
 
-    public SSTableReader cloneWithRestoredStart(DecoratedKey restoredStart)
-    {
-        synchronized (tidy.global)
-        {
-            return cloneAndReplace(restoredStart, OpenReason.NORMAL);
-        }
-    }
-
-    // runOnClose must NOT be an anonymous or non-static inner class, nor must it retain a reference chain to this reader
-    public SSTableReader cloneWithNewStart(DecoratedKey newStart, final Runnable runOnClose)
-    {
-        synchronized (tidy.global)
-        {
-            assert openReason != OpenReason.EARLY;
-            // TODO: merge with caller's firstKeyBeyond() work,to save time
-            if (newStart.compareTo(first) > 0)
-            {
-                Map<FileHandle, Long> handleAndPositions = new LinkedHashMap<>(2);
-                if (dfile != null)
-                    handleAndPositions.put(dfile, getPosition(newStart, Operator.EQ));
-                if (ifile != null)
-                    handleAndPositions.put(ifile, getIndexScanPosition(newStart));
-                runOnClose(() -> handleAndPositions.forEach(FileHandle::dropPageCache));
-            }
-
-            return cloneAndReplace(newStart, OpenReason.MOVED_START);
-        }
-    }
-
-    /**
-     * Returns a new SSTableReader with the same properties as this SSTableReader except that a new IndexSummary will
-     * be built at the target samplingLevel.  This (original) SSTableReader instance will be marked as replaced, have
-     * its DeletingTask removed, and have its periodic read-meter sync task cancelled.
-     * @param samplingLevel the desired sampling level for the index summary on the new SSTableReader
-     * @return a new SSTableReader
-     * @throws IOException
-     */
-    @SuppressWarnings("resource")
-    public SSTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
-    {
-        assert openReason != OpenReason.EARLY;
-
-        int minIndexInterval = metadata().params.minIndexInterval;
-        int maxIndexInterval = metadata().params.maxIndexInterval;
-        double effectiveInterval = indexSummary.getEffectiveIndexInterval();
-
-        IndexSummary newSummary;
-
-        // We have to rebuild the summary from the on-disk primary index in three cases:
-        // 1. The sampling level went up, so we need to read more entries off disk
-        // 2. The min_index_interval changed (in either direction); this changes what entries would be in the summary
-        //    at full sampling (and consequently at any other sampling level)
-        // 3. The max_index_interval was lowered, forcing us to raise the sampling level
-        if (samplingLevel > indexSummary.getSamplingLevel() || indexSummary.getMinIndexInterval() != minIndexInterval || effectiveInterval > maxIndexInterval)
-        {
-            newSummary = buildSummaryAtLevel(samplingLevel);
-        }
-        else if (samplingLevel < indexSummary.getSamplingLevel())
-        {
-            // we can use the existing index summary to make a smaller one
-            newSummary = IndexSummaryBuilder.downsample(indexSummary, samplingLevel, minIndexInterval, getPartitioner());
-        }
-        else
-        {
-            throw new AssertionError("Attempted to clone SSTableReader with the same index summary sampling level and " +
-                    "no adjustments to min/max_index_interval");
-        }
-
-        // Always save the resampled index with lock to avoid racing with entire-sstable streaming
-        synchronized (tidy.global)
-        {
-            saveSummary(descriptor, first, last, newSummary);
-            return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
-        }
-    }
-
-    private IndexSummary buildSummaryAtLevel(int newSamplingLevel) throws IOException
-    {
-        // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
-        RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
-        try
-        {
-            long indexSize = primaryIndex.length();
-            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata().params.minIndexInterval, newSamplingLevel))
-            {
-                long indexPosition;
-                while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
-                {
-                    summaryBuilder.maybeAddEntry(decorateKey(ByteBufferUtil.readWithShortLength(primaryIndex)), indexPosition);
-                    RowIndexEntry.Serializer.skip(primaryIndex, descriptor.version);
-                }
-
-                return summaryBuilder.build(getPartitioner());
-            }
-        }
-        finally
-        {
-            FileUtils.closeQuietly(primaryIndex);
-        }
-    }
+    public abstract SSTableReader cloneWithNewStart(DecoratedKey newStart);
 
     public RestorableMeter getReadMeter()
     {
@@ -1027,18 +846,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         {
             throw new CorruptSSTableException(new IllegalStateException(String.format("SSTable first key %s > last key %s", this.first, this.last)), getFilename());
         }
-    }
-
-    /**
-     * Gets the position in the index file to start scanning to find the given key (at most indexInterval keys away,
-     * modulo downsampling of the index summary). Always returns a {@code value >= 0}
-     */
-    public long getIndexScanPosition(PartitionPosition key)
-    {
-        if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
-            key = first;
-
-        return indexSummary.getScanPositionFromBinarySearch(key);
     }
 
     /**

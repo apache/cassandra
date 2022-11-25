@@ -18,7 +18,14 @@
 
 package org.apache.cassandra.io.sstable;
 
-public interface IndexSummarySupport
+import java.io.IOException;
+
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+
+public interface IndexSummarySupport<T extends SSTableReader & IndexSummarySupport<T>>
 {
     IndexSummary getIndexSummary();
+
+    T cloneWithNewSummarySamplingLevel(ColumnFamilyStore cfs, int newSamplingLevel) throws IOException;
 }

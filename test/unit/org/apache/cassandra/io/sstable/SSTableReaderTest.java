@@ -54,6 +54,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -643,6 +644,7 @@ public class SSTableReaderTest
     @Test
     public void testIndexSummaryReplacement() throws IOException, ExecutionException, InterruptedException
     {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
         ColumnFamilyStore store = discardSSTables(KEYSPACE1, CF_STANDARD_LOW_INDEX_INTERVAL); // index interval of 8, no key caching
 
         final int NUM_PARTITIONS = 512;
@@ -692,7 +694,7 @@ public class SSTableReaderTest
         SSTableReader replacement;
         try (LifecycleTransaction txn = store.getTracker().tryModify(Collections.singletonList(sstable), OperationType.UNKNOWN))
         {
-            replacement = sstable.cloneWithNewSummarySamplingLevel(store, 1);
+            replacement = ((BigTableReader) sstable).cloneWithNewSummarySamplingLevel(store, 1);
             txn.update(replacement, true);
             txn.finish();
         }

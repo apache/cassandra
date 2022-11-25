@@ -29,7 +29,6 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.db.ClusteringPrefix;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -127,15 +126,15 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public SSTableReader cloneWithNewStart(DecoratedKey newStart, Runnable runOnClose)
+    public SSTableReader cloneWithNewStart(DecoratedKey newStart)
     {
-        return delegate.cloneWithNewStart(newStart, runOnClose);
+        return delegate.cloneWithNewStart(newStart);
     }
 
     @Override
-    public SSTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
+    public SSTableReader cloneAndReplace(IFilter newBloomFilter)
     {
-        return delegate.cloneWithNewSummarySamplingLevel(parent, samplingLevel);
+        return delegate.cloneAndReplace(newBloomFilter);
     }
 
     @Override
@@ -148,12 +147,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public void releaseComponents()
     {
         delegate.releaseComponents();
-    }
-
-    @Override
-    public long getIndexScanPosition(PartitionPosition key)
-    {
-        return delegate.getIndexScanPosition(key);
     }
 
     @Override
