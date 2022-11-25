@@ -66,7 +66,7 @@ public abstract class SSTableReaderBuilder
     protected final SSTableReader.OpenReason openReason;
     protected final SerializationHeader header;
 
-    protected IndexSummary summary;
+    public IndexSummary summary;
     protected DecoratedKey first;
     protected DecoratedKey last;
     protected IFilter bf;

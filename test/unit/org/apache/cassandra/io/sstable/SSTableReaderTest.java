@@ -567,10 +567,13 @@ public class SSTableReaderTest
             SSTableReader sstable = indexCfs.getLiveSSTables().iterator().next();
             assert sstable.first.getToken() instanceof LocalToken;
 
-            SSTableReaderBuilder.saveSummary(sstable.descriptor, sstable.first, sstable.last, sstable.indexSummary);
-            SSTableReader reopened = SSTableReader.open(sstable.descriptor);
-            assert reopened.first.getToken() instanceof LocalToken;
-            reopened.selfRef().release();
+            if (sstable instanceof IndexSummarySupport<?>)
+            {
+                SSTableReaderBuilder.saveSummary(sstable.descriptor, sstable.first, sstable.last, ((IndexSummarySupport<?>) sstable).getIndexSummary());
+                SSTableReader reopened = SSTableReader.open(sstable.descriptor);
+                assert reopened.first.getToken() instanceof LocalToken;
+                reopened.selfRef().release();
+            }
         }
     }
 

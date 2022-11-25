@@ -71,11 +71,13 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
+    private final IndexSummary indexSummary;
 
     BigTableReader(SSTableReaderBuilder builder)
     {
         super(builder);
 
+        this.indexSummary = builder.summary;
         this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
     }
 
