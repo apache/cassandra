@@ -708,50 +708,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * Save index summary to Summary.db file.
-     */
-    public static void saveSummary(Descriptor descriptor, DecoratedKey first, DecoratedKey last, IndexSummary summary)
-    {
-        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
-        if (summariesFile.exists())
-            FileUtils.deleteWithConfirm(summariesFile);
-
-        try (DataOutputStreamPlus oStream = new FileOutputStreamPlus(summariesFile))
-        {
-            IndexSummary.serializer.serialize(summary, oStream);
-            ByteBufferUtil.writeWithLength(first.getKey(), oStream);
-            ByteBufferUtil.writeWithLength(last.getKey(), oStream);
-        }
-        catch (IOException e)
-        {
-            logger.error("Cannot save SSTable Summary: ", e);
-
-            // corrupted hence delete it and let it load it now.
-            if (summariesFile.exists())
-                FileUtils.deleteWithConfirm(summariesFile);
-        }
-    }
-
-    public static void saveBloomFilter(Descriptor descriptor, IFilter filter)
-    {
-        File filterFile = new File(descriptor.filenameFor(Component.FILTER));
-        try (DataOutputStreamPlus stream = new FileOutputStreamPlus(filterFile))
-        {
-            BloomFilterSerializer.serialize((BloomFilter) filter, stream);
-            stream.flush();
-        }
-        catch (IOException e)
-        {
-            logger.trace("Cannot save SSTable bloomfilter: ", e);
-
-            // corrupted hence delete it and let it load it now.
-            if (filterFile.exists())
-                FileUtils.deleteWithConfirm(filterFile);
-        }
-
-    }
-
-    /**
      * Execute provided task with sstable lock to avoid racing with index summary redistribution, SEE CASSANDRA-15861.
      *
      * @param task to be guarded by sstable lock

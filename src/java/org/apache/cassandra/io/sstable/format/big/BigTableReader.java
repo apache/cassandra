@@ -667,7 +667,7 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
 
         // Always save the resampled index with lock to avoid racing with entire-sstable streaming
         return runWithLock(ignored -> {
-            SSTableReader.saveSummary(descriptor, first, last, newSummary);
+            SSTableReaderBuilder.saveSummary(descriptor, first, last, newSummary);
             return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
         });
     }

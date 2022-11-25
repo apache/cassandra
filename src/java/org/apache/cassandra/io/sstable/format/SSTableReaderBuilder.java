@@ -27,10 +27,12 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -88,6 +90,50 @@ public abstract class SSTableReaderBuilder
         this.openReason = openReason;
         this.header = header;
         this.readerFactory = descriptor.getFormat().getReaderFactory();
+    }
+
+    /**
+     * Save index summary to Summary.db file.
+     */
+    public static void saveSummary(Descriptor descriptor, DecoratedKey first, DecoratedKey last, IndexSummary summary)
+    {
+        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+        if (summariesFile.exists())
+            FileUtils.deleteWithConfirm(summariesFile);
+
+        try (DataOutputStreamPlus oStream = new FileOutputStreamPlus(summariesFile))
+        {
+            IndexSummary.serializer.serialize(summary, oStream);
+            ByteBufferUtil.writeWithLength(first.getKey(), oStream);
+            ByteBufferUtil.writeWithLength(last.getKey(), oStream);
+        }
+        catch (IOException e)
+        {
+            logger.error("Cannot save SSTable Summary: ", e);
+
+            // corrupted hence delete it and let it load it now.
+            if (summariesFile.exists())
+                FileUtils.deleteWithConfirm(summariesFile);
+        }
+    }
+
+    public static void saveBloomFilter(Descriptor descriptor, IFilter filter)
+    {
+        File filterFile = new File(descriptor.filenameFor(Component.FILTER));
+        try (DataOutputStreamPlus stream = new FileOutputStreamPlus(filterFile))
+        {
+            BloomFilterSerializer.serialize((BloomFilter) filter, stream);
+            stream.flush();
+        }
+        catch (IOException e)
+        {
+            logger.trace("Cannot save SSTable bloomfilter: ", e);
+
+            // corrupted hence delete it and let it load it now.
+            if (filterFile.exists())
+                FileUtils.deleteWithConfirm(filterFile);
+        }
+
     }
 
     public abstract SSTableReader build();
@@ -449,9 +495,9 @@ public abstract class SSTableReaderBuilder
                 if (buildSummary)
                 {
                     if (saveSummaryIfCreated)
-                        SSTableReader.saveSummary(descriptor, first, last, summary);
+                        saveSummary(descriptor, first, last, summary);
                     if (recreateBloomFilter)
-                        SSTableReader.saveBloomFilter(descriptor, bf);
+                        saveBloomFilter(descriptor, bf);
                 }
             }
             catch (Throwable t)
