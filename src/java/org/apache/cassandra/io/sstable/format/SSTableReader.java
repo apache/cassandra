@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,9 +58,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
@@ -405,45 +402,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      */
     public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
-        // Minimum components without which we can't do anything
-        assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
-        assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
-        verifyCompressionInfoExistenceIfApplicable(descriptor, components);
-
-        EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
-        Map<MetadataType, MetadataComponent> sstableMetadata;
-        try
-        {
-             sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
-        }
-        catch (IOException e)
-        {
-            throw new CorruptSSTableException(e, descriptor.filenameFor(Component.STATS));
-        }
-
-        ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
-        StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
-        SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
-
-        // Check if sstable is created using same partitioner.
-        // Partitioner can be null, which indicates older version of sstable or no stats available.
-        // In that case, we skip the check.
-        String partitionerName = metadata.get().partitioner.getClass().getCanonicalName();
-        if (validationMetadata != null && !partitionerName.equals(validationMetadata.partitioner))
-        {
-            logger.error("Cannot open {}; partitioner {} does not match system partitioner {}.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
-                         descriptor, validationMetadata.partitioner, partitionerName);
-            System.exit(1);
-        }
-
-        try
-        {
-            return new SSTableReaderBuilder.ForBatch(descriptor, metadata, components, statsMetadata, header.toHeader(metadata.get())).build();
-        }
-        catch (UnknownColumnException e)
-        {
-            throw new IllegalStateException(e);
-        }
+        return descriptor.getFormat().getReaderFactory().openForBatch(descriptor, components, metadata);
     }
 
     /**
@@ -463,73 +422,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                      boolean validate,
                                      boolean isOffline)
     {
-        // Minimum components without which we can't do anything
-        assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
-        assert !validate || components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
-
-        // For the 3.0+ sstable format, the (misnomed) stats component hold the serialization header which we need to deserialize the sstable content
-        assert components.contains(Component.STATS) : "Stats component is missing for sstable " + descriptor;
-
-        verifyCompressionInfoExistenceIfApplicable(descriptor, components);
-
-        EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
-
-        Map<MetadataType, MetadataComponent> sstableMetadata;
-        try
-        {
-            sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
-        }
-        catch (Throwable t)
-        {
-            throw new CorruptSSTableException(t, descriptor.filenameFor(Component.STATS));
-        }
-        ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
-        StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
-        SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
-        assert header != null;
-
-        // Check if sstable is created using same partitioner.
-        // Partitioner can be null, which indicates older version of sstable or no stats available.
-        // In that case, we skip the check.
-        String partitionerName = metadata.get().partitioner.getClass().getCanonicalName();
-        if (validationMetadata != null && !partitionerName.equals(validationMetadata.partitioner))
-        {
-            logger.error("Cannot open {}; partitioner {} does not match system partitioner {}.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
-                         descriptor, validationMetadata.partitioner, partitionerName);
-            System.exit(1);
-        }
-
-        SSTableReader sstable;
-        try
-        {
-            sstable = new SSTableReaderBuilder.ForRead(descriptor,
-                                                       metadata,
-                                                       validationMetadata,
-                                                       isOffline,
-                                                       components,
-                                                       statsMetadata,
-                                                       header.toHeader(metadata.get())).build();
-        }
-        catch (UnknownColumnException e)
-        {
-            throw new IllegalStateException(e);
-        }
-
-        try
-        {
-            if (validate)
-                sstable.validate();
-
-            if (sstable.getKeyCache() != null)
-                logger.trace("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
-
-            return sstable;
-        }
-        catch (Throwable t)
-        {
-            sstable.selfRef().release();
-            throw new CorruptSSTableException(t, sstable.getFilename());
-        }
+        return descriptor.getFormat().getReaderFactory().open(descriptor, components, metadata, validate, isOffline);
     }
 
     public static Collection<SSTableReader> openAll(Set<Map.Entry<Descriptor, Set<Component>>> entries,
@@ -542,29 +435,25 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         {
             for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
             {
-                Runnable runnable = new Runnable()
-                {
-                    public void run()
+                Runnable runnable = () -> {
+                    SSTableReader sstable;
+                    try
                     {
-                        SSTableReader sstable;
-                        try
-                        {
-                            sstable = open(entry.getKey(), entry.getValue(), metadata);
-                        }
-                        catch (CorruptSSTableException ex)
-                        {
-                            JVMStabilityInspector.inspectThrowable(ex);
-                            logger.error("Corrupt sstable {}; skipping table", entry, ex);
-                            return;
-                        }
-                        catch (FSError ex)
-                        {
-                            JVMStabilityInspector.inspectThrowable(ex);
-                            logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
-                            return;
-                        }
-                        sstables.add(sstable);
+                        sstable = open(entry.getKey(), entry.getValue(), metadata);
                     }
+                    catch (CorruptSSTableException ex)
+                    {
+                        JVMStabilityInspector.inspectThrowable(ex);
+                        logger.error("Corrupt sstable {}; skipping table", entry, ex);
+                        return;
+                    }
+                    catch (FSError ex)
+                    {
+                        JVMStabilityInspector.inspectThrowable(ex);
+                        logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
+                        return;
+                    }
+                    sstables.add(sstable);
                 };
                 executor.submit(runnable);
             }
@@ -585,37 +474,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
         return sstables;
 
-    }
-
-    /**
-     * Best-effort checking to verify the expected compression info component exists, according to the TOC file.
-     * The verification depends on the existence of TOC file. If absent, the verification is skipped.
-     * @param descriptor
-     * @param actualComponents, actual components listed from the file system.
-     * @throws CorruptSSTableException, if TOC expects compression info but not found from disk.
-     * @throws FSReadError, if unable to read from TOC file.
-     */
-    public static void verifyCompressionInfoExistenceIfApplicable(Descriptor descriptor,
-                                                                  Set<Component> actualComponents)
-    throws CorruptSSTableException, FSReadError
-    {
-        File tocFile = new File(descriptor.filenameFor(Component.TOC));
-        if (tocFile.exists())
-        {
-            try
-            {
-                Set<Component> expectedComponents = readTOC(descriptor, false);
-                if (expectedComponents.contains(Component.COMPRESSION_INFO) && !actualComponents.contains(Component.COMPRESSION_INFO))
-                {
-                    String compressionInfoFileName = descriptor.filenameFor(Component.COMPRESSION_INFO);
-                    throw new CorruptSSTableException(new NoSuchFileException(compressionInfoFileName), compressionInfoFileName);
-                }
-            }
-            catch (IOException e)
-            {
-                throw new FSReadError(e, tocFile);
-            }
-        }
     }
 
     protected SSTableReader(SSTableReaderBuilder builder)
@@ -787,7 +645,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      */
     public abstract void releaseComponents();
 
-    private void validate()
+    public void validate()
     {
         if (this.first.compareTo(this.last) > 0)
         {
@@ -1796,9 +1654,33 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         GlobalTidy.lookup.clear();
     }
 
-    public static abstract class Factory
+    public interface Factory<T extends SSTableReader>
     {
-        public abstract SSTableReader open(SSTableReaderBuilder builder);
+        T open(SSTableReaderBuilder builder);
+
+        /**
+         * Open an SSTable for reading
+         * @param descriptor SSTable to open
+         * @param components Components included with this SSTable
+         * @param metadata for this SSTables CF
+         * @param validate Check SSTable for corruption (limited)
+         * @param isOffline Whether we are opening this SSTable "offline", for example from an external tool or not for inclusion in queries (validations)
+         *                  This stops regenerating BF + Summaries and also disables tracking of hotness for the SSTable.
+         * @return {@link SSTableReader}
+         * @throws IOException
+         */
+        T open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata, boolean validate, boolean isOffline);
+
+        /**
+         * Open SSTable reader to be used in batch mode(such as sstableloader).
+         *
+         * @param descriptor
+         * @param components
+         * @param metadata
+         * @return opened SSTableReader
+         * @throws IOException
+         */
+        T openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata);
     }
 
     public static class PartitionPositionBounds
@@ -1905,7 +1787,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         SSTableReader reader;
         try
         {
-            reader = SSTableReader.open(newDescriptor, components, cfs.metadata);
+            reader = open(newDescriptor, components, cfs.metadata);
         }
         catch (Throwable t)
         {

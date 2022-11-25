@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -26,6 +28,7 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
@@ -99,6 +102,35 @@ public class Descriptor
 
         // directory is unnecessary for hashCode, and for simulator consistency we do not include it
         hashCode = Objects.hashCode(version, id, ksname, cfname, formatType);
+    }
+
+    /**
+     * Best-effort checking to verify the expected compression info component exists, according to the TOC file.
+     * The verification depends on the existence of TOC file. If absent, the verification is skipped.
+     * @param descriptor
+     * @param actualComponents, actual components listed from the file system.
+     * @throws CorruptSSTableException, if TOC expects compression info but not found from disk.
+     * @throws FSReadError, if unable to read from TOC file.
+     */
+    public void verifyCompressionInfoExistenceIfApplicable(Set<Component> actualComponents) throws CorruptSSTableException, FSReadError
+    {
+        File tocFile = fileFor(Component.TOC);
+        if (tocFile.exists())
+        {
+            try
+            {
+                Set<Component> expectedComponents = SSTable.readTOC(this, false);
+                if (expectedComponents.contains(Component.COMPRESSION_INFO) && !actualComponents.contains(Component.COMPRESSION_INFO))
+                {
+                    String compressionInfoFileName = filenameFor(Component.COMPRESSION_INFO);
+                    throw new CorruptSSTableException(new NoSuchFileException(compressionInfoFileName), compressionInfoFileName);
+                }
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(e, tocFile);
+            }
+        }
     }
 
     public String tmpFilenameFor(Component component)

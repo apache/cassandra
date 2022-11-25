@@ -20,16 +20,22 @@ package org.apache.cassandra.io.sstable.format.big;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import com.google.common.collect.ImmutableSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -41,6 +47,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -256,12 +266,130 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
         }
     }
 
-    static class ReaderFactory extends SSTableReader.Factory
+    static class ReaderFactory implements SSTableReader.Factory<BigTableReader>
     {
+        private static final Logger logger = LoggerFactory.getLogger(ReaderFactory.class);
+
         @Override
-        public SSTableReader open(SSTableReaderBuilder builder)
+        public BigTableReader open(SSTableReaderBuilder builder)
         {
             return new BigTableReader(builder);
+        }
+
+        @Override
+        public BigTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata, boolean validate, boolean isOffline)
+        {
+            // Minimum components without which we can't do anything
+            assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
+            assert !validate || components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
+
+            // For the 3.0+ sstable format, the (misnomed) stats component hold the serialization header which we need to deserialize the sstable content
+            assert components.contains(Component.STATS) : "Stats component is missing for sstable " + descriptor;
+
+            descriptor.verifyCompressionInfoExistenceIfApplicable(components);
+
+            EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
+
+            Map<MetadataType, MetadataComponent> sstableMetadata;
+            try
+            {
+                sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
+            }
+            catch (Throwable t)
+            {
+                throw new CorruptSSTableException(t, descriptor.filenameFor(Component.STATS));
+            }
+            ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
+            StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
+            SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
+            assert header != null;
+
+            // Check if sstable is created using same partitioner.
+            // Partitioner can be null, which indicates older version of sstable or no stats available.
+            // In that case, we skip the check.
+            String partitionerName = metadata.get().partitioner.getClass().getCanonicalName();
+            if (validationMetadata != null && !partitionerName.equals(validationMetadata.partitioner))
+            {
+                logger.error("Cannot open {}; partitioner {} does not match system partitioner {}.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
+                             descriptor, validationMetadata.partitioner, partitionerName);
+                System.exit(1);
+            }
+
+            BigTableReader sstable;
+            try
+            {
+                sstable = (BigTableReader) new SSTableReaderBuilder.ForRead(descriptor,
+                                                                            metadata,
+                                                                            validationMetadata,
+                                                                            isOffline,
+                                                                            components,
+                                                                            statsMetadata,
+                                                                            header.toHeader(metadata.get())).build();
+            }
+            catch (UnknownColumnException e)
+            {
+                throw new IllegalStateException(e);
+            }
+
+            try
+            {
+                if (validate)
+                    sstable.validate();
+
+                if (sstable.getKeyCache() != null)
+                    logger.trace("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
+
+                return sstable;
+            }
+            catch (Throwable t)
+            {
+                sstable.selfRef().release();
+                throw new CorruptSSTableException(t, sstable.getFilename());
+            }
+        }
+
+        @Override
+        public BigTableReader openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
+        {
+            // Minimum components without which we can't do anything
+            assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
+            assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
+            descriptor.verifyCompressionInfoExistenceIfApplicable(components);
+
+            EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
+            Map<MetadataType, MetadataComponent> sstableMetadata;
+            try
+            {
+                sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
+            }
+            catch (IOException e)
+            {
+                throw new CorruptSSTableException(e, descriptor.filenameFor(Component.STATS));
+            }
+
+            ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
+            StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
+            SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
+
+            // Check if sstable is created using same partitioner.
+            // Partitioner can be null, which indicates older version of sstable or no stats available.
+            // In that case, we skip the check.
+            String partitionerName = metadata.get().partitioner.getClass().getCanonicalName();
+            if (validationMetadata != null && !partitionerName.equals(validationMetadata.partitioner))
+            {
+                logger.error("Cannot open {}; partitioner {} does not match system partitioner {}.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
+                             descriptor, validationMetadata.partitioner, partitionerName);
+                System.exit(1);
+            }
+
+            try
+            {
+                return (BigTableReader) new SSTableReaderBuilder.ForBatch(descriptor, metadata, components, statsMetadata, header.toHeader(metadata.get())).build();
+            }
+            catch (UnknownColumnException e)
+            {
+                throw new IllegalStateException(e);
+            }
         }
     }
 

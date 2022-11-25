@@ -527,7 +527,7 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
      * Gets the position in the index file to start scanning to find the given key (at most indexInterval keys away,
      * modulo downsampling of the index summary). Always returns a {@code value >= 0}
      */
-    private long getIndexScanPosition(PartitionPosition key)
+    long getIndexScanPosition(PartitionPosition key)
     {
         if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
             key = first;
