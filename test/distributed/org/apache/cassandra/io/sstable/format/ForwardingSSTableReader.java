@@ -559,27 +559,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public RandomAccessReader openIndexReader()
-    {
-        return delegate.openIndexReader();
-    }
-
-    @Override
     public ChannelProxy getDataChannel()
     {
         return delegate.getDataChannel();
-    }
-
-    @Override
-    public ChannelProxy getIndexChannel()
-    {
-        return delegate.getIndexChannel();
-    }
-
-    @Override
-    public FileHandle getIndexFile()
-    {
-        return delegate.getIndexFile();
     }
 
     @Override

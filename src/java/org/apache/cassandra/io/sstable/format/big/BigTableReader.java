@@ -49,6 +49,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReas
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -477,6 +479,18 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
     public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
     {
         return Iterables.transform(indexSummary.getKeySamples(range), bytes -> decorateKey(ByteBuffer.wrap(bytes)));
+    }
+
+    public RandomAccessReader openIndexReader()
+    {
+        if (ifile != null)
+            return ifile.createReader();
+        return null;
+    }
+
+    public FileHandle getIndexFile()
+    {
+        return ifile;
     }
 
     @Override

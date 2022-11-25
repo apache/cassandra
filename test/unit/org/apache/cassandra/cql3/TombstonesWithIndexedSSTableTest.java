@@ -78,14 +78,15 @@ public class TombstonesWithIndexedSSTableTest extends CQLTester
             {
                 if (sstable instanceof BigTableReader)
                 {
+                    BigTableReader reader = (BigTableReader) sstable;
                     // The line below failed with key caching off (CASSANDRA-11158)
                     @SuppressWarnings("unchecked")
-                    RowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
+                    RowIndexEntry indexEntry = reader.getRowIndexEntry(dk, SSTableReader.Operator.EQ);
                     if (indexEntry != null && indexEntry.isIndexed())
                     {
-                        try (FileDataInput reader = sstable.openIndexReader())
+                        try (FileDataInput indexFile = reader.openIndexReader())
                         {
-                            RowIndexEntry.IndexInfoRetriever infoRetriever = indexEntry.openWithIndex(sstable.getIndexFile());
+                            RowIndexEntry.IndexInfoRetriever infoRetriever = indexEntry.openWithIndex(reader.getIndexFile());
                             ClusteringPrefix<?> firstName = infoRetriever.columnsIndex(1).firstName;
                             if (firstName.kind().isBoundary())
                                 break deletionLoop;
