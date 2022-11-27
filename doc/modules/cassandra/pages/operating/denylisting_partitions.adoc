@@ -99,30 +99,43 @@ intent will be captured on the next cache reload.
 
 == JMX Interface
 
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| Command                                                                    | Effect                                                                          |
-+============================================================================+=================================================================================+
-| loadPartitionDenylist()                                                    | Reloads cached denylist from CQL table                                          |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| getPartitionDenylistLoadAttempts()                                         | Gets the count of cache reload attempts                                         |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| getPartitionDenylistLoadSuccesses()                                        | Gets the count of cache reload successes                                        |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| setEnablePartitionDenylist(boolean enabled)                                | Enables or disables the partition denylisting functionality                     |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| setEnableDenylistWrites(boolean enabled)                                   | Enables or disables write denylisting functionality                             |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| setEnableDenylistReads(boolean enabled)                                    | Enables or disables read denylisting functionality                              |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| setEnableDenylistRangeReads(boolean enabled)                               | Enables or disables range read denylisting functionality                        |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| denylistKey(String keyspace, String table, String partitionKeyAsString)    | Adds a specific keyspace, table, and partition key combo to the denylist        |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| removeDenylistKey(String keyspace, String cf, String partitionKeyAsString) | Removes a specific keyspace, table, and partition key combo from the denylist   |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| setDenylistMaxKeysPerTable(int value)                                      | Limits count of allowed keys per table in the denylist                          |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| setDenylistMaxKeysTotal(int value)                                         | Limits the total count of allowable denylisted keys in the system               |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
-| isKeyDenylisted(String keyspace, String table, String partitionKeyAsString)| Indicates whether the keyspace.table has the input partition key denied         |
-+----------------------------------------------------------------------------+---------------------------------------------------------------------------------+
+[cols="1,1"]
+|===
+| Command | Effect
+
+| loadPartitionDenylist()
+| Reloads cached denylist from CQL table
+
+| getPartitionDenylistLoadAttempts()
+| Gets the count of cache reload attempts
+
+| getPartitionDenylistLoadSuccesses()
+| Gets the count of cache reload successes
+
+| setEnablePartitionDenylist(boolean enabled)
+| Enables or disables the partition denylisting functionality
+
+| setEnableDenylistWrites(boolean enabled)
+| Enables or disables write denylisting functionality
+
+| setEnableDenylistReads(boolean enabled)
+| Enables or disables read denylisting functionality
+
+| setEnableDenylistRangeReads(boolean enabled)
+| Enables or disables range read denylisting functionality
+
+| denylistKey(String keyspace, String table, String partitionKeyAsString)
+| Adds a specific keyspace, table, and partition key combo to the denylist
+
+| removeDenylistKey(String keyspace, String cf, String partitionKeyAsString)
+| Removes a specific keyspace, table, and partition key combo from the denylist
+
+| setDenylistMaxKeysPerTable(int value)
+| Limits count of allowed keys per table in the denylist
+
+| setDenylistMaxKeysTotal(int value)
+| Limits the total count of allowable denylisted keys in the system
+
+| isKeyDenylisted(String keyspace, String table, String partitionKeyAsString)
+| Indicates whether the keyspace.table has the input partition key denied
+|===
