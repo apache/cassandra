@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.RoutingKey;
+import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.messages.BeginInvalidation;
 import accord.messages.BeginInvalidation.InvalidateNack;
@@ -70,14 +71,14 @@ public class BeginInvalidationSerializers
     {
         void serializeOk(InvalidateOk ok, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.status.serialize(ok.status, out, version);
+            CommandSerializers.saveStatus.serialize(ok.status, out, version);
             serializeNullable(KeySerializers.abstractRoute, ok.route, out, version);
             serializeNullable(KeySerializers.routingKey, ok.homeKey, out, version);
         }
 
         InvalidateOk deserializeOk(DataInputPlus in, int version) throws IOException
         {
-            Status status = CommandSerializers.status.deserialize(in, version);
+            SaveStatus status = CommandSerializers.saveStatus.deserialize(in, version);
             AbstractRoute route = deserializeNullable(KeySerializers.abstractRoute, in, version);
             RoutingKey homeKey = deserializeNullable(KeySerializers.routingKey, in, version);
             return new InvalidateOk(status, route, homeKey);
@@ -85,7 +86,7 @@ public class BeginInvalidationSerializers
 
         long serializedOkSize(InvalidateOk ok, int version)
         {
-            return CommandSerializers.status.serializedSize(ok.status, version)
+            return CommandSerializers.saveStatus.serializedSize(ok.status, version)
                    + serializedSizeNullable(KeySerializers.abstractRoute, ok.route, version)
                    + serializedSizeNullable(KeySerializers.routingKey, ok.homeKey, version);
         }
