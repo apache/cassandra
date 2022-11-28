@@ -684,7 +684,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public long getBloomFilterSerializedSize()
     {
-        return bf.serializedSize();
+        return bf.serializedSize(descriptor.version.hasOldBfFormat());
     }
 
     /**

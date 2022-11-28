@@ -44,6 +44,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.format.FilterComponent;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
@@ -604,17 +605,13 @@ public class BigTableWriter extends SSTableWriter
         {
             if (components.contains(Component.FILTER))
             {
-                String path = descriptor.filenameFor(Component.FILTER);
-                try (FileOutputStreamPlus stream = new FileOutputStreamPlus(path))
+                try
                 {
-                    // bloom filter
-                    BloomFilterSerializer.serialize((BloomFilter) bf, stream);
-                    stream.flush();
-                    stream.sync();
+                    FilterComponent.saveOrDeleteCorrupted(descriptor, bf);
                 }
-                catch (IOException e)
+                catch (IOException ex)
                 {
-                    throw new FSWriteError(e, path);
+                    throw new FSWriteError(ex, descriptor.fileFor(Component.FILTER));
                 }
             }
         }

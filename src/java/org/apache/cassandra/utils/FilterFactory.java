@@ -25,7 +25,7 @@ import org.apache.cassandra.utils.obs.OffHeapBitSet;
 
 public class FilterFactory
 {
-    public static final IFilter AlwaysPresent = new AlwaysPresentFilter();
+    public static final IFilter AlwaysPresent = AlwaysPresentFilter.instance;
 
     private static final Logger logger = LoggerFactory.getLogger(FilterFactory.class);
     private static final long BITSET_EXCESS = 20;
@@ -57,7 +57,7 @@ public class FilterFactory
     {
         assert maxFalsePosProbability <= 1.0 : "Invalid probability";
         if (maxFalsePosProbability == 1.0)
-            return new AlwaysPresentFilter();
+            return FilterFactory.AlwaysPresent;
         int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
         return createFilter(spec.K, numElements, spec.bucketsPerElement);

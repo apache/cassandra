@@ -515,7 +515,7 @@ public class BigTableVerifier implements IVerifier
         if (bfPath.exists())
         {
             try (FileInputStreamPlus stream = bfPath.newInputStream();
-                 IFilter bf = BloomFilterSerializer.deserialize(stream, sstable.descriptor.version.hasOldBfFormat()))
+                 IFilter bf = BloomFilterSerializer.forVersion(sstable.descriptor.version.hasOldBfFormat()).deserialize(stream))
             {
             }
         }

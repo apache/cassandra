@@ -31,7 +31,6 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -45,6 +44,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -115,25 +115,6 @@ public abstract class SSTableReaderBuilder
             if (summariesFile.exists())
                 FileUtils.deleteWithConfirm(summariesFile);
         }
-    }
-
-    public static void saveBloomFilter(Descriptor descriptor, IFilter filter)
-    {
-        File filterFile = new File(descriptor.filenameFor(Component.FILTER));
-        try (DataOutputStreamPlus stream = new FileOutputStreamPlus(filterFile))
-        {
-            BloomFilterSerializer.serialize((BloomFilter) filter, stream);
-            stream.flush();
-        }
-        catch (IOException e)
-        {
-            logger.trace("Cannot save SSTable bloomfilter: ", e);
-
-            // corrupted hence delete it and let it load it now.
-            if (filterFile.exists())
-                FileUtils.deleteWithConfirm(filterFile);
-        }
-
     }
 
     public abstract SSTableReader build();
@@ -272,19 +253,6 @@ public abstract class SSTableReaderBuilder
         {
             first = SSTable.getMinimalKey(first);
             last = SSTable.getMinimalKey(last);
-        }
-    }
-
-    /**
-     * Load bloom filter from Filter.db file.
-     *
-     * @throws IOException
-     */
-    IFilter loadBloomFilter() throws IOException
-    {
-        try (FileInputStreamPlus stream = new File(descriptor.filenameFor(Component.FILTER)).newInputStream())
-        {
-            return BloomFilterSerializer.deserialize(stream, descriptor.version.hasOldBfFormat());
         }
     }
 
@@ -453,7 +421,9 @@ public abstract class SSTableReaderBuilder
             {
                 // bf is enabled and fp chance matches the currently configured value.
                 load(false, !isOffline, optimizationStrategy, statsMetadata, components);
-                bf = loadBloomFilter();
+                bf = FilterComponent.load(descriptor);
+                if (bf == null)
+                    throw new NoSuchFileException("Bloom filter component of SSTable " + descriptor.baseFilename() + " is missing");
             }
         }
 
@@ -497,7 +467,7 @@ public abstract class SSTableReaderBuilder
                     if (saveSummaryIfCreated)
                         saveSummary(descriptor, first, last, summary);
                     if (recreateBloomFilter)
-                        saveBloomFilter(descriptor, bf);
+                        FilterComponent.saveOrDeleteCorrupted(descriptor, bf);
                 }
             }
             catch (Throwable t)
