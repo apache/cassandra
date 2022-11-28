@@ -34,21 +34,26 @@ public class GuardrailCollectionSizeTest extends GuardrailWarningOnSSTableWriteT
 {
     private static final int THRESHOLD_IN_KB = 1;
     private static final int THRESHOLD_IN_BYTES = THRESHOLD_IN_KB * 1024;
-    private static final String SSTABLE_WRITE_WARN_MESSAGE = "Detected collection <redacted> of size";
+    private static final String SSTABLE_WRITE_WARN_MESSAGE = ".*Detected collection .* in table .* of size.*";
 
     private long defaultCollectionSize;
+    private long defaultMinNotifyInterval;
 
     @Before
-    public void before()
+    public void before() throws Throwable
     {
         defaultCollectionSize = config().collection_size_warn_threshold_in_kb;
         config().collection_size_warn_threshold_in_kb = (long) THRESHOLD_IN_KB;
+
+        defaultMinNotifyInterval = getMinNotifyInterval(Guardrails.itemsPerCollection);
+        setMinNotifyInterval(Guardrails.collectionSize, 0);
     }
 
     @After
     public void after()
     {
         config().collection_size_warn_threshold_in_kb = defaultCollectionSize;
+        setMinNotifyInterval(Guardrails.itemsPerCollection, defaultMinNotifyInterval);
     }
 
     @Test
@@ -384,6 +389,7 @@ public class GuardrailCollectionSizeTest extends GuardrailWarningOnSSTableWriteT
 
         // only the non frozen collections will produce a warning during sstable write
         assertWarnedOnSSTableWrite(false,
+                                   true,
                                    SSTABLE_WRITE_WARN_MESSAGE,
                                    SSTABLE_WRITE_WARN_MESSAGE,
                                    SSTABLE_WRITE_WARN_MESSAGE);
@@ -429,7 +435,39 @@ public class GuardrailCollectionSizeTest extends GuardrailWarningOnSSTableWriteT
         assertValid("INSERT INTO %s (k, v) VALUES (2, ?)", set(allocate(THRESHOLD_IN_BYTES)));
 
         // sstable should produces warnings because the keyspace is not internal, regardless of the user
-        assertWarnedOnSSTableWrite(false, SSTABLE_WRITE_WARN_MESSAGE, SSTABLE_WRITE_WARN_MESSAGE);
+        assertWarnedOnSSTableWrite(false, true, SSTABLE_WRITE_WARN_MESSAGE, SSTABLE_WRITE_WARN_MESSAGE);
+    }
+
+    @Test
+    public void testGuardrailRespectsMinimumNotificationInterval() throws Throwable
+    {
+        setMinNotifyInterval(Guardrails.collectionSize, 0L);
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<text>)");
+
+        assertValid("INSERT INTO %s (k, v) VALUES (0, null)");
+        assertWarns("INSERT INTO %s (k, v) VALUES (1, ?)", set(allocate(THRESHOLD_IN_BYTES)));
+        assertWarnedOnFlush();
+
+        setMinNotifyInterval(Guardrails.collectionSize, 2000L);
+
+        assertWarns("INSERT INTO %s (k, v) VALUES (2, ?)", set(allocate(THRESHOLD_IN_BYTES)));
+        assertValid("INSERT INTO %s (k, v) VALUES (3, ?)", set(allocate(THRESHOLD_IN_BYTES)));
+        assertNotWarnedOnFlush();
+
+        Thread.sleep(2500L);
+
+        assertWarns("INSERT INTO %s (k, v) VALUES (2, ?)", set(allocate(THRESHOLD_IN_BYTES)));
+
+        Thread.sleep(2500L);
+
+        // We can't use the default method for checking this because it clears the warning
+        // before rebuilding the SSTables. Problem is the rebuild warning gets skipped
+        // because it is withing the minimum notification interval
+        listener.clear();
+        flush(keyspace());
+        listener.assertMatchesWarns(SSTABLE_WRITE_WARN_MESSAGE);
+        listener.assertNotFailed();
     }
 
     private void truncate() throws Throwable
@@ -445,11 +483,11 @@ public class GuardrailCollectionSizeTest extends GuardrailWarningOnSSTableWriteT
 
     private void assertWarnedOnFlush()
     {
-        assertWarnedOnFlush(SSTABLE_WRITE_WARN_MESSAGE);
+        assertWarnedOnFlush(true, SSTABLE_WRITE_WARN_MESSAGE);
     }
 
     private void assertWarnedOnCompact()
     {
-        assertWarnedOnCompact(SSTABLE_WRITE_WARN_MESSAGE);
+        assertWarnedOnCompact(true, SSTABLE_WRITE_WARN_MESSAGE);
     }
 }

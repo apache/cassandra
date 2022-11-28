@@ -222,14 +222,11 @@ public abstract class SortedTableWriter extends SSTableWriter
                 !Guardrails.itemsPerCollection.triggersOn(cellsCount, null))
                 continue;
 
-            ByteBuffer key = partitionKey.getKey();
-            String keyString = metadata().primaryKeyAsCQLLiteral(key, row.clustering());
-            String msg = String.format("%s in row %s in table %s",
+            String msg = String.format("%s in table %s",
                                        column.name.toString(),
-                                       keyString,
                                        metadata);
-            Guardrails.collectionSize.guard(cellsSize, msg, true, null);
-            Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
+            Guardrails.collectionSize.guard(cellsSize, msg, false, null);
+            Guardrails.itemsPerCollection.guard(cellsCount, msg, false, null);
         }
     }
 

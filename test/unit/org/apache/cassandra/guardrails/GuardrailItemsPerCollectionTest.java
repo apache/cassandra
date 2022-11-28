@@ -41,19 +41,23 @@ public class GuardrailItemsPerCollectionTest extends GuardrailWarningOnSSTableWr
 {
     private static final int THRESHOLD = 4;
     private static final String SSTABLE_WRITE_WARN_MESSAGE = String.format(
-    "Detected collection <redacted> with %d items", THRESHOLD + 1);
+    ".*Detected collection .* in table .* with %d items.*", THRESHOLD + 1);
 
     private long defaultItemsPerCollection;
     private boolean defaultReadBeforeWriteListOperationsEnabled;
+    private long defaultMinNotifyInterval;
 
     @Before
-    public void before()
+    public void before() throws Throwable
     {
         defaultItemsPerCollection = config().items_per_collection_warn_threshold;
         config().items_per_collection_warn_threshold = (long) THRESHOLD;
 
         defaultReadBeforeWriteListOperationsEnabled = config().read_before_write_list_operations_enabled;
         config().read_before_write_list_operations_enabled = true;
+
+        defaultMinNotifyInterval = getMinNotifyInterval(Guardrails.itemsPerCollection);
+        setMinNotifyInterval(Guardrails.itemsPerCollection, 0);
     }
 
     @After
@@ -61,6 +65,7 @@ public class GuardrailItemsPerCollectionTest extends GuardrailWarningOnSSTableWr
     {
         config().items_per_collection_warn_threshold = defaultItemsPerCollection;
         config().read_before_write_list_operations_enabled = defaultReadBeforeWriteListOperationsEnabled;
+        setMinNotifyInterval(Guardrails.itemsPerCollection, defaultMinNotifyInterval);
     }
 
     @Test
@@ -343,9 +348,10 @@ public class GuardrailItemsPerCollectionTest extends GuardrailWarningOnSSTableWr
 
         // only the non frozen collections will produce a warning during sstable write
         assertWarnedOnSSTableWrite(false,
-                                   format("Detected collection <redacted> with %d items", THRESHOLD + 1),
-                                   format("Detected collection <redacted> with %d items", THRESHOLD + 2),
-                                   format("Detected collection <redacted> with %d items", THRESHOLD + 3));
+                                   true,
+                                   format(".*Detected collection .* in table .* with %d items.*", THRESHOLD + 1),
+                                   format(".*Detected collection .* in table .* with %d items.*", THRESHOLD + 2),
+                                   format(".*Detected collection .* in table .* with %d items.*", THRESHOLD + 3));
     }
 
     @Test
@@ -391,9 +397,38 @@ public class GuardrailItemsPerCollectionTest extends GuardrailWarningOnSSTableWr
         assertValid("INSERT INTO %s (k, v) VALUES (2, ?)", set(THRESHOLD + 1));
 
         // sstable should produces warnings because the keyspace is not internal, regardless of the user
-        assertWarnedOnSSTableWrite(false,
-                                   format("Detected collection <redacted> with %d items", THRESHOLD + 1),
-                                   format("Detected collection <redacted> with %d items", THRESHOLD + 1));
+        assertWarnedOnSSTableWrite(false, true, SSTABLE_WRITE_WARN_MESSAGE, SSTABLE_WRITE_WARN_MESSAGE);
+    }
+
+    @Test
+    public void testGuardrailRespectsMinimumNotificationInterval() throws Throwable
+    {
+        setMinNotifyInterval(Guardrails.itemsPerCollection, 0L);
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<text>)");
+
+        assertValid("INSERT INTO %s (k, v) VALUES (0, null)");
+        assertWarnedOnClient("INSERT INTO %s (k, v) VALUES (1, ?)", set(THRESHOLD + 1));
+        assertWarnedOnFlush();
+
+        setMinNotifyInterval(Guardrails.itemsPerCollection, 2000L);
+
+        assertWarnedOnClient("INSERT INTO %s (k, v) VALUES (2, ?)", set(THRESHOLD + 1));
+
+        assertValid("INSERT INTO %s (k, v) VALUES (3, ?)", set(THRESHOLD + 1));
+        assertNotWarnedOnFlush();
+
+        Thread.sleep(2500L);
+
+        assertWarnedOnClient("INSERT INTO %s (k, v) VALUES (4, ?)", set(THRESHOLD + 1));
+        Thread.sleep(2500L);
+        // We can't use the default method for checking this because it clears the warning
+        // before rebuilding the SSTables. Problem is the rebuild warning gets skipped
+        // because it is withing the minimum notification interval
+        listener.clear();
+        flush(keyspace());
+        listener.assertMatchesWarns(SSTABLE_WRITE_WARN_MESSAGE);
+        listener.assertNotFailed();
     }
 
     private static Set<Integer> set(int numElements)
@@ -439,11 +474,11 @@ public class GuardrailItemsPerCollectionTest extends GuardrailWarningOnSSTableWr
 
     private void assertWarnedOnFlush()
     {
-        assertWarnedOnFlush(SSTABLE_WRITE_WARN_MESSAGE);
+        assertWarnedOnFlush(true, SSTABLE_WRITE_WARN_MESSAGE);
     }
 
     private void assertWarnedOnCompact()
     {
-        assertWarnedOnCompact(SSTABLE_WRITE_WARN_MESSAGE);
+        assertWarnedOnCompact(true, SSTABLE_WRITE_WARN_MESSAGE);
     }
 }

@@ -60,6 +60,6 @@ public class GuardrailPartitionSizeTest extends GuardrailWarningOnSSTableWriteTe
         for (int i = 0; i < 23000; i++)
             assertValid("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 100, i, "long string for large partition test");
 
-        assertWarnedOnCompact("Detected partition <redacted> of size 1.1MB is greater than the maximum recommended size (1MB)");
+        assertWarnedOnCompact(false,"Detected partition <redacted> of size 1.1MB is greater than the maximum recommended size (1MB)");
     }
 }
