@@ -26,6 +26,7 @@ import java.util.concurrent.TimeoutException;
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.impl.SimpleProgressLog;
+import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
 import accord.messages.Reply;
 import accord.messages.Request;
@@ -75,6 +76,7 @@ public class AccordService implements Shutdownable
                              new AccordAgent(),
                              new Random(),
                              scheduler,
+                             SizeOfIntersectionSorter.SUPPLIER,
                              SimpleProgressLog::new,
                              AccordCommandStores::new);
         this.nodeShutdown = toShutdownable(node);
