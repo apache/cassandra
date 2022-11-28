@@ -17,11 +17,10 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
@@ -56,7 +55,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IVerifier;
-import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -69,7 +67,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilterSerializer;
@@ -494,19 +491,9 @@ public class BigTableVerifier implements IVerifier
 
     private void deserializeIndexSummary(SSTableReader sstable) throws IOException
     {
-        File file = new File(sstable.descriptor.filenameFor(Component.SUMMARY));
-        TableMetadata metadata = cfs.metadata();
-        try (DataInputStream iStream = new DataInputStream(Files.newInputStream(file.toPath())))
-        {
-            try (IndexSummary indexSummary = IndexSummary.serializer.deserialize(iStream,
-                                                                                 cfs.getPartitioner(),
-                                                                                 metadata.params.minIndexInterval,
-                                                                                 metadata.params.maxIndexInterval))
-            {
-                ByteBufferUtil.readWithLength(iStream);
-                ByteBufferUtil.readWithLength(iStream);
-            }
-        }
+        IndexSummaryComponent summaryComponent = IndexSummaryComponent.load(sstable.descriptor, cfs.metadata());
+        if (summaryComponent == null)
+            throw new NoSuchFileException("Index summary component of sstable " + sstable.descriptor.baseFilename() + " is missing");
     }
 
     private void deserializeBloomFilter(SSTableReader sstable) throws IOException

@@ -47,7 +47,6 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.FilterComponent;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -642,7 +641,11 @@ public class BigTableWriter extends SSTableWriter
             summary.prepareToCommit();
             try (IndexSummary indexSummary = summary.build(getPartitioner()))
             {
-                SSTableReaderBuilder.saveSummary(descriptor, first, last, indexSummary);
+                new IndexSummaryComponent(indexSummary, first, last).saveOrDeleteCorrupted(descriptor);
+            }
+            catch (IOException ex)
+            {
+                logger.warn("Failed to save index summary", ex);
             }
         }
 

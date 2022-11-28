@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -417,7 +418,7 @@ public class IndexSummary extends WrappedSharedCloseable
         }
 
         @SuppressWarnings("resource")
-        public IndexSummary deserialize(DataInputStream in, IPartitioner partitioner, int expectedMinIndexInterval, int maxIndexInterval) throws IOException
+        public <T extends InputStream & DataInputPlus> IndexSummary deserialize(T in, IPartitioner partitioner, int expectedMinIndexInterval, int maxIndexInterval) throws IOException
         {
             int minIndexInterval = in.readInt();
             if (minIndexInterval != expectedMinIndexInterval)

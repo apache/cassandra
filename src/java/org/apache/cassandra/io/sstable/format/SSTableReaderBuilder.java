@@ -22,28 +22,25 @@ import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.format.big.IndexSummaryComponent;
+import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -92,31 +89,6 @@ public abstract class SSTableReaderBuilder
         this.readerFactory = descriptor.getFormat().getReaderFactory();
     }
 
-    /**
-     * Save index summary to Summary.db file.
-     */
-    public static void saveSummary(Descriptor descriptor, DecoratedKey first, DecoratedKey last, IndexSummary summary)
-    {
-        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
-        if (summariesFile.exists())
-            FileUtils.deleteWithConfirm(summariesFile);
-
-        try (DataOutputStreamPlus oStream = new FileOutputStreamPlus(summariesFile))
-        {
-            IndexSummary.serializer.serialize(summary, oStream);
-            ByteBufferUtil.writeWithLength(first.getKey(), oStream);
-            ByteBufferUtil.writeWithLength(last.getKey(), oStream);
-        }
-        catch (IOException e)
-        {
-            logger.error("Cannot save SSTable Summary: ", e);
-
-            // corrupted hence delete it and let it load it now.
-            if (summariesFile.exists())
-                FileUtils.deleteWithConfirm(summariesFile);
-        }
-    }
-
     public abstract SSTableReader build();
 
     public SSTableReaderBuilder dfile(FileHandle dfile)
@@ -145,45 +117,29 @@ public abstract class SSTableReaderBuilder
 
     /**
      * Load index summary, first key and last key from Summary.db file if it exists.
-     *
+     * <p>
      * if loaded index summary has different index interval from current value stored in schema,
      * then Summary.db file will be deleted and need to be rebuilt.
      */
     void loadSummary()
     {
-        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
-        if (!summariesFile.exists())
+        IndexSummaryComponent summaryComponent;
+        try
         {
-            if (logger.isDebugEnabled())
-                logger.debug("SSTable Summary File {} does not exist", summariesFile.absolutePath());
+            summaryComponent = IndexSummaryComponent.loadOrDeleteCorrupted(descriptor, metadata);
+        }
+        catch (IOException ex)
+        {
+            logger.warn("Failed to deserialize index summary", ex);
             return;
         }
 
-        DataInputStream iStream = null;
-        try
-        {
-            iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath()));
-            summary = IndexSummary.serializer.deserialize(iStream,
-                                                          metadata.partitioner,
-                                                          metadata.params.minIndexInterval,
-                                                          metadata.params.maxIndexInterval);
-            first = metadata.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
-            last = metadata.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
-        }
-        catch (IOException e)
-        {
-            if (summary != null)
-                summary.close();
-            logger.trace("Cannot deserialize SSTable Summary File {}: {}", summariesFile.path(), e.getMessage());
-            // corrupted; delete it and fall back to creating a new summary
-            FileUtils.closeQuietly(iStream);
-            // delete it and fall back to creating a new summary
-            FileUtils.deleteWithConfirm(summariesFile);
-        }
-        finally
-        {
-            FileUtils.closeQuietly(iStream);
-        }
+        if (summaryComponent == null)
+            return;
+
+        summary = summaryComponent.indexSummary;
+        first = summaryComponent.first;
+        last = summaryComponent.last;
     }
 
     /**
@@ -191,7 +147,7 @@ public abstract class SSTableReaderBuilder
      * {@code recreteBloomFilter} is true by reading through Index.db file.
      *
      * @param recreateBloomFilter true if recreate bloom filter
-     * @param summaryLoaded true if index summary, first key and last key are already loaded and not need to build again
+     * @param summaryLoaded       true if index summary, first key and last key are already loaded and not need to build again
      */
     void buildSummaryAndBloomFilter(boolean recreateBloomFilter,
                                     boolean summaryLoaded,
@@ -301,11 +257,11 @@ public abstract class SSTableReaderBuilder
 
             boolean compression = components.contains(Component.COMPRESSION_INFO);
             try (FileHandle.Builder ibuilder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX))
-                    .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
-                    .withChunkCache(ChunkCache.instance);
-                    FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(compression)
-                                                                                                                .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
-                                                                                                                .withChunkCache(ChunkCache.instance))
+                                               .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
+                                               .withChunkCache(ChunkCache.instance);
+                 FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(compression)
+                                                                                                             .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
+                                                                                                             .withChunkCache(ChunkCache.instance))
             {
                 long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
                 DiskOptimizationStrategy optimizationStrategy = DatabaseDescriptor.getDiskOptimizationStrategy();
@@ -390,7 +346,7 @@ public abstract class SSTableReaderBuilder
 
         /**
          * @param validation Metadata for SSTable being loaded
-         * @param isOffline Whether the SSTable is being loaded by an offline tool (sstabledump, scrub, etc)
+         * @param isOffline  Whether the SSTable is being loaded by an offline tool (sstabledump, scrub, etc)
          */
         private void load(ValidationMetadata validation,
                           boolean isOffline,
@@ -429,7 +385,8 @@ public abstract class SSTableReaderBuilder
 
         /**
          * Loads ifile, dfile and indexSummary, and optionally recreates and persists the bloom filter.
-         * @param recreateBloomFilter Recreate the bloomfilter.
+         *
+         * @param recreateBloomFilter  Recreate the bloomfilter.
          * @param saveSummaryIfCreated for bulk loading purposes, if the summary was absent and needed to be built, you can
          *                             avoid persisting it to disk by setting this to false
          */
@@ -439,12 +396,12 @@ public abstract class SSTableReaderBuilder
                   StatsMetadata statsMetadata,
                   Set<Component> components) throws IOException
         {
-            try(FileHandle.Builder ibuilder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX))
-                    .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
-                    .withChunkCache(ChunkCache.instance);
-                    FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(components.contains(Component.COMPRESSION_INFO))
-                                                                                                                .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
-                                                                                                                .withChunkCache(ChunkCache.instance))
+            try (FileHandle.Builder ibuilder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX))
+                                               .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
+                                               .withChunkCache(ChunkCache.instance);
+                 FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(components.contains(Component.COMPRESSION_INFO))
+                                                                                                             .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
+                                                                                                             .withChunkCache(ChunkCache.instance))
             {
                 loadSummary();
                 boolean buildSummary = summary == null || recreateBloomFilter;
@@ -465,7 +422,7 @@ public abstract class SSTableReaderBuilder
                 if (buildSummary)
                 {
                     if (saveSummaryIfCreated)
-                        saveSummary(descriptor, first, last, summary);
+                        new IndexSummaryComponent(summary, first, last).saveOrDeleteCorrupted(descriptor);
                     if (recreateBloomFilter)
                         FilterComponent.saveOrDeleteCorrupted(descriptor, bf);
                 }
