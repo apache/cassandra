@@ -2237,7 +2237,7 @@ public class AggregationTest extends CQLTester
     @Test
     public void testRejctInvalidAggregateNamesOnCreation()
     {
-        for (String funcName : Arrays.asList("my/fancy/aggregation", "my_other[fancy]aggregation"))
+        for (String funcName : Arrays.asList("my/fancy/aggregate", "my_other[fancy]aggregate"))
         {
             assertThatThrownBy(() -> {
                 createAggregateOverload(String.format("%s.\"%s\"", KEYSPACE_PER_TEST, funcName), "int",
