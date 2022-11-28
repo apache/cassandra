@@ -26,43 +26,43 @@ The partition key format needs to be in the same form required by ``nodetool get
 Following are several examples for denylisting partition keys in keyspace `ks` and
 table `table1` for different data types on the primary key `Id`:
 
- - Id is a simple type - INSERT INTO system_distributed.denylisted_partitions (ks_name, table_name, partition_key) VALUES ('ks','table1','1');
- - Id is a blob        - INSERT INTO system_distributed.denylisted_partitions (ks_name, table_name, partition_key) VALUES ('ks','table1','12345f');
- - Id has a colon      - INSERT INTO system_distributed.denylisted_partitions (ks_name, table_name, partition_key) VALUES ('ks','table1','1\:2');
+- Id is a simple type - INSERT INTO system_distributed.denylisted_partitions (ks_name, table_name, partition_key) VALUES ('ks','table1','1');
+- Id is a blob        - INSERT INTO system_distributed.denylisted_partitions (ks_name, table_name, partition_key) VALUES ('ks','table1','12345f');
+- Id has a colon      - INSERT INTO system_distributed.denylisted_partitions (ks_name, table_name, partition_key) VALUES ('ks','table1','1\:2');
 
 In the case of composite column partition keys (Key1, Key2):
 
- - INSERT INTO system_distributed.denylisted_partitions (ks_name, table_name, partition_key) VALUES ('ks', 'table1', 'k11:k21')
+- INSERT INTO system_distributed.denylisted_partitions (ks_name, table_name, partition_key) VALUES ('ks', 'table1', 'k11:k21')
 
 
- === Special considerations
+=== Special considerations
 
- The denylist has the property in that you want to keep your cache (see below) and
- CQL data on a replica set as close together as possible so you don't have different
- nodes in your cluster denying or allowing different keys. To best achieve this,
- the workflow for a denylist change (addition or deletion) should `always be as follows`:
+The denylist has the property in that you want to keep your cache (see below) and
+CQL data on a replica set as close together as possible so you don't have different
+nodes in your cluster denying or allowing different keys. To best achieve this,
+the workflow for a denylist change (addition or deletion) should `always be as follows`:
 
- JMX PATH (preferred for single changes):
+JMX PATH (preferred for single changes):
 
- 1. Call the JMX hook for ``denylistKey()`` with the desired key
- 2. Double check the cache reloaded with ``isKeyDenylisted()``
- 3. Check for warnings about unrecognized keyspace/table combinations, limits, or
- consistency level. If you get a message about nodes being down and not hitting CL
- for denylist, recover the downed nodes and then trigger a reload of the cache on each
- node with ``loadPartitionDenylist()``
+1. Call the JMX hook for ``denylistKey()`` with the desired key
+2. Double check the cache reloaded with ``isKeyDenylisted()``
+3. Check for warnings about unrecognized keyspace/table combinations, limits, or
+consistency level. If you get a message about nodes being down and not hitting CL
+for denylist, recover the downed nodes and then trigger a reload of the cache on each
+node with ``loadPartitionDenylist()``
 
- CQL PATH (preferred for bulk changes):
+CQL PATH (preferred for bulk changes):
 
- 1. Mutate the denylisted partition lists via CQL
- 2. Trigger a reload of the denylist cache on each node via JMX ``loadPartitionDenylist()`` (see below)
- 3. Check for warnings about lack of availability for a denylist refresh. In the event nodes are down, recover them, then go to 2.
+1. Mutate the denylisted partition lists via CQL
+2. Trigger a reload of the denylist cache on each node via JMX ``loadPartitionDenylist()`` (see below)
+3. Check for warnings about lack of availability for a denylist refresh. In the event nodes are down, recover them, then go to 2.
 
- Due to conditions on known unavailable range slices leading to alert storming on
- startup, the denylist cache won't load on node start unless it can achieve the
- configured consistency level in cassandra.yaml, `denylist_consistency_level`.
- The JMX call to `loadPartitionDenylist` will, however, load the cache regardless
- of the number of nodes available. This leaves the control for denylisting or not
- denylisting during degraded cluster states in the hands of the operator.
+Due to conditions on known unavailable range slices leading to alert storming on
+startup, the denylist cache won't load on node start unless it can achieve the
+configured consistency level in cassandra.yaml, `denylist_consistency_level`.
+The JMX call to `loadPartitionDenylist` will, however, load the cache regardless
+of the number of nodes available. This leaves the control for denylisting or not
+denylisting during degraded cluster states in the hands of the operator.
 
 == Denylisted Partitions Cache
 
