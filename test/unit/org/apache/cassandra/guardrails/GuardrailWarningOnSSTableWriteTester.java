@@ -44,23 +44,26 @@ public abstract class GuardrailWarningOnSSTableWriteTester extends GuardrailTest
         }
     }
 
-    void assertWarnedOnFlush(String... expectedMessages)
+    void assertWarnedOnFlush(boolean match, String... expectedMessages)
     {
-        assertWarnedOnSSTableWrite(false, expectedMessages);
+        assertWarnedOnSSTableWrite(false, match, expectedMessages);
     }
 
-    void assertWarnedOnCompact(String... expectedMessages)
+    void assertWarnedOnCompact(boolean match, String... expectedMessages)
     {
-        assertWarnedOnSSTableWrite(true, expectedMessages);
+        assertWarnedOnSSTableWrite(true, match, expectedMessages);
     }
 
-    void assertWarnedOnSSTableWrite(boolean compact, String... expectedMessages)
+    void assertWarnedOnSSTableWrite(boolean compact, boolean match, String... expectedMessages)
     {
         try
         {
             listener.clear();
             writeSSTables(keyspace(), compact);
-            listener.assertContainsWarns(expectedMessages);
+            if (match)
+                listener.assertMatchesWarns(expectedMessages);
+            else
+                listener.assertContainsWarns(expectedMessages);
         }
         finally
         {

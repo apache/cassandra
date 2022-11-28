@@ -94,18 +94,20 @@ public abstract class Guardrails
                                                     t, v, what));
 
     public static final Threshold collectionSize =
-            factory.threshold("collection_size",
-                              () -> config.collection_size_warn_threshold_in_kb * 1024L,
-                              () -> -1L, // not needed so far
-                              (x, what, v, t) -> format("Detected collection %s of size %s, greater than the maximum recommended size (%s)",
-                                                        what, formatSize(v), formatSize(t)));
+            (Threshold) factory.threshold("collection_size",
+                                          () -> config.collection_size_warn_threshold_in_kb * 1024L,
+                                          () -> -1L, // not needed so far
+                                          (x, what, v, t) -> format("Detected collection %s of size %s, greater than the maximum recommended size (%s)",
+                                                                    what, formatSize(v), formatSize(t)))
+                               .setMinNotifyIntervalInMs(TimeUnit.MINUTES.toMillis(30));
 
     public static final Threshold itemsPerCollection =
-            factory.threshold("items_per_collection",
-                              () -> config.items_per_collection_warn_threshold,
-                              () -> -1L, // not needed so far
-                              (x, what, v, t) -> format("Detected collection %s with %s items, greater than the maximum recommended (%s)",
-                                                        what, v, t));
+            (Threshold) factory.threshold("items_per_collection",
+                                          () -> config.items_per_collection_warn_threshold,
+                                          () -> -1L, // not needed so far
+                                          (x, what, v, t) -> format("Detected collection %s with %s items, greater than the maximum recommended (%s)",
+                                                                    what, v, t))
+                               .setMinNotifyIntervalInMs(TimeUnit.MINUTES.toMillis(30));
 
     public static final DisableFlag readBeforeWriteListOperationsEnabled =
             factory.disableFlag("read_before_write_list_operations",
