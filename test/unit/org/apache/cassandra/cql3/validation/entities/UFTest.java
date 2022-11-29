@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.validation.entities;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -37,12 +38,13 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.transport.Event;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class UFTest extends CQLTester
 {
@@ -995,5 +997,22 @@ public class UFTest extends CQLTester
                 "  AS $$\n" +
                 "    return a;\n" +
                 "  $$");
+    }
+
+    @Test
+    public void testRejectInvalidFunctionNamesOnCreation()
+    {
+        for (String funcName : Arrays.asList("my/fancy/func", "my_other[fancy]func"))
+        {
+            assertThatThrownBy(() -> {
+                createFunctionOverload(String.format("%s.\"%s\"", KEYSPACE_PER_TEST, funcName), "int",
+                                       "CREATE OR REPLACE FUNCTION %s(val int) " +
+                                       "RETURNS NULL ON NULL INPUT " +
+                                       "RETURNS int " +
+                                       "LANGUAGE JAVA\n" +
+                                       "AS 'return val;'");
+            }).hasRootCauseInstanceOf(InvalidRequestException.class)
+              .hasRootCauseMessage("Function name '%s' is invalid", funcName);
+        }
     }
 }

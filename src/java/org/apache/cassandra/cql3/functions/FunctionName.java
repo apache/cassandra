@@ -17,18 +17,44 @@
  */
 package org.apache.cassandra.cql3.functions;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.SystemKeyspace;
 
 public final class FunctionName
 {
+    private static final Set<Character> DISALLOWED_CHARACTERS = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList('/', '[', ']')));
+
     public final String keyspace;
     public final String name;
 
     public static FunctionName nativeFunction(String name)
     {
         return new FunctionName(SystemKeyspace.NAME, name);
+    }
+
+    /**
+     * Validate the function name, e.g. contains no disallowed characters
+     * @param name
+     * @return true if name is valid; otherwise, false
+     */
+    public static boolean isNameValid(String name)
+    {
+        for (int i = 0; i < name.length(); i++)
+        {
+            char c = name.charAt(i);
+            if (DISALLOWED_CHARACTERS.contains(c))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     public FunctionName(String keyspace, String name)

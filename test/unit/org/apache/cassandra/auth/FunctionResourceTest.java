@@ -18,6 +18,8 @@
 package org.apache.cassandra.auth;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Test;
@@ -36,7 +38,7 @@ public class FunctionResourceTest
     private static final String varType = "org.apache.cassandra.db.marshal.UTF8Type";
 
     @Test
-    public void testFunction() throws Exception
+    public void testFunction()
     {
         FunctionResource expected = FunctionResource.root();
         FunctionResource actual = FunctionResource.fromName(func);
@@ -45,7 +47,7 @@ public class FunctionResourceTest
     }
 
     @Test
-    public void testFunctionKeyspace() throws Exception
+    public void testFunctionKeyspace()
     {
         FunctionResource expected = FunctionResource.keyspace(ks);
         FunctionResource actual = FunctionResource.fromName(String.format("%s/%s", func, ks));
@@ -54,7 +56,7 @@ public class FunctionResourceTest
     }
 
     @Test
-    public void testFunctionWithSingleInputParameter() throws Exception
+    public void testFunctionWithSingleInputParameter()
     {
         List<AbstractType<?>> argTypes = new ArrayList<>();
         argTypes.add(TypeParser.parse(varType));
@@ -65,7 +67,7 @@ public class FunctionResourceTest
     }
 
     @Test
-    public void testFunctionWithMultipleInputParameters() throws Exception
+    public void testFunctionWithMultipleInputParameter()
     {
         List<AbstractType<?>> argTypes = new ArrayList<>();
         argTypes.add(TypeParser.parse(varType));
@@ -77,7 +79,7 @@ public class FunctionResourceTest
     }
 
     @Test
-    public void testFunctionWithoutInputParameters() throws Exception
+    public void testFunctionWithoutInputParameter()
     {
         List<AbstractType<?>> argTypes = new ArrayList<>();
         FunctionResource expected = FunctionResource.function(ks, name, argTypes);
@@ -104,12 +106,21 @@ public class FunctionResourceTest
     @Test
     public void testFunctionWithInvalidInput()
     {
-        String expected = String.format("%s/%s/%s[%s]/test is not a valid function resource name", func, ks, name, varType);
-        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> FunctionResource.fromName(String.format("%s/%s/%s[%s]/test",
-                                                                                                                           func,
-                                                                                                                           ks,
-                                                                                                                           name,
-                                                                                                                           varType)))
+        String invalidInput = String.format("%s/%s/%s[%s]/test", func, ks, name, varType);
+        String expected = String.format("%s is not a valid function resource name. It must end with \"[]\"", invalidInput);
+        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> FunctionResource.fromName(invalidInput))
                                                                  .withMessage(expected);
+    }
+
+    @Test
+    public void testFunctionWithSpecialCharacter()
+    {
+        for (String funcName : Arrays.asList("my/fancy/func", "my_other[fancy]func"))
+        {
+            String input = String.format("%s/%s/%s[%s]", func, ks, funcName, varType);
+            FunctionResource actual = FunctionResource.fromName(input);
+            FunctionResource expected = FunctionResource.function(ks, funcName, Collections.singletonList(TypeParser.parse(varType)));
+            assertEquals(expected, actual);
+        }
     }
 }
