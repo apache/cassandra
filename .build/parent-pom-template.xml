@@ -503,20 +503,6 @@
 				<version>4.7.3</version>
 				<scope>test</scope>
 			</dependency>
-			<dependency>
-				<groupId>com.google.errorprone</groupId>
-				<artifactId>error_prone_core</artifactId>
-				<version>2.16</version>
-        <classifier>with-dependencies</classifier>
-				<scope>test</scope>
-			</dependency>
-			<dependency>
-				<groupId>org.checkerframework</groupId>
-				<artifactId>dataflow-errorprone</artifactId>
-        <!-- <version>3.27.0</version> -->
-        <version>3.15.0</version>
-				<scope>test</scope>
-			</dependency>
       <dependency>
         <groupId>org.apache.hadoop</groupId>
         <artifactId>hadoop-core</artifactId>
