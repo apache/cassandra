@@ -156,7 +156,7 @@ public class CassandraEntireSSTableStreamWriterTest
                                  .withSerializationHeader(sstable.header.toComponent())
                                  .withComponentManifest(context.manifest())
                                  .isEntireSSTable(true)
-                                 .withFirstKey(sstable.first)
+                                 .withFirstKey(sstable.getFirst())
                                  .withTableId(sstable.metadata().id)
                                  .build();
 

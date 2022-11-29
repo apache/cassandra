@@ -114,7 +114,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
     {
         this.sstable = (R) transaction.onlyOne();
         Preconditions.checkNotNull(sstable.metadata());
-        assert sstable.metadata().keyspace.equals(cfs.keyspace.getName());
+        assert sstable.metadata().keyspace.equals(cfs.getKeyspaceName());
         if (!sstable.descriptor.cfname.equals(cfs.metadata().name))
         {
             logger.warn("Descriptor points to a different table {} than metadata {}", sstable.descriptor.cfname, cfs.metadata().name);

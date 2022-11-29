@@ -397,6 +397,12 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
         }
 
         @Override
+        public boolean hasTokenSpaceCoverage()
+        {
+            return true;
+        }
+
+        @Override
         public boolean hasPartitionLevelDeletionsPresenceMarker()
         {
             return true;

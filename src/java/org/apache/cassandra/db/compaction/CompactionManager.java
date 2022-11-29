@@ -243,12 +243,12 @@ public class CompactionManager implements CompactionManagerMBean
         if (count > 0 && executor.getActiveTaskCount() >= executor.getMaximumPoolSize())
         {
             logger.trace("Background compaction is still running for {}.{} ({} remaining). Skipping",
-                         cfs.keyspace.getName(), cfs.name, count);
+                         cfs.getKeyspaceName(), cfs.name, count);
             return Collections.emptyList();
         }
 
         logger.trace("Scheduling a background task check for {}.{} with {}",
-                     cfs.keyspace.getName(),
+                     cfs.getKeyspaceName(),
                      cfs.name,
                      cfs.getCompactionStrategyManager().getName());
 
@@ -353,7 +353,7 @@ public class CompactionManager implements CompactionManagerMBean
             boolean ranCompaction = false;
             try
             {
-                logger.trace("Checking {}.{}", cfs.keyspace.getName(), cfs.name);
+                logger.trace("Checking {}.{}", cfs.getKeyspaceName(), cfs.name);
                 if (!cfs.isValid())
                 {
                     logger.trace("Aborting compaction for dropped CF");
@@ -383,7 +383,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         boolean maybeRunUpgradeTask(CompactionStrategyManager strategy)
         {
-            logger.debug("Checking for upgrade tasks {}.{}", cfs.keyspace.getName(), cfs.getTableName());
+            logger.debug("Checking for upgrade tasks {}.{}", cfs.getKeyspaceName(), cfs.getTableName());
             try
             {
                 if (currentlyBackgroundUpgrading.incrementAndGet() <= DatabaseDescriptor.maxConcurrentAutoUpgradeTasks())
@@ -426,10 +426,10 @@ public class CompactionManager implements CompactionManagerMBean
                                                            OperationType operationType)
     {
         String operationName = operationType.name();
-        String keyspace = cfs.keyspace.getName();
+        String keyspace = cfs.getKeyspaceName();
         String table = cfs.getTableName();
         return cfs.withAllSSTables(operationType, (compacting) -> {
-            logger.info("Starting {} for {}.{}", operationType, cfs.keyspace.getName(), cfs.getTableName());
+            logger.info("Starting {} for {}.{}", operationType, cfs.getKeyspaceName(), cfs.getTableName());
             List<LifecycleTransaction> transactions = new ArrayList<>();
             List<Future<?>> futures = new ArrayList<>();
             try
@@ -657,7 +657,7 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                 }
                 logger.info("Skipping cleanup for {}/{} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, transient ranges: {})",
-                            skippedSStables, totalSSTables, cfStore.keyspace.getName(), cfStore.getTableName(), fullRanges, transientRanges);
+                            skippedSStables, totalSSTables, cfStore.getKeyspaceName(), cfStore.getTableName(), fullRanges, transientRanges);
                 sortedSSTables.sort(SSTableReader.sizeComparator);
                 return sortedSSTables;
             }
@@ -744,7 +744,7 @@ public class CompactionManager implements CompactionManagerMBean
             return AllSSTableOpStatus.ABORTED;
         }
 
-        if (StorageService.instance.getLocalReplicas(cfs.keyspace.getName()).isEmpty())
+        if (StorageService.instance.getLocalReplicas(cfs.getKeyspaceName()).isEmpty())
         {
             logger.info("Relocate cannot run before a node has joined the ring");
             return AllSSTableOpStatus.ABORTED;
@@ -903,7 +903,7 @@ public class CompactionManager implements CompactionManagerMBean
             Preconditions.checkArgument(!replicas.isEmpty(), "No ranges to anti-compact");
 
             if (logger.isInfoEnabled())
-                logger.info("{} Starting anticompaction for {}.{} on {}/{} sstables", PreviewKind.NONE.logPrefix(sessionID), cfs.keyspace.getName(), cfs.getTableName(), validatedForRepair.size(), cfs.getLiveSSTables().size());
+                logger.info("{} Starting anticompaction for {}.{} on {}/{} sstables", PreviewKind.NONE.logPrefix(sessionID), cfs.getKeyspaceName(), cfs.getTableName(), validatedForRepair.size(), cfs.getLiveSSTables().size());
             if (logger.isTraceEnabled())
                 logger.trace("{} Starting anticompaction for ranges {}", PreviewKind.NONE.logPrefix(sessionID), replicas);
 
@@ -1661,7 +1661,7 @@ public class CompactionManager implements CompactionManagerMBean
                          .setPendingRepair(pendingRepair)
                          .setTransientSSTable(isTransient)
                          .setTableMetadataRef(cfs.metadata)
-                         .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator, minLevel))
+                         .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator).sstableLevel(minLevel))
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), sstables))
                          .addDefaultComponents()
                          .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
@@ -1736,7 +1736,7 @@ public class CompactionManager implements CompactionManagerMBean
             return 0;
         }
 
-        logger.info("Anticompacting {} in {}.{} for {}", txn.originals(), cfs.keyspace.getName(), cfs.getTableName(), pendingRepair);
+        logger.info("Anticompacting {} in {}.{} for {}", txn.originals(), cfs.getKeyspaceName(), cfs.getTableName(), pendingRepair);
         Set<SSTableReader> sstableAsSet = txn.originals();
 
         File destination = cfs.getDirectories().getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstableAsSet, OperationType.ANTICOMPACTION));
@@ -1846,7 +1846,7 @@ public class CompactionManager implements CompactionManagerMBean
             txn.commit();
             logger.info("Anticompacted {} in {}.{} to full = {}, transient = {}, unrepaired = {} for {}",
                         sstableAsSet,
-                        cfs.keyspace.getName(),
+                        cfs.getKeyspaceName(),
                         cfs.getTableName(),
                         fullSSTables,
                         transSSTables,

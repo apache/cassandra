@@ -133,7 +133,7 @@ public class CassandraStreamHeaderTest
 
     private CassandraStreamHeader header(boolean entireSSTable, boolean compressed)
     {
-        List<Range<Token>> requestedRanges = Collections.singletonList(new Range<>(store.getPartitioner().getMinimumToken(), sstable.last.getToken()));
+        List<Range<Token>> requestedRanges = Collections.singletonList(new Range<>(store.getPartitioner().getMinimumToken(), sstable.getLast().getToken()));
         requestedRanges = Range.normalize(requestedRanges);
 
         List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
@@ -143,7 +143,7 @@ public class CassandraStreamHeaderTest
         TableMetadata metadata = store.metadata();
         SerializationHeader.Component serializationHeader = SerializationHeader.makeWithoutStats(metadata).toComponent();
         ComponentManifest componentManifest = entireSSTable ? ComponentManifest.create(sstable.descriptor) : null;
-        DecoratedKey firstKey = entireSSTable ? sstable.first : null;
+        DecoratedKey firstKey = entireSSTable ? sstable.getFirst() : null;
 
         return CassandraStreamHeader.builder()
                                     .withSSTableVersion(sstable.descriptor.version)

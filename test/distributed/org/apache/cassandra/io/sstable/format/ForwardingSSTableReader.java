@@ -694,6 +694,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public double tokenSpaceCoverage()
+    {
+        return delegate.tokenSpaceCoverage();
+    }
+
+    @Override
     public IVerifier getVerifier(ColumnFamilyStore cfs, OutputHandler outputHandler, boolean isOffline, IVerifier.Options options)
     {
         return delegate.getVerifier(cfs, outputHandler, isOffline, options);

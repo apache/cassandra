@@ -427,7 +427,7 @@ public class SSTablePartitions
 
     private static String prettyPrintMemory(long bytes)
     {
-        return FBUtilities.prettyPrintMemory(bytes, true);
+        return FBUtilities.prettyPrintMemory(bytes, " ");
     }
 
     private static ISSTableScanner buildScanner(SSTableReader sstable,

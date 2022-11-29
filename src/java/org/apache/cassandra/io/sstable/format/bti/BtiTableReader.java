@@ -140,13 +140,13 @@ public class BtiTableReader extends SSTableReaderWithFilter
 
         if (operator == GT || operator == GE)
         {
-            if (filterLast() && last.compareTo(key) < 0)
+            if (filterLast() && getLast().compareTo(key) < 0)
             {
                 notifySkipped(SkippingReason.MIN_MAX_KEYS, listener, operator, updateStats);
                 return null;
             }
-            boolean filteredLeft = (filterFirst() && first.compareTo(key) > 0);
-            searchKey = filteredLeft ? first : key;
+            boolean filteredLeft = (filterFirst() && getFirst().compareTo(key) > 0);
+            searchKey = filteredLeft ? getFirst() : key;
             searchOp = filteredLeft ? GE : operator;
 
             try (PartitionIndex.Reader reader = partitionIndex.openReader())
@@ -226,7 +226,7 @@ public class BtiTableReader extends SSTableReaderWithFilter
                                     SSTableReadsListener listener,
                                     boolean updateStats)
     {
-        if ((filterFirst() && first.compareTo(dk) > 0) || (filterLast() && last.compareTo(dk) < 0))
+        if ((filterFirst() && getFirst().compareTo(dk) > 0) || (filterLast() && getLast().compareTo(dk) < 0))
         {
             notifySkipped(SkippingReason.MIN_MAX_KEYS, listener, EQ, updateStats);
             return null;
@@ -329,24 +329,24 @@ public class BtiTableReader extends SSTableReaderWithFilter
         for (Range<Token> range : Range.normalize(ranges))
         {
             PartitionPosition left = range.left.minKeyBound();
-            if (left.compareTo(first) <= 0)
+            if (left.compareTo(getFirst()) <= 0)
                 left = null;
-            else if (left.compareTo(last) > 0)
+            else if (left.compareTo(getLast()) > 0)
                 continue;   // no intersection
 
             PartitionPosition right = range.right.minKeyBound();
-            if (range.right.isMinimum() || right.compareTo(last) >= 0)
+            if (range.right.isMinimum() || right.compareTo(getLast()) >= 0)
                 right = null;
-            else if (right.compareTo(first) < 0)
+            else if (right.compareTo(getFirst()) < 0)
                 continue;   // no intersection
 
             if (left == null && right == null)
                 return partitionIndex.size();   // sstable is fully covered, return full partition count to avoid rounding errors
 
             if (left == null && filterFirst())
-                left = first;
+                left = getFirst();
             if (right == null && filterLast())
-                right = last;
+                right = getLast();
 
             long startPos = left != null ? getPosition(left, GE) : 0;
             long endPos = right != null ? getPosition(right, GE) : uncompressedLength();
@@ -421,7 +421,7 @@ public class BtiTableReader extends SSTableReaderWithFilter
     {
         return runWithLock(d -> {
             assert openReason != OpenReason.EARLY : "Cannot open early an early-open SSTable";
-            if (newStart.compareTo(first) > 0)
+            if (newStart.compareTo(getFirst()) > 0)
             {
                 final long dataStart = getPosition(newStart, Operator.EQ);
                 runOnClose(() -> dfile.dropPageCache(dataStart));

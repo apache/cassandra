@@ -20,23 +20,17 @@ package org.apache.cassandra.db.compaction.writers;
 import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 
 public class MaxSSTableSizeWriter extends CompactionAwareWriter
 {
     private final long maxSSTableSize;
     private final int level;
     private final long estimatedSSTables;
-    private final Set<SSTableReader> allSSTables;
 
     public MaxSSTableSizeWriter(ColumnFamilyStore cfs,
                                 Directories directories,
@@ -57,7 +51,6 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
                                 boolean keepOriginals)
     {
         super(cfs, directories, txn, nonExpiredSSTables, keepOriginals);
-        this.allSSTables = txn.originals();
         this.level = level;
         this.maxSSTableSize = maxSSTableSize;
 
@@ -79,31 +72,20 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
         return Math.round(estimatedCompactionRatio * cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType));
     }
 
-    protected boolean realAppend(UnfilteredRowIterator partition)
+    @Override
+    protected boolean shouldSwitchWriterInCurrentLocation(DecoratedKey key)
     {
-        AbstractRowIndexEntry rie = sstableWriter.append(partition);
-        if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > maxSSTableSize)
-        {
-            switchCompactionLocation(sstableDirectory);
-        }
-        return rie != null;
+        return sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > maxSSTableSize;
     }
 
-    @Override
-    public void switchCompactionLocation(Directories.DataDirectory location)
+    protected int sstableLevel()
     {
-        sstableDirectory = location;
+        return level;
+    }
 
-        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory));
-        MetadataCollector collector = new MetadataCollector(allSSTables, cfs.metadata().comparator, level);
-        SerializationHeader header = SerializationHeader.make(cfs.metadata(), nonExpiredSSTables);
-
-        @SuppressWarnings("resource")
-        SSTableWriter writer = newWriterBuilder(descriptor).setKeyCount(estimatedTotalKeys / estimatedSSTables)
-                                                              .setMetadataCollector(collector)
-                                                              .setSerializationHeader(header)
-                                                              .build(txn, cfs);
-        sstableWriter.switchWriter(writer);
+    protected long sstableKeyCount()
+    {
+        return estimatedTotalKeys / estimatedSSTables;
     }
 
     @Override

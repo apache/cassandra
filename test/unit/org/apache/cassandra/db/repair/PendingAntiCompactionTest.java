@@ -176,7 +176,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         Collection<Range<Token>> ranges = new HashSet<>();
         for (SSTableReader sstable : expected)
         {
-            ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
+            ranges.add(new Range<>(sstable.getFirst().getToken(), sstable.getLast().getToken()));
         }
 
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, ranges, nextTimeUUID(), 0, 0);
@@ -400,8 +400,8 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
 
         // attempt to anti-compact the sstable in half
         SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());
-        Token left = cfs.getPartitioner().midpoint(sstable.first.getToken(), sstable.last.getToken());
-        Token right = sstable.last.getToken();
+        Token left = cfs.getPartitioner().midpoint(sstable.getFirst().getToken(), sstable.getLast().getToken());
+        Token right = sstable.getLast().getToken();
         CompactionManager.instance.performAnticompaction(result.cfs,
                                                          atEndpoint(Collections.singleton(new Range<>(left, right)), NO_RANGES),
                                                          result.refs, result.txn, sessionID, () -> true);

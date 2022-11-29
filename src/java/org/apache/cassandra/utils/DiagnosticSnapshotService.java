@@ -210,8 +210,8 @@ public class DiagnosticSnapshotService
                 {
                     cfs.snapshot(command.snapshot_name,
                                  (sstable) -> checkIntersection(ranges,
-                                                                sstable.first.getToken(),
-                                                                sstable.last.getToken()),
+                                                                sstable.getFirst().getToken(),
+                                                                sstable.getLast().getToken()),
                                  false, false);
                 }
             }

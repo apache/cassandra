@@ -78,7 +78,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                 }
                 writer.setMaxDataAge(1000);
                 writer.openEarly(s2 -> {
-                    assertTrue(s.last.compareTo(s2.last) < 0);
+                    assertTrue(s.getLast().compareTo(s2.getLast()) < 0);
                     assertFileCounts(dir.tryListNames());
                     s.selfRef().release();
                     s2.selfRef().release();

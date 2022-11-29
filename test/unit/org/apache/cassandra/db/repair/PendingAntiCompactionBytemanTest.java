@@ -63,7 +63,7 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
+            ranges.add(new Range<>(sstable.getFirst().getToken(), sstable.getLast().getToken()));
         }
         TimeUUID prsid = prepareSession();
         try

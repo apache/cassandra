@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -59,6 +60,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private final List<SSTableReader> preparedForCommit = new ArrayList<>();
 
     private long currentlyOpenedEarlyAt; // the position (in MiB) in the target file we last (re)opened at
+    private long bytesWritten; // the bytes written by previous writers, or zero if the current writer is the first writer
 
     private final List<SSTableWriter> writers = new ArrayList<>();
     private final boolean keepOriginals; // true if we do not want to obsolete the originals
@@ -112,6 +114,19 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         return writer;
     }
 
+    public long bytesWritten()
+    {
+        return bytesWritten + (writer == null ? 0 : writer.getFilePointer());
+    }
+
+    public void forEachWriter(Consumer<SSTableWriter> op)
+    {
+        for (SSTableWriter writer : writers)
+            op.accept(writer);
+        if (writer != null)
+            op.accept(writer);
+    }
+
     public AbstractRowIndexEntry append(UnfilteredRowIterator partition)
     {
         // we do this before appending to ensure we can resetAndTruncate() safely if appending fails
@@ -152,7 +167,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
                 writer.openEarly(reader -> {
                     transaction.update(reader, false);
                     currentlyOpenedEarlyAt = writer.getFilePointer();
-                    moveStarts(reader.last);
+                    moveStarts(reader.getLast());
                     transaction.checkpoint();
                 });
             }
@@ -202,10 +217,10 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             final SSTableReader latest = transaction.current(sstable);
 
             // skip any sstables that we know to already be shadowed
-            if (latest.first.compareTo(lowerbound) > 0)
+            if (latest.getFirst().compareTo(lowerbound) > 0)
                 continue;
 
-            if (lowerbound.compareTo(latest.last) >= 0)
+            if (lowerbound.compareTo(latest.getLast()) >= 0)
             {
                 if (!transaction.isObsolete(latest))
                     transaction.obsolete(latest);
@@ -255,11 +270,12 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             writer.setMaxDataAge(maxAge);
             SSTableReader reader = writer.openFinalEarly();
             transaction.update(reader, false);
-            moveStarts(reader.last);
+            moveStarts(reader.getLast());
             transaction.checkpoint();
         }
 
         currentlyOpenedEarlyAt = 0;
+        bytesWritten += writer.getFilePointer();
         writer = newWriter;
     }
 

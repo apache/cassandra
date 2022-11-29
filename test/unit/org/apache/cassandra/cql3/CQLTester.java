@@ -764,6 +764,13 @@ public abstract class CQLTester
             store.forceMajorCompaction();
     }
 
+    public void forceCompactAll()
+    {
+        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        if (store != null)
+            FBUtilities.waitOnFuture(Util.compactAll(store, FBUtilities.nowInSeconds()));
+    }
+
     public void disableCompaction()
     {
         disableCompaction(KEYSPACE);

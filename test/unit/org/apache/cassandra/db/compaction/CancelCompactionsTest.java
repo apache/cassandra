@@ -361,7 +361,7 @@ public class CancelCompactionsTest extends CQLTester
 
     long first(SSTableReader sstable)
     {
-        return (long)sstable.first.getToken().getTokenValue();
+        return (long) sstable.getFirst().getToken().getTokenValue();
     }
 
     Token token(long t)
@@ -468,7 +468,8 @@ public class CancelCompactionsTest extends CQLTester
 
         for (int i = 0; i < 10; i++)
         {
-            execute("insert into %s (id, something) values (?,?)", i, i);
+            for (int j = 0; j < 3; ++j) // write more than once to ensure overlap for UCS
+                execute("insert into %s (id, something) values (?,?)", i * (j+1), i + j);
             flush();
         }
         AbstractCompactionTask ct = null;
