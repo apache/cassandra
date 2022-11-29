@@ -82,8 +82,8 @@
       <sourcePath path="${test.dir}/unit" />
       <class location="${test.classes}" />
     </spotbugs>
-    <fail if:set="spotbugs.error" message="SpotBugs failed to run" />
-    <fail if:set="spotbugs.warning" message="SpotBugs detected warnings; look into ${build.dir}/spotbugs.html for more details" />
+    <fail if="${spotbugs.error}" message="SpotBugs failed to run" />
+    <fail if="${spotbugs.warning}" message="SpotBugs detected warnings; look into ${build.dir}/spotbugs.html for more details" />
   </target>
 
 
