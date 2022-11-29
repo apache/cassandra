@@ -54,8 +54,8 @@
   </resources>
   <pathconvert preserveduplicates="true" property="spotbugs-adjustments-concat" refid="spotbugs-adjustments" pathsep="," />
   <target name="spotbugs" depends="_init-spotbugs,jar" description="Run SpotBugs code analysis" unless="no-spotbugs">
-    <!-- TODO do we add if="java.version.8"?  Validate JDK11 -->
     <!-- quietErrors=true is so errors are only in the output, dont need in stdout as well -->
+    <!-- see https://spotbugs.readthedocs.io/en/stable/ant.html -->
     <spotbugs classpathref="spotbugs.lib.path"
               debug="false"
               quietErrors="true"
