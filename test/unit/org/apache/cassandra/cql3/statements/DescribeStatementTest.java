@@ -758,7 +758,7 @@ public class DescribeStatementTest extends CQLTester
     }
 
     @Test
-    public void testUsingReservedInCreateType() throws Throwable
+    public void testDescCreateTypeShouldNotOmitQuotations() throws Throwable
     {
         String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (\"token\" text, \"desc\" text);");
         assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE TYPE " + type),
@@ -769,7 +769,7 @@ public class DescribeStatementTest extends CQLTester
     }
 
     @Test
-    public void testUsingReservedInMaterializedView() throws Throwable
+    public void testDescMaterializedViewShouldNotOmitQuotations() throws Throwable
     {
         try{
             execute("CREATE KEYSPACE testWithKeywords WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
@@ -787,14 +787,15 @@ public class DescribeStatementTest extends CQLTester
                                           "    AND " + mvParametersCql();
 
             testDescribeMaterializedView("testWithKeywords", "users_by_state", row("testwithkeywords", "materialized_view", "users_by_state", expectedOutput));
-        } finally
+        }
+        finally
         {
             execute("DROP KEYSPACE IF EXISTS testWithKeywords");
         }
     }
 
     @Test
-    public void testUsingReservedDescribeFunctionAndAggregate() throws Throwable
+    public void testDescFunctionAndAggregateShouldNotOmitQuotations() throws Throwable
     {
 
         final String functionName = KEYSPACE_PER_TEST + ".\"token\"";
@@ -824,21 +825,21 @@ public class DescribeStatementTest extends CQLTester
         final String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"token\"";
         final String aggregationName = KEYSPACE_PER_TEST + ".\"token\"";
         createFunctionOverload(aggregationName,
-                                          "int, int",
-                                          "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
-                                          "CALLED ON NULL INPUT " +
-                                          "RETURNS int " +
-                                          "LANGUAGE java " +
-                                          "AS 'return token + add_to;'");
+                               "int, int",
+                              "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
+                              "CALLED ON NULL INPUT " +
+                              "RETURNS int " +
+                              "LANGUAGE java " +
+                              "AS 'return token + add_to;'");
 
 
         String aggregate = createAggregate(KEYSPACE_PER_TEST,
-                                                   "int",
-                                                   format("CREATE AGGREGATE %%s(int) " +
-                                                          "SFUNC %s " +
-                                                          "STYPE int " +
-                                                          "INITCOND 42",
-                                                          shortFunctionName(aggregationFunctionName)));
+                                           "int",
+                                           format("CREATE AGGREGATE %%s(int) " +
+                                                  "SFUNC %s " +
+                                                  "STYPE int " +
+                                                  "INITCOND 42",
+                                                  shortFunctionName(aggregationFunctionName)));
 
 
         for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
