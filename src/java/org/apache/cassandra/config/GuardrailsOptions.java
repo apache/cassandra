@@ -731,33 +731,33 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public boolean getZeroTTLOnTWCSFail()
+    public boolean getZeroTTLOnTWCSWarned()
     {
-        return config.zero_ttl_on_twcs_fail;
+        return config.zero_ttl_on_twcs_warned;
     }
 
     @Override
-    public void setZeroTTLOnTWCSFail(boolean value)
+    public void setZeroTTLOnTWCSWarned(boolean value)
     {
-        updatePropertyWithLogging("zero_ttl_on_twcs_fail",
+        updatePropertyWithLogging("zero_ttl_on_twcs_warned",
                                   value,
-                                  () -> config.zero_ttl_on_twcs_fail,
-                                  x -> config.zero_ttl_on_twcs_fail = x);
+                                  () -> config.zero_ttl_on_twcs_warned,
+                                  x -> config.zero_ttl_on_twcs_warned = x);
     }
 
     @Override
-    public boolean getZeroTTLOnTWCSWarn()
+    public boolean getZeroTTLOnTWCSEnabled()
     {
-        return config.zero_ttl_on_twcs_warn;
+        return config.zero_ttl_on_twcs_enabled;
     }
 
     @Override
-    public void setZeroTTLOnTWCSWarn(boolean value)
+    public void setZeroTTLOnTWCSEnabled(boolean value)
     {
-        updatePropertyWithLogging("zero_ttl_on_twcs_warn",
+        updatePropertyWithLogging("zero_ttl_on_twcs_enabled",
                                   value,
-                                  () -> config.zero_ttl_on_twcs_warn,
-                                  x -> config.zero_ttl_on_twcs_warn = x);
+                                  () -> config.zero_ttl_on_twcs_enabled,
+                                  x -> config.zero_ttl_on_twcs_enabled = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)

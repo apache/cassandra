@@ -39,7 +39,6 @@ import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.schema.TableParams.Option;
 
 /**
  * Entry point for Guardrails, storing the defined guardrails and providing a few global methods over them.
@@ -202,9 +201,8 @@ public final class Guardrails implements GuardrailsMBean
                    "Creation of new COMPACT STORAGE tables");
 
     /**
-     * Guardrail disabling the creation of a new table when {@link Option#DEFAULT_TIME_TO_LIVE} is set to 0
-     * and compaction strategy is {@link TimeWindowCompactionStrategy} or its subclass. If this guardrail does not fail
-     * and such configuration combination is found, it will always warn.
+     * Guardrail to warn or fail a CREATE or ALTER TABLE statement when default_time_to_live is set to 0 and
+     * the table is using TimeWindowCompactionStrategy compaction or a subclass of it.
      */
     public static final EnableFlag zeroTTLOnTWCSEnabled =
     new EnableFlag("zero_ttl_on_twcs",
@@ -212,8 +210,8 @@ public final class Guardrails implements GuardrailsMBean
                    "Please keep in mind that data will not start to automatically expire after they are older " +
                    "than a respective compaction window unit of a certain size. Please set TTL for your INSERT or UPDATE " +
                    "statements if you expect data to be expired as table settings will not do it. ",
-                   state -> CONFIG_PROVIDER.getOrCreate(state).getZeroTTLOnTWCSWarn(),
-                   state -> !CONFIG_PROVIDER.getOrCreate(state).getZeroTTLOnTWCSFail(),
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getZeroTTLOnTWCSWarned(),
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getZeroTTLOnTWCSEnabled(),
                    "0 default_time_to_live on a table with " + TimeWindowCompactionStrategy.class.getSimpleName() + " compaction strategy");
 
     /**
@@ -1031,27 +1029,27 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public boolean getZeroTTLOnTWCSFail()
+    public boolean getZeroTTLOnTWCSEnabled()
     {
-        return DEFAULT_CONFIG.getZeroTTLOnTWCSFail();
+        return DEFAULT_CONFIG.getZeroTTLOnTWCSEnabled();
     }
 
     @Override
-    public void setZeroTTLOnTWCSFail(boolean value)
+    public void setZeroTTLOnTWCSEnabled(boolean value)
     {
-        DEFAULT_CONFIG.setZeroTTLOnTWCSFail(value);
+        DEFAULT_CONFIG.setZeroTTLOnTWCSEnabled(value);
     }
 
     @Override
-    public boolean getZeroTTLOnTWCSWarn()
+    public boolean getZeroTTLOnTWCSWarned()
     {
-        return DEFAULT_CONFIG.getZeroTTLOnTWCSWarn();
+        return DEFAULT_CONFIG.getZeroTTLOnTWCSWarned();
     }
 
     @Override
-    public void setZeroTTLOnTWCSWarn(boolean value)
+    public void setZeroTTLOnTWCSWarned(boolean value)
     {
-        DEFAULT_CONFIG.setZeroTTLOnTWCSWarn(value);
+        DEFAULT_CONFIG.setZeroTTLOnTWCSWarned(value);
     }
 
     private static String toCSV(Set<String> values)

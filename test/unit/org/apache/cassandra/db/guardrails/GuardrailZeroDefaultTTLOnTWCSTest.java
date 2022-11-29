@@ -41,27 +41,27 @@ public class GuardrailZeroDefaultTTLOnTWCSTest extends GuardrailTester
     }
 
     @Test
-    public void testGuardrailEnabled() throws Throwable
+    public void testGuardrailDisabled() throws Throwable
     {
-        prepareTest(true, true);
+        prepareTest(false, true);
         assertFails(QUERY, "0 default_time_to_live on a table with " +
                            TimeWindowCompactionStrategy.class.getSimpleName() +
                            " compaction strategy is not allowed");
     }
 
     @Test
-    public void testGuardrailDisabledWarnEnabled() throws Throwable
+    public void testGuardrailEnabledWarnEnabled() throws Throwable
     {
-        prepareTest(false, true);
+        prepareTest(true, true);
         assertWarns(QUERY, "0 default_time_to_live on a table with " +
                            TimeWindowCompactionStrategy.class.getSimpleName() +
                            " compaction strategy is not recommended");
     }
 
     @Test
-    public void testGuardrailDisabledWarnDisabled() throws Throwable
+    public void testGuardrailEnabledWarnDisabled() throws Throwable
     {
-        prepareTest(false, false);
+        prepareTest(true, false);
         assertValid(QUERY);
     }
 
@@ -71,22 +71,30 @@ public class GuardrailZeroDefaultTTLOnTWCSTest extends GuardrailTester
         prepareTest(true, true);
         assertValid(VALID_QUERY_1);
         assertValid(VALID_QUERY_2);
+
+        prepareTest(false, true);
+        assertValid(VALID_QUERY_1);
+        assertValid(VALID_QUERY_2);
     }
 
     @Test
     public void testExcludedUsers() throws Throwable
     {
-        for (boolean disallowed : new boolean[] { false, true })
-            for (boolean warn : new boolean[] { false, true })
-                prepareTest(disallowed, warn);
+        for (boolean enabled : new boolean[] { false, true })
+        {
+            for (boolean warned : new boolean[]{ false, true })
+            {
+                prepareTest(enabled, warned);
                 testExcludedUsers(() -> QUERY,
                                   () -> VALID_QUERY_1,
                                   () -> VALID_QUERY_2);
+            }
+        }
     }
 
-    private void prepareTest(boolean disallowed, boolean warn)
+    private void prepareTest(boolean enabled, boolean warned)
     {
-        guardrails().setZeroTTLOnTWCSFail(disallowed);
-        guardrails().setZeroTTLOnTWCSWarn(warn);
+        guardrails().setZeroTTLOnTWCSEnabled(enabled);
+        guardrails().setZeroTTLOnTWCSWarned(warned);
     }
 }
