@@ -29,6 +29,7 @@ import com.google.common.primitives.Ints;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
@@ -516,6 +517,12 @@ public enum CassandraRelevantProperties
     TRIGGERS_DIR("cassandra.triggers_dir"),
     TRUNCATE_BALLOT_METADATA("cassandra.truncate_ballot_metadata"),
     TYPE_UDT_CONFLICT_BEHAVIOR("cassandra.type.udt.conflict_behavior"),
+    // See org.apache.cassandra.db.compaction.unified.Controller for the definition of the UCS parameters
+    UCS_BASE_SHARD_COUNT("unified_compaction.base_shard_count", "4"),
+    UCS_OVERLAP_INCLUSION_METHOD("unified_compaction.overlap_inclusion_method"),
+    UCS_SCALING_PARAMETER("unified_compaction.scaling_parameters", "T4"),
+    UCS_SURVIVAL_FACTOR("unified_compaction.survival_factor", "1"),
+    UCS_TARGET_SSTABLE_SIZE("unified_compaction.target_sstable_size", "1GiB"),
     UDF_EXECUTOR_THREAD_KEEPALIVE_MS("cassandra.udf_executor_thread_keepalive_ms", "30000"),
     UNSAFE_SYSTEM("cassandra.unsafesystem"),
     /** User's home directory. */
@@ -726,6 +733,56 @@ public enum CassandraRelevantProperties
     }
 
     /**
+     * Gets the value of a system property as a double.
+     * @return System property value if it exists, defaultValue otherwise. Throws an exception if no default value is set.
+     */
+    public double getDouble()
+    {
+        String value = System.getProperty(key);
+        if (value == null && defaultVal == null)
+            throw new ConfigurationException("Missing property value or default value is not set: " + key);
+        return DOUBLE_CONVERTER.convert(value == null ? defaultVal : value);
+    }
+
+    /**
+     * Gets the value of a system property as a double.
+     * @return system property value if it exists, defaultValue otherwise.
+     */
+    public double getDouble(double overrideDefaultValue)
+    {
+        String value = System.getProperty(key);
+        if (value == null)
+            return overrideDefaultValue;
+
+        return DOUBLE_CONVERTER.convert(value);
+    }
+
+    /**
+     * Gets the value of a system property, given as a human-readable size in bytes (e.g. 100MiB, 10GB, 500B).
+     * @return System property value if it exists, defaultValue otherwise. Throws an exception if no default value is set.
+     */
+    public long getSizeInBytes()
+    {
+        String value = System.getProperty(key);
+        if (value == null && defaultVal == null)
+            throw new ConfigurationException("Missing property value or default value is not set: " + key);
+        return SIZE_IN_BYTES_CONVERTER.convert(value == null ? defaultVal : value);
+    }
+
+    /**
+     * Gets the value of a system property, given as a human-readable size in bytes (e.g. 100MiB, 10GB, 500B).
+     * @return System property value if it exists, defaultValue otherwise.
+     */
+    public long getSizeInBytes(long overrideDefaultValue)
+    {
+        String value = System.getProperty(key);
+        if (value == null)
+            return overrideDefaultValue;
+
+        return SIZE_IN_BYTES_CONVERTER.convert(value);
+    }
+
+    /**
      * Gets the value of a system property as an int.
      * @return system property int value if it exists, overrideDefaultValue otherwise.
      */
@@ -844,6 +901,32 @@ public enum CassandraRelevantProperties
         {
             throw new ConfigurationException(String.format("Invalid value for system property: " +
                                                            "expected long value but got '%s'", value));
+        }
+    };
+
+    private static final PropertyConverter<Long> SIZE_IN_BYTES_CONVERTER = value ->
+    {
+        try
+        {
+            return FBUtilities.parseHumanReadableBytes(value);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for system property: " +
+                                                           "expected size in bytes with unit but got '%s'\n%s", value, e));
+        }
+    };
+
+    private static final PropertyConverter<Double> DOUBLE_CONVERTER = value ->
+    {
+        try
+        {
+            return Double.parseDouble(value);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for system property: " +
+                                                           "expected floating point value but got '%s'", value));
         }
     };
 

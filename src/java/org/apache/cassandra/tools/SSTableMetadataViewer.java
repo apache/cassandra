@@ -392,6 +392,7 @@ public class SSTableMetadataViewer
                                                         String::valueOf,
                                                         String::valueOf);
             cellCount.printHistogram(out, color, unicode);
+            field("Local token space coverage", stats.tokenSpaceCoverage);
         }
         if (compaction != null)
         {

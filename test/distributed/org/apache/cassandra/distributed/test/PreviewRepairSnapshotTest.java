@@ -137,7 +137,7 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
 
             for (SSTableReader sstable : cfs.getLiveSSTables())
             {
-                Bounds<Token> sstableBounds = new Bounds<>(sstable.first.getToken(), sstable.last.getToken());
+                Bounds<Token> sstableBounds = new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken());
                 boolean shouldBeInSnapshot = false;
                 for (Token mismatchingToken : mismatchingTokens)
                 {

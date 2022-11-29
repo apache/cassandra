@@ -426,8 +426,8 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
 
-        DecoratedKey origFirst = s.first;
-        DecoratedKey origLast = s.last;
+        DecoratedKey origFirst = s.getFirst();
+        DecoratedKey origLast = s.getLast();
         long startSize = cfs.metric.liveDiskSpaceUsed.getCount();
         Set<SSTableReader> compacting = Sets.newHashSet(s);
         try (ISSTableScanner scanner = s.getScanner();
@@ -444,8 +444,8 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         assertEquals(startSize, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(1, cfs.getLiveSSTables().size());
         assertFileCounts(s.descriptor.directory.tryListNames());
-        assertEquals(cfs.getLiveSSTables().iterator().next().first, origFirst);
-        assertEquals(cfs.getLiveSSTables().iterator().next().last, origLast);
+        assertEquals(cfs.getLiveSSTables().iterator().next().getFirst(), origFirst);
+        assertEquals(cfs.getLiveSSTables().iterator().next().getLast(), origLast);
         validateCFS(cfs);
     }
 

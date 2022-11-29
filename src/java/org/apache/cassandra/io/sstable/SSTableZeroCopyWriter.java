@@ -116,15 +116,9 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     }
 
     @Override
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Collection<SSTableReader> finish(long repairedAt, long maxDataAge, boolean openResult)
-    {
-        return finish(openResult);
     }
 
     @Override
@@ -154,7 +148,13 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     }
 
     @Override
-    public long getFilePointer()
+    public long getBytesWritten()
+    {
+        return 0;
+    }
+
+    @Override
+    public long getOnDiskBytesWritten()
     {
         return 0;
     }
