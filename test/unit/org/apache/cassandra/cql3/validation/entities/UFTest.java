@@ -1013,7 +1013,7 @@ public class UFTest extends CQLTester
     }
 
     @Test
-    public void testRejctInvalidFunctionNamesOnCreation()
+    public void testRejectInvalidFunctionNamesOnCreation()
     {
         for (String funcName : Arrays.asList("my/fancy/func", "my_other[fancy]func"))
         {
