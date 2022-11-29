@@ -297,7 +297,7 @@ public class InterceptAgent
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", "SEED", "J");
                     visitor.visitMethodInsn(INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "randomSeed", "()J", false);
 
-                    String unsafeClass = descriptorToClassName(unsafeDescriptor);
+                    String unsafeClass = Utils.descriptorToClassName(unsafeDescriptor);
                     visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeClass, "putLong", "(Ljava/lang/Object;JJ)V", false);
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", unsafeFieldName, unsafeDescriptor);
                     visitor.visitMethodInsn(INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false);
@@ -321,14 +321,6 @@ public class InterceptAgent
             }
         }
         return transform(bytes, ThreadLocalRandomVisitor::new);
-    }
-
-    private static String descriptorToClassName(String desc)
-    {
-        // samples: "Ljdk/internal/misc/Unsafe;", "Lsun/misc/Unsafe;"
-        if (!(desc.startsWith("L") && desc.endsWith(";")))
-            throw new IllegalArgumentException("Unable to parse descriptor: " + desc);
-        return desc.substring(1, desc.length() - 1);
     }
 
     private static byte[] transform(byte[] bytes, BiFunction<Integer, ClassWriter, ClassVisitor> constructor)
