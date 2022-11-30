@@ -79,8 +79,16 @@ public class Status extends NodeToolCmd
         }
         catch (IllegalStateException e)
         {
-            ownerships = probe.getOwnershipWithPort();
-            errors.append("Note: ").append(e.getMessage()).append("%n");
+            try
+            {
+                ownerships = probe.getOwnershipWithPort();
+                errors.append("Note: ").append(e.getMessage()).append("%n");
+            }
+            catch (Exception ex)
+            {
+                out.printf("%nError: %s%n", ex.getMessage());
+                System.exit(1);
+            }
         }
         catch (IllegalArgumentException ex)
         {

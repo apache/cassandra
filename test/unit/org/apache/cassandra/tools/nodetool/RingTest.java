@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.util.Arrays;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -155,7 +156,7 @@ public class RingTest extends CQLTester
     {
         // Bad KS
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("ring", "mockks");
-        tool.assertOnCleanExit();
+        Assert.assertEquals(1, tool.getExitCode());
         assertThat(tool.getStdout()).contains("The keyspace mockks, does not exist");
 
         // Good KS

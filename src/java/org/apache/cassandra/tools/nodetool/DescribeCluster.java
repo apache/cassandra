@@ -32,8 +32,6 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-import static java.lang.String.format;
-
 @Command(name = "describecluster", description = "Print the name, snitch, partitioner and schema version of a cluster")
 public class DescribeCluster extends NodeToolCmd
 {
@@ -62,9 +60,9 @@ public class DescribeCluster extends NodeToolCmd
         // display schema version for each node
         out.println("\tSchema versions:");
         Map<String, List<String>> schemaVersions = printPort ? probe.getSpProxy().getSchemaVersionsWithPort() : probe.getSpProxy().getSchemaVersions();
-        for (String version : schemaVersions.keySet())
+        for (Map.Entry<String, List<String>> entry : schemaVersions.entrySet())
         {
-            out.println(format("\t\t%s: %s%n", version, schemaVersions.get(version)));
+            out.printf("\t\t%s: %s%n%n", entry.getKey(), entry.getValue());
         }
 
         // Collect status information of all nodes
@@ -86,6 +84,7 @@ public class DescribeCluster extends NodeToolCmd
         out.println("\tUnreachable: " + unreachableNodes.size());
 
         Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(withPort);
+        StringBuilder errors = new StringBuilder();
         Map<String, Float> ownerships = null;
         try
         {
@@ -93,12 +92,20 @@ public class DescribeCluster extends NodeToolCmd
         }
         catch (IllegalStateException ex)
         {
-            ownerships = probe.getOwnershipWithPort();
-            out.println("Error: " + ex.getMessage());
+            try
+            {
+                ownerships = probe.getOwnershipWithPort();
+                errors.append("Note: ").append(ex.getMessage()).append("%n");
+            }
+            catch (Exception e)
+            {
+                out.printf("%nError: %s%n", e.getMessage());
+                System.exit(1);
+            }
         }
         catch (IllegalArgumentException ex)
         {
-            out.println("%nError: " + ex.getMessage());
+            out.printf("%nError: %s%n", ex.getMessage());
             System.exit(1);
         }
 
@@ -107,7 +114,7 @@ public class DescribeCluster extends NodeToolCmd
         out.println("\nData Centers: ");
         for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
         {
-            out.print("\t" + dc.getKey());
+            out.print('\t' + dc.getKey());
 
             ArrayListMultimap<InetAddressAndPort, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
             for (HostStatWithPort stat : dc.getValue())
@@ -129,9 +136,9 @@ public class DescribeCluster extends NodeToolCmd
         // display database version for each node
         out.println("\nDatabase versions:");
         Map<String, List<String>> databaseVersions = probe.getGossProxy().getReleaseVersionsWithPort();
-        for (String version : databaseVersions.keySet())
+        for (Map.Entry<String, List<String>> entry : databaseVersions.entrySet())
         {
-            out.println(format("\t%s: %s%n", version, databaseVersions.get(version)));
+            out.printf("\t%s: %s%n%n", entry.getKey(), entry.getValue());
         }
 
         out.println("Keyspaces:");
@@ -142,7 +149,10 @@ public class DescribeCluster extends NodeToolCmd
             {
                 out.println("something went wrong for keyspace: " + keyspaceName);
             }
-            out.println("\t" + keyspaceName + " -> Replication class: " + replicationInfo);
+            out.printf("\t%s -> Replication class: %s%n", keyspaceName, replicationInfo);
         }
+
+        if (errors.length() != 0)
+            out.printf("%n" + errors);
     }
 }
