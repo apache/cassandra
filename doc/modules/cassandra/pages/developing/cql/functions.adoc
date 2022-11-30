@@ -263,15 +263,15 @@ A number of functions are provided to operate on collection columns.
 
 | `map_values` | `map` | Gets the values of the `map` argument, returned as a `list`.
 
-| `collection_count` | `map`, `set` or `list` | Gets the number of elements in the collection argument.
+| `collection_count` | Any value | Gets the number of elements in a `map`, `set` or `list` argument. For other type of argument it returns `1`.
 
-| `collection_min` | `set` or `list` | Gets the minimum element in the collection argument.
+| `collection_min` | Any value | Gets the minimum element in a `set` or `list` argument. Any other type of not-collection argument is returned unmodified.
 
-| `collection_max` | `set` or `list` | Gets the maximum element in the collection argument.
+| `collection_max` | Any value | Gets the maximum element in a `set` or `list` argument. Any other type of not-collection argument is returned unmodified.
 
-| `collection_sum` | numeric `set` or `list` | Computes the sum of the elements in the collection argument. The returned value is of the same type as the input collection elements, so there is a risk of overflowing the data type if the sum of the values exceeds the maximum value that the type can represent.
+| `collection_sum` | Number, numeric `set` or numeric `list` | Computes the sum of the elements in a `set` or `list` argument. Any other numeric not-collection argument is returned unmodified. The returned value is of the same type as the input collection elements, so there is a risk of overflowing the data type if the sum of the values exceeds the maximum value that the type can represent.
 
-| `collection_avg` | numeric `set` or `list` | Computes the average of the elements in the collection argument. The average of an empty collection returns zero. The returned value is of the same type as the input collection elements, which might include rounding and truncations. For example `collection_avg([1, 2])` returns `1` instead of `1.5`.
+| `collection_avg` | Number, numeric `set` or numeric `list` | Computes the average of the elements in a `set` or `list` argument. Any other numeric not-collection argument is returned unmodified. The average of an empty collection returns zero. The returned value is of the same type as the input collection elements, which might include rounding and truncations. For example `collection_avg([1, 2])` returns `1` instead of `1.5`.
 |===
 
 [[data-masking-functions]]
