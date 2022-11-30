@@ -48,7 +48,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -69,7 +68,7 @@ public abstract class ForwardingSSTableReader extends SSTableReader
 
     public ForwardingSSTableReader(SSTableReader delegate)
     {
-        super(delegate.descriptor, SSTable.componentsFor(delegate.descriptor),
+        super(delegate.descriptor, TOCComponent.loadOrCreate(delegate.descriptor),
               TableMetadataRef.forOfflineTools(delegate.metadata()), delegate.maxDataAge, delegate.getSSTableMetadata(),
               delegate.openReason, delegate.header, delegate.dfile, delegate.bf);
         this.delegate = delegate;

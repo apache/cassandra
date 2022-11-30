@@ -48,6 +48,7 @@ import org.apache.cassandra.io.sstable.format.FilterComponent;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -490,7 +491,7 @@ public class BigTableWriter extends SSTableWriter
             writeMetadata(descriptor, finalizeMetadata());
 
             // save the table of components
-            SSTable.appendTOC(descriptor, components);
+            TOCComponent.appendTOC(descriptor, components);
 
             if (openResult)
                 finalReader = openFinal(SSTableReader.OpenReason.NORMAL);

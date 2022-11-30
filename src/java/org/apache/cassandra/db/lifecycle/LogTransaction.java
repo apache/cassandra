@@ -398,7 +398,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                         logger.error("SSTableTidier ran with no existing data file for an sstable that was not new");
 
                     // let the remainder be cleaned up by delete
-                    SSTable.delete(desc, SSTable.discoverComponentsFor(desc));
+                    SSTable.delete(desc, desc.discoverComponents());
                 }
                 catch (Throwable t)
                 {

@@ -26,10 +26,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
@@ -119,7 +121,7 @@ public class Descriptor
         {
             try
             {
-                Set<Component> expectedComponents = SSTable.readTOC(this, false);
+                Set<Component> expectedComponents = TOCComponent.loadTOC(this, false);
                 if (expectedComponents.contains(Component.COMPRESSION_INFO) && !actualComponents.contains(Component.COMPRESSION_INFO))
                 {
                     String compressionInfoFileName = filenameFor(Component.COMPRESSION_INFO);
@@ -421,6 +423,19 @@ public class Descriptor
     public boolean isCompatible()
     {
         return version.isCompatible();
+    }
+
+    public Set<Component> discoverComponents()
+    {
+        Set<Component.Type> knownTypes = Sets.difference(Component.TYPES, Collections.singleton(Component.Type.CUSTOM));
+        Set<Component> components = Sets.newHashSetWithExpectedSize(knownTypes.size());
+        for (Component.Type componentType : knownTypes)
+        {
+            Component component = new Component(componentType);
+            if (fileFor(component).exists())
+                components.add(component);
+        }
+        return components;
     }
 
     @Override

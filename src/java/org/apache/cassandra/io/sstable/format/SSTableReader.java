@@ -371,7 +371,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public static SSTableReader open(Descriptor desc, TableMetadataRef metadata)
     {
-        return open(desc, componentsFor(desc), metadata);
+        return open(desc, TOCComponent.loadOrCreate(desc), metadata);
     }
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
@@ -388,7 +388,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     // use only for offline or "Standalone" operations
     public static SSTableReader openNoValidation(Descriptor descriptor, TableMetadataRef metadata)
     {
-        return open(descriptor, componentsFor(descriptor), metadata, false, true);
+        return open(descriptor, TOCComponent.loadOrCreate(descriptor), metadata, false, true);
     }
 
     /**
