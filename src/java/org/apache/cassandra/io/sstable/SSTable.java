@@ -155,9 +155,9 @@ public abstract class SSTable
      */
     public static DecoratedKey getMinimalKey(DecoratedKey key)
     {
-        return key.getKey().position() > 0 || key.getKey().hasRemaining() || !key.getKey().hasArray()
-                                       ? new BufferDecoratedKey(key.getToken(), HeapCloner.instance.clone(key.getKey()))
-                                       : key;
+        return ByteBufferUtil.canMinimize(key.getKey())
+               ? new BufferDecoratedKey(key.getToken(), HeapCloner.instance.clone(key.getKey()))
+               : key;
     }
 
     public String getFilename()
@@ -272,7 +272,6 @@ public abstract class SSTable
                "path='" + getFilename() + '\'' +
                ')';
     }
-
 
     /**
      * Registers new custom components. Used by custom compaction strategies.
