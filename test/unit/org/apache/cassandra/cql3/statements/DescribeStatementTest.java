@@ -179,7 +179,7 @@ public class DescribeStatementTest extends CQLTester
                               "aggregate",
                               shortFunctionName(aNonDeterministic) + "(int)",
                               "CREATE AGGREGATE " + aNonDeterministic + "(int)\n" +
-                                      "    SFUNC " + shortFunctionName(fIntState) + "\n" +
+                                      "    SFUNC " + KEYSPACE_PER_TEST + "." + shortFunctionName(fIntState) + "\n" +
                                       "    STYPE int\n" +
                                   "    INITCOND 42;"));
             assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATE " + aDeterministic),
@@ -187,9 +187,9 @@ public class DescribeStatementTest extends CQLTester
                               "aggregate",
                               shortFunctionName(aDeterministic) + "(int)",
                               "CREATE AGGREGATE " + aDeterministic + "(int)\n" +
-                                      "    SFUNC " + shortFunctionName(fIntState) + "\n" +
+                                      "    SFUNC " + KEYSPACE_PER_TEST + "." + shortFunctionName(fIntState) + "\n" +
                                       "    STYPE int\n" +
-                                      "    FINALFUNC " + shortFunctionName(fFinal) + ";"));
+                                      "    FINALFUNC " + KEYSPACE_PER_TEST + "." + shortFunctionName(fFinal) + ";"));
             assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATES"),
                           row(KEYSPACE_PER_TEST,
                               "aggregate",
@@ -755,6 +755,104 @@ public class DescribeStatementTest extends CQLTester
 
         assertRowsNet(executeDescribeNet("DESCRIBE INDEX " + KEYSPACE_PER_TEST + "." + indexWithOptions),
                       row(KEYSPACE_PER_TEST, "index", indexWithOptions, expectedIndexStmtWithOptions));
+    }
+
+    @Test
+    public void testDescCreateTypeShouldNotOmitQuotations() throws Throwable
+    {
+        String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (\"token\" text, \"desc\" text);");
+        assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE TYPE " + type),
+                      row(KEYSPACE_PER_TEST, "type", type, "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type + " (\n" +
+                                                           "    \"token\" text,\n" +
+                                                           "    \"desc\" text\n" +
+                                                           ");"));
+    }
+
+    @Test
+    public void testDescMaterializedViewShouldNotOmitQuotations() throws Throwable
+    {
+        try{
+            execute("CREATE KEYSPACE testWithKeywords WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
+            execute("CREATE TABLE testWithKeywords.users_mv (username varchar, password varchar, gender varchar, session_token varchar, " +
+                    "state varchar, birth_year bigint, \"token\" text, PRIMARY KEY (\"token\"));");
+            execute("CREATE MATERIALIZED VIEW testWithKeywords.users_by_state AS SELECT * FROM testWithKeywords.users_mv " +
+                    "WHERE STATE IS NOT NULL AND \"token\" IS NOT NULL PRIMARY KEY (state, \"token\")");
+
+            final String expectedOutput = "CREATE MATERIALIZED VIEW testwithkeywords.users_by_state AS\n" +
+                                          "    SELECT *\n" +
+                                          "    FROM testwithkeywords.users_mv\n" +
+                                          "    WHERE state IS NOT NULL AND \"token\" IS NOT NULL\n" +
+                                          "    PRIMARY KEY (state, \"token\")\n" +
+                                          " WITH CLUSTERING ORDER BY (\"token\" ASC)\n" +
+                                          "    AND " + mvParametersCql();
+
+            testDescribeMaterializedView("testWithKeywords", "users_by_state", row("testwithkeywords", "materialized_view", "users_by_state", expectedOutput));
+        }
+        finally
+        {
+            execute("DROP KEYSPACE IF EXISTS testWithKeywords");
+        }
+    }
+
+    @Test
+    public void testDescFunctionAndAggregateShouldNotOmitQuotations() throws Throwable
+    {
+
+        final String functionName = KEYSPACE_PER_TEST + ".\"token\"";
+
+        createFunctionOverload(functionName,
+                               "int, ascii",
+                               "CREATE FUNCTION " + functionName + " (\"token\" int, other_in ascii) " +
+                               "RETURNS NULL ON NULL INPUT " +
+                               "RETURNS text " +
+                               "LANGUAGE java " +
+                               "AS 'return \"Hello World\";'");
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+
+            assertRowsNet(executeDescribeNet(describeKeyword + " FUNCTION " + functionName),
+                          row(KEYSPACE_PER_TEST,
+                              "function",
+                              shortFunctionName(functionName) + "(int, ascii)",
+                              "CREATE FUNCTION " + functionName + "(\"token\" int, other_in ascii)\n" +
+                              "    RETURNS NULL ON NULL INPUT\n" +
+                              "    RETURNS text\n" +
+                              "    LANGUAGE java\n" +
+                              "    AS $$return \"Hello World\";$$;"));
+        }
+
+        final String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"token\"";
+        final String aggregationName = KEYSPACE_PER_TEST + ".\"token\"";
+        createFunctionOverload(aggregationName,
+                               "int, int",
+                               "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
+                               "CALLED ON NULL INPUT " +
+                               "RETURNS int " +
+                               "LANGUAGE java " +
+                               "AS 'return token + add_to;'");
+
+
+        String aggregate = createAggregate(KEYSPACE_PER_TEST,
+                                           "int",
+                                           format("CREATE AGGREGATE %%s(int) " +
+                                                  "SFUNC %s " +
+                                                  "STYPE int " +
+                                                  "INITCOND 42",
+                                                  shortFunctionName(aggregationFunctionName)));
+
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+            assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATE " + aggregate),
+                          row(KEYSPACE_PER_TEST,
+                              "aggregate",
+                              shortFunctionName(aggregate) + "(int)",
+                              "CREATE AGGREGATE " + aggregate + "(int)\n" +
+                              "    SFUNC " + KEYSPACE_PER_TEST + "." + shortFunctionName(aggregationName) + "\n" +
+                              "    STYPE int\n" +
+                              "    INITCOND 42;"));
+        }
     }
 
     private static String allTypesTable()
