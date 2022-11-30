@@ -22,13 +22,13 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -94,7 +94,7 @@ public class SSTableLevelResetter
                 {
                     foundSSTable = true;
                     Descriptor descriptor = sstable.getKey();
-                    StatsMetadata metadata = (StatsMetadata) descriptor.getMetadataSerializer().deserialize(descriptor, MetadataType.STATS);
+                    StatsMetadata metadata = StatsComponent.load(descriptor).statsMetadata();
                     if (metadata.sstableLevel > 0)
                     {
                         out.println("Changing level from " + metadata.sstableLevel + " to 0 on " + descriptor.filenameFor(Component.DATA));

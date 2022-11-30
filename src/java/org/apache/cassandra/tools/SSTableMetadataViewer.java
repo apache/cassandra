@@ -32,7 +32,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -55,9 +54,8 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.format.CompressionInfoComponent;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
-import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
-import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.File;
@@ -320,14 +318,12 @@ public class SSTableMetadataViewer
     private void printSStableMetadata(String fname, boolean scan) throws IOException
     {
         Descriptor descriptor = Descriptor.fromFilename(fname);
-        Map<MetadataType, MetadataComponent> metadata = descriptor.getMetadataSerializer()
-                .deserialize(descriptor, EnumSet.allOf(MetadataType.class));
-        ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
-        StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
-        CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
+        StatsComponent statsComponent = StatsComponent.load(descriptor);
+        ValidationMetadata validation = statsComponent.validationMetadata();
+        StatsMetadata stats = statsComponent.statsMetadata();
+        CompactionMetadata compaction = statsComponent.compactionMetadata();
+        SerializationHeader.Component header = statsComponent.serializationHeader();
         CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor);
-        SerializationHeader.Component header = (SerializationHeader.Component) metadata
-                .get(MetadataType.HEADER);
 
         field("SSTable", descriptor);
         if (scan && descriptor.version.getVersion().compareTo("ma") >= 0)

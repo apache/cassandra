@@ -262,7 +262,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
             try
             {
-                CompactionMetadata metadata = (CompactionMetadata) sstable.descriptor.getMetadataSerializer().deserialize(sstable.descriptor, MetadataType.COMPACTION);
+                CompactionMetadata metadata = StatsComponent.load(sstable.descriptor).compactionMetadata();
                 // If we can't load the CompactionMetadata, we are forced to estimate the keys using the index
                 // summary. (CASSANDRA-10676)
                 if (metadata == null)
@@ -313,7 +313,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         {
             try
             {
-                ICardinality cardinality = ((CompactionMetadata) sstable.descriptor.getMetadataSerializer().deserialize(sstable.descriptor, MetadataType.COMPACTION)).cardinalityEstimator;
+                ICardinality cardinality = StatsComponent.load(sstable.descriptor).compactionMetadata().cardinalityEstimator;
                 if (cardinality != null)
                     cardinalities.add(cardinality);
                 else
@@ -1289,7 +1289,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      */
     public void reloadSSTableMetadata() throws IOException
     {
-        this.sstableMetadata = (StatsMetadata) descriptor.getMetadataSerializer().deserialize(descriptor, MetadataType.STATS);
+        this.sstableMetadata = StatsComponent.load(descriptor).statsMetadata();
     }
 
     public StatsMetadata getSSTableMetadata()
