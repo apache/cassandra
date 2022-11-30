@@ -255,14 +255,13 @@ public abstract class SSTableReaderBuilder
 
             initSummary(dataFilePath, components, statsMetadata);
 
-            boolean compression = components.contains(Component.COMPRESSION_INFO);
             try (FileHandle.Builder ibuilder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX))
                                                .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
                                                .withChunkCache(ChunkCache.instance);
-                 FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(compression)
-                                                                                                             .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
+                 FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
                                                                                                              .withChunkCache(ChunkCache.instance))
             {
+                dbuilder.withCompressionMetadata(CompressionInfoComponent.maybeLoad(descriptor, components));
                 long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
                 DiskOptimizationStrategy optimizationStrategy = DatabaseDescriptor.getDiskOptimizationStrategy();
                 int dataBufferSize = optimizationStrategy.bufferSize(statsMetadata.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
@@ -399,10 +398,10 @@ public abstract class SSTableReaderBuilder
             try (FileHandle.Builder ibuilder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX))
                                                .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
                                                .withChunkCache(ChunkCache.instance);
-                 FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(components.contains(Component.COMPRESSION_INFO))
-                                                                                                             .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
+                 FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
                                                                                                              .withChunkCache(ChunkCache.instance))
             {
+                dbuilder.withCompressionMetadata(CompressionInfoComponent.maybeLoad(descriptor, components));
                 loadSummary();
                 boolean buildSummary = summary == null || recreateBloomFilter;
                 if (buildSummary)

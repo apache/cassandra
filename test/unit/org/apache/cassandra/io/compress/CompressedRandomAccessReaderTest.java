@@ -120,7 +120,7 @@ public class CompressedRandomAccessReaderTest
         }
 
         try (FileHandle.Builder builder = new FileHandle.Builder(filename)
-                                                              .withCompressionMetadata(new CompressionMetadata(filename + ".metadata", f.length(), true));
+                                                              .withCompressionMetadata(new CompressionMetadata(new File(filename + ".metadata"), f.length(), true));
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {
@@ -151,7 +151,7 @@ public class CompressedRandomAccessReaderTest
         try
         {
             writeSSTable(file, CompressionParams.snappy(chunkLength), 10);
-            CompressionMetadata metadata = new CompressionMetadata(filename + ".metadata", file.length(), true);
+            CompressionMetadata metadata = new CompressionMetadata(new File(filename + ".metadata"), file.length(), true);
 
             long chunks = 2761628520L;
             long midPosition = (chunks / 2L) * chunkLength;
@@ -177,7 +177,7 @@ public class CompressedRandomAccessReaderTest
         final String filename = f.absolutePath();
         writeSSTable(f, compressed ? CompressionParams.snappy() : null, junkSize);
 
-        CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(filename + ".metadata", f.length(), true) : null;
+        CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(new File(filename + ".metadata"), f.length(), true) : null;
         try (FileHandle.Builder builder = new FileHandle.Builder(filename).mmapped(usemmap).withCompressionMetadata(compressionMetadata);
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
@@ -252,7 +252,7 @@ public class CompressedRandomAccessReaderTest
         }
 
         // open compression metadata and get chunk information
-        CompressionMetadata meta = new CompressionMetadata(metadata.path(), file.length(), true);
+        CompressionMetadata meta = new CompressionMetadata(metadata, file.length(), true);
         CompressionMetadata.Chunk chunk = meta.chunkFor(0);
 
         try (FileHandle.Builder builder = new FileHandle.Builder(file.path()).withCompressionMetadata(meta);

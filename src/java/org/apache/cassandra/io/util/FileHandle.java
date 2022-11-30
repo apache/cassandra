@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.util.Objects;
 import java.util.Optional;
 
 import com.google.common.util.concurrent.RateLimiter;
@@ -250,7 +249,6 @@ public class FileHandle extends SharedCloseableImpl
         private BufferType bufferType = BufferType.OFF_HEAP;
 
         private boolean mmapped = false;
-        private boolean compressed = false;
 
         public Builder(String path)
         {
@@ -261,12 +259,6 @@ public class FileHandle extends SharedCloseableImpl
         {
             this.channel = channel;
             this.path = channel.filePath();
-        }
-
-        public Builder compressed(boolean compressed)
-        {
-            this.compressed = compressed;
-            return this;
         }
 
         /**
@@ -289,7 +281,6 @@ public class FileHandle extends SharedCloseableImpl
          */
         public Builder withCompressionMetadata(CompressionMetadata metadata)
         {
-            this.compressed = Objects.nonNull(metadata);
             this.compressionMetadata = metadata;
             return this;
         }
@@ -360,15 +351,12 @@ public class FileHandle extends SharedCloseableImpl
             ChannelProxy channelCopy = channel.sharedCopy();
             try
             {
-                if (compressed && compressionMetadata == null)
-                    compressionMetadata = CompressionMetadata.create(channelCopy.filePath());
-
-                long length = overrideLength > 0 ? overrideLength : compressed ? compressionMetadata.compressedFileLength : channelCopy.size();
+                long length = overrideLength > 0 ? overrideLength : (compressionMetadata != null) ? compressionMetadata.compressedFileLength : channelCopy.size();
 
                 RebuffererFactory rebuffererFactory;
                 if (mmapped)
                 {
-                    if (compressed)
+                    if (compressionMetadata != null)
                     {
                         regions = MmappedRegions.map(channelCopy, compressionMetadata);
                         rebuffererFactory = maybeCached(new CompressedChunkReader.Mmap(channelCopy, compressionMetadata,
@@ -383,7 +371,7 @@ public class FileHandle extends SharedCloseableImpl
                 else
                 {
                     regions = null;
-                    if (compressed)
+                    if (compressionMetadata != null)
                     {
                         rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channelCopy, compressionMetadata));
                     }
@@ -411,7 +399,7 @@ public class FileHandle extends SharedCloseableImpl
 
         public Throwable close(Throwable accumulate)
         {
-            if (!compressed && regions != null)
+            if (compressionMetadata == null && regions != null)
                 accumulate = regions.close(accumulate);
             if (channel != null)
                 return channel.close(accumulate);
@@ -427,7 +415,7 @@ public class FileHandle extends SharedCloseableImpl
         private RebuffererFactory maybeCached(ChunkReader reader)
         {
             if (chunkCache != null && chunkCache.capacity() > 0)
-                return chunkCache.maybeWrap(reader);
+                return ChunkCache.maybeWrap(reader);
             return reader;
         }
 

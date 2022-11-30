@@ -53,6 +53,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IndexSummary;
+import org.apache.cassandra.io.sstable.format.CompressionInfoComponent;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -324,10 +325,7 @@ public class SSTableMetadataViewer
         ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
         StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
         CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
-        CompressionMetadata compression = null;
-        File compressionFile = new File(descriptor.filenameFor(Component.COMPRESSION_INFO));
-        if (compressionFile.exists())
-            compression = CompressionMetadata.create(fname);
+        CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor);
         SerializationHeader.Component header = (SerializationHeader.Component) metadata
                 .get(MetadataType.HEADER);
 
