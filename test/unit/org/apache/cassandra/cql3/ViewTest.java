@@ -564,7 +564,7 @@ public class ViewTest extends ViewAbstractTest
                                               "CREATE MATERIALIZED VIEW %s AS" +
                                               "   SELECT * FROM %s WHERE k = token(1) AND v IS NOT NULL " +
                                               "   PRIMARY KEY (v, k)",
-                                              "k = \"token\"(1) AND v IS NOT NULL",
+                                              "k = token(1) AND v IS NOT NULL",
                                               "INSERT INTO %s(k, v) VALUES (0, 1)",
                                               "INSERT INTO %s(k, v) VALUES (2, 3)"));
 
@@ -574,7 +574,7 @@ public class ViewTest extends ViewAbstractTest
                                               "CREATE MATERIALIZED VIEW %s AS" +
                                               "   SELECT * FROM %s WHERE k = TOKEN(1) AND v IS NOT NULL" +
                                               "   PRIMARY KEY (v, k)",
-                                              "k = \"token\"(1) AND v IS NOT NULL",
+                                              "k = token(1) AND v IS NOT NULL",
                                               "INSERT INTO %s(k, v) VALUES (0, 1)",
                                               "INSERT INTO %s(k, v) VALUES (2, 3)"));
 
