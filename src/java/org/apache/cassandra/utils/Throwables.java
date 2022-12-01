@@ -27,8 +27,10 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
@@ -184,6 +186,22 @@ public final class Throwables
                 throw (opType == FileOpType.WRITE) ? new FSWriteError(e, filePath) : new FSReadError(e, filePath);
             }
         }));
+    }
+
+    public static void closeAndAddSuppressed(@Nonnull Throwable t, AutoCloseable... closeables)
+    {
+        Preconditions.checkNotNull(t);
+        for (AutoCloseable closeable : closeables)
+        {
+            try
+            {
+                closeable.close();
+            }
+            catch (Throwable ex)
+            {
+                t.addSuppressed(ex);
+            }
+        }
     }
 
     public static Throwable close(Throwable accumulate, Iterable<? extends AutoCloseable> closeables)

@@ -18,29 +18,28 @@
 package org.apache.cassandra.io.util;
 
 import java.util.Optional;
+import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.ChunkCache;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
 
-import static org.apache.cassandra.utils.Throwables.maybeFail;
-import org.apache.cassandra.utils.Throwables;
-
 /**
  * {@link FileHandle} provides access to a file for reading, including the ones written by various {@link SequentialWriter}
  * instances, and it is typically used by {@link org.apache.cassandra.io.sstable.format.SSTableReader}.
- *
+ * <p>
  * Use {@link FileHandle.Builder} to create an instance, and call {@link #createReader()} (and its variants) to
  * access the readers for the underlying file.
- *
+ * <p>
  * You can use {@link Builder#complete()} several times during its lifecycle with different {@code overrideLength}(i.e. early opening file).
  * For that reason, the builder keeps a reference to the file channel and makes a copy for each {@link Builder#complete()} call.
  * Therefore, it is important to close the {@link Builder} when it is no longer needed, as well as any {@link FileHandle}
@@ -48,8 +47,6 @@ import org.apache.cassandra.utils.Throwables;
  */
 public class FileHandle extends SharedCloseableImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(FileHandle.class);
-
     public final ChannelProxy channel;
 
     public final long onDiskLength;
@@ -87,8 +84,13 @@ public class FileHandle extends SharedCloseableImpl
     }
 
     /**
-     * @return Path to the file this factory is referencing
+     * @return file this factory is referencing
      */
+    public File file()
+    {
+        return new File(channel.filePath());
+    }
+
     public String path()
     {
         return channel.filePath();
@@ -154,7 +156,14 @@ public class FileHandle extends SharedCloseableImpl
         }
         catch (Throwable t)
         {
-            try { reader.close(); } catch (Throwable t2) { t.addSuppressed(t2); }
+            try
+            {
+                reader.close();
+            }
+            catch (Throwable t2)
+            {
+                t.addSuppressed(t2);
+            }
             throw t;
         }
     }
@@ -172,10 +181,10 @@ public class FileHandle extends SharedCloseableImpl
             else
                 return metadata.chunkFor(before).offset;
         }).orElse(before);
-        NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, path());
+        NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, file().absolutePath());
     }
 
-    private Rebufferer instantiateRebufferer(RateLimiter limiter)
+    public Rebufferer instantiateRebufferer(RateLimiter limiter)
     {
         Rebufferer rebufferer = rebuffererFactory.instantiateRebufferer();
 
@@ -237,28 +246,31 @@ public class FileHandle extends SharedCloseableImpl
     /**
      * Configures how the file will be read (compressed, mmapped, use cache etc.)
      */
-    public static class Builder implements AutoCloseable
+    public static class Builder
     {
-        private final String path;
+        public static final long NO_LENGTH_OVERRIDE = -1;
 
-        private ChannelProxy channel;
+        public final File file;
+
+        private Function<File, ChannelProxy> channelProxyFactory = ChannelProxy::new;
         private CompressionMetadata compressionMetadata;
-        private MmappedRegions regions;
         private ChunkCache chunkCache;
         private int bufferSize = RandomAccessReader.DEFAULT_BUFFER_SIZE;
         private BufferType bufferType = BufferType.OFF_HEAP;
-
         private boolean mmapped = false;
+        private long lengthOverride = -1;
+        private MmappedRegions lastRegions;
 
-        public Builder(String path)
+        public Builder(File file)
         {
-            this.path = path;
+            this.file = file;
         }
 
-        public Builder(ChannelProxy channel)
+        @VisibleForTesting
+        public Builder withChannelProxyFactory(Function<File, ChannelProxy> channelProxyFactory)
         {
-            this.channel = channel;
-            this.path = channel.filePath();
+            this.channelProxyFactory = channelProxyFactory;
+            return this;
         }
 
         /**
@@ -297,6 +309,12 @@ public class FileHandle extends SharedCloseableImpl
             return this;
         }
 
+        public Builder mmapped(Config.DiskAccessMode diskAccessMode)
+        {
+            this.mmapped = diskAccessMode == Config.DiskAccessMode.mmap;
+            return this;
+        }
+
         /**
          * Set the buffer size to use (if appropriate).
          *
@@ -322,125 +340,96 @@ public class FileHandle extends SharedCloseableImpl
         }
 
         /**
-         * Complete building {@link FileHandle} without overriding file length.
+         * Override the file length.
          *
-         * @see #complete(long)
-         */
-        public FileHandle complete()
-        {
-            return complete(-1L);
-        }
-
-        /**
-         * Complete building {@link FileHandle} with the given length, which overrides the file length.
-         *
-         * @param overrideLength Override file length (in bytes) so that read cannot go further than this value.
+         * @param lengthOverride Override file length (in bytes) so that read cannot go further than this value.
          *                       If the value is less than or equal to 0, then the value is ignored.
          * @return Built file
          */
-        @SuppressWarnings("resource")
-        public FileHandle complete(long overrideLength)
+        public Builder withLengthOverride(long lengthOverride)
         {
-            boolean channelOpened = false;
-            if (channel == null)
-            {
-                channel = new ChannelProxy(path);
-                channelOpened = true;
-            }
+            this.lengthOverride = lengthOverride;
+            return this;
+        }
 
-            ChannelProxy channelCopy = channel.sharedCopy();
+        /**
+         * Complete building {@link FileHandle}.
+         */
+        public FileHandle complete()
+        {
+            ChannelProxy channel = channelProxyFactory.apply(file);
+            MmappedRegions regions = null;
+
             try
             {
-                long length = overrideLength > 0 ? overrideLength : (compressionMetadata != null) ? compressionMetadata.compressedFileLength : channelCopy.size();
+                long fileLength = (compressionMetadata != null) ? compressionMetadata.compressedFileLength : channel.size();
+                long length = lengthOverride > 0 ? lengthOverride : fileLength;
 
                 RebuffererFactory rebuffererFactory;
-                if (mmapped)
+                if (length == 0)
+                {
+                    rebuffererFactory = new EmptyRebufferer(channel);
+                }
+                else if (mmapped)
                 {
                     if (compressionMetadata != null)
                     {
-                        regions = MmappedRegions.map(channelCopy, compressionMetadata);
-                        rebuffererFactory = maybeCached(new CompressedChunkReader.Mmap(channelCopy, compressionMetadata,
-                                                                                       regions));
+                        regions = MmappedRegions.map(channel, compressionMetadata);
+                        rebuffererFactory = maybeCached(new CompressedChunkReader.Mmap(channel, compressionMetadata, regions));
+                        lastRegions = null;
                     }
                     else
                     {
-                        updateRegions(channelCopy, length);
-                        rebuffererFactory = new MmapRebufferer(channelCopy, length, regions.sharedCopy());
+                        if (lastRegions != null && !lastRegions.isCleanedUp() && lastRegions.isValid(channel))
+                        {
+                            // for performance reasons, try to reuse the previously generated regions
+                            lastRegions.extend(length);
+                            regions = lastRegions.sharedCopy();
+                        }
+                        else
+                        {
+                            regions = MmappedRegions.map(channel, length);
+                            lastRegions = regions;
+                        }
+                        rebuffererFactory = new MmapRebufferer(channel, length, regions);
                     }
                 }
                 else
                 {
-                    regions = null;
                     if (compressionMetadata != null)
                     {
-                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channelCopy, compressionMetadata));
+                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channel, compressionMetadata));
                     }
                     else
                     {
                         int chunkSize = DiskOptimizationStrategy.roundForCaching(bufferSize, ChunkCache.roundUp);
-                        rebuffererFactory = maybeCached(new SimpleChunkReader(channelCopy, length, bufferType, chunkSize));
+                        rebuffererFactory = maybeCached(new SimpleChunkReader(channel, length, bufferType, chunkSize));
                     }
                 }
-                Cleanup cleanup = new Cleanup(channelCopy, rebuffererFactory, compressionMetadata, chunkCache);
-                return new FileHandle(cleanup, channelCopy, rebuffererFactory, compressionMetadata, length);
+                Cleanup cleanup = new Cleanup(channel, rebuffererFactory, compressionMetadata, chunkCache);
+
+                FileHandle fileHandle = new FileHandle(cleanup, channel, rebuffererFactory, compressionMetadata, length);
+                return fileHandle;
             }
             catch (Throwable t)
             {
-                channelCopy.close();
-                if (channelOpened)
-                {
-                    ChannelProxy c = channel;
-                    channel = null;
-                    throw Throwables.cleaned(c.close(t));
-                }
+                Throwables.closeAndAddSuppressed(t, regions, channel);
                 throw t;
             }
-        }
-
-        public Throwable close(Throwable accumulate)
-        {
-            if (compressionMetadata == null && regions != null)
-                accumulate = regions.close(accumulate);
-            if (channel != null)
-                return channel.close(accumulate);
-
-            return accumulate;
-        }
-
-        public void close()
-        {
-            maybeFail(close(null));
         }
 
         private RebuffererFactory maybeCached(ChunkReader reader)
         {
             if (chunkCache != null && chunkCache.capacity() > 0)
-                return ChunkCache.maybeWrap(reader);
+                return chunkCache.wrap(reader);
             return reader;
-        }
-
-        private void updateRegions(ChannelProxy channel, long length)
-        {
-            if (regions != null && !regions.isValid(channel))
-            {
-                Throwable err = regions.close(null);
-                if (err != null)
-                    logger.error("Failed to close mapped regions", err);
-
-                regions = null;
-            }
-
-            if (regions == null)
-                regions = MmappedRegions.map(channel, length);
-            else
-                regions.extend(length);
         }
     }
 
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + "(path='" + path() + '\'' +
+        return getClass().getSimpleName() + "(path='" + file() + '\'' +
                ", length=" + rebuffererFactory.fileLength() +
                ')';
     }

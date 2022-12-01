@@ -1273,8 +1273,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
             Util.setFileLength(file, size);
         }
 
-        FileHandle dFile = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).complete();
-        FileHandle iFile = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX)).complete();
+        FileHandle dFile = new FileHandle.Builder(descriptor.fileFor(Component.DATA)).complete();
+        FileHandle iFile = new FileHandle.Builder(descriptor.fileFor(Component.PRIMARY_INDEX)).complete();
 
         SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
         StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)

@@ -150,8 +150,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         }
 
         assert f.exists();
-        try (FileHandle.Builder builder = new FileHandle.Builder(filename).withCompressionMetadata(new CompressionMetadata(new File(filename + ".metadata"), f.length(), true));
-             FileHandle fh = builder.complete();
+        try (FileHandle fh = new FileHandle.Builder(f).withCompressionMetadata(new CompressionMetadata(new File(filename + ".metadata"), f.length(), true)).complete();
              RandomAccessReader reader = fh.createReader())
         {
             assertEquals(dataPre.length + rawPost.length, reader.length());
@@ -228,8 +227,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         }
 
         assert f.exists();
-        try (FileHandle.Builder builder = new FileHandle.Builder(filename).withCompressionMetadata(new CompressionMetadata(new File(filename + ".metadata"), f.length(), true));
-             FileHandle fh = builder.complete();
+        try (FileHandle fh = new FileHandle.Builder(f).withCompressionMetadata(new CompressionMetadata(new File(filename + ".metadata"), f.length(), true)).complete();
              RandomAccessReader reader = fh.createReader())
         {
             assertEquals(size, reader.length());

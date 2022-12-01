@@ -119,9 +119,7 @@ public class CompressedRandomAccessReaderTest
             writer.finish();
         }
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(filename)
-                                                              .withCompressionMetadata(new CompressionMetadata(new File(filename + ".metadata"), f.length(), true));
-             FileHandle fh = builder.complete();
+        try (FileHandle fh = new FileHandle.Builder(f).withCompressionMetadata(new CompressionMetadata(new File(filename + ".metadata"), f.length(), true)).complete();
              RandomAccessReader reader = fh.createReader())
         {
             String res = reader.readLine();
@@ -178,8 +176,7 @@ public class CompressedRandomAccessReaderTest
         writeSSTable(f, compressed ? CompressionParams.snappy() : null, junkSize);
 
         CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(new File(filename + ".metadata"), f.length(), true) : null;
-        try (FileHandle.Builder builder = new FileHandle.Builder(filename).mmapped(usemmap).withCompressionMetadata(compressionMetadata);
-             FileHandle fh = builder.complete();
+        try (FileHandle fh = new FileHandle.Builder(f).mmapped(usemmap).withCompressionMetadata(compressionMetadata).complete();
              RandomAccessReader reader = fh.createReader())
         {
             String expected = "The quick brown fox jumps over the lazy dog";
@@ -255,8 +252,7 @@ public class CompressedRandomAccessReaderTest
         CompressionMetadata meta = new CompressionMetadata(metadata, file.length(), true);
         CompressionMetadata.Chunk chunk = meta.chunkFor(0);
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(file.path()).withCompressionMetadata(meta);
-             FileHandle fh = builder.complete();
+        try (FileHandle fh = new FileHandle.Builder(file).withCompressionMetadata(meta).complete();
              RandomAccessReader reader = fh.createReader())
         {// read and verify compressed data
             assertEquals(CONTENT, reader.readLine());

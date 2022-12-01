@@ -208,7 +208,7 @@ public class BigTableZeroCopyWriterTest
     private Pair<DataInputPlus, Long> getSSTableComponentData(SSTableReader sstable, Component component,
                                                               Function<ByteBuffer, DataInputPlus> bufferMapper)
     {
-        FileHandle componentFile = new FileHandle.Builder(sstable.descriptor.filenameFor(component))
+        FileHandle componentFile = new FileHandle.Builder(sstable.descriptor.fileFor(component))
                                    .bufferSize(1024).complete();
         ByteBuffer buffer = ByteBuffer.allocate((int) componentFile.channel.size());
         componentFile.channel.read(buffer, 0);

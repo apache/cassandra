@@ -169,7 +169,7 @@ public class ChunkCache
         cache.invalidateAll();
     }
 
-    private RebuffererFactory wrap(ChunkReader file)
+    public RebuffererFactory wrap(ChunkReader file)
     {
         return new CachingRebufferer(file);
     }
