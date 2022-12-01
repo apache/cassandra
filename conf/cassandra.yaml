@@ -1862,10 +1862,17 @@ drop_compact_storage_enabled: false
 # maximum_replication_factor_warn_threshold: -1
 # maximum_replication_factor_fail_threshold: -1
 
-# Guardrail to warn and/or enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
+# Guardrail to enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
 # and the table is using TimeWindowCompactionStrategy compaction or a subclass of it.
-#zero_ttl_on_twcs_warned: true
+# It is suspicious to use default_time_to_live set to 0 with such compaction strategy.
+# Please keep in mind that data will not start to automatically expire after they are older than
+# a respective compaction window unit of a certain size. Please set TTL for your INSERT or UPDATE
+# statements if you expect data to be expired as table settings will not do it.
+# Defaults to true. If set to false, such statements fail and zero_ttl_on_twcs_warned flag is irrelevant.
 #zero_ttl_on_twcs_enabled: true
+# Guardrail to warn a user upon executing CREATE or ALTER TABLE statement when default_time_to_live is set to 0
+# and the table is using TimeWindowCompactionStrategy compaction or a subclass of it. Defaults to true.
+#zero_ttl_on_twcs_warned: true
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.
