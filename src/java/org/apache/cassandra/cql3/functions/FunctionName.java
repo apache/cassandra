@@ -88,7 +88,7 @@ public final class FunctionName
     {
         if (equalsNativeFunction(TOKEN_FUNCTION_NAME))
         {
-            builder.appendQuotingIfNeeded(name);
+            builder.append(name);
         }
         else
         {
