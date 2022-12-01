@@ -798,11 +798,11 @@ public class DescribeStatementTest extends CQLTester
     public void testDescFunctionAndAggregateShouldNotOmitQuotations() throws Throwable
     {
 
-        final String functionName = KEYSPACE_PER_TEST + ".\"token\"";
+        final String functionName = KEYSPACE_PER_TEST + ".\"full\"";
 
         createFunctionOverload(functionName,
                                              "int, ascii",
-                                             "CREATE FUNCTION " + functionName + " (\"token\" int, other_in ascii) " +
+                                             "CREATE FUNCTION " + functionName + " (\"full\" int, other_in ascii) " +
                                              "RETURNS NULL ON NULL INPUT " +
                                              "RETURNS text " +
                                              "LANGUAGE java " +
@@ -815,22 +815,22 @@ public class DescribeStatementTest extends CQLTester
                           row(KEYSPACE_PER_TEST,
                               "function",
                               shortFunctionName(functionName) + "(int, ascii)",
-                              "CREATE FUNCTION " + functionName + "(\"token\" int, other_in ascii)\n" +
+                              "CREATE FUNCTION " + functionName + "(\"full\" int, other_in ascii)\n" +
                               "    RETURNS NULL ON NULL INPUT\n" +
                               "    RETURNS text\n" +
                               "    LANGUAGE java\n" +
                               "    AS $$return \"Hello World\";$$;"));
         }
 
-        final String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"token\"";
-        final String aggregationName = KEYSPACE_PER_TEST + ".\"token\"";
+        final String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"full\"";
+        final String aggregationName = KEYSPACE_PER_TEST + ".\"full\"";
         createFunctionOverload(aggregationName,
                                "int, int",
-                              "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
+                              "CREATE FUNCTION " + aggregationFunctionName + " (\"full\" int, add_to int) " +
                               "CALLED ON NULL INPUT " +
                               "RETURNS int " +
                               "LANGUAGE java " +
-                              "AS 'return token + add_to;'");
+                              "AS 'return full + add_to;'");
 
 
         String aggregate = createAggregate(KEYSPACE_PER_TEST,
