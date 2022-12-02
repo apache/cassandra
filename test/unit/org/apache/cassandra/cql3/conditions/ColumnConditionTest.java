@@ -17,162 +17,422 @@
  */
 package org.apache.cassandra.cql3.conditions;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.Sets;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.Terms;
+import org.apache.cassandra.cql3.UserTypes;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.serializers.ListSerializer;
+import org.apache.cassandra.serializers.MapSerializer;
+import org.apache.cassandra.serializers.SetSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.cql3.Operator.CONTAINS;
+import static org.apache.cassandra.cql3.Operator.CONTAINS_KEY;
+import static org.apache.cassandra.cql3.Operator.EQ;
+import static org.apache.cassandra.cql3.Operator.GT;
+import static org.apache.cassandra.cql3.Operator.GTE;
+import static org.apache.cassandra.cql3.Operator.LT;
+import static org.apache.cassandra.cql3.Operator.LTE;
+import static org.apache.cassandra.cql3.Operator.NEQ;
+import static org.apache.cassandra.transport.ProtocolVersion.CURRENT;
+import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import static org.apache.cassandra.cql3.Operator.*;
-import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
-
-public class ColumnConditionTest
+public class ColumnConditionTest extends CQLTester
 {
     public static final ByteBuffer ZERO = Int32Type.instance.fromString("0");
     public static final ByteBuffer ONE = Int32Type.instance.fromString("1");
     public static final ByteBuffer TWO = Int32Type.instance.fromString("2");
 
-    private static Row newRow(ColumnMetadata definition, ByteBuffer value)
+    private static final ListType<Integer> listType = ListType.getInstance(Int32Type.instance, true);
+    private static final MapType<Integer, Integer> mapType = MapType.getInstance(Int32Type.instance, Int32Type.instance, true);
+    private static final SetType<Integer> setType = SetType.getInstance(Int32Type.instance, true);
+
+    private Row newRow(ColumnMetadata definition, ByteBuffer value)
     {
-        BufferCell cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, value, null);
+        BufferCell cell;
+        if (definition.type.isUDT() )
+        {
+            if (definition.type.isMultiCell()) {
+                CellPath cellPath = udtType.cellPathForField(udtType.fieldName(0));
+                cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, value, cellPath);
+            }
+            else
+            {
+                ByteBuffer udtValue = UserType.buildValue(value, TWO);
+                cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, udtValue, null);
+            }
+        }
+        else
+        {
+            cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, value, null);
+        }
         return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
     }
 
     private static Row newRow(ColumnMetadata definition, List<ByteBuffer> values)
     {
-        Row.Builder builder = BTreeRow.sortedBuilder();
-        builder.newRow(Clustering.EMPTY);
-        long now = System.currentTimeMillis();
-        if (values != null)
+        AbstractType<?> type = definition.type;
+        if (type.isFrozenCollection())
         {
-            for (int i = 0, m = values.size(); i < m; i++)
-            {
-                TimeUUID uuid = TimeUUID.Generator.atUnixMillis(now, i);
-                ByteBuffer key = uuid.toBytes();
-                ByteBuffer value = values.get(i);
-                BufferCell cell = new BufferCell(definition,
-                                                 0L,
-                                                 Cell.NO_TTL,
-                                                 Cell.NO_DELETION_TIME,
-                                                 value,
-                                                 CellPath.create(key));
-                builder.addCell(cell);
-            }
+            ByteBuffer cellValue = ListSerializer.pack(values, values.size(), CURRENT);
+            Cell<ByteBuffer> cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, cellValue, null);
+            return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         }
-        return builder.build();
+        else
+        {
+            Row.Builder builder = BTreeRow.sortedBuilder();
+            builder.newRow(Clustering.EMPTY);
+            long now = System.currentTimeMillis();
+            if (values != null)
+            {
+                for (int i = 0, m = values.size(); i < m; i++)
+                {
+                    BufferCell cell;
+                    if (type.isUDT())
+                    {
+                        cell = new BufferCell(definition,
+                                              0L,
+                                              Cell.NO_TTL,
+                                              Cell.NO_DELETION_TIME,
+                                              values.get(i),
+                                              ((UserType)type).cellPathForField(((UserType) type).fieldName(i)));
+                    }
+                    else
+                    {
+                        TimeUUID uuid = TimeUUID.Generator.atUnixMillis(now, i);
+                        ByteBuffer key = uuid.toBytes();
+                        ByteBuffer value = values.get(i);
+                        cell = new BufferCell(definition,
+                                              0L,
+                                              Cell.NO_TTL,
+                                              Cell.NO_DELETION_TIME,
+                                              value,
+                                              CellPath.create(key));
+                    }
+                    builder.addCell(cell);
+                }
+            }
+            return builder.build();
+        }
     }
 
     private static Row newRow(ColumnMetadata definition, SortedSet<ByteBuffer> values)
     {
-        Row.Builder builder = BTreeRow.sortedBuilder();
-        builder.newRow(Clustering.EMPTY);
-        if (values != null)
+        if (definition.type.isFrozenCollection())
         {
-            for (ByteBuffer value : values)
-            {
-                BufferCell cell = new BufferCell(definition,
-                                                 0L,
-                                                 Cell.NO_TTL,
-                                                 Cell.NO_DELETION_TIME,
-                                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                 CellPath.create(value));
-                builder.addCell(cell);
-            }
+            ByteBuffer cellValue = SetSerializer.pack(values, values.size(), CURRENT);
+            Cell<ByteBuffer> cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, cellValue, null);
+            return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         }
-        return builder.build();
+        else
+        {
+            Row.Builder builder = BTreeRow.sortedBuilder();
+            builder.newRow(Clustering.EMPTY);
+            if (values != null)
+            {
+                for (ByteBuffer value : values)
+                {
+                    BufferCell cell = new BufferCell(definition,
+                                                     0L,
+                                                     Cell.NO_TTL,
+                                                     Cell.NO_DELETION_TIME,
+                                                     ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                     CellPath.create(value));
+                    builder.addCell(cell);
+                }
+            }
+            return builder.build();
+        }
     }
 
-    private static Row newRow(ColumnMetadata definition, Map<ByteBuffer, ByteBuffer> values)
+    private static Row newRow(ColumnMetadata definition, SortedMap<ByteBuffer, ByteBuffer> values)
     {
-        Row.Builder builder = BTreeRow.sortedBuilder();
-        builder.newRow(Clustering.EMPTY);
-        if (values != null)
+        if (definition.type.isFrozenCollection())
         {
-            for (Map.Entry<ByteBuffer, ByteBuffer> entry : values.entrySet())
-            {
-                BufferCell cell = new BufferCell(definition,
-                                                 0L,
-                                                 Cell.NO_TTL,
-                                                 Cell.NO_DELETION_TIME,
-                                                 entry.getValue(),
-                                                 CellPath.create(entry.getKey()));
-                builder.addCell(cell);
-            }
+            List<ByteBuffer> packableValues = values.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).collect(Collectors.toList());
+            ByteBuffer cellValue = MapSerializer.pack(packableValues, values.size(), CURRENT);
+            Cell<ByteBuffer> cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, cellValue, null);
+            return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         }
-        return builder.build();
+        else
+        {
+            Row.Builder builder = BTreeRow.sortedBuilder();
+            builder.newRow(Clustering.EMPTY);
+            if (values != null)
+            {
+                for (Map.Entry<ByteBuffer, ByteBuffer> entry : values.entrySet())
+                {
+                    BufferCell cell = new BufferCell(definition,
+                                                     0L,
+                                                     Cell.NO_TTL,
+                                                     Cell.NO_DELETION_TIME,
+                                                     entry.getValue(),
+                                                     CellPath.create(entry.getKey()));
+                    builder.addCell(cell);
+                }
+            }
+            return builder.build();
+        }
     }
 
-    private static boolean conditionApplies(ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
+    private static boolean testRoundtripped(ColumnCondition.Bound bound, Row row)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", Int32Type.instance);
+        DataOutputBuffer dab = new DataOutputBuffer();
+        IVersionedSerializer<ColumnCondition.Bound> serializer = ColumnCondition.Bound.serializer;
+        int version = MessagingService.current_version;
+        try
+        {
+            serializer.serialize(bound, dab, version);
+            assertEquals(serializer.serializedSize(bound, version), dab.position());
+            ColumnCondition.Bound deserializedBound = serializer.deserialize(new DataInputBuffer(dab.buffer(), false), version);
+            boolean originalResult = bound.appliesTo(row);
+            assertEquals(originalResult, deserializedBound.appliesTo(row));
+            return originalResult;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean conditionApplies(ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
+    {
+        AbstractType<?> columnType = Int32Type.instance;
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, false), "c", columnType);
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
-        return bound.appliesTo(newRow(definition, rowValue));
+        boolean regularColumnResult = testRoundtripped(bound, newRow(definition, rowValue));
+        // Every simple bound test is also a valid test of the UDT access path
+        boolean conditionUDTApplies = conditionUDTApplies(rowValue, op, conditionValue);
+        assertEquals(regularColumnResult, conditionUDTApplies);
+        return regularColumnResult;
     }
 
-    private static boolean conditionApplies(List<ByteBuffer> rowValue, Operator op, List<ByteBuffer> conditionValue)
+    private boolean conditionApplies(List<ByteBuffer> rowValue, Operator op, List<ByteBuffer> conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
+        boolean nonFrozenResult = conditionApplies(rowValue, op, conditionValue, listType);
+        boolean frozenResult = conditionApplies(rowValue, op, conditionValue, listType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return nonFrozenResult;
+    }
+
+    private boolean conditionApplies(List<ByteBuffer> rowValue, Operator op, List<ByteBuffer> conditionValue, ListType<Integer> columnType)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Lists.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
-        return bound.appliesTo(newRow(definition, rowValue));
+        return testRoundtripped(bound, newRow(definition, rowValue));
     }
 
-    private static boolean conditionContainsApplies(List<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
+    private boolean conditionContainsApplies(List<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
+        boolean nonFrozenResult = conditionContainsApplies(rowValue, op, conditionValue, listType);
+        boolean frozenResult = conditionContainsApplies(rowValue, op, conditionValue, listType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return frozenResult;
+    }
+
+    private boolean conditionContainsApplies(List<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue, ListType<Integer> columnType)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
-        return bound.appliesTo(newRow(definition, rowValue));
+        return testRoundtripped(bound, newRow(definition, rowValue));
     }
 
-    private static boolean conditionContainsApplies(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
+    private boolean conditionContainsApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
+        boolean nonFrozenResult = conditionContainsApplies(rowValue, op, conditionValue, mapType);
+        boolean frozenResult = conditionContainsApplies(rowValue, op, conditionValue, mapType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return frozenResult;
+    }
+
+    private boolean conditionContainsApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue, MapType<Integer, Integer> columnType)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
-        return bound.appliesTo(newRow(definition, rowValue));
+        return testRoundtripped(bound, newRow(definition, rowValue));
     }
 
-    private static boolean conditionApplies(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue)
+    private boolean conditionApplies(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
+        boolean nonFrozenResult = conditionApplies(rowValue, op, conditionValue, setType);
+        boolean frozenResult = conditionApplies(rowValue, op, conditionValue, setType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return nonFrozenResult;
+    }
+
+    private boolean conditionApplies(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue, SetType<Integer> columnType)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Sets.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
-        return bound.appliesTo(newRow(definition, rowValue));
+        return testRoundtripped(bound, newRow(definition, rowValue));
     }
 
-    private static boolean conditionContainsApplies(SortedSet<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
+    private boolean conditionContainsApplies(SortedSet<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
+        boolean nonFrozenResult = conditionContainsApplies(rowValue, op, conditionValue, setType);
+        boolean frozenResult = conditionContainsApplies(rowValue, op, conditionValue, setType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return frozenResult;
+    }
+
+    private boolean conditionContainsApplies(SortedSet<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue, SetType<Integer> columnType)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
-        return bound.appliesTo(newRow(definition, rowValue));
+        return testRoundtripped(bound, newRow(definition, rowValue));
     }
 
-    private static boolean conditionApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, Operator op, SortedMap<ByteBuffer, ByteBuffer> conditionValue)
+    private boolean conditionApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, Operator op, SortedMap<ByteBuffer, ByteBuffer> conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
+        boolean nonFrozenResult = conditionApplies(rowValue, op, conditionValue, mapType);
+        boolean frozenResult = conditionApplies(rowValue, op, conditionValue, mapType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return nonFrozenResult;
+    }
+
+    private boolean conditionApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, Operator op, SortedMap<ByteBuffer, ByteBuffer> conditionValue, MapType<Integer, Integer> columnType)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Maps.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
-        return bound.appliesTo(newRow(definition, rowValue));
+        return testRoundtripped(bound, newRow(definition, rowValue));
+    }
+
+    private boolean conditionElementApplies(List<ByteBuffer> values, ByteBuffer elementIndex, Operator op, ByteBuffer elementValue)
+    {
+        boolean nonFrozenResult = conditionElementApplies(values, elementIndex, op, elementValue, listType);
+        boolean frozenResult = conditionElementApplies(values, elementIndex, op, elementValue, listType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return nonFrozenResult;
+    }
+
+    private boolean conditionElementApplies(List<ByteBuffer> values, ByteBuffer elementIndex, Operator op, ByteBuffer elementValue, ListType<Integer> columnType)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
+        ColumnCondition condition = ColumnCondition.condition(definition, new Constants.Value(elementIndex), op, Terms.of(new Constants.Value(elementValue)));
+        ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
+        return testRoundtripped(bound, newRow(definition, values));
+    }
+
+    private boolean conditionElementApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, ByteBuffer elementKey, Operator op, ByteBuffer elementValue)
+    {
+        boolean nonFrozenResult = conditionElementApplies(rowValue, elementKey, op, elementValue, mapType);
+        boolean frozenResult = conditionElementApplies(rowValue, elementKey, op, elementValue, mapType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return nonFrozenResult;
+    }
+
+    private boolean conditionElementApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, ByteBuffer elementKey, Operator op, ByteBuffer elementValue, MapType<Integer, Integer> columnType)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
+        ColumnCondition condition = ColumnCondition.condition(definition, new Constants.Value(elementKey), op, Terms.of(new Constants.Value(elementValue)));
+        ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
+        return testRoundtripped(bound, newRow(definition, rowValue));
+    }
+
+    private boolean conditionUDTApplies(ByteBuffer fieldValue, Operator op, ByteBuffer elementValue)
+    {
+        boolean nonFrozenResult = conditionUDTApplies(fieldValue, op, elementValue, udtType);
+        boolean frozenResult = conditionUDTApplies(fieldValue, op, elementValue, udtType.freeze());
+        assertEquals(nonFrozenResult, frozenResult);
+        return nonFrozenResult;
+    }
+
+    private boolean conditionUDTApplies(ByteBuffer fieldValue, Operator op, ByteBuffer elementValue, UserType type)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(type, !type.isMultiCell()), "c", type);
+        ColumnCondition condition = ColumnCondition.condition(definition, type.fieldName(0), op, Terms.of(new Constants.Value(elementValue)));
+        ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
+        return testRoundtripped(bound, newRow(definition, fieldValue));
+    }
+
+    private boolean conditionUDTApplies(List<ByteBuffer> rowValue, Operator op, List<ByteBuffer> conditionValue)
+    {
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(udtType, false), "c", udtType);
+        Term term = conditionValue == null ? Constants.NULL_VALUE : new UserTypes.Value(udtType, conditionValue.toArray(new ByteBuffer[0]));
+        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(term));
+        ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
+        return testRoundtripped(bound, newRow(definition, rowValue));
+    }
+
+    @Override
+    public void beforeTest() throws Throwable
+    {
+        super.beforeTest();
+        String typeName = createType("CREATE TYPE %s (a int, b int);");
+        udtType = Schema.instance.getKeyspaceMetadata(KEYSPACE).types.get(ByteBufferUtil.bytes(typeName)).get();
+    }
+    @Override
+    public void afterTest() throws Throwable
+    {
+        super.afterTest();
+        typeToTable.clear();
+        udtType = null;
+    }
+
+    // Is this useful enough to have in CQL tester?
+    private UserType udtType;
+    private final Map<Pair<AbstractType<?>, Boolean>, String> typeToTable = new HashMap<>();
+
+    private String maybeCreateTable(AbstractType<?> columnType, boolean frozen)
+    {
+        String columnTypeCQL = columnType.asCQL3Type().toString();
+        String maybeFrozenColumnTypeCQL = frozen ? columnTypeCQL : "frozen<%s>".format(columnTypeCQL);
+        return typeToTable.computeIfAbsent(Pair.create(columnType, frozen), type -> createTable("CREATE TABLE %s (id int primary key, c " + maybeFrozenColumnTypeCQL + ")"));
     }
 
     @FunctionalInterface
@@ -194,7 +454,7 @@ public class ColumnConditionTest
     }
 
     @Test
-    public void testSimpleBoundIsSatisfiedByValue() throws InvalidRequestException
+    public void testSimpleAndUDTBoundIsSatisfiedByValue() throws InvalidRequestException
     {
         // EQ
         assertTrue(conditionApplies(ONE, EQ, ONE));
@@ -205,7 +465,7 @@ public class ColumnConditionTest
         assertTrue(conditionApplies(EMPTY_BYTE_BUFFER, EQ, EMPTY_BYTE_BUFFER));
         assertFalse(conditionApplies(ONE, EQ, null));
         assertFalse(conditionApplies(null, EQ, ONE));
-        assertTrue(conditionApplies((ByteBuffer) null, EQ, (ByteBuffer) null));
+        assertTrue(conditionApplies(null, EQ, (ByteBuffer) null));
 
         // NEQ
         assertFalse(conditionApplies(ONE, NEQ, ONE));
@@ -216,7 +476,7 @@ public class ColumnConditionTest
         assertFalse(conditionApplies(EMPTY_BYTE_BUFFER, NEQ, EMPTY_BYTE_BUFFER));
         assertTrue(conditionApplies(ONE, NEQ, null));
         assertTrue(conditionApplies(null, NEQ, ONE));
-        assertFalse(conditionApplies((ByteBuffer) null, NEQ, (ByteBuffer) null));
+        assertFalse(conditionApplies(null, NEQ, (ByteBuffer) null));
 
         // LT
         assertFalse(conditionApplies(ONE, LT, ONE));
@@ -359,6 +619,18 @@ public class ColumnConditionTest
         assertFalse(conditionContainsApplies(list(ZERO, ONE, TWO), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertFalse(conditionContainsApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS, ONE));
         assertTrue(conditionContainsApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
+        //ELEMENT
+        assertTrue(conditionElementApplies(list(ZERO, ONE, TWO), ZERO, EQ, ZERO));
+        assertTrue(conditionElementApplies(list(ZERO, ONE, TWO), ONE, EQ, ONE));
+        assertTrue(conditionElementApplies(list(ZERO, ONE, TWO), TWO, EQ, TWO));
+
+        assertFalse(conditionElementApplies(list(ZERO, ONE, TWO), ZERO, EQ, ONE));
+        assertFalse(conditionElementApplies(list(ZERO, ONE, TWO), ZERO, EQ, TWO));
+        assertFalse(conditionElementApplies(list(ZERO, ONE, TWO), ONE, EQ, ZERO));
+        assertFalse(conditionElementApplies(list(ZERO, ONE, TWO), ONE, EQ, TWO));
+        assertFalse(conditionElementApplies(list(ZERO, ONE, TWO), TWO, EQ, ZERO));
+        assertFalse(conditionElementApplies(list(ZERO, ONE, TWO), TWO, EQ, ONE));
     }
 
     private static SortedSet<ByteBuffer> set(ByteBuffer... values)
@@ -611,5 +883,96 @@ public class ColumnConditionTest
         assertTrue(conditionContainsApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS_KEY, ONE));
         assertFalse(conditionContainsApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS_KEY, ByteBufferUtil.EMPTY_BYTE_BUFFER));
 
+        // Element access
+        assertTrue(conditionElementApplies(map(ZERO, ONE), ZERO, EQ, ONE));
+        assertFalse(conditionElementApplies(map(ZERO, ONE), ZERO, EQ, TWO));
+        assertFalse(conditionElementApplies(map(ZERO, ONE), ONE, EQ, TWO));
+        assertFalse(conditionElementApplies(map(), ZERO, EQ, TWO));
+    }
+
+    @Test
+    public void testMultiCellUDTBound() throws InvalidRequestException
+    {
+        // EQ
+        assertTrue(conditionUDTApplies(list(ONE), EQ, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ONE), EQ, list(ZERO)));
+        assertFalse(conditionUDTApplies(list(ZERO), EQ, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ONE, ONE), EQ, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ONE), EQ, list(ONE, ONE)));
+        assertFalse(conditionUDTApplies(list(ONE), EQ, list()));
+
+        assertFalse(conditionUDTApplies(list(ONE), EQ, null));
+        assertFalse(conditionUDTApplies(null, EQ, list(ONE)));
+        assertTrue(conditionUDTApplies(null, EQ, (List<ByteBuffer>) null));
+
+        assertFalse(conditionUDTApplies(list(ONE), EQ, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+        assertFalse(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), EQ, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), EQ, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+
+        // NEQ
+        assertFalse(conditionUDTApplies(list(ONE), NEQ, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), NEQ, list(ZERO)));
+        assertTrue(conditionUDTApplies(list(ZERO), NEQ, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE, ONE), NEQ, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), NEQ, list(ONE, ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), NEQ, list()));
+        assertTrue(conditionUDTApplies(list(), NEQ, list(ONE)));
+
+        assertTrue(conditionUDTApplies(list(ONE), NEQ, null));
+        assertTrue(conditionUDTApplies(null, NEQ, list(ONE)));
+        assertFalse(conditionUDTApplies(null, NEQ, (List<ByteBuffer>) null));
+
+        assertTrue(conditionUDTApplies(list(ONE), NEQ, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+        assertTrue(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), NEQ, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), NEQ, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+
+        // LT
+        assertFalse(conditionUDTApplies(list(ONE), LT, list(ONE)));
+        assertFalse(conditionUDTApplies(list(), LT, list()));
+        assertFalse(conditionUDTApplies(list(ONE), LT, list(ZERO)));
+        assertTrue(conditionUDTApplies(list(ZERO), LT, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ONE, ONE), LT, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), LT, list(ONE, ONE)));
+        assertFalse(conditionUDTApplies(list(ONE), LT, list()));
+
+        assertFalse(conditionUDTApplies(list(ONE), LT, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+        assertTrue(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), LT, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), LT, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+
+        // LTE
+        assertTrue(conditionUDTApplies(list(ONE), LTE, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ONE), LTE, list(ZERO)));
+        assertTrue(conditionUDTApplies(list(ZERO), LTE, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ONE, ONE), LTE, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), LTE, list(ONE, ONE)));
+        assertFalse(conditionUDTApplies(list(ONE), LTE, list()));
+
+        assertFalse(conditionUDTApplies(list(ONE), LTE, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+        assertTrue(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), LTE, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), LTE, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+
+        // GT
+        assertFalse(conditionUDTApplies(list(ONE), GT, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), GT, list(ZERO)));
+        assertFalse(conditionUDTApplies(list(ZERO), GT, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE, ONE), GT, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ONE), GT, list(ONE, ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), GT, list()));
+
+        assertTrue(conditionUDTApplies(list(ONE), GT, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+        assertFalse(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), GT, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), GT, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+
+        // GTE
+        assertTrue(conditionUDTApplies(list(ONE), GTE, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), GTE, list(ZERO)));
+        assertFalse(conditionUDTApplies(list(ZERO), GTE, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ONE, ONE), GTE, list(ONE)));
+        assertFalse(conditionUDTApplies(list(ONE), GTE, list(ONE, ONE)));
+        assertTrue(conditionUDTApplies(list(ONE), GTE, list()));
+
+        assertTrue(conditionUDTApplies(list(ONE), GTE, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
+        assertFalse(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), GTE, list(ONE)));
+        assertTrue(conditionUDTApplies(list(ByteBufferUtil.EMPTY_BYTE_BUFFER), GTE, list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
     }
 }

@@ -3142,6 +3142,11 @@ public class DatabaseDescriptor
         return conf.paxos_topology_repair_strict_each_quorum;
     }
 
+    public static Config.LegacyPaxosStrategy getLegacyPaxosStrategy()
+    {
+        return conf.legacy_paxos_strategy;
+    }
+
     public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)
     {
         if (maxRequestDataInFlightInBytes == -1)

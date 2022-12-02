@@ -134,6 +134,11 @@ public class CollectionSerializers
         return i -> i == 0 ? Collections.emptyList() : new ArrayList<>(i);
     }
 
+    public static int readCollectionSize(DataInputPlus in, int version) throws IOException
+    {
+        return checkedCast(in.readUnsignedVInt());
+    }
+
     /*
      * Private to push auto-complete to the convenience methods
      * Feel free to make public if there is a weird collection you want to use

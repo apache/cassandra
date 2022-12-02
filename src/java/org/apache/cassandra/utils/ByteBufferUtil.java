@@ -55,6 +55,7 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -371,6 +372,17 @@ public class ByteBufferUtil
         out.writeUnsignedVInt32(bytes.remaining());
         out.write(bytes);
     }
+    public static void writeWithVIntLengthAndNull(ByteBuffer bytes, DataOutputPlus out) throws IOException
+    {
+        if (bytes == null)
+        {
+            out.writeVInt(-1);
+            return;
+        }
+        
+        out.writeVInt(bytes.remaining());
+        out.write(bytes);
+    }
 
     public static void writeWithShortLength(ByteBuffer buffer, DataOutputPlus out) throws IOException
     {
@@ -399,12 +411,6 @@ public class ByteBufferUtil
             throw new IOException("Corrupt (negative) value length encountered");
 
         return ByteBufferUtil.read(in, length);
-    }
-
-    public static int serializedSizeWithLength(ByteBuffer buffer)
-    {
-        int size = buffer.remaining();
-        return TypeSizes.sizeof(size) + size;
     }
 
     public static int serializedSizeWithVIntLength(ByteBuffer buffer)
@@ -973,7 +979,20 @@ public class ByteBufferUtil
         }
     }
 
-    public static final IVersionedSerializer<ByteBuffer> vintSerializer = new IVersionedSerializer<ByteBuffer>()
+    public static <T> ByteBuffer serialized(IVersionedSerializer<T> serializer, T value, int version)
+    {
+        try (DataOutputBuffer dob = new DataOutputBuffer())
+        {
+            serializer.serialize(value, dob, version);
+            return dob.buffer();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static final IVersionedSerializer<ByteBuffer> byteBufferSerializer = new IVersionedSerializer<ByteBuffer>()
     {
         @Override
         public void serialize(ByteBuffer bytes, DataOutputPlus out, int version) throws IOException
@@ -993,4 +1012,6 @@ public class ByteBufferUtil
             return serializedSizeWithVIntLength(bytes);
         }
     };
+
+    public static final IVersionedSerializer<ByteBuffer> nullableByteBufferSerializer = NullableSerializer.wrap(byteBufferSerializer);
 }

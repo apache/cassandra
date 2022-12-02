@@ -101,7 +101,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return "TxnNamedRead{name='" + name + '\'' + ", key=" + key + ", update=" + get() + '}';
     }
 
-    public TxnDataName name()
+    public TxnDataName txnDataName()
     {
         return name;
     }
