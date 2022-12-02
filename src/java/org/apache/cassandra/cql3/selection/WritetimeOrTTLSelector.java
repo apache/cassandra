@@ -70,7 +70,7 @@ final class WritetimeOrTTLSelector extends Selector
             protected AbstractType<?> getReturnType()
             {
                 AbstractType<?> type = kind.returnType;
-                return isMultiCell && !kind.aggregatesMultiCell() ? ListType.getInstance(type, false) : type;
+                return isMultiCell ? ListType.getInstance(type, false) : type;
             }
 
             @Override
@@ -95,12 +95,6 @@ final class WritetimeOrTTLSelector extends Selector
             public boolean isTTLSelectorFactory()
             {
                 return kind == Selectable.WritetimeOrTTL.Kind.TTL;
-            }
-
-            @Override
-            public boolean isMaxWritetimeSelectorFactory()
-            {
-                return kind == Selectable.WritetimeOrTTL.Kind.MAX_WRITE_TIME;
             }
 
             @Override
@@ -136,9 +130,6 @@ final class WritetimeOrTTLSelector extends Selector
         {
             case WRITE_TIME:
                 current = selected.getWritetimes(protocolVersion).toByteBuffer(protocolVersion);
-                break;
-            case MAX_WRITE_TIME:
-                current = selected.getWritetimes(protocolVersion).max().toByteBuffer(protocolVersion);
                 break;
             case TTL:
                 current = selected.getTTLs(protocolVersion).toByteBuffer(protocolVersion);

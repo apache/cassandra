@@ -58,7 +58,7 @@ public interface FunctionParameter
      * @param type the accepted data type
      * @return a function parameter definition that accepts values of a specific data type
      */
-    public static FunctionParameter fixed(AbstractType<?> type)
+    static FunctionParameter fixed(AbstractType<?> type)
     {
         return new FunctionParameter()
         {
@@ -90,7 +90,7 @@ public interface FunctionParameter
      * @param inferFromReceiver whether the parameter should try to use the function receiver to infer its data type
      * @return a function parameter definition that accepts columns of any data type
      */
-    public static FunctionParameter anyType(boolean inferFromReceiver)
+    static FunctionParameter anyType(boolean inferFromReceiver)
     {
         return new FunctionParameter()
         {
@@ -116,65 +116,10 @@ public interface FunctionParameter
     }
 
     /**
-     * @return a function parameter definition that accepts values of type {@link CollectionType}, independently of the
-     * types of its elements.
-     */
-    public static FunctionParameter anyCollection()
-    {
-        return new FunctionParameter()
-        {
-            @Override
-            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
-            {
-                if (!argType.isCollection())
-                    throw new InvalidRequestException(format("Function %s requires a collection argument, " +
-                                                             "but found argument %s of type %s",
-                                                             name, arg, argType.asCQL3Type()));
-            }
-
-            @Override
-            public String toString()
-            {
-                return "collection";
-            }
-        };
-    }
-
-    /**
-     * @return a function parameter definition that accepts values of type {@link SetType} or {@link ListType}.
-     */
-    public static FunctionParameter setOrList()
-    {
-        return new FunctionParameter()
-        {
-            @Override
-            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
-            {
-                if (argType.isCollection())
-                {
-                    CollectionType.Kind kind = ((CollectionType<?>) argType).kind;
-                    if (kind == CollectionType.Kind.SET || kind == CollectionType.Kind.LIST)
-                        return;
-                }
-
-                throw new InvalidRequestException(format("Function %s requires a set or list argument, " +
-                                                         "but found argument %s of type %s",
-                                                         name, arg, argType.asCQL3Type()));
-            }
-
-            @Override
-            public String toString()
-            {
-                return "numeric_set_or_list";
-            }
-        };
-    }
-
-    /**
      * @return a function parameter definition that accepts values of type {@link SetType} or {@link ListType},
      * provided that its elements are numeric.
      */
-    public static FunctionParameter numericSetOrList()
+    static FunctionParameter numericSetOrList()
     {
         return new FunctionParameter()
         {
@@ -194,10 +139,14 @@ public interface FunctionParameter
                         elementType = ((ListType<?>) argType).getElementsType();
                     }
                 }
+                else
+                {
+                    elementType = argType;
+                }
 
                 if (!(elementType instanceof NumberType))
-                    throw new InvalidRequestException(format("Function %s requires a numeric set/list argument, " +
-                                                             "but found argument %s of type %s",
+                    throw new InvalidRequestException(format("The argument for %s should be a number or a set/list " +
+                                                             "of numbers, but found argument %s of type %s",
                                                              name, arg, argType.asCQL3Type()));
             }
 
@@ -213,7 +162,7 @@ public interface FunctionParameter
      * @return a function parameter definition that accepts values of type {@link MapType}, independently of the types
      * of the map keys and values.
      */
-    public static FunctionParameter anyMap()
+    static FunctionParameter anyMap()
     {
         return new FunctionParameter()
         {

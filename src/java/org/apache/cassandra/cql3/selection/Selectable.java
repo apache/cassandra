@@ -236,8 +236,7 @@ public interface Selectable extends AssignmentTestable
         public enum Kind
         {
             TTL("ttl", Int32Type.instance),
-            WRITE_TIME("writetime", LongType.instance),
-            MAX_WRITE_TIME("maxwritetime", LongType.instance); // maxwritetime is available after Cassandra 4.1 (exclusive)
+            WRITE_TIME("writetime", LongType.instance);
 
             public final String name;
             public final AbstractType<?> returnType;
@@ -251,11 +250,6 @@ public interface Selectable extends AssignmentTestable
             {
                 this.name = name;
                 this.returnType = returnType;
-            }
-
-            public boolean aggregatesMultiCell()
-            {
-                return this == MAX_WRITE_TIME;
             }
         }
 
@@ -297,7 +291,9 @@ public interface Selectable extends AssignmentTestable
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             AbstractType<?> type = kind.returnType;
-            return column.type.isMultiCell() && !kind.aggregatesMultiCell() ? ListType.getInstance(type, false) : type;
+            return selectable.getExactTypeIfKnown(keyspace).isMultiCell()
+                   ? ListType.getInstance(type, false)
+                   : type;
         }
 
         @Override
