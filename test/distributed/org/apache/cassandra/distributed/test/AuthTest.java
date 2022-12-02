@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
@@ -38,8 +39,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class AuthTest extends TestBaseImpl
 {
@@ -53,15 +56,9 @@ public class AuthTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build().withNodes(1).start())
         {
-            boolean setupCalled = cluster.get(1).callOnInstance(() -> {
-                long maxWait = TimeUnit.NANOSECONDS.convert(10, TimeUnit.SECONDS);
-                long start = System.nanoTime();
-                while (!StorageService.instance.authSetupCalled() && System.nanoTime() - start < maxWait)
-                    Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-
-                return StorageService.instance.authSetupCalled();
-            });
-            assertTrue(setupCalled);
+            IInvokableInstance instance = cluster.get(1);
+            await().pollDelay(1, SECONDS).pollInterval(1, SECONDS)
+                   .until(() -> instance.callOnInstance(() -> StorageService.instance.authSetupCalled()));
         }
     }
 
@@ -77,21 +74,14 @@ public class AuthTest extends TestBaseImpl
                                         .withConfig(config -> config.with(NETWORK, GOSSIP).set("authenticator", "PasswordAuthenticator"))
                                         .start())
         {
-            boolean defaultRoleSetup = cluster.get(1).callOnInstance(() -> {
-                long maxWait = TimeUnit.NANOSECONDS.convert(10, TimeUnit.SECONDS);
-                long start = System.nanoTime();
-                while (!CassandraRoleManager.hasExistingRoles() && System.nanoTime() - start < maxWait)
-                    Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-
-                return CassandraRoleManager.hasExistingRoles();
-            });
-            assertTrue(defaultRoleSetup);
+            IInvokableInstance instance = cluster.get(1);
+            await().pollDelay(1, SECONDS).pollInterval(1, SECONDS).atMost(12, SECONDS)
+                .until(() -> instance.callOnInstance(() -> CassandraRoleManager.hasExistingRoles()));
 
             //get the time from the the first role setup
-            Long time1 = (Long)cluster.coordinator(1).execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
-                                           ConsistencyLevel.ONE)[0][0];
-
-
+            Long time1 = (Long)cluster.coordinator(1)
+                                      .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
+                                               ConsistencyLevel.ONE)[0][0];
 
             IInstanceConfig config = cluster.newInstanceConfig();
             // set boostrap to false to simulate a seed node
@@ -100,19 +90,14 @@ public class AuthTest extends TestBaseImpl
             withProperty(BOOTSTRAP_SCHEMA_DELAY_MS.getKey(), Integer.toString(90 * 1000),
                          () -> withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster)));
             newInstance.nodetoolResult("join").asserts().success();
-            defaultRoleSetup =  newInstance.callOnInstance(() -> {
-                long maxWait = TimeUnit.NANOSECONDS.convert(10, TimeUnit.SECONDS);
-                long start = System.nanoTime();
-                while (!CassandraRoleManager.hasExistingRoles() && System.nanoTime() - start < maxWait)
-                    Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
 
-                return CassandraRoleManager.hasExistingRoles() ;
-            });
-            assertTrue(defaultRoleSetup);
+            await().pollDelay(1, SECONDS).pollInterval(1, SECONDS)
+                     .until(() -> newInstance.callOnInstance(() -> CassandraRoleManager.hasExistingRoles()));
 
             // get write titme frome second role setup
-            Long time2 = (Long)cluster.coordinator(1).execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
-                                                               ConsistencyLevel.ONE)[0][0];
+            Long time2 = (Long)cluster.coordinator(1)
+                                      .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
+                                               ConsistencyLevel.ONE)[0][0];
             // we don't do this here but if the user changed the Cassandra user password it will be (read) reapired if the second node has a later
             // write timsestamp - check that this is not the case
             assertTrue(time1 >= time2);
