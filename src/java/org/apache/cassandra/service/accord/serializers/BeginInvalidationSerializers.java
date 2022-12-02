@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public class BeginInvalidationSerializers
 {
@@ -92,12 +92,12 @@ public class BeginInvalidationSerializers
         @Override
         public long serializedSize(InvalidateReply reply, int version)
         {
-            return serializedSizeNullable(reply.supersededBy, version, CommandSerializers.ballot)
+            return serializedNullableSize(reply.supersededBy, version, CommandSerializers.ballot)
                     + CommandSerializers.ballot.serializedSize(reply.accepted, version)
                     + CommandSerializers.status.serializedSize(reply.status, version)
                     + TypeSizes.BOOL_SIZE
-                    + serializedSizeNullable(reply.route, version, KeySerializers.route)
-                    + serializedSizeNullable(reply.homeKey, version, KeySerializers.routingKey);
+                    + serializedNullableSize(reply.route, version, KeySerializers.route)
+                    + serializedNullableSize(reply.homeKey, version, KeySerializers.routingKey);
         }
     };
 }

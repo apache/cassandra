@@ -32,7 +32,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public class CommitSerializers
 {
@@ -64,10 +64,10 @@ public class CommitSerializers
         public long serializedBodySize(Commit msg, int version)
         {
             return CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
-                   + serializedSizeNullable(msg.partialTxn, version, CommandSerializers.partialTxn)
+                   + serializedNullableSize(msg.partialTxn, version, CommandSerializers.partialTxn)
                    + DepsSerializer.partialDeps.serializedSize(msg.partialDeps, version)
-                   + serializedSizeNullable(msg.route, version, KeySerializers.fullRoute)
-                   + serializedSizeNullable(msg.read, version, ReadDataSerializers.request);
+                   + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
+                   + serializedNullableSize(msg.read, version, ReadDataSerializers.request);
         }
     };
 

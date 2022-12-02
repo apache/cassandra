@@ -723,6 +723,7 @@ public class PaxosState implements PaxosOperationLock
         {
             synchronized (unsafeState.key)
             {
+                // Unused return value?
                 unsafeState.maybeLoad();
                 assert unsafeState.current != null;
 
