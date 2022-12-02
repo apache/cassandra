@@ -409,7 +409,7 @@ public class ContentionStrategy
         }
 
         long wait = waitRandomizer.wait(minWaitMicros, maxWaitMicros, attempts);
-        return nanoTime() + wait;
+        return nanoTime() + MICROSECONDS.toNanos(wait);
     }
 
     private boolean doWaitForContention(long deadline, int attempts, TableMetadata table, DecoratedKey partitionKey, ConsistencyLevel consistency, Type type)
