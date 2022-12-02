@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
-import java.io.IOException;
-
-import javax.annotation.Nullable;
-
 import accord.messages.PreAccept;
 import accord.messages.PreAccept.PreAcceptOk;
 import accord.messages.PreAccept.PreAcceptReply;
@@ -35,9 +31,10 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
 
-import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import javax.annotation.Nullable;
+import java.io.IOException;
+
+import static org.apache.cassandra.utils.NullableSerializer.*;
 
 public class PreacceptSerializers
 {
@@ -67,7 +64,7 @@ public class PreacceptSerializers
         public long serializedBodySize(PreAccept msg, int version)
         {
             return CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
-                   + serializedSizeNullable(msg.route, version, KeySerializers.fullRoute)
+                   + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
                    + TypeSizes.sizeofUnsignedVInt(msg.maxEpoch - msg.minEpoch);
         }
     };

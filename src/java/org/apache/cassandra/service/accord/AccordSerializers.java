@@ -18,19 +18,14 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-
 import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.Sets;
 import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.ArrayClustering;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -46,11 +41,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+
 import static com.google.common.primitives.Ints.checkedCast;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
-import static org.apache.cassandra.db.marshal.CollectionType.Kind.LIST;
-import static org.apache.cassandra.db.marshal.CollectionType.Kind.MAP;
-import static org.apache.cassandra.db.marshal.CollectionType.Kind.SET;
+import static org.apache.cassandra.db.marshal.CollectionType.Kind.*;
 
 public class AccordSerializers
 {
@@ -68,6 +66,14 @@ public class AccordSerializers
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static <T> ByteBuffer[] serialize(List<T> items, IVersionedSerializer<T> serializer)
+    {
+        ByteBuffer[] result = new ByteBuffer[items.size()];
+        for (int i = 0, mi = items.size(); i < mi; i++)
+            result[i] = serialize(items.get(i), serializer);
+        return result;
     }
 
     public static <T> T deserialize(ByteBuffer bytes, IVersionedSerializer<T> serializer)
@@ -135,7 +141,7 @@ public class AccordSerializers
             String table = in.readUTF();
             ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
             TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-            
+
             // TODO: Can the metadata be null if the table has been dropped?
             return metadata.getColumn(name);
         }
@@ -144,8 +150,8 @@ public class AccordSerializers
         public long serializedSize(ColumnMetadata column, int version)
         {
             long size = 0;
-            size += TypeSizes.sizeof(column.ksName);
-            size += TypeSizes.sizeof(column.cfName);
+            size += sizeof(column.ksName);
+            size += sizeof(column.cfName);
             size += ByteBufferUtil.serializedSizeWithShortLength(column.name.bytes);
             return size;
         }
@@ -169,6 +175,75 @@ public class AccordSerializers
         public long serializedSize(TableMetadata metadata, int version)
         {
             return TableId.serializedSize();
+        }
+    };
+
+    public static final IVersionedSerializer<Clustering<?>> clusteringPrefixSerializer = new IVersionedSerializer<Clustering<?>>()
+    {
+        @Override
+        public void serialize(Clustering<?> clustering, DataOutputPlus out, int version) throws IOException
+        {
+            doSerialize(clustering, out);
+        }
+
+        public <V> void doSerialize(Clustering<V> clustering, DataOutputPlus out) throws IOException
+        {
+            if (clustering.kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING)
+            {
+                out.writeBoolean(true);
+            }
+            else
+            {
+                out.writeBoolean(false);
+                out.writeUnsignedVInt(clustering.size());
+                ValueAccessor<V> accessor = clustering.accessor();
+                for (int i = 0; i < clustering.size(); i++)
+                {
+                    accessor.writeWithVIntLength(clustering.get(i), out);
+                }
+            }
+        }
+
+        @Override
+        public Clustering<?> deserialize(DataInputPlus in, int version) throws IOException
+        {
+            Clustering<?> clustering;
+            if (in.readBoolean())
+            {
+                clustering = Clustering.STATIC_CLUSTERING;
+            }
+            else
+            {
+                int numComponents = checkedCast(in.readUnsignedVInt());
+                byte[][] components = new byte[numComponents][];
+                for (int ci = 0; ci < numComponents; ci++)
+                {
+                    int componentLength = checkedCast(in.readUnsignedVInt());
+                    components[ci] = new byte[componentLength];
+                    in.readFully(components[ci]);
+                }
+                clustering = new ArrayClustering(components);
+            }
+            return clustering;
+        }
+
+        @Override
+        public long serializedSize(Clustering<?> clustering, int version)
+        {
+            return computeSerializedSize(clustering);
+        }
+
+        private <V> long computeSerializedSize(Clustering<V> clustering)
+        {
+            int size = sizeof(true) + sizeofUnsignedVInt(clustering.size());
+            ValueAccessor<V> accessor = clustering.accessor();
+            for (int i = 0; i < clustering.size(); i++)
+            {
+                int valueSize = accessor.size(clustering.get(i));
+                size += valueSize;
+                size += sizeofUnsignedVInt(valueSize);
+            }
+            return size;
         }
     };
 }

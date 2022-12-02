@@ -18,13 +18,7 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -34,8 +28,20 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.primitives.Ints.checkedCast;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
+import static org.apache.cassandra.service.accord.AccordSerializers.clusteringPrefixSerializer;
+import static org.apache.cassandra.utils.NullableSerializer.*;
 
 public class TxnDataName implements Comparable<TxnDataName>
 {
@@ -71,13 +77,27 @@ public class TxnDataName implements Comparable<TxnDataName>
         }
     }
 
+    @Nonnull
     private final Kind kind;
+
+    @Nonnull
     private final String[] parts;
 
-    public TxnDataName(Kind kind, String... parts)
+    @Nullable
+    private final Clustering<?> clustering;
+
+    public TxnDataName(@Nonnull Kind kind, @Nonnull String... parts)
     {
+        this(kind, null, parts);
+    }
+
+    public TxnDataName(@Nonnull Kind kind, @Nullable Clustering<?> clustering, @Nonnull String... parts)
+    {
+        checkNotNull(kind);
+        checkNotNull(parts);
         this.kind = kind;
         this.parts = parts;
+        this.clustering = clustering;
     }
 
     public static TxnDataName user(String name)
@@ -202,6 +222,7 @@ public class TxnDataName implements Comparable<TxnDataName>
             out.writeUnsignedVInt(t.parts.length);
             for (String part : t.parts)
                 out.writeUTF(part);
+            serializeNullable(t.clustering, out, version, clusteringPrefixSerializer);
         }
 
         @Override
@@ -212,7 +233,8 @@ public class TxnDataName implements Comparable<TxnDataName>
             String[] parts = new String[length];
             for (int i = 0; i < length; i++)
                 parts[i] = in.readUTF();
-            return new TxnDataName(kind, parts);
+            Clustering<?> clustering = deserializeNullable(in, version, clusteringPrefixSerializer);
+            return new TxnDataName(kind, clustering, parts);
         }
 
         @Override
@@ -221,6 +243,7 @@ public class TxnDataName implements Comparable<TxnDataName>
             int size = Byte.BYTES + sizeofUnsignedVInt(t.parts.length);
             for (String part : t.parts)
                 size += TypeSizes.sizeof(part);
+            size += serializedNullableSize(t.clustering, version, clusteringPrefixSerializer);
             return size;
         }
     };

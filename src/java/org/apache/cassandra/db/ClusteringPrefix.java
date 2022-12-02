@@ -38,6 +38,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
  * A clustering prefix is the unit of what a {@link ClusteringComparator} can compare.
  * <p>

@@ -75,6 +75,7 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         return data.entrySet();
     }
 
+    // This is inadequate
     @Override
     public Data merge(Data data)
     {

@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.service;
 
+import accord.primitives.Txn;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.paxos.Ballot;
 
 /**
@@ -44,4 +47,8 @@ public interface CASRequest
      * are passed as argument.
      */
     public PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
+
+    public Txn toAccordTxn(ClientState clientState, int nowInSecs);
+
+    RowIterator toCasResult(TxnData data);
 }

@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
-
 import javax.annotation.Nullable;
 
 import accord.api.Result;
@@ -45,7 +44,7 @@ import org.apache.cassandra.service.accord.txn.TxnData;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public class RecoverySerializers
 {
@@ -73,7 +72,7 @@ public class RecoverySerializers
         {
             return CommandSerializers.partialTxn.serializedSize(recover.partialTxn, version)
                    + CommandSerializers.ballot.serializedSize(recover.ballot, version)
-                   + serializedSizeNullable(recover.route, version, KeySerializers.fullRoute);
+                   + serializedNullableSize(recover.route, version, KeySerializers.fullRoute);
         }
     };
 
@@ -149,13 +148,13 @@ public class RecoverySerializers
             long size = CommandSerializers.txnId.serializedSize(recoverOk.txnId, version);
             size += CommandSerializers.status.serializedSize(recoverOk.status, version);
             size += CommandSerializers.ballot.serializedSize(recoverOk.accepted, version);
-            size += serializedSizeNullable(recoverOk.executeAt, version, CommandSerializers.timestamp);
+            size += serializedNullableSize(recoverOk.executeAt, version, CommandSerializers.timestamp);
             size += DepsSerializer.partialDeps.serializedSize(recoverOk.deps, version);
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
             size += TypeSizes.sizeof(recoverOk.rejectsFastPath);
-            size += serializedSizeNullable(recoverOk.writes, version, CommandSerializers.writes);
-            size += serializedSizeNullable((TxnData) recoverOk.result, version, TxnData.serializer);
+            size += serializedNullableSize(recoverOk.writes, version, CommandSerializers.writes);
+            size += serializedNullableSize((TxnData) recoverOk.result, version, TxnData.serializer);
             return size;
         }
 

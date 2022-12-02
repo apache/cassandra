@@ -43,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -2836,6 +2835,16 @@ public class DatabaseDescriptor
     public static boolean paxoTopologyRepairStrictEachQuorum()
     {
         return conf.paxos_topology_repair_strict_each_quorum;
+    }
+
+    public static Config.LegacyPaxosStrategy getLegacyPaxosStrategy()
+    {
+        return conf.legacy_paxos_strategy;
+    }
+
+    public static void setLegacyPaxosStrategy(Config.LegacyPaxosStrategy strategy)
+    {
+        conf.legacy_paxos_strategy = strategy;
     }
 
     public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)

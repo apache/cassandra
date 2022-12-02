@@ -39,7 +39,7 @@ public class NullableSerializer
         return in.readBoolean() ? serializer.deserialize(in, version) : null;
     }
 
-    public static <T> long serializedSizeNullable(T value, int version, IVersionedSerializer<T> serializer)
+    public static <T> long serializedNullableSize(T value, int version, IVersionedSerializer<T> serializer)
     {
         return value != null
                 ? TypeSizes.sizeof(true) + serializer.serializedSize(value, version)
@@ -61,7 +61,7 @@ public class NullableSerializer
 
             public long serializedSize(T t, int version)
             {
-                return serializedSizeNullable(t, version, wrap);
+                return serializedNullableSize(t, version, wrap);
             }
         };
     }

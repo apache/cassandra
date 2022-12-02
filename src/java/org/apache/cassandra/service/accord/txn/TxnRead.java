@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import com.google.common.collect.ImmutableList;
+
 import accord.api.Data;
 import accord.api.DataStore;
 import accord.api.Key;
@@ -33,6 +35,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -49,6 +52,9 @@ import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 
 public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
 {
+    // There is only potentially one partition in a CAS and SERIAL/LOCAL_SERIAL read
+    public static final String DUMMY_NAME = "";
+    public static final TxnDataName DUMMY = TxnDataName.user(DUMMY_NAME);
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnRead(new TxnNamedRead[0], null));
 
     private final Keys txnKeys;
@@ -65,6 +71,12 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         this.txnKeys = txnKeys;
     }
 
+    public static TxnRead createRead(SinglePartitionReadCommand readCommand)
+    {
+        TxnNamedRead read = new TxnNamedRead(DUMMY, readCommand);
+        return new TxnRead(ImmutableList.of(read), Keys.of(read.key()));
+    }
+
     public long estimatedSizeOnHeap()
     {
         long size = EMPTY_SIZE;
@@ -76,7 +88,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     @Override
     int compareNonKeyFields(TxnNamedRead left, TxnNamedRead right)
     {
-        return left.name().compareTo(right.name());
+        return left.txnDataName().compareTo(right.txnDataName());
     }
 
     @Override
