@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
@@ -36,10 +35,18 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 public abstract class TxnQuery implements Query
 {
     public static final TxnQuery ALL = new TxnQuery()
     {
+        @Override
+        protected byte type()
+        {
+            return 1;
+        }
+
         @Override
         public Result compute(TxnId txnId, Data data, @Nullable Read read, @Nullable Update update)
         {
@@ -50,15 +57,48 @@ public abstract class TxnQuery implements Query
     public static final TxnQuery NONE = new TxnQuery()
     {
         @Override
+        protected byte type()
+        {
+            return 2;
+        }
+
+        @Override
         public Result compute(TxnId txnId, Data data, @Nullable Read read, @Nullable Update update)
         {
             return new TxnData();
         }
     };
 
+    public static final TxnQuery CONDITION = new TxnQuery()
+    {
+        @Override
+        protected byte type()
+        {
+            return 3;
+        }
+
+        @Override
+        public Result compute(TxnId txnId, Data data, @Nullable Read read, Update update)
+        {
+            checkNotNull(txnId, "txnId should not be null");
+            checkNotNull(data, "data should not be null");
+            checkNotNull(update, "update should not be null");
+            TxnUpdate txnUpdate = (TxnUpdate)update;
+            boolean conditionCheck = txnUpdate.checkCondition(data);
+            // If the condition applied an empty result indicates success
+            if (conditionCheck)
+                return new TxnData();
+            else
+                // If it failed to apply the partition contents (if present) are returned and it indicates failure
+                return (TxnData)data;
+        }
+    };
+
     private static final long SIZE = ObjectSizes.measure(ALL);
 
     private TxnQuery() {}
+
+    abstract protected byte type();
 
     public long estimatedSizeOnHeap()
     {
@@ -70,8 +110,8 @@ public abstract class TxnQuery implements Query
         @Override
         public void serialize(TxnQuery query, DataOutputPlus out, int version) throws IOException
         {
-            Preconditions.checkArgument(query == null || query == ALL || query == NONE);
-            out.writeByte(query == null ? 0 : query == ALL ? 1 : 2);
+            Preconditions.checkArgument(query == null || query == ALL || query == NONE || query == CONDITION);
+            out.writeByte(query == null ? 0 : query.type());
         }
 
         @Override
@@ -83,13 +123,14 @@ public abstract class TxnQuery implements Query
                 case 0: return null;
                 case 1: return ALL;
                 case 2: return NONE;
+                case 3: return CONDITION;
             }
         }
 
         @Override
         public long serializedSize(TxnQuery query, int version)
         {
-            Preconditions.checkArgument(query == null || query == ALL || query == NONE);
+            Preconditions.checkArgument(query == null || query == ALL || query == NONE || query == CONDITION);
             return TypeSizes.sizeof((byte)2);
         }
     };

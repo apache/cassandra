@@ -30,13 +30,11 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,9 +50,9 @@ import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.selection.ResultSetBuilder;
 import org.apache.cassandra.cql3.selection.Selection;
-import org.apache.cassandra.cql3.transactions.RowDataReference;
 import org.apache.cassandra.cql3.transactions.ConditionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
+import org.apache.cassandra.cql3.transactions.RowDataReference;
 import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
 import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -330,7 +328,7 @@ public class TransactionStatement implements CQLStatement
             if (returningSelect != null)
                 checkAtMostOneRowSpecified(state.getClientState(), options, returningSelect.select, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE);
 
-            TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options), options);
+            TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options), options.getConsistency());
 
             if (returningSelect != null)
             {

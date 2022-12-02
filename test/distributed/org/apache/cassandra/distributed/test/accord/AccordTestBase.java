@@ -25,15 +25,6 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import accord.primitives.Txn;
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
-import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import net.bytebuddy.implementation.bind.annotation.This;
-import org.apache.cassandra.cql3.transactions.ReferenceValue;
-import org.apache.cassandra.distributed.api.QueryResults;
-import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -41,20 +32,30 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.coordinate.Preempted;
+import accord.primitives.Txn;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import net.bytebuddy.implementation.bind.annotation.This;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
+import org.apache.cassandra.cql3.transactions.ReferenceValue;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
-import org.assertj.core.util.Arrays;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.junit.Assert.assertArrayEquals;
 
 public abstract class AccordTestBase extends TestBaseImpl
@@ -85,10 +86,10 @@ public abstract class AccordTestBase extends TestBaseImpl
         currentTable = KEYSPACE + ".tbl" + COUNTER.getAndIncrement();
     }
 
-    protected static void assertRow(Cluster cluster, String query, int k, int c, int v)
+    protected static void assertRowSerial(Cluster cluster, String query, int k, int c, int v, int s)
     {
-        Object[][] result = cluster.coordinator(1).execute(query, ConsistencyLevel.QUORUM);
-        assertArrayEquals(new Object[]{new Object[] {k, c, v}}, result);
+        Object[][] result = cluster.coordinator(1).execute(query, ConsistencyLevel.SERIAL);
+        assertArrayEquals(new Object[]{new Object[] {k, c, v, s}}, result);
     }
 
     protected void test(String tableDDL, FailingConsumer<Cluster> fn) throws Exception
@@ -120,14 +121,20 @@ public abstract class AccordTestBase extends TestBaseImpl
         test("CREATE TABLE " + currentTable + " (k int, c int, v int, primary key (k, c))", fn);
     }
 
+    protected int getAccordCoordinateCount()
+    {
+        return SHARED_CLUSTER.get(1).callOnInstance(() -> BBAccordCoordinateCountHelper.count.get());
+    }
+
     private static Cluster createCluster() throws IOException
     {
         // need to up the timeout else tests get flaky
         // disable vnode for now, but should enable before trunk
         return init(Cluster.build(2)
                            .withoutVNodes()
-                           .withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout", "10s").set("transaction_timeout", "15s"))
+                           .withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout", "10s").set("transaction_timeout", "15s").set("legacy_paxos_strategy", "accord"))
                            .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install)
+                           .withInstanceInitializer(BBAccordCoordinateCountHelper::install)
                            .start());
     }
 
@@ -242,6 +249,27 @@ public abstract class AccordTestBase extends TestBaseImpl
             return map;
         }
     }
-    
+
+    public static class BBAccordCoordinateCountHelper
+    {
+        static AtomicInteger count = new AtomicInteger();
+        static void install(ClassLoader cl, int nodeNumber)
+        {
+            if (nodeNumber != 1)
+                return;
+            new ByteBuddy().rebase(AccordService.class)
+                           .method(named("coordinate").and(takesArguments(2)))
+                           .intercept(MethodDelegation.to(BBAccordCoordinateCountHelper.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static TxnData coordinate(Txn txn, @SuperCall Callable<TxnData> actual) throws Exception
+        {
+            count.incrementAndGet();
+            return actual.call();
+        }
+    }
+
     protected abstract Logger logger();
 }

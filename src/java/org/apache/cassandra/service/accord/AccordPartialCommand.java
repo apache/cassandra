@@ -42,7 +42,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializeCollecti
 import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
 {
@@ -169,7 +169,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
         {
             int size = Math.toIntExact(AccordSerializerVersion.serializer.serializedSize(version));
             size += CommandSerializers.txnId.serializedSize();
-            size += serializedSizeNullable(command.executeAt(), version.msgVersion, CommandSerializers.timestamp);
+            size += serializedNullableSize(command.executeAt(), version.msgVersion, CommandSerializers.timestamp);
             size += CommandSerializers.status.serializedSize(command.status(), version.msgVersion);
             size += serializedCollectionSize(command.deps, version.msgVersion, CommandSerializers.txnId);
             return size;

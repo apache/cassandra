@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.concurrent.ExecutionException;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -34,11 +34,11 @@ import accord.local.Node;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.messages.Request;
 import accord.primitives.Txn;
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -116,7 +116,11 @@ public class AccordService implements Shutdownable
         return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
     }
 
-    public TxnData coordinate(Txn txn, QueryOptions options)
+    /**
+     * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
+     * with non-Accord operations.
+     */
+    public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
     {
         try
         {
@@ -128,7 +132,7 @@ public class AccordService implements Shutdownable
         {
             Throwable cause = e.getCause();
             if (cause instanceof Timeout)
-                throw throwTimeout(txn, options);
+                throw throwTimeout(txn, consistencyLevel);
             throw new RuntimeException(cause);
         }
         catch (InterruptedException e)
@@ -137,14 +141,14 @@ public class AccordService implements Shutdownable
         }
         catch (TimeoutException e)
         {
-            throw throwTimeout(txn, options);
+            throw throwTimeout(txn, consistencyLevel);
         }
     }
 
-    private static RuntimeException throwTimeout(Txn txn, QueryOptions options)
+    private static RuntimeException throwTimeout(Txn txn, ConsistencyLevel consistencyLevel)
     {
-        throw txn.isWrite() ? new WriteTimeoutException(WriteType.TRANSACTION, options.getConsistency(), 0, 0)
-                            : new ReadTimeoutException(options.getConsistency(), 0, 0, false);
+        throw txn.isWrite() ? new WriteTimeoutException(WriteType.TRANSACTION, consistencyLevel, 0, 0)
+                            : new ReadTimeoutException(consistencyLevel, 0, 0, false);
     }
 
     @VisibleForTesting
