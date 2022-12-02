@@ -51,10 +51,10 @@ import static java.lang.Math.toIntExact;
 import static org.apache.cassandra.service.accord.AccordSerializers.serialize;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
+import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
-import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 
 public class TxnUpdate implements Update
 {
@@ -63,6 +63,9 @@ public class TxnUpdate implements Update
     private final Keys keys;
     private final ByteBuffer[] fragments;
     private final ByteBuffer condition;
+
+    // Memoize computation of condition
+    private Boolean conditionResult;
 
     public TxnUpdate(List<TxnWrite.Fragment> fragments, TxnCondition condition)
     {
@@ -169,9 +172,7 @@ public class TxnUpdate implements Update
     @Override
     public Write apply(Data data)
     {
-        TxnCondition condition = AccordSerializers.deserialize(this.condition, TxnCondition.serializer);
-
-        if (!condition.applies((TxnData) data))
+        if (!checkCondition(data))
             return TxnWrite.EMPTY;
 
         List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
@@ -192,7 +193,7 @@ public class TxnUpdate implements Update
         {
             KeySerializers.keys.serialize(update.keys, out, version);
             writeWithVIntLength(update.condition, out);
-            serializeArray(update.fragments, out, version, ByteBufferUtil.vintSerializer);
+            serializeArray(update.fragments, out, version, ByteBufferUtil.byteBufferSerializer);
         }
 
         @Override
@@ -200,7 +201,7 @@ public class TxnUpdate implements Update
         {
             Keys keys = KeySerializers.keys.deserialize(in, version);
             ByteBuffer condition = readWithVIntLength(in);
-            ByteBuffer[] fragments = deserializeArray(in, version, ByteBufferUtil.vintSerializer, ByteBuffer[]::new);
+            ByteBuffer[] fragments = deserializeArray(in, version, ByteBufferUtil.byteBufferSerializer, ByteBuffer[]::new);
             return new TxnUpdate(keys, fragments, condition);
         }
 
@@ -209,7 +210,8 @@ public class TxnUpdate implements Update
         {
             long size = KeySerializers.keys.serializedSize(update.keys, version);
             size += serializedSizeWithVIntLength(update.condition);
-            size += serializedArraySize(update.fragments, version, ByteBufferUtil.vintSerializer);
+            size += serializedArraySize(update.fragments, version, ByteBufferUtil.byteBufferSerializer);
+            assert(ByteBufferUtil.serialized(this, update, version).remaining() == size);
             return size;
         }
     };
@@ -287,5 +289,16 @@ public class TxnUpdate implements Update
         for (ByteBuffer bytes : buffers)
             result.addAll(deserialize(bytes, serializer));
         return result;
+    }
+
+    // maybeCheckCondition? checkConditionMemoized?
+    public boolean checkCondition(Data data)
+    {
+        // Assert data that was memoized is same as data that is provided?
+        if (conditionResult != null)
+            return conditionResult;
+        TxnCondition condition = AccordSerializers.deserialize(this.condition, TxnCondition.serializer);
+        conditionResult = condition.applies((TxnData) data);
+        return conditionResult;
     }
 }

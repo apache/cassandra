@@ -20,10 +20,13 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -32,6 +35,8 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
+import org.apache.cassandra.cql3.conditions.ColumnCondition.Bound;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -47,11 +52,17 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.primitives.Ints.checkedCast;
+import static org.apache.cassandra.service.accord.AccordSerializers.clusteringSerializer;
 import static org.apache.cassandra.service.accord.AccordSerializers.deserializeCqlCollectionAsTerm;
+import static org.apache.cassandra.service.accord.txn.TxnRead.SERIAL_READ;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
+import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
+import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedListSize;
+
 
 public abstract class TxnCondition
 {
@@ -74,9 +85,12 @@ public abstract class TxnCondition
         GREATER_THAN(">", Operator.GT),
         GREATER_THAN_OR_EQUAL(">=", Operator.GTE),
         LESS_THAN("<", Operator.LT),
-        LESS_THAN_OR_EQUAL("<=", Operator.LTE);
+        LESS_THAN_OR_EQUAL("<=", Operator.LTE),
+        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null);
 
+        @Nonnull
         private final String symbol;
+        @Nullable
         private final Operator operator;
 
         Kind(String symbol, Operator operator)
@@ -105,6 +119,8 @@ public abstract class TxnCondition
                     return BooleanGroup.serializer;
                 case NONE:
                     return None.serializer;
+                case COLUMN_CONDITIONS:
+                    return ColumnConditionsAdapter.serializer;
                 default:
                     throw new IllegalArgumentException("No serializer exists for kind " + this);
             }
@@ -301,6 +317,62 @@ public abstract class TxnCondition
         };
     }
 
+    public static class ColumnConditionsAdapter extends TxnCondition {
+        @Nonnull
+        public final Collection<Bound> bounds;
+
+        @Nonnull
+        public final Clustering<?> clustering;
+
+        public ColumnConditionsAdapter(Clustering<?> clustering, Collection<Bound> bounds)
+        {
+            super(Kind.COLUMN_CONDITIONS);
+            checkNotNull(bounds);
+            checkNotNull(clustering);
+            this.bounds = bounds;
+            this.clustering = clustering;
+        }
+
+        @Override
+        public boolean applies(@Nonnull TxnData data)
+        {
+            checkNotNull(data);
+            FilteredPartition partition = data.get(SERIAL_READ);
+            Row row = partition.getRow(clustering);
+            for (Bound bound : bounds)
+            {
+                if (!bound.appliesTo(row))
+                    return false;
+            }
+            return true;
+        }
+
+        private static final ConditionSerializer<ColumnConditionsAdapter> serializer = new ConditionSerializer<ColumnConditionsAdapter>()
+        {
+            @Override
+            public void serialize(ColumnConditionsAdapter condition, DataOutputPlus out, int version) throws IOException
+            {
+                clusteringSerializer.serialize(condition.clustering, out, version);
+                serializeCollection(condition.bounds, out, version, Bound.serializer);
+            }
+
+            @Override
+            public ColumnConditionsAdapter deserialize(DataInputPlus in, int version, Kind ignored) throws IOException
+            {
+                Clustering<?> clustering = clusteringSerializer.deserialize(in, version);
+                List<Bound> bounds = deserializeList(in, version, Bound.serializer);
+                return new ColumnConditionsAdapter(clustering, bounds);
+            }
+
+            @Override
+            public long serializedSize(ColumnConditionsAdapter condition, int version)
+            {
+                return clusteringSerializer.serializedSize(condition.clustering, version)
+                    + serializedCollectionSize(condition.bounds, version, Bound.serializer);
+            }
+        };
+    }
+
     public static class Value extends TxnCondition
     {
         private static final Set<Kind> KINDS = ImmutableSet.of(Kind.EQUAL, Kind.NOT_EQUAL,
@@ -380,7 +452,7 @@ public abstract class TxnCondition
                         return ColumnCondition.Bound.compareWithOperator(kind.operator, reference.getFieldSelectionType(), value, cell.buffer());
                     }
 
-                    return new ColumnCondition.MultiCellUdtBound(column, kind.operator, Collections.singletonList(value), version).appliesTo(row);
+                    return new ColumnCondition.MultiCellUdtBound(column, kind.operator, Collections.singletonList(value)).appliesTo(row);
                 }
 
                 throw new UnsupportedOperationException("Unsupported complex type: " + type);
