@@ -47,7 +47,7 @@ import org.apache.cassandra.service.accord.txn.TxnData;
 import static accord.messages.CheckStatus.SerializationSupport.createOk;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public class CheckStatusSerializers
 {
@@ -166,20 +166,20 @@ public class CheckStatusSerializers
             size += CommandSerializers.saveStatus.serializedSize(ok.saveStatus, version);
             size += CommandSerializers.ballot.serializedSize(ok.promised, version);
             size += CommandSerializers.ballot.serializedSize(ok.accepted, version);
-            size += serializedSizeNullable(ok.executeAt, version, CommandSerializers.timestamp);
+            size += serializedNullableSize(ok.executeAt, version, CommandSerializers.timestamp);
             size += TypeSizes.BOOL_SIZE;
             size += CommandSerializers.durability.serializedSize(ok.durability, version);
-            size += serializedSizeNullable(ok.homeKey, version, KeySerializers.routingKey);
-            size += serializedSizeNullable(ok.route, version, KeySerializers.route);
+            size += serializedNullableSize(ok.homeKey, version, KeySerializers.routingKey);
+            size += serializedNullableSize(ok.route, version, KeySerializers.route);
 
             if (!(reply instanceof CheckStatusOkFull))
                 return size;
 
             CheckStatusOkFull okFull = (CheckStatusOkFull) ok;
-            size += serializedSizeNullable(okFull.partialTxn, version, CommandSerializers.partialTxn);
-            size += serializedSizeNullable(okFull.committedDeps, version, DepsSerializer.partialDeps);
-            size += serializedSizeNullable(okFull.writes, version, CommandSerializers.writes);
-            size += serializedSizeNullable((TxnData) okFull.result, version, TxnData.serializer);
+            size += serializedNullableSize(okFull.partialTxn, version, CommandSerializers.partialTxn);
+            size += serializedNullableSize(okFull.committedDeps, version, DepsSerializer.partialDeps);
+            size += serializedNullableSize(okFull.writes, version, CommandSerializers.writes);
+            size += serializedNullableSize((TxnData) okFull.result, version, TxnData.serializer);
             return size;
         }
     };
