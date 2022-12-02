@@ -23,7 +23,9 @@ package org.apache.cassandra.utils;
  * afterward, and ensure the tests still pass.
  */
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -31,7 +33,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -44,14 +45,14 @@ import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.DateType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -359,6 +360,17 @@ public class ByteBufferUtil
         out.writeUnsignedVInt32(bytes.remaining());
         out.write(bytes);
     }
+    public static void writeWithVIntLengthAndNull(ByteBuffer bytes, DataOutputPlus out) throws IOException
+    {
+        if (bytes == null)
+        {
+            out.writeVInt(-1);
+            return;
+        }
+        
+        out.writeVInt(bytes.remaining());
+        out.write(bytes);
+    }
 
     public static void writeWithShortLength(ByteBuffer buffer, DataOutputPlus out) throws IOException
     {
@@ -387,12 +399,6 @@ public class ByteBufferUtil
             throw new IOException("Corrupt (negative) value length encountered");
 
         return ByteBufferUtil.read(in, length);
-    }
-
-    public static int serializedSizeWithLength(ByteBuffer buffer)
-    {
-        int size = buffer.remaining();
-        return TypeSizes.sizeof(size) + size;
     }
 
     public static int serializedSizeWithVIntLength(ByteBuffer buffer)
@@ -928,7 +934,20 @@ public class ByteBufferUtil
         return true;
     }
 
-    public static final IVersionedSerializer<ByteBuffer> vintSerializer = new IVersionedSerializer<ByteBuffer>()
+    public static <T> ByteBuffer serialized(IVersionedSerializer<T> serializer, T value, int version)
+    {
+        try (DataOutputBuffer dob = new DataOutputBuffer())
+        {
+            serializer.serialize(value, dob, version);
+            return dob.buffer();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static final IVersionedSerializer<ByteBuffer> byteBufferSerializer = new IVersionedSerializer<ByteBuffer>()
     {
         @Override
         public void serialize(ByteBuffer bytes, DataOutputPlus out, int version) throws IOException
@@ -948,4 +967,6 @@ public class ByteBufferUtil
             return serializedSizeWithVIntLength(bytes);
         }
     };
+
+    public static final IVersionedSerializer<ByteBuffer> nullableByteBufferSerializer = NullableSerializer.wrap(byteBufferSerializer);
 }

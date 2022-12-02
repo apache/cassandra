@@ -1080,6 +1080,8 @@ public class Config
 
     public volatile boolean client_request_size_metrics_enabled = true;
 
+    public LegacyPaxosStrategy legacy_paxos_strategy = LegacyPaxosStrategy.migration;
+
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
     public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");
@@ -1173,6 +1175,29 @@ public class Config
         disabled,
         warn,
         exception
+    }
+
+    /*
+     * How to pick a consensus protocol for CAS
+     * and serial read operations. Transaction statements
+     * will always run on Accord. Legacy in this context includes PaxosV2.
+     */
+    public enum LegacyPaxosStrategy
+    {
+        /*
+         * Allow both Accord and PaxosV1/V2 to run on the same cluster
+         * Some keys and ranges might be running on Accord if they
+         * have been migrated and the rest will run on Paxos until
+         * they are migrated.
+         */
+        migration,
+
+        /*
+         * Everything will be run on Accord. Useful for new deployments
+         * that don't want to accidentally start using legacy Paxos
+         * requiring migration to Accord.
+         */
+        accord
     }
 
     private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{
