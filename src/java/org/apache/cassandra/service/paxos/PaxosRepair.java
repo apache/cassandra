@@ -20,7 +20,12 @@ package org.apache.cassandra.service.paxos;
 
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -63,20 +68,30 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_REPAIR_REQ;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.service.paxos.Commit.*;
+import static org.apache.cassandra.service.paxos.Commit.Accepted;
+import static org.apache.cassandra.service.paxos.Commit.Committed;
+import static org.apache.cassandra.service.paxos.Commit.Proposal;
+import static org.apache.cassandra.service.paxos.Commit.isAfter;
+import static org.apache.cassandra.service.paxos.Commit.latest;
+import static org.apache.cassandra.service.paxos.Commit.timestampsClash;
 import static org.apache.cassandra.service.paxos.ContentionStrategy.Type.REPAIR;
 import static org.apache.cassandra.service.paxos.ContentionStrategy.waitUntilForContention;
-import static org.apache.cassandra.service.paxos.Paxos.*;
-import static org.apache.cassandra.service.paxos.PaxosPrepare.*;
+import static org.apache.cassandra.service.paxos.Paxos.Participants;
+import static org.apache.cassandra.service.paxos.Paxos.isInRangeAndShouldProcess;
+import static org.apache.cassandra.service.paxos.Paxos.staleBallotNewerThan;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.prepareWithBallot;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 /**
  * Facility to finish any in-progress paxos transaction, and ensure that a quorum of nodes agree on the most recent operation.
@@ -629,7 +644,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         public long serializedSize(Response response, int version)
         {
             return Ballot.sizeInBytes()
-                   + serializedSizeNullable(response.acceptedButNotCommitted, version, Accepted.serializer)
+                   + serializedNullableSize(response.acceptedButNotCommitted, version, Accepted.serializer)
                    + Committed.serializer.serializedSize(response.committed, version);
         }
     }

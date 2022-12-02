@@ -46,7 +46,7 @@ import static org.apache.cassandra.service.paxos.PaxosRequestCallback.shouldExec
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 /**
  * Nodes that have promised in response to our prepare, may be missing the latestCommit, meaning we cannot be sure the
@@ -237,7 +237,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
 
         public long serializedSize(Response response, int version)
         {
-            return serializedSizeNullable(response.isSupersededBy, version, Ballot.Serializer.instance);
+            return serializedNullableSize(response.isSupersededBy, version, Ballot.Serializer.instance);
         }
     }
 

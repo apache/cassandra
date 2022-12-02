@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.service;
 
+import accord.primitives.Txn;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.paxos.Ballot;
 
 /**
@@ -31,17 +34,21 @@ public interface CASRequest
     /**
      * The command to use to fetch the value to compare for the CAS.
      */
-    public SinglePartitionReadCommand readCommand(int nowInSec);
+    SinglePartitionReadCommand readCommand(int nowInSec);
 
     /**
      * Returns whether the provided CF, that represents the values fetched using the
      * readFilter(), match the CAS conditions this object stands for.
      */
-    public boolean appliesTo(FilteredPartition current) throws InvalidRequestException;
+    boolean appliesTo(FilteredPartition current) throws InvalidRequestException;
 
     /**
      * The updates to perform of a CAS success. The values fetched using the readFilter()
      * are passed as argument.
      */
-    public PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
+    PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
+
+    Txn toAccordTxn(ClientState clientState, int nowInSecs);
+
+    RowIterator toCasResult(TxnData data);
 }
