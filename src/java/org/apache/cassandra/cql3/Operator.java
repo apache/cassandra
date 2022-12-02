@@ -24,10 +24,17 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.primitives.Ints.checkedCast;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public enum Operator
 {
@@ -260,6 +267,25 @@ public enum Operator
         }
     };
 
+    private static final Operator[] idToOperatorMapping;
+
+    static
+    {
+        Operator[] operators = values();
+        int maxId = Stream.of(operators)
+                .map(Operator::getValue)
+                .max(Integer::compareTo)
+                .get();
+
+        idToOperatorMapping = new Operator[maxId + 1];
+        for (Operator operator : operators)
+        {
+            if (null != idToOperatorMapping[operator.b])
+                throw new IllegalStateException("Duplicate Operator id " + operator.b);
+            idToOperatorMapping[operator.b] = operator;
+        }
+    }
+
     /**
      * The binary representation of this <code>Enum</code> value.
      */
@@ -285,6 +311,17 @@ public enum Operator
         output.writeInt(b);
     }
 
+    /**
+     * Write the serialized version of this <code>Operator</code> to the specified output.
+     *
+     * @param output the output to write to
+     * @throws IOException if an I/O problem occurs while writing to the specified output
+     */
+    public void writeToUnsignedVInt(DataOutputPlus output) throws IOException
+    {
+        output.writeUnsignedVInt(b);
+    }
+
     public int getValue()
     {
         return b;
@@ -299,12 +336,27 @@ public enum Operator
      */
     public static Operator readFrom(DataInput input) throws IOException
     {
-          int b = input.readInt();
-          for (Operator operator : values())
-              if (operator.b == b)
-                  return operator;
+        return fromBinary(input.readInt());
+    }
 
-          throw new IOException(String.format("Cannot resolve Relation.Type from binary representation: %s", b));
+    /**
+     * Deserializes a <code>Operator</code> instance from the specified input.
+     *
+     * @param input the input to read from
+     * @return the <code>Operator</code> instance deserialized
+     * @throws IOException if a problem occurs while deserializing the <code>Type</code> instance.
+     */
+    public static Operator readFromUnsignedVInt(DataInputPlus input) throws IOException
+    {
+        return fromBinary(checkedCast(input.readUnsignedVInt()));
+    }
+
+    private static Operator fromBinary(int b) throws IOException
+    {
+        checkArgument(b > -1, "b must be > -1 to be a valid Operator id");
+        if (b > idToOperatorMapping.length)
+            throw new IOException(String.format("Cannot resolve Operator from binary representation: %s", b));
+        return idToOperatorMapping[b];
     }
 
     /**
@@ -357,5 +409,10 @@ public enum Operator
     public boolean isContainsKey()
     {
         return this == CONTAINS_KEY;
+    }
+
+    public long sizeAsUnsignedVInt()
+    {
+        return sizeofUnsignedVInt(b);
     }
 }

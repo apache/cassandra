@@ -57,6 +57,11 @@ public class TxnReference
         this.path = path;
     }
 
+    public TxnReference(TxnDataName tuple, ColumnMetadata column)
+    {
+        this(tuple, column, null);
+    }
+
     @Override
     public boolean equals(Object o)
     {

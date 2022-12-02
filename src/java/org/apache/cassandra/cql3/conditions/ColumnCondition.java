@@ -17,24 +17,74 @@
  */
 package org.apache.cassandra.cql3.conditions;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.function.Supplier;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.google.common.base.Suppliers;
 import com.google.common.collect.Iterators;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.AbstractMarker;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.Sets;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.Term.Terminal;
+import org.apache.cassandra.cql3.Terms;
+import org.apache.cassandra.cql3.UserTypes;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
-import static org.apache.cassandra.cql3.statements.RequestValidations.*;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.primitives.Ints.checkedCast;
+import static java.util.stream.Collectors.toList;
+import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
+import static org.apache.cassandra.service.accord.AccordSerializers.columnMetadataSerializer;
+import static org.apache.cassandra.service.accord.AccordSerializers.deserializeCqlCollectionAsTerm;
+import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
+import static org.apache.cassandra.utils.ByteBufferUtil.byteBufferSerializer;
+import static org.apache.cassandra.utils.ByteBufferUtil.nullableByteBufferSerializer;
+import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
+import static org.apache.cassandra.utils.CollectionSerializers.readCollectionSize;
+import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
+import static org.apache.cassandra.utils.CollectionSerializers.serializedListSize;
 
 /**
  * A CQL3 condition on the value of a column or collection element.  For example, "UPDATE .. IF a = 0".
@@ -73,7 +123,7 @@ public abstract class ColumnCondition
         terms.collectMarkerSpecification(boundNames);
     }
 
-    public abstract ColumnCondition.Bound bind(QueryOptions options);
+    public abstract Bound bind(QueryOptions options);
 
     protected final List<ByteBuffer> bindAndGetTerms(QueryOptions options)
     {
@@ -107,7 +157,7 @@ public abstract class ColumnCondition
         {
             T value = values.get(i);
             // The value can be ByteBuffer or Constants.Value so we need to check the 2 type of UNSET
-            if (value != ByteBufferUtil.UNSET_BYTE_BUFFER && value != Constants.UNSET_VALUE)
+            if (value != UNSET_BYTE_BUFFER && value != UNSET_VALUE)
                 filtered.add(value);
         }
         return filtered;
@@ -129,7 +179,7 @@ public abstract class ColumnCondition
                 return new MultiCellCollectionBound(column, operator, bindTerms(options));
 
             if (column.type.isUDT() && column.type.isMultiCell())
-                return new MultiCellUdtBound(column, operator, bindAndGetTerms(options), options.getProtocolVersion());
+                return new MultiCellUdtBound(column, operator, bindAndGetTerms(options));
 
             return new SimpleBound(column, operator, bindAndGetTerms(options));
         }
@@ -210,13 +260,57 @@ public abstract class ColumnCondition
         return new UDTFieldCondition(column, udtField, op, terms);
     }
 
+    enum BoundKind
+    {
+        ELEMENT_ACCESS(0, ElementAccessBound.serializer),
+        MULTI_CELL_COLLECTION(1, MultiCellCollectionBound.serializer),
+        MULTI_CELL_UDT(2, MultiCellUdtBound.serializer),
+        SIMPLE(3, SimpleBound.serializer),
+        UDT_FIELD_ACCESS(4, UDTFieldAccessBound.serializer);
+
+        final int id;
+
+        final BoundSerializer serializer;
+
+        BoundKind(int id, BoundSerializer serializer)
+        {
+            this.id = id;
+            this.serializer = serializer;
+        }
+
+        @SuppressWarnings("rawtypes")
+        static BoundSerializer serializer(int id)
+        {
+            switch(id)
+            {
+                case 0:
+                    return ElementAccessBound.serializer;
+                case 1:
+                    return MultiCellCollectionBound.serializer;
+                case 2:
+                    return MultiCellUdtBound.serializer;
+                case 3:
+                     return SimpleBound.serializer;
+                case 4:
+                    return UDTFieldAccessBound.serializer;
+                default:
+                    throw new AssertionError("Shouldn't have an enum with no serializer");
+            }
+        }
+    }
+
     public static abstract class Bound
     {
+        @Nonnull
         public final ColumnMetadata column;
+
+        @Nonnull
         public final Operator comparisonOperator;
 
         protected Bound(ColumnMetadata column, Operator operator)
         {
+            checkNotNull(column);
+            checkNotNull(operator);
             this.column = column;
             // If the operator is an IN we want to compare the value using an EQ.
             this.comparisonOperator = operator.isIN() ? Operator.EQ : operator;
@@ -235,7 +329,7 @@ public abstract class ColumnCondition
         /** Returns true if the operator is satisfied (i.e. "otherValue operator value == true"), false otherwise. */
         public static boolean compareWithOperator(Operator operator, AbstractType<?> type, ByteBuffer value, ByteBuffer otherValue)
         {
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            if (value == UNSET_BYTE_BUFFER)
                 throw invalidRequest("Invalid 'unset' value in condition");
 
             if (value == null)
@@ -257,6 +351,55 @@ public abstract class ColumnCondition
             }
             return operator.isSatisfiedBy(type, otherValue, value);
         }
+
+        void checkForUnsetValues(List<ByteBuffer> values)
+        {
+            for (ByteBuffer buffer : values)
+                if (buffer == UNSET_BYTE_BUFFER)
+                    throw invalidRequest("Invalid 'unset' value in condition");
+        }
+        protected abstract BoundKind kind();
+
+        public static final IVersionedSerializer<Bound> serializer = new IVersionedSerializer<Bound>()
+        {
+            @Override
+            @SuppressWarnings("unchecked")
+            public void serialize(Bound bound, DataOutputPlus out, int version) throws IOException
+            {
+                columnMetadataSerializer.serialize(bound.column, out, version);
+                bound.comparisonOperator.writeToUnsignedVInt(out);
+                BoundKind kind = bound.kind();
+                out.writeUnsignedVInt(kind.ordinal());
+                kind.serializer.serialize(bound, out, version);
+            }
+
+            @Override
+            public Bound deserialize(DataInputPlus in, int version) throws IOException
+            {
+                ColumnMetadata column = columnMetadataSerializer.deserialize(in, version);
+                Operator comparisonOperator = Operator.readFromUnsignedVInt(in);
+                int boundKind = checkedCast(in.readUnsignedVInt());
+                return BoundKind.serializer(boundKind).deserialize(in, version, column, comparisonOperator);
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public long serializedSize(Bound bound, int version)
+            {
+                BoundKind kind = bound.kind();
+                return columnMetadataSerializer.serializedSize(bound.column, version)
+                       + bound.comparisonOperator.sizeAsUnsignedVInt()
+                       + sizeofUnsignedVInt(kind.ordinal())
+                       + kind.serializer.serializedSize(bound, version);
+            }
+        };
+    }
+
+    private interface BoundSerializer<T extends Bound>
+    {
+        void serialize(T bound, DataOutputPlus out, int version) throws IOException;
+        Bound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator) throws IOException;
+        long serializedSize(T condition, int version);
     }
 
     protected static final Cell<?> getCell(Row row, ColumnMetadata column)
@@ -317,6 +460,7 @@ public abstract class ColumnCondition
         private SimpleBound(ColumnMetadata column, Operator operator, List<ByteBuffer> values)
         {
             super(column, operator);
+            checkForUnsetValues(values);
             this.values = values;
         }
 
@@ -341,6 +485,34 @@ public abstract class ColumnCondition
             }
             return false;
         }
+
+        @Override
+        protected BoundKind kind()
+        {
+            return BoundKind.SIMPLE;
+        }
+
+        private static final BoundSerializer<SimpleBound> serializer = new BoundSerializer<SimpleBound>()
+        {
+            @Override
+            public void serialize(SimpleBound bound, DataOutputPlus out, int version) throws IOException
+            {
+                serializeList(bound.values, out, version, nullableByteBufferSerializer);
+            }
+
+            @Override
+            public SimpleBound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator) throws IOException
+            {
+                List<ByteBuffer> values = deserializeList(in, version, nullableByteBufferSerializer);
+                return new SimpleBound(column, operator, values);
+            }
+
+            @Override
+            public long serializedSize(SimpleBound bound, int version)
+            {
+                return serializedListSize(bound.values, version, nullableByteBufferSerializer);
+            }
+        };
     }
 
     /**
@@ -351,11 +523,13 @@ public abstract class ColumnCondition
         /**
          * The collection element
          */
+        @Nonnull
         private final ByteBuffer collectionElement;
 
         /**
          * The conditions values.
          */
+        @Nonnull
         private final List<ByteBuffer> values;
 
         public ElementAccessBound(ColumnMetadata column,
@@ -364,6 +538,11 @@ public abstract class ColumnCondition
                                    List<ByteBuffer> values)
         {
             super(column, operator);
+            checkForUnsetValues(values);
+
+            if (collectionElement == null)
+                throw invalidRequest("Invalid null value for %s element access",
+                                     column.type instanceof MapType ? "map" : "list");
 
             this.collectionElement = collectionElement;
             this.values = values;
@@ -373,9 +552,6 @@ public abstract class ColumnCondition
         public boolean appliesTo(Row row)
         {
             boolean isMap = column.type instanceof MapType;
-
-            if (collectionElement == null)
-                throw invalidRequest("Invalid null value for %s element access", isMap ? "map" : "list");
 
             if (isMap)
             {
@@ -445,6 +621,36 @@ public abstract class ColumnCondition
             checkFalse(idx < 0, "Invalid negative list index %d", idx);
             return idx;
         }
+
+        @Override
+        protected BoundKind kind()
+        {
+            return BoundKind.ELEMENT_ACCESS;
+        }
+
+        private static final BoundSerializer<ElementAccessBound> serializer = new BoundSerializer<ElementAccessBound>()
+        {
+            @Override
+            public void serialize(ElementAccessBound bound, DataOutputPlus out, int version) throws IOException
+            {
+                byteBufferSerializer.serialize(bound.collectionElement, out, version);
+                serializeList(bound.values, out, version, nullableByteBufferSerializer);
+            }
+
+            @Override
+            public ElementAccessBound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator) throws IOException
+            {
+                ByteBuffer collectionElement = byteBufferSerializer.deserialize(in, version);
+                List<ByteBuffer> values = deserializeList(in, version, nullableByteBufferSerializer);
+                return new ElementAccessBound(column, collectionElement, operator, values);
+            }
+
+            @Override
+            public long serializedSize(ElementAccessBound bound , int version)
+            {
+                return byteBufferSerializer.serializedSize(bound.collectionElement, version) + serializedListSize(bound.values, version, nullableByteBufferSerializer);
+            }
+        };
     }
 
     /**
@@ -452,13 +658,34 @@ public abstract class ColumnCondition
      */
     public static final class MultiCellCollectionBound extends Bound
     {
-        private final List<Term.Terminal> values;
+        @Nonnull
+        private final List<Terminal> values;
 
-        public MultiCellCollectionBound(ColumnMetadata column, Operator operator, List<Term.Terminal> values)
+        /**
+         * Avoid recomputing the serialized terminals for serialize and serializedSize
+         */
+        @Nullable
+        private Supplier<List<ByteBuffer>> serializedValues;
+
+        public MultiCellCollectionBound(ColumnMetadata column, Operator operator, List<Terminal> values)
         {
             super(column, operator);
+            checkNotNull(values);
             assert column.type.isMultiCell();
             this.values = values;
+        }
+
+        public Supplier<List<ByteBuffer>> serializedValues()
+        {
+            if (serializedValues != null)
+                return serializedValues;
+
+            serializedValues = Suppliers.memoize(() ->
+                                                 values.stream()
+                                                       .map(v -> v == null ? null : v.get(ProtocolVersion.CURRENT))
+                                                       .collect(toList()));
+
+            return serializedValues;
         }
 
         public boolean appliesTo(Row row)
@@ -466,12 +693,12 @@ public abstract class ColumnCondition
             return appliesTo(column, comparisonOperator, values, row);
         }
 
-        public static boolean appliesTo(ColumnMetadata column, Operator operator, List<Term.Terminal> values, Row row)
+        public static boolean appliesTo(ColumnMetadata column, Operator operator, List<Terminal> values, Row row)
         {
             CollectionType<?> type = (CollectionType<?>) column.type;
 
             // copy iterator contents so that we can properly reuse them for each comparison with an IN value
-            for (Term.Terminal value : values)
+            for (Terminal value : values)
             {
                 Iterator<Cell<?>> iter = getCells(row, column);
                 if (value == null)
@@ -495,7 +722,7 @@ public abstract class ColumnCondition
             return false;
         }
 
-        private static boolean valueAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, Term.Terminal value, Operator operator)
+        private static boolean valueAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, Terminal value, Operator operator)
         {
             if (value == null)
                 return !iter.hasNext();
@@ -507,10 +734,10 @@ public abstract class ColumnCondition
             {
                 case LIST:
                     List<ByteBuffer> valueList = ((Lists.Value) value).elements;
-                    return listAppliesTo((ListType<?>)type, iter, valueList, operator);
+                    return setOrListAppliesTo(((ListType<?>)type).getElementsType(), iter, valueList.iterator(), operator, false);
                 case SET:
-                    Set<ByteBuffer> valueSet = ((Sets.Value) value).elements;
-                    return setAppliesTo((SetType<?>)type, iter, valueSet, operator);
+                    SortedSet<ByteBuffer> valueSet = ((Sets.Value) value).elements;
+                    return setOrListAppliesTo(((SetType<?>)type).getElementsType(), iter, valueSet.iterator(), operator, true);
                 case MAP:
                     Map<ByteBuffer, ByteBuffer> valueMap = ((Maps.Value) value).map;
                     return mapAppliesTo((MapType<?, ?>)type, iter, valueMap, operator);
@@ -527,7 +754,10 @@ public abstract class ColumnCondition
 
                 // for lists we use the cell value; for sets we use the cell name
                 ByteBuffer cellValue = isSet ? iter.next().path().get(0) : iter.next().buffer();
-                int comparison = type.compare(cellValue, conditionIter.next());
+                ByteBuffer conditionValue = conditionIter.next();
+                if (conditionValue == null)
+                    conditionValue = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                int comparison = type.compare(cellValue, conditionValue);
                 if (comparison != 0)
                     return evaluateComparisonWithOperator(comparison, operator);
             }
@@ -537,18 +767,6 @@ public abstract class ColumnCondition
 
             // they're equal
             return operator == Operator.EQ || operator == Operator.LTE || operator == Operator.GTE;
-        }
-
-        private static boolean listAppliesTo(ListType<?> type, Iterator<Cell<?>> iter, List<ByteBuffer> elements, Operator operator)
-        {
-            return setOrListAppliesTo(type.getElementsType(), iter, elements.iterator(), operator, false);
-        }
-
-        private static boolean setAppliesTo(SetType<?> type, Iterator<Cell<?>> iter, Set<ByteBuffer> elements, Operator operator)
-        {
-            ArrayList<ByteBuffer> sortedElements = new ArrayList<>(elements);
-            Collections.sort(sortedElements, type.getElementsType());
-            return setOrListAppliesTo(type.getElementsType(), iter, sortedElements.iterator(), operator, true);
         }
 
         private static boolean mapAppliesTo(MapType<?, ?> type, Iterator<Cell<?>> iter, Map<ByteBuffer, ByteBuffer> elements, Operator operator)
@@ -562,13 +780,17 @@ public abstract class ColumnCondition
                 Map.Entry<ByteBuffer, ByteBuffer> conditionEntry = conditionIter.next();
                 Cell<?> c = iter.next();
 
+                ByteBuffer conditionEntryKey = conditionEntry.getKey();
+
                 // compare the keys
-                int comparison = type.getKeysType().compare(c.path().get(0), conditionEntry.getKey());
+                int comparison = type.getKeysType().compare(c.path().get(0), conditionEntryKey);
                 if (comparison != 0)
                     return evaluateComparisonWithOperator(comparison, operator);
 
+                ByteBuffer conditionEntryValue = conditionEntry.getValue();
+
                 // compare the values
-                comparison = type.getValuesType().compare(c.buffer(), conditionEntry.getValue());
+                comparison = type.getValuesType().compare(c.buffer(), conditionEntryValue);
                 if (comparison != 0)
                     return evaluateComparisonWithOperator(comparison, operator);
             }
@@ -579,6 +801,45 @@ public abstract class ColumnCondition
             // they're equal
             return operator == Operator.EQ || operator == Operator.LTE || operator == Operator.GTE;
         }
+
+        @Override
+        protected BoundKind kind()
+        {
+            return BoundKind.MULTI_CELL_COLLECTION;
+        }
+
+        private static final BoundSerializer<MultiCellCollectionBound> serializer = new BoundSerializer<MultiCellCollectionBound>()
+        {
+            @Override
+            public void serialize(MultiCellCollectionBound bound, DataOutputPlus out, int version) throws IOException
+            {
+                serializeList(bound.serializedValues().get(), out, version, nullableByteBufferSerializer);
+            }
+
+            @Override
+            public MultiCellCollectionBound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator) throws IOException
+            {
+                int numTerminals = readCollectionSize(in, version);
+                List<Terminal> terminals = new ArrayList<>(numTerminals);
+                if (operator.isContains() || operator.isContainsKey())
+                {
+                    for (int i = 0; i < numTerminals; i++)
+                        terminals.add(new Constants.Value(nullableByteBufferSerializer.deserialize(in, version)));
+                }
+                else
+                {
+                    for (int i = 0; i < numTerminals; i++)
+                        terminals.add(deserializeCqlCollectionAsTerm(nullableByteBufferSerializer.deserialize(in, version), column.type, ProtocolVersion.CURRENT));
+                }
+                return new MultiCellCollectionBound(column, operator, terminals);
+            }
+
+            @Override
+            public long serializedSize(MultiCellCollectionBound bound, int version)
+            {
+                return serializedListSize(bound.serializedValues().get(), version, nullableByteBufferSerializer);
+            }
+        };
     }
 
     private static boolean containsAppliesTo(CollectionType<?> type, Iterator<Cell<?>> iter, ByteBuffer value, Operator operator)
@@ -622,17 +883,22 @@ public abstract class ColumnCondition
         /**
          * The UDT field.
          */
+        @Nonnull
         private final FieldIdentifier field;
 
         /**
          * The conditions values.
          */
+        @Nonnull
         private final List<ByteBuffer> values;
 
         private UDTFieldAccessBound(ColumnMetadata column, FieldIdentifier field, Operator operator, List<ByteBuffer> values)
         {
             super(column, operator);
-            assert column.type.isUDT() && field != null;
+            checkNotNull(field);
+            checkNotNull(values);
+            checkForUnsetValues(values);
+            assert column.type.isUDT();
             this.field = field;
             this.values = values;
         }
@@ -677,6 +943,37 @@ public abstract class ColumnCondition
         {
             return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
         }
+
+        @Override
+        protected BoundKind kind()
+        {
+            return BoundKind.UDT_FIELD_ACCESS;
+        }
+
+        private static final BoundSerializer<UDTFieldAccessBound> serializer = new BoundSerializer<UDTFieldAccessBound>()
+        {
+            @Override
+            public void serialize(UDTFieldAccessBound bound, DataOutputPlus out, int version) throws IOException
+            {
+                nullableByteBufferSerializer.serialize(bound.field.bytes, out, version);
+                serializeList(bound.values, out, version, nullableByteBufferSerializer);
+            }
+
+            @Override
+            public UDTFieldAccessBound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator) throws IOException
+            {
+                FieldIdentifier field = new FieldIdentifier(nullableByteBufferSerializer.deserialize(in, version));
+                List<ByteBuffer> values = deserializeList(in, version, nullableByteBufferSerializer);
+                return new UDTFieldAccessBound(column, field, operator, values);
+            }
+
+            @Override
+            public long serializedSize(UDTFieldAccessBound bound, int version)
+            {
+
+                return nullableByteBufferSerializer.serializedSize(bound.field.bytes, version) + serializedListSize(bound.values, version, nullableByteBufferSerializer);
+            }
+        };
     }
 
     /**
@@ -687,19 +984,16 @@ public abstract class ColumnCondition
         /**
          * The conditions values.
          */
+        @Nonnull
         private final List<ByteBuffer> values;
 
-        /**
-         * The protocol version
-         */
-        private final ProtocolVersion protocolVersion;
-
-        public MultiCellUdtBound(ColumnMetadata column, Operator op, List<ByteBuffer> values, ProtocolVersion protocolVersion)
+        public MultiCellUdtBound(ColumnMetadata column, Operator op, List<ByteBuffer> values)
         {
             super(column, op);
+            checkNotNull(values);
+            checkForUnsetValues(values);
             assert column.type.isMultiCell();
             this.values = values;
-            this.protocolVersion = protocolVersion;
         }
 
         @Override
@@ -708,11 +1002,12 @@ public abstract class ColumnCondition
             return isSatisfiedBy(rowValue(row));
         }
 
-        private final ByteBuffer rowValue(Row row)
+        private ByteBuffer rowValue(Row row)
         {
             UserType userType = (UserType) column.type;
             Iterator<Cell<?>> iter = getCells(row, column);
-            return iter.hasNext() ? userType.serializeForNativeProtocol(iter, protocolVersion) : null;
+            // User type doesn't use the protocol version so passing in null
+            return iter.hasNext() ? userType.serializeForNativeProtocol(iter, null) : null;
         }
 
         private boolean isSatisfiedBy(ByteBuffer rowValue)
@@ -730,6 +1025,35 @@ public abstract class ColumnCondition
         {
             return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
         }
+
+        @Override
+        public BoundKind kind()
+        {
+            return BoundKind.MULTI_CELL_UDT;
+        }
+
+        private static final BoundSerializer<MultiCellUdtBound> serializer = new BoundSerializer<MultiCellUdtBound>()
+        {
+            @Override
+            public void serialize(MultiCellUdtBound bound, DataOutputPlus out, int version) throws IOException
+            {
+                serializeList(bound.values, out, version, nullableByteBufferSerializer);
+            }
+
+            @Override
+            public MultiCellUdtBound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator) throws IOException
+            {
+                List<ByteBuffer> values = deserializeList(in, version, nullableByteBufferSerializer);
+                // Does decode actually do what we want?
+                return new MultiCellUdtBound(column, operator, values);
+            }
+
+            @Override
+            public long serializedSize(MultiCellUdtBound bound, int version)
+            {
+                return serializedListSize(bound.values, version, nullableByteBufferSerializer);
+            }
+        };
     }
 
     public static class Raw
