@@ -215,23 +215,23 @@ public class MessagingService extends MessagingServiceMBeanImpl
     public static final int current_version = VERSION_40;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
-    static Map<Integer, Integer> versionIndexMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
+    static Map<Integer, Integer> versionOrdinalMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
 
     /**
      * This is an optimisation to speed up the translation of the serialization
-     * version to the {@link Version} enum.
+     * version to the {@link Version} enum ordinal.
      *
      * @param version the serialization version
-     * @return a {@link Version}
+     * @return a {@link Version} ordinal value
      */
-    public static int getVersionIndex(int version)
+    public static int getVersionOrdinal(int version)
     {
-        if (versionIndexMap.containsKey(version))
-            return versionIndexMap.get(version);
-        throw new IllegalStateException("Unkown serialization version: " + version);
-    }
+        Integer ordinal = versionOrdinalMap.get(version);
+        if (ordinal == null)
+            throw new IllegalStateException("Unkown serialization version: " + version);
 
-    public final static boolean NON_GRACEFUL_SHUTDOWN = Boolean.getBoolean("cassandra.test.messagingService.nonGracefulShutdown");
+        return ordinal;
+    }
 
     public enum Version
     {
