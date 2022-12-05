@@ -153,7 +153,7 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
     {
         if (!updateVisibility)
             return access;
-        // leave non-user created methods alone
+        // leave non-user created methods/fields/etc. alone
         if (contains(access, Opcodes.ACC_BRIDGE) || contains(access, Opcodes.ACC_SYNTHETIC))
             return access;
         if (contains(access, Opcodes.ACC_PRIVATE))
