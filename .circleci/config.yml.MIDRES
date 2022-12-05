@@ -10095,6 +10095,9 @@ workflows:
     - j11_jvm_dtests_vnode:
         requires:
         - j11_build
+    - j11_simulator_dtests:
+        requires:
+        - j11_build
     - j11_cqlshlib_tests:
         requires:
         - j11_build

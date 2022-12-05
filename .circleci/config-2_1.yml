@@ -1396,6 +1396,12 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_jvm_dtests_vnode_repeat:
         requires:
           - j11_build
+    - j11_simulator_dtests:
+        requires:
+          - j11_build
+    - j11_simulator_dtests_repeat:
+        requires:
+          - j11_build
     - j11_cqlshlib_tests:
         requires:
           - j11_build
